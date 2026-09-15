@@ -1,0 +1,22 @@
+{
+	admin off
+	auto_https off
+	persist_config off
+	frankenphp
+}
+
+http://:{$PORTABLE_PORT} {
+	bind {$PORTABLE_BIND}
+	root * web
+	encode gzip
+	@private path /sites/*/settings* /sites/*/services* /sites/*/site-templates.php /sites/*/files/php/* /sites/*/files/config_* /composer.* /package.json /yarn.lock
+	respond @private 404
+	@source path_regexp source (?i)(^|/)\.[^/]*(/|$)|\.(engine|inc|install|make|module|profile|po|sh|sql|sqlite|sqlite3|theme|twig|yml|yaml)(/|$)
+	respond @source 404
+	@phpForbidden {
+		path_regexp php (?i)\.php(/|$)
+		not path /index.php /core/install.php
+	}
+	respond @phpForbidden 404
+	php_server
+}
