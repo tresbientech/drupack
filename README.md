@@ -20,6 +20,15 @@ The host does not need a separate PHP installation or database server.
 The dependency lock pins Byte 1.0.3 and Canvas 1.10.1.
 Canvas 1.11 has an upstream [site-template installation regression](https://git.drupalcode.org/project/canvas/-/work_items/3592052).
 
+The build excludes audited development files from dependencies and compresses the executable with UPX.
+Runtime PHP sources and required browser assets remain embedded.
+Compression reduces download size and increases runtime memory use.
+Build the uncompressed variant with:
+
+```sh
+docker build --target uncompressed --output type=local,dest=dist/uncompressed .
+```
+
 ## Start a site
 
 ```sh
@@ -122,7 +131,10 @@ Verified on 15 September 2026:
 - Explicit remote access with authentication and private-file protection.
 - Bundled component activation and a separately rebuilt artifact with Devel enabled.
 
-The current executable is approximately 450 MiB. Size reduction is scheduled as phase 7.
+## Executable size
+
+The executable is 108.7 MB (103.6 MiB), 76.9% smaller than the original build.
+The [Phase 7 measurements](docs/plans/portable-drupal.md#size-and-runtime-measurements) record component sizes and runtime costs.
 
 The [PRD](docs/prd/portable-drupal.md) defines the release scope.
 The [implementation plan](docs/plans/portable-drupal.md) lists phase acceptance criteria.

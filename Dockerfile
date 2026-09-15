@@ -15,5 +15,16 @@ COPY packaging/embed.sh /usr/local/bin/embed.sh
 COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/portable.go
 RUN bash /usr/local/bin/embed.sh
 
-FROM scratch AS artifact
+FROM scratch AS uncompressed
 COPY --from=build /out/portable-drupal /portable-drupal
+
+FROM build AS compressed
+ARG UPX_VERSION=5.2.1
+RUN curl -fsSL "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/upx-${UPX_VERSION}-amd64_linux.tar.xz" -o /tmp/upx.tar.xz \
+    && echo '402162aad30af47e60dbd767fb2e64ca394ace9727ba1f40283641f1d1b91657  /tmp/upx.tar.xz' | sha256sum -c - \
+    && tar -xJf /tmp/upx.tar.xz -C /tmp \
+    && /tmp/upx-${UPX_VERSION}-amd64_linux/upx -9 /out/portable-drupal \
+    && /tmp/upx-${UPX_VERSION}-amd64_linux/upx -t /out/portable-drupal
+
+FROM scratch AS artifact
+COPY --from=compressed /out/portable-drupal /portable-drupal

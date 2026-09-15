@@ -36,7 +36,7 @@ Phases 1–6 passed their acceptance checks on 15 September 2026.
 The full offline browser suite covers English and French installation.
 It also verifies content translation and Arabic editing.
 Separate checks cover remote authentication and a rebuilt artifact with an additional module.
-Phase 7 remains a follow-up.
+Phase 7 passed its acceptance checks with development-file exclusions and executable compression.
 
 ## Phase 1: Install Byte offline in English
 
@@ -175,14 +175,111 @@ Keep only changes that pass the acceptance suite.
 
 ### Acceptance criteria
 
-- [ ] Record baseline executable size, extracted application size, startup time, and memory use under a stated workload.
-- [ ] Measure each candidate separately so its savings and costs are attributable.
-- [ ] Audit required PHP extensions before removing any from the runtime.
-- [ ] The selected executable is smaller than the baseline; report the byte and percentage reduction.
-- [ ] The GNU Linux target and host runtime requirements remain unchanged.
-- [ ] Offline Byte installation and all six interface languages remain available through Drupal's standard workflows.
-- [ ] Content translation, uploads, persistence, and access-control checks pass with the smaller executable.
-- [ ] Document the selected build options and measured startup or memory tradeoffs.
+- [x] Record baseline executable size, extracted application size, startup time, and memory use under a stated workload.
+- [x] Measure each candidate separately so its savings and costs are attributable.
+- [x] Audit required PHP extensions before removing any from the runtime.
+- [x] The selected executable is smaller than the baseline; report the byte and percentage reduction.
+- [x] The GNU Linux target and host runtime requirements remain unchanged.
+- [x] Offline Byte installation and all six interface languages remain available through Drupal's standard workflows.
+- [x] Content translation, uploads, persistence, and access-control checks pass with the smaller executable.
+- [x] Document the selected build options and measured startup or memory tradeoffs.
+
+### Selected build
+
+The build retains Composer's `--no-dev --prefer-dist` installation and the pinned GNU runtime.
+It excludes audited development files from the embedded archive:
+
+- Dependency test directories and CI metadata.
+- JavaScript source maps and compiled CSS inputs.
+- Audited frontend development sources and test videos.
+- Node dependency lockfiles and development setup scripts.
+
+Runtime PHP and compiled browser assets remain available.
+The archive retains the hyperscriptify MIT notice with executable directory permissions for non-root extraction.
+UPX 5.2.1 compresses the executable at level 9; its download is checksum-pinned and the build verifies compressed integrity.
+The `uncompressed` Docker target exports the same application without UPX.
+
+### Size and runtime measurements
+
+The final executable saves 362,799,088 bytes, a 76.95% reduction.
+
+| Candidate | Executable bytes | First installer response, seconds | Process RSS, MiB |
+| --- | ---: | ---: | ---: |
+| Original | 471,482,520 | 3.823 | 420.0 |
+| Original with UPX level 1 | 196,142,608 | 6.620 | 584.5 |
+| Original with UPX level 9 | 141,509,048 | 5.146 | 584.8 |
+| Trimmed, uncompressed | 362,057,880 | 2.254 | 342.5 |
+| Trimmed with UPX level 1 | 153,203,620 | 5.348 | 477.1 |
+| Trimmed with UPX level 9 | 108,683,432 | 3.968 | 475.6 |
+
+#### Measurement method
+
+Measurements are medians of three fresh-site runs in the existing Selenium Chromium container, with networking disabled.
+Each run requests `/core/install.php` until HTTP 200, then requests that page ten more times.
+RSS comes from the server's `/proc/PID/status` after those requests.
+Host filesystem caches were not cleared; other build and test workloads ran concurrently.
+These measurements describe the installer workload, not production throughput or peak memory across re-execution.
+The selected build used about 56 MiB more RSS than the original under this workload.
+Its compression step took 188 seconds; level 1 took about two seconds.
+
+### Component sizes and runtime scope
+
+| Component | Original bytes | Trimmed bytes |
+| --- | ---: | ---: |
+| Extracted regular application files | 262,708,861 | 170,389,206 |
+| Embedded application tar | 303,011,840 | 193,587,200 |
+| Runtime and executable overhead, excluding tar | 168,470,680 | 168,470,680 |
+
+The builder's separate runtime executable is 166,501,000 bytes.
+Static library inspection identified image codecs and additional database backends as candidates for a later custom runtime build.
+Library archive sizes do not establish linked or compressed savings.
+This release removes no PHP extensions and preserves the tested GNU target.
+The audit retains SQLite support and `pcntl` for startup.
+It also retains GD for images and internationalization support for the agreed language workflows.
+
+#### Application breakdown
+
+These categories contain mutually exclusive regular files, before executable compression.
+
+| Application component | Bytes |
+| --- | ---: |
+| Drupal core | 43,527,583 |
+| Canvas compiled browser UI | 34,892,324 |
+| Remaining Canvas files | 7,069,221 |
+| Other contributed modules | 34,980,224 |
+| PHP vendor dependencies | 15,522,269 |
+| Browser libraries | 10,284,784 |
+| Byte recipes and initial content | 9,948,164 |
+| Translation resources | 7,020,282 |
+| Themes | 5,311,955 |
+| Other web and root files | 1,832,400 |
+
+Canvas's two largest WASM files total 29,720,902 bytes and remain part of its editing interface.
+The tar adds 23,197,994 bytes of headers and padding before compression.
+Individual component savings cannot be inferred from the final executable's overall compression ratio.
+
+### Existing-site compatibility
+
+Drupal caches absolute application paths.
+The extraction-directory identifier comes from the full application inputs before development-file exclusions.
+Compression and trimming therefore retain the original directory identifier when application inputs are unchanged.
+A copied baseline site passed authentication and existing-content checks without clearing its caches.
+The test preserved its original absolute data-directory path.
+This establishes compatibility for this packaging change; application-version upgrades remain outside scope.
+
+### Final verification
+
+The final compressed artifact passed the complete offline browser suite in 179.426 seconds.
+Permanent assertions verify development-file exclusions and retained runtime assets, including readable license notices and all 296 translation files.
+The installed-site network suite passed on the Debian 12 baseline.
+The separate existing-site check passed with unchanged caches and the original data-directory path.
+The user's working data directory was not modified.
+
+Artifact SHA-256:
+
+```text
+761d8cc3024f24a03e75538daa50995c38c2cc1a10935d3dedbe4eefd8560708
+```
 
 ## Handling compatibility findings
 

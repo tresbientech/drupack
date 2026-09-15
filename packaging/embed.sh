@@ -2,9 +2,32 @@
 set -euo pipefail
 
 cd /go/src/app
-tar --mtime=@0 --owner=0 --group=0 --numeric-owner -cf app.tar -C /app .
-sha256sum app.tar | cut -d ' ' -f 1 | tr -d '\n' > app_checksum.txt
-
+archive_options=(--mtime=@0 --owner=0 --group=0 --numeric-owner)
+# Drupal's cached absolute paths use the full application input identity.
+tar "${archive_options[@]}" -cf - -C /app . \
+    | sha256sum | cut -d ' ' -f 1 | tr -d '\n' > app_checksum.txt
+tar "${archive_options[@]}" \
+    --exclude='tests' --exclude='Tests' \
+    --exclude='*.js.map' --exclude='*.css.map' --exclude='*.pcss.css' \
+    --exclude='package-lock.json' --exclude='yarn.lock' \
+    --exclude='pnpm-lock.yaml' --exclude='npm-shrinkwrap.json' \
+    --exclude='.github' --exclude='.gitlab' \
+    --exclude='./web/modules/contrib/canvas/ui/src' \
+    --exclude='./web/modules/contrib/canvas/ui/lib' \
+    --exclude='./web/modules/contrib/canvas/ui/assets/videos' \
+    --exclude='./web/modules/contrib/canvas/packages/cli/src' \
+    --exclude='./web/modules/contrib/canvas/packages/workbench/src' \
+    --exclude='./web/modules/contrib/canvas/packages/eslint-config/src' \
+    --exclude='./web/modules/contrib/modeler_api/ui/src' \
+    --exclude='./web/modules/contrib/project_browser/sveltejs/src' \
+    --exclude='./web/modules/contrib/project_browser/sveltejs/scripts' \
+    --exclude='./vendor/html2text/html2text/test' \
+    -cf app.tar -C /app .
+tar "${archive_options[@]}" --no-recursion -rf app.tar -C /app \
+    ./web/modules/contrib/canvas/ui/src \
+    ./web/modules/contrib/canvas/ui/src/local_packages \
+    ./web/modules/contrib/canvas/ui/src/local_packages/hyperscriptify \
+    ./web/modules/contrib/canvas/ui/src/local_packages/hyperscriptify/LICENSE
 php_config=/go/src/app/dist/static-php-cli/buildroot/bin/php-config
 frankenphp_version=1.12.7
 export CGO_ENABLED=1
