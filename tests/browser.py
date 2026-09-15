@@ -4,6 +4,7 @@
 import base64
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import signal
@@ -24,6 +25,7 @@ ORIGIN = "http://localhost:8080"
 PASSWORD = "Offline.test.administrator.2026!"
 ELEMENT = "element-6066-11e4-a52e-4f735466cecf"
 PHASE = int(os.environ.get("PORTABLE_TEST_PHASE", "6"))
+EXTRA = os.environ.get("PORTABLE_TEST_EXTRA", "")
 
 
 def http(url, method="GET", payload=None):
@@ -82,8 +84,13 @@ class Browser:
         element = self.elements(selector)[0][ELEMENT]
         self.command("POST", f"/element/{element}/click", {})
 
-    def submit(self):
-        self.click('input[type="submit"], button[type="submit"]')
+    def submit(self, selector='input[type="submit"], button[type="submit"]'):
+        invalid = self.script("const f=document.querySelector(arguments[0]).form; return f ? Array.from(f.querySelectorAll(':invalid')).map(e=>e.name) : [];", selector)
+        if invalid:
+            raise AssertionError(f"Invalid form fields: {invalid}")
+        self.script("window.portableTestNavigationPending=true")
+        self.click(selector)
+        wait_until(lambda: self.script("return !window.portableTestNavigationPending"), timeout=120)
 
     def select(self, selector, value):
         self.script("const e=document.querySelector(arguments[0]); e.value=arguments[1]; e.dispatchEvent(new Event('change',{bubbles:true}));", selector, value)
@@ -171,11 +178,13 @@ class OfflineSite(unittest.TestCase):
             if browser.elements('[name="site_name"]'):
                 browser.fill('[name="site_name"]', "Portable Byte Test")
                 browser.submit()
+                wait_until(lambda: not browser.elements('[name="site_name"]'))
             elif browser.elements('[name="account[mail]"]'):
                 browser.fill('[name="account[mail]"]', "admin@example.test")
                 browser.fill('[name="account[pass]"]', PASSWORD)
                 browser.submit()
                 configured = True
+                wait_until(lambda: not browser.elements('[name="account[mail]"]'))
             elif browser.elements('[name="langcode"]'):
                 browser.script("const e=document.querySelector('[name=langcode]'); e.value='en'; e.dispatchEvent(new Event('change',{bubbles:true}));")
                 browser.submit()
@@ -184,6 +193,7 @@ class OfflineSite(unittest.TestCase):
                 self.assertEqual(choices, ["byte"])
                 browser.click('[name="add_ons"][value="byte"]')
                 browser.submit()
+                wait_until(lambda: not browser.elements('[name="add_ons"]'))
             elif browser.elements('.progress, [data-drupal-selector="update-progress"]'):
                 time.sleep(2)
             else:
@@ -213,6 +223,7 @@ class OfflineSite(unittest.TestCase):
                     content = http(ORIGIN + path).decode(errors="replace")
                 except HTTPError as error:
                     self.assertIn(error.code, [403, 404])
+                    error.close()
                     continue
                 self.assertNotIn(secret, content)
                 self.assertNotIn("SQLite format", content)
@@ -233,7 +244,9 @@ class OfflineSite(unittest.TestCase):
     def create_content_and_upload(self, data):
         self.browser.visit("/node/add/page")
         self.browser.fill('[name="title[0][value]"]', "Offline persistent page")
+        self.browser.fill('[name="field_description[0][value]"]', "Content created without an internet connection.")
         self.browser.submit()
+        wait_until(lambda: self.browser.script("return /^node\\/\\d+$/.test(drupalSettings.path.currentPath)"))
         self.assertIn("Offline persistent page", self.browser.text())
         node = self.browser.script("return drupalSettings.path.currentPath")
         self.assertRegex(node, r"^node/\d+$")
@@ -246,6 +259,7 @@ class OfflineSite(unittest.TestCase):
         wait_until(lambda: self.browser.elements('[name="field_media_image[0][alt]"]'))
         self.browser.fill('[name="field_media_image[0][alt]"]', "Offline test pixel")
         self.browser.submit()
+        wait_until(lambda: "/media/add/image" not in self.browser.command("GET", "/url"))
         uploaded = list((data / "files").rglob("offline-pixel.png"))
         self.assertEqual(len(uploaded), 1)
         self.assertEqual(uploaded[0].read_bytes(), picture.read_bytes())
@@ -258,8 +272,9 @@ class OfflineSite(unittest.TestCase):
         for module in modules:
             self.browser.check(f'[name="modules[{module}][enable]"]')
         self.browser.submit()
-        if self.browser.elements('[data-drupal-selector="system-modules-confirm-form"]'):
-            self.browser.submit()
+        for _ in range(2):
+            if self.browser.elements('[data-drupal-selector="system-modules-confirm-form"], [data-drupal-selector="system-modules-non-stable-confirm-form"]'):
+                self.browser.submit()
         self.browser.wait_batch()
         self.browser.visit("/admin/modules")
         for module in modules:
@@ -269,14 +284,22 @@ class OfflineSite(unittest.TestCase):
         self.enable_modules(["language", "locale", "content_translation"])
         self.browser.visit("/admin/config/regional/language")
         for code in ["fr", "zh-hans", "es", "hi", "ar"]:
-            self.assertFalse(self.browser.elements(f'a[href$="/language/edit/{code}"]'))
+            self.assertFalse(self.browser.elements(f'[name="languages[{code}][weight]"]'))
+        coverage = {}
         for code in ["fr", "zh-hans", "es", "hi", "ar"]:
             self.browser.visit("/admin/config/regional/language/add")
             self.browser.select('[name="predefined_langcode"]', code)
-            self.browser.click('[data-drupal-selector="edit-predefined-submit"]')
+            self.browser.submit('[data-drupal-selector="edit-predefined-submit"]')
             self.browser.wait_batch()
             self.browser.visit("/admin/config/regional/language")
-            self.assertTrue(self.browser.elements(f'a[href$="/language/edit/{code}"]'))
+            selector = f'[name="languages[{code}][weight]"]'
+            self.assertTrue(self.browser.elements(selector))
+            row = self.browser.script("return document.querySelector(arguments[0]).closest('tr').innerText", selector)
+            translated = re.search(r"(\d+)/(\d+) \(([\d.]+)%\)", row)
+            self.assertIsNotNone(translated, row)
+            self.assertGreater(int(translated[1]), 0)
+            coverage[code] = {"translated": int(translated[1]), "total": int(translated[2])}
+            RESULTS.joinpath("translation-coverage.json").write_text(json.dumps(coverage, indent=2))
         self.browser.visit("/ar/admin/content")
         self.assertEqual(self.browser.script("return document.documentElement.dir"), "rtl")
         self.assertEqual(self.browser.script("return document.documentElement.lang"), "ar")
@@ -290,10 +313,20 @@ class OfflineSite(unittest.TestCase):
         self.browser.visit(f"/{node}/translations/add/en/fr")
         self.browser.fill('[name="title[0][value]"]', "Page hors ligne persistante")
         self.browser.submit()
+        wait_until(lambda: "/translations/add/" not in self.browser.command("GET", "/url"))
         self.browser.visit(f"/fr/{node}")
         self.assertIn("Page hors ligne persistante", self.browser.text())
         self.browser.visit(f"/{node}")
         self.assertIn("Offline persistent page", self.browser.text())
+
+    def exercise_arabic_editor(self):
+        self.browser.visit("/ar/node/add/page")
+        self.assertEqual(self.browser.script("return document.documentElement.dir"), "rtl")
+        self.browser.fill('[name="title[0][value]"]', "صفحة اختبار دون اتصال")
+        self.browser.fill('[name="field_description[0][value]"]', "محتوى محفوظ من واجهة عربية دون اتصال بالإنترنت.")
+        self.browser.submit()
+        wait_until(lambda: self.browser.script("return /^node\\/\\d+$/.test(drupalSettings.path.currentPath)"))
+        self.assertIn("صفحة اختبار دون اتصال", self.browser.text())
 
     def activate_bundled_components(self, node):
         self.enable_modules(["contact"])
@@ -303,6 +336,7 @@ class OfflineSite(unittest.TestCase):
         self.browser.click('a[href*="theme=stark"][title*="default"]')
         self.browser.visit("/" + node)
         self.assertEqual(self.browser.script("return drupalSettings.ajaxPageState.theme"), "stark")
+
         self.stop()
         self.start()
         self.login()
@@ -310,6 +344,13 @@ class OfflineSite(unittest.TestCase):
         self.assertIn("Contact forms", self.browser.text())
         self.browser.visit("/" + node)
         self.assertEqual(self.browser.script("return drupalSettings.ajaxPageState.theme"), "stark")
+
+    def exercise_devel_fixture(self):
+        self.enable_modules(["devel"])
+        self.browser.visit("/admin/config/development/devel")
+        self.assertTrue(self.browser.elements('[data-drupal-selector="devel-admin-settings-form"]'))
+        self.browser.submit()
+        self.assertIn("The configuration options have been saved", self.browser.text())
 
     def test_install_restart_and_custom_directory(self):
         self.assertIsNone(shutil.which("php"))
@@ -321,6 +362,8 @@ class OfflineSite(unittest.TestCase):
             self.assertTrue((data / "site.sqlite").is_file())
             self.assertTrue((data / "settings.php").is_file())
             self.login()
+            if EXTRA == "devel":
+                self.exercise_devel_fixture()
             self.assert_assets()
             self.assert_protected(data)
             node, image_url = self.create_content_and_upload(data)
@@ -337,6 +380,7 @@ class OfflineSite(unittest.TestCase):
             self.assert_assets()
             if PHASE >= 3:
                 self.configure_languages()
+                self.exercise_arabic_editor()
             if PHASE >= 4:
                 self.translate_content(node)
                 self.stop()
