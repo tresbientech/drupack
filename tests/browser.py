@@ -157,6 +157,7 @@ class OfflineSite(unittest.TestCase):
         while time.monotonic() < deadline:
             url = browser.command("GET", "/url")
             browser.save(f"installer-{step:02d}")
+            self.assertNotIn("The installation has encountered an error", browser.text())
             if "/core/install.php" not in url:
                 self.assertTrue(configured, f"Installer was not shown: {url}\n{browser.text()}")
                 self.assertNotIn("unexpected error", browser.text().lower())
@@ -287,6 +288,22 @@ class OfflineSite(unittest.TestCase):
         self.browser.visit(f"/{node}")
         self.assertIn("Offline persistent page", self.browser.text())
 
+    def activate_bundled_components(self, node):
+        self.enable_modules(["contact"])
+        self.browser.visit("/admin/structure/contact")
+        self.assertIn("Contact forms", self.browser.text())
+        self.browser.visit("/admin/appearance")
+        self.browser.click('a[href*="theme=stark"][title*="default"]')
+        self.browser.visit("/" + node)
+        self.assertEqual(self.browser.script("return drupalSettings.ajaxPageState.theme"), "stark")
+        self.stop()
+        self.start()
+        self.login()
+        self.browser.visit("/admin/structure/contact")
+        self.assertIn("Contact forms", self.browser.text())
+        self.browser.visit("/" + node)
+        self.assertEqual(self.browser.script("return drupalSettings.ajaxPageState.theme"), "stark")
+
     def test_install_restart_and_custom_directory(self):
         self.assertIsNone(shutil.which("php"))
         self.assertIsNone(shutil.which("composer"))
@@ -318,6 +335,8 @@ class OfflineSite(unittest.TestCase):
                 self.assertIn("Page hors ligne persistante", self.browser.text())
                 self.browser.visit("/ar/admin/content")
                 self.assertEqual(self.browser.script("return document.documentElement.dir"), "rtl")
+            if PHASE >= 6:
+                self.activate_bundled_components(node)
             self.stop()
             custom = self.work / "another site"
             self.start("--data-dir", str(custom))
