@@ -1,0 +1,243 @@
+#!/usr/bin/env python3
+"""Exercise the embedded executable through Chromium without network access."""
+
+import json
+import os
+from pathlib import Path
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+from urllib.error import HTTPError, URLError
+from urllib.parse import urljoin, urlparse
+from urllib.request import Request, urlopen
+
+
+BINARY = Path(sys.argv.pop(1)).resolve()
+RESULTS = Path(sys.argv.pop(1)).resolve()
+ORIGIN = "http://localhost:8080"
+PASSWORD = "Offline.test.administrator.2026!"
+ELEMENT = "element-6066-11e4-a52e-4f735466cecf"
+
+
+def http(url, method="GET", payload=None):
+    data = None if payload is None else json.dumps(payload).encode()
+    request = Request(url, data, {"Content-Type": "application/json"}, method=method)
+    with urlopen(request, timeout=120) as response:
+        return response.read()
+
+
+def wait_until(check, timeout=60):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            result = check()
+            if result:
+                return result
+        except (URLError, ConnectionError):
+            pass
+        time.sleep(0.25)
+    raise AssertionError(f"Timed out after {timeout}s: {check}")
+
+
+class Browser:
+    def __init__(self):
+        self.session = ""
+        capabilities = {"alwaysMatch": {"browserName": "chrome", "goog:chromeOptions": {
+            "binary": "/usr/bin/chromium",
+            "args": ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage",
+                     "--window-size=1440,1000", "--disable-background-networking", "--disable-gpu"],
+        }}}
+        self.session = self.command("POST", "/session", {"capabilities": capabilities})["sessionId"]
+
+    def command(self, method, path, payload=None):
+        prefix = f"/session/{self.session}" if self.session else ""
+        try:
+            result = json.loads(http("http://127.0.0.1:9515" + prefix + path, method, payload))
+        except HTTPError as error:
+            raise AssertionError(error.read().decode()) from error
+        return result["value"]
+
+    def visit(self, path):
+        self.command("POST", "/url", {"url": urljoin(ORIGIN, path)})
+
+    def script(self, script, *args):
+        return self.command("POST", "/execute/sync", {"script": script, "args": list(args)})
+
+    def elements(self, selector):
+        return self.command("POST", "/elements", {"using": "css selector", "value": selector})
+
+    def fill(self, selector, value):
+        element = self.elements(selector)[0][ELEMENT]
+        self.command("POST", f"/element/{element}/clear", {})
+        self.command("POST", f"/element/{element}/value", {"text": value})
+
+    def click(self, selector):
+        element = self.elements(selector)[0][ELEMENT]
+        self.command("POST", f"/element/{element}/click", {})
+
+    def submit(self):
+        self.click('input[type="submit"], button[type="submit"]')
+
+    def text(self):
+        return self.script("return document.body.innerText")
+
+    def save(self, name):
+        RESULTS.joinpath(name + ".html").write_text(self.command("GET", "/source"))
+        RESULTS.joinpath(name + ".txt").write_text(self.text())
+
+
+class OfflineSite(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        RESULTS.mkdir(parents=True, exist_ok=True)
+        cls.work = Path(tempfile.mkdtemp(prefix="portable-drupal-"))
+        cls.driver_log = open(RESULTS / "chromedriver.log", "w")
+        cls.driver = subprocess.Popen(["chromedriver", "--port=9515"],
+                                      stdout=cls.driver_log, stderr=subprocess.STDOUT)
+        wait_until(lambda: http("http://127.0.0.1:9515/status"))
+        cls.browser = Browser()
+        cls.server = None
+        cls.server_log = open(RESULTS / "server.log", "w")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.stop()
+        cls.browser.command("DELETE", "")
+        cls.driver.terminate()
+        cls.driver.wait(timeout=20)
+        cls.driver_log.close()
+        cls.server_log.close()
+
+    @classmethod
+    def start(cls, *arguments):
+        cls.server = subprocess.Popen([str(BINARY), "php-cli", "launch.php", *arguments],
+                                      cwd=cls.work, stdout=cls.server_log,
+                                      stderr=subprocess.STDOUT, start_new_session=True)
+        wait_until(lambda: cls.ready())
+
+    @classmethod
+    def ready(cls):
+        if cls.server.poll() is not None:
+            raise AssertionError(f"Runtime exited: inspect {RESULTS / 'server.log'}")
+        try:
+            http(ORIGIN)
+        except HTTPError:
+            return True
+        return True
+
+    @classmethod
+    def stop(cls):
+        if cls.server is not None and cls.server.poll() is None:
+            os.killpg(cls.server.pid, signal.SIGTERM)
+            try:
+                cls.server.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                os.killpg(cls.server.pid, signal.SIGKILL)
+                cls.server.wait()
+
+    def install(self):
+        browser = self.browser
+        browser.visit("/")
+        deadline = time.monotonic() + 600
+        step = 0
+        while time.monotonic() < deadline:
+            url = browser.command("GET", "/url")
+            browser.save(f"installer-{step:02d}")
+            if "/core/install.php" not in url:
+                self.assertNotIn("unexpected error", browser.text().lower())
+                return
+            if browser.elements('[name="site_name"]'):
+                browser.fill('[name="site_name"]', "Portable Byte Test")
+                browser.submit()
+            elif browser.elements('[name="account[mail]"]'):
+                browser.fill('[name="account[mail]"]', "admin@example.test")
+                browser.fill('[name="account[pass]"]', PASSWORD)
+                browser.submit()
+            elif browser.elements('[name="langcode"]'):
+                browser.script("const e=document.querySelector('[name=langcode]'); e.value='en'; e.dispatchEvent(new Event('change',{bubbles:true}));")
+                browser.submit()
+            elif browser.elements('[name="add_ons"]'):
+                choices = browser.script("return Array.from(document.querySelectorAll('[name=add_ons]')).map(e=>e.value)")
+                self.assertEqual(choices, ["byte"])
+                browser.click('[name="add_ons"][value="byte"]')
+                browser.submit()
+            elif browser.elements('.progress, [data-drupal-selector="update-progress"]'):
+                time.sleep(2)
+            else:
+                self.fail(f"Unexpected installer page: {url}\n{browser.text()}")
+            step += 1
+        self.fail("Offline installation exceeded 600 seconds")
+
+    def login(self):
+        self.browser.command("DELETE", "/cookie")
+        self.browser.visit("/user/login")
+        self.browser.fill('[name="name"]', "admin")
+        self.browser.fill('[name="pass"]', PASSWORD)
+        self.browser.submit()
+        self.browser.visit("/admin/content")
+        self.assertNotIn("Access denied", self.browser.text())
+        self.assertFalse(self.browser.elements('[name="pass"]'))
+
+    def assert_protected(self, data):
+        secret = "private-offline-test-content"
+        (data / "private" / "probe.txt").write_text(secret)
+        for path in ["/site.sqlite", "/data/site.sqlite", "/private/probe.txt",
+                     "/sites/default/settings.php", "/sites/default/settings.php/probe",
+                     "/sites/default/files/.htaccess", "/composer.json", "/vendor/autoload.php"]:
+            with self.subTest(path=path):
+                try:
+                    content = http(ORIGIN + path).decode(errors="replace")
+                except HTTPError as error:
+                    self.assertIn(error.code, [403, 404])
+                    continue
+                self.assertNotIn(secret, content)
+                self.assertNotIn("SQLite format", content)
+                self.assertNotIn("<?php", content)
+                self.fail(f"Protected path returned success: {path}")
+
+    def assert_assets(self):
+        self.browser.visit("/")
+        assets = self.browser.script("return Array.from(document.querySelectorAll('script[src],link[rel=stylesheet],img[src]')).map(e=>e.src||e.href)")
+        self.assertTrue(assets)
+        for asset in assets:
+            if asset.startswith("data:"):
+                continue
+            with self.subTest(asset=asset):
+                self.assertEqual(urlparse(asset).netloc, urlparse(ORIGIN).netloc)
+                self.assertTrue(http(asset))
+
+    def test_install_restart_and_custom_directory(self):
+        self.assertIsNone(shutil.which("php"))
+        self.assertIsNone(shutil.which("composer"))
+        self.start()
+        try:
+            self.install()
+            data = self.work / "data"
+            self.assertTrue((data / "site.sqlite").is_file())
+            self.assertTrue((data / "settings.php").is_file())
+            self.login()
+            self.assert_assets()
+            self.assert_protected(data)
+            self.stop()
+            self.start()
+            self.login()
+            self.assert_assets()
+            self.stop()
+            custom = self.work / "another site"
+            self.start("--data-dir", str(custom))
+            self.install()
+            self.login()
+            self.assertTrue((custom / "site.sqlite").is_file())
+            self.assert_protected(custom)
+            self.assertNotEqual((data / "hash_salt").read_text(), (custom / "hash_salt").read_text())
+        finally:
+            self.browser.save("last-page")
+            self.stop()
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
