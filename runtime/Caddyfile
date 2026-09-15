@@ -18,5 +18,7 @@ http://:{$PORTABLE_PORT} {
 		not path /index.php /core/install.php
 	}
 	respond @phpForbidden 404
-	php_server
+	php_server {
+		root web
+	}
 }
