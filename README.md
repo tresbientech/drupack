@@ -23,7 +23,7 @@ Canvas 1.11 has an upstream [site-template installation regression](https://git.
 ## Start a site
 
 ```sh
-./dist/portable-drupal php-cli launch.php
+./dist/portable-drupal
 ```
 
 Open `http://localhost:8080` and complete Drupal's installer.
@@ -34,7 +34,7 @@ Subsequent launches reuse that site's database and settings.
 Select another data directory with:
 
 ```sh
-./dist/portable-drupal php-cli launch.php --data-dir /path/to/site-data
+./dist/portable-drupal --data-dir /path/to/site-data
 ```
 
 Stop the process with Ctrl+C.
@@ -45,7 +45,7 @@ The default listener accepts local connections only.
 Enable network access explicitly:
 
 ```sh
-./dist/portable-drupal php-cli launch.php --listen 0.0.0.0:8080 --host drupal.example.test
+./dist/portable-drupal --listen 0.0.0.0:8080 --host drupal.example.test
 ```
 
 Point that hostname at the host computer, then open `http://drupal.example.test:8080` on the other device.

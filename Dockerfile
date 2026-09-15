@@ -12,6 +12,7 @@ RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /build/inst
 COPY runtime/ ./
 COPY packaging/site-templates.php web/sites/default/site-templates.php
 COPY packaging/embed.sh /usr/local/bin/embed.sh
+COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/portable.go
 RUN bash /usr/local/bin/embed.sh
 
 FROM scratch AS artifact
