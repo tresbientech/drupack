@@ -136,7 +136,7 @@ class OfflineSite(unittest.TestCase):
 
     @classmethod
     def start(cls, *arguments):
-        cls.server = subprocess.Popen([str(cls.binary), "php-cli", "launch.php", *arguments],
+        cls.server = subprocess.Popen([str(cls.binary), *arguments],
                                       cwd=cls.work, stdout=cls.server_log,
                                       stderr=subprocess.STDOUT, start_new_session=True)
         wait_until(lambda: cls.ready())
@@ -351,6 +351,20 @@ class OfflineSite(unittest.TestCase):
         self.assertTrue(self.browser.elements('[data-drupal-selector="devel-admin-settings-form"]'))
         self.browser.submit()
         self.assertIn("The configuration options have been saved", self.browser.text())
+
+    def test_command_line(self):
+        help_result = subprocess.run([str(self.binary), "--help"], cwd=self.work,
+                                     capture_output=True, text=True, timeout=30)
+        self.assertEqual(help_result.returncode, 0, help_result.stderr)
+        for option in ["--data-dir", "--listen", "--host"]:
+            self.assertIn(option, help_result.stdout)
+        self.assertNotIn("php-cli", help_result.stdout)
+        self.assertNotIn("launch.php", help_result.stdout)
+        invalid = subprocess.run([str(self.binary), "--not-an-option"], cwd=self.work,
+                                 capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(invalid.returncode, 0)
+        self.assertIn("--not-an-option", invalid.stdout + invalid.stderr)
+        self.assertFalse((self.work / "data").exists())
 
     def test_install_restart_and_custom_directory(self):
         self.assertIsNone(shutil.which("php"))

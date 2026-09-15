@@ -44,7 +44,7 @@ for mode in loopback network; do
     --user "$(id -u):$(id -g)" --workdir /site \
     --mount "type=bind,src=$binary,dst=/artifact/portable-drupal,readonly" \
     --mount "type=bind,src=$results/data,dst=/site/data" \
-    "$debian" /artifact/portable-drupal php-cli launch.php "${arguments[@]}" >/dev/null
+    "$debian" /artifact/portable-drupal "${arguments[@]}" >/dev/null
   ready=false
   for attempt in {1..60}; do
     docker logs "$app" >"$results/$mode.log" 2>&1
