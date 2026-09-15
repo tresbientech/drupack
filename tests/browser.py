@@ -366,6 +366,21 @@ class OfflineSite(unittest.TestCase):
         self.assertIn("--not-an-option", invalid.stdout + invalid.stderr)
         self.assertFalse((self.work / "data").exists())
 
+    def test_extensions(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".php", dir=self.work) as probe:
+            probe.write("<?php echo json_encode([get_loaded_extensions(), PDO::getAvailableDrivers()]);")
+            probe.flush()
+            result = subprocess.run([str(self.binary), "php-cli", probe.name], cwd=self.work,
+                                    capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        extensions, drivers = json.loads(result.stdout)
+        required = {"ctype", "curl", "dom", "exif", "fileinfo", "filter", "gd", "iconv",
+                    "intl", "mbstring", "mysqli", "mysqlnd", "openssl", "pcntl", "pdo",
+                    "pdo_mysql", "pdo_sqlite", "phar", "session", "simplexml", "sodium",
+                    "tokenizer", "xml", "xmlreader", "xmlwriter", "zip", "zlib", "zend opcache"}
+        self.assertFalse(required - {extension.lower() for extension in extensions})
+        self.assertTrue({"mysql", "sqlite"} <= set(drivers), drivers)
+
     def assert_package_contents(self):
         roots = list((self.work / "data" / "runtime").glob("frankenphp_*"))
         self.assertEqual(len(roots), 1)
