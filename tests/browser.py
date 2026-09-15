@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Exercise the embedded executable through Chromium without network access."""
 
+import base64
 import json
 import os
 from pathlib import Path
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -21,6 +23,7 @@ RESULTS = Path(sys.argv.pop(1)).resolve()
 ORIGIN = "http://localhost:8080"
 PASSWORD = "Offline.test.administrator.2026!"
 ELEMENT = "element-6066-11e4-a52e-4f735466cecf"
+PHASE = int(os.environ.get("PORTABLE_TEST_PHASE", "6"))
 
 
 def http(url, method="GET", payload=None):
@@ -82,6 +85,15 @@ class Browser:
     def submit(self):
         self.click('input[type="submit"], button[type="submit"]')
 
+    def select(self, selector, value):
+        self.script("const e=document.querySelector(arguments[0]); e.value=arguments[1]; e.dispatchEvent(new Event('change',{bubbles:true}));", selector, value)
+
+    def check(self, selector):
+        self.script("const e=document.querySelector(arguments[0]); if(!e.checked) e.click();", selector)
+
+    def wait_batch(self):
+        wait_until(lambda: not self.elements('.progress, [data-drupal-selector="update-progress"]'), timeout=600)
+
     def text(self):
         return self.script("return document.body.innerText")
 
@@ -123,11 +135,8 @@ class OfflineSite(unittest.TestCase):
     def ready(cls):
         if cls.server.poll() is not None:
             raise AssertionError(f"Runtime exited: inspect {RESULTS / 'server.log'}")
-        try:
-            http(ORIGIN)
-        except HTTPError:
+        with socket.create_connection(("127.0.0.1", 8080), timeout=1):
             return True
-        return True
 
     @classmethod
     def stop(cls):
@@ -144,10 +153,12 @@ class OfflineSite(unittest.TestCase):
         browser.visit("/")
         deadline = time.monotonic() + 600
         step = 0
+        configured = False
         while time.monotonic() < deadline:
             url = browser.command("GET", "/url")
             browser.save(f"installer-{step:02d}")
             if "/core/install.php" not in url:
+                self.assertTrue(configured, f"Installer was not shown: {url}\n{browser.text()}")
                 self.assertNotIn("unexpected error", browser.text().lower())
                 return
             if browser.elements('[name="site_name"]'):
@@ -157,6 +168,7 @@ class OfflineSite(unittest.TestCase):
                 browser.fill('[name="account[mail]"]', "admin@example.test")
                 browser.fill('[name="account[pass]"]', PASSWORD)
                 browser.submit()
+                configured = True
             elif browser.elements('[name="langcode"]'):
                 browser.script("const e=document.querySelector('[name=langcode]'); e.value='en'; e.dispatchEvent(new Event('change',{bubbles:true}));")
                 browser.submit()
@@ -210,6 +222,71 @@ class OfflineSite(unittest.TestCase):
                 self.assertEqual(urlparse(asset).netloc, urlparse(ORIGIN).netloc)
                 self.assertTrue(http(asset))
 
+    def create_content_and_upload(self, data):
+        self.browser.visit("/node/add/page")
+        self.browser.fill('[name="title[0][value]"]', "Offline persistent page")
+        self.browser.submit()
+        self.assertIn("Offline persistent page", self.browser.text())
+        node = self.browser.script("return drupalSettings.path.currentPath")
+        self.assertRegex(node, r"^node/\d+$")
+        picture = self.work / "offline-pixel.png"
+        picture.write_bytes(base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="))
+        self.browser.visit("/media/add/image")
+        self.browser.fill('[name="name[0][value]"]', "Offline image")
+        upload = self.browser.elements('input[type="file"]')[0][ELEMENT]
+        self.browser.command("POST", f"/element/{upload}/value", {"text": str(picture)})
+        wait_until(lambda: self.browser.elements('[name="field_media_image[0][alt]"]'))
+        self.browser.fill('[name="field_media_image[0][alt]"]', "Offline test pixel")
+        self.browser.submit()
+        uploaded = list((data / "files").rglob("offline-pixel.png"))
+        self.assertEqual(len(uploaded), 1)
+        self.assertEqual(uploaded[0].read_bytes(), picture.read_bytes())
+        image_url = "/sites/default/files/" + uploaded[0].relative_to(data / "files").as_posix()
+        self.assertEqual(http(ORIGIN + image_url), picture.read_bytes())
+        return node, image_url
+
+    def enable_modules(self, modules):
+        self.browser.visit("/admin/modules")
+        for module in modules:
+            self.browser.check(f'[name="modules[{module}][enable]"]')
+        self.browser.submit()
+        if self.browser.elements('[data-drupal-selector="system-modules-confirm-form"]'):
+            self.browser.submit()
+        self.browser.wait_batch()
+        self.browser.visit("/admin/modules")
+        for module in modules:
+            self.assertTrue(self.browser.script("return document.querySelector(arguments[0]).checked", f'[name="modules[{module}][enable]"]'))
+
+    def configure_languages(self):
+        self.enable_modules(["language", "locale", "content_translation"])
+        self.browser.visit("/admin/config/regional/language")
+        for code in ["fr", "zh-hans", "es", "hi", "ar"]:
+            self.assertFalse(self.browser.elements(f'a[href$="/language/edit/{code}"]'))
+        for code in ["fr", "zh-hans", "es", "hi", "ar"]:
+            self.browser.visit("/admin/config/regional/language/add")
+            self.browser.select('[name="predefined_langcode"]', code)
+            self.browser.click('[data-drupal-selector="edit-predefined-submit"]')
+            self.browser.wait_batch()
+            self.browser.visit("/admin/config/regional/language")
+            self.assertTrue(self.browser.elements(f'a[href$="/language/edit/{code}"]'))
+        self.browser.visit("/ar/admin/content")
+        self.assertEqual(self.browser.script("return document.documentElement.dir"), "rtl")
+        self.assertEqual(self.browser.script("return document.documentElement.lang"), "ar")
+
+    def translate_content(self, node):
+        self.browser.visit("/admin/config/regional/content-language")
+        self.browser.check('[name="entity_types[node]"]')
+        self.browser.check('[name="settings[node][page][translatable]"]')
+        self.browser.check('[name="settings[node][page][fields][title]"]')
+        self.browser.submit()
+        self.browser.visit(f"/{node}/translations/add/en/fr")
+        self.browser.fill('[name="title[0][value]"]', "Page hors ligne persistante")
+        self.browser.submit()
+        self.browser.visit(f"/fr/{node}")
+        self.assertIn("Page hors ligne persistante", self.browser.text())
+        self.browser.visit(f"/{node}")
+        self.assertIn("Offline persistent page", self.browser.text())
+
     def test_install_restart_and_custom_directory(self):
         self.assertIsNone(shutil.which("php"))
         self.assertIsNone(shutil.which("composer"))
@@ -222,10 +299,25 @@ class OfflineSite(unittest.TestCase):
             self.login()
             self.assert_assets()
             self.assert_protected(data)
+            node, image_url = self.create_content_and_upload(data)
             self.stop()
             self.start()
             self.login()
+            self.browser.visit("/" + node)
+            self.assertIn("Offline persistent page", self.browser.text())
+            self.assertTrue(http(ORIGIN + image_url))
             self.assert_assets()
+            if PHASE >= 3:
+                self.configure_languages()
+            if PHASE >= 4:
+                self.translate_content(node)
+                self.stop()
+                self.start()
+                self.login()
+                self.browser.visit(f"/fr/{node}")
+                self.assertIn("Page hors ligne persistante", self.browser.text())
+                self.browser.visit("/ar/admin/content")
+                self.assertEqual(self.browser.script("return document.documentElement.dir"), "rtl")
             self.stop()
             custom = self.work / "another site"
             self.start("--data-dir", str(custom))
