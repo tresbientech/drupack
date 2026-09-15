@@ -154,6 +154,32 @@ This demonstrates the supported path for application code additions without intr
 - [ ] The final artifact passes the earlier installation, persistence, language, content translation, and access-control checks.
 - [ ] Release instructions describe the supported platform, startup, data storage, and rebuild workflow.
 
+## Phase 7: Reduce executable size
+
+User stories: 1–3, 10, 16, 22–24. Follow-up requested after the initial implementation.
+
+### What to build
+
+Produce a smaller executable with the same supported site behavior.
+Measure the current executable, embedded application, and runtime before changing the build.
+Evaluate application trimming and executable compression first, then a PHP build containing only required extensions.
+
+Exclude unused test fixtures, development documentation, and source maps from the embedded application where runtime use permits.
+Preserve license notices and all resources required for offline installation and normal use.
+Evaluate UPX compression and record its effect on startup and memory use.
+Keep only changes that pass the acceptance suite.
+
+### Acceptance criteria
+
+- [ ] Record baseline executable size, extracted application size, startup time, and memory use under a stated workload.
+- [ ] Measure each candidate separately so its savings and costs are attributable.
+- [ ] Audit required PHP extensions before removing any from the runtime.
+- [ ] The selected executable is smaller than the baseline; report the byte and percentage reduction.
+- [ ] The GNU Linux target and host runtime requirements remain unchanged.
+- [ ] Offline Byte installation and all six interface languages remain available through Drupal's standard workflows.
+- [ ] Content translation, uploads, persistence, and access-control checks pass with the smaller executable.
+- [ ] Document the selected build options and measured startup or memory tradeoffs.
+
 ## Handling compatibility findings
 
 Resolve upstream version and extension compatibility in Phase 1 before building later workflows.
