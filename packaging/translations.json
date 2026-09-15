@@ -1,0 +1,1206 @@
+{
+    "composer_lock_sha256": "f353b8b6b3eb3caacdeb6982a7c9c70abec3e585b2583eb2acd42c73df5d5ed4",
+    "files": {
+        "automatic_updates-4.1.0.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/automatic_updates/automatic_updates-4.1.0.fr.po",
+            "sha256": "f91c2fd3189cc449e67a367c0e4ae6b846435aa61ede03a79f792f115f9422ad"
+        },
+        "automatic_updates-4.1.0.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/automatic_updates/automatic_updates-4.1.0.zh-hans.po",
+            "sha256": "fe99cc537ccca516669f42b7d994bc3c515e2bcee1f1c0008e5d7baf21347e59"
+        },
+        "automatic_updates-4.1.0.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/automatic_updates/automatic_updates-4.1.0.es.po",
+            "sha256": "bef4906e499924b1fe1e4f3d5c382f2cbf5355dc096feaa2eb52bd07541c9408"
+        },
+        "automatic_updates-4.1.0.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/automatic_updates/automatic_updates-4.1.0.hi.po",
+            "sha256": "d7b6fc62be3bbd41adef532ad230f039bf8d267c915253a6cfd97e18cbc4b579"
+        },
+        "automatic_updates-4.1.0.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/automatic_updates/automatic_updates-4.1.0.ar.po",
+            "sha256": "93571337fe316311e3e0c0373a96653835bdc96f1f6e24768bc1521a89a9d928"
+        },
+        "autosave_form-8.x-1.11.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/autosave_form/autosave_form-8.x-1.11.fr.po",
+            "sha256": "79903decfb663471854fa87ad348061b7150e8c00ffd9b43a97587f6311bfb73"
+        },
+        "autosave_form-8.x-1.11.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/autosave_form/autosave_form-8.x-1.11.zh-hans.po",
+            "sha256": "91fe36a57b271c1646474b70c326af2d873deaf713f7337f020e9cbd212d1c28"
+        },
+        "autosave_form-8.x-1.11.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/autosave_form/autosave_form-8.x-1.11.es.po",
+            "sha256": "d8c5acf7ba190e1d5deefbae7f9abd0c3e2e549482153b0d98190e839e116908"
+        },
+        "autosave_form-8.x-1.11.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/autosave_form/autosave_form-8.x-1.11.hi.po",
+            "sha256": "afc2bc32191f1ddf289e743e2decdc7b925e6cba15410f0b612ac0a7d15aa7ea"
+        },
+        "autosave_form-8.x-1.11.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/autosave_form/autosave_form-8.x-1.11.ar.po",
+            "sha256": "6eacf219384204756b4f26c3a91202e5dacc276c7b9c34dd040dccff4d4f6179"
+        },
+        "better_exposed_filters-7.1.3.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/better_exposed_filters/better_exposed_filters-7.1.3.fr.po",
+            "sha256": "8c812f29779d4aaeea321279eb2d12c1d467d9e52098b46136fd1ca3063d4515"
+        },
+        "better_exposed_filters-7.1.3.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/better_exposed_filters/better_exposed_filters-7.1.3.zh-hans.po",
+            "sha256": "1cf4392b1609ac565861160a2500d4b7dff3b917e87826d4c84b8413d7f8ae57"
+        },
+        "better_exposed_filters-7.1.3.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/better_exposed_filters/better_exposed_filters-7.1.3.es.po",
+            "sha256": "6b41d012038a396fa6d1b97ba1a10aaa08bccac4929fec62ebc1d6124ddf80b2"
+        },
+        "better_exposed_filters-7.1.3.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/better_exposed_filters/better_exposed_filters-7.1.3.hi.po",
+            "sha256": "e0ae4394838d95e98e49bde29dbd44b06dfbce99d4e166e80f919ccac026c29b"
+        },
+        "better_exposed_filters-7.1.3.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/better_exposed_filters/better_exposed_filters-7.1.3.ar.po",
+            "sha256": "2cf1efa42c37bbf424b8497b08c2e6518f16b7f737cce92c2e9b05b242485704"
+        },
+        "byte_theme-1.0.3.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/byte_theme/byte_theme-1.0.3.fr.po",
+            "sha256": "54882f9917abab23720a1525ba452a64a456129fce66edd8bffc083830e0a6b0"
+        },
+        "byte_theme-1.0.3.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/byte_theme/byte_theme-1.0.3.zh-hans.po",
+            "sha256": "7d8cdf6b5339aa26af62ea7e44494ded80d94eb3edb372a0e19ac296df30e4ce"
+        },
+        "byte_theme-1.0.3.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/byte_theme/byte_theme-1.0.3.es.po",
+            "sha256": "107f2e563fdee3f5f14f85e81068baf12d1fd415826656f95dbdd6e712a92700"
+        },
+        "byte_theme-1.0.3.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/byte_theme/byte_theme-1.0.3.hi.po",
+            "sha256": "ba591a548a7d4787300dffd02a20a28996047a9629ad17212498a9b75e858241"
+        },
+        "byte_theme-1.0.3.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/byte_theme/byte_theme-1.0.3.ar.po",
+            "sha256": "8eab97926b07ad75f03dbf1779f24945a12dc7d77debab7354d0de8d1e30b0ed"
+        },
+        "canvas-1.11.0.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.11.0.fr.po",
+            "sha256": "00fe090d7945b4608a3ed6694df742f81e3249e0b364b3b751e4121ce0bb97c6"
+        },
+        "canvas-1.11.0.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.11.0.zh-hans.po",
+            "sha256": "2280819f9cfcdc544191cdf3780a7435a696bd3ad46754f90818b7f95a9a48cd"
+        },
+        "canvas-1.11.0.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.11.0.es.po",
+            "sha256": "56bef8d90e5e3c6c07d9dfc8f4fa8c4d044e674eed1dd241b4a9d5f0a1f188e9"
+        },
+        "canvas-1.11.0.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.11.0.hi.po",
+            "sha256": "b70c575f47dbf8f2240701d99a2104c666cf2af3c676262842a1359cb52dd6ba"
+        },
+        "canvas-1.11.0.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.11.0.ar.po",
+            "sha256": "9b6f355d18f1567918240a190dacd16fa5082a90ca9deb7e096377488dc52b5e"
+        },
+        "captcha-2.0.10.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/captcha/captcha-2.0.10.fr.po",
+            "sha256": "909a91bd78bff4ed87af0f42436a1041bf6d6fc684bba8078423561c1a968470"
+        },
+        "captcha-2.0.10.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/captcha/captcha-2.0.10.zh-hans.po",
+            "sha256": "ec8930b29f2682bf0b120965efe8c3e8c8e36f5af5f46ec7ca90211e8cfc07cc"
+        },
+        "captcha-2.0.10.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/captcha/captcha-2.0.10.es.po",
+            "sha256": "35b65a8226b0f9b94087bf80aebcd59f9263e2f4326f763d44babc9b1c5e1f5f"
+        },
+        "captcha-2.0.10.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/captcha/captcha-2.0.10.hi.po",
+            "sha256": "fee6abdba4a16b2ec8861e9f0fe71fc44341f9dc4aa56d3947c238c3c0ed5036"
+        },
+        "captcha-2.0.10.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/captcha/captcha-2.0.10.ar.po",
+            "sha256": "aa7411c429dc15dc60973c3d58431b7d2d895ffebea0eac179861dddb1f187a9"
+        },
+        "checklistapi-2.1.7.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/checklistapi/checklistapi-2.1.7.fr.po",
+            "sha256": "95619588a5347113161248fac0ef1491c1e7ed77aabd0abe61fc7ffd95158f6d"
+        },
+        "checklistapi-2.1.7.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/checklistapi/checklistapi-2.1.7.zh-hans.po",
+            "sha256": "a341e65b23f8b8f3267a0495b280e5a6b55e5a57f46ae43652607e5e5fe948cb"
+        },
+        "checklistapi-2.1.7.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/checklistapi/checklistapi-2.1.7.es.po",
+            "sha256": "20f7a341024db8a5f61d418b6f96f881d6b722c7889fe9c6b934a53a29234e5c"
+        },
+        "checklistapi-2.1.7.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/checklistapi/checklistapi-2.1.7.hi.po",
+            "sha256": "a2b9a5b8832e63134c3a52715815c46592838d16842ef23d394c83ddd4a38136"
+        },
+        "checklistapi-2.1.7.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/checklistapi/checklistapi-2.1.7.ar.po",
+            "sha256": "5be2283ffa2f7a9f76635eeb73aeaf63efba8a96bfeb69574c4a2b28ec5911e7"
+        },
+        "coffee-2.0.1.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/coffee/coffee-2.0.1.fr.po",
+            "sha256": "7d26adfb3e2c8611f0d054cb561c199b1037abe1e50b980e516d33501882815d"
+        },
+        "coffee-2.0.1.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/coffee/coffee-2.0.1.zh-hans.po",
+            "sha256": "0d70691fb65311ac702010278cf11231d7598c4a9dc29e85f5198a4e3ad848c4"
+        },
+        "coffee-2.0.1.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/coffee/coffee-2.0.1.es.po",
+            "sha256": "5a50a9d13f668c88b697ffcf2506f015003e7829b74d7481c86a6c0757a5ef78"
+        },
+        "coffee-2.0.1.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/coffee/coffee-2.0.1.hi.po",
+            "sha256": "7965231cf4c5f0644a7116da91f8683c1681cc2c9a0ad8f9dcc5bfa3499016e6"
+        },
+        "coffee-2.0.1.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/coffee/coffee-2.0.1.ar.po",
+            "sha256": "96fc8f26305f131614c39c0b51a14dea079e25ec864aa318b9fd008114a4a099"
+        },
+        "crop-8.x-2.6.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/crop/crop-8.x-2.6.fr.po",
+            "sha256": "623a696773dcb70c336c05aeb07391df0a34e043523907a34ce8356de28621b5"
+        },
+        "crop-8.x-2.6.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/crop/crop-8.x-2.6.zh-hans.po",
+            "sha256": "c7f05c837b2355edf0f3cb9094b186099b890e2ef7715f55fc5136de9b685c04"
+        },
+        "crop-8.x-2.6.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/crop/crop-8.x-2.6.es.po",
+            "sha256": "b4095c3c8c1f900572fa2d38d57876a0d8ad8bb8eaf89a3c2f64ea233bf91250"
+        },
+        "crop-8.x-2.6.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/crop/crop-8.x-2.6.hi.po",
+            "sha256": "f2c14726d20c284e6df9c1375e182027e42cabeeb9448498430cbc8e257e88ec"
+        },
+        "crop-8.x-2.6.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/crop/crop-8.x-2.6.ar.po",
+            "sha256": "ff9d25262ddc4241c33a428067a6312bf7229bc10206dffba832beb010ded542"
+        },
+        "ctools-4.1.1.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/ctools/ctools-4.1.1.fr.po",
+            "sha256": "42190ddf50a726199f9f7af7ed52b89744d095e5d53452a291779cd012809dc6"
+        },
+        "ctools-4.1.1.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/ctools/ctools-4.1.1.zh-hans.po",
+            "sha256": "985b213af5c47142069ae9920016e29051860d1cafff0f42228763056b73e350"
+        },
+        "ctools-4.1.1.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/ctools/ctools-4.1.1.es.po",
+            "sha256": "30ab1390ba1fb9aa4ea8ca78c21a5f63c973b701107d348c4422605e6634c2a7"
+        },
+        "ctools-4.1.1.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/ctools/ctools-4.1.1.hi.po",
+            "sha256": "ce06783cbf13110f772a7f7491a7f1c45ad7587300e5bef989886184c2df1554"
+        },
+        "ctools-4.1.1.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/ctools/ctools-4.1.1.ar.po",
+            "sha256": "15dd57cc604d665c0d9f23f438c4dec93e1fe841116dbf2461e289a700c8ff41"
+        },
+        "cva-1.0.0.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/cva/cva-1.0.0.fr.po",
+            "sha256": "9d50234260fc1d99040cc4cc019560eabf3a0b5ae0d1bd5aa8999287987864d8"
+        },
+        "cva-1.0.0.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/cva/cva-1.0.0.zh-hans.po",
+            "sha256": "7a4d1a1287f2ac74bf7ae1fecae489f27324179f24ed9114d19e806a311a7b1b"
+        },
+        "cva-1.0.0.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/cva/cva-1.0.0.es.po",
+            "sha256": "c1d18398039ba836dd579e5f74c39dcd8eb53fb85bb06dc3c8099df7f9f8f0ae"
+        },
+        "cva-1.0.0.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/cva/cva-1.0.0.hi.po",
+            "sha256": "854bbf3661a1a6d5d5d9c55fc2ea7dbb4abc37a79e58f773b6b41db878d28302"
+        },
+        "cva-1.0.0.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/cva/cva-1.0.0.ar.po",
+            "sha256": "973dba85e02909e51f082a5634005aee31d508b702a4736143653a9a8116174d"
+        },
+        "dashboard-2.2.1.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/dashboard/dashboard-2.2.1.fr.po",
+            "sha256": "23b3fd4589be960a60e71e838c135a6b463d9237b43d738c98d3d0b1219db416"
+        },
+        "dashboard-2.2.1.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/dashboard/dashboard-2.2.1.zh-hans.po",
+            "sha256": "876ba3e41113a88792ca51d30af84cc53911e04f85b6a87c0c02b62fd7119977"
+        },
+        "dashboard-2.2.1.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/dashboard/dashboard-2.2.1.es.po",
+            "sha256": "ddbc458448b2872fa9f8ccfcae58f4c611e359a9dceeb2dbc5e78949f9b07adb"
+        },
+        "dashboard-2.2.1.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/dashboard/dashboard-2.2.1.hi.po",
+            "sha256": "2cc770acd3257bdf66c992739c11332e0a7d213f186e4bb37b0217eeb1bcca81"
+        },
+        "dashboard-2.2.1.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/dashboard/dashboard-2.2.1.ar.po",
+            "sha256": "021e02578f1d0c2993a50162c6410097833fd465e318bc4f0c0a009a166bdcfe"
+        },
+        "drupal-11.4.6.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.6.fr.po",
+            "sha256": "32542c7cf12bdaf26533a8b3aa96ac3a8b35f36e33baecc329b0e44fdb91aa69"
+        },
+        "drupal-11.4.6.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.6.zh-hans.po",
+            "sha256": "22cf9228c95e2eeac38cd7edc55693ff818737fad32faf167504b3efb356f28b"
+        },
+        "drupal-11.4.6.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.6.es.po",
+            "sha256": "5e3712590c1b66f5873f8aa48946fcffc0aa3bfd26a42cbeb56c75e54f1909bd"
+        },
+        "drupal-11.4.6.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.6.hi.po",
+            "sha256": "5c1f23445c91cc66da268d3fafbebaf9f4a671ef752863f77a699acbba7df0e1"
+        },
+        "drupal-11.4.6.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.6.ar.po",
+            "sha256": "4ffdb480420b009aad09a93fec420f814e551f2086f755cd2d62039c192972cc"
+        },
+        "drupal_cms_helper-2.1.4.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal_cms_helper/drupal_cms_helper-2.1.4.fr.po",
+            "sha256": "54346051db7cb385187e1cb9feda23a5854b21959ed6d9058a4e719e1fb8b748"
+        },
+        "drupal_cms_helper-2.1.4.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal_cms_helper/drupal_cms_helper-2.1.4.zh-hans.po",
+            "sha256": "17899cec63bf4ee7df8c43e1c2950d3de27ac499d60cd974d30db6dad73e7d47"
+        },
+        "drupal_cms_helper-2.1.4.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal_cms_helper/drupal_cms_helper-2.1.4.es.po",
+            "sha256": "2aa891c9914ba82fb8c3470a28b43220ec2eb1da602dea953bba84806f807494"
+        },
+        "drupal_cms_helper-2.1.4.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal_cms_helper/drupal_cms_helper-2.1.4.hi.po",
+            "sha256": "ea8ff3f6ff41ca7911f72ae47a881b10b7d30124fba4348ee384185b112a717b"
+        },
+        "drupal_cms_helper-2.1.4.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal_cms_helper/drupal_cms_helper-2.1.4.ar.po",
+            "sha256": "9af45710546fff774ad7c4d4594fb09cd0a5c0516c828acb689751c21366f593"
+        },
+        "drupal_cms_installer-2.1.2.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal_cms_installer/drupal_cms_installer-2.1.2.fr.po",
+            "sha256": "da866746bce48fa6348b2fecc309bcdc616b21ff45448f74d4b95354aec9faa9"
+        },
+        "drupal_cms_installer-2.1.2.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal_cms_installer/drupal_cms_installer-2.1.2.zh-hans.po",
+            "sha256": "4104bff2e2236ef5371dbf244d61ed99236793b00c3811c1e4165f3190807edc"
+        },
+        "drupal_cms_installer-2.1.2.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal_cms_installer/drupal_cms_installer-2.1.2.es.po",
+            "sha256": "cd673d9caeddf6bc1d7272ab16df28b3b3f421f8cf68eebd38c47bed37a44639"
+        },
+        "drupal_cms_installer-2.1.2.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal_cms_installer/drupal_cms_installer-2.1.2.hi.po",
+            "sha256": "f7759370f905419e89e68137e3c1ffc07d79805d30113079e66ca89ad8249025"
+        },
+        "drupal_cms_installer-2.1.2.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal_cms_installer/drupal_cms_installer-2.1.2.ar.po",
+            "sha256": "a1a619a5ad757328730677b9682b6179d3b6a6e1aac875f1f39504e18083fb40"
+        },
+        "drupical-1.0.2.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupical/drupical-1.0.2.fr.po",
+            "sha256": "d229761089ea39be0a9dcdb910375ba71649001418719719763a8b1bdb9089c1"
+        },
+        "drupical-1.0.2.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupical/drupical-1.0.2.zh-hans.po",
+            "sha256": "07c58bd030f1118cdc2ecfad293bd130fe05bb2181ef9399c884a18a2c8656fe"
+        },
+        "drupical-1.0.2.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupical/drupical-1.0.2.es.po",
+            "sha256": "3dfcc9bc9c4cebd1d245d83aa6bc3ecf34a90f1a69fa6f44aab653f6c695920b"
+        },
+        "drupical-1.0.2.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupical/drupical-1.0.2.hi.po",
+            "sha256": "d024469be9dd470ba9e9322024bd84d1aa479d312015cc4f2f8ca6381b70238b"
+        },
+        "drupical-1.0.2.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupical/drupical-1.0.2.ar.po",
+            "sha256": "f3051c016960aacae46890875d9312bee9e9af3dc34c12ac12368a0cc96a3a76"
+        },
+        "easy_breadcrumb-2.0.10.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_breadcrumb/easy_breadcrumb-2.0.10.fr.po",
+            "sha256": "1d44eec72eaa38fad44dce7cb8556db9108c0df318b32edc35e5bae3fc82a559"
+        },
+        "easy_breadcrumb-2.0.10.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_breadcrumb/easy_breadcrumb-2.0.10.zh-hans.po",
+            "sha256": "4c9c0fa03903e065f3ec09997ae5d784a9a2a9bce27b5b1d583b56bf7442b051"
+        },
+        "easy_breadcrumb-2.0.10.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_breadcrumb/easy_breadcrumb-2.0.10.es.po",
+            "sha256": "da4c9196f4724e348f113d74291ee348fa4be72921bf314bbb3d381873fdb46e"
+        },
+        "easy_breadcrumb-2.0.10.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_breadcrumb/easy_breadcrumb-2.0.10.hi.po",
+            "sha256": "4a4280c9797497b2d2eb009e325ebdd0be66f8daaf1a170697ce450d50ac6974"
+        },
+        "easy_breadcrumb-2.0.10.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_breadcrumb/easy_breadcrumb-2.0.10.ar.po",
+            "sha256": "64a97319f5e07214e6ab68f377fde73b79afdcc04eacb126af251ddb553148f2"
+        },
+        "easy_email-3.0.9.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_email/easy_email-3.0.9.fr.po",
+            "sha256": "1435e8c64190b808db0c8aaec2482eea870e781733d0ad0bad5d5530f33a3761"
+        },
+        "easy_email-3.0.9.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_email/easy_email-3.0.9.zh-hans.po",
+            "sha256": "2488e299b74d8c8a374a1ab566299d49eea59ecde5577ae5cbb3304e3fea193d"
+        },
+        "easy_email-3.0.9.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_email/easy_email-3.0.9.es.po",
+            "sha256": "b00ab760b8af51d258fb97572e65db8ce4fcbd6928788072f4304550dcf3f9f4"
+        },
+        "easy_email-3.0.9.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_email/easy_email-3.0.9.hi.po",
+            "sha256": "6eb4d0fce9d316205b29f6e9c24ba6e09b6bf7cd5f594bd711a79e6c26b435ff"
+        },
+        "easy_email-3.0.9.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_email/easy_email-3.0.9.ar.po",
+            "sha256": "d12e0c202fbde9e9c9c3e2497f7ccb112c7f17963cf581c80e8b7816c3e184e2"
+        },
+        "easy_email_theme-1.1.0.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_email_theme/easy_email_theme-1.1.0.fr.po",
+            "sha256": "4eb0c61115b9a49dbc0bd12b39711f14397a024a420641ec73847e43fa76c0eb"
+        },
+        "easy_email_theme-1.1.0.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_email_theme/easy_email_theme-1.1.0.zh-hans.po",
+            "sha256": "c5837ed41eccd715d8ee91b9ac20b3e63ad567fc8253d374fd6de8f9a925ca7a"
+        },
+        "easy_email_theme-1.1.0.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_email_theme/easy_email_theme-1.1.0.es.po",
+            "sha256": "fd63f4ba5db940db5f8c6c0f0bce822b1db504b0dacde2693109ab669ac289c6"
+        },
+        "easy_email_theme-1.1.0.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_email_theme/easy_email_theme-1.1.0.hi.po",
+            "sha256": "7c30f1b4e57f59a147d5e85a99f2cdb00dc03ad7af5a73b37734ef67eb5d0a46"
+        },
+        "easy_email_theme-1.1.0.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/easy_email_theme/easy_email_theme-1.1.0.ar.po",
+            "sha256": "578facec57493188bf0b5e09a05d504df1c293e68f98e98717d001f0a2a88421"
+        },
+        "eca-3.1.8.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/eca/eca-3.1.8.fr.po",
+            "sha256": "85d94fcb0c8b73e995f486a2c24d9016e35fab3743b316180db92acd1a5f7398"
+        },
+        "eca-3.1.8.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/eca/eca-3.1.8.zh-hans.po",
+            "sha256": "786f046a206e1c568ca029e12a741dc05803112226d8e3d68c7d787e5f186c20"
+        },
+        "eca-3.1.8.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/eca/eca-3.1.8.es.po",
+            "sha256": "69386297fd7d59bce1b447743748c51c3ef7a13126cc0a9900fc60dabdf12e3c"
+        },
+        "eca-3.1.8.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/eca/eca-3.1.8.hi.po",
+            "sha256": "89c5443a615cb2f462481db822046e97b133aaa8650779521629a890b0c63399"
+        },
+        "eca-3.1.8.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/eca/eca-3.1.8.ar.po",
+            "sha256": "c3798db9c485432cdc779d1880b7c6a4672417c245859403bf32bc1376610ca6"
+        },
+        "field_group-4.0.0.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/field_group/field_group-4.0.0.fr.po",
+            "sha256": "5fc26286e03281eb8ef7355b89e76c500fe0c56b5b7a19dee497a5e5ec4d01a8"
+        },
+        "field_group-4.0.0.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/field_group/field_group-4.0.0.zh-hans.po",
+            "sha256": "c605eb3eebb348d4e285f60777d04a6447f1ff986f49ac3a6538381feec23049"
+        },
+        "field_group-4.0.0.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/field_group/field_group-4.0.0.es.po",
+            "sha256": "10a789f01487254bf2f77efe8e58e0adb1a60035b7a9e5dd2c49116d71078350"
+        },
+        "field_group-4.0.0.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/field_group/field_group-4.0.0.hi.po",
+            "sha256": "12d975feb030b02e9086a1f1f3c161ecf754ec8cffd379cf16d72ff4d661d7d9"
+        },
+        "field_group-4.0.0.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/field_group/field_group-4.0.0.ar.po",
+            "sha256": "077d739a5b3d5e38379f0ff20a0892e2887ebc83b9212d20cdd930a801434ea6"
+        },
+        "focal_point-2.1.2.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/focal_point/focal_point-2.1.2.fr.po",
+            "sha256": "1b0bc781ccbd6c115c36810524a832fa397bd26e0f329fd2aa9b72f664caee78"
+        },
+        "focal_point-2.1.2.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/focal_point/focal_point-2.1.2.zh-hans.po",
+            "sha256": "fe6f2bc3ab71e454b22e261113a9d514151c6ca8176501d6a4222f110dbb92c1"
+        },
+        "focal_point-2.1.2.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/focal_point/focal_point-2.1.2.es.po",
+            "sha256": "095e11de7655d150478555897e16da6581a9abc026a6c8e73f4cca439d60011f"
+        },
+        "focal_point-2.1.2.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/focal_point/focal_point-2.1.2.hi.po",
+            "sha256": "f88cbc4d43ad201f34e5363cb79fe79c0723f707a6bd657fd992920763f7fbdd"
+        },
+        "focal_point-2.1.2.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/focal_point/focal_point-2.1.2.ar.po",
+            "sha256": "16cf36abb7d62fe853f67b0b79c8e175ed974ecec930d1f1519a6043595e2923"
+        },
+        "friendlycaptcha-1.1.4.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/friendlycaptcha/friendlycaptcha-1.1.4.fr.po",
+            "sha256": "95a5060f5821cb46de3abd5746bcbfba483c6d79b8c9acf1d5724f1abf5b270f"
+        },
+        "friendlycaptcha-1.1.4.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/friendlycaptcha/friendlycaptcha-1.1.4.zh-hans.po",
+            "sha256": "719d24252874721dc56cda512413b3468d3a9069fe632e498c6c7a89579726a2"
+        },
+        "friendlycaptcha-1.1.4.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/friendlycaptcha/friendlycaptcha-1.1.4.es.po",
+            "sha256": "ce351c72bd1397efe5f1433f90177853050180061e740cd1b0cd806d02035209"
+        },
+        "friendlycaptcha-1.1.4.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/friendlycaptcha/friendlycaptcha-1.1.4.hi.po",
+            "sha256": "3b8392cbd40fa87e44aa59208a6f9eeb8d6843d9e4b1f6e85fa98bf22b489805"
+        },
+        "friendlycaptcha-1.1.4.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/friendlycaptcha/friendlycaptcha-1.1.4.ar.po",
+            "sha256": "2cb3bd717ff6090f6c5a97f735c091e92c544773575333eb5c5de2fb2bd2a3d2"
+        },
+        "gin-5.0.15.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin/gin-5.0.15.fr.po",
+            "sha256": "c97edd1165d389b500e93a780e53d0f27cbbe1f04b4071e552fce33967631b77"
+        },
+        "gin-5.0.15.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin/gin-5.0.15.zh-hans.po",
+            "sha256": "85bc29753a79286e9db7669853cf5950bdf78833d4663c3f3e1f11d6119860ee"
+        },
+        "gin-5.0.15.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin/gin-5.0.15.es.po",
+            "sha256": "50bb32e1a0f5ca0fcb3a5b17ae46e51c2d5a6249b453fbe509d06d3bbe701d6f"
+        },
+        "gin-5.0.15.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin/gin-5.0.15.hi.po",
+            "sha256": "8d34143be5531b1393841d60d1fd283dff3aa3d16bb1eee2ddff4a0daa71ca95"
+        },
+        "gin-5.0.15.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin/gin-5.0.15.ar.po",
+            "sha256": "f71d31f1ae28c29691ba4f34f85f436d8b39bea61682a65d806ab5dadb5894b7"
+        },
+        "gin_login-2.1.4.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin_login/gin_login-2.1.4.fr.po",
+            "sha256": "feea08e53741e1dfdadc3c54aaf65d4cfa6f80c5f145ed67cbffb7f5bf040ae2"
+        },
+        "gin_login-2.1.4.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin_login/gin_login-2.1.4.zh-hans.po",
+            "sha256": "90ffb5e47f5ab901bfbd22510ef0e75fe58503b70411d37f9b3c63b777a13ada"
+        },
+        "gin_login-2.1.4.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin_login/gin_login-2.1.4.es.po",
+            "sha256": "083ce4298b13ecf68fac15ca869b0294f320eccc121676caad94c6bbc1745d60"
+        },
+        "gin_login-2.1.4.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin_login/gin_login-2.1.4.hi.po",
+            "sha256": "0bc06d3402a7432b1ed507bb2b7e7b702f2bc8c17c7c566a19a0a8ff29f853a3"
+        },
+        "gin_login-2.1.4.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin_login/gin_login-2.1.4.ar.po",
+            "sha256": "74c78423554e1b6ac9bae7de950971c3da4355be68e8903b9a108a1172b582aa"
+        },
+        "gin_toolbar-3.0.3.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin_toolbar/gin_toolbar-3.0.3.fr.po",
+            "sha256": "5ea51050026f98a3cf1ead5ba4cc37299dbe8d20c1f6c644d27f5e73186c5978"
+        },
+        "gin_toolbar-3.0.3.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin_toolbar/gin_toolbar-3.0.3.zh-hans.po",
+            "sha256": "a49a9f326286e97ae217cdc30a9c25beffb1aab9a23b360cc080c5b9b591fa2e"
+        },
+        "gin_toolbar-3.0.3.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin_toolbar/gin_toolbar-3.0.3.es.po",
+            "sha256": "ce3a4710a7da3a594eba7f292e4b59e2532a5e8c3767d02e431d8ee900941d3e"
+        },
+        "gin_toolbar-3.0.3.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin_toolbar/gin_toolbar-3.0.3.hi.po",
+            "sha256": "c6b4af283682b82e8719182bf23b06c6075ffec59155bb66ee959015e1750b69"
+        },
+        "gin_toolbar-3.0.3.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/gin_toolbar/gin_toolbar-3.0.3.ar.po",
+            "sha256": "2e103f19c8bb4b6d6512812e3af8407d019765c86b912a9b3225a60b5260fddc"
+        },
+        "honeypot-2.2.2.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/honeypot/honeypot-2.2.2.fr.po",
+            "sha256": "509a5c7da3d37fca279535412becc5649ffcfe25b5e7be15fd46c3a6ee723ef2"
+        },
+        "honeypot-2.2.2.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/honeypot/honeypot-2.2.2.zh-hans.po",
+            "sha256": "36cbf064af1a961b34aaa36f668863d2f829505827cf3999e0e23b59bedbe4b1"
+        },
+        "honeypot-2.2.2.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/honeypot/honeypot-2.2.2.es.po",
+            "sha256": "c055497ab0176cb8b7de45c9f618dbabb958e06f9e57b4c6650bf5d87469877d"
+        },
+        "honeypot-2.2.2.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/honeypot/honeypot-2.2.2.hi.po",
+            "sha256": "16e42ff89c6f3114b98d354754cf6ba2ea0f9403972e82a466abfcc86600030b"
+        },
+        "honeypot-2.2.2.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/honeypot/honeypot-2.2.2.ar.po",
+            "sha256": "8f70a5fd75ba98063e38a5b53520e5f88ec3daadc96ecedd4171b5035d9da383"
+        },
+        "jquery_ui-8.x-1.8.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/jquery_ui/jquery_ui-8.x-1.8.fr.po",
+            "sha256": "2ef0297aee0614619dc6b14ada048981fd9abfb9aa50d24b3a4bcf799e09ef53"
+        },
+        "jquery_ui-8.x-1.8.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/jquery_ui/jquery_ui-8.x-1.8.zh-hans.po",
+            "sha256": "1eea37115b94ee4282b1bbf1cd24ec71473b8c63e9d35a0bfbab5b2f4f1d4a16"
+        },
+        "jquery_ui-8.x-1.8.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/jquery_ui/jquery_ui-8.x-1.8.es.po",
+            "sha256": "355f7b64fee1324f70922aeb1223b48ea72e2cddd0c91127c3aee36c0ea7cb87"
+        },
+        "jquery_ui-8.x-1.8.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/jquery_ui/jquery_ui-8.x-1.8.hi.po",
+            "sha256": "66a434a5d4eb6768bf560e1c0146ff1ad20bfe47e7897a3a66cfd1d95db1f055"
+        },
+        "jquery_ui-8.x-1.8.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/jquery_ui/jquery_ui-8.x-1.8.ar.po",
+            "sha256": "eeeca3217a6a8898217cd18a9e5ecd708f2a680d8cc6d4c17fa3a74f563f7949"
+        },
+        "jquery_ui_resizable-2.1.0.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/jquery_ui_resizable/jquery_ui_resizable-2.1.0.fr.po",
+            "sha256": "97af7e780c6c32913e3400f09da759110dde75b719ff457b88fa3be74779aef0"
+        },
+        "jquery_ui_resizable-2.1.0.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/jquery_ui_resizable/jquery_ui_resizable-2.1.0.zh-hans.po",
+            "sha256": "5ff1abcccba2127c81e8149543dad095811333e80835916c7f165f9b64215e11"
+        },
+        "jquery_ui_resizable-2.1.0.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/jquery_ui_resizable/jquery_ui_resizable-2.1.0.es.po",
+            "sha256": "0724ad7e29aad0795b7f2db3a9e5e088cefb35de364344c7aff8002973891a4d"
+        },
+        "klaro-3.1.1.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/klaro/klaro-3.1.1.fr.po",
+            "sha256": "6d4e1cc79d3d3c0555856a17ba5ddcfef9bcf53934f5863468c548c583280009"
+        },
+        "klaro-3.1.1.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/klaro/klaro-3.1.1.zh-hans.po",
+            "sha256": "23d8a65411a2b82c263a018d35a2d4d8ff9869ca272742829085d7e06457b908"
+        },
+        "klaro-3.1.1.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/klaro/klaro-3.1.1.es.po",
+            "sha256": "1d31cedf9554e8d28b7ebf0541ff36c19edafaff2d5501ceae6574ee877473f4"
+        },
+        "klaro-3.1.1.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/klaro/klaro-3.1.1.hi.po",
+            "sha256": "c008ba597b530b779934d5fe480ce484521f7a6593cc40e896a9f52667e8bb98"
+        },
+        "klaro-3.1.1.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/klaro/klaro-3.1.1.ar.po",
+            "sha256": "3f9a6c67407e0650d0b74cb606bb22d44b20c60d282434c86551549ea9525541"
+        },
+        "linkit-7.0.16.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/linkit/linkit-7.0.16.fr.po",
+            "sha256": "8a97440f6c8c0f12ef40bacfb8e8f8c1e84d0d21fc12580e59a06bc144b88180"
+        },
+        "linkit-7.0.16.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/linkit/linkit-7.0.16.zh-hans.po",
+            "sha256": "5b49a0b331b8c273fcf752ed05a5b7c5f85c1407e486212253b471ad0ab4d11e"
+        },
+        "linkit-7.0.16.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/linkit/linkit-7.0.16.es.po",
+            "sha256": "4facf436c83d458a1158e36730395ff20963d2d39b4d57f7d145583ab4ccb4bc"
+        },
+        "linkit-7.0.16.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/linkit/linkit-7.0.16.hi.po",
+            "sha256": "db31a4608c0539b0800740d9ebe3718eb99cd0f40999f95ac6617e521be4d1b2"
+        },
+        "linkit-7.0.16.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/linkit/linkit-7.0.16.ar.po",
+            "sha256": "a144b71eb5473c1284c4169e4131b078698fcd8c9f62d1ced02bab25153231ff"
+        },
+        "login_emailusername-3.0.1.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/login_emailusername/login_emailusername-3.0.1.fr.po",
+            "sha256": "41e067b1f3f97c37d9106cae50da9ae872f28cd9e2975c9ca52ac3dce66c170c"
+        },
+        "login_emailusername-3.0.1.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/login_emailusername/login_emailusername-3.0.1.zh-hans.po",
+            "sha256": "ec6c33dd2c6c3b2cc779932061b09e223ad9f3ec46f94522f7c99654544f2936"
+        },
+        "login_emailusername-3.0.1.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/login_emailusername/login_emailusername-3.0.1.es.po",
+            "sha256": "5c003b5848ce4606136223b89091db53b79cab92b12fed4fc67f375f23d8710e"
+        },
+        "login_emailusername-3.0.1.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/login_emailusername/login_emailusername-3.0.1.hi.po",
+            "sha256": "7499c8dff16160f124ed10eff9d64c123e449c9b4cb4b45c0568f96bc858d8c6"
+        },
+        "login_emailusername-3.0.1.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/login_emailusername/login_emailusername-3.0.1.ar.po",
+            "sha256": "459ed2683387489372347be4f37167c50e138e39ccd15876b321714a8d188e2a"
+        },
+        "mailsystem-8.x-4.5.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/mailsystem/mailsystem-8.x-4.5.fr.po",
+            "sha256": "a713b8f4b434b8339798b4b18ec70823b1696c0828df7a6da31b82d9565229e1"
+        },
+        "mailsystem-8.x-4.5.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/mailsystem/mailsystem-8.x-4.5.zh-hans.po",
+            "sha256": "748553b06c1c29730fcc0b0f63aa5bc4a837db8faa169e1d6cd65ac6273cfc3c"
+        },
+        "mailsystem-8.x-4.5.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/mailsystem/mailsystem-8.x-4.5.es.po",
+            "sha256": "56d918bf6f11a701537099dc5a2205e0e678414e7acafea45c2c767beea23d52"
+        },
+        "mailsystem-8.x-4.5.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/mailsystem/mailsystem-8.x-4.5.hi.po",
+            "sha256": "c8f3dbfacc0372e83e57c0c73ad5ad208212210eb353ac370a6fe55106f9d7a1"
+        },
+        "mailsystem-8.x-4.5.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/mailsystem/mailsystem-8.x-4.5.ar.po",
+            "sha256": "87e297cd46784f211e1b5ef54c022bffec90ee94d9b0c4ac320a068978c97a69"
+        },
+        "media_file_delete-1.3.2.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/media_file_delete/media_file_delete-1.3.2.fr.po",
+            "sha256": "7064a5aca8b750dcf77646a90c7e801f67def17e4b8c917688d5a294d6753b88"
+        },
+        "media_file_delete-1.3.2.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/media_file_delete/media_file_delete-1.3.2.zh-hans.po",
+            "sha256": "71d4385c780c6538759bf2958160b89a19a42a85a770e545a289b37b5c7ae2f3"
+        },
+        "media_file_delete-1.3.2.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/media_file_delete/media_file_delete-1.3.2.es.po",
+            "sha256": "54ede45bc22b14096acf2e7664e4166e4481c92d512504bd539a5b6e67ad20b5"
+        },
+        "media_library_bulk_upload-1.0.6.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/media_library_bulk_upload/media_library_bulk_upload-1.0.6.fr.po",
+            "sha256": "d4c97fe0bd6278ec66cedd5f5fbf3aaa9f4f58057a34c4a96224197a4d62ea71"
+        },
+        "media_library_bulk_upload-1.0.6.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/media_library_bulk_upload/media_library_bulk_upload-1.0.6.zh-hans.po",
+            "sha256": "4346a3c84e4a0f9d31974f4b036cecae68bdc40544be02b29f0882a2b0d1025d"
+        },
+        "media_library_bulk_upload-1.0.6.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/media_library_bulk_upload/media_library_bulk_upload-1.0.6.es.po",
+            "sha256": "90c2ccbbee1edc75508ec227328a74a0b1aafc4925320792de3dacb172d7da9a"
+        },
+        "media_library_bulk_upload-1.0.6.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/media_library_bulk_upload/media_library_bulk_upload-1.0.6.hi.po",
+            "sha256": "e0e297f7d2ebe4a5264ead32fd892f2533ebcc6633ac28950e52b74e2af96013"
+        },
+        "media_library_bulk_upload-1.0.6.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/media_library_bulk_upload/media_library_bulk_upload-1.0.6.ar.po",
+            "sha256": "093fba5acd06b1e201973ea90e615ec479ff7ffafa7cf6dae17ac8f6ed9fef60"
+        },
+        "menu_link_attributes-8.x-1.7.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/menu_link_attributes/menu_link_attributes-8.x-1.7.fr.po",
+            "sha256": "799ed7d211b58ff3d514f767f287d9aaad4ec354bb16dc6919b997a4e0df9294"
+        },
+        "menu_link_attributes-8.x-1.7.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/menu_link_attributes/menu_link_attributes-8.x-1.7.zh-hans.po",
+            "sha256": "678fcb2c5e2a1a8527429d9d7f8e567cd448d2a28df9675007a73d45166fbac8"
+        },
+        "menu_link_attributes-8.x-1.7.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/menu_link_attributes/menu_link_attributes-8.x-1.7.es.po",
+            "sha256": "c854cd4f3d0262bde68909282d48bfefb7a0988290455eae3594240716e2ad53"
+        },
+        "menu_link_attributes-8.x-1.7.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/menu_link_attributes/menu_link_attributes-8.x-1.7.hi.po",
+            "sha256": "43af780e6008c6ff556979af61b8c182a3dc476e384093bb1558e89040759b75"
+        },
+        "menu_link_attributes-8.x-1.7.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/menu_link_attributes/menu_link_attributes-8.x-1.7.ar.po",
+            "sha256": "89475e7e628f13edcfc829bbe437ec29ae701d292a2ea33a38a84e5058eefe85"
+        },
+        "metatag-2.2.0.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/metatag/metatag-2.2.0.fr.po",
+            "sha256": "e24c0a53cbffee420e46a90bd145a6688061341b79c4603d6223c7b139b941a7"
+        },
+        "metatag-2.2.0.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/metatag/metatag-2.2.0.zh-hans.po",
+            "sha256": "8867fc8cc33bead1f68d558674360c22602ea3116279aab9ef40b8c39f8160eb"
+        },
+        "metatag-2.2.0.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/metatag/metatag-2.2.0.es.po",
+            "sha256": "8ff98e7dba4d7825ac9d1ffb260b4fee6e70ac93c720c90ef7edbd1e6670cd59"
+        },
+        "metatag-2.2.0.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/metatag/metatag-2.2.0.hi.po",
+            "sha256": "f355f3c845f94b15f9cde87e1c556109aa98cd28a44fc84cb74690828e3bc6a2"
+        },
+        "metatag-2.2.0.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/metatag/metatag-2.2.0.ar.po",
+            "sha256": "2eed667f678f700b1332f393371c69bb3449b2ba94a95be6b96e058cad0be32f"
+        },
+        "modeler_api-1.1.6.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/modeler_api/modeler_api-1.1.6.fr.po",
+            "sha256": "1dd4aaf87f5f7973d2b3b6d53e6bab86431f15d7279b471a52b10b006c37ea7d"
+        },
+        "modeler_api-1.1.6.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/modeler_api/modeler_api-1.1.6.zh-hans.po",
+            "sha256": "8dc4f2c6e92aa6c46c5c9ba2ce78a5e00bc6bf4fe9a48a89b5082de55bde7439"
+        },
+        "modeler_api-1.1.6.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/modeler_api/modeler_api-1.1.6.es.po",
+            "sha256": "7472230cfcdd6082b8f5fb6a53eb1fd26220f5e374e498d17b8050754246d15a"
+        },
+        "modeler_api-1.1.6.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/modeler_api/modeler_api-1.1.6.hi.po",
+            "sha256": "8d484d2e8d5e43fb63f24c07f386fccafef81fa4c94428b30476b42e04b0c204"
+        },
+        "modeler_api-1.1.6.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/modeler_api/modeler_api-1.1.6.ar.po",
+            "sha256": "ceb76452338106438b4b9e7920f7c193580eb23a3cafec5b8cf8da117b23475b"
+        },
+        "navigation_extra_tools-1.3.2.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/navigation_extra_tools/navigation_extra_tools-1.3.2.fr.po",
+            "sha256": "57baf287e95d883b7685e1316b952b7f17f10f01a8af7c3f7a8ae2da135ebbd3"
+        },
+        "navigation_extra_tools-1.3.2.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/navigation_extra_tools/navigation_extra_tools-1.3.2.zh-hans.po",
+            "sha256": "e300faf7f3bb4659b3b0dea57e644ef0e5461e4f31a22912e87683727da85d66"
+        },
+        "navigation_extra_tools-1.3.2.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/navigation_extra_tools/navigation_extra_tools-1.3.2.es.po",
+            "sha256": "768dd8a13e0f06b109ac64dfd078242d7994785972cb955387138c29c0c595f5"
+        },
+        "navigation_extra_tools-1.3.2.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/navigation_extra_tools/navigation_extra_tools-1.3.2.hi.po",
+            "sha256": "5f753401f1138395f60a79a43cac640e6995ffe1d89f5f3a766ae800b0f2f22a"
+        },
+        "navigation_extra_tools-1.3.2.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/navigation_extra_tools/navigation_extra_tools-1.3.2.ar.po",
+            "sha256": "2ca561261ee3e932842ed59ebc255a723ba0cd8fccadd3106df63201d8e6945f"
+        },
+        "pathauto-8.x-1.15.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/pathauto/pathauto-8.x-1.15.fr.po",
+            "sha256": "8a43c12c685f8f8d9fe9bf40c785c47931bf7c4ffa9da9cea571cb92e69891aa"
+        },
+        "pathauto-8.x-1.15.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/pathauto/pathauto-8.x-1.15.zh-hans.po",
+            "sha256": "b841986396fcfee8c2d7942be59175f9438496bf5ae28dc1b5133e20c4e5c235"
+        },
+        "pathauto-8.x-1.15.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/pathauto/pathauto-8.x-1.15.es.po",
+            "sha256": "6062d1eb64dd1b967d4eca6096c814fad99b79f3e8ab44067c980ec14a1c0de0"
+        },
+        "pathauto-8.x-1.15.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/pathauto/pathauto-8.x-1.15.hi.po",
+            "sha256": "359465c6318f06d744123a27604c0714b2c967c8fb3f93068be727fa0e9b5b79"
+        },
+        "pathauto-8.x-1.15.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/pathauto/pathauto-8.x-1.15.ar.po",
+            "sha256": "fde3f5492e85bceeea083f3ec6df2c5326dd7b4eeaf354437be754786eaf2c10"
+        },
+        "project_browser-2.1.4.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/project_browser/project_browser-2.1.4.fr.po",
+            "sha256": "d5490435f0a50ce3d0ffe4f0ce83a053c3de758e60b58bfb9f95dc2cc73f4597"
+        },
+        "project_browser-2.1.4.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/project_browser/project_browser-2.1.4.zh-hans.po",
+            "sha256": "056c20e8d7e1fd7c8b50ee7d4b2682dc38fc9014f8dcc6bab30f3c47b0b64eec"
+        },
+        "project_browser-2.1.4.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/project_browser/project_browser-2.1.4.es.po",
+            "sha256": "bf6e24b8f0997f3b721cb1ce2b933b154a11cfda0b7ecd0ee9a97c0cbe7e0965"
+        },
+        "project_browser-2.1.4.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/project_browser/project_browser-2.1.4.hi.po",
+            "sha256": "7c7e7742ad36f6e39c890bcf2ddf1fe68cade3979f62ecba4f1d4ef93584226d"
+        },
+        "project_browser-2.1.4.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/project_browser/project_browser-2.1.4.ar.po",
+            "sha256": "d9910de4299ce2ee9966ca7bcbb1021ae01350441f63ee0abc2e53676e13a9d5"
+        },
+        "redirect-8.x-1.13.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/redirect/redirect-8.x-1.13.fr.po",
+            "sha256": "e320dcd5f8665a030035626ec66904931244d6e7c91693d682bd0cf0cbbd1893"
+        },
+        "redirect-8.x-1.13.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/redirect/redirect-8.x-1.13.zh-hans.po",
+            "sha256": "b7bbf6599c3bac93360a1d3612709a75f9353bb0ae9214a309001468d9a119b3"
+        },
+        "redirect-8.x-1.13.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/redirect/redirect-8.x-1.13.es.po",
+            "sha256": "81155a732777f77a7e79d4cfa150ab4dc528d02c14c0c11f26350e73b2e641c0"
+        },
+        "redirect-8.x-1.13.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/redirect/redirect-8.x-1.13.hi.po",
+            "sha256": "ff3569ffc37d3a3437cef5985cc023dd990fbe6f48de9374a6c37b35a0b08236"
+        },
+        "redirect-8.x-1.13.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/redirect/redirect-8.x-1.13.ar.po",
+            "sha256": "50499edc77c45e152d797cc217ba473e046e054d2cfe35804f1c3ec7a346951d"
+        },
+        "sam-1.3.2.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/sam/sam-1.3.2.fr.po",
+            "sha256": "f7248181324023c55f73dd0a82fb31414a7947b567180209cdedd98eb1ffeaf5"
+        },
+        "sam-1.3.2.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/sam/sam-1.3.2.zh-hans.po",
+            "sha256": "d798fd4027df32076b24ef502b06df7c379d05916e10352d8bfc440700972014"
+        },
+        "sam-1.3.2.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/sam/sam-1.3.2.es.po",
+            "sha256": "ba25f157e4d1fe92479eea7a4163548bf007324e819aa405ecf8f91ce3137cc2"
+        },
+        "sam-1.3.2.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/sam/sam-1.3.2.hi.po",
+            "sha256": "583a7eb9c76779e568145c2293da2da1ebe913b3eb5f3db88ddf121b0e1b0ffa"
+        },
+        "sam-1.3.2.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/sam/sam-1.3.2.ar.po",
+            "sha256": "1e4219dae1a9be31545b925c9485f6b8aa8593333d37522217814dba1f20363d"
+        },
+        "scheduler-2.3.0.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/scheduler/scheduler-2.3.0.fr.po",
+            "sha256": "c62cef1b3c9bca59f7da49da9d119c8928858d7b96b648201356a746838d9dd9"
+        },
+        "scheduler-2.3.0.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/scheduler/scheduler-2.3.0.zh-hans.po",
+            "sha256": "3580a85ffc02978efe4ed38bf1ce1c6b463556d165bb6eb8dbaae74ba3d354a6"
+        },
+        "scheduler-2.3.0.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/scheduler/scheduler-2.3.0.es.po",
+            "sha256": "de1a6576ffe7796152620eac825ed1857252d177d89f8dd1959c0320643d44d4"
+        },
+        "scheduler-2.3.0.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/scheduler/scheduler-2.3.0.hi.po",
+            "sha256": "2052b9ea59af2b38e0c26560097955e66500415deab38c38baf92a0bd1244432"
+        },
+        "scheduler-2.3.0.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/scheduler/scheduler-2.3.0.ar.po",
+            "sha256": "b8a2a53069d5f17a5e44fd1794d7c8c245343e70d5d833a38088b2d5f1f6637c"
+        },
+        "search_api-8.x-1.41.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/search_api/search_api-8.x-1.41.fr.po",
+            "sha256": "48a2a2c2b2dc34c4a610713971d2cf0b0f660791185beeccf9a6433a85744bb3"
+        },
+        "search_api-8.x-1.41.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/search_api/search_api-8.x-1.41.zh-hans.po",
+            "sha256": "33e6b5eb1caee7debf0742228c9ec402e41db7bb0750ccb13a6bec11a7c18565"
+        },
+        "search_api-8.x-1.41.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/search_api/search_api-8.x-1.41.es.po",
+            "sha256": "25448b909b11ebedb24378ed57bb7407bfeb749ca641ad898c5289eba8c34404"
+        },
+        "search_api-8.x-1.41.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/search_api/search_api-8.x-1.41.hi.po",
+            "sha256": "0c7041afdc789118efa69ab6800ff09514464e97775845d6da13561ff6e0aa57"
+        },
+        "search_api-8.x-1.41.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/search_api/search_api-8.x-1.41.ar.po",
+            "sha256": "e372d9fe1285dfd05fe328cb08e4b0c8c803e1e32d64d8901e255cb130d6f72a"
+        },
+        "search_api_exclude-2.0.3.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/search_api_exclude/search_api_exclude-2.0.3.fr.po",
+            "sha256": "db478a97a9adf115c50967cd445d6a8a7a76700d0b8d9f5b9ccc96bcef8e9468"
+        },
+        "search_api_exclude-2.0.3.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/search_api_exclude/search_api_exclude-2.0.3.zh-hans.po",
+            "sha256": "71cdf0e93ee996dc4720d3631e984516756c98fa56044fb92340dcebffe49cb1"
+        },
+        "search_api_exclude-2.0.3.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/search_api_exclude/search_api_exclude-2.0.3.es.po",
+            "sha256": "c6d515998278f3c0d3b72bc9ef7b051732eb46e4a3b755c80cee758d32d1a78c"
+        },
+        "search_api_exclude-2.0.3.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/search_api_exclude/search_api_exclude-2.0.3.hi.po",
+            "sha256": "3dc47cb3121d6a0042dea03cc364fb8c2c464cc77865bbd973f6efee70492613"
+        },
+        "search_api_exclude-2.0.3.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/search_api_exclude/search_api_exclude-2.0.3.ar.po",
+            "sha256": "75bd93c4627b45fe44ff7b1713fcba4ac85c60324ec2150fe0fad46704e495e5"
+        },
+        "selective_better_exposed_filters-3.0.3.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/selective_better_exposed_filters/selective_better_exposed_filters-3.0.3.fr.po",
+            "sha256": "fd6be56ba8285742f5c30d1bf12c2c2694e7de40bbb6d6505e2f5df257628a10"
+        },
+        "selective_better_exposed_filters-3.0.3.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/selective_better_exposed_filters/selective_better_exposed_filters-3.0.3.zh-hans.po",
+            "sha256": "d2f73a7562046b68069920cd653f1744e5641d0116c89e53145226934d690cb8"
+        },
+        "selective_better_exposed_filters-3.0.3.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/selective_better_exposed_filters/selective_better_exposed_filters-3.0.3.es.po",
+            "sha256": "00eb5194b21e91868adeffc67d72a4baf8bdd78e4392b2cc3e7830a775efb44a"
+        },
+        "selective_better_exposed_filters-3.0.3.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/selective_better_exposed_filters/selective_better_exposed_filters-3.0.3.hi.po",
+            "sha256": "6993c28ea83811300bf2ec000da74df33fa1ce1fb3c822f21d7b8a856f11f6a9"
+        },
+        "selective_better_exposed_filters-3.0.3.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/selective_better_exposed_filters/selective_better_exposed_filters-3.0.3.ar.po",
+            "sha256": "0088f4bf41cc56ef5b1bb30b3c58a34243fbfe62af52bef3c7ba07a965761932"
+        },
+        "seo_checklist-5.2.4.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/seo_checklist/seo_checklist-5.2.4.fr.po",
+            "sha256": "4eb468fcb6b11e3450a5266374a6a1f9a0ce7eb5f2a169867730cf39ad3b19fa"
+        },
+        "seo_checklist-5.2.4.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/seo_checklist/seo_checklist-5.2.4.zh-hans.po",
+            "sha256": "845c897f610980b4d4c7ce2dd0f77a03c4b210208195f6135cd30b544430b02e"
+        },
+        "seo_checklist-5.2.4.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/seo_checklist/seo_checklist-5.2.4.es.po",
+            "sha256": "2a27db793ae867d6eb19d7174c4d1c513ec6fd684e87bf8658a42944ad7e89d3"
+        },
+        "seo_checklist-5.2.4.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/seo_checklist/seo_checklist-5.2.4.hi.po",
+            "sha256": "87831b3e7e7babc1851e50b2bcac09b10ad565e5237bcc5f6f879d14c7f01ee5"
+        },
+        "seo_checklist-5.2.4.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/seo_checklist/seo_checklist-5.2.4.ar.po",
+            "sha256": "2c43bc08e48ad086f30ec0020ec53972119b7fc05b283ed4212549bbe6817008"
+        },
+        "simple_sitemap-4.2.3.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/simple_sitemap/simple_sitemap-4.2.3.fr.po",
+            "sha256": "be723975657f0365e3814cb464a23bdf4a8ceaa23cb027e35bd5ddfb4a8d60b0"
+        },
+        "simple_sitemap-4.2.3.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/simple_sitemap/simple_sitemap-4.2.3.zh-hans.po",
+            "sha256": "6035b790d227b1c6940e4d29d53d7de049c53b96cc1233c20904e0d18343e507"
+        },
+        "simple_sitemap-4.2.3.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/simple_sitemap/simple_sitemap-4.2.3.es.po",
+            "sha256": "aae5fc83b0b5e26e3fed360a866fafe08246eee95f5ce359b899229f09fce2ed"
+        },
+        "simple_sitemap-4.2.3.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/simple_sitemap/simple_sitemap-4.2.3.hi.po",
+            "sha256": "2e37e4f6e92788f8e164afb626466823cf21c94ebe5f7204a014e494044d4832"
+        },
+        "simple_sitemap-4.2.3.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/simple_sitemap/simple_sitemap-4.2.3.ar.po",
+            "sha256": "264831b6a3c108285ba92673ed6fc09b7b2bd11f63d65426598c88db034c4bb6"
+        },
+        "svg_image-3.2.4.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/svg_image/svg_image-3.2.4.fr.po",
+            "sha256": "861326eecb67cf7a66195e8641e42458694883eed29be0bd3e466bd83e41a44c"
+        },
+        "svg_image-3.2.4.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/svg_image/svg_image-3.2.4.zh-hans.po",
+            "sha256": "0941a698aca242150f0f7ff8e8dd7d053755a80543689217d51743d48ecbc36a"
+        },
+        "svg_image-3.2.4.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/svg_image/svg_image-3.2.4.es.po",
+            "sha256": "dd02bae97268596f50ec512104c1b5e9b9bc4a8eee9aa16c457600ec22e4cb5a"
+        },
+        "svg_image-3.2.4.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/svg_image/svg_image-3.2.4.hi.po",
+            "sha256": "5f2b82723c4451777fac33f1fd12341509be516612b88021a2f9b46285611afe"
+        },
+        "svg_image-3.2.4.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/svg_image/svg_image-3.2.4.ar.po",
+            "sha256": "03156a4f165b800fd4580dd8e88bda5090c43c42d30809ec94cd99879d77d79c"
+        },
+        "symfony_mailer_lite-2.0.4.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/symfony_mailer_lite/symfony_mailer_lite-2.0.4.fr.po",
+            "sha256": "a92dd681e27b4b83fde6ab9ab6eb8dc83470d3ad1c43f3f93146ecf61d952339"
+        },
+        "symfony_mailer_lite-2.0.4.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/symfony_mailer_lite/symfony_mailer_lite-2.0.4.zh-hans.po",
+            "sha256": "5ea2b8baec1750867e0ba18d83fda6f07e9d7000cdf32c1d3e382c0a22ee40fc"
+        },
+        "symfony_mailer_lite-2.0.4.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/symfony_mailer_lite/symfony_mailer_lite-2.0.4.es.po",
+            "sha256": "5ce16ea59a6a5f28c5dc2a6ed08cb4e4543662b53ca6cf31e42fe13c19d65e0b"
+        },
+        "symfony_mailer_lite-2.0.4.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/symfony_mailer_lite/symfony_mailer_lite-2.0.4.hi.po",
+            "sha256": "ff82fcda371f680fa7d555a32590c9187964d5e17e7f952b31db0b77cd416fa8"
+        },
+        "symfony_mailer_lite-2.0.4.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/symfony_mailer_lite/symfony_mailer_lite-2.0.4.ar.po",
+            "sha256": "a471048fabf847ff69f461e0b4712cd7818b2592ba729ac9fd19230188900ec9"
+        },
+        "tagify-1.2.54.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/tagify/tagify-1.2.54.fr.po",
+            "sha256": "5662239d26450a07e146a022a407b2900af5a2088e4584b92cbf0e508c7367ab"
+        },
+        "tagify-1.2.54.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/tagify/tagify-1.2.54.zh-hans.po",
+            "sha256": "309780ca6290dc33d5fe5d198526ba6500aa6c45ff327444ece57f0f31ba9b03"
+        },
+        "tagify-1.2.54.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/tagify/tagify-1.2.54.es.po",
+            "sha256": "02080d6af1dee992bb81e84a55b6d338c1c380e75c99fbe0df949c1b0cb525f2"
+        },
+        "tagify-1.2.54.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/tagify/tagify-1.2.54.hi.po",
+            "sha256": "97319e646a0c50270404c619c9e6892e5e3b66bc8eae99ce0151ca5cfc287b32"
+        },
+        "tagify-1.2.54.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/tagify/tagify-1.2.54.ar.po",
+            "sha256": "5354aff3fc3c5c4a45c3254e6ac1226cdf14ab2954f6289fb00d41d249894e3c"
+        },
+        "token-8.x-1.17.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/token/token-8.x-1.17.fr.po",
+            "sha256": "dd514cec437b9005adebb2bb2bf9ba5391a3c388fdab3aeab37e2b60d5ff4c18"
+        },
+        "token-8.x-1.17.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/token/token-8.x-1.17.zh-hans.po",
+            "sha256": "594a14dbf27f996dfae63b03d74bd42d1378300240568fa0630771043f95595a"
+        },
+        "token-8.x-1.17.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/token/token-8.x-1.17.es.po",
+            "sha256": "571cd9e9c974130748b63038f49f7992b40e1ffe25fd392266db5f085553324b"
+        },
+        "token-8.x-1.17.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/token/token-8.x-1.17.hi.po",
+            "sha256": "cf4ed366d92ac8e3cfd51e4b448c7fd744a0f0129ac75a4151511bd04916c2ab"
+        },
+        "token-8.x-1.17.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/token/token-8.x-1.17.ar.po",
+            "sha256": "5f9d147bd1bbe14b82158cbf252113eb33564955c1eb3996dbfd417c5f83d356"
+        },
+        "token_or-2.3.2.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/token_or/token_or-2.3.2.fr.po",
+            "sha256": "1013cbad266d572030618d5896f3ac9cf0f4ab68103d622d008580cfd3b295d7"
+        },
+        "token_or-2.3.2.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/token_or/token_or-2.3.2.zh-hans.po",
+            "sha256": "2f8251414558ad88ca11024b23a8988ba1f85b69446830dcfd9c9029831bb43c"
+        },
+        "token_or-2.3.2.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/token_or/token_or-2.3.2.es.po",
+            "sha256": "369eb8fcc4d35a1e67d04d54bb60b60f7eea02728f86ddedfb410fba035c719f"
+        },
+        "token_or-2.3.2.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/token_or/token_or-2.3.2.hi.po",
+            "sha256": "b32cf8653a844f3131a09b22d4d4565c8673574d58795f96610d409dc6b15a90"
+        },
+        "token_or-2.3.2.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/token_or/token_or-2.3.2.ar.po",
+            "sha256": "2ccb88623705f16844a3272a07f5dbe14fe027c9ef212148c151caaf57c141a4"
+        },
+        "trash-3.0.33.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/trash/trash-3.0.33.fr.po",
+            "sha256": "6a3e3a87ef2bbd674526fe0ab9a33871c05df1f88dd45e42817ae4734134b4e5"
+        },
+        "trash-3.0.33.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/trash/trash-3.0.33.zh-hans.po",
+            "sha256": "3d9ddf716c68a1497ade2e81f1322250e4d84f273d99d793c53bb3c1684e624e"
+        },
+        "trash-3.0.33.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/trash/trash-3.0.33.es.po",
+            "sha256": "de5994550f985e4ceeac9ec1d74dfc359ebb438cc398389355714bf4ca97ca17"
+        },
+        "trash-3.0.33.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/trash/trash-3.0.33.hi.po",
+            "sha256": "99099ef14af22fee62856f92e056f469e5804d1a61b682096a479d203716b38d"
+        },
+        "trash-3.0.33.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/trash/trash-3.0.33.ar.po",
+            "sha256": "949222885b218d2471caf8643849ef0d978ace5795673d1d83c3746e2c9b2b6e"
+        },
+        "ui_icons-1.1.2.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/ui_icons/ui_icons-1.1.2.fr.po",
+            "sha256": "c15d1d02173ce5d27c7663623314c710b64a036fe3b0188992071a0f7b46a3b4"
+        },
+        "ui_icons-1.1.2.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/ui_icons/ui_icons-1.1.2.zh-hans.po",
+            "sha256": "b6cb23ab752656a6590cffd375feaecb9d2beead3b3268b8a7e1f82b52a23d5f"
+        },
+        "ui_icons-1.1.2.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/ui_icons/ui_icons-1.1.2.es.po",
+            "sha256": "d6433711c650c14b57c8e5390b17ab91cba8da860c80ae76b95f5fbf236a988d"
+        },
+        "ui_icons-1.1.2.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/ui_icons/ui_icons-1.1.2.hi.po",
+            "sha256": "94b8479b9ccb326c8a391d32ca3d5a70361056ba6b9b473954ecd170e64802d5"
+        },
+        "ui_icons-1.1.2.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/ui_icons/ui_icons-1.1.2.ar.po",
+            "sha256": "86ff7e2b89356a859f0c29f4098a3c3a2196fb5e90be5630eea03442df10f1cf"
+        },
+        "view_password-6.0.5.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/view_password/view_password-6.0.5.fr.po",
+            "sha256": "824ed19e2a04969eb6370a79d2141fe6544f8d895f3e86a859eef7bf65080355"
+        },
+        "view_password-6.0.5.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/view_password/view_password-6.0.5.zh-hans.po",
+            "sha256": "7d1749ebe01acaeddef09b7993176eea550901921a3adcd2291f3492a54438ee"
+        },
+        "view_password-6.0.5.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/view_password/view_password-6.0.5.es.po",
+            "sha256": "e4ef28760422c0d983e3be934ca2d43781da3740e31fb53449e15bf2aefa02a5"
+        },
+        "view_password-6.0.5.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/view_password/view_password-6.0.5.hi.po",
+            "sha256": "bb63a917a08f0e4b29640a406556918191d194c6d364bd15f4d19d4cf622bd90"
+        },
+        "view_password-6.0.5.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/view_password/view_password-6.0.5.ar.po",
+            "sha256": "24374e1812a18528044861f8aa4b3882c10687cbb9d4a543a227de96e87884ad"
+        },
+        "views_infinite_scroll-2.0.3.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/views_infinite_scroll/views_infinite_scroll-2.0.3.fr.po",
+            "sha256": "d385ae1b27504b7178cf6f23e3b31d75fb347f4c84ae26b461fe5be8b5db6779"
+        },
+        "views_infinite_scroll-2.0.3.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/views_infinite_scroll/views_infinite_scroll-2.0.3.zh-hans.po",
+            "sha256": "c166a48f85de05d2907086c2ace27f30908a5eb87e6b9c712bf4774bd0f4ec12"
+        },
+        "views_infinite_scroll-2.0.3.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/views_infinite_scroll/views_infinite_scroll-2.0.3.es.po",
+            "sha256": "2d416c5ef0d41fbc31f891fd8a2484c448ee620e694772f9c0ca3a79c868c997"
+        },
+        "views_infinite_scroll-2.0.3.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/views_infinite_scroll/views_infinite_scroll-2.0.3.hi.po",
+            "sha256": "5c5b8a53b486d0a02b6d8f5a5622f394faa3d3af2b5f4ef920b4cfab225f8283"
+        },
+        "views_infinite_scroll-2.0.3.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/views_infinite_scroll/views_infinite_scroll-2.0.3.ar.po",
+            "sha256": "1d60c6ee61420be2e42e4dee1c8ed559aa3eb149f0c1b73a2007955ee2df2220"
+        },
+        "webform-6.3.0.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/webform/webform-6.3.0.fr.po",
+            "sha256": "6016958efcc48873a42566ab92af89f4abad6281dc12a0911f5c7bcec385d1ca"
+        },
+        "webform-6.3.0.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/webform/webform-6.3.0.zh-hans.po",
+            "sha256": "262c76bfe159b397b572ad7830094d3897495fbd7c587c4e04380127b87e5482"
+        },
+        "webform-6.3.0.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/webform/webform-6.3.0.es.po",
+            "sha256": "ac846d99a256b2794b255021808274ce31f54936c3a7b83c665c56e8789207a9"
+        },
+        "webform-6.3.0.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/webform/webform-6.3.0.hi.po",
+            "sha256": "2965aa6f03341e2bbd0752baab2f3ed9967987b68423ece97a398891407d1634"
+        },
+        "webform-6.3.0.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/webform/webform-6.3.0.ar.po",
+            "sha256": "ddcaa02f1fb603821357ca3dea908f22c8037f2f95fdf6d660c3b4f546a1a1d3"
+        },
+        "yoast_seo-8.x-2.2.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/yoast_seo/yoast_seo-8.x-2.2.fr.po",
+            "sha256": "e8bd6da3766f0cc92eb455afac2fecf3345cd3494d3c53397f003491b6eb2d57"
+        },
+        "yoast_seo-8.x-2.2.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/yoast_seo/yoast_seo-8.x-2.2.zh-hans.po",
+            "sha256": "2af4351f9fd171818fa62832b1c65623624b8fa3353cd48513c8bb22ae739f90"
+        },
+        "yoast_seo-8.x-2.2.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/yoast_seo/yoast_seo-8.x-2.2.es.po",
+            "sha256": "9f939df502b8c6f204000e4bf4a656e254ae6f88438057650c1a2d9de050ec61"
+        },
+        "yoast_seo-8.x-2.2.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/yoast_seo/yoast_seo-8.x-2.2.hi.po",
+            "sha256": "5f8876fa779d2ca2a3570f340215bfe80c9c8bc0f0fded970ce2f0284937611b"
+        },
+        "yoast_seo-8.x-2.2.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/yoast_seo/yoast_seo-8.x-2.2.ar.po",
+            "sha256": "9686630f23d2c9a5fae3f3d2b1e9bfb1bb6d6e58830c7cb9d4069c861908d471"
+        }
+    },
+    "missing": [
+        "bpmn_io-3.0.6.fr.po",
+        "bpmn_io-3.0.6.zh-hans.po",
+        "bpmn_io-3.0.6.es.po",
+        "bpmn_io-3.0.6.hi.po",
+        "bpmn_io-3.0.6.ar.po",
+        "jquery_ui_resizable-2.1.0.hi.po",
+        "jquery_ui_resizable-2.1.0.ar.po",
+        "media_file_delete-1.3.2.hi.po",
+        "media_file_delete-1.3.2.ar.po",
+        "scheduler_content_moderation_integration-3.0.5.fr.po",
+        "scheduler_content_moderation_integration-3.0.5.zh-hans.po",
+        "scheduler_content_moderation_integration-3.0.5.es.po",
+        "scheduler_content_moderation_integration-3.0.5.hi.po",
+        "scheduler_content_moderation_integration-3.0.5.ar.po"
+    ],
+    "archive_sha256": "ed432dddb35692c004d01637da790359778bf6a0c1c661ad7bd1faf7bfd83b69"
+}

@@ -2,6 +2,7 @@
 /web/
 /recipes/
 /dist/
+/dist-phase1/
 /build/
 /data/
 /.phpunit.cache/

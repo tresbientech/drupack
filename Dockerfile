@@ -7,6 +7,8 @@ RUN curl -fsSL https://getcomposer.org/download/2.8.12/composer.phar -o /usr/loc
 WORKDIR /app
 COPY composer.json composer.lock ./
 RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /usr/local/bin/composer.phar install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+COPY packaging/translations.tar.gz packaging/translations.json packaging/install-translations.php /build/
+RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /build/install-translations.php
 COPY runtime/ ./
 COPY packaging/site-templates.php web/sites/default/site-templates.php
 COPY packaging/embed.sh /usr/local/bin/embed.sh
