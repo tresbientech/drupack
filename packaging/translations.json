@@ -1,5 +1,5 @@
 {
-    "composer_lock_sha256": "1c69af38abe1c0ddf8518cc3a86b2faef40a56857beb8dcaab92d870e26ac817",
+    "composer_lock_sha256": "d802ec0613b84544961157a24e083052fc822375f8c5e357a7187f0777920b88",
     "files": {
         "automatic_updates-4.1.0.fr.po": {
             "url": "https://ftp.drupal.org/files/translations/all/automatic_updates/automatic_updates-4.1.0.fr.po",
@@ -81,25 +81,25 @@
             "url": "https://ftp.drupal.org/files/translations/all/byte_theme/byte_theme-1.0.3.ar.po",
             "sha256": "8eab97926b07ad75f03dbf1779f24945a12dc7d77debab7354d0de8d1e30b0ed"
         },
-        "canvas-1.11.0.fr.po": {
-            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.11.0.fr.po",
-            "sha256": "00fe090d7945b4608a3ed6694df742f81e3249e0b364b3b751e4121ce0bb97c6"
+        "canvas-1.10.1.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.10.1.fr.po",
+            "sha256": "ec1ad393c219c6b5a70fc49f4577141e12a3f913ac859a134ae889c6dea5eae1"
         },
-        "canvas-1.11.0.zh-hans.po": {
-            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.11.0.zh-hans.po",
-            "sha256": "2280819f9cfcdc544191cdf3780a7435a696bd3ad46754f90818b7f95a9a48cd"
+        "canvas-1.10.1.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.10.1.zh-hans.po",
+            "sha256": "a6d1454006ce266e04340bbcb166b6207301f0d9400b45272a5c09a5f3d6f54e"
         },
-        "canvas-1.11.0.es.po": {
-            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.11.0.es.po",
-            "sha256": "56bef8d90e5e3c6c07d9dfc8f4fa8c4d044e674eed1dd241b4a9d5f0a1f188e9"
+        "canvas-1.10.1.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.10.1.es.po",
+            "sha256": "06abdc061c81a9a025e9eceeac5d8be9885b7fc9772f2e3edb28c134818ebb01"
         },
-        "canvas-1.11.0.hi.po": {
-            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.11.0.hi.po",
-            "sha256": "b70c575f47dbf8f2240701d99a2104c666cf2af3c676262842a1359cb52dd6ba"
+        "canvas-1.10.1.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.10.1.hi.po",
+            "sha256": "08039b7baa54a0b8d230ef4c11459479a8b2c440c4f0f4d2725591ff260cbbe5"
         },
-        "canvas-1.11.0.ar.po": {
-            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.11.0.ar.po",
-            "sha256": "9b6f355d18f1567918240a190dacd16fa5082a90ca9deb7e096377488dc52b5e"
+        "canvas-1.10.1.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/canvas/canvas-1.10.1.ar.po",
+            "sha256": "44d06d1b5aafd343888d44df38e0b640019d152383c00765ffb1ba2d8d3103d5"
         },
         "captcha-2.0.10.fr.po": {
             "url": "https://ftp.drupal.org/files/translations/all/captcha/captcha-2.0.10.fr.po",
@@ -1202,5 +1202,5 @@
         "scheduler_content_moderation_integration-3.0.5.hi.po",
         "scheduler_content_moderation_integration-3.0.5.ar.po"
     ],
-    "archive_sha256": "ed432dddb35692c004d01637da790359778bf6a0c1c661ad7bd1faf7bfd83b69"
+    "archive_sha256": "c3d7c7a84772d7d875147531620548d3252aee2dda2267c0c38b22b31a1c8bea"
 }

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3e8f246bcc9014ddbf0cc708ec9e7058",
+    "content-hash": "d248621c76ea48649a3a0b8a0d8b8733",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -876,17 +876,17 @@
         },
         {
             "name": "drupal/canvas",
-            "version": "1.11.0",
+            "version": "1.10.1",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/canvas.git",
-                "reference": "1.11.0"
+                "reference": "1.10.1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/canvas-1.11.0.zip",
-                "reference": "1.11.0",
-                "shasum": "dea4a0245ceb6ef770ffe86ae0baaf9316ad8849"
+                "url": "https://ftp.drupal.org/files/projects/canvas-1.10.1.zip",
+                "reference": "1.10.1",
+                "shasum": "388140b9d0c9628ff4f1322202aca632ec5801a6"
             },
             "require": {
                 "drupal/core": "^11.3",
@@ -919,8 +919,8 @@
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "1.11.0",
-                    "datestamp": "1788891018",
+                    "version": "1.10.1",
+                    "datestamp": "1786575902",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"
