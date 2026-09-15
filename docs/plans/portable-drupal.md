@@ -281,6 +281,100 @@ Artifact SHA-256:
 761d8cc3024f24a03e75538daa50995c38c2cc1a10935d3dedbe4eefd8560708
 ```
 
+## Phase 8: Compare reduced GNU and musl runtimes
+
+### Build scope
+
+Compare the same embedded application with reduced PHP extension sets on GNU and musl.
+Keep the Phase 7 executable as the default artifact.
+Retain MySQL drivers at the user's request; SQLite remains the configured site database.
+
+Both builds use PHP 8.5.10 with thread safety and OPcache enabled, with JIT disabled.
+The pinned builders contain SPC 2.8.6 and cached native libraries.
+The reduced builds reuse those libraries, including curl and ZIP dependencies.
+They do not rebuild every native library with fewer features.
+Fresh source downloads require network access and remain subject to upstream availability and API limits.
+
+Both candidates copy the same application archive and extraction identifier from the default build stage.
+The archive contains 193,587,200 bytes; extracted regular files contain 170,389,206 bytes.
+The GNU candidate retains the Debian 12 baseline.
+ELF inspection found no interpreter or shared-library dependencies in the musl candidate.
+
+### Acceptance criteria
+
+- [x] Build GNU and musl candidates with identical application inputs and PHP extension selections.
+- [x] Verify MySQL and SQLite PDO drivers in both executables.
+- [x] Measure raw and compressed executable sizes separately.
+- [x] Verify final compressed candidates through the complete offline browser suite.
+- [x] Verify final compressed candidates against an existing site without clearing caches.
+- [x] Record startup and memory measurements for both compressed candidates.
+- [x] Preserve the working executable and the user's data directory.
+
+### Size measurements
+
+| Runtime | Uncompressed bytes | UPX level 9 bytes |
+| --- | ---: | ---: |
+| Phase 7 GNU | 362,057,880 | 108,683,432 |
+| Reduced GNU | 342,930,712 | 101,707,036 |
+| Reduced musl | 344,955,472 | 103,084,852 |
+
+Reduced GNU saves 6,976,396 compressed bytes versus Phase 7, or 6.42%.
+Reduced musl saves 5,598,580 compressed bytes versus Phase 7, or 5.15%.
+Musl is 1,377,816 compressed bytes larger than reduced GNU.
+Both compressed artifacts passed UPX integrity checks.
+
+### Installer measurements
+
+| Runtime | First installer response, seconds | Process RSS, MiB |
+| --- | ---: | ---: |
+| Reduced GNU, uncompressed | 3.227 | 343.7 |
+| Reduced musl, uncompressed | 3.392 | 324.5 |
+| Reduced GNU, UPX level 9 | 5.009 | 459.3 |
+| Reduced musl, UPX level 9 | 4.546 | 479.9 |
+
+These are medians of three fresh-site runs per candidate using the Phase 7 installer workload.
+Build and browser-test jobs ran concurrently, and filesystem caches were not cleared.
+RSS covers the serving process after ten installer requests, excluding any earlier startup-process peak.
+The measurements do not establish a production-throughput difference between GNU and musl.
+
+### Existing-site verification
+
+Both raw and compressed candidates passed the installed-site network checks with unchanged caches.
+Each check copied the entire baseline fixture and preserved its original absolute data-directory path.
+The original fixture and the user's data directory remained untouched.
+
+Checks covered:
+
+- Remote administrator login.
+- Persisted content access.
+- Private-path protection.
+- Default listener isolation.
+
+Compressed artifact SHA-256 values:
+
+```text
+GNU  f361dc8f0ddb499aadea8472e0aa1de1a8cecca25aaa56b664a7c16cc39c6565
+musl 1d446cec7033558822743a575c199fa9c347a2e1c606f71b57fea40628d81e38
+```
+
+### Offline browser verification
+
+All four candidates passed the complete offline suite, including required-extension and PDO-driver assertions.
+
+| Candidate | Successful suite duration, seconds |
+| --- | ---: |
+| Reduced GNU, uncompressed | 288.450 |
+| Reduced musl, uncompressed | 391.941 |
+| Reduced GNU, UPX level 9 | 290.234 |
+| Reduced musl, UPX level 9, retry | 253.618 |
+
+The first compressed musl run timed out during browser navigation after restart, then timed out while capturing the page source.
+An independent login-page request returned HTTP 200 in 0.224 seconds while that run was stalled.
+A single fresh retry passed with unchanged assertions and no skipped workflows.
+The initial failure evidence remains in `/tmp/portable-drupal-minimal-musl-compressed-browser`.
+The successful retry evidence is in `/tmp/portable-drupal-minimal-musl-compressed-browser-retry`.
+Suite timings include concurrent host workloads and do not establish relative runtime performance.
+
 ## Handling compatibility findings
 
 Resolve upstream version and extension compatibility in Phase 1 before building later workflows.

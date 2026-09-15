@@ -29,6 +29,32 @@ Build the uncompressed variant with:
 docker build --target uncompressed --output type=local,dest=dist/uncompressed .
 ```
 
+### Compare reduced runtimes
+
+Build the reduced GNU runtime separately:
+
+```sh
+docker build --target artifact --build-arg ARTIFACT_BUILD=comparison-build \
+  --output type=local,dest=dist/gnu .
+```
+
+Build the same application with musl:
+
+```sh
+docker build --target artifact --build-arg ARTIFACT_BUILD=comparison-build \
+  --build-arg COMPARISON_BUILDER=dunglas/frankenphp:static-builder-musl@sha256:a78af5ef3b46b5f382a702ee7aed22b367a6dc1bce382de0aebac7f4d73dade1 \
+  --output type=local,dest=dist/musl .
+```
+
+Run either candidate with the same startup flags described below.
+These commands preserve `dist/portable-drupal`.
+The reduced runtimes retain MySQL drivers (`mysqli`, `mysqlnd`, `pdo_mysql`); site configuration still uses SQLite.
+Neither artifact includes a MySQL server.
+Both retain OPcache with JIT disabled.
+The musl executable has no shared-library dependencies; outbound HTTPS still requires host CA certificates.
+It cannot load additional PHP extensions dynamically.
+The [runtime comparison](docs/plans/portable-drupal.md#phase-8-compare-reduced-gnu-and-musl-runtimes) records sizes and verification.
+
 ## Start a site
 
 ```sh
