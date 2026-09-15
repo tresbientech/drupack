@@ -106,7 +106,10 @@ class OfflineSite(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         RESULTS.mkdir(parents=True, exist_ok=True)
-        cls.work = Path(tempfile.mkdtemp(prefix="portable-drupal-"))
+        cls.work = Path(tempfile.mkdtemp(prefix="site-", dir=RESULTS))
+        cls.binary = cls.work / "portable-drupal"
+        shutil.copyfile(BINARY, cls.binary)
+        cls.binary.chmod(0o700)
         cls.driver_log = open(RESULTS / "chromedriver.log", "w")
         cls.driver = subprocess.Popen(["chromedriver", "--port=9515"],
                                       stdout=cls.driver_log, stderr=subprocess.STDOUT)
@@ -126,7 +129,7 @@ class OfflineSite(unittest.TestCase):
 
     @classmethod
     def start(cls, *arguments):
-        cls.server = subprocess.Popen([str(BINARY), "php-cli", "launch.php", *arguments],
+        cls.server = subprocess.Popen([str(cls.binary), "php-cli", "launch.php", *arguments],
                                       cwd=cls.work, stdout=cls.server_log,
                                       stderr=subprocess.STDOUT, start_new_session=True)
         wait_until(lambda: cls.ready())
@@ -148,9 +151,12 @@ class OfflineSite(unittest.TestCase):
                 os.killpg(cls.server.pid, signal.SIGKILL)
                 cls.server.wait()
 
-    def install(self):
+    def install(self, language="en"):
         browser = self.browser
         browser.visit("/")
+        if language != "en":
+            browser.select('[name="langcode"]', language)
+            wait_until(lambda: browser.script("return document.documentElement.lang") == language)
         deadline = time.monotonic() + 600
         step = 0
         configured = False
@@ -194,6 +200,7 @@ class OfflineSite(unittest.TestCase):
         self.browser.visit("/admin/content")
         self.assertNotIn("Access denied", self.browser.text())
         self.assertFalse(self.browser.elements('[name="pass"]'))
+        self.assertEqual(str(self.browser.script("return drupalSettings.user.uid")), "1")
 
     def assert_protected(self, data):
         secret = "private-offline-test-content"
@@ -318,6 +325,10 @@ class OfflineSite(unittest.TestCase):
             self.assert_protected(data)
             node, image_url = self.create_content_and_upload(data)
             self.stop()
+            replacement = self.work / "replacement"
+            shutil.copyfile(BINARY, replacement)
+            replacement.chmod(0o700)
+            os.replace(replacement, self.binary)
             self.start()
             self.login()
             self.browser.visit("/" + node)
@@ -340,8 +351,10 @@ class OfflineSite(unittest.TestCase):
             self.stop()
             custom = self.work / "another site"
             self.start("--data-dir", str(custom))
-            self.install()
+            self.install("fr" if PHASE >= 3 else "en")
             self.login()
+            if PHASE >= 3:
+                self.assertEqual(self.browser.script("return document.documentElement.lang"), "fr")
             self.assertTrue((custom / "site.sqlite").is_file())
             self.assert_protected(custom)
             self.assertNotEqual((data / "hash_salt").read_text(), (custom / "hash_salt").read_text())
