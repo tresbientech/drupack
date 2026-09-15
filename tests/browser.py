@@ -366,11 +366,38 @@ class OfflineSite(unittest.TestCase):
         self.assertIn("--not-an-option", invalid.stdout + invalid.stderr)
         self.assertFalse((self.work / "data").exists())
 
+    def assert_package_contents(self):
+        roots = list((self.work / "data" / "runtime").glob("frankenphp_*"))
+        self.assertEqual(len(roots), 1)
+        root = roots[0]
+        excluded_names = {"tests", "Tests", ".github", ".gitlab", "package-lock.json",
+                          "yarn.lock", "pnpm-lock.yaml", "npm-shrinkwrap.json"}
+        excluded = [str(path.relative_to(root)) for path in root.rglob("*")
+                    if path.name in excluded_names or path.name.endswith((".js.map", ".css.map", ".pcss.css"))]
+        self.assertEqual(excluded, [])
+        for path in ["web/modules/contrib/canvas/ui/lib", "web/modules/contrib/canvas/ui/assets/videos",
+                     "web/modules/contrib/canvas/packages/cli/src", "web/modules/contrib/canvas/packages/workbench/src",
+                     "web/modules/contrib/canvas/packages/eslint-config/src", "web/modules/contrib/modeler_api/ui/src",
+                     "web/modules/contrib/project_browser/sveltejs/src", "web/modules/contrib/project_browser/sveltejs/scripts",
+                     "vendor/html2text/html2text/test"]:
+            self.assertFalse((root / path).exists(), path)
+        source = root / "web/modules/contrib/canvas/ui/src"
+        licenses = [str(path.relative_to(source)) for path in source.rglob("*") if path.is_file()]
+        self.assertEqual(licenses, ["local_packages/hyperscriptify/LICENSE"])
+        self.assertIn("Permission is hereby granted", (source / licenses[0]).read_text())
+        for path in ["launch.php", "web/index.php", "vendor/autoload.php",
+                     "web/modules/contrib/canvas/ui/dist/assets/index.js", "web/modules/contrib/canvas/ui/dist/assets/index.css",
+                     "web/modules/contrib/project_browser/sveltejs/public/build/bundle.js",
+                     "web/modules/contrib/modeler_api/js/template-token-selector.js"]:
+            self.assertGreater((root / path).stat().st_size, 0, path)
+        self.assertEqual(len(list((root / "translations").glob("*.po"))), 301 if EXTRA == "devel" else 296)
+
     def test_install_restart_and_custom_directory(self):
         self.assertIsNone(shutil.which("php"))
         self.assertIsNone(shutil.which("composer"))
         self.start()
         try:
+            self.assert_package_contents()
             self.install()
             data = self.work / "data"
             self.assertTrue((data / "site.sqlite").is_file())
