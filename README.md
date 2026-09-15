@@ -2,7 +2,7 @@
 
 Package Drupal CMS with Byte, SQLite, and FrankenPHP in one Linux executable.
 Site data lives in a separate directory.
-Installation compatibility and the release acceptance checks are under test.
+Offline installation and the release acceptance checks pass with the pinned dependencies.
 
 ## Build
 
@@ -82,6 +82,8 @@ The selected data directory contains:
 
 Stop the process before copying the entire data directory for backup.
 Keep backups private because they contain the database and site secret.
+Restore backups at the original absolute data-directory path.
+Relocation requires additional handling of Drupal's cached paths and extracted application links.
 Replacing the executable with the same build preserves the selected site's data.
 Compatibility across application versions is outside this release's scope.
 
@@ -109,6 +111,18 @@ bash tests/network.sh ./dist/portable-drupal
 
 Each script prints its results directory.
 Use a fresh results directory for each network test run.
+The network script accepts an installed data directory as its third argument to test remote login against a copied site.
+
+Verified on 15 September 2026:
+
+- Offline English and French installation, including a custom data directory.
+- Content and uploaded images retained after restart and replacement with the same executable build.
+- All agreed language imports and content translation through Drupal's standard interfaces.
+- Arabic content editing through Drupal's right-to-left interface.
+- Explicit remote access with authentication and private-file protection.
+- Bundled component activation and a separately rebuilt artifact with Devel enabled.
+
+The current executable is approximately 450 MiB. Size reduction is scheduled as phase 7.
 
 The [PRD](docs/prd/portable-drupal.md) defines the release scope.
 The [implementation plan](docs/plans/portable-drupal.md) lists phase acceptance criteria.
