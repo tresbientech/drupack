@@ -6,8 +6,9 @@ tar --mtime=@0 --owner=0 --group=0 --numeric-owner -cf app.tar -C /app .
 sha256sum app.tar | cut -d ' ' -f 1 | tr -d '\n' > app_checksum.txt
 
 php_config=/go/src/app/dist/static-php-cli/buildroot/bin/php-config
+frankenphp_version=1.12.7
 export CGO_ENABLED=1
-export CGO_CFLAGS="-fPIC -O2 -I/go/src/app/dist/static-php-cli/buildroot/include $($php_config --includes) -DFRANKENPHP_VERSION=1.12.7"
+export CGO_CFLAGS="-fPIC -O2 -I/go/src/app/dist/static-php-cli/buildroot/include $($php_config --includes) -DFRANKENPHP_VERSION=$frankenphp_version"
 php_libraries=$($php_config --libs)
 php_libraries=${php_libraries//-lstdc++/$(gcc -print-file-name=libstdc++.a)}
 export CGO_LDFLAGS="-L/go/src/app/dist/static-php-cli/buildroot/lib -static-libgcc -Wl,--start-group -lphp $php_libraries -lwatcher-c -lpq -lpgcommon -lpgport -lhashkit -lcharset -largon2 -Wl,--end-group"
@@ -17,6 +18,6 @@ export GOTOOLCHAIN=local
 mkdir -p /out
 cd caddy
 "$GOROOT/bin/go" build -mod=readonly -buildmode=pie -tags=nobadger,nomysql,nopgx \
-    -ldflags="-s -w -linkmode=external -extldflags '-pie -Wl,--dynamic-list=/go/src/app/dist/static-php-cli/buildroot/lib/libphp.a.dynsym' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP 1.12.7 PHP 8.5.10 Caddy'" \
+    -ldflags="-s -w -linkmode=external -extldflags '-pie -Wl,--dynamic-list=/go/src/app/dist/static-php-cli/buildroot/lib/libphp.a.dynsym' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $($php_config --version) Caddy'" \
     -o /out/portable-drupal ./frankenphp
 /out/portable-drupal version

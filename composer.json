@@ -8,13 +8,12 @@
         "php": "~8.5.0",
         "ext-pdo_sqlite": "*",
         "composer/installers": "^2.3",
-        "drupal/byte": "1.0.2",
+        "drupal/byte": "1.0.3",
         "drupal/core-composer-scaffold": "^11.3.10",
         "drupal/core-project-message": "^11.3.10",
         "drupal/core-recommended": "^11.3.10",
         "drupal/core-vendor-hardening": "^11.3.10",
-        "drupal/drupal_cms_installer": "2.1.2",
-        "drupal/webform": "@beta"
+        "drupal/drupal_cms_installer": "2.1.2"
     },
     "minimum-stability": "stable",
     "prefer-stable": true,
@@ -35,8 +34,7 @@
     "extra": {
         "drupal-scaffold": {
             "locations": {"web-root": "web/"},
-            "file-mapping": {"[web-root]/example.gitignore": false},
-            "allowed-packages": ["drupal/drupal_cms_seo_tools"]
+            "file-mapping": {"[web-root]/example.gitignore": false}
         },
         "installer-paths": {
             "web/core": ["type:drupal-core"],
