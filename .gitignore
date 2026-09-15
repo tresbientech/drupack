@@ -1,0 +1,9 @@
+/vendor/
+/web/
+/recipes/
+/dist/
+/build/
+/data/
+/.phpunit.cache/
+/.editorconfig
+/.gitattributes

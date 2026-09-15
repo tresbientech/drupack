@@ -1,0 +1,8 @@
+*
+!composer.json
+!composer.lock
+!runtime/
+!runtime/**
+!packaging/
+!packaging/**
+!Dockerfile
