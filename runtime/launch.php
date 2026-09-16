@@ -281,7 +281,11 @@ try {
     }
     // FrankenPHP extracts before CLI parsing; re-execute once to obtain a site-specific application root.
     if (dirname(__DIR__) !== "$data/runtime") {
-        pcntl_exec($binary, ['php-cli', 'launch.php', '--data-dir', $data, '--listen', $options['listen'], '--host', $options['host']]);
+        $arguments = ['php-cli', 'launch.php', '--data-dir', $data, '--listen', $options['listen'], '--host', $options['host']];
+        if ($drush) {
+            $arguments = array_merge($arguments, $command);
+        }
+        pcntl_exec($binary, $arguments);
         throw new RuntimeException('Cannot restart the embedded runtime');
     }
 
@@ -313,8 +317,11 @@ try {
         }
     }
     if ($drush) {
-        pcntl_exec($binary, array_merge(['php-cli', drushPath()], $command));
-        throw new RuntimeException('Cannot run Drush');
+        $process = proc_open(array_merge([$binary, 'php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], $pipes, __DIR__);
+        if (!is_resource($process)) {
+            throw new RuntimeException('Cannot run Drush');
+        }
+        exit(proc_close($process));
     }
     fwrite(STDOUT, "Drupal: http://{$options['host']}:$port\nSite data: $data\n");
     pcntl_exec($binary, ['php-server']);

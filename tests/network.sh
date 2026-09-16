@@ -63,6 +63,7 @@ for mode in loopback network; do
   printf '<?php echo "php-network-sentinel";' >"$results/data/files/php/test.php"
   docker run --rm -i --network "$network" --entrypoint /usr/bin/python3 \
     "$client" - "$mode" <<'PY'
+from http.cookiejar import CookieJar
 import socket
 import sys
 import urllib.error
