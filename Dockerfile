@@ -1,7 +1,8 @@
-ARG GNU_BUILDER=dunglas/frankenphp:static-builder-gnu@sha256:77419ad4e1319db39ea3b2f88860b940faff2ce70dbd722ef0bd9c7d2d6f128d
-ARG COMPARISON_BUILDER=${GNU_BUILDER}
+ARG MUSL_BUILDER=dunglas/frankenphp:static-builder-musl@sha256:a78af5ef3b46b5f382a702ee7aed22b367a6dc1bce382de0aebac7f4d73dade1
+ARG BUILDER=${MUSL_BUILDER}
+ARG COMPARISON_BUILDER=${BUILDER}
 ARG ARTIFACT_BUILD=build
-FROM ${GNU_BUILDER} AS build
+FROM ${BUILDER} AS build
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN curl -fsSL https://getcomposer.org/download/2.8.12/composer.phar -o /usr/local/bin/composer.phar \
@@ -50,11 +51,17 @@ COPY --from=selected-build /out/drupack /drupack
 
 FROM selected-build AS compressed
 ARG UPX_VERSION=5.2.1
-RUN curl -fsSL "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/upx-${UPX_VERSION}-amd64_linux.tar.xz" -o /tmp/upx.tar.xz \
-    && echo '402162aad30af47e60dbd767fb2e64ca394ace9727ba1f40283641f1d1b91657  /tmp/upx.tar.xz' | sha256sum -c - \
+RUN case "$(uname -m)" in \
+        x86_64) upx_arch=amd64; upx_checksum=402162aad30af47e60dbd767fb2e64ca394ace9727ba1f40283641f1d1b91657 ;; \
+        aarch64) upx_arch=arm64; upx_checksum=a72d112c5970a904a31da0b9c84f919bc16b9a311787c12245508544a78c7d36 ;; \
+        *) printf 'Unsupported UPX architecture: %s\n' "$(uname -m)" >&2; exit 1 ;; \
+    esac \
+    && upx_archive="upx-${UPX_VERSION}-${upx_arch}_linux.tar.xz" \
+    && curl -fsSL "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/${upx_archive}" -o /tmp/upx.tar.xz \
+    && printf '%s  /tmp/upx.tar.xz\n' "$upx_checksum" | sha256sum -c - \
     && tar -xJf /tmp/upx.tar.xz -C /tmp \
-    && /tmp/upx-${UPX_VERSION}-amd64_linux/upx -9 /out/drupack \
-    && /tmp/upx-${UPX_VERSION}-amd64_linux/upx -t /out/drupack
+    && "/tmp/upx-${UPX_VERSION}-${upx_arch}_linux/upx" -9 /out/drupack \
+    && "/tmp/upx-${UPX_VERSION}-${upx_arch}_linux/upx" -t /out/drupack
 
 FROM scratch AS artifact
 COPY --from=compressed /out/drupack /drupack

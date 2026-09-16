@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows:
+      - Linux
+    types:
+      - completed
+
+permissions:
+  actions: read
+  attestations: write
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+      LINUX_RUN_ID: ${{ github.event.workflow_run.id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Wait for native platform builds
+        run: |
+          for workflow in macos.yml windows.yml; do
+            for attempt in $(seq 1 90); do
+              run=$(gh api \
+                "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?head_sha=${RELEASE_SHA}&branch=${RELEASE_TAG}&event=push&per_page=100" \
+                --jq '.workflow_runs | sort_by(.created_at) | last // empty')
+              if [ -z "$run" ]; then
+                sleep 60
+                continue
+              fi
+              status=$(jq -r '.status' <<<"$run")
+              conclusion=$(jq -r '.conclusion // empty' <<<"$run")
+              if [ "$status" = completed ]; then
+                if [ "$conclusion" != success ]; then
+                  printf '%s failed with conclusion %s\n' "$workflow" "$conclusion" >&2
+                  exit 1
+                fi
+                jq -r '.id' <<<"$run" >"${workflow}.run-id"
+                break
+              fi
+              sleep 60
+            done
+            test -s "${workflow}.run-id"
+          done
+
+      - name: Download native release candidates
+        run: |
+          version=$RELEASE_TAG
+          revision=${RELEASE_SHA::12}
+          mkdir -p candidates/linux-amd64 candidates/linux-arm64
+          mkdir -p candidates/macos-amd64 candidates/macos-arm64 candidates/windows-amd64
+          gh run download "$LINUX_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "drupack-0.0.0-dev-${revision}-linux-amd64" --dir candidates/linux-amd64
+          gh run download "$LINUX_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "drupack-0.0.0-dev-${revision}-linux-arm64" --dir candidates/linux-arm64
+          macos_run=$(cat macos.yml.run-id)
+          gh run download "$macos_run" --repo "$GITHUB_REPOSITORY" \
+            --name "drupack-0.0.0-dev-${revision}-macos-amd64" --dir candidates/macos-amd64
+          gh run download "$macos_run" --repo "$GITHUB_REPOSITORY" \
+            --name "drupack-0.0.0-dev-${revision}-macos-arm64" --dir candidates/macos-arm64
+          windows_run=$(cat windows.yml.run-id)
+          gh run download "$windows_run" --repo "$GITHUB_REPOSITORY" \
+            --name "drupack-0.0.0-dev-${revision}-windows-amd64" --dir candidates/windows-amd64
+          test -n "$version"
+
+      - name: Prepare release assets
+        run: |
+          version=$RELEASE_TAG
+          mkdir release
+          for target in linux-amd64 linux-arm64 macos-amd64 macos-arm64 windows-amd64; do
+            source=$(find "candidates/${target}" -maxdepth 1 -type f \
+              ! -name checksums.txt ! -name release.json -print -quit)
+            test -n "$source"
+            case "$target" in
+              windows-amd64) extension=.exe ;;
+              *) extension= ;;
+            esac
+            cp "$source" "release/drupack-${version}-${target}${extension}"
+          done
+          cd release
+          sha256sum drupack-* >checksums.txt
+          jq -n \
+            --arg version "$version" \
+            --arg commit "$RELEASE_SHA" \
+            --arg tag "$RELEASE_TAG" \
+            --argjson artifacts "$(printf '%s\n' drupack-* | jq -R . | jq -s .)" \
+            '{version: $version, tag: $tag, build_commit: $commit, artifacts: $artifacts}' \
+            >release.json
+
+      - name: Generate SBOMs
+        uses: anchore/sbom-action@v0
+        with:
+          path: release
+          format: cyclonedx-json
+          output-file: release/drupack.cdx.json
+
+      - name: Attest release assets
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release/drupack-*
+            release/checksums.txt
+            release/release.json
+
+      - name: Publish GitHub Release
+        run: |
+          gh release create "$RELEASE_TAG" release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$RELEASE_SHA" \
+            --title "Drupack ${RELEASE_TAG}" \
+            --generate-notes

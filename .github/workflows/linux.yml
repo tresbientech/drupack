@@ -1,0 +1,84 @@
+name: Linux
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release candidate version
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release-candidate:
+    name: Linux ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+            docker_target: artifact
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+            docker_target: artifact
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build musl executable
+        run: docker build --target "${{ matrix.docker_target }}" --output type=local,dest=dist .
+
+      - name: Verify executable metadata
+        run: |
+          test -x dist/drupack
+          dist/drupack version
+          dist/drupack --help
+
+      - name: Run public checks
+        run: |
+          mkdir -p test-results
+          bash tests/database-init.sh dist/drupack test-results/database
+          bash tests/offline.sh dist/drupack test-results/offline
+          bash tests/network.sh dist/drupack test-results/network
+
+      - name: Smoke test Alpine
+        run: |
+          docker run --rm --network none \
+            --mount type=bind,src="$PWD/dist/drupack",dst=/artifact/drupack,readonly \
+            alpine:3.21 /artifact/drupack --help
+
+      - name: Package release candidate
+        id: package
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          version="$INPUT_VERSION"
+          if [ -z "$version" ]; then
+            version="0.0.0-dev-${GITHUB_SHA::12}"
+          fi
+          base_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${version}"
+          bash packaging/release/package-artifact.sh \
+            dist/drupack "$version" "$base_url" release-candidate linux "${{ matrix.architecture }}"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.architecture }}-test-results
+          path: test-results
+          if-no-files-found: warn
+
+      - name: Upload release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: drupack-${{ steps.package.outputs.version }}-linux-${{ matrix.architecture }}
+          path: release-candidate
+          if-no-files-found: error

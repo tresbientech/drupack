@@ -1,0 +1,181 @@
+name: Windows
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release candidate version
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  app-archive:
+    name: Application archive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the shared application archive
+        run: |
+          docker build --target build -t drupack-app-archive .
+          container=$(docker create drupack-app-archive)
+          docker cp "$container:/go/src/app/app.tar" app.tar
+          docker rm "$container"
+          tar -tf app.tar >/dev/null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drupack-app-archive
+          path: app.tar
+          if-no-files-found: error
+
+  release-candidate:
+    name: Windows amd64
+    needs: app-archive
+    runs-on: windows-latest
+    timeout-minutes: 150
+    env:
+      FRANKENPHP_VERSION: 1.12.7
+      PHP_DOWNLOAD_BASE: https://downloads.php.net/~windows/releases
+      CC: clang
+      CXX: clang++
+      GOFLAGS: -ldflags=-extldflags=-fuse-ld=lld -tags=nobadger,nomysql,nopgx
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: drupack-app-archive
+          path: build-input
+
+      - name: Configure Git
+        shell: pwsh
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
+      - name: Download FrankenPHP source
+        shell: pwsh
+        run: git clone --depth 1 --branch "v$env:FRANKENPHP_VERSION" https://github.com/php/frankenphp.git frankenphp
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: frankenphp/go.mod
+
+      - name: Install FrankenPHP libraries
+        shell: pwsh
+        working-directory: frankenphp
+        run: vcpkg install
+
+      - name: Download Watcher
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = gh release list --repo e-dant/watcher --limit 1 --exclude-drafts --exclude-pre-releases --json tagName --jq '.[0].tagName'
+          gh release download $tag --repo e-dant/watcher --pattern '*x86_64-pc-windows-msvc.tar' -O watcher.tar
+          tar -xf watcher.tar -C $env:GITHUB_WORKSPACE
+          Rename-Item "$env:GITHUB_WORKSPACE\x86_64-pc-windows-msvc" watcher
+
+      - name: Download PHP runtime and development files
+        shell: pwsh
+        run: |
+          $links = (Invoke-WebRequest -Uri $env:PHP_DOWNLOAD_BASE).Links.Href |
+            Where-Object { $_ -match 'php-\d+\.\d+\.\d+-Win32-vs17-x64\.zip$' }
+          if (-not $links) { throw 'Could not find PHP zip files' }
+          $archive = $links | Sort-Object { if ($_ -match '(\d+\.\d+\.\d+)') { [version]$Matches[1] } } | Select-Object -Last 1
+          if ($archive -notmatch '(\d+\.\d+\.\d+)') { throw "Could not determine the PHP version from $archive" }
+          "PHP_VERSION=$($Matches[1])" >> $env:GITHUB_ENV
+          Invoke-WebRequest -Uri "$env:PHP_DOWNLOAD_BASE/$archive" -OutFile "$env:TEMP\php.zip"
+          Expand-Archive -Path "$env:TEMP\php.zip" -DestinationPath runtime
+          $devel = "php-devel-pack-$($Matches[1])-Win32-vs17-x64.zip"
+          Invoke-WebRequest -Uri "$env:PHP_DOWNLOAD_BASE/$devel" -OutFile "$env:TEMP\php-devel.zip"
+          Expand-Archive -Path "$env:TEMP\php-devel.zip" -DestinationPath php-devel
+
+      - name: Prepare FrankenPHP build environment
+        shell: pwsh
+        run: |
+          $vcpkg = "$env:GITHUB_WORKSPACE\frankenphp\vcpkg_installed\x64-windows"
+          $watcher = "$env:GITHUB_WORKSPACE\watcher"
+          $php = "$env:GITHUB_WORKSPACE\runtime"
+          $devel = "$env:GITHUB_WORKSPACE\php-devel\php-$env:PHP_VERSION-devel-vs17-x64"
+          "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\bin" >> $env:GITHUB_PATH
+          "$vcpkg\bin" >> $env:GITHUB_PATH
+          $watcher >> $env:GITHUB_PATH
+          $php >> $env:GITHUB_PATH
+          "CGO_CFLAGS=-DFRANKENPHP_VERSION=$env:FRANKENPHP_VERSION -I$vcpkg\include -I$watcher -I$devel\include -I$devel\include\main -I$devel\include\TSRM -I$devel\include\Zend -I$devel\include\ext" >> $env:GITHUB_ENV
+          "CGO_LDFLAGS=-L$vcpkg\lib -lbrotlienc -L$watcher -llibwatcher-c -L$php -L$devel\lib -lphp8ts -lphp8embed" >> $env:GITHUB_ENV
+          Copy-Item packaging/entrypoint.go frankenphp/caddy/frankenphp/drupack.go
+          Copy-Item build-input/app.tar frankenphp/app.tar
+
+      - name: Build FrankenPHP
+        shell: pwsh
+        working-directory: frankenphp/caddy/frankenphp
+        run: |
+          $version = "FrankenPHP $env:FRANKENPHP_VERSION PHP $env:PHP_VERSION Caddy"
+          go build -ldflags="-extldflags=-fuse-ld=lld -X 'github.com/caddyserver/caddy/v2.CustomVersion=$version' -X 'github.com/caddyserver/caddy/v2.CustomBinaryName=drupack' -X 'github.com/caddyserver/caddy/v2/modules/caddyhttp.ServerHeader=FrankenPHP Caddy'" -o "$env:GITHUB_WORKSPACE\runtime\frankenphp.exe"
+
+      - name: Stage runtime libraries
+        shell: pwsh
+        run: |
+          Copy-Item watcher/libwatcher-c.dll runtime
+          $libraries = 'brotlienc.dll', 'brotlidec.dll', 'brotlicommon.dll', 'pthreadVC3.dll'
+          foreach ($library in $libraries) {
+            Copy-Item "frankenphp/vcpkg_installed/x64-windows/bin/$library" runtime
+          }
+
+      - name: Package self-extracting executable
+        id: package
+        shell: pwsh
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          $version = $env:INPUT_VERSION
+          if (-not $version) { $version = "0.0.0-dev-$($env:GITHUB_SHA.Substring(0, 12))" }
+          "PACKAGE_VERSION=$version" >> $env:GITHUB_ENV
+          "version=$version" >> $env:GITHUB_OUTPUT
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          ./packaging/windows/package.ps1 -RuntimeDirectory runtime -Version $version -Output dist/drupack-windows-amd64.exe
+
+      - name: Verify executable metadata
+        shell: pwsh
+        run: |
+          ./dist/drupack-windows-amd64.exe --help
+          ./dist/drupack-windows-amd64.exe version
+
+      - name: Test the Windows launcher
+        shell: pwsh
+        run: ./tests/windows/launcher.Tests.ps1
+
+      - name: Create release candidate metadata
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-candidate | Out-Null
+          $artifact = "drupack-$env:PACKAGE_VERSION-windows-amd64.exe"
+          Copy-Item dist/drupack-windows-amd64.exe "release-candidate/$artifact"
+          $hash = (Get-FileHash "release-candidate/$artifact" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $artifact" | Set-Content release-candidate/checksums.txt -NoNewline
+          $metadata = [ordered]@{
+            artifact = $artifact
+            platform = 'windows'
+            architecture = 'amd64'
+            version = $env:PACKAGE_VERSION
+            url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:PACKAGE_VERSION/$artifact"
+            sha256 = $hash
+            size = (Get-Item "release-candidate/$artifact").Length
+            build_commit = $env:GITHUB_SHA
+          }
+          $metadata | ConvertTo-Json | Set-Content release-candidate/release.json -NoNewline
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drupack-${{ steps.package.outputs.version }}-windows-amd64
+          path: release-candidate
+          if-no-files-found: error

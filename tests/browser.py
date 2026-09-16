@@ -77,7 +77,7 @@ class SeededSite(unittest.TestCase):
     def stop(cls):
         if cls.server is not None and cls.server.poll() is None:
             os.killpg(cls.server.pid, signal.SIGTERM)
-            cls.server.wait(timeout=20)
+            cls.server.wait(timeout=60)
 
     def run_dr(self, data, *command):
         return subprocess.run([

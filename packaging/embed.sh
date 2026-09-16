@@ -53,8 +53,13 @@ case "$SPC_LIBC" in
         ;;
     *) printf 'Unsupported libc: %s\n' "$SPC_LIBC" >&2; exit 1 ;;
 esac
-export GOROOT=/go/src/app/dist/static-php-cli/pkgroot/x86_64-linux/go-xcaddy
-export GOPATH=/go/src/app/dist/static-php-cli/pkgroot/x86_64-linux/go
+native_arch="$(uname -m)"
+case "$native_arch" in
+    x86_64|aarch64) static_php_arch="$native_arch-linux" ;;
+    *) printf 'Unsupported native architecture: %s\n' "$native_arch" >&2; exit 1 ;;
+esac
+export GOROOT="/go/src/app/dist/static-php-cli/pkgroot/$static_php_arch/go-xcaddy"
+export GOPATH="/go/src/app/dist/static-php-cli/pkgroot/$static_php_arch/go"
 export GOTOOLCHAIN=local
 mkdir -p /out
 cd caddy

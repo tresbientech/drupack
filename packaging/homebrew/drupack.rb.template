@@ -1,0 +1,48 @@
+class Drupack < Formula
+  desc "Drupal CMS in one executable"
+  homepage "https://github.com/__OWNER__/__REPOSITORY__"
+  version "__VERSION__"
+  license "GPL-2.0-or-later"
+
+  on_macos do
+    on_arm do
+      url "https://github.com/__OWNER__/__REPOSITORY__/releases/download/#{version}/drupack-#{version}-macos-arm64"
+      sha256 "__MACOS_ARM64_SHA256__"
+    end
+
+    on_intel do
+      url "https://github.com/__OWNER__/__REPOSITORY__/releases/download/#{version}/drupack-#{version}-macos-amd64"
+      sha256 "__MACOS_AMD64_SHA256__"
+    end
+  end
+
+  on_linux do
+    on_arm do
+      url "https://github.com/__OWNER__/__REPOSITORY__/releases/download/#{version}/drupack-#{version}-linux-arm64"
+      sha256 "__LINUX_ARM64_SHA256__"
+    end
+
+    on_intel do
+      url "https://github.com/__OWNER__/__REPOSITORY__/releases/download/#{version}/drupack-#{version}-linux-amd64"
+      sha256 "__LINUX_AMD64_SHA256__"
+    end
+  end
+
+  def install
+    if OS.mac?
+      if Hardware::CPU.arm?
+        bin.install "drupack-#{version}-macos-arm64" => "drupack"
+      else
+        bin.install "drupack-#{version}-macos-amd64" => "drupack"
+      end
+    elsif Hardware::CPU.arm?
+      bin.install "drupack-#{version}-linux-arm64" => "drupack"
+    else
+      bin.install "drupack-#{version}-linux-amd64" => "drupack"
+    end
+  end
+
+  test do
+    system bin/"drupack", "--help"
+  end
+end
