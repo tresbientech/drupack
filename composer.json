@@ -1,5 +1,5 @@
 {
-    "name": "portable-drupal/site",
+    "name": "tresbientech/drupack",
     "description": "Offline Drupal CMS with the Blank site template",
     "type": "project",
     "license": "GPL-2.0-or-later",

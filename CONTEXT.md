@@ -1,8 +1,12 @@
-# Portable Drupal site
+# Drupack
 
-This project distributes Drupal CMS for installation and use with persistent site data.
+Drupack distributes Drupal CMS for installation and use with persistent site data.
 
 ## Language
+
+**Drupack**:
+The name of this project and of its Packaged site.
+_Avoid_: Portable Drupal, portable-drupal
 
 **Packaged site**:
 A distributable Drupal CMS application with a Seed site.
@@ -19,7 +23,7 @@ The persistent information belonging to a Seed site, including its content and u
 **`dr` command**:
 The public command-line interface that exposes the Drush command set for a Packaged site and its Site data. Global options precede the command. It uses `./data` unless the user selects another Site data directory.
 
-**`PORTABLE_DRUPAL_DATA_DIR`**:
+**`DRUPACK_DATA_DIR`**:
 An environment variable that selects the default Site data directory for a Packaged site.
 
 **Database backend**:
@@ -38,7 +42,7 @@ The Drupal MCP Server feature included in a Packaged site for later enablement b
 - First use of a **Packaged site** creates **Site data** from its **Seed site**.
 - **Site data** survives replacement of the **Packaged site** with an updated release.
 - The **`dr` command** manages one **Packaged site** and its selected **Site data**.
-- **`PORTABLE_DRUPAL_DATA_DIR`** selects **Site data** when no `--data-dir` option is present.
+- **`DRUPACK_DATA_DIR`** selects **Site data** when no `--data-dir` option is present.
 - A **Seed site** has one **Database backend**.
 - SQLite is the default **Database backend** for the **Seed site**.
 - First start selects the **Database backend** for a **Packaged site**.

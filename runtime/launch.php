@@ -32,17 +32,17 @@ function environment(string $name): ?string
 function options(array $arguments, bool $drush): array
 {
     $options = [
-        'data-dir' => environment('PORTABLE_DRUPAL_DATA_DIR') ?? './data',
+        'data-dir' => environment('DRUPACK_DATA_DIR') ?? './data',
         'listen' => '127.0.0.1:8080',
         'host' => 'localhost',
-        'database' => environment('PORTABLE_DRUPAL_DATABASE') ?? 'sqlite',
-        'db-host' => environment('PORTABLE_DRUPAL_DB_HOST'),
-        'db-port' => environment('PORTABLE_DRUPAL_DB_PORT'),
-        'db-name' => environment('PORTABLE_DRUPAL_DB_NAME'),
-        'db-user' => environment('PORTABLE_DRUPAL_DB_USER'),
-        'db-password' => environment('PORTABLE_DRUPAL_DB_PASSWORD'),
-        'admin-user' => environment('PORTABLE_DRUPAL_ADMIN_USER'),
-        'admin-password' => environment('PORTABLE_DRUPAL_ADMIN_PASSWORD'),
+        'database' => environment('DRUPACK_DATABASE') ?? 'sqlite',
+        'db-host' => environment('DRUPACK_DB_HOST'),
+        'db-port' => environment('DRUPACK_DB_PORT'),
+        'db-name' => environment('DRUPACK_DB_NAME'),
+        'db-user' => environment('DRUPACK_DB_USER'),
+        'db-password' => environment('DRUPACK_DB_PASSWORD'),
+        'admin-user' => environment('DRUPACK_ADMIN_USER'),
+        'admin-password' => environment('DRUPACK_ADMIN_PASSWORD'),
     ];
     $command = [];
     while ($arguments !== []) {
@@ -52,7 +52,7 @@ function options(array $arguments, bool $drush): array
             break;
         }
         if ($argument === '--help') {
-            echo "Usage: portable-drupal php-cli launch.php [--data-dir PATH] [--listen IP:PORT] [--host HOST] [--database sqlite|mysql|pgsql]\n";
+            echo "Usage: drupack php-cli launch.php [--data-dir PATH] [--listen IP:PORT] [--host HOST] [--database sqlite|mysql|pgsql]\n";
             exit(0);
         }
         $parts = explode('=', $argument, 2);
@@ -135,7 +135,7 @@ function settings(string $template, array $database): string
     if ($content === false) {
         throw new RuntimeException('Cannot read Drupal settings template');
     }
-    return str_replace('__PORTABLE_DATABASE_CONFIGURATION__', var_export($database, true), $content);
+    return str_replace('__DRUPACK_DATABASE_CONFIGURATION__', var_export($database, true), $content);
 }
 
 function writeSettings(string $path, string $template, array $database): void
@@ -224,11 +224,11 @@ function clearSeedCaches(string $data): void
 function configureSeedAdministrator(string $binary, array $options): void
 {
     $drush = drushPath();
-    runDrush($binary, [$drush, 'php:eval', '$account = \\Drupal\\user\\Entity\\User::load(1); $account->set("name", getenv("PORTABLE_DRUPAL_ADMIN_USER")); $account->setPassword(getenv("PORTABLE_DRUPAL_ADMIN_PASSWORD")); $account->save();'], 'Cannot configure Drupal administrator');
+    runDrush($binary, [$drush, 'php:eval', '$account = \\Drupal\\user\\Entity\\User::load(1); $account->set("name", getenv("DRUPACK_ADMIN_USER")); $account->setPassword(getenv("DRUPACK_ADMIN_PASSWORD")); $account->save();'], 'Cannot configure Drupal administrator');
 }
 
 try {
-    $drush = environment('PORTABLE_DRUPAL_DRUSH') === '1';
+    $drush = environment('DRUPACK_RUNTIME_DRUSH') === '1';
     [$options, $command] = options(array_slice($argv, 1), $drush);
     $binary = realpath('/proc/self/exe');
     if ($drush && in_array($command[0] ?? '', ['--help', '-h', 'list'], true)) {
@@ -258,22 +258,22 @@ try {
     foreach (['runtime', 'files', 'files/translations', 'private', 'tmp', 'config'] as $name) {
         directory("$data/$name");
     }
-    putenv("PORTABLE_DATA_DIR=$data");
-    putenv("PORTABLE_BIND=$bind");
-    putenv("PORTABLE_PORT=$port");
-    putenv('PORTABLE_HOST=' . $options['host']);
+    putenv("DRUPACK_RUNTIME_DATA_DIR=$data");
+    putenv("DRUPACK_RUNTIME_BIND=$bind");
+    putenv("DRUPACK_RUNTIME_PORT=$port");
+    putenv('DRUPACK_RUNTIME_HOST=' . $options['host']);
     putenv("TMPDIR=$data/runtime");
     putenv("XDG_DATA_HOME=$data/runtime");
     putenv("XDG_CONFIG_HOME=$data/runtime");
     foreach ([
-        'database' => 'PORTABLE_DRUPAL_DATABASE',
-        'db-host' => 'PORTABLE_DRUPAL_DB_HOST',
-        'db-port' => 'PORTABLE_DRUPAL_DB_PORT',
-        'db-name' => 'PORTABLE_DRUPAL_DB_NAME',
-        'db-user' => 'PORTABLE_DRUPAL_DB_USER',
-        'db-password' => 'PORTABLE_DRUPAL_DB_PASSWORD',
-        'admin-user' => 'PORTABLE_DRUPAL_ADMIN_USER',
-        'admin-password' => 'PORTABLE_DRUPAL_ADMIN_PASSWORD',
+        'database' => 'DRUPACK_DATABASE',
+        'db-host' => 'DRUPACK_DB_HOST',
+        'db-port' => 'DRUPACK_DB_PORT',
+        'db-name' => 'DRUPACK_DB_NAME',
+        'db-user' => 'DRUPACK_DB_USER',
+        'db-password' => 'DRUPACK_DB_PASSWORD',
+        'admin-user' => 'DRUPACK_ADMIN_USER',
+        'admin-password' => 'DRUPACK_ADMIN_PASSWORD',
     ] as $option => $environment) {
         if ($options[$option] !== null) {
             putenv("$environment={$options[$option]}");

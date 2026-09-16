@@ -19,7 +19,7 @@ from urllib.request import Request, urlopen
 BINARY = Path(sys.argv.pop(1)).resolve()
 RESULTS = Path(sys.argv.pop(1)).resolve()
 ORIGIN = "http://localhost:8080"
-ADMIN_USER = "portable-test-admin"
+ADMIN_USER = "drupack-test-admin"
 ADMIN_PASSWORD = "Offline.test.administrator.2026!"
 
 
@@ -46,7 +46,7 @@ class SeededSite(unittest.TestCase):
     def setUpClass(cls):
         RESULTS.mkdir(parents=True, exist_ok=True)
         cls.work = Path(tempfile.mkdtemp(prefix="site-", dir=RESULTS))
-        cls.binary = cls.work / "portable-drupal"
+        cls.binary = cls.work / "drupack"
         shutil.copyfile(BINARY, cls.binary)
         cls.binary.chmod(0o700)
         cls.server_log = open(RESULTS / "server.log", "w")

@@ -60,5 +60,5 @@ mkdir -p /out
 cd caddy
 "$GOROOT/bin/go" build -mod=readonly -buildmode=pie -tags="$build_tags" \
     -ldflags="-s -w -linkmode=external -extldflags '$linker_flags' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $($php_config --version) Caddy'" \
-    -o /out/portable-drupal ./frankenphp
-/out/portable-drupal version
+    -o /out/drupack ./frankenphp
+/out/drupack version

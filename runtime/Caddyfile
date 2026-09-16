@@ -6,8 +6,8 @@
 	order php_server before file_server
 }
 
-http://:{$PORTABLE_PORT} {
-	bind {$PORTABLE_BIND}
+http://:{$DRUPACK_RUNTIME_PORT} {
+	bind {$DRUPACK_RUNTIME_BIND}
 	root * web
 	encode zstd br gzip
 

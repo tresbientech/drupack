@@ -2,7 +2,7 @@
 set -euo pipefail
 
 binary=$(realpath "${1:?Usage: tests/network.sh BINARY [RESULTS_DIRECTORY] [INSTALLED_TEST_DATA]}")
-results=${2:-$(mktemp -d /tmp/portable-drupal-network.XXXXXX)}
+results=${2:-$(mktemp -d /tmp/drupack-network.XXXXXX)}
 mkdir -p "$results/data"
 results=$(realpath "$results")
 installed=false
@@ -11,8 +11,8 @@ if [[ -n ${3:-} ]]; then
     | tar -C "$results/data" -xf -
   installed=true
 fi
-network="portable-drupal-network-$$"
-app="portable-drupal-site-$$"
+network="drupack-network-$$"
+app="drupack-site-$$"
 debian=debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
 client=selenium/standalone-chromium@sha256:8745c65008bf01c5e7158a904704560e9971d8b7da2fc7ad1f1d0ffe776812f6
 if [[ $installed == true ]]; then
@@ -42,9 +42,9 @@ for mode in loopback network; do
   fi
   docker run -d --name "$app" --network "$network" --network-alias site \
     --user "$(id -u):$(id -g)" --workdir /site \
-    --mount "type=bind,src=$binary,dst=/artifact/portable-drupal,readonly" \
+    --mount "type=bind,src=$binary,dst=/artifact/drupack,readonly" \
     --mount "type=bind,src=$results/data,dst=/site/data" \
-    "$debian" /artifact/portable-drupal --admin-user network-admin --admin-password Network.test.administrator.2026! "${arguments[@]}" >/dev/null
+    "$debian" /artifact/drupack --admin-user network-admin --admin-password Network.test.administrator.2026! "${arguments[@]}" >/dev/null
   ready=false
   for attempt in {1..60}; do
     docker logs "$app" >"$results/$mode.log" 2>&1
@@ -80,7 +80,7 @@ if mode == "loopback":
         raise AssertionError("Default listener accepted remote access")
 else:
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(CookieJar()))
-    request = urllib.request.Request("http://site:8080/", headers={"User-Agent": "PortableDrupalNetworkTest"})
+    request = urllib.request.Request("http://site:8080/", headers={"User-Agent": "DrupackNetworkTest"})
     with opener.open(request, timeout=60) as response:
         assert response.status == 200
         page = response.read().decode()

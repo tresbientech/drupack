@@ -2,10 +2,10 @@
 set -euo pipefail
 
 binary=$(realpath "${1:?Usage: tests/database-init.sh BINARY [RESULTS_DIRECTORY]}")
-results=${2:-$(mktemp -d /tmp/portable-drupal-database.XXXXXX)}
+results=${2:-$(mktemp -d /tmp/drupack-database.XXXXXX)}
 mkdir -p "$results"
 results=$(realpath "$results")
-work=$(mktemp -d "$results/portable-drupal-work.XXXXXX")
+work=$(mktemp -d "$results/drupack-work.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 
 for database in sqlite mysql pgsql; do

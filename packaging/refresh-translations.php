@@ -37,7 +37,7 @@ function fetchTranslation(string $url): ?string
 $root = dirname(__DIR__);
 $lock = json_decode(file_get_contents("$root/composer.lock"), true, flags: JSON_THROW_ON_ERROR);
 $snapshot = ['composer_lock_sha256' => hash_file('sha256', "$root/composer.lock"), 'files' => [], 'missing' => []];
-$temporary = tempnam(sys_get_temp_dir(), 'portable-translations-');
+$temporary = tempnam(sys_get_temp_dir(), 'drupack-translations-');
 unlink($temporary);
 $archive = new PharData($temporary . '.tar');
 foreach (translationProjects($lock['packages']) as $project => $version) {
