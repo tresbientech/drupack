@@ -1,12 +1,7 @@
 <?php
 
 $data = getenv('PORTABLE_DATA_DIR');
-$databases['default']['default'] = [
-  'driver' => 'sqlite',
-  'database' => $data . '/site.sqlite',
-  'namespace' => 'Drupal\\sqlite\\Driver\\Database\\sqlite',
-  'autoload' => 'core/modules/sqlite/src/Driver/Database/sqlite/',
-];
+$databases['default']['default'] = __PORTABLE_DATABASE_CONFIGURATION__;
 $settings['hash_salt'] = file_get_contents($data . '/hash_salt');
 $settings['config_sync_directory'] = $data . '/config';
 $settings['file_public_path'] = 'sites/default/files';

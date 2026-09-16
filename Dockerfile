@@ -14,6 +14,14 @@ COPY packaging/translations.tar.gz packaging/translations.json packaging/install
 RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /build/install-translations.php
 COPY runtime/ ./
 COPY packaging/site-templates.php web/sites/default/site-templates.php
+RUN mkdir -p /app/seed/private /app/seed/tmp /app/seed/config /app/web/sites/default/files \
+    && printf 'portable-seed-hash-salt' > /app/seed/hash_salt \
+    && cp /app/settings.php /app/web/sites/default/settings.php \
+    && sed -i "s|__PORTABLE_DATABASE_CONFIGURATION__|['driver' => 'sqlite', 'database' => '/app/seed/site.sqlite', 'namespace' => 'Drupal\\\\sqlite\\\\Driver\\\\Database\\\\sqlite', 'autoload' => 'core/modules/sqlite/src/Driver/Database/sqlite/']|" /app/web/sites/default/settings.php \
+    && PORTABLE_DATA_DIR=/app/seed PORTABLE_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php site:install /app/recipes/drupal_cms_site_template_base --yes --db-url=sqlite://seed/site.sqlite --account-name=portable-admin --account-pass=portable-seed-password \
+    && PORTABLE_DATA_DIR=/app/seed PORTABLE_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php pm:enable mcp_tools --yes \
+    && mv /app/web/sites/default/files /app/seed/files \
+    && rm -f /app/web/sites/default/settings.php
 COPY packaging/embed.sh /usr/local/bin/embed.sh
 COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/portable.go
 RUN bash /usr/local/bin/embed.sh
@@ -21,7 +29,7 @@ RUN bash /usr/local/bin/embed.sh
 FROM ${COMPARISON_BUILDER} AS minimal-runtime
 ENV SPC_CONCURRENCY=4
 ARG PHP_VERSION=8.5.10
-ARG PHP_EXTENSIONS=ctype,curl,dom,exif,fileinfo,filter,gd,iconv,intl,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,password-argon2,pcntl,pdo,pdo_mysql,pdo_sqlite,phar,session,simplexml,sodium,tokenizer,xml,xmlreader,xmlwriter,zip,zlib
+ARG PHP_EXTENSIONS=ctype,curl,dom,exif,fileinfo,filter,gd,iconv,intl,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,password-argon2,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,phar,session,simplexml,sodium,tokenizer,xml,xmlreader,xmlwriter,zip,zlib
 ARG PHP_EXTENSION_LIBS=brotli,watcher,freetype,libjpeg,libwebp,libavif
 WORKDIR /go/src/app/dist/static-php-cli
 RUN ./spc download --with-php="${PHP_VERSION}" --for-extensions="${PHP_EXTENSIONS}" --for-libs="${PHP_EXTENSION_LIBS}" --without-suggestions --retry=3

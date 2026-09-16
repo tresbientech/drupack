@@ -1,166 +1,76 @@
 # Portable Drupal CMS
 
-Package Drupal CMS with Byte, SQLite, and FrankenPHP in one Linux executable.
-Site data lives in a separate directory.
-Offline installation and the release acceptance checks pass with the pinned dependencies.
+This project builds one Linux x86-64 FrankenPHP executable. It contains Drupal CMS Blank, PHP, SQLite, MySQL and PostgreSQL drivers, Drush, Local MCP Tools, and MCP Server source.
 
 ## Build
 
-The build requires Docker with BuildKit and internet access.
-Run from this repository on Linux x86-64:
+Build on Linux x86-64 with Docker and BuildKit.
 
 ```sh
 docker build --target artifact --output type=local,dest=dist .
 ```
 
-The artifact contains the application dependencies and PHP runtime.
-Its supported host baseline is Debian 12 x86-64 with glibc 2.36 and a browser.
-The host does not need a separate PHP installation or database server.
+The output is `dist/portable-drupal`. The host needs no PHP, Composer, or database server for SQLite use.
 
-The dependency lock pins Byte 1.0.3 and Canvas 1.10.1.
-Canvas 1.11 has an upstream [site-template installation regression](https://git.drupalcode.org/project/canvas/-/work_items/3592052).
+## Start a SQLite site
 
-The build excludes audited development files from dependencies and compresses the executable with UPX.
-Runtime PHP sources and required browser assets remain embedded.
-Compression reduces download size and increases runtime memory use.
-Build the uncompressed variant with:
+First start copies an installed Drupal CMS Blank Seed site into `./data`. It requires administrator credentials.
+
+```sh
+./dist/portable-drupal \
+  --admin-user admin \
+  --admin-password 'choose-a-password'
+```
+
+Open `http://localhost:8080`. Drupal's web installer does not run. Later starts use the existing Site data and need no credentials.
+
+`--data-dir` selects another Site data directory. `PORTABLE_DRUPAL_DATA_DIR` supplies its default.
+
+## Start a server database site
+
+MySQL and PostgreSQL install the same Blank site on first start.
+
+```sh
+./dist/portable-drupal --database mysql \
+  --db-host 127.0.0.1 --db-name drupal \
+  --db-user drupal --db-password 'database-password' \
+  --admin-user admin --admin-password 'choose-a-password'
+```
+
+Use `--database pgsql` for PostgreSQL. `--db-port` is optional. MySQL defaults to `3306`; PostgreSQL defaults to `5432`.
+
+The equivalent environment variables are `PORTABLE_DRUPAL_DATABASE`, `PORTABLE_DRUPAL_DB_HOST`, `PORTABLE_DRUPAL_DB_PORT`, `PORTABLE_DRUPAL_DB_NAME`, `PORTABLE_DRUPAL_DB_USER`, `PORTABLE_DRUPAL_DB_PASSWORD`, `PORTABLE_DRUPAL_ADMIN_USER`, and `PORTABLE_DRUPAL_ADMIN_PASSWORD`.
+
+The executable stores database configuration in Site data. Database migrations and later `settings.php` changes belong to the site owner.
+
+## Administer with Drush
+
+`dr` runs the bundled Drush command set against Site data. Put portable options before the Drush command.
+
+```sh
+./dist/portable-drupal dr --data-dir ./data status
+./dist/portable-drupal dr --data-dir ./data pm:list --status=enabled
+```
+
+Runtime Composer operations are not included.
+
+## Local MCP tools
+
+The Seed site enables `mcp_tools`. It supports local agents that administer the Drupal site. The package includes `mcp_server` source but does not enable it or expose a transport.
+
+The current dependency lock includes `mcp/sdk` 0.6.0. Its upstream advisory GHSA-7m52-jw36-44r3 is high severity. This package is for testing and is not a release artifact.
+
+## Site data
+
+Site data contains the database, uploads, private files, generated settings, hash salt, configuration exports, and runtime files. Stop the executable before copying Site data for backup. Keep backups private.
+
+## Tests
+
+Build an uncompressed test binary when UPX compression is unnecessary.
 
 ```sh
 docker build --target uncompressed --output type=local,dest=dist/uncompressed .
+bash tests/database-init.sh ./dist/uncompressed/portable-drupal
+bash tests/offline.sh ./dist/uncompressed/portable-drupal
+bash tests/network.sh ./dist/uncompressed/portable-drupal
 ```
-
-### Compare reduced runtimes
-
-Build the reduced GNU runtime separately:
-
-```sh
-docker build --target artifact --build-arg ARTIFACT_BUILD=comparison-build \
-  --output type=local,dest=dist/gnu .
-```
-
-Build the same application with musl:
-
-```sh
-docker build --target artifact --build-arg ARTIFACT_BUILD=comparison-build \
-  --build-arg COMPARISON_BUILDER=dunglas/frankenphp:static-builder-musl@sha256:a78af5ef3b46b5f382a702ee7aed22b367a6dc1bce382de0aebac7f4d73dade1 \
-  --output type=local,dest=dist/musl .
-```
-
-Run either candidate with the same startup flags described below.
-These commands preserve `dist/portable-drupal`.
-The reduced runtimes retain MySQL drivers (`mysqli`, `mysqlnd`, `pdo_mysql`); site configuration still uses SQLite.
-Neither artifact includes a MySQL server.
-Both retain OPcache with JIT disabled.
-The musl executable has no shared-library dependencies; outbound HTTPS still requires host CA certificates.
-It cannot load additional PHP extensions dynamically.
-The [runtime comparison](docs/plans/portable-drupal.md#phase-8-compare-reduced-gnu-and-musl-runtimes) records sizes and verification.
-
-## Start a site
-
-```sh
-./dist/portable-drupal
-```
-
-Open `http://localhost:8080` and complete Drupal's installer.
-Byte is the sole site template.
-The default data directory is `./data`, relative to the directory where you run the command.
-Subsequent launches reuse that site's database and settings.
-
-Select another data directory with:
-
-```sh
-./dist/portable-drupal --data-dir /path/to/site-data
-```
-
-Stop the process with Ctrl+C.
-
-## Access from another device
-
-The default listener accepts local connections only.
-Enable network access explicitly:
-
-```sh
-./dist/portable-drupal --listen 0.0.0.0:8080 --host drupal.example.test
-```
-
-Point that hostname at the host computer, then open `http://drupal.example.test:8080` on the other device.
-The `--host` value also configures Drupal's trusted host check.
-This listener uses HTTP.
-Localhost remains an accepted host name.
-
-## Languages
-
-Drupal controls language selection and content translation through its standard interfaces.
-Bundled translation files remain inactive until the user selects a language.
-
-The package includes English and available translation resources for:
-
-- French (`fr`)
-- Simplified Chinese (`zh-hans`)
-- Spanish (`es`)
-- Hindi (`hi`)
-- Arabic (`ar`)
-
-English is built into Drupal.
-Upstream translation gaps are recorded in [the translation manifest](packaging/translations.json).
-
-## Keep site data
-
-The selected data directory contains:
-
-- `site.sqlite`: the site's database.
-- `settings.php` and `hash_salt`: persistent configuration and the site secret.
-- `files/`: public uploads and translation files.
-- `private/`: files outside the public web root.
-- `config/`: configuration exports.
-- `tmp/` and `runtime/`: temporary files and the extracted application.
-
-Stop the process before copying the entire data directory for backup.
-Keep backups private because they contain the database and site secret.
-Restore backups at the original absolute data-directory path.
-Relocation requires additional handling of Drupal's cached paths and extracted application links.
-Replacing the executable with the same build preserves the selected site's data.
-Compatibility across application versions is outside this release's scope.
-
-## Change bundled code
-
-Modules and themes included in the artifact can be enabled through Drupal.
-Additional code requires an updated Composer dependency lock and a rebuilt executable.
-Validate the rebuilt artifact with a fresh installation.
-This release excludes:
-
-- Runtime package installation.
-- Upgrade commands.
-- Email configuration.
-
-## Run acceptance checks
-
-The tests require Docker and the test images referenced by their scripts.
-The browser test disables container networking.
-The network test uses an internal Docker network with a separate client.
-
-```sh
-bash tests/offline.sh ./dist/portable-drupal
-bash tests/network.sh ./dist/portable-drupal
-```
-
-Each script prints its results directory.
-Use a fresh results directory for each network test run.
-The network script accepts an installed data directory as its third argument to test remote login against a copied site.
-
-Verified on 15 September 2026:
-
-- Offline English and French installation, including a custom data directory.
-- Content and uploaded images retained after restart and replacement with the same executable build.
-- All agreed language imports and content translation through Drupal's standard interfaces.
-- Arabic content editing through Drupal's right-to-left interface.
-- Explicit remote access with authentication and private-file protection.
-- Bundled component activation and a separately rebuilt artifact with Devel enabled.
-
-## Executable size
-
-The executable is 108.7 MB (103.6 MiB), 76.9% smaller than the original build.
-The [Phase 7 measurements](docs/plans/portable-drupal.md#size-and-runtime-measurements) record component sizes and runtime costs.
-
-The [PRD](docs/prd/portable-drupal.md) defines the release scope.
-The [implementation plan](docs/plans/portable-drupal.md) lists phase acceptance criteria.

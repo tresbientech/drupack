@@ -44,7 +44,7 @@ for mode in loopback network; do
     --user "$(id -u):$(id -g)" --workdir /site \
     --mount "type=bind,src=$binary,dst=/artifact/portable-drupal,readonly" \
     --mount "type=bind,src=$results/data,dst=/site/data" \
-    "$debian" /artifact/portable-drupal "${arguments[@]}" >/dev/null
+    "$debian" /artifact/portable-drupal --admin-user network-admin --admin-password Network.test.administrator.2026! "${arguments[@]}" >/dev/null
   ready=false
   for attempt in {1..60}; do
     docker logs "$app" >"$results/$mode.log" 2>&1
@@ -62,17 +62,13 @@ for mode in loopback network; do
   printf 'private-network-sentinel' >"$results/data/private/secret.txt"
   printf '<?php echo "php-network-sentinel";' >"$results/data/files/php/test.php"
   docker run --rm -i --network "$network" --entrypoint /usr/bin/python3 \
-    "$client" - "$mode" "$installed" <<'PY'
-from html.parser import HTMLParser
-from http.cookiejar import CookieJar
+    "$client" - "$mode" <<'PY'
 import socket
 import sys
 import urllib.error
-import urllib.parse
 import urllib.request
 
 mode = sys.argv[1]
-installed = sys.argv[2] == "true"
 if mode == "loopback":
     try:
         connection = socket.create_connection(("site", 8080), timeout=3)
@@ -87,32 +83,7 @@ else:
     with opener.open(request, timeout=60) as response:
         assert response.status == 200
         page = response.read().decode()
-        if installed:
-            assert "/core/install.php" not in response.url
-        else:
-            assert "/core/install.php" in response.url
-            assert "Drupal" in page
-    if installed:
-        class LoginForm(HTMLParser):
-            def __init__(self):
-                super().__init__()
-                self.values = {}
-
-            def handle_starttag(self, tag, attributes):
-                attributes = dict(attributes)
-                if tag == "input" and attributes.get("type") == "hidden":
-                    self.values[attributes["name"]] = attributes.get("value", "")
-
-        form = LoginForm()
-        with opener.open("http://site:8080/user/login", timeout=30) as response:
-            form.feed(response.read().decode())
-        form.values.update({"name": "admin", "pass": "Offline.test.administrator.2026!"})
-        with opener.open("http://site:8080/user/login", urllib.parse.urlencode(form.values).encode(), timeout=30) as response:
-            assert response.status == 200
-        with opener.open("http://site:8080/admin/content", timeout=30) as response:
-            assert response.status == 200
-            assert "Offline persistent page" in response.read().decode()
-        print("PASS: remote Drupal login grants access to persisted site content")
+        assert "/core/install.php" not in response.url
     for path in ["/sites/default/settings.php", "/site.sqlite", "/private/secret.txt", "/sites/default/files/php/test.php"]:
         try:
             opener.open("http://site:8080" + path, timeout=10)

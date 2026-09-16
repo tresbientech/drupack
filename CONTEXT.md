@@ -5,22 +5,47 @@ This project distributes Drupal CMS for installation and use with persistent sit
 ## Language
 
 **Packaged site**:
-A distributable Drupal CMS application that begins with installation on first use.
-_Avoid_: Preconfigured website
+A distributable Drupal CMS application with a Seed site.
 
 **Site template**:
-The predefined starting configuration applied when a site is installed.
+The predefined starting configuration in a Seed site.
+
+**Seed site**:
+A preconfigured Drupal site state included in a Packaged site.
 
 **Site data**:
-The persistent information belonging to an installed site, including its content and uploaded files.
+The persistent information belonging to a Seed site, including its content and uploaded files.
+
+**`dr` command**:
+The public command-line interface that exposes the Drush command set for a Packaged site and its Site data. Global options precede the command. It uses `./data` unless the user selects another Site data directory.
+
+**`PORTABLE_DRUPAL_DATA_DIR`**:
+An environment variable that selects the default Site data directory for a Packaged site.
+
+**Database backend**:
+SQLite, MySQL, or PostgreSQL, selected when a Packaged site first starts. It stores a Seed site's structured Site data.
+
+**Local MCP Tools**:
+The Drupal MCP Tools feature that lets local AI agents use a Packaged site.
+
+**MCP Server**:
+The Drupal MCP Server feature included in a Packaged site for later enablement by a site administrator.
+
 
 ## Relationships
 
-- A **Packaged site** includes exactly one **Site template** for installation: Byte.
-- Installation of a **Packaged site** creates **Site data**.
+- A **Packaged site** includes exactly one **Site template** for installation: Drupal CMS Blank.
+- First use of a **Packaged site** creates **Site data** from its **Seed site**.
 - **Site data** survives replacement of the **Packaged site** with an updated release.
+- The **`dr` command** manages one **Packaged site** and its selected **Site data**.
+- **`PORTABLE_DRUPAL_DATA_DIR`** selects **Site data** when no `--data-dir` option is present.
+- A **Seed site** has one **Database backend**.
+- SQLite is the default **Database backend** for the **Seed site**.
+- First start selects the **Database backend** for a **Packaged site**.
+- **Local MCP Tools** are enabled in the **Seed site**.
+- **MCP Server** is disabled in the **Seed site**.
 
 ## Example dialogue
 
-> Developer: "Does the packaged site arrive with an installed website?"
-> User: "It starts the installation process. Once installed, its site data persists across upgrades."
+> Developer: "Does the packaged site include an installed website?"
+> User: "It copies the Seed site on first use. Its site data then persists across launches."

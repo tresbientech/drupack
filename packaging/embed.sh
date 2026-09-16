@@ -4,7 +4,7 @@ set -euo pipefail
 cd /go/src/app
 case "${1:-}" in
 "")
-archive_options=(--mtime=@0 --owner=0 --group=0 --numeric-owner)
+archive_options=(--mtime=@0 --owner=0 --group=0 --numeric-owner --mode=u+rw,go+rX)
 # Drupal's cached absolute paths use the full application input identity.
 tar "${archive_options[@]}" -cf - -C /app . \
     | sha256sum | cut -d ' ' -f 1 | tr -d '\n' > app_checksum.txt
