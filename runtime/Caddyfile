@@ -3,21 +3,34 @@
 	auto_https off
 	persist_config off
 	frankenphp
+	order php_server before file_server
 }
 
 http://:{$PORTABLE_PORT} {
 	bind {$PORTABLE_BIND}
 	root * web
-	encode gzip
-	@private path /sites/*/settings* /sites/*/services* /sites/*/site-templates.php /sites/*/files/php/* /sites/*/files/config_* /composer.* /package.json /yarn.lock
-	respond @private 404
-	@source path_regexp source (?i)(^|/)\.[^/]*(/|$)|\.(engine|inc|install|make|module|profile|po|sh|sql|sqlite|sqlite3|theme|twig|yml|yaml)(/|$)
-	respond @source 404
-	@phpForbidden {
-		path_regexp php (?i)\.php(/|$)
-		not path /index.php /core/install.php
+	encode zstd br gzip
+
+	@hiddenPhpFilesRegexp path_regexp \..*/.*\.php$
+	respond @hiddenPhpFilesRegexp 403
+	@notFoundPhpFiles path_regexp /vendor/.*\.php$
+	respond @notFoundPhpFiles 404
+	@notFoundPhpFilesRegexp path_regexp ^/sites/[^/]+/files/.*\.php$
+	respond @notFoundPhpFilesRegexp 404
+	@privateDirRegexp path_regexp ^/(private|sites/.*/private)/
+	respond @privateDirRegexp 403
+	@siteConfiguration path /sites/*/settings* /sites/*/services* /sites/*/site-templates.php /sites/*/files/config_*
+	respond @siteConfiguration 404
+	@protectedFilesRegexp {
+		not path /.well-known*
+		path_regexp \.(engine|inc|install|make|module|profile|po|sh|.*sql|theme|twig|tpl(\.php)?|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?$|/\..*|/(Entries.*|Repository|Root|Tag|Template|composer\.(json|lock)|web\.config|yarn\.lock|package\.json)$|/#.*#$|\.php(~|\.sw[op]|\.bak|\.orig|\.save)$
 	}
-	respond @phpForbidden 404
+	respond @protectedFilesRegexp 403
+	@static {
+		file
+		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
+	}
+	header @static Cache-Control "max-age=31536000,public,immutable"
 	php_server {
 		root web
 	}
