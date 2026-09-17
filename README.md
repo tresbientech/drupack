@@ -1,6 +1,6 @@
 # Drupack
 
-Drupack is one FrankenPHP executable for Linux `amd64`, Linux `arm64`, macOS `arm64`, macOS `amd64` or Windows `amd64`. It contains Drupal CMS Blank, PHP, SQLite, MySQL, PostgreSQL, Drush, Local MCP Tools, and MCP Server source.
+Drupack is one FrankenPHP executable for Linux `amd64`, Linux `arm64`, macOS `arm64`, macOS `amd64` or Windows `amd64`. It contains Drupal CMS with the Byte site template, PHP, SQLite, MySQL, PostgreSQL, Drush, Local MCP Tools, and MCP Server source.
 
 ## Build
 
@@ -40,7 +40,7 @@ On first start, `drupack.exe` extracts PHP and FrankenPHP into `%LOCALAPPDATA%\D
 
 ## Start a SQLite site
 
-First start copies an installed Drupal CMS Blank Seed site into `./data`. It requires administrator credentials.
+First start copies an installed Byte Seed site into `./data`. It requires administrator credentials.
 
 ```sh
 ./dist/drupack \
@@ -54,7 +54,7 @@ Open `http://localhost:8080`. Drupal's web installer does not run. Later starts 
 
 ## Start a server database site
 
-MySQL and PostgreSQL install the same Blank site on first start.
+MySQL and PostgreSQL install the same Byte site on first start.
 
 ```sh
 ./dist/drupack --database mysql \

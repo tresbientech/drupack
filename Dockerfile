@@ -16,7 +16,7 @@ RUN mkdir -p /app/seed/private /app/seed/tmp /app/seed/config /app/web/sites/def
     && printf 'drupack-seed-hash-salt' > /app/seed/hash_salt \
     && cp /app/settings.php /app/web/sites/default/settings.php \
     && sed -i "s|__DRUPACK_DATABASE_CONFIGURATION__|['driver' => 'sqlite', 'database' => '/app/seed/site.sqlite', 'namespace' => 'Drupal\\\\sqlite\\\\Driver\\\\Database\\\\sqlite', 'autoload' => 'core/modules/sqlite/src/Driver/Database/sqlite/']|" /app/web/sites/default/settings.php \
-    && DRUPACK_RUNTIME_DATA_DIR=/app/seed DRUPACK_RUNTIME_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php site:install /app/recipes/drupal_cms_site_template_base --yes --db-url=sqlite://seed/site.sqlite --account-name=drupack-admin --account-pass=drupack-seed-password \
+    && DRUPACK_RUNTIME_DATA_DIR=/app/seed DRUPACK_RUNTIME_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php site:install /app/recipes/byte --yes --db-url=sqlite://seed/site.sqlite --account-name=drupack-admin --account-pass=drupack-seed-password \
     && DRUPACK_RUNTIME_DATA_DIR=/app/seed DRUPACK_RUNTIME_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php pm:enable mcp_tools --yes \
     && mv /app/web/sites/default/files /app/seed/files \
     && rm -f /app/web/sites/default/settings.php

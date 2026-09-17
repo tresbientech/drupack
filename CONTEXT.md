@@ -38,7 +38,7 @@ The Drupal MCP Server feature included in a Packaged site for later enablement b
 
 ## Relationships
 
-- A **Packaged site** includes exactly one **Site template** for installation: Drupal CMS Blank.
+- A **Packaged site** includes exactly one **Site template** for installation: Byte.
 - First use of a **Packaged site** creates **Site data** from its **Seed site**.
 - **Site data** survives replacement of the **Packaged site** with an updated release.
 - The **`dr` command** manages one **Packaged site** and its selected **Site data**.

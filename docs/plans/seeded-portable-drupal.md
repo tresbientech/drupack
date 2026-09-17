@@ -5,8 +5,8 @@
 ## Architectural decisions
 
 - The package is a Linux x86-64 FrankenPHP executable with a fixed Drupal CMS application.
-- Drupal CMS Blank replaces Byte.
-- A Seed site is an installed Blank site with Local MCP Tools enabled.
+- Byte is the packaged site template.
+- A Seed site is an installed Byte site with Local MCP Tools enabled.
 - MCP Server source is included and disabled.
 - SQLite is the default database backend.
 - MySQL and PostgreSQL are selectable only on first start.
@@ -18,15 +18,15 @@
 
 ## Phase 1: Finish package inputs
 
-**User stories**: A site owner uses Drupal CMS Blank with local agent tools from one executable.
+**User stories**: A site owner uses Byte with local agent tools from one executable.
 
 ### What to build
 
-Complete the locked application inputs and static PHP runtime. Include Drupal CMS Blank, Drush, MCP Tools, MCP Server source, and PostgreSQL support. Refresh embedded translations for the resolved dependency set.
+Complete the locked application inputs and static PHP runtime. Include Byte, Drush, MCP Tools, MCP Server source, and PostgreSQL support. Refresh embedded translations for the resolved dependency set.
 
 ### Acceptance criteria
 
-- [ ] The dependency lock installs Drupal CMS Blank, Drush, MCP Tools, MCP Server, and their dependencies.
+- [ ] The dependency lock installs Byte, Drush, MCP Tools, MCP Server, and their dependencies.
 - [ ] The static PHP runtime provides SQLite, MySQL, and PostgreSQL PDO drivers.
 - [ ] The build downloads translations for the projects in the dependency lock.
 - [ ] MCP Server remains disabled after package installation.
@@ -38,7 +38,7 @@ Complete the locked application inputs and static PHP runtime. Include Drupal CM
 
 ### What to build
 
-Build an installed SQLite Seed site during image creation. Apply Drupal CMS Blank and enable MCP Tools. On a first SQLite launch, copy its database and files to Site data, then set the supplied administrator credentials.
+Build an installed SQLite Seed site during image creation. Apply Byte and enable MCP Tools. On a first SQLite launch, copy its database and files to Site data, then set the supplied administrator credentials.
 
 ### Acceptance criteria
 
@@ -54,13 +54,13 @@ Build an installed SQLite Seed site during image creation. Apply Drupal CMS Blan
 
 ### What to build
 
-Provision Drupal CMS Blank noninteractively when a new data directory selects MySQL or PostgreSQL. Read connection and administrator values from options or environment variables. Persist the selected database configuration in Site data.
+Provision Byte noninteractively when a new data directory selects MySQL or PostgreSQL. Read connection and administrator values from options or environment variables. Persist the selected database configuration in Site data.
 
 ### Acceptance criteria
 
 - [ ] `--database` accepts `sqlite`, `mysql`, and `pgsql`.
 - [ ] Missing remote connection values stop before persistent data is written.
-- [ ] MySQL and PostgreSQL receive Drupal CMS Blank and enabled MCP Tools.
+- [ ] MySQL and PostgreSQL receive Byte and enabled MCP Tools.
 - [ ] Later database migrations remain the site owner's responsibility.
 - [ ] Database passwords never appear in normal command output.
 
@@ -90,7 +90,7 @@ Test observable behavior through built executables. Use temporary data directori
 
 ### Acceptance criteria
 
-- [ ] SQLite first start reaches an installed Blank site without the web installer.
+- [ ] SQLite first start reaches an installed Byte site without the web installer.
 - [ ] MySQL and PostgreSQL first start complete noninteractive installation.
 - [ ] Invalid backends and missing credentials produce stable failures without persistent writes.
 - [ ] Content, uploads, and database settings survive restart.
@@ -103,11 +103,11 @@ Test observable behavior through built executables. Use temporary data directori
 
 ### What to build
 
-Replace Byte and web-installer documentation with the Seed site workflow. Document supported database choices, credential inputs, Site data, `dr`, and local agent access. State the MCP SDK advisory and testing status.
+Replace web-installer documentation with the Seed site workflow. Document supported database choices, credential inputs, Site data, `dr`, and local agent access. State the MCP SDK advisory and testing status.
 
 ### Acceptance criteria
 
-- [ ] Documentation names Drupal CMS Blank as the packaged template.
+- [ ] Documentation names Byte as the packaged template.
 - [ ] Documentation gives SQLite, MySQL, and PostgreSQL startup examples.
 - [ ] Documentation lists required administrator and remote database inputs.
 - [ ] Documentation describes `dr` and Local MCP Tools.

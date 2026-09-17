@@ -244,7 +244,7 @@ function drushPath(): string
 function installDrupal(array $options, string $binary): void
 {
     $drush = drushPath();
-    $recipe = __DIR__ . '/recipes/drupal_cms_site_template_base';
+    $recipe = __DIR__ . '/recipes/byte';
     if (!is_file($drush) || !is_dir($recipe)) {
         throw new RuntimeException('Bundled Drupal installation files are unavailable');
     }
