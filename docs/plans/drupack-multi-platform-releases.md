@@ -17,6 +17,7 @@
 - Every target keeps the same CLI options, environment variables, default `./data` directory, seeded SQLite site, database drivers and `dr` command.
 - A GitHub Release holds the executables, `checksums.txt`, `release.json` and one CycloneDX SBOM.
 - Each GitHub Release carries provenance attestations for its files.
+- The packaged site template is Byte 1.0.3.
 - The Docker build downloads fr, zh-hans, es, hi and ar translations for each Drupal project in `drupal/composer.lock` from ftp.drupal.org. Two builds of one commit can embed different translations.
 - The license is GPL-2.0-or-later.
 
@@ -25,8 +26,7 @@
 Verified locally on Linux `amd64`:
 
 - The musl build, `DRUPACK_DATA_DIR` and `DRUPACK_ADMIN_*`, and a SQLite first start.
-- `tests/database-init.sh`, `tests/offline.sh` and `tests/network.sh`, last at `ee8446d`.
-- `tests/server-database.sh` on MySQL 8.4 and PostgreSQL 17, and `tests/replacement.sh`, at `ee8446d`.
+- The five test scripts, with the Byte site template, at `79d8b8e`. MySQL 8.4 and PostgreSQL 17 each install Byte.
 - The `release.yml` asset naming, `checksums.txt` and `release.json` step, on stand-in files.
 
 Known issue: `runtime/php.ini` never loads. `php_ini_loaded_file()` returns `false`, and `memory_limit` stays at PHP's `128M` default.
