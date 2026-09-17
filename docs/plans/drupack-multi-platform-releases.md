@@ -12,7 +12,7 @@
 - One GitHub workflow, `release.yml`, runs on a version tag or a manual dispatch.
 - The product is named Drupack everywhere. Public environment variables use the `DRUPACK_` prefix.
 - Variables that the launcher sets for its own runtime use the `DRUPACK_RUNTIME_` prefix.
-- The first release ships Linux `amd64` and `arm64` musl executables and a Windows `amd64` executable. macOS is a later stage.
+- The first release ships Linux `amd64` and `arm64` musl executables, macOS `arm64` and `amd64` executables and a Windows `amd64` executable.
 - Every target keeps the same CLI options, environment variables, default `./data` directory, seeded SQLite site, database drivers and `dr` command.
 - A GitHub Release holds the executables, `checksums.txt`, `release.json` and one CycloneDX SBOM.
 - Each GitHub Release carries provenance attestations for its files.
@@ -139,29 +139,44 @@ Remaining:
 - [x] A manual dispatch passes the Windows job on GitHub Actions.
 - [x] A failed start without credentials writes no Site data on Windows.
 
-## Phase 6: Release 0.1.0
+## Phase 6: macOS release
+
+User stories: 3, 4, 7-19.
 
 ### What to build
 
-Tag `0.1.0` on `main` at the Forge after phases 3 to 5.
+`packaging/macos/build.sh` builds on the target architecture. It pins static-php-cli 2.8.5 by SHA-256 value and FrankenPHP 1.12.7 by commit. static-php-cli compiles PHP 8.5.10 with FrankenPHP's default extension set, which the Linux builder image also uses. `go build` then compiles `caddy/frankenphp` with the Drupack entrypoint and the Linux job's application archive.
+
+`release.yml` runs it on `macos-15` for `arm64` and `macos-15-intel` for `amd64`. Each job runs `tests/database-init.sh` and `tests/browser.py`, then checks the documented quarantine removal.
+
+The draft in commit `aa8004a` used `build-static.sh`, whose xcaddy `main` left out the Drupack entrypoint. This phase replaces it.
+
+Remaining:
+
+- `tests/network.sh` needs Docker, which macOS runners lack.
+- No test runs on macOS 13.
+- The Homebrew formula is not written or published.
+- The executables are not signed or notarized.
 
 ### Acceptance criteria
 
-- [ ] GitHub Release `0.1.0` holds the three executables, `checksums.txt`, `release.json` and `drupack.cdx.json`.
+- [ ] A manual dispatch passes both macOS jobs.
+- [ ] Both executables start a seeded SQLite site and pass `dr` checks in `tests/browser.py`.
+- [ ] The executables load the same PHP extensions as the Linux executable.
+
+## Phase 7: Release 0.1.0
+
+### What to build
+
+Tag `0.1.0` on `main` at the Forge after phases 3 to 6.
+
+### Acceptance criteria
+
+- [ ] GitHub Release `0.1.0` holds the five executables, `checksums.txt`, `release.json` and `drupack.cdx.json`.
 - [ ] `release.json` lists each asset's target, URL, SHA-256 value and size.
 - [ ] `sha256sum -c checksums.txt` passes on the downloaded files.
 
 ## Later stages
-
-Commit `aa8004a` holds a draft of the macOS and Homebrew code. It never ran on a native runner. Branch audits found these problems in it.
-
-### macOS and Homebrew
-
-- `build-static.sh` builds with xcaddy, which writes its own `main`. The Drupack entrypoint probably never compiles.
-- The macOS job built its own application archive, so its Seed site differed from Linux.
-- It copied the FrankenPHP version, PHP version and a reduced extension list from the Dockerfile. The Linux build uses the builder image's full extension set.
-- No document gives the unsigned-binary launch steps, and no test covers them.
-- The Homebrew template was never filled in or published.
 
 ### Release publication
 
