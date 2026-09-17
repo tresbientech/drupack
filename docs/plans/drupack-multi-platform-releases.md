@@ -26,6 +26,7 @@ Verified locally on Linux `amd64`:
 
 - The musl build, `DRUPACK_DATA_DIR` and `DRUPACK_ADMIN_*`, and a SQLite first start.
 - `tests/database-init.sh`, `tests/offline.sh` and `tests/network.sh`, last at `ee8446d`.
+- A MySQL 8.4 first start at `ee8446d`, with `dr status`, `dr user:login`, the protected paths and a restart without credentials. No test script covers it yet.
 - The `release.yml` asset naming, `checksums.txt` and `release.json` step, on stand-in files.
 
 Known issue: `runtime/php.ini` never loads. `php_ini_loaded_file()` returns `false`, and `memory_limit` stays at PHP's `128M` default.
