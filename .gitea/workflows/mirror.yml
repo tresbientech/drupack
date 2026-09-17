@@ -1,4 +1,4 @@
-name: Mirror to GitHub
+name: Mirror to GitHub and drupal.org
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 # Queued runs start in push order, so a later run never pushes an older clone.
 concurrency:
-  group: github-mirror
+  group: mirror
   cancel-in-progress: false
 
 jobs:
@@ -14,19 +14,36 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Clone the Forge repository
+        id: clone
+        env:
+          FORGE_TOKEN: ${{ gitea.token }}
+          FORGE_REPOSITORY: ${{ gitea.server_url }}/${{ gitea.repository }}.git
+        run: |
+          authorization=$(printf 'actions:%s' "$FORGE_TOKEN" | base64 -w0)
+          git -c "http.extraHeader=Authorization: Basic $authorization" clone --bare "$FORGE_REPOSITORY" repository.git
+
       - name: Push branches and tags to GitHub
         env:
           DEPLOY_KEY: ${{ secrets.MIRROR_DEPLOY_KEY }}
-          FORGE_TOKEN: ${{ gitea.token }}
-          FORGE_REPOSITORY: ${{ gitea.server_url }}/${{ gitea.repository }}.git
         run: |
           umask 077
           mkdir -p "$HOME/.ssh"
           printf '%s\n' "$DEPLOY_KEY" >"$HOME/.ssh/github_mirror"
           # GitHub's published host key, from https://api.github.com/meta
           printf 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n' >"$HOME/.ssh/known_hosts"
-          authorization=$(printf 'actions:%s' "$FORGE_TOKEN" | base64 -w0)
-          git -c "http.extraHeader=Authorization: Basic $authorization" clone --bare "$FORGE_REPOSITORY" repository.git
           GIT_SSH_COMMAND="ssh -i $HOME/.ssh/github_mirror -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
             git -C repository.git push --prune git@github.com:tresbientech/drupack.git \
             '+refs/heads/*:refs/heads/*' '+refs/tags/*:refs/tags/*'
+
+      # A failed GitHub push still leaves drupal.org in sync.
+      - name: Push branches and tags to drupal.org
+        if: ${{ !cancelled() && steps.clone.outcome == 'success' }}
+        env:
+          DRUPAL_ORG_TOKEN: ${{ secrets.DRUPAL_ORG_MIRROR_TOKEN }}
+        run: |
+          # GitLab reads the project access token from the password and ignores the user name.
+          authorization=$(printf 'forge-mirror:%s' "$DRUPAL_ORG_TOKEN" | base64 -w0)
+          # Without force, a rewritten Forge ref fails the run. Without prune, refs deleted on the Forge stay on drupal.org.
+          git -C repository.git -c "http.extraHeader=Authorization: Basic $authorization" \
+            push https://git.drupalcode.org/project/drupack.git 'refs/heads/*:refs/heads/*' 'refs/tags/*:refs/tags/*'
