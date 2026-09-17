@@ -26,12 +26,16 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build the executable
-        run: docker build --target artifact --output type=local,dest=dist .
+        env:
+          DRUPACK_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
+        run: docker build --target artifact --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" --output type=local,dest=dist .
 
       - name: Export the application archive
         if: matrix.architecture == 'amd64'
+        env:
+          DRUPACK_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
         run: |
-          docker build --target build -t drupack-build .
+          docker build --target build --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-build .
           container=$(docker create drupack-build)
           mkdir application
           docker cp "$container:/go/src/app/app.tar" application/app.tar
@@ -167,6 +171,7 @@ jobs:
         env:
           # static-php-cli reads library releases from the GitHub API, which rate-limits anonymous requests.
           GITHUB_TOKEN: ${{ github.token }}
+          DRUPACK_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
         run: bash packaging/macos/build.sh application "$RUNNER_TEMP/drupack" dist/drupack
 
       # Saved before the tests, so a failed test does not repeat the PHP build.

@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
+	"unsafe"
 )
 
 //go:embed runtime.zip
@@ -51,14 +53,38 @@ func main() {
 	command.Stderr = os.Stderr
 	// php.ini in the runtime directory locates its extensions through PHPRC.
 	command.Env = append(os.Environ(), "PHPRC="+runtime)
+	owned := consoleOwned()
+	if owned {
+		command.Env = append(command.Env, "DRUPACK_RUNTIME_CONSOLE_OWNED=1")
+	}
 	if err := command.Run(); err != nil {
 		var exitError *exec.ExitError
-		if errors.As(err, &exitError) {
-			os.Exit(exitError.ExitCode())
+		if !errors.As(err, &exitError) {
+			fmt.Fprintln(os.Stderr, err)
+			waitForReader(owned)
+			os.Exit(1)
 		}
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		waitForReader(owned)
+		os.Exit(exitError.ExitCode())
 	}
+}
+
+// consoleOwned reports whether this process is alone on its console, which means
+// a file manager created the window. A console from a shell also holds the shell.
+func consoleOwned() bool {
+	var process uint32
+	count, _, _ := syscall.NewLazyDLL("kernel32.dll").NewProc("GetConsoleProcessList").
+		Call(uintptr(unsafe.Pointer(&process)), 1)
+	return count == 1
+}
+
+// waitForReader keeps a file manager window open, so its reader sees the failure.
+func waitForReader(owned bool) {
+	if !owned {
+		return
+	}
+	fmt.Fprint(os.Stderr, "Press Enter to close this window.")
+	fmt.Fscanln(os.Stdin)
 }
 
 // prepareRuntime extracts the bundled runtime under the user's cache directory,

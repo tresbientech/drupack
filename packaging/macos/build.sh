@@ -50,6 +50,6 @@ cp "$repository/packaging/entrypoint.go" frankenphp/caddy/frankenphp/drupack.go
 cd frankenphp/caddy/frankenphp
 CGO_ENABLED=1 CGO_CFLAGS="$php_includes -DFRANKENPHP_VERSION=$frankenphp_version" CGO_LDFLAGS="$php_libraries" \
     go build -buildmode=pie -tags=nobadger,nomysql,nopgx \
-    -ldflags="-s -w -linkmode=external -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $php_version Caddy'" \
+    -ldflags="-s -w -linkmode=external -X 'main.version=${DRUPACK_VERSION:-dev}' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $php_version Caddy'" \
     -o "$output"
 "$output" version

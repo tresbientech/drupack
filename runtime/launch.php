@@ -111,6 +111,7 @@ function options(array $arguments, bool $drush): array
         'db-password' => environment('DRUPACK_DB_PASSWORD'),
         'admin-user' => environment('DRUPACK_ADMIN_USER'),
         'admin-password' => environment('DRUPACK_ADMIN_PASSWORD'),
+        'no-browser' => null,
     ];
     $command = [];
     while ($arguments !== []) {
@@ -120,7 +121,7 @@ function options(array $arguments, bool $drush): array
             break;
         }
         if ($argument === '--help') {
-            echo "Usage: drupack php-cli launch.php [--data-dir PATH] [--listen IP:PORT] [--host HOST] [--database sqlite|mysql|pgsql]\n";
+            echo "Usage: drupack php-cli launch.php [--data-dir PATH] [--listen IP:PORT] [--host HOST] [--database sqlite|mysql|pgsql] [--no-browser]\n";
             exit(0);
         }
         $parts = explode('=', $argument, 2);
@@ -129,6 +130,10 @@ function options(array $arguments, bool $drush): array
         if (!str_starts_with($argument, '--') || !array_key_exists($name, $options)) {
             throw new InvalidArgumentException("Unknown argument: $argument");
         }
+        if ($name === 'no-browser') {
+            $options[$name] = '1';
+            continue;
+        }
         $value = $parts[1] ?? array_shift($arguments);
         if ($value === null || $value === '' || str_starts_with($value, '--')) {
             throw new InvalidArgumentException("Missing value for --$name");
@@ -136,6 +141,76 @@ function options(array $arguments, bool $drush): array
         $options[$name] = $value;
     }
     return [$options, $command];
+}
+
+function readAnswer(): string
+{
+    $line = fgets(STDIN);
+    if ($line === false) {
+        throw new RuntimeException('Cannot read administrator credentials');
+    }
+    return trim($line);
+}
+
+// Reads one line without echo. Windows has no stty, so PowerShell reads the line there.
+function readSecret(string $question): string
+{
+    fwrite(STDOUT, $question);
+    if (windows()) {
+        $script = '$secret = Read-Host -AsSecureString;'
+            . ' [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret))';
+        $output = shell_exec('powershell -NoProfile -NonInteractive -Command ' . escapeshellarg($script));
+        if ($output === null || $output === false) {
+            throw new RuntimeException('Cannot read administrator credentials');
+        }
+        return trim($output);
+    }
+    shell_exec('stty -echo');
+    try {
+        $secret = readAnswer();
+    } finally {
+        shell_exec('stty echo');
+        fwrite(STDOUT, "\n");
+    }
+    return $secret;
+}
+
+// A terminal supplies missing credentials. A start without a terminal keeps the missing-credential failure.
+function askCredentials(array $options): array
+{
+    if ($options['admin-user'] !== null && $options['admin-password'] !== null) {
+        return $options;
+    }
+    if (!stream_isatty(STDIN)) {
+        return $options;
+    }
+    fwrite(STDOUT, "This directory has no site yet. Drupack creates one now.\n");
+    if ($options['admin-user'] === null) {
+        fwrite(STDOUT, 'Administrator name [admin]: ');
+        $name = readAnswer();
+        $options['admin-user'] = $name === '' ? 'admin' : $name;
+    }
+    while ($options['admin-password'] === null) {
+        $password = readSecret('Administrator password: ');
+        if ($password === '') {
+            fwrite(STDOUT, "A password is required.\n");
+            continue;
+        }
+        if ($password !== readSecret('Repeat the password: ')) {
+            fwrite(STDOUT, "The passwords do not match.\n");
+            continue;
+        }
+        $options['admin-password'] = $password;
+    }
+    return $options;
+}
+
+// The Go entrypoint waits for the first response and opens the browser. This
+// process becomes the server, so it cannot wait for itself.
+function openWhenServing(string $binary, string $url): void
+{
+    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['file', nullDevice(), 'w'], 2 => ['file', nullDevice(), 'w']];
+    proc_open([$binary, 'open-when-ready', $url], $descriptors, $pipes, __DIR__);
 }
 
 function validateDatabaseOptions(array $options, bool $firstStart): void
@@ -301,6 +376,9 @@ try {
         replaceProcess($binary, array_merge(['php-cli', drushPath()], $command), __DIR__, 'Cannot run Drush');
     }
     $firstStart = !file_exists($options['data-dir'] . '/settings.php');
+    if ($firstStart && !$drush) {
+        $options = askCredentials($options);
+    }
     validateDatabaseOptions($options, $firstStart);
     // Listener values enter Caddy configuration and must contain only an IP address and port.
     if (!preg_match('/^(\[[0-9a-fA-F:]+\]|[0-9.]+):([0-9]+)$/D', $options['listen'], $listener)) {
@@ -392,7 +470,12 @@ try {
     if ($drush) {
         exit(process($binary, array_merge(['php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], __DIR__, 'Cannot run Drush'));
     }
-    fwrite(STDOUT, "Drupal: http://{$options['host']}:$port\nSite data: $data\n");
+    $url = "http://{$options['host']}:$port/";
+    fwrite(STDOUT, "Drupal: $url\nSite data: $data\nStop the site with Ctrl+C.\n");
+    // A file manager started this console, so the site has no other way to reach its reader.
+    if (environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1' && $options['no-browser'] === null) {
+        openWhenServing($binary, $url);
+    }
     replaceProcess($binary, ['php-server'], __DIR__, 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
