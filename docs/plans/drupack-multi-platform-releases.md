@@ -28,6 +28,16 @@ Verified locally on Linux `amd64`:
 
 Known issue: `runtime/php.ini` never loads. `php_ini_loaded_file()` returns `false`, and `memory_limit` stays at PHP's `128M` default.
 
+Verified on GitHub Actions, run 35212670832 at `b9a4d74`:
+
+| Job | Minutes | Price per minute |
+|---|---|---|
+| Linux `amd64`, with the application archive export | 13 | $0.006 |
+| Linux `arm64` | 11 | $0.005 |
+| Windows `amd64`, cold caches | 14 | $0.010 |
+
+One dispatch costs about $0.28 of the private repository's quota. The Windows job spent 7 minutes building, 3 minutes on both tests and 3 minutes saving caches and the artifact.
+
 Verified on GitHub Actions, run 35187565454 at `be0af43`:
 
 - Both Linux jobs built, passed the three test scripts and started a SQLite site on Alpine.
@@ -126,7 +136,7 @@ Remaining:
 ### Acceptance criteria
 
 - [x] `tests/windows/launcher.Tests.ps1` and `tests/windows/site.Tests.ps1` pass on Windows 11.
-- [ ] A manual dispatch passes the Windows job on GitHub Actions.
+- [x] A manual dispatch passes the Windows job on GitHub Actions.
 - [x] A failed start without credentials writes no Site data on Windows.
 
 ## Phase 6: Release 0.1.0
