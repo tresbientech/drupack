@@ -332,8 +332,8 @@ try {
     putenv("TMPDIR=$runtime");
     putenv("TEMP=$runtime");
     putenv("TMP=$runtime");
-    putenv("XDG_DATA_HOME=$data/runtime");
-    putenv("XDG_CONFIG_HOME=$data/runtime");
+    putenv("XDG_DATA_HOME=$runtime");
+    putenv("XDG_CONFIG_HOME=$runtime");
     foreach ([
         'database' => 'DRUPACK_DATABASE',
         'db-host' => 'DRUPACK_DB_HOST',

@@ -33,29 +33,23 @@ type manifestFile struct {
 //go:embed runtime-manifest.json
 var runtimeManifest string
 
-const dataDirectoryError = "--data-dir requires a path"
 const runtimeExecutable = "frankenphp.exe"
 const storedManifestName = "runtime-manifest.json"
+const activeFileName = "active"
 
 func main() {
-	data, args, err := invocation(os.Args[1:])
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
-	}
-
-	runtime, err := prepareRuntime(data)
+	runtime, err := prepareRuntime()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	command := exec.Command(filepath.Join(runtime, runtimeExecutable), args...)
+	command := exec.Command(filepath.Join(runtime, runtimeExecutable), os.Args[1:]...)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	// php.ini in the runtime directory locates its extensions through PHPRC.
-	command.Env = append(os.Environ(), "DRUPACK_DATA_DIR="+data, "PHPRC="+runtime)
+	command.Env = append(os.Environ(), "PHPRC="+runtime)
 	if err := command.Run(); err != nil {
 		var exitError *exec.ExitError
 		if errors.As(err, &exitError) {
@@ -66,40 +60,14 @@ func main() {
 	}
 }
 
-// invocation removes --data-dir from the arguments. main passes the chosen
-// directory to the runtime as DRUPACK_DATA_DIR, so launch.php uses the same one.
-func invocation(args []string) (string, []string, error) {
-	data := os.Getenv("DRUPACK_DATA_DIR")
-	if data == "" {
-		data = "./data"
-	}
-	forwarded := make([]string, 0, len(args))
-	for index := 0; index < len(args); index++ {
-		if args[index] == "--data-dir" {
-			if index+1 == len(args) {
-				return "", nil, errors.New(dataDirectoryError)
-			}
-			data = args[index+1]
-			index++
-			continue
-		}
-		if value, found := strings.CutPrefix(args[index], "--data-dir="); found {
-			if value == "" {
-				return "", nil, errors.New(dataDirectoryError)
-			}
-			data = value
-			continue
-		}
-		forwarded = append(forwarded, args[index])
-	}
-	return data, forwarded, nil
-}
-
-func prepareRuntime(data string) (string, error) {
-	root, err := filepath.Abs(filepath.Join(data, "runtime"))
+// prepareRuntime extracts the bundled runtime under the user's cache directory,
+// %LOCALAPPDATA% on Windows, so a failed start writes no Site data.
+func prepareRuntime() (string, error) {
+	cache, err := os.UserCacheDir()
 	if err != nil {
 		return "", err
 	}
+	root := filepath.Join(cache, "Drupack", "runtime")
 	if err := os.MkdirAll(root, 0700); err != nil {
 		return "", err
 	}
@@ -141,7 +109,7 @@ func bundledRuntime() (manifest, []byte, error) {
 }
 
 func activeRuntime(root string) (string, error) {
-	contents, err := os.ReadFile(filepath.Join(root, "active"))
+	contents, err := os.ReadFile(filepath.Join(root, activeFileName))
 	if err != nil {
 		return "", err
 	}
@@ -252,7 +220,7 @@ func storedManifest(directory string) (manifest, error) {
 }
 
 // validManifest checks a manifest before any of its paths are used. The stored
-// copy lives in Site data, where the site owner can change it.
+// copy lives in the user's cache directory, where the user can change it.
 func validManifest(runtime manifest) error {
 	if runtime.Version == "" || filepath.Base(runtime.Version) != runtime.Version || len(runtime.Files) == 0 {
 		return errors.New("invalid runtime manifest")
@@ -287,11 +255,11 @@ func validateRuntime(directory string, runtime manifest) error {
 }
 
 func activate(root, version string) error {
-	pending := filepath.Join(root, "active.pending")
+	pending := filepath.Join(root, activeFileName+".pending")
 	if err := os.WriteFile(pending, []byte(version+"\n"), 0600); err != nil {
 		return err
 	}
-	return os.Rename(pending, filepath.Join(root, "active"))
+	return os.Rename(pending, filepath.Join(root, activeFileName))
 }
 
 func safePath(path string) bool {
