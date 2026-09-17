@@ -6,13 +6,13 @@ Drupack currently ships one Linux x86-64 executable. Site owners on macOS, Windo
 
 People expect a native download or package-manager install for their operating system. Automation needs stable asset names, checksums, and machine-readable release metadata.
 
-The executable must keep Drupal CMS, FrankenPHP, PHP, Drush, SQLite, MySQL, PostgreSQL, MCP Tools, and MCP Server source. Site data must remain outside the immutable application package.
+The executable must keep Drupal CMS, FrankenPHP, PHP, Drush, SQLite, MySQL, PostgreSQL, MCP Tools, and MCP Server source. Site data must remain outside the Packaged site.
 
 ## Solution
 
-Ship native Drupack releases in two phases. Phase 1 ships fully static musl Linux binaries for `amd64` and `arm64`.
+Ship native Drupack releases in three stages. The Linux stage ships fully static musl executables for `amd64` and `arm64`.
 
-Phase 1 also ships native macOS binaries for Apple Silicon and Intel. Phase 2 ships a self-extracting Windows `amd64` executable.
+The macOS stage ships native executables for Apple Silicon and Intel. The Windows stage ships a self-extracting `amd64` executable.
 
 Every target keeps the same command-line flags, environment variables, default `./data` directory, seeded SQLite site, database choices, and `dr` command. The Windows executable extracts its immutable FrankenPHP and PHP runtime under Site data after checksum verification.
 
@@ -54,9 +54,9 @@ A Homebrew tap installs Linux and macOS releases. WinGet installs the Windows po
 
 ### Release targets
 
-- Phase 1 ships `drupack-<version>-linux-amd64` and `drupack-<version>-linux-arm64` as fully static musl executables.
-- Phase 1 ships `drupack-<version>-macos-arm64` and `drupack-<version>-macos-amd64` as native macOS executables.
-- Phase 2 ships `drupack-<version>-windows-amd64.exe` as a self-extracting Windows executable.
+- The Linux stage ships `drupack-<version>-linux-amd64` and `drupack-<version>-linux-arm64` as fully static musl executables.
+- The macOS stage ships `drupack-<version>-macos-arm64` and `drupack-<version>-macos-amd64` as native macOS executables.
+- The Windows stage ships `drupack-<version>-windows-amd64.exe` as a self-extracting Windows executable.
 - Linux supports `amd64` and `arm64` distributions without a distribution-specific version promise.
 - macOS supports version 13 and later. Windows supports version 10 22H2 and later.
 - macOS releases remain unsigned until Apple code-signing credentials are available.
@@ -75,6 +75,7 @@ A Homebrew tap installs Linux and macOS releases. WinGet installs the Windows po
 ### Distribution modules
 
 - GitHub Releases publishes every target file, `checksums.txt`, an SBOM, provenance attestations, and `release.json`.
+- Provenance attestations start when the GitHub repository becomes public. GitHub offers them to private repositories only on Enterprise Cloud.
 - `release.json` lists version, target, asset name, download URL, SHA-256, file size, and build commit.
 - The Homebrew tap has a formula that installs the matching Linux or macOS asset after hash verification.
 - The WinGet manifest declares the Windows file as a portable installer and supplies its SHA-256 value.
@@ -100,9 +101,9 @@ The existing offline, browser, database, and network tests define the current pr
 
 ### Acceptance coverage
 
-- Build every phase 1 target from the same locked Drupal dependency set.
-- Verify each phase 1 target runs without a host PHP installation, Composer installation, or database server for SQLite use.
-- Verify each phase 1 target retains MySQL, PostgreSQL, Drush, MCP Tools, and MCP Server source.
+- Build every Linux and macOS target from the same locked Drupal dependency set.
+- Verify each Linux and macOS target runs without a host PHP installation, Composer installation, or database server for SQLite use.
+- Verify each Linux and macOS target retains MySQL, PostgreSQL, Drush, MCP Tools, and MCP Server source.
 - Verify the Windows executable installs all required immutable runtime files into Site data.
 - Verify a failed Windows extraction leaves the active runtime unchanged.
 - Verify `release.json`, checksums, SBOMs, and provenance attestations identify every release asset.

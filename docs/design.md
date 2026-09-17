@@ -1,5 +1,7 @@
 # Portable Drupal CMS: first release
 
+> Superseded for platform and packaging by the [multi-platform releases PRD](prd/drupack-multi-platform-releases.md). Linux builds now use musl.
+
 ## What will the package provide?
 
 One Linux executable will contain Drupal CMS, the Byte site template, and the FrankenPHP runtime, including PHP and Caddy.

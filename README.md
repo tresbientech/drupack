@@ -1,10 +1,10 @@
 # Drupack
 
-Drupack is one Linux `amd64` FrankenPHP executable. It contains Drupal CMS Blank, PHP, SQLite, MySQL, PostgreSQL, Drush, Local MCP Tools, and MCP Server source.
+Drupack is one FrankenPHP executable for Linux `amd64` or `arm64`. It contains Drupal CMS Blank, PHP, SQLite, MySQL, PostgreSQL, Drush, Local MCP Tools, and MCP Server source.
 
 ## Build
 
-Build on Linux `amd64` with Docker and BuildKit.
+Build on Linux `amd64` or `arm64` with Docker and BuildKit. The executable matches the build host's architecture.
 
 ```sh
 docker build --target artifact --output type=local,dest=dist .
@@ -58,7 +58,23 @@ Runtime Composer operations are not included.
 
 The Seed site enables `mcp_tools`. It supports local agents that administer the Drupal site. The package includes `mcp_server` source but does not enable it or expose a transport.
 
-The current dependency lock includes `mcp/sdk` 0.6.0. Its upstream advisory GHSA-7m52-jw36-44r3 is high severity. This package is for testing and is not a release artifact.
+The dependency lock includes `mcp/sdk` 0.6.0, which GHSA-7m52-jw36-44r3 affects. The advisory covers the SDK's client HTTP transport. `mcp_tools` and `mcp_server` use only its server classes.
+
+## Releases
+
+A version tag such as `0.1.0` publishes a GitHub Release with these files:
+
+- `drupack-<version>-linux-amd64`
+- `drupack-<version>-linux-arm64`
+- `checksums.txt`
+- `release.json`, with each asset's target, URL, SHA-256 value and size
+- `drupack.cdx.json`, a CycloneDX SBOM
+
+Verify downloaded executables before use.
+
+```sh
+sha256sum --ignore-missing -c checksums.txt
+```
 
 ## Site data
 
