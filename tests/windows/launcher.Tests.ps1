@@ -31,11 +31,16 @@ func main() { fmt.Printf("args=%q env=%s phprc=%s", os.Args[1:], os.Getenv("DRUP
   $second = & (Join-Path $temporary 'drupack.exe') restart
   if ($second -notmatch 'restart') { throw 'restart did not use the active runtime' }
 
+  Add-Content -Path (Join-Path $runtimeRoot 'test-v1/frankenphp.exe') -Value 'x' -NoNewline
+  $resized = & (Join-Path $temporary 'drupack.exe') resized
+  if ($resized -notmatch 'resized') { throw 'a runtime with a changed file size did not run' }
+  if (-not (Get-ChildItem $runtimeRoot -Directory -Filter 'test-v1.invalid-*')) { throw 'a runtime with a changed file size was not reinstalled' }
+
   $brokenSource = Join-Path $temporary 'broken-source'
   New-Item -ItemType Directory -Path $brokenSource | Out-Null
   Copy-Item (Join-Path $root 'packaging/windows/main.go') $brokenSource
   @{ version = 'test-v2'; files = @(@{ path = 'frankenphp.exe'; sha256 = '00' }) } | ConvertTo-Json -Compress | Set-Content (Join-Path $brokenSource 'runtime-manifest.json') -NoNewline
-  [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes('not a zip')) | Set-Content (Join-Path $brokenSource 'runtime.payload') -NoNewline
+  Set-Content (Join-Path $brokenSource 'runtime.zip') 'not a zip' -NoNewline
   go build -o (Join-Path $temporary 'broken.exe') (Join-Path $brokenSource 'main.go')
   $warning = (& (Join-Path $temporary 'broken.exe') retained 2>&1) -join "`n"
   if ($warning -notmatch 'Using the previous runtime') { throw 'failed extraction did not warn about the previous runtime' }

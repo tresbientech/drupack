@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	_ "embed"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -14,11 +13,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 )
 
-//go:embed runtime.payload
-var runtimeArchive string
+//go:embed runtime.zip
+var runtimeArchive []byte
 
 type manifest struct {
 	Version string         `json:"version"`
@@ -28,6 +28,7 @@ type manifest struct {
 type manifestFile struct {
 	Path   string `json:"path"`
 	SHA256 string `json:"sha256"`
+	Size   int64  `json:"size"`
 }
 
 //go:embed runtime-manifest.json
@@ -71,20 +72,19 @@ func prepareRuntime() (string, error) {
 	if err := os.MkdirAll(root, 0700); err != nil {
 		return "", err
 	}
-	manifest, archive, err := bundledRuntime()
+	manifest, err := bundledManifest()
 	if err != nil {
 		return "", err
 	}
-	active, activeErr := activeRuntime(root)
 	target := filepath.Join(root, manifest.Version)
-	if err := validateRuntime(target, manifest); err == nil {
+	if err := installedRuntime(target, manifest); err == nil {
 		if err := activate(root, manifest.Version); err != nil {
 			return "", err
 		}
 		return target, nil
 	}
-	if err := stageRuntime(root, target, archive, manifest); err != nil {
-		if activeErr == nil {
+	if err := stageRuntime(root, target, runtimeArchive, manifest); err != nil {
+		if active, activeErr := activeRuntime(root); activeErr == nil {
 			fmt.Fprintf(os.Stderr, "Warning: could not install bundled runtime: %v. Using the previous runtime.\n", err)
 			return active, nil
 		}
@@ -93,19 +93,12 @@ func prepareRuntime() (string, error) {
 	return target, nil
 }
 
-func bundledRuntime() (manifest, []byte, error) {
+func bundledManifest() (manifest, error) {
 	var runtime manifest
 	if err := json.Unmarshal([]byte(runtimeManifest), &runtime); err != nil {
-		return runtime, nil, fmt.Errorf("invalid runtime manifest: %w", err)
+		return runtime, fmt.Errorf("invalid runtime manifest: %w", err)
 	}
-	if err := validManifest(runtime); err != nil {
-		return runtime, nil, err
-	}
-	archive, err := base64.StdEncoding.DecodeString(runtimeArchive)
-	if err != nil {
-		return runtime, nil, fmt.Errorf("invalid runtime archive: %w", err)
-	}
-	return runtime, archive, nil
+	return runtime, validManifest(runtime)
 }
 
 func activeRuntime(root string) (string, error) {
@@ -122,10 +115,36 @@ func activeRuntime(root string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := validateRuntime(runtime, stored); err != nil {
+	if err := checkSizes(runtime, stored); err != nil {
 		return "", err
 	}
 	return runtime, nil
+}
+
+// installedRuntime checks a runtime installed by stageRuntime, which hashed every
+// file. A start compares the stored manifest and file sizes instead of hashing again.
+func installedRuntime(directory string, runtime manifest) error {
+	stored, err := storedManifest(directory)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(stored, runtime) {
+		return errors.New("installed runtime differs from the bundled runtime")
+	}
+	return checkSizes(directory, stored)
+}
+
+func checkSizes(directory string, runtime manifest) error {
+	for _, file := range runtime.Files {
+		info, err := os.Stat(filepath.Join(directory, filepath.FromSlash(file.Path)))
+		if err != nil {
+			return err
+		}
+		if info.Size() != file.Size {
+			return fmt.Errorf("runtime file size changed: %s", file.Path)
+		}
+	}
+	return nil
 }
 
 func stageRuntime(root, target string, archive []byte, runtime manifest) error {
