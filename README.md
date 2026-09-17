@@ -40,7 +40,7 @@ On first start, `drupack.exe` extracts PHP and FrankenPHP into `%LOCALAPPDATA%\D
 
 ## Start a SQLite site
 
-First start copies an installed Byte Seed site into `./data`. It requires administrator credentials.
+First start copies an installed Byte Seed site into `./data`. It needs administrator credentials.
 
 ```sh
 ./dist/drupack \
@@ -48,7 +48,13 @@ First start copies an installed Byte Seed site into `./data`. It requires admini
   --admin-password 'choose-a-password'
 ```
 
+A first start without those options asks for a name and a password in the terminal. A start that cannot read input, such as one in a script, fails instead.
+
 Open `http://localhost:8080`. Drupal's web installer does not run. Later starts use the existing Site data and need no credentials.
+
+A double-click in Windows Explorer opens a console window, asks for the credentials, then opens the site in the browser once it answers. `--no-browser` stops that. A failed start keeps the window open until Enter.
+
+`drupack --version` prints the release, and `drupack --help` lists every option.
 
 `--data-dir` selects another Site data directory. `DRUPACK_DATA_DIR` supplies its default.
 

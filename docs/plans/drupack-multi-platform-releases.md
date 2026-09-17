@@ -181,10 +181,10 @@ A first start without administrator credentials asks for a name and a password w
 ### Acceptance criteria
 
 - [ ] A double-click on the Windows executable reaches a served site and opens a browser, with no options.
-- [ ] A failed start from a file manager keeps its window open until Enter.
-- [ ] A non-interactive first start without credentials still fails with the current message and writes no Site data.
-- [ ] `--version` prints the version, and `--help` lists every option.
-- [ ] The five test scripts and both Windows test scripts pass.
+- [x] A start in its own console without credentials keeps the window open and writes no Site data.
+- [x] A non-interactive first start without credentials still fails with the current message and writes no Site data.
+- [x] `--version` prints the version, and `--help` lists every option.
+- [x] The five test scripts and both Windows test scripts pass.
 
 ## Phase 8: Release 0.1.0
 
