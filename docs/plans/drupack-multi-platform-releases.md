@@ -101,8 +101,8 @@ User stories: 1, 2, 7-9, 12-14, 16-19.
 - [x] A manual dispatch passes on both architectures and publishes nothing.
 - [x] The `arm64` executable passes the same tests as `amd64` without emulation.
 - [x] Both executables start a SQLite site on Alpine.
-- [ ] A manual dispatch passes `tests/server-database.sh` on both architectures.
-- [ ] A manual dispatch passes `tests/replacement.sh` on both architectures.
+- [x] A manual dispatch passes `tests/server-database.sh` on both architectures.
+- [x] A manual dispatch passes `tests/replacement.sh` on both architectures.
 
 ## Phase 5: Windows release
 
