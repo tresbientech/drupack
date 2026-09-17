@@ -28,6 +28,23 @@ jobs:
       - name: Build the executable
         run: docker build --target artifact --output type=local,dest=dist .
 
+      - name: Export the application archive
+        if: matrix.architecture == 'amd64'
+        run: |
+          docker build --target build -t drupack-build .
+          container=$(docker create drupack-build)
+          mkdir application
+          docker cp "$container:/go/src/app/app.tar" application/app.tar
+          docker cp "$container:/go/src/app/app_checksum.txt" application/app_checksum.txt
+          docker rm "$container"
+
+      - if: matrix.architecture == 'amd64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-archive
+          path: application
+          if-no-files-found: error
+
       - name: Run the test scripts
         run: |
           bash tests/database-init.sh dist/drupack test-results/database
@@ -62,8 +79,56 @@ jobs:
           path: dist/drupack
           if-no-files-found: error
 
-  publish:
+  windows:
+    name: Windows amd64
     needs: linux
+    runs-on: windows-2025
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.0'
+          cache: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: application-archive
+          path: application
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}\drupack\downloads
+            ${{ runner.temp }}\drupack\vcpkg
+            ~\AppData\Local\vcpkg\archives
+            ~\go\pkg\mod
+            ~\AppData\Local\go-build
+          key: windows-build-${{ hashFiles('packaging/windows/build.ps1') }}
+
+      - name: Build the executable
+        env:
+          RUNTIME_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
+        run: ./packaging/windows/build.ps1 -ApplicationDirectory application -Version $env:RUNTIME_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupack.exe
+
+      - name: Test the launcher
+        run: ./tests/windows/launcher.Tests.ps1
+
+      - name: Test a SQLite site
+        run: ./tests/windows/site.Tests.ps1 -Executable dist\drupack.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drupack-windows-amd64
+          path: dist/drupack.exe
+          if-no-files-found: error
+
+  publish:
+    needs: [linux, windows]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     permissions:
@@ -76,16 +141,16 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: drupack-linux-*
+          pattern: drupack-*
           path: candidates
 
       - name: Name assets and write checksums.txt and release.json
         run: |
           mkdir release
-          for candidate in candidates/drupack-*/drupack; do
-            target=${candidate#candidates/drupack-}
-            target=${target%/drupack}
-            asset="drupack-${VERSION}-${target}"
+          for candidate in candidates/drupack-*/drupack*; do
+            directory=${candidate%/*}
+            target=${directory#candidates/drupack-}
+            asset="drupack-${VERSION}-${target}${candidate##*/drupack}"
             cp "$candidate" "release/$asset"
             chmod 0755 "release/$asset"
             sha256=$(sha256sum "release/$asset" | cut -d ' ' -f 1)
