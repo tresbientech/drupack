@@ -16,6 +16,7 @@ import (
 	"reflect"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -39,6 +40,9 @@ var runtimeManifest string
 const runtimeExecutable = "frankenphp.exe"
 const storedManifestName = "runtime-manifest.json"
 const activeFileName = "active"
+const lockFileName = "lock"
+const lockTimeout = 60 * time.Second
+const lockPollInterval = 100 * time.Millisecond
 
 func main() {
 	runtime, err := prepareRuntime()
@@ -103,13 +107,44 @@ func prepareRuntime() (string, error) {
 		return "", err
 	}
 	target := filepath.Join(root, manifest.Version)
-	if err := installedRuntime(target, manifest); err == nil {
-		if err := activate(root, manifest.Version); err != nil {
-			return "", err
-		}
-		return target, nil
+	if installed, err := activateInstalled(root, target, manifest); err == nil {
+		return installed, nil
 	}
-	if err := stageRuntime(root, target, runtimeArchive, manifest); err != nil {
+	return installRuntime(root, target, manifest)
+}
+
+// activateInstalled activates target when it already matches runtime, without
+// taking the cache lock: a repeat start of one version cannot corrupt another
+// process's pending activation, because each pending file name is its own.
+func activateInstalled(root, target string, runtime manifest) (string, error) {
+	if err := installedRuntime(target, runtime); err != nil {
+		return "", err
+	}
+	if err := activate(root, runtime.Version); err != nil {
+		return "", err
+	}
+	return target, nil
+}
+
+// installRuntime serializes installation and activation with a lock on the
+// cache root, shared by every Site's launcher. A launch that cannot take the
+// lock within the timeout runs the active runtime instead, since a stuck
+// holder must not wedge every later start.
+func installRuntime(root, target string, runtime manifest) (string, error) {
+	handle, err := acquireLock(filepath.Join(root, lockFileName), lockTimeout)
+	if err != nil {
+		if active, activeErr := activeRuntime(root); activeErr == nil {
+			return active, nil
+		}
+		return "", fmt.Errorf("could not lock the runtime cache %s: %w", root, err)
+	}
+	defer syscall.CloseHandle(handle)
+
+	// Another process may have installed this version while this one waited.
+	if installed, err := activateInstalled(root, target, runtime); err == nil {
+		return installed, nil
+	}
+	if err := stageRuntime(root, target, runtimeArchive, runtime); err != nil {
 		if active, activeErr := activeRuntime(root); activeErr == nil {
 			fmt.Fprintf(os.Stderr, "Warning: could not install bundled runtime: %v. Using the previous runtime.\n", err)
 			return active, nil
@@ -117,6 +152,26 @@ func prepareRuntime() (string, error) {
 		return "", fmt.Errorf("could not install bundled runtime: %w", err)
 	}
 	return target, nil
+}
+
+// acquireLock opens an exclusive handle to path, retrying until timeout. The
+// OS releases the handle if this process dies, so a crash leaves no stale lock.
+func acquireLock(path string, timeout time.Duration) (syscall.Handle, error) {
+	pointer, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return syscall.InvalidHandle, err
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		handle, err := syscall.CreateFile(pointer, syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, nil, syscall.OPEN_ALWAYS, syscall.FILE_ATTRIBUTE_NORMAL, 0)
+		if err == nil {
+			return handle, nil
+		}
+		if time.Now().After(deadline) {
+			return syscall.InvalidHandle, err
+		}
+		time.Sleep(lockPollInterval)
+	}
 }
 
 func bundledManifest() (manifest, error) {
@@ -174,6 +229,7 @@ func checkSizes(directory string, runtime manifest) error {
 }
 
 func stageRuntime(root, target string, archive []byte, runtime manifest) error {
+	removeInvalidDirectories(target)
 	staging, err := os.MkdirTemp(root, runtime.Version+".staging-")
 	if err != nil {
 		return err
@@ -201,6 +257,15 @@ func stageRuntime(root, target string, archive []byte, runtime manifest) error {
 		return err
 	}
 	return nil
+}
+
+// removeInvalidDirectories clears targets a previous install renamed out of
+// the way. One still open elsewhere is left for a later install to retry.
+func removeInvalidDirectories(target string) {
+	matches, _ := filepath.Glob(target + ".invalid-*")
+	for _, match := range matches {
+		os.RemoveAll(match)
+	}
 }
 
 func extractArchive(destination string, archive []byte, runtime manifest) error {
@@ -300,7 +365,7 @@ func validateRuntime(directory string, runtime manifest) error {
 }
 
 func activate(root, version string) error {
-	pending := filepath.Join(root, activeFileName+".pending")
+	pending := filepath.Join(root, fmt.Sprintf("%s.pending.%d", activeFileName, os.Getpid()))
 	if err := os.WriteFile(pending, []byte(version+"\n"), 0600); err != nil {
 		return err
 	}
