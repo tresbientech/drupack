@@ -49,3 +49,6 @@ func main() { fmt.Printf("args=%q env=%s phprc=%s", os.Args[1:], os.Getenv("DRUP
 } finally {
   Remove-Item -Recurse -Force $temporary
 }
+
+# The last launcher call exits non-zero on purpose, and a caller such as GitHub's pwsh step reports $LASTEXITCODE.
+exit 0
