@@ -28,7 +28,7 @@ Complete the locked application inputs and static PHP runtime. Include Drupal CM
 
 - [ ] The dependency lock installs Drupal CMS Blank, Drush, MCP Tools, MCP Server, and their dependencies.
 - [ ] The static PHP runtime provides SQLite, MySQL, and PostgreSQL PDO drivers.
-- [ ] The embedded translation snapshot matches the dependency lock.
+- [ ] The build downloads translations for the projects in the dependency lock.
 - [ ] MCP Server remains disabled after package installation.
 - [ ] The recorded MCP SDK advisory remains visible in testing documentation.
 

@@ -17,6 +17,7 @@
 - Every target keeps the same CLI options, environment variables, default `./data` directory, seeded SQLite site, database drivers and `dr` command.
 - A GitHub Release holds the executables, `checksums.txt`, `release.json` and one CycloneDX SBOM.
 - Each GitHub Release carries provenance attestations for its files.
+- The Docker build downloads fr, zh-hans, es, hi and ar translations for each Drupal project in `drupal/composer.lock` from ftp.drupal.org. Two builds of one commit can embed different translations.
 - The license is GPL-2.0-or-later.
 
 ## Status
@@ -65,7 +66,7 @@ Create a GitLab project access token on `git.drupalcode.org/project/drupack`, wi
 
 ### What to build
 
-Rename the executable, Composer package, environment variables, seed literals, tests and README to Drupack. Refresh the translation snapshot, because the Composer package name changes the lock hash. Add `LICENSE` with the GPL-2.0 text.
+Rename the executable, Composer package, environment variables, seed literals, tests and README to Drupack. Add `LICENSE` with the GPL-2.0 text.
 
 ### Acceptance criteria
 
@@ -80,13 +81,13 @@ Rename the executable, Composer package, environment variables, seed literals, t
 
 `mcp/sdk` 0.6.0 carries GHSA-7m52-jw36-44r3 in its client HTTP transport. `drupal/mcp_tools` 1.0.0-beta18 accepts `mcp/sdk` up to `^0.6` only. Neither MCP module imports `Mcp\Client`. `drupal/composer.json` records the advisory under `config.audit.ignore` with that reason.
 
-`drupal/core` 11.4.7 fixes SA-CORE-2026-013. On 2026-09-17 its French, Chinese, Arabic and Hindi translation exports on ftp.drupal.org were partial. The snapshot holds those partial files. Refresh it once the exports are complete.
+`drupal/core` 11.4.7 fixes SA-CORE-2026-013. On 2026-09-17 its French, Chinese, Arabic and Hindi translation exports on ftp.drupal.org were partial. The Docker build downloads the current exports, so builds ship those partial files until drupal.org completes them.
 
 ### Acceptance criteria
 
 - [x] `composer audit --locked --working-dir=drupal` lists the `mcp/sdk` advisory as ignored, with its reason.
 - [x] `drupal/core` is at 11.4.7 or later.
-- [ ] Each core translation file in the snapshot has a size comparable to the previous release.
+- [ ] Each core translation file in a release build has a size comparable to the previous core release.
 - [ ] Remove the `mcp/sdk` ignore entry once `drupal/mcp_tools` accepts `mcp/sdk` 0.7.1 or later.
 
 ## Phase 4: Linux release workflow
@@ -190,7 +191,6 @@ Tag `0.1.0` on `main` at the Forge after phases 3 to 6.
 ### drupal.org project
 
 - A drupal.org release needs a release branch such as `0.1.x`. The Forge has only `main`.
-- drupal.org's third-party asset policy asks for the source and license of bundled files. `packaging/translations.json` records the source URL of each file in `packaging/translations.tar.gz`, but no file records their license.
 - No version tag exists yet, so no push has tested drupal.org's tag rules.
 
 ## Out of scope
