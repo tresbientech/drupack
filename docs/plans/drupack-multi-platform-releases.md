@@ -26,7 +26,7 @@ Verified locally on Linux `amd64`:
 
 - The musl build, `DRUPACK_DATA_DIR` and `DRUPACK_ADMIN_*`, and a SQLite first start.
 - `tests/database-init.sh`, `tests/offline.sh` and `tests/network.sh`, last at `ee8446d`.
-- A MySQL 8.4 first start at `ee8446d`, with `dr status`, `dr user:login`, the protected paths and a restart without credentials. No test script covers it yet.
+- `tests/server-database.sh` on MySQL 8.4 and PostgreSQL 17, at `ee8446d`.
 - The `release.yml` asset naming, `checksums.txt` and `release.json` step, on stand-in files.
 
 Known issue: `runtime/php.ini` never loads. `php_ini_loaded_file()` returns `false`, and `memory_limit` stays at PHP's `128M` default.
@@ -94,14 +94,14 @@ User stories: 1, 2, 7-9, 12-14, 16-19.
 
 ### What to build
 
-`release.yml` builds the `artifact` target on `ubuntu-24.04` and `ubuntu-24.04-arm`. Each job runs the three test scripts and starts a SQLite site on Alpine. On a tag, the `publish` job names the assets and writes `checksums.txt` and `release.json`. It adds a CycloneDX SBOM and creates the GitHub Release.
+`release.yml` builds the `artifact` target on `ubuntu-24.04` and `ubuntu-24.04-arm`. Each job runs the four test scripts and starts a SQLite site on Alpine. `tests/server-database.sh` installs a site on MySQL 8.4 and PostgreSQL 17 containers, then restarts it without credentials. On a tag, the `publish` job names the assets and writes `checksums.txt` and `release.json`. It adds a CycloneDX SBOM and creates the GitHub Release.
 
 ### Acceptance criteria
 
 - [x] A manual dispatch passes on both architectures and publishes nothing.
 - [x] The `arm64` executable passes the same tests as `amd64` without emulation.
 - [x] Both executables start a SQLite site on Alpine.
-- [ ] A test installs a site on MySQL and on PostgreSQL service containers.
+- [ ] A manual dispatch passes `tests/server-database.sh` on both architectures.
 - [ ] A test replaces the executable and confirms Site data remains intact.
 
 ## Phase 5: Windows release

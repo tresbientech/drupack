@@ -50,6 +50,7 @@ jobs:
           bash tests/database-init.sh dist/drupack test-results/database
           bash tests/offline.sh dist/drupack test-results/offline
           bash tests/network.sh dist/drupack test-results/network
+          bash tests/server-database.sh dist/drupack test-results/server-database
 
       - name: Start a SQLite site on a musl host
         run: |

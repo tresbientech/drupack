@@ -139,4 +139,5 @@ docker build --target uncompressed --output type=local,dest=dist/uncompressed .
 bash tests/database-init.sh ./dist/uncompressed/drupack
 bash tests/offline.sh ./dist/uncompressed/drupack
 bash tests/network.sh ./dist/uncompressed/drupack
+bash tests/server-database.sh ./dist/uncompressed/drupack
 ```
