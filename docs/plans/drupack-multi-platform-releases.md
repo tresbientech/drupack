@@ -26,7 +26,10 @@ Verified locally on Linux `amd64`:
 - `tests/database-init.sh`, `tests/offline.sh` and `tests/network.sh`.
 - The `release.yml` asset naming, `checksums.txt` and `release.json` step, on stand-in files.
 
-Not yet run: `release.yml` on GitHub, and any `arm64` build.
+Verified on GitHub Actions, run 35187565454 at `be0af43`:
+
+- Both Linux jobs built, passed the three test scripts and started a SQLite site on Alpine.
+- `amd64` took 10 minutes and `arm64` took 11 minutes. `publish` was skipped for the manual dispatch.
 
 ## Phase 1: Forge hosting and GitHub mirror
 
@@ -80,9 +83,9 @@ User stories: 1, 2, 7-9, 12-14, 16-19.
 
 ### Acceptance criteria
 
-- [ ] A manual dispatch passes on both architectures and publishes nothing.
-- [ ] The `arm64` executable passes the same tests as `amd64` without emulation.
-- [ ] Both executables start a SQLite site on Alpine.
+- [x] A manual dispatch passes on both architectures and publishes nothing.
+- [x] The `arm64` executable passes the same tests as `amd64` without emulation.
+- [x] Both executables start a SQLite site on Alpine.
 - [ ] A test installs a site on MySQL and on PostgreSQL service containers.
 - [ ] A test replaces the executable and confirms Site data remains intact.
 
