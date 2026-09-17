@@ -1,8 +1,5 @@
 ARG MUSL_BUILDER=dunglas/frankenphp:static-builder-musl@sha256:a78af5ef3b46b5f382a702ee7aed22b367a6dc1bce382de0aebac7f4d73dade1
-ARG BUILDER=${MUSL_BUILDER}
-ARG COMPARISON_BUILDER=${BUILDER}
-ARG ARTIFACT_BUILD=build
-FROM ${BUILDER} AS build
+FROM ${MUSL_BUILDER} AS build
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN curl -fsSL https://getcomposer.org/download/2.8.12/composer.phar -o /usr/local/bin/composer.phar \
@@ -27,29 +24,10 @@ COPY packaging/embed.sh /usr/local/bin/embed.sh
 COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
 RUN bash /usr/local/bin/embed.sh
 
-FROM ${COMPARISON_BUILDER} AS minimal-runtime
-ENV SPC_CONCURRENCY=4
-ARG PHP_VERSION=8.5.10
-ARG PHP_EXTENSIONS=ctype,curl,dom,exif,fileinfo,filter,gd,iconv,intl,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,password-argon2,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,phar,session,simplexml,sodium,tokenizer,xml,xmlreader,xmlwriter,zip,zlib
-ARG PHP_EXTENSION_LIBS=brotli,watcher,freetype,libjpeg,libwebp,libavif
-WORKDIR /go/src/app/dist/static-php-cli
-RUN ./spc download --with-php="${PHP_VERSION}" --for-extensions="${PHP_EXTENSIONS}" --for-libs="${PHP_EXTENSION_LIBS}" --without-suggestions --retry=3
-ARG CACHED_NATIVE_LIBS=bzip2,xz,zstd,libssh2,ldap,gmp,nghttp2,nghttp3,ngtcp2
-RUN ./spc build --enable-zts --build-embed --disable-opcache-jit "${PHP_EXTENSIONS}" --with-libs="${PHP_EXTENSION_LIBS},${CACHED_NATIVE_LIBS}" \
-    || { tail -n 100 log/spc.shell.log; exit 1; }
-
-FROM minimal-runtime AS comparison-build
-COPY --from=build /go/src/app/app.tar /go/src/app/app_checksum.txt /go/src/app/
-COPY packaging/embed.sh /usr/local/bin/embed.sh
-COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
-RUN bash /usr/local/bin/embed.sh --reuse-archive
-
-FROM ${ARTIFACT_BUILD} AS selected-build
-
 FROM scratch AS uncompressed
-COPY --from=selected-build /out/drupack /drupack
+COPY --from=build /out/drupack /drupack
 
-FROM selected-build AS compressed
+FROM build AS compressed
 ARG UPX_VERSION=5.2.1
 RUN case "$(uname -m)" in \
         x86_64) upx_arch=amd64; upx_checksum=402162aad30af47e60dbd767fb2e64ca394ace9727ba1f40283641f1d1b91657 ;; \

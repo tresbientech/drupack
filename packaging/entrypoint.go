@@ -7,13 +7,6 @@ import (
 )
 
 func init() {
-	executable, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	if err := os.Setenv("DRUPACK_RUNTIME_BINARY", executable); err != nil {
-		panic(err)
-	}
 	if len(os.Args) > 1 && os.Args[1] == "dr" {
 		if err := os.Setenv("DRUPACK_RUNTIME_DRUSH", "1"); err != nil {
 			panic(err)

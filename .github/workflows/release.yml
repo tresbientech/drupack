@@ -1,124 +1,116 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows:
-      - Linux
-    types:
-      - completed
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
 
 permissions:
-  actions: read
-  attestations: write
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
-  publish:
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 180
-    env:
-      GH_TOKEN: ${{ github.token }}
-      RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
-      RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
-      LINUX_RUN_ID: ${{ github.event.workflow_run.id }}
+  linux:
+    name: Linux ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
+
+      - name: Build the executable
+        run: docker build --target artifact --output type=local,dest=dist .
+
+      - name: Run the test scripts
+        run: |
+          bash tests/database-init.sh dist/drupack test-results/database
+          bash tests/offline.sh dist/drupack test-results/offline
+          bash tests/network.sh dist/drupack test-results/network
+
+      - name: Start a SQLite site on a musl host
+        run: |
+          docker run -d --name alpine-site --network none \
+            --mount type=bind,src="$PWD/dist/drupack",dst=/usr/local/bin/drupack,readonly \
+            alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d \
+            drupack --data-dir /tmp/site --admin-user alpine-admin --admin-password Alpine.check.password.2026
+          for attempt in $(seq 1 60); do
+            if docker exec alpine-site wget -q -O /dev/null http://127.0.0.1:8080/user/login 2>/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs alpine-site
+          exit 1
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          name: test-results-linux-${{ matrix.architecture }}
+          path: test-results
 
-      - name: Wait for native platform builds
-        run: |
-          for workflow in macos.yml windows.yml; do
-            for attempt in $(seq 1 90); do
-              run=$(gh api \
-                "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?head_sha=${RELEASE_SHA}&branch=${RELEASE_TAG}&event=push&per_page=100" \
-                --jq '.workflow_runs | sort_by(.created_at) | last // empty')
-              if [ -z "$run" ]; then
-                sleep 60
-                continue
-              fi
-              status=$(jq -r '.status' <<<"$run")
-              conclusion=$(jq -r '.conclusion // empty' <<<"$run")
-              if [ "$status" = completed ]; then
-                if [ "$conclusion" != success ]; then
-                  printf '%s failed with conclusion %s\n' "$workflow" "$conclusion" >&2
-                  exit 1
-                fi
-                jq -r '.id' <<<"$run" >"${workflow}.run-id"
-                break
-              fi
-              sleep 60
-            done
-            test -s "${workflow}.run-id"
-          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drupack-linux-${{ matrix.architecture }}
+          path: dist/drupack
+          if-no-files-found: error
 
-      - name: Download native release candidates
-        run: |
-          version=$RELEASE_TAG
-          revision=${RELEASE_SHA::12}
-          mkdir -p candidates/linux-amd64 candidates/linux-arm64
-          mkdir -p candidates/macos-amd64 candidates/macos-arm64 candidates/windows-amd64
-          gh run download "$LINUX_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name "drupack-0.0.0-dev-${revision}-linux-amd64" --dir candidates/linux-amd64
-          gh run download "$LINUX_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name "drupack-0.0.0-dev-${revision}-linux-arm64" --dir candidates/linux-arm64
-          macos_run=$(cat macos.yml.run-id)
-          gh run download "$macos_run" --repo "$GITHUB_REPOSITORY" \
-            --name "drupack-0.0.0-dev-${revision}-macos-amd64" --dir candidates/macos-amd64
-          gh run download "$macos_run" --repo "$GITHUB_REPOSITORY" \
-            --name "drupack-0.0.0-dev-${revision}-macos-arm64" --dir candidates/macos-arm64
-          windows_run=$(cat windows.yml.run-id)
-          gh run download "$windows_run" --repo "$GITHUB_REPOSITORY" \
-            --name "drupack-0.0.0-dev-${revision}-windows-amd64" --dir candidates/windows-amd64
-          test -n "$version"
+  publish:
+    needs: linux
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Prepare release assets
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: drupack-linux-*
+          path: candidates
+
+      - name: Name assets and write checksums.txt and release.json
         run: |
-          version=$RELEASE_TAG
           mkdir release
-          for target in linux-amd64 linux-arm64 macos-amd64 macos-arm64 windows-amd64; do
-            source=$(find "candidates/${target}" -maxdepth 1 -type f \
-              ! -name checksums.txt ! -name release.json -print -quit)
-            test -n "$source"
-            case "$target" in
-              windows-amd64) extension=.exe ;;
-              *) extension= ;;
-            esac
-            cp "$source" "release/drupack-${version}-${target}${extension}"
-          done
-          cd release
-          sha256sum drupack-* >checksums.txt
-          jq -n \
-            --arg version "$version" \
-            --arg commit "$RELEASE_SHA" \
-            --arg tag "$RELEASE_TAG" \
-            --argjson artifacts "$(printf '%s\n' drupack-* | jq -R . | jq -s .)" \
-            '{version: $version, tag: $tag, build_commit: $commit, artifacts: $artifacts}' \
-            >release.json
+          for candidate in candidates/drupack-*/drupack; do
+            target=${candidate#candidates/drupack-}
+            target=${target%/drupack}
+            asset="drupack-${VERSION}-${target}"
+            cp "$candidate" "release/$asset"
+            chmod 0755 "release/$asset"
+            sha256=$(sha256sum "release/$asset" | cut -d ' ' -f 1)
+            printf '%s  %s\n' "$sha256" "$asset" >>release/checksums.txt
+            jq -n \
+              --arg asset "$asset" \
+              --arg target "$target" \
+              --arg url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${VERSION}/${asset}" \
+              --arg sha256 "$sha256" \
+              --argjson size "$(stat --format=%s "release/$asset")" \
+              '{asset: $asset, target: $target, url: $url, sha256: $sha256, size: $size}'
+          done | jq -s --arg version "$VERSION" --arg commit "$GITHUB_SHA" \
+            '{version: $version, build_commit: $commit, assets: .}' >release/release.json
 
-      - name: Generate SBOMs
+      - name: Generate the SBOM
         uses: anchore/sbom-action@v0
         with:
-          path: release
+          path: .
           format: cyclonedx-json
           output-file: release/drupack.cdx.json
 
-      - name: Attest release assets
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: |
-            release/drupack-*
-            release/checksums.txt
-            release/release.json
-
-      - name: Publish GitHub Release
+      - name: Publish the GitHub Release
         run: |
-          gh release create "$RELEASE_TAG" release/* \
+          gh release create "$VERSION" release/* \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$RELEASE_SHA" \
-            --title "Drupack ${RELEASE_TAG}" \
+            --target "$GITHUB_SHA" \
+            --title "Drupack $VERSION" \
             --generate-notes
