@@ -26,7 +26,8 @@
 Verified locally on Linux `amd64`:
 
 - The musl build, `DRUPACK_DATA_DIR` and `DRUPACK_ADMIN_*`, and a SQLite first start.
-- The five test scripts, with the Byte site template, at `79d8b8e`. MySQL 8.4 and PostgreSQL 17 each install Byte.
+- The five test scripts, with the Byte site template, at `f066463`. MySQL 8.4 and PostgreSQL 17 each install Byte.
+- The interactive first start under a pseudo-terminal, with no password echo, at `f066463`.
 - The `release.yml` asset naming, `checksums.txt` and `release.json` step, on stand-in files.
 
 Known issue: `runtime/php.ini` never loads. `php_ini_loaded_file()` returns `false`, and `memory_limit` stays at PHP's `128M` default.
@@ -121,7 +122,7 @@ Its inputs are `app.tar` and `app_checksum.txt` from `/go/src/app` in the Docker
 
 The launcher extracts the runtime into `%LOCALAPPDATA%\Drupack\runtime\<version>` and passes every argument to it unchanged. It hashes each file when it installs the runtime. A later start compares the stored manifest and file sizes. On 2026-09-17 this cut a warm `--help` on Windows 11 from 1.15 s to 0.59 s.
 
-On 2026-09-17, `tests/windows/launcher.Tests.ps1` and `tests/windows/site.Tests.ps1` passed on Windows 11. The Linux test scripts passed locally on the same launcher.
+On 2026-09-17, `tests/windows/launcher.Tests.ps1` and `tests/windows/site.Tests.ps1` passed on Windows 11 at `f066463`. A first start in its own console asked there for credentials and wrote no Site data. The Linux test scripts passed locally on the same launcher.
 
 `release.yml` builds and tests it on the `windows-2025` runner and names the asset `drupack-<version>-windows-amd64.exe`.
 
