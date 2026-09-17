@@ -14,7 +14,7 @@ Ship native Drupack releases in three stages. The Linux stage ships fully static
 
 The macOS stage ships native executables for Apple Silicon and Intel. The Windows stage ships a self-extracting `amd64` executable.
 
-Every target keeps the same command-line flags, environment variables, default `./data` directory, seeded SQLite site, database choices, and `dr` command. The Windows executable extracts its immutable FrankenPHP and PHP runtime under Site data after checksum verification.
+Every target keeps the same command-line flags, environment variables, default `./data` directory, seeded SQLite site, database choices, and `dr` command. The Windows executable extracts its immutable FrankenPHP and PHP runtime into a per-user cache after checksum verification.
 
 GitHub Releases is the canonical distribution channel. The Forge holds the canonical source, and GitHub mirrors it. The GitHub repository stays private until a later decision.
 
@@ -27,7 +27,7 @@ A Homebrew tap installs Linux and macOS releases. WinGet installs the Windows po
 3. As a macOS Apple Silicon user, I want a native `arm64` executable, so that I can run Drupack without Rosetta.
 4. As a macOS Intel user, I want a native `amd64` executable, so that I can run Drupack on supported Intel Macs.
 5. As a Windows user, I want one `.exe` download, so that I do not install PHP or FrankenPHP separately.
-6. As a Windows user, I want the executable to unpack its runtime under Site data, so that the application download remains one file.
+6. As a Windows user, I want the executable to unpack its runtime into a per-user cache, so that the application download remains one file.
 7. As a site owner, I want the same first-start workflow on every target, so that operating systems do not change site setup.
 8. As a site owner, I want SQLite, MySQL, and PostgreSQL available on every target, so that database choice remains portable.
 9. As an administrator, I want Drush and MCP Tools on every target, so that administration commands remain portable.
@@ -68,8 +68,9 @@ A Homebrew tap installs Linux and macOS releases. WinGet installs the Windows po
 - Linux builds use the FrankenPHP musl builder with every required PHP extension compiled into the executable.
 - macOS builds run on native macOS build hosts with the FrankenPHP static build script and the same application archive.
 - The Windows launcher embeds the Windows FrankenPHP and PHP runtime files with the application archive.
-- The Windows launcher extracts immutable files into a versioned Site data runtime directory. It verifies all files before activation.
-- The launcher retains the prior runtime when extraction or verification fails. It prints a warning and exits without changing the active runtime.
+- The Windows launcher extracts immutable files into `%LOCALAPPDATA%\Drupack\runtime\<version>`. It verifies all files before activation.
+- The Windows launcher passes every argument to the runtime unchanged. A failed start writes no Site data.
+- The launcher retains the prior runtime when extraction or verification fails. It prints a warning and runs the prior runtime without changing the active runtime.
 - Each target exposes the current CLI contract without shell-specific aliases.
 
 ### Distribution modules
@@ -104,7 +105,7 @@ The existing offline, browser, database, and network tests define the current pr
 - Build every Linux and macOS target from the same locked Drupal dependency set.
 - Verify each Linux and macOS target runs without a host PHP installation, Composer installation, or database server for SQLite use.
 - Verify each Linux and macOS target retains MySQL, PostgreSQL, Drush, MCP Tools, and MCP Server source.
-- Verify the Windows executable installs all required immutable runtime files into Site data.
+- Verify the Windows executable installs all required immutable runtime files into its per-user cache.
 - Verify a failed Windows extraction leaves the active runtime unchanged.
 - Verify `release.json`, checksums, SBOMs, and provenance attestations identify every release asset.
 - Verify Homebrew and WinGet metadata refer to the release asset and its SHA-256 value.
@@ -124,7 +125,7 @@ The existing offline, browser, database, and network tests define the current pr
 
 ### Windows packaging research
 
-FrankenPHP's published Windows build uses PHP runtime DLLs. Its static embedding tooling supports Linux and macOS, not Windows. The Windows phase therefore packages the required runtime files inside one executable and extracts them into Site data.
+FrankenPHP's published Windows build uses PHP runtime DLLs. Its static embedding tooling supports Linux and macOS, not Windows. The Windows phase therefore packages the required runtime files inside one executable and extracts them into a per-user cache.
 
 This extraction can trigger antivirus reputation warnings before code signing. The release documentation must state this condition and provide checksum verification instructions.
 

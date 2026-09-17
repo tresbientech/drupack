@@ -118,18 +118,32 @@ Commit `aa8004a` holds a draft of the macOS, Windows, Homebrew and WinGet code. 
 
 ### Windows and WinGet
 
-`packaging/windows/build.ps1` builds `drupack-windows-amd64.exe` on a Windows host. The host needs Visual Studio Build Tools 2022 with its Clang component, and Go. The script pins FrankenPHP 1.12.7, PHP 8.5.10 and its devel pack, Watcher 0.14.5 and vcpkg 2026.07.29. It verifies the SHA-256 value of each download.
+`packaging/windows/build.ps1` builds the self-extracting launcher on a Windows host. The host needs these tools:
 
-On 2026-09-17, `tests/windows/launcher.Tests.ps1` and `tests/windows/site.Tests.ps1` passed on Windows 11 at commit `221d1d3`.
+- Visual Studio Build Tools 2022 with its Clang component
+- Go
+- Git
+- PowerShell 7.3 or later
+
+Its inputs are `app.tar` and `app_checksum.txt` from `/go/src/app` in the Dockerfile's `build` stage. It pins FrankenPHP 1.12.7 to commit `a765b086f5cc56f6b7753117367d56e1b0da948d`. It pins PHP 8.5.10 and its devel pack, Watcher 0.14.5 and vcpkg 2026.07.29 by SHA-256 value.
+
+The launcher extracts the runtime into `%LOCALAPPDATA%\Drupack\runtime\<version>` and passes every argument to it unchanged.
+
+On 2026-09-17, `tests/windows/launcher.Tests.ps1` and `tests/windows/site.Tests.ps1` passed on Windows 11. The Linux test scripts passed locally on the same launcher.
 
 Remaining:
 
 - A Windows build host other than the maintainer's computer.
-- A Windows job in `release.yml`.
-- No test installs a site on MySQL or PostgreSQL on Windows.
-- The runtime bundles no Visual C++ runtime DLLs. This is unconfirmed on a clean Windows host.
+- A Windows job in `release.yml` that names the asset `drupack-<version>-windows-amd64.exe`.
+- Old runtime versions, staging directories and `.invalid-<pid>` directories are never removed.
+- The launcher hashes every runtime file on each start.
+- Stopping a site started without a console needs the whole process tree stopped.
+- No Windows test covers listener access, MySQL, PostgreSQL, help output or executable replacement.
+- No test runs on Windows 10 22H2. The runtime bundles no Visual C++ runtime DLLs.
+- The README gives no Windows download, antivirus warning or checksum steps.
 - A WinGet submission needs version, installer and locale manifest files.
-- The Windows runtime loads the extensions Drupal, Drush and the MCP modules need. The Linux executable loads a larger set.
+- The Windows runtime loads the extensions Drupal, Drush, Local MCP Tools and MCP Server need. The Linux executable loads a larger set.
+- `runtime/php.ini` never loads on Windows either.
 
 ### Release publication
 
