@@ -6,7 +6,7 @@ RUN curl -fsSL https://getcomposer.org/download/2.8.12/composer.phar -o /usr/loc
     && echo 'f446ea719708bb85fcbf4ef18def5d0515f1f9b4d703f6d820c9c1656e10a2f2  /usr/local/bin/composer.phar' | sha256sum -c -
 
 WORKDIR /app
-COPY composer.json composer.lock ./
+COPY drupal/composer.json drupal/composer.lock ./
 RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /usr/local/bin/composer.phar install --no-dev --prefer-dist --no-interaction --optimize-autoloader
 COPY packaging/translations.tar.gz packaging/translations.json packaging/install-translations.php /build/
 RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /build/install-translations.php

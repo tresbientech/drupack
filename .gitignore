@@ -1,10 +1,10 @@
-/vendor/
-/web/
-/recipes/
+/drupal/vendor/
+/drupal/web/
+/drupal/recipes/
 /dist/
 /dist-phase1/
 /build/
 /data/
 /.phpunit.cache/
-/.editorconfig
-/.gitattributes
+/drupal/.editorconfig
+/drupal/.gitattributes

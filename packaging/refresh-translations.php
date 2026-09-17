@@ -34,7 +34,7 @@ function fetchTranslation(string $url): ?string
     return $body;
 }
 
-$root = dirname(__DIR__);
+$root = dirname(__DIR__) . '/drupal';
 $lock = json_decode(file_get_contents("$root/composer.lock"), true, flags: JSON_THROW_ON_ERROR);
 $snapshot = ['composer_lock_sha256' => hash_file('sha256', "$root/composer.lock"), 'files' => [], 'missing' => []];
 $temporary = tempnam(sys_get_temp_dir(), 'drupack-translations-');
