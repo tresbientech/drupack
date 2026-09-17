@@ -51,6 +51,7 @@ jobs:
           bash tests/offline.sh dist/drupack test-results/offline
           bash tests/network.sh dist/drupack test-results/network
           bash tests/server-database.sh dist/drupack test-results/server-database
+          bash tests/replacement.sh dist/drupack test-results/replacement
 
       - name: Start a SQLite site on a musl host
         run: |
@@ -186,6 +187,7 @@ jobs:
           PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
           bash tests/database-init.sh dist/drupack test-results/database
           python3 tests/browser.py dist/drupack test-results/browser
+          bash tests/replacement.sh dist/drupack test-results/replacement
 
       - name: Check the unsigned launch steps
         run: |

@@ -26,7 +26,7 @@ Verified locally on Linux `amd64`:
 
 - The musl build, `DRUPACK_DATA_DIR` and `DRUPACK_ADMIN_*`, and a SQLite first start.
 - `tests/database-init.sh`, `tests/offline.sh` and `tests/network.sh`, last at `ee8446d`.
-- `tests/server-database.sh` on MySQL 8.4 and PostgreSQL 17, at `ee8446d`.
+- `tests/server-database.sh` on MySQL 8.4 and PostgreSQL 17, and `tests/replacement.sh`, at `ee8446d`.
 - The `release.yml` asset naming, `checksums.txt` and `release.json` step, on stand-in files.
 
 Known issue: `runtime/php.ini` never loads. `php_ini_loaded_file()` returns `false`, and `memory_limit` stays at PHP's `128M` default.
@@ -94,7 +94,7 @@ User stories: 1, 2, 7-9, 12-14, 16-19.
 
 ### What to build
 
-`release.yml` builds the `artifact` target on `ubuntu-24.04` and `ubuntu-24.04-arm`. Each job runs the four test scripts and starts a SQLite site on Alpine. `tests/server-database.sh` installs a site on MySQL 8.4 and PostgreSQL 17 containers, then restarts it without credentials. On a tag, the `publish` job names the assets and writes `checksums.txt` and `release.json`. It adds a CycloneDX SBOM and creates the GitHub Release.
+`release.yml` builds the `artifact` target on `ubuntu-24.04` and `ubuntu-24.04-arm`. Each job runs the five test scripts and starts a SQLite site on Alpine. `tests/server-database.sh` installs a site on MySQL 8.4 and PostgreSQL 17 containers, then restarts it without credentials. `tests/replacement.sh` changes a SQLite site, replaces the executable and its extracted application, and checks that Site data is unchanged. On a tag, the `publish` job names the assets and writes `checksums.txt` and `release.json`. It adds a CycloneDX SBOM and creates the GitHub Release.
 
 ### Acceptance criteria
 
@@ -102,7 +102,7 @@ User stories: 1, 2, 7-9, 12-14, 16-19.
 - [x] The `arm64` executable passes the same tests as `amd64` without emulation.
 - [x] Both executables start a SQLite site on Alpine.
 - [ ] A manual dispatch passes `tests/server-database.sh` on both architectures.
-- [ ] A test replaces the executable and confirms Site data remains intact.
+- [ ] A manual dispatch passes `tests/replacement.sh` on both architectures.
 
 ## Phase 5: Windows release
 
@@ -150,7 +150,7 @@ User stories: 3, 4, 7-19.
 
 `packaging/macos/build.sh` builds on the target architecture. It pins static-php-cli 2.8.5 by SHA-256 value and FrankenPHP 1.12.7 by commit. static-php-cli compiles PHP 8.5.10 with FrankenPHP's default extension set, which the Linux builder image also uses. `go build` then compiles `caddy/frankenphp` with the Drupack entrypoint and the Linux job's application archive.
 
-`release.yml` runs it on `macos-15` for `arm64` and `macos-15-intel` for `amd64`. Each job runs `tests/database-init.sh` and `tests/browser.py` with GNU coreutils from Homebrew, then checks the documented quarantine removal.
+`release.yml` runs it on `macos-15` for `arm64` and `macos-15-intel` for `amd64`. Each job runs `tests/database-init.sh`, `tests/browser.py` and `tests/replacement.sh` with GNU coreutils from Homebrew, then checks the documented quarantine removal.
 
 The draft in commit `aa8004a` used `build-static.sh`, whose xcaddy `main` left out the Drupack entrypoint. This phase replaces it.
 

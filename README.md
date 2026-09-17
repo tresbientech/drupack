@@ -140,4 +140,5 @@ bash tests/database-init.sh ./dist/uncompressed/drupack
 bash tests/offline.sh ./dist/uncompressed/drupack
 bash tests/network.sh ./dist/uncompressed/drupack
 bash tests/server-database.sh ./dist/uncompressed/drupack
+bash tests/replacement.sh ./dist/uncompressed/drupack
 ```
