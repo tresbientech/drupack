@@ -15,8 +15,11 @@ http://:{$DRUPACK_RUNTIME_PORT} {
 	respond @hiddenPhpFilesRegexp 403
 	@notFoundPhpFiles path_regexp /vendor/.*\.php$
 	respond @notFoundPhpFiles 404
-	@notFoundPhpFilesRegexp path_regexp ^/sites/[^/]+/files/.*\.php$
-	respond @notFoundPhpFilesRegexp 404
+	# Public storage is writable. FrankenPHP still executes a script when a
+	# PATH_INFO suffix follows it, so block every casing and path shape here,
+	# not only a filename ending exactly in ".php".
+	@publicStoragePhpRegexp path_regexp (?i)^/(sites/[^/]+/files/|files/).*\.php(/|$)
+	respond @publicStoragePhpRegexp 404
 	@privateDirRegexp path_regexp ^/(private|sites/.*/private)/
 	respond @privateDirRegexp 403
 	@siteConfiguration path /sites/*/settings* /sites/*/services* /sites/*/site-templates.php /sites/*/files/config_*
@@ -26,11 +29,34 @@ http://:{$DRUPACK_RUNTIME_PORT} {
 		path_regexp \.(engine|inc|install|make|module|profile|po|sh|.*sql|theme|twig|tpl(\.php)?|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?$|/\..*|/(Entries.*|Repository|Root|Tag|Template|composer\.(json|lock)|web\.config|yarn\.lock|package\.json)$|/#.*#$|\.php(~|\.sw[op]|\.bak|\.orig|\.save)$
 	}
 	respond @protectedFilesRegexp 403
-	@static {
+	# Drupal core, module, theme and library assets are versioned by release,
+	# so they are safe to cache forever.
+	@versionedAssetPath {
 		file
 		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
+		path_regexp ^/(core|modules|themes|libraries)/
 	}
-	header @static Cache-Control "max-age=31536000,public,immutable"
+	# Aggregated CSS/JS and image style derivatives carry a cache-busting
+	# query token, so their URL changes whenever their content does.
+	@versionedAssetQuery {
+		file
+		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
+		query v=* itok=*
+	}
+	# An upload can be replaced at the same URL in public storage, so it must
+	# revalidate rather than let a browser trust a year-old cached copy. A
+	# generated derivative under the same prefix still carries its own
+	# cache-busting query token, so it is excluded here, not layered by
+	# directive order.
+	@publicUpload {
+		file
+		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
+		path_regexp ^/(sites/[^/]+/files/|files/)
+		not query v=* itok=*
+	}
+	header @publicUpload Cache-Control "max-age=0,must-revalidate"
+	header @versionedAssetPath Cache-Control "max-age=31536000,public,immutable"
+	header @versionedAssetQuery Cache-Control "max-age=31536000,public,immutable"
 	php_server {
 		root web
 	}
