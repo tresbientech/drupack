@@ -4,6 +4,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import socket
@@ -23,10 +24,14 @@ ADMIN_USER = "drupack-test-admin"
 ADMIN_PASSWORD = "Offline.test.administrator.2026!"
 
 
-def http(path):
+def fetch(path):
     request = Request(ORIGIN + path)
     with urlopen(request, timeout=30) as response:
-        return response.read().decode(errors="replace")
+        return response.status, response.headers, response.read().decode(errors="replace")
+
+
+def http(path):
+    return fetch(path)[2]
 
 
 def wait_until(check, timeout=120):
@@ -136,6 +141,70 @@ class SeededSite(unittest.TestCase):
                     with self.assertRaises(HTTPError) as error:
                         http(path)
                     self.assertIn(error.exception.code, [403, 404])
+        finally:
+            self.stop()
+
+    def test_public_storage_blocks_php_execution(self):
+        # Writable public storage must never execute PHP: FrankenPHP still
+        # runs a script when a PATH_INFO suffix follows it, so the barrier
+        # has to catch that case, an uppercase extension, and encoded paths,
+        # not only a filename ending exactly in ".php". Win32 also strips
+        # trailing dots and spaces from a path component, so a name ending
+        # in one of those still opens the ".php" file underneath on the
+        # Windows build. Fixtures are written by the test itself so no
+        # executable probe ships in the repository.
+        data = self.work / "php-barrier"
+        self.start(data)
+        try:
+            files = data / "files"
+            (files / "probe.php").write_text("<?php echo 'executed';")
+            (files / "PROBE.PHP").write_text("<?php echo 'executed';")
+            (files / "ordinary.txt").write_text("not executable")
+            blocked = [
+                "/sites/default/files/probe.php",
+                "/sites/default/files/probe.php/path-info",
+                "/sites/default/files/PROBE.PHP",
+                "/sites/default/files/probe%2ephp/path-info",
+                "/sites/default/files/probe.php.",
+                "/sites/default/files/probe.php%20",
+                "/sites/default/files/probe.php%2fpath-info",
+            ]
+            for path in blocked:
+                with self.subTest(path=path):
+                    try:
+                        status, _, body = fetch(path)
+                    except HTTPError as error:
+                        self.assertIn(error.code, [403, 404])
+                    else:
+                        # A 200 here is a bug regardless of body: either the
+                        # script executed, or the barrier missed it and
+                        # file_server leaked the source instead. Show both
+                        # so the two failure modes are not confused.
+                        self.fail(f"expected {path} to be blocked, got {status}: {body!r}")
+            self.assertEqual(http("/sites/default/files/ordinary.txt"), "not executable")
+        finally:
+            self.stop()
+
+    def test_public_storage_cache_headers(self):
+        # An upload can be replaced at the same URL, so it must revalidate
+        # rather than serve a year-old cached copy. A versioned application
+        # asset's URL changes with its content, so it can cache immutably.
+        data = self.work / "cache-headers"
+        self.start(data)
+        try:
+            (data / "files" / "upload.png").write_bytes(b"not-a-real-png")
+            _, headers, _ = fetch("/sites/default/files/upload.png")
+            self.assertEqual(headers.get("Cache-Control"), "max-age=0,must-revalidate")
+            _, headers, _ = fetch("/core/misc/drupal.js")
+            self.assertEqual(headers.get("Cache-Control"), "max-age=31536000,public,immutable")
+            homepage = http("/")
+            candidates = re.findall(r'/sites/default/files/styles/[^"\'\s]+', homepage)
+            # A responsive-image srcset also carries an unresolved "{width}"
+            # template entry; skip it in favor of a concrete derivative URL.
+            derivative = next((url for url in candidates if "%7B" not in url), None)
+            self.assertIsNotNone(derivative, "expected an image style derivative on the homepage")
+            status, _, _ = fetch(derivative)
+            self.assertEqual(status, 200)
         finally:
             self.stop()
 
