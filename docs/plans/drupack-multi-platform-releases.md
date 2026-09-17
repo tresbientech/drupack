@@ -64,12 +64,12 @@ Rename the executable, Composer package, environment variables, seed literals, t
 
 `mcp/sdk` 0.6.0 carries GHSA-7m52-jw36-44r3 in its client HTTP transport. `drupal/mcp_tools` 1.0.0-beta18 accepts `mcp/sdk` up to `^0.6` only. Neither MCP module imports `Mcp\Client`. `composer.json` records the advisory under `config.audit.ignore` with that reason.
 
-`drupal/core` 11.4.6 carries SA-CORE-2026-013, fixed in 11.4.7. The 11.4.7 core translation exports on ftp.drupal.org were partial on 2026-09-17. Update core once they are complete, then refresh the translation snapshot.
+`drupal/core` 11.4.7 fixes SA-CORE-2026-013. On 2026-09-17 its French, Chinese, Arabic and Hindi translation exports on ftp.drupal.org were partial. The snapshot holds those partial files. Refresh it once the exports are complete.
 
 ### Acceptance criteria
 
 - [x] `composer audit --locked` lists the `mcp/sdk` advisory as ignored, with its reason.
-- [ ] `drupal/core` is at 11.4.7 or later.
+- [x] `drupal/core` is at 11.4.7 or later.
 - [ ] Each core translation file in the snapshot has a size comparable to the previous release.
 - [ ] Remove the `mcp/sdk` ignore entry once `drupal/mcp_tools` accepts `mcp/sdk` 0.7.1 or later.
 

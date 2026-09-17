@@ -1,5 +1,5 @@
 {
-    "composer_lock_sha256": "074a51377156d6eb76636f758df66a2e8968fe7409f322eab35bb707a11d0231",
+    "composer_lock_sha256": "6f974cab07e19f5494b754f7712f6d3a47efef78f4e9e2efd7df6fdf998dd89f",
     "files": {
         "automatic_updates-4.1.0.fr.po": {
             "url": "https://ftp.drupal.org/files/translations/all/automatic_updates/automatic_updates-4.1.0.fr.po",
@@ -161,25 +161,25 @@
             "url": "https://ftp.drupal.org/files/translations/all/dashboard/dashboard-2.2.1.ar.po",
             "sha256": "021e02578f1d0c2993a50162c6410097833fd465e318bc4f0c0a009a166bdcfe"
         },
-        "drupal-11.4.6.fr.po": {
-            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.6.fr.po",
-            "sha256": "32542c7cf12bdaf26533a8b3aa96ac3a8b35f36e33baecc329b0e44fdb91aa69"
+        "drupal-11.4.7.fr.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.7.fr.po",
+            "sha256": "dd05b9732218d4caa7e99da439bf37c6cbda3ee3eced312cab94a3dc0391d259"
         },
-        "drupal-11.4.6.zh-hans.po": {
-            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.6.zh-hans.po",
-            "sha256": "22cf9228c95e2eeac38cd7edc55693ff818737fad32faf167504b3efb356f28b"
+        "drupal-11.4.7.zh-hans.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.7.zh-hans.po",
+            "sha256": "6c223d0e1c077ef01eb535346506921767b85af83370b89b4402eb68c3db0df0"
         },
-        "drupal-11.4.6.es.po": {
-            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.6.es.po",
-            "sha256": "5e3712590c1b66f5873f8aa48946fcffc0aa3bfd26a42cbeb56c75e54f1909bd"
+        "drupal-11.4.7.es.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.7.es.po",
+            "sha256": "b1605b30aaa3e7baccabc75f098ea9a0c82f68367e11637905f07f44d84e93ca"
         },
-        "drupal-11.4.6.hi.po": {
-            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.6.hi.po",
-            "sha256": "5c1f23445c91cc66da268d3fafbebaf9f4a671ef752863f77a699acbba7df0e1"
+        "drupal-11.4.7.hi.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.7.hi.po",
+            "sha256": "3304447c4288ecbd3cd8d1b547d4d72b544b275245496dfe7a52ceb2f851d7c0"
         },
-        "drupal-11.4.6.ar.po": {
-            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.6.ar.po",
-            "sha256": "4ffdb480420b009aad09a93fec420f814e551f2086f755cd2d62039c192972cc"
+        "drupal-11.4.7.ar.po": {
+            "url": "https://ftp.drupal.org/files/translations/all/drupal/drupal-11.4.7.ar.po",
+            "sha256": "2575cbb49f77c1b1dbd5f9660e0378eb129647a3905b3fc497a912639f72f679"
         },
         "drupal_cms_helper-2.1.4.fr.po": {
             "url": "https://ftp.drupal.org/files/translations/all/drupal_cms_helper/drupal_cms_helper-2.1.4.fr.po",
@@ -942,5 +942,5 @@
         "scheduler_content_moderation_integration-3.0.5.hi.po",
         "scheduler_content_moderation_integration-3.0.5.ar.po"
     ],
-    "archive_sha256": "f694026043a11a9e5f8ed1ce1d24544f9170e2fe43cb806a13acf51b2e2b4784"
+    "archive_sha256": "746084463f2d2efe0e57e841a9034635d3996580cf2132a8edeff4de872b8ff5"
 }
