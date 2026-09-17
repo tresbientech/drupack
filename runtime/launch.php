@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 function directory(string $path): void
 {
-    if (!is_dir($path) && !mkdir($path, 0700, true)) {
+    // Another start can create the same directory between the check and the call.
+    if (!is_dir($path) && !mkdir($path, 0700, true) && !is_dir($path)) {
         throw new RuntimeException("Cannot create directory: $path");
     }
 }
@@ -249,7 +250,8 @@ function remainingSteps(string $directory, string $backend): array
     if (file_exists(progressPath($directory))) {
         $steps = json_decode((string) file_get_contents(progressPath($directory)), true);
         if (!is_array($steps)) {
-            throw new RuntimeException('Cannot read the recorded initialization progress: ' . progressPath($directory));
+            throw new RuntimeException('Cannot read the recorded initialization progress: ' . progressPath($directory)
+                . ". Remove that file, then start Drupack again to check the site.");
         }
         return $steps;
     }
@@ -432,8 +434,9 @@ function databaseHoldsTables(array $options): bool
         $options['db-password'],
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
     );
-    $schema = $options['database'] === 'mysql' ? 'DATABASE()' : 'current_schema()';
-    $statement = $connection->query("SELECT count(*) FROM information_schema.tables WHERE table_schema = $schema");
+    // PostgreSQL resolves its own schemas from the search path, which need not name public first.
+    $schema = $options['database'] === 'mysql' ? '= DATABASE()' : '= ANY(current_schemas(false))';
+    $statement = $connection->query("SELECT count(*) FROM information_schema.tables WHERE table_schema $schema");
     return (int) $statement->fetchColumn() > 0;
 }
 
@@ -459,6 +462,7 @@ function installDrupal(array $options, string $binary): void
 function installSite(string $data, array $options, string $binary): void
 {
     if (drushField($binary, ['status', '--field=bootstrap']) === 'Successful') {
+        fwrite(STDOUT, "This database already holds a site. Drupack keeps it, with its own administrator account.\n");
         return;
     }
     if (databaseHoldsTables($options)) {
@@ -514,7 +518,9 @@ function runStep(string $step, string $data, array $options, string $binary): vo
             clearSeedCaches($data);
             return;
         case 'settings':
-            if (file_put_contents("$data/hash_salt", bin2hex(random_bytes(32)), LOCK_EX) === false) {
+            // A repeated step keeps the existing secret, so the site's sessions and tokens survive it.
+            if (!file_exists("$data/hash_salt")
+                && file_put_contents("$data/hash_salt", bin2hex(random_bytes(32)), LOCK_EX) === false) {
                 throw new RuntimeException('Cannot initialize the site secret');
             }
             writeSettings("$data/settings.php", __DIR__ . '/settings.php', databaseConfiguration($options, $data));
@@ -646,7 +652,10 @@ try {
     }
     if (file_exists("$data/settings.php")) {
         linkSite($data);
-        $options = recordedOptions($options, $data);
+        // A pending settings step rewrites the file, so its contents are read once they are final.
+        if (!in_array('settings', $steps, true)) {
+            $options = recordedOptions($options, $data);
+        }
     }
     initialize($data, $steps, $options, $binary);
     if ($lock !== null) {

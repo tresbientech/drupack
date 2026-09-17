@@ -144,6 +144,8 @@ note 'A directory that cannot bootstrap Drupal refuses instead of serving'
 rm "$data/site-installed"
 printf 'not a database' >"$data/site.sqlite"
 expect_refusal unbootstrappable "$data"
+grep -Fq -- "dr --data-dir" "$results/unbootstrappable.log" \
+  || fail 'the refusal does not name the recovery command'
 cp "$backup/site.sqlite" "$data/site.sqlite"
 
 note 'A database without recorded settings refuses instead of taking the seed'
@@ -299,12 +301,17 @@ reset_site
 start_site pgsql-existing --db-name drupal "${connection[@]}" \
   --admin-user other-admin --admin-password "$password"
 expect_site_name pgsql-existing "$site_name"
+account=$(administrator)
+[[ $account == init-admin ]] || fail "the start replaced the existing administrator with $account"
 stop_site
 
 note 'A first start refuses a database that holds other tables'
 reset_site
 expect_refusal occupied-database "$data" --db-name occupied "${connection[@]}" \
   --admin-user init-admin --admin-password "$password"
+tables=$(docker exec "$container" psql -U drupal -d occupied -t -A -c \
+  "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")
+[[ $tables == 1 ]] || fail "the refused start left $tables tables in the schema, expected the existing one"
 tenant=$(docker exec "$container" psql -U drupal -d occupied -t -A -c \
   "SELECT count(*) FROM information_schema.tables WHERE table_name = 'tenant'")
 [[ $tenant == 1 ]] || fail 'the refused start dropped the existing tables'
