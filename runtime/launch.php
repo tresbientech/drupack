@@ -9,8 +9,76 @@ function directory(string $path): void
     }
 }
 
+function windows(): bool
+{
+    return PHP_OS_FAMILY === 'Windows';
+}
+
+function nullDevice(): string
+{
+    return windows() ? 'NUL' : '/dev/null';
+}
+
+function process(string $binary, array $arguments, array $descriptors, string $directory, string $failure): int
+{
+    $command = array_merge([$binary], $arguments);
+    $child = proc_open($command, $descriptors, $pipes, $directory);
+    if (!is_resource($child)) {
+        throw new RuntimeException($failure);
+    }
+    return proc_close($child);
+}
+
+// On Windows the child starts in $directory. pcntl_exec keeps the current working directory.
+function replaceProcess(string $binary, array $arguments, string $directory, string $failure): never
+{
+    if (!windows()) {
+        pcntl_exec($binary, $arguments);
+        throw new RuntimeException($failure);
+    }
+    exit(process($binary, $arguments, [0 => STDIN, 1 => STDOUT, 2 => STDERR], $directory, $failure));
+}
+
+function windowsJunction(string $target, string $link): void
+{
+    // proc_open quotes array arguments, and cmd.exe does not run a quoted "mklink". mklink rejects forward slashes.
+    $command = 'mklink /J ' . escapeshellarg(str_replace('/', '\\', $link)) . ' ' . escapeshellarg(str_replace('/', '\\', $target));
+    $child = proc_open($command, [0 => ['file', nullDevice(), 'r'], 1 => ['file', nullDevice(), 'w'], 2 => ['file', nullDevice(), 'w']], $pipes, __DIR__);
+    if (!is_resource($child) || proc_close($child) !== 0) {
+        throw new RuntimeException("Cannot link site storage: $link");
+    }
+}
+
+function settingsProxy(string $link): void
+{
+    $content = "<?php\nrequire getenv('DRUPACK_RUNTIME_DATA_DIR') . DIRECTORY_SEPARATOR . 'settings.php';\n";
+    if (is_file($link)) {
+        if (file_get_contents($link) === $content) {
+            return;
+        }
+        throw new RuntimeException("Unexpected application path: $link");
+    }
+    if (file_put_contents($link, $content, LOCK_EX) === false) {
+        throw new RuntimeException("Cannot write site configuration: $link");
+    }
+}
+
 function siteLink(string $target, string $link): void
 {
+    if (windows()) {
+        if (is_file($target)) {
+            settingsProxy($link);
+            return;
+        }
+        if (is_dir($link) && realpath($link) === realpath($target)) {
+            return;
+        }
+        if (file_exists($link) || is_link($link)) {
+            throw new RuntimeException("Unexpected application path: $link");
+        }
+        windowsJunction($target, $link);
+        return;
+    }
     // Existing application paths must never redirect writes into another site.
     if (is_link($link) && readlink($link) === $target) {
         return;
@@ -162,11 +230,8 @@ function databaseUrl(array $options): string
 
 function runDrush(string $binary, array $command, string $failure): void
 {
-    $process = proc_open(array_merge([$binary, 'php-cli'], $command), [0 => ['file', '/dev/null', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes, __DIR__);
-    if (!is_resource($process)) {
-        throw new RuntimeException($failure);
-    }
-    if (proc_close($process) !== 0) {
+    $exitCode = process($binary, array_merge(['php-cli'], $command), [0 => ['file', nullDevice(), 'r'], 1 => ['file', nullDevice(), 'w'], 2 => ['file', nullDevice(), 'w']], __DIR__, $failure);
+    if ($exitCode !== 0) {
         throw new RuntimeException($failure);
     }
 }
@@ -230,10 +295,10 @@ function configureSeedAdministrator(string $binary, array $options): void
 try {
     $drush = environment('DRUPACK_RUNTIME_DRUSH') === '1';
     [$options, $command] = options(array_slice($argv, 1), $drush);
-    $binary = realpath('/proc/self/exe');
+    // PHP_BINARY is empty in embedded FrankenPHP; the Go entrypoint exports its own path.
+    $binary = getenv('DRUPACK_RUNTIME_BINARY');
     if ($drush && in_array($command[0] ?? '', ['--help', '-h', 'list'], true)) {
-        pcntl_exec($binary, array_merge(['php-cli', drushPath()], $command));
-        throw new RuntimeException('Cannot run Drush');
+        replaceProcess($binary, array_merge(['php-cli', drushPath()], $command), __DIR__, 'Cannot run Drush');
     }
     $firstStart = !file_exists($options['data-dir'] . '/settings.php');
     validateDatabaseOptions($options, $firstStart);
@@ -262,7 +327,11 @@ try {
     putenv("DRUPACK_RUNTIME_BIND=$bind");
     putenv("DRUPACK_RUNTIME_PORT=$port");
     putenv('DRUPACK_RUNTIME_HOST=' . $options['host']);
-    putenv("TMPDIR=$data/runtime");
+    $runtime = realpath("$data/runtime");
+    // FrankenPHP extracts the embedded application under the process temporary directory.
+    putenv("TMPDIR=$runtime");
+    putenv("TEMP=$runtime");
+    putenv("TMP=$runtime");
     putenv("XDG_DATA_HOME=$data/runtime");
     putenv("XDG_CONFIG_HOME=$data/runtime");
     foreach ([
@@ -280,13 +349,17 @@ try {
         }
     }
     // FrankenPHP extracts before CLI parsing; re-execute once to obtain a site-specific application root.
-    if (dirname(__DIR__) !== "$data/runtime") {
+    if (dirname(__DIR__) !== $runtime) {
+        if (environment('DRUPACK_RUNTIME_RESTARTED') === '1') {
+            throw new RuntimeException("The embedded application did not move under $runtime");
+        }
+        putenv('DRUPACK_RUNTIME_RESTARTED=1');
         $arguments = ['php-cli', 'launch.php', '--data-dir', $data, '--listen', $options['listen'], '--host', $options['host']];
         if ($drush) {
             $arguments = array_merge($arguments, $command);
         }
-        pcntl_exec($binary, $arguments);
-        throw new RuntimeException('Cannot restart the embedded runtime');
+        // php-cli runs a launch.php found in its working directory before the embedded copy.
+        replaceProcess($binary, $arguments, $runtime, 'Cannot restart the embedded runtime');
     }
 
     if (!file_exists("$data/settings.php")) {
@@ -317,15 +390,10 @@ try {
         }
     }
     if ($drush) {
-        $process = proc_open(array_merge([$binary, 'php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], $pipes, __DIR__);
-        if (!is_resource($process)) {
-            throw new RuntimeException('Cannot run Drush');
-        }
-        exit(proc_close($process));
+        exit(process($binary, array_merge(['php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], __DIR__, 'Cannot run Drush'));
     }
     fwrite(STDOUT, "Drupal: http://{$options['host']}:$port\nSite data: $data\n");
-    pcntl_exec($binary, ['php-server']);
-    throw new RuntimeException('Cannot start FrankenPHP');
+    replaceProcess($binary, ['php-server'], __DIR__, 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
     exit(1);
