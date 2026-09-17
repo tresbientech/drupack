@@ -40,4 +40,19 @@ if [[ -e $data ]]; then
   exit 1
 fi
 
+data="$work/drush"
+if "$binary" dr --data-dir "$data" status >"$results/drush.log" 2>&1; then
+  printf 'Expected a dr command without a site to fail\n' >&2
+  exit 1
+fi
+if ! grep -Fq "$data" "$results/drush.log"; then
+  printf 'Expected the dr diagnostic to name the Site data directory\n' >&2
+  cat "$results/drush.log" >&2
+  exit 1
+fi
+if [[ -e $data ]]; then
+  printf 'A dr command without a site wrote persistent data\n' >&2
+  exit 1
+fi
+
 printf 'Database initialization argument checks passed. Results: %s\n' "$results"

@@ -176,15 +176,20 @@ function readSecret(string $question): string
 }
 
 // A terminal supplies missing credentials. A start without a terminal keeps the missing-credential failure.
-function askCredentials(array $options): array
+function askCredentials(array $options, array $steps): array
 {
+    if (!credentialsRequired($steps)) {
+        return $options;
+    }
     if ($options['admin-user'] !== null && $options['admin-password'] !== null) {
         return $options;
     }
     if (!stream_isatty(STDIN)) {
         return $options;
     }
-    fwrite(STDOUT, "This directory has no site yet. Drupack creates one now.\n");
+    fwrite(STDOUT, in_array('settings', $steps, true)
+        ? "This directory has no site yet. Drupack creates one now.\n"
+        : "This site has no administrator account yet. Drupack finishes its setup now.\n");
     if ($options['admin-user'] === null) {
         fwrite(STDOUT, 'Administrator name [admin]: ');
         $name = readAnswer();
@@ -213,16 +218,71 @@ function openWhenServing(string $binary, string $url): void
     proc_open([$binary, 'open-when-ready', $url], $descriptors, $pipes, __DIR__);
 }
 
-function validateDatabaseOptions(array $options, bool $firstStart): void
+function markerPath(string $directory): string
+{
+    return "$directory/site-installed";
+}
+
+function progressPath(string $directory): string
+{
+    return "$directory/installation-progress";
+}
+
+// The steps a first start runs, in order, for one database backend.
+function initializationSteps(string $backend): array
+{
+    return $backend === 'sqlite' ? ['seed', 'settings', 'administrator'] : ['settings', 'install', 'modules'];
+}
+
+function credentialsRequired(array $steps): bool
+{
+    return array_intersect(['administrator', 'install'], $steps) !== [];
+}
+
+// Progress lives beside the recorded settings, so a start tells a finished site from an interrupted
+// one and repeats no step that already wrote to a database.
+function remainingSteps(string $directory, string $backend): array
+{
+    if (file_exists(markerPath($directory))) {
+        return [];
+    }
+    if (file_exists(progressPath($directory))) {
+        $steps = json_decode((string) file_get_contents(progressPath($directory)), true);
+        if (!is_array($steps)) {
+            throw new RuntimeException('Cannot read the recorded initialization progress: ' . progressPath($directory));
+        }
+        return $steps;
+    }
+    if (file_exists("$directory/settings.php")) {
+        return ['adopt'];
+    }
+    // The database is the user's only copy, so a start without recorded settings never seeds over one.
+    if (file_exists("$directory/site.sqlite")) {
+        throw new RuntimeException("This Site data holds a database without settings: $directory. Restore its settings.php, or start Drupack with an empty Site data directory.");
+    }
+    return initializationSteps($backend);
+}
+
+function writeProgress(string $data, array $steps): void
+{
+    if (file_put_contents(progressPath($data), json_encode($steps), LOCK_EX) === false) {
+        throw new RuntimeException('Cannot record the initialization progress');
+    }
+}
+
+// A first start takes its connection and credentials from the command line. A resumed start reads the
+// connection from the recorded settings and needs the administrator options alone.
+function requireInitializationOptions(array $options, array $steps, string $directory): void
 {
     $administratorOptions = ['admin-user', 'admin-password'];
-    if (!in_array($options['database'], ['sqlite', 'mysql', 'pgsql'], true)) {
-        throw new InvalidArgumentException('--database requires sqlite, mysql, or pgsql');
-    }
-    if (!$firstStart) {
-        return;
-    }
-    if ($options['database'] === 'sqlite') {
+    if (in_array('settings', $steps, true)) {
+        if ($options['database'] !== 'sqlite') {
+            foreach (['db-host', 'db-name', 'db-user', 'db-password'] as $name) {
+                if ($options[$name] === null) {
+                    throw new RuntimeException("Missing database connection details for {$options['database']}");
+                }
+            }
+        }
         foreach ($administratorOptions as $name) {
             if ($options[$name] === null) {
                 throw new RuntimeException('Missing Drupal administrator credentials');
@@ -230,16 +290,27 @@ function validateDatabaseOptions(array $options, bool $firstStart): void
         }
         return;
     }
-    foreach (['db-host', 'db-name', 'db-user', 'db-password'] as $name) {
-        if ($options[$name] === null) {
-            throw new RuntimeException("Missing database connection details for {$options['database']}");
-        }
+    if (!credentialsRequired($steps)) {
+        return;
     }
     foreach ($administratorOptions as $name) {
         if ($options[$name] === null) {
-            throw new RuntimeException('Missing Drupal administrator credentials');
+            throw new RuntimeException("This Site data has no administrator account yet: $directory. Start Drupack with --admin-user and --admin-password to finish its setup.");
         }
     }
+}
+
+// One start at a time initializes a Site data directory. The resolved path gives equivalent paths one lock.
+function startupLock(string $data)
+{
+    $handle = fopen("$data/startup.lock", 'c');
+    if ($handle === false) {
+        throw new RuntimeException("Cannot open the startup lock: $data/startup.lock");
+    }
+    if (!flock($handle, LOCK_EX | LOCK_NB)) {
+        throw new RuntimeException("Another Drupack start is preparing this Site data: $data");
+    }
+    return $handle;
 }
 
 function databasePort(array $options): string
@@ -288,6 +359,29 @@ function writeSettings(string $path, string $template, array $database): void
     }
 }
 
+// The recorded settings decide the backend once they exist, so later starts need no database options.
+function recordedOptions(array $options, string $directory): array
+{
+    $databases = [];
+    require "$directory/settings.php";
+    $recorded = $databases['default']['default'];
+    $options['database'] = $recorded['driver'];
+    if ($recorded['driver'] !== 'sqlite') {
+        $options['db-host'] = $recorded['host'];
+        $options['db-port'] = (string) $recorded['port'];
+        $options['db-name'] = $recorded['database'];
+        $options['db-user'] = $recorded['username'];
+        $options['db-password'] = $recorded['password'];
+    }
+    return $options;
+}
+
+function linkSite(string $data): void
+{
+    siteLink("$data/settings.php", __DIR__ . '/web/sites/default/settings.php');
+    siteLink("$data/files", __DIR__ . '/web/sites/default/files');
+}
+
 function databaseUrl(array $options): string
 {
     $host = str_contains($options['db-host'], ':') ? "[{$options['db-host']}]" : $options['db-host'];
@@ -316,6 +410,33 @@ function drushPath(): string
     return __DIR__ . '/vendor/drush/drush/drush.php';
 }
 
+// Reads one Drush field. An unusable site answers with anything but the expected value.
+function drushField(string $binary, array $command): string
+{
+    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => ['file', nullDevice(), 'w']];
+    $child = proc_open(array_merge([$binary, 'php-cli', drushPath()], $command), $descriptors, $pipes, __DIR__);
+    if (!is_resource($child)) {
+        throw new RuntimeException('Cannot run Drush');
+    }
+    $output = stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+    proc_close($child);
+    return trim((string) $output);
+}
+
+function databaseHoldsTables(array $options): bool
+{
+    $connection = new PDO(
+        sprintf('%s:host=%s;port=%s;dbname=%s', $options['database'], $options['db-host'], databasePort($options), $options['db-name']),
+        $options['db-user'],
+        $options['db-password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
+    );
+    $schema = $options['database'] === 'mysql' ? 'DATABASE()' : 'current_schema()';
+    $statement = $connection->query("SELECT count(*) FROM information_schema.tables WHERE table_schema = $schema");
+    return (int) $statement->fetchColumn() > 0;
+}
+
 function installDrupal(array $options, string $binary): void
 {
     $drush = drushPath();
@@ -332,7 +453,26 @@ function installDrupal(array $options, string $binary): void
         '--account-name=' . $options['admin-user'],
         '--account-pass=' . $options['admin-password'],
     ], 'Drupal installation failed');
-    runDrush($binary, [$drush, 'pm:enable', 'mcp_tools', '--yes'], 'Cannot enable MCP Tools');
+}
+
+// The database is the user's only copy: an installed site is kept, and other tables stop the start.
+function installSite(string $data, array $options, string $binary): void
+{
+    if (drushField($binary, ['status', '--field=bootstrap']) === 'Successful') {
+        return;
+    }
+    if (databaseHoldsTables($options)) {
+        throw new RuntimeException("The database for $data holds tables without an installed site. Empty it or name another database, then start Drupack again.");
+    }
+    installDrupal($options, $binary);
+}
+
+// File presence cannot tell a finished site from an interrupted one, so adoption asks Drupal.
+function adoptSite(string $data, string $binary): void
+{
+    if (drushField($binary, ['status', '--field=bootstrap']) !== 'Successful') {
+        throw new RuntimeException("This Site data holds settings but no installed site: $data. Inspect it with: drupack dr --data-dir $data status");
+    }
 }
 
 function copySeed(string $data): void
@@ -361,10 +501,58 @@ function clearSeedCaches(string $data): void
     }
 }
 
-function configureSeedAdministrator(string $binary, array $options): void
+function configureSeedAdministrator(string $binary): void
 {
-    $drush = drushPath();
-    runDrush($binary, [$drush, 'php:eval', '$account = \\Drupal\\user\\Entity\\User::load(1); $account->set("name", getenv("DRUPACK_ADMIN_USER")); $account->setPassword(getenv("DRUPACK_ADMIN_PASSWORD")); $account->save();'], 'Cannot configure Drupal administrator');
+    runDrush($binary, [drushPath(), 'php:eval', '$account = \\Drupal\\user\\Entity\\User::load(1); $account->set("name", getenv("DRUPACK_ADMIN_USER")); $account->setPassword(getenv("DRUPACK_ADMIN_PASSWORD")); $account->save();'], 'Cannot configure Drupal administrator');
+}
+
+function runStep(string $step, string $data, array $options, string $binary): void
+{
+    switch ($step) {
+        case 'seed':
+            copySeed($data);
+            clearSeedCaches($data);
+            return;
+        case 'settings':
+            if (file_put_contents("$data/hash_salt", bin2hex(random_bytes(32)), LOCK_EX) === false) {
+                throw new RuntimeException('Cannot initialize the site secret');
+            }
+            writeSettings("$data/settings.php", __DIR__ . '/settings.php', databaseConfiguration($options, $data));
+            linkSite($data);
+            return;
+        case 'administrator':
+            configureSeedAdministrator($binary);
+            return;
+        case 'install':
+            installSite($data, $options, $binary);
+            return;
+        case 'modules':
+            runDrush($binary, [drushPath(), 'pm:enable', 'mcp_tools', '--yes'], 'Cannot enable MCP Tools');
+            return;
+        case 'adopt':
+            adoptSite($data, $binary);
+            return;
+        default:
+            throw new RuntimeException("Unknown initialization step: $step");
+    }
+}
+
+// Runs under the startup lock. The remaining steps reach the disk before the first one changes anything,
+// and the completion marker follows the last one.
+function initialize(string $data, array $steps, array $options, string $binary): void
+{
+    if ($steps === []) {
+        return;
+    }
+    writeProgress($data, $steps);
+    foreach ($steps as $index => $step) {
+        runStep($step, $data, $options, $binary);
+        writeProgress($data, array_slice($steps, $index + 1));
+    }
+    if (file_put_contents(markerPath($data), '', LOCK_EX) === false) {
+        throw new RuntimeException('Cannot record the finished installation');
+    }
+    unlink(progressPath($data));
 }
 
 try {
@@ -375,11 +563,21 @@ try {
     if ($drush && in_array($command[0] ?? '', ['--help', '-h', 'list'], true)) {
         replaceProcess($binary, array_merge(['php-cli', drushPath()], $command), __DIR__, 'Cannot run Drush');
     }
-    $firstStart = !file_exists($options['data-dir'] . '/settings.php');
-    if ($firstStart && !$drush) {
-        $options = askCredentials($options);
+    // Launch arguments are user input, so the backend must name a supported driver.
+    if (!in_array($options['database'], ['sqlite', 'mysql', 'pgsql'], true)) {
+        throw new InvalidArgumentException('--database requires sqlite, mysql, or pgsql');
     }
-    validateDatabaseOptions($options, $firstStart);
+    $steps = [];
+    if ($drush) {
+        // `dr` initializes nothing and takes no startup lock, so Drush works while the server runs.
+        if (!file_exists($options['data-dir'] . '/settings.php')) {
+            throw new RuntimeException("This Site data has no site yet: {$options['data-dir']}. Start Drupack once to create one.");
+        }
+    } else {
+        $steps = remainingSteps($options['data-dir'], $options['database']);
+        $options = askCredentials($options, $steps);
+    }
+    requireInitializationOptions($options, $steps, $options['data-dir']);
     // Listener values enter Caddy configuration and must contain only an IP address and port.
     if (!preg_match('/^(\[[0-9a-fA-F:]+\]|[0-9.]+):([0-9]+)$/D', $options['listen'], $listener)) {
         throw new InvalidArgumentException('--listen requires IP:PORT, with IPv6 enclosed in brackets');
@@ -440,26 +638,20 @@ try {
         replaceProcess($binary, $arguments, $runtime, 'Cannot restart the embedded runtime');
     }
 
-    if (!file_exists("$data/settings.php")) {
-        if ($options['database'] === 'sqlite') {
-            copySeed($data);
-            clearSeedCaches($data);
-        }
-        if (file_put_contents("$data/hash_salt", bin2hex(random_bytes(32)), LOCK_EX) === false) {
-            throw new RuntimeException('Cannot initialize the site secret');
-        }
-        writeSettings("$data/settings.php", __DIR__ . '/settings.php', databaseConfiguration($options, $data));
+    $lock = null;
+    if ($steps !== []) {
+        // The state check and the writes that follow must not interleave with another start.
+        $lock = startupLock($data);
+        $steps = remainingSteps($data, $options['database']);
     }
-    siteLink("$data/settings.php", __DIR__ . '/web/sites/default/settings.php');
-    siteLink("$data/files", __DIR__ . '/web/sites/default/files');
-    if ($firstStart && $options['database'] === 'sqlite') {
-        configureSeedAdministrator($binary, $options);
+    if (file_exists("$data/settings.php")) {
+        linkSite($data);
+        $options = recordedOptions($options, $data);
     }
-    if ($options['database'] !== 'sqlite' && !file_exists("$data/site-installed")) {
-        installDrupal($options, $binary);
-        if (file_put_contents("$data/site-installed", '', LOCK_EX) === false) {
-            throw new RuntimeException('Cannot record Drupal installation');
-        }
+    initialize($data, $steps, $options, $binary);
+    if ($lock !== null) {
+        flock($lock, LOCK_UN);
+        fclose($lock);
     }
     foreach (glob(__DIR__ . '/translations/*.po') as $translation) {
         $destination = "$data/files/translations/" . basename($translation);
