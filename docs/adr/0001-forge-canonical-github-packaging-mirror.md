@@ -20,5 +20,5 @@ Drupack's canonical repository is `tresbientech/drupack` on git.tresbien.tech, t
 ## Consequences
 
 - A failed sync is a failed run in the Forge Actions tab. Syncing pauses while the Build host is down.
-- The GitHub repository stays private until a later decision. Until then, its Releases download only for organization members.
+- The GitHub repository became public on 2026-09-17. Its Releases download without sign-in.
 - The mirror job can also push to a drupal.org project. Its merge requests would have to land through the Forge, because the mirror overwrites merges made on drupal.org.

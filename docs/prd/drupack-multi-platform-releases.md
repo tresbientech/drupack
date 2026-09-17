@@ -16,7 +16,7 @@ The macOS stage ships native executables for Apple Silicon and Intel. The Window
 
 Every target keeps the same command-line flags, environment variables, default `./data` directory, seeded SQLite site, database choices, and `dr` command. The Windows executable extracts its immutable FrankenPHP and PHP runtime into a per-user cache after checksum verification.
 
-GitHub Releases is the canonical distribution channel. The Forge holds the canonical source, and GitHub mirrors it. The GitHub repository stays private until a later decision.
+GitHub Releases is the canonical distribution channel. The Forge holds the canonical source, and GitHub mirrors it. The GitHub repository is public.
 
 A Homebrew tap installs Linux and macOS releases. WinGet installs the Windows portable executable.
 
@@ -50,7 +50,7 @@ A Homebrew tap installs Linux and macOS releases. WinGet installs the Windows po
 - Version tags have no `v` prefix, for example `0.1.0`.
 - Build workflows run on a version tag or a manual dispatch.
 - Public environment variables use the `DRUPACK_` prefix.
-- On a private repository, macOS runners bill $0.062 per minute and Linux x64 runners $0.006 per minute.
+- Standard GitHub-hosted runners, macOS included, cost nothing on the public repository.
 
 ### Release targets
 
@@ -76,7 +76,7 @@ A Homebrew tap installs Linux and macOS releases. WinGet installs the Windows po
 ### Distribution modules
 
 - GitHub Releases publishes every target file, `checksums.txt`, an SBOM, provenance attestations, and `release.json`.
-- Provenance attestations start when the GitHub repository becomes public. GitHub offers them to private repositories only on Enterprise Cloud.
+- Provenance attestations cover every file in a GitHub Release.
 - `release.json` lists version, target, asset name, download URL, SHA-256, file size, and build commit.
 - The Homebrew tap has a formula that installs the matching Linux or macOS asset after hash verification.
 - The WinGet manifest declares the Windows file as a portable installer and supplies its SHA-256 value.

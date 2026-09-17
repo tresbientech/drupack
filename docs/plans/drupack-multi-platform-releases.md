@@ -5,7 +5,7 @@
 ## Architectural decisions
 
 - The Forge repository `https://git.tresbien.tech/tresbientech/drupack` is canonical.
-- GitHub `tresbientech/drupack` is a private mirror with full history. It builds and publishes releases.
+- GitHub `tresbientech/drupack` is a public mirror with full history. It builds and publishes releases.
 - A Forge Actions job pushes branches and tags to GitHub with an SSH deploy key stored as a Forge secret.
 - Only `main` and version tags are pushed to the Forge.
 - Version tags have no `v` prefix, for example `0.1.0`.
@@ -15,7 +15,7 @@
 - The first release ships Linux `amd64` and `arm64` musl executables and a Windows `amd64` executable. macOS is a later stage.
 - Every target keeps the same CLI options, environment variables, default `./data` directory, seeded SQLite site, database drivers and `dr` command.
 - A GitHub Release holds the executables, `checksums.txt`, `release.json` and one CycloneDX SBOM.
-- Provenance attestations start when the GitHub repository becomes public.
+- Each GitHub Release carries provenance attestations for its files.
 - The license is GPL-2.0-or-later.
 
 ## Status
@@ -36,7 +36,7 @@ Verified on GitHub Actions, run 35212670832 at `b9a4d74`:
 | Linux `arm64` | 11 | $0.005 |
 | Windows `amd64`, cold caches | 14 | $0.010 |
 
-One dispatch costs about $0.28 of the private repository's quota. The Windows job spent 7 minutes building, 3 minutes on both tests and 3 minutes saving caches and the artifact.
+One dispatch cost about $0.28 at private-repository prices. Standard runners cost nothing on the public repository. The Windows job spent 7 minutes building, 3 minutes on both tests and 3 minutes saving caches and the artifact.
 
 Verified on GitHub Actions, run 35187565454 at `be0af43`:
 
@@ -162,16 +162,14 @@ Commit `aa8004a` holds a draft of the macOS and Homebrew code. It never ran on a
 - It copied the FrankenPHP version, PHP version and a reduced extension list from the Dockerfile. The Linux build uses the builder image's full extension set.
 - No document gives the unsigned-binary launch steps, and no test covers them.
 - The Homebrew template was never filled in or published.
-- macOS runners cost $0.062 per minute on a private repository.
 
 ### Release publication
 
-- Homebrew and WinGet installs need public release assets.
-- Provenance attestations need a public repository.
+- Homebrew and WinGet manifests are not published.
+- The provenance attestation step has not run, because no version tag exists yet.
 
 ## Out of scope
 
-- Making the GitHub repository public.
 - Tests on the Forge's Build host.
 - Tome, static export, static-host deployment, macOS signing and notarization.
 - A drupal.org mirror. Before adding one, check:
