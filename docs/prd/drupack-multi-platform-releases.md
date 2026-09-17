@@ -46,7 +46,7 @@ A Homebrew tap installs Linux and macOS releases. WinGet installs the Windows po
 
 ### Source, tags and triggers
 
-- The Forge repository is canonical. GitHub is a push mirror, per [ADR 0001](../adr/0001-forge-canonical-github-packaging-mirror.md).
+- The Forge repository is canonical. GitHub and drupal.org are push mirrors, per [ADR 0001](../adr/0001-forge-canonical-github-packaging-mirror.md).
 - Version tags have no `v` prefix, for example `0.1.0`.
 - Build workflows run on a version tag or a manual dispatch.
 - Public environment variables use the `DRUPACK_` prefix.

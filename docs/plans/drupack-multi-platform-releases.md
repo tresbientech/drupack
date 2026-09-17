@@ -7,6 +7,7 @@
 - The Forge repository `https://git.tresbien.tech/tresbientech/drupack` is canonical.
 - GitHub `tresbientech/drupack` is a public mirror with full history. It builds and publishes releases.
 - A Forge Actions job pushes branches and tags to GitHub with an SSH deploy key stored as a Forge secret.
+- The same job pushes branches and tags to the drupal.org project `drupack` with a GitLab project access token, without force or prune.
 - Only `main` and version tags are pushed to the Forge.
 - Version tags have no `v` prefix, for example `0.1.0`.
 - One GitHub workflow, `release.yml`, runs on a version tag or a manual dispatch.
@@ -43,11 +44,13 @@ Verified on GitHub Actions, run 35187565454 at `be0af43`:
 - Both Linux jobs built, passed the three test scripts and started a SQLite site on Alpine.
 - `amd64` took 10 minutes and `arm64` took 11 minutes. `publish` was skipped for the manual dispatch.
 
-## Phase 1: Forge hosting and GitHub mirror
+## Phase 1: Forge hosting and mirrors
 
 ### What to build
 
 Set `origin` to `https://git.tresbien.tech/tresbientech/drupack.git` and push `main`. Add a GitHub deploy key with write access. Store its private key as the `MIRROR_DEPLOY_KEY` Forge repository secret. `.gitea/workflows/mirror.yml` pushes branches and tags to GitHub on every Forge push. On GitHub, turn off issues and projects.
+
+Create a GitLab project access token on `git.drupalcode.org/project/drupack`, with the Maintainer role and the `write_repository` scope. Store it as the `DRUPAL_ORG_MIRROR_TOKEN` Forge repository secret. The mirror job pushes to drupal.org after GitHub.
 
 ### Acceptance criteria
 
@@ -56,6 +59,7 @@ Set `origin` to `https://git.tresbien.tech/tresbientech/drupack.git` and push `m
 - [x] `main` on GitHub has the same SHA as `main` on the Forge.
 - [x] Neither repository has an `implement/*` branch.
 - [x] A commit pushed to the Forge reaches GitHub without a manual sync.
+- [x] `main` on drupal.org has the same SHA as `main` on the Forge.
 
 ## Phase 2: Drupack rename and license
 
@@ -183,13 +187,14 @@ Tag `0.1.0` on `main` at the Forge after phases 3 to 6.
 - Homebrew and WinGet manifests are not published.
 - The provenance attestation step has not run, because no version tag exists yet.
 
+### drupal.org project
+
+- A drupal.org release needs a release branch such as `0.1.x`. The Forge has only `main`.
+- packages.drupal.org lists a general project only under `drupal/<machine name>`. `composer.json` names the package `tresbientech/drupack`.
+- drupal.org's third-party asset policy asks for the source and license of bundled files. `packaging/translations.json` records the source URL of each file in `packaging/translations.tar.gz`, but no file records their license.
+- No version tag exists yet, so no push has tested drupal.org's tag rules.
+
 ## Out of scope
 
 - Tests on the Forge's Build host.
 - Tome, static export, static-host deployment, macOS signing and notarization.
-- A drupal.org mirror. Before adding one, check:
-  - whether a drupal.org SSH key can push to every project its owner maintains
-  - drupal.org naming rules for release branches and tags
-  - drupal.org policy on bundled files such as `translations.tar.gz` and `composer.lock`
-  - whether the Composer name must be `drupal/drupack`
-  - how drupal.org merge requests land through the Forge
