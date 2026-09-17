@@ -5,7 +5,7 @@ Drupack's canonical repository is `tresbientech/drupack` on git.tresbien.tech, t
 ## Decision
 
 - Only `main` and version tags are pushed, and only to the Forge.
-- A Forge Actions job clones the Forge repository on every push, then pushes its branches and tags to each mirror.
+- A Forge Actions job runs when a version tag reaches the Forge, or on a manual dispatch. It clones the Forge repository, then pushes its branches and tags to each mirror.
 - The GitHub push authenticates with an SSH deploy key stored as a Forge repository secret. It forces and prunes.
 - The drupal.org push authenticates over HTTPS with a GitLab project access token, stored as the `DRUPAL_ORG_MIRROR_TOKEN` Forge repository secret. The token has the Maintainer role and the `write_repository` scope only.
 - The drupal.org push never forces or prunes.
@@ -24,6 +24,8 @@ Drupack's canonical repository is `tresbientech/drupack` on git.tresbien.tech, t
 ## Consequences
 
 - A failed sync is a failed run in the Forge Actions tab. Syncing pauses while the Build host is down.
+- Commits pushed between version tags stay on the Forge until the next tag or a manual dispatch.
+- A manual `release.yml` dispatch builds the commit GitHub last received.
 - A failed GitHub push still runs the drupal.org push.
 - The next sync overwrites a merge made on GitHub.
 - After a merge made on drupal.org, the drupal.org push fails until the Forge holds that commit. drupal.org merge requests land through the Forge.

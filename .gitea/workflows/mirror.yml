@@ -2,7 +2,9 @@ name: Mirror to GitHub and drupal.org
 
 on:
   push:
-  delete:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
 
 # Queued runs start in push order, so a later run never pushes an older clone.
 concurrency:

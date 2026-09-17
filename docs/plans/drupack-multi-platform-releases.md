@@ -6,7 +6,7 @@
 
 - The Forge repository `https://git.tresbien.tech/tresbientech/drupack` is canonical.
 - GitHub `tresbientech/drupack` is a public mirror with full history. It builds and publishes releases.
-- A Forge Actions job pushes branches and tags to GitHub with an SSH deploy key stored as a Forge secret.
+- When a version tag reaches the Forge, or on a manual dispatch, a Forge Actions job pushes branches and tags to GitHub. It uses an SSH deploy key stored as a Forge secret.
 - The same job pushes branches and tags to the drupal.org project `drupack` with a GitLab project access token, without force or prune.
 - Only `main` and version tags are pushed to the Forge.
 - Version tags have no `v` prefix, for example `0.1.0`.
@@ -48,7 +48,7 @@ Verified on GitHub Actions, run 35187565454 at `be0af43`:
 
 ### What to build
 
-Set `origin` to `https://git.tresbien.tech/tresbientech/drupack.git` and push `main`. Add a GitHub deploy key with write access. Store its private key as the `MIRROR_DEPLOY_KEY` Forge repository secret. `.gitea/workflows/mirror.yml` pushes branches and tags to GitHub on every Forge push. On GitHub, turn off issues and projects.
+Set `origin` to `https://git.tresbien.tech/tresbientech/drupack.git` and push `main`. Add a GitHub deploy key with write access. Store its private key as the `MIRROR_DEPLOY_KEY` Forge repository secret. `.gitea/workflows/mirror.yml` pushes branches and tags to GitHub when a version tag reaches the Forge, or on a manual dispatch. On GitHub, turn off issues and projects.
 
 Create a GitLab project access token on `git.drupalcode.org/project/drupack`, with the Maintainer role and the `write_repository` scope. Store it as the `DRUPAL_ORG_MIRROR_TOKEN` Forge repository secret. The mirror job pushes to drupal.org after GitHub.
 
@@ -58,7 +58,7 @@ Create a GitLab project access token on `git.drupalcode.org/project/drupack`, wi
 - [x] GitHub issues, projects and wiki are off.
 - [x] `main` on GitHub has the same SHA as `main` on the Forge.
 - [x] Neither repository has an `implement/*` branch.
-- [x] A commit pushed to the Forge reaches GitHub without a manual sync.
+- [ ] A version tag pushed to the Forge reaches both mirrors without a manual sync.
 - [x] `main` on drupal.org has the same SHA as `main` on the Forge.
 
 ## Phase 2: Drupack rename and license
