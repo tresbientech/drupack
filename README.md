@@ -101,6 +101,12 @@ On Windows, compare the `checksums.txt` entry with this output.
 (Get-FileHash drupack-<version>-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
 ```
 
+GitHub attests where each release file was built. Verify an attestation with the GitHub CLI.
+
+```sh
+gh attestation verify drupack-<version>-linux-amd64 --repo tresbientech/drupack
+```
+
 The Windows executable is not code-signed. SmartScreen or antivirus software can warn before its first start.
 
 ## Site data

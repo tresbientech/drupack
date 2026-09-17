@@ -132,7 +132,9 @@ jobs:
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     permissions:
+      attestations: write
       contents: write
+      id-token: write
     env:
       GH_TOKEN: ${{ github.token }}
       VERSION: ${{ github.ref_name }}
@@ -171,6 +173,11 @@ jobs:
           path: .
           format: cyclonedx-json
           output-file: release/drupack.cdx.json
+
+      - name: Attest the release files
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release/*
 
       - name: Publish the GitHub Release
         run: |
