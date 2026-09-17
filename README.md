@@ -148,3 +148,14 @@ bash tests/network.sh ./dist/uncompressed/drupack
 bash tests/server-database.sh ./dist/uncompressed/drupack
 bash tests/replacement.sh ./dist/uncompressed/drupack
 ```
+
+### Development loop
+
+A change to `runtime/` reaches the executable only through a build, which takes minutes. `packaging/dev-server.sh` serves the application from the build image instead, with `runtime/` copied over it on each start.
+
+```sh
+docker build --target build -t drupack-build .
+bash packaging/dev-server.sh ./dev-data 8080 --admin-user admin --admin-password 'choose-a-password'
+```
+
+A later start needs no options. The test scripts still need a built executable.

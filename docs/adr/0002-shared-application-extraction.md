@@ -4,7 +4,7 @@ Proposed on 2026-09-17. Not implemented.
 
 ## Context
 
-FrankenPHP 1.12.7 extracts the embedded application in its package `init`, before Drupack code runs. It extracts into `os.TempDir()/frankenphp_<checksum>`, unless `EmbeddedAppPath` is set at build time with `-ldflags`. On every process start, `init` reads the whole tar and runs `os.Stat` on each file. It writes only the files that are missing.
+FrankenPHP 1.12.7 extracts the embedded application in its package `init`, before Drupack code runs. It extracts into `os.TempDir()/frankenphp_<checksum>`, unless `EmbeddedAppPath` is set at build time with `-ldflags`. On every process start, `init` reads the whole tar and runs `os.Stat` on each file. It writes only the files that are missing. On Linux, a clean exit removes that directory, so the next start writes every file again. A killed process leaves it behind.
 
 `launch.php` sets `TMPDIR`, `TEMP` and `TMP` to `<data>/runtime` and restarts once. Each Site data directory gets its own copy of the application. `launch.php` then links `<data>/settings.php` and `<data>/files` into that copy.
 
