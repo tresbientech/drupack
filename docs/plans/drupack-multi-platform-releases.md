@@ -26,6 +26,8 @@ Verified locally on Linux `amd64`:
 - `tests/database-init.sh`, `tests/offline.sh` and `tests/network.sh`.
 - The `release.yml` asset naming, `checksums.txt` and `release.json` step, on stand-in files.
 
+Known issue: `runtime/php.ini` never loads. `php_ini_loaded_file()` returns `false`, and `memory_limit` stays at PHP's `128M` default.
+
 Verified on GitHub Actions, run 35187565454 at `be0af43`:
 
 - Both Linux jobs built, passed the three test scripts and started a SQLite site on Alpine.
@@ -116,12 +118,18 @@ Commit `aa8004a` holds a draft of the macOS, Windows, Homebrew and WinGet code. 
 
 ### Windows and WinGet
 
-- No `php.ini` enables the extension DLLs, so the database drivers never load.
-- The launcher's restart check compared a path FrankenPHP never uses on Windows. Each retry started another process.
-- PHP and Watcher downloads were unpinned and unchecked. Pins to use: PHP 8.5.10 TS x64 zip `a6bc8b2f3d7bfb397ccb973db2f959e61e530e0986c9cea262dd4a317ec599d8`, devel pack `0031d279f13f21e81fd62f9a98e919f28b1875ba457916d60daed85586e479dd`, Watcher 0.14.5 `43034cbb07252751246afab8880da74c0340429f1865fd5bd6ce7c17e83c104f`.
-- The only test used a stub runtime. No test started Drupal, checked HTTP protection or replaced the executable.
-- The runtime bundles no Visual C++ runtime DLLs. This is unconfirmed on a clean Windows 10 host.
-- The WinGet template was one of the three required manifest files and was never published.
+`packaging/windows/build.ps1` builds `drupack-windows-amd64.exe` on a Windows host. The host needs Visual Studio Build Tools 2022 with its Clang component, and Go. The script pins FrankenPHP 1.12.7, PHP 8.5.10 and its devel pack, Watcher 0.14.5 and vcpkg 2026.07.29. It verifies the SHA-256 value of each download.
+
+On 2026-09-17, `tests/windows/launcher.Tests.ps1` and `tests/windows/site.Tests.ps1` passed on Windows 11 at commit `221d1d3`.
+
+Remaining:
+
+- A Windows build host other than the maintainer's computer.
+- A Windows job in `release.yml`.
+- No test installs a site on MySQL or PostgreSQL on Windows.
+- The runtime bundles no Visual C++ runtime DLLs. This is unconfirmed on a clean Windows host.
+- A WinGet submission needs version, installer and locale manifest files.
+- The Windows runtime loads the extensions Drupal, Drush and the MCP modules need. The Linux executable loads a larger set.
 
 ### Release publication
 
