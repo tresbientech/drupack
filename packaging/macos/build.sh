@@ -29,6 +29,8 @@ curl -fsSL -o "$spc_archive" "https://github.com/crazywhalecc/static-php-cli/rel
 printf '%s  %s\n' "$spc_sha256" "$spc_archive" | shasum -a 256 -c -
 tar -xzf "$spc_archive"
 
+# Installs pkg-config and the other build tools static-php-cli needs.
+./spc doctor --auto-fix
 ./spc download --with-php="$php_version" --for-extensions="$extensions" --for-libs="$extension_libs" --prefer-pre-built --retry 5
 ./spc build --enable-zts --build-embed --disable-opcache-jit "$extensions" --with-libs="$extension_libs"
 php_includes=$(./spc spc-config "$extensions" --with-libs="$extension_libs" --includes)
