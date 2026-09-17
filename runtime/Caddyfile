@@ -17,8 +17,10 @@ http://:{$DRUPACK_RUNTIME_PORT} {
 	respond @notFoundPhpFiles 404
 	# Public storage is writable. FrankenPHP still executes a script when a
 	# PATH_INFO suffix follows it, so block every casing and path shape here,
-	# not only a filename ending exactly in ".php".
-	@publicStoragePhpRegexp path_regexp (?i)^/(sites/[^/]+/files/|files/).*\.php(/|$)
+	# not only a filename ending exactly in ".php". Win32 also strips trailing
+	# dots and spaces from a path component, so "probe.php." and "probe.php "
+	# open "probe.php" on the Windows build.
+	@publicStoragePhpRegexp path_regexp "(?i)^/(sites/[^/]+/files/|files/).*\.php[. ]*(/|$)"
 	respond @publicStoragePhpRegexp 404
 	@privateDirRegexp path_regexp ^/(private|sites/.*/private)/
 	respond @privateDirRegexp 403
@@ -42,6 +44,7 @@ http://:{$DRUPACK_RUNTIME_PORT} {
 		file
 		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
 		query v=* itok=*
+		not path_regexp ^/(core|modules|themes|libraries)/
 	}
 	# An upload can be replaced at the same URL in public storage, so it must
 	# revalidate rather than let a browser trust a year-old cached copy. A

@@ -148,8 +148,11 @@ class SeededSite(unittest.TestCase):
         # Writable public storage must never execute PHP: FrankenPHP still
         # runs a script when a PATH_INFO suffix follows it, so the barrier
         # has to catch that case, an uppercase extension, and encoded paths,
-        # not only a filename ending exactly in ".php". Fixtures are written
-        # by the test itself so no executable probe ships in the repository.
+        # not only a filename ending exactly in ".php". Win32 also strips
+        # trailing dots and spaces from a path component, so a name ending
+        # in one of those still opens the ".php" file underneath on the
+        # Windows build. Fixtures are written by the test itself so no
+        # executable probe ships in the repository.
         data = self.work / "php-barrier"
         self.start(data)
         try:
@@ -162,12 +165,22 @@ class SeededSite(unittest.TestCase):
                 "/sites/default/files/probe.php/path-info",
                 "/sites/default/files/PROBE.PHP",
                 "/sites/default/files/probe%2ephp/path-info",
+                "/sites/default/files/probe.php.",
+                "/sites/default/files/probe.php%20",
+                "/sites/default/files/probe.php%2fpath-info",
             ]
             for path in blocked:
                 with self.subTest(path=path):
-                    with self.assertRaises(HTTPError) as error:
-                        http(path)
-                    self.assertIn(error.exception.code, [403, 404])
+                    try:
+                        status, _, body = fetch(path)
+                    except HTTPError as error:
+                        self.assertIn(error.code, [403, 404])
+                    else:
+                        # A 200 here is a bug regardless of body: either the
+                        # script executed, or the barrier missed it and
+                        # file_server leaked the source instead. Show both
+                        # so the two failure modes are not confused.
+                        self.fail(f"expected {path} to be blocked, got {status}: {body!r}")
             self.assertEqual(http("/sites/default/files/ordinary.txt"), "not executable")
         finally:
             self.stop()
