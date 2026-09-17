@@ -1,6 +1,6 @@
 # Drupack
 
-Drupack is one FrankenPHP executable for Linux `amd64`, Linux `arm64` or Windows `amd64`. It contains Drupal CMS Blank, PHP, SQLite, MySQL, PostgreSQL, Drush, Local MCP Tools, and MCP Server source.
+Drupack is one FrankenPHP executable for Linux `amd64`, Linux `arm64`, macOS `arm64`, macOS `amd64` or Windows `amd64`. It contains Drupal CMS Blank, PHP, SQLite, MySQL, PostgreSQL, Drush, Local MCP Tools, and MCP Server source.
 
 ## Build
 
@@ -11,6 +11,14 @@ docker build --target artifact --output type=local,dest=dist .
 ```
 
 The output is `dist/drupack`. The host needs no PHP, Composer, or database server for SQLite use.
+
+### macOS
+
+The macOS build runs on the target architecture with the Xcode Command Line Tools, Go and Git. It needs the same application archive as the Windows build.
+
+```sh
+bash packaging/macos/build.sh application "$TMPDIR/drupack" dist/drupack
+```
 
 ### Windows
 
@@ -84,6 +92,8 @@ A version tag such as `0.1.0` publishes a GitHub Release with these files:
 
 - `drupack-<version>-linux-amd64`
 - `drupack-<version>-linux-arm64`
+- `drupack-<version>-macos-arm64`
+- `drupack-<version>-macos-amd64`
 - `drupack-<version>-windows-amd64.exe`
 - `checksums.txt`
 - `release.json`, with each asset's target, URL, SHA-256 value and size
@@ -105,6 +115,13 @@ GitHub attests where each release file was built. Verify an attestation with the
 
 ```sh
 gh attestation verify drupack-<version>-linux-amd64 --repo tresbientech/drupack
+```
+
+The macOS executables are not notarized. macOS blocks a downloaded executable until its quarantine attribute is removed.
+
+```sh
+xattr -d com.apple.quarantine drupack-<version>-macos-arm64
+chmod +x drupack-<version>-macos-arm64
 ```
 
 The Windows executable is not code-signed. SmartScreen or antivirus software can warn before its first start.

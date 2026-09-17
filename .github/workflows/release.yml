@@ -127,8 +127,79 @@ jobs:
           path: dist/drupack.exe
           if-no-files-found: error
 
+  macos:
+    name: macOS ${{ matrix.architecture }}
+    needs: linux
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: arm64
+            runner: macos-15
+          - architecture: amd64
+            runner: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.0'
+          cache: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: application-archive
+          path: application
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ runner.temp }}/drupack/downloads
+            ${{ runner.temp }}/drupack/buildroot
+            ${{ runner.temp }}/drupack/pkgroot
+          key: macos-${{ matrix.architecture }}-${{ hashFiles('packaging/macos/build.sh') }}
+
+      - name: Build the executable
+        run: bash packaging/macos/build.sh application "$RUNNER_TEMP/drupack" dist/drupack
+
+      # Saved before the tests, so a failed test does not repeat the PHP build.
+      - uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ runner.temp }}/drupack/downloads
+            ${{ runner.temp }}/drupack/buildroot
+            ${{ runner.temp }}/drupack/pkgroot
+          key: macos-${{ matrix.architecture }}-${{ hashFiles('packaging/macos/build.sh') }}
+
+      - name: Run the test scripts
+        run: |
+          bash tests/database-init.sh dist/drupack test-results/database
+          python3 tests/browser.py dist/drupack test-results/browser
+
+      - name: Check the unsigned launch steps
+        run: |
+          cp dist/drupack test-results/quarantined
+          xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" test-results/quarantined
+          xattr -d com.apple.quarantine test-results/quarantined
+          test-results/quarantined --help
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-macos-${{ matrix.architecture }}
+          path: test-results
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drupack-macos-${{ matrix.architecture }}
+          path: dist/drupack
+          if-no-files-found: error
+
   publish:
-    needs: [linux, windows]
+    needs: [linux, windows, macos]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     permissions:
