@@ -25,25 +25,22 @@
 Verified locally on Linux `amd64`:
 
 - The musl build, `DRUPACK_DATA_DIR` and `DRUPACK_ADMIN_*`, and a SQLite first start.
-- `tests/database-init.sh`, `tests/offline.sh` and `tests/network.sh`.
+- `tests/database-init.sh`, `tests/offline.sh` and `tests/network.sh`, last at `ee8446d`.
 - The `release.yml` asset naming, `checksums.txt` and `release.json` step, on stand-in files.
 
 Known issue: `runtime/php.ini` never loads. `php_ini_loaded_file()` returns `false`, and `memory_limit` stays at PHP's `128M` default.
 
-Verified on GitHub Actions, run 35212670832 at `b9a4d74`:
+Verified on GitHub Actions, run 35228130580 at `fc08bcf`. Every build and test job passed, and `publish` was skipped for the manual dispatch.
 
-| Job | Minutes | Price per minute |
-|---|---|---|
-| Linux `amd64`, with the application archive export | 13 | $0.006 |
-| Linux `arm64` | 11 | $0.005 |
-| Windows `amd64`, cold caches | 14 | $0.010 |
+| Job | Minutes |
+|---|---|
+| Linux `amd64`, with the application archive export | 12 |
+| Linux `arm64` | 10 |
+| Windows `amd64` | 5 |
+| macOS `arm64` | 11 |
+| macOS `amd64` | 23 |
 
-One dispatch cost about $0.28 at private-repository prices. Standard runners cost nothing on the public repository. The Windows job spent 7 minutes building, 3 minutes on both tests and 3 minutes saving caches and the artifact.
-
-Verified on GitHub Actions, run 35187565454 at `be0af43`:
-
-- Both Linux jobs built, passed the three test scripts and started a SQLite site on Alpine.
-- `amd64` took 10 minutes and `arm64` took 11 minutes. `publish` was skipped for the manual dispatch.
+The Windows and macOS jobs restored their build caches. With cold caches, Windows took 14 minutes in run 35212670832. In run 35221792674, the macOS jobs took 27 minutes on `arm64` and 35 minutes on `amd64` before a test failed. Standard runners cost nothing on the public repository.
 
 ## Phase 1: Forge hosting and mirrors
 
@@ -152,7 +149,7 @@ User stories: 3, 4, 7-19.
 
 `packaging/macos/build.sh` builds on the target architecture. It pins static-php-cli 2.8.5 by SHA-256 value and FrankenPHP 1.12.7 by commit. static-php-cli compiles PHP 8.5.10 with FrankenPHP's default extension set, which the Linux builder image also uses. `go build` then compiles `caddy/frankenphp` with the Drupack entrypoint and the Linux job's application archive.
 
-`release.yml` runs it on `macos-15` for `arm64` and `macos-15-intel` for `amd64`. Each job runs `tests/database-init.sh` and `tests/browser.py`, then checks the documented quarantine removal.
+`release.yml` runs it on `macos-15` for `arm64` and `macos-15-intel` for `amd64`. Each job runs `tests/database-init.sh` and `tests/browser.py` with GNU coreutils from Homebrew, then checks the documented quarantine removal.
 
 The draft in commit `aa8004a` used `build-static.sh`, whose xcaddy `main` left out the Drupack entrypoint. This phase replaces it.
 
@@ -165,8 +162,8 @@ Remaining:
 
 ### Acceptance criteria
 
-- [ ] A manual dispatch passes both macOS jobs.
-- [ ] Both executables start a seeded SQLite site and pass `dr` checks in `tests/browser.py`.
+- [x] A manual dispatch passes both macOS jobs.
+- [x] Both executables start a seeded SQLite site and pass `dr` checks in `tests/browser.py`.
 - [ ] The executables load the same PHP extensions as the Linux executable.
 
 ## Phase 7: Release 0.1.0
