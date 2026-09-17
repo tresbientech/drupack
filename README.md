@@ -1,6 +1,6 @@
 # Drupack
 
-Drupack is one FrankenPHP executable for Linux `amd64` or `arm64`. It contains Drupal CMS Blank, PHP, SQLite, MySQL, PostgreSQL, Drush, Local MCP Tools, and MCP Server source.
+Drupack is one FrankenPHP executable for Linux `amd64`, Linux `arm64` or Windows `amd64`. It contains Drupal CMS Blank, PHP, SQLite, MySQL, PostgreSQL, Drush, Local MCP Tools, and MCP Server source.
 
 ## Build
 
@@ -11,6 +11,24 @@ docker build --target artifact --output type=local,dest=dist .
 ```
 
 The output is `dist/drupack`. The host needs no PHP, Composer, or database server for SQLite use.
+
+### Windows
+
+The Windows build runs on a Windows host with Visual Studio Build Tools 2022, its C++ Clang component, Go, Git and PowerShell 7.3 or later. It needs the application archive from the Linux `build` stage.
+
+```sh
+docker build --target build -t drupack-build .
+container=$(docker create drupack-build)
+docker cp "$container:/go/src/app/app.tar" application/app.tar
+docker cp "$container:/go/src/app/app_checksum.txt" application/app_checksum.txt
+docker rm "$container"
+```
+
+```powershell
+./packaging/windows/build.ps1 -ApplicationDirectory application -Version dev -WorkDirectory $env:TEMP\drupack -Output dist\drupack.exe
+```
+
+On first start, `drupack.exe` extracts PHP and FrankenPHP into `%LOCALAPPDATA%\Drupack\runtime\<version>`. Site data stays in `./data` or the `--data-dir` directory.
 
 ## Start a SQLite site
 
@@ -66,6 +84,7 @@ A version tag such as `0.1.0` publishes a GitHub Release with these files:
 
 - `drupack-<version>-linux-amd64`
 - `drupack-<version>-linux-arm64`
+- `drupack-<version>-windows-amd64.exe`
 - `checksums.txt`
 - `release.json`, with each asset's target, URL, SHA-256 value and size
 - `drupack.cdx.json`, a CycloneDX SBOM
@@ -75,6 +94,14 @@ Verify downloaded executables before use.
 ```sh
 sha256sum --ignore-missing -c checksums.txt
 ```
+
+On Windows, compare the `checksums.txt` entry with this output.
+
+```powershell
+(Get-FileHash drupack-<version>-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
+```
+
+The Windows executable is not code-signed. SmartScreen or antivirus software can warn before its first start.
 
 ## Site data
 

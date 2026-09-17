@@ -12,7 +12,7 @@
 - One GitHub workflow, `release.yml`, runs on a version tag or a manual dispatch.
 - The product is named Drupack everywhere. Public environment variables use the `DRUPACK_` prefix.
 - Variables that the launcher sets for its own runtime use the `DRUPACK_RUNTIME_` prefix.
-- The first release ships Linux `amd64` and `arm64` musl executables. macOS and Windows are later stages.
+- The first release ships Linux `amd64` and `arm64` musl executables and a Windows `amd64` executable. macOS is a later stage.
 - Every target keeps the same CLI options, environment variables, default `./data` directory, seeded SQLite site, database drivers and `dr` command.
 - A GitHub Release holds the executables, `checksums.txt`, `release.json` and one CycloneDX SBOM.
 - Provenance attestations start when the GitHub repository becomes public.
@@ -91,32 +91,11 @@ User stories: 1, 2, 7-9, 12-14, 16-19.
 - [ ] A test installs a site on MySQL and on PostgreSQL service containers.
 - [ ] A test replaces the executable and confirms Site data remains intact.
 
-## Phase 5: Release 0.1.0
+## Phase 5: Windows release
+
+User stories: 5-9, 12-19.
 
 ### What to build
-
-Tag `0.1.0` on `main` at the Forge after phases 3 and 4.
-
-### Acceptance criteria
-
-- [ ] GitHub Release `0.1.0` holds both executables, `checksums.txt`, `release.json` and `drupack.cdx.json`.
-- [ ] `release.json` lists each asset's target, URL, SHA-256 value and size.
-- [ ] `sha256sum -c checksums.txt` passes on the downloaded files.
-
-## Later stages
-
-Commit `aa8004a` holds a draft of the macOS, Windows, Homebrew and WinGet code. It never ran on a native runner. Branch audits found these problems in it.
-
-### macOS and Homebrew
-
-- `build-static.sh` builds with xcaddy, which writes its own `main`. The Drupack entrypoint probably never compiles.
-- The macOS job built its own application archive, so its Seed site differed from Linux.
-- It copied the FrankenPHP version, PHP version and a reduced extension list from the Dockerfile. The Linux build uses the builder image's full extension set.
-- No document gives the unsigned-binary launch steps, and no test covers them.
-- The Homebrew template was never filled in or published.
-- macOS runners cost $0.062 per minute on a private repository.
-
-### Windows and WinGet
 
 `packaging/windows/build.ps1` builds the self-extracting launcher on a Windows host. The host needs these tools:
 
@@ -131,19 +110,49 @@ The launcher extracts the runtime into `%LOCALAPPDATA%\Drupack\runtime\<version>
 
 On 2026-09-17, `tests/windows/launcher.Tests.ps1` and `tests/windows/site.Tests.ps1` passed on Windows 11. The Linux test scripts passed locally on the same launcher.
 
+`release.yml` builds and tests it on the `windows-2025` runner and names the asset `drupack-<version>-windows-amd64.exe`.
+
 Remaining:
 
-- A Windows build host other than the maintainer's computer.
-- A Windows job in `release.yml` that names the asset `drupack-<version>-windows-amd64.exe`.
 - Old runtime versions, staging directories and `.invalid-<pid>` directories are never removed.
 - The launcher hashes every runtime file on each start.
 - Stopping a site started without a console needs the whole process tree stopped.
 - No Windows test covers listener access, MySQL, PostgreSQL, help output or executable replacement.
 - No test runs on Windows 10 22H2. The runtime bundles no Visual C++ runtime DLLs.
-- The README gives no Windows download, antivirus warning or checksum steps.
 - A WinGet submission needs version, installer and locale manifest files.
 - The Windows runtime loads the extensions Drupal, Drush, Local MCP Tools and MCP Server need. The Linux executable loads a larger set.
 - `runtime/php.ini` never loads on Windows either.
+
+### Acceptance criteria
+
+- [x] `tests/windows/launcher.Tests.ps1` and `tests/windows/site.Tests.ps1` pass on Windows 11.
+- [ ] A manual dispatch passes the Windows job on GitHub Actions.
+- [x] A failed start without credentials writes no Site data on Windows.
+
+## Phase 6: Release 0.1.0
+
+### What to build
+
+Tag `0.1.0` on `main` at the Forge after phases 3 to 5.
+
+### Acceptance criteria
+
+- [ ] GitHub Release `0.1.0` holds the three executables, `checksums.txt`, `release.json` and `drupack.cdx.json`.
+- [ ] `release.json` lists each asset's target, URL, SHA-256 value and size.
+- [ ] `sha256sum -c checksums.txt` passes on the downloaded files.
+
+## Later stages
+
+Commit `aa8004a` holds a draft of the macOS and Homebrew code. It never ran on a native runner. Branch audits found these problems in it.
+
+### macOS and Homebrew
+
+- `build-static.sh` builds with xcaddy, which writes its own `main`. The Drupack entrypoint probably never compiles.
+- The macOS job built its own application archive, so its Seed site differed from Linux.
+- It copied the FrankenPHP version, PHP version and a reduced extension list from the Dockerfile. The Linux build uses the builder image's full extension set.
+- No document gives the unsigned-binary launch steps, and no test covers them.
+- The Homebrew template was never filled in or published.
+- macOS runners cost $0.062 per minute on a private repository.
 
 ### Release publication
 
