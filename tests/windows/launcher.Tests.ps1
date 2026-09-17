@@ -46,6 +46,21 @@ func main() { fmt.Printf("args=%q env=%s phprc=%s", os.Args[1:], os.Getenv("DRUP
   if ($remainingInvalid.Name -contains $firstInvalid) { throw 'installing a runtime kept its previous invalid directory' }
   if (-not $remainingInvalid) { throw 'installing a runtime left no invalid directory of its own' }
 
+  # removeInvalidDirectories has no liveness check of its own: it relies on
+  # Windows refusing to delete a file that is still open elsewhere. A file
+  # held open inside an invalid directory must survive a reinstall, and the
+  # reinstall must still succeed.
+  $heldInvalid = (Get-ChildItem $runtimeRoot -Directory -Filter 'test-v1.invalid-*').Name
+  $heldHandle = [System.IO.File]::Open((Join-Path $runtimeRoot "$heldInvalid/frankenphp.exe"), [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
+  try {
+    Add-Content -Path (Join-Path $runtimeRoot 'test-v1/frankenphp.exe') -Value 'z' -NoNewline
+    $resizedThird = & (Join-Path $temporary 'drupack.exe') resized-third
+    if ($resizedThird -notmatch 'resized-third') { throw 'a reinstall with an open file in an invalid directory did not run' }
+  } finally {
+    $heldHandle.Dispose()
+  }
+  if (-not (Test-Path (Join-Path $runtimeRoot "$heldInvalid/frankenphp.exe"))) { throw 'a reinstall removed an invalid directory that still had an open file' }
+
   # Two simultaneous starts of one release that is not yet installed: only one
   # process stages it, the cache lock makes the other wait, and both find a
   # complete runtime once the lock releases.
@@ -70,6 +85,11 @@ func main() { fmt.Printf("args=%q env=%s phprc=%s", os.Args[1:], os.Getenv("DRUP
   $procB.WaitForExit()
   if ($procA.ExitCode -ne 0) { throw "first concurrent start of one release failed: $(Get-Content $errA -Raw)" }
   if ($procB.ExitCode -ne 0) { throw "second concurrent start of one release failed: $(Get-Content $errB -Raw)" }
+  # The pre-fix loser of this race reached exit 0 but warned on stderr that
+  # it fell back to the previous runtime, so a bare exit-code check would
+  # pass against the old code.
+  if (Get-Content $errA -Raw) { throw "first concurrent start of one release wrote to stderr: $(Get-Content $errA -Raw)" }
+  if (Get-Content $errB -Raw) { throw "second concurrent start of one release wrote to stderr: $(Get-Content $errB -Raw)" }
   if ((Get-Content $outA -Raw) -notmatch '"one"') { throw 'first concurrent start did not forward its own arguments' }
   if ((Get-Content $outB -Raw) -notmatch '"two"') { throw 'second concurrent start did not forward its own arguments' }
   if (-not (Test-Path (Join-Path $runtimeRoot 'test-v3/frankenphp.exe'))) { throw 'concurrent starts of one release did not activate a complete runtime' }
