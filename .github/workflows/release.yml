@@ -177,7 +177,12 @@ jobs:
           key: macos-${{ matrix.architecture }}-${{ hashFiles('packaging/macos/build.sh') }}
 
       - name: Run the test scripts
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
         run: |
+          # tests/database-init.sh calls GNU timeout, which macOS lacks.
+          brew install coreutils
+          PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
           bash tests/database-init.sh dist/drupack test-results/database
           python3 tests/browser.py dist/drupack test-results/browser
 
