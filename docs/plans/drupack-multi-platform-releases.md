@@ -1,6 +1,6 @@
 # Plan: Drupack multi-platform releases
 
-> Sources: [PRD](../prd/drupack-multi-platform-releases.md), [ADR 0001](../adr/0001-forge-canonical-github-packaging-mirror.md) and the [project glossary](../../CONTEXT.md)
+> Sources: [PRD](../prd/drupack-multi-platform-releases.md), [ADR 0001](../adr/0001-forge-canonical-github-packaging-mirror.md), [ADR 0002](../adr/0002-shared-application-extraction.md) and the [project glossary](../../CONTEXT.md)
 
 ## Architectural decisions
 
@@ -119,7 +119,7 @@ User stories: 5-9, 12-19.
 
 Its inputs are `app.tar` and `app_checksum.txt` from `/go/src/app` in the Dockerfile's `build` stage. It pins FrankenPHP 1.12.7 to commit `a765b086f5cc56f6b7753117367d56e1b0da948d`. It pins PHP 8.5.10 and its devel pack, Watcher 0.14.5 and vcpkg 2026.07.29 by SHA-256 value.
 
-The launcher extracts the runtime into `%LOCALAPPDATA%\Drupack\runtime\<version>` and passes every argument to it unchanged.
+The launcher extracts the runtime into `%LOCALAPPDATA%\Drupack\runtime\<version>` and passes every argument to it unchanged. It hashes each file when it installs the runtime. A later start compares the stored manifest and file sizes. On 2026-09-17 this cut a warm `--help` on Windows 11 from 1.15 s to 0.59 s.
 
 On 2026-09-17, `tests/windows/launcher.Tests.ps1` and `tests/windows/site.Tests.ps1` passed on Windows 11. The Linux test scripts passed locally on the same launcher.
 
@@ -128,7 +128,6 @@ On 2026-09-17, `tests/windows/launcher.Tests.ps1` and `tests/windows/site.Tests.
 Remaining:
 
 - Old runtime versions, staging directories and `.invalid-<pid>` directories are never removed.
-- The launcher hashes every runtime file on each start.
 - Stopping a site started without a console needs the whole process tree stopped.
 - No Windows test covers listener access, MySQL, PostgreSQL, help output or executable replacement.
 - No test runs on Windows 10 22H2. The runtime bundles no Visual C++ runtime DLLs.
@@ -185,6 +184,10 @@ Tag `0.1.0` on `main` at the Forge after phases 3 to 6.
 
 - Homebrew and WinGet manifests are not published.
 - The provenance attestation step has not run, because no version tag exists yet.
+
+### Shared application extraction
+
+- [ADR 0002](../adr/0002-shared-application-extraction.md) proposes one application extraction per release, shared by all Site data directories. On Windows, a new site spends 18.7 s extracting 24,514 files, and each `frankenphp.exe` start takes 0.6 s.
 
 ### drupal.org project
 
