@@ -20,7 +20,7 @@ RUN mkdir -p /app/seed/private /app/seed/tmp /app/seed/config /app/web/sites/def
     && DRUPACK_RUNTIME_DATA_DIR=/app/seed DRUPACK_RUNTIME_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php pm:enable mcp_tools --yes \
     && mv /app/web/sites/default/files /app/seed/files \
     && rm -f /app/web/sites/default/settings.php
-ARG DRUPACK_VERSION=dev
+ARG DRUPACK_VERSION
 COPY packaging/embed.sh /usr/local/bin/embed.sh
 COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
 RUN bash /usr/local/bin/embed.sh

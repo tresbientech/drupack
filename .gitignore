@@ -8,3 +8,4 @@
 /.phpunit.cache/
 /drupal/.editorconfig
 /drupal/.gitattributes
+.superpowers/
