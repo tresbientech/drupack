@@ -41,6 +41,8 @@ A Homebrew tap installs Linux and macOS releases. WinGet installs the Windows po
 17. As a site owner, I want a failed runtime extraction to keep the previous runtime, so that a damaged update does not block my site.
 18. As a maintainer, I want native build and test jobs, so that each release is validated on its target operating system.
 19. As a maintainer, I want release tests for database setup and protected paths, so that every target preserves the existing product contract.
+20. As a Windows user, I want a double-click to reach a working site, so that I do not need a terminal.
+21. As a site owner, I want the first start to ask for administrator credentials when I supply none, so that a start without options still creates my site.
 
 ## Implementation decisions
 
@@ -51,6 +53,15 @@ A Homebrew tap installs Linux and macOS releases. WinGet installs the Windows po
 - Build workflows run on a version tag or a manual dispatch.
 - Public environment variables use the `DRUPACK_` prefix.
 - Standard GitHub-hosted runners, macOS included, cost nothing on the public repository.
+
+### Command line
+
+- A first start without administrator credentials asks for a name, with `admin` as the default, and for a password twice, on a terminal that can read input. The password stays hidden where the platform allows it.
+- A first start that cannot read input keeps the current error, so tests and scripts do not change.
+- A process that is the only one attached to its console was started from a file manager. It then opens the browser once the site answers, and waits for Enter after an error, so the window stays readable.
+- `--no-browser` stops Drupack from opening a browser.
+- A successful start prints the site address, the Site data directory, and how to stop the site.
+- `--version` prints the Drupack version. `--help` lists the options with examples for `dr` and the database options.
 
 ### Release targets
 
@@ -119,7 +130,7 @@ The existing offline, browser, database, and network tests define the current pr
 - macOS code signing and notarization.
 - Automatic application updates, schema migrations, and cross-version compatibility guarantees.
 - Runtime Composer operations and installing contributed modules after release.
-- A graphical desktop application.
+- A graphical desktop application. A Windows tray app is parked in [RFC windows-tray-app](../rfc/windows-tray-app.md).
 
 ## Further notes
 

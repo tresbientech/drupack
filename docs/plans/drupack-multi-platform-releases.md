@@ -166,11 +166,31 @@ Remaining:
 - [x] Both executables start a seeded SQLite site and pass `dr` checks in `tests/browser.py`.
 - [ ] The executables load the same PHP extensions as the Linux executable.
 
-## Phase 7: Release 0.1.0
+## Phase 7: Command-line experience
+
+User stories: 20, 21.
 
 ### What to build
 
-Tag `0.1.0` on `main` at the Forge after phases 3 to 6.
+A double-click on the Windows executable opens a console window, fails with "Missing Drupal administrator credentials" and closes. `runtime/launch.php` gains an interactive first start, and `packaging/entrypoint.go` gains `--version` and a longer `--help`.
+
+A first start without administrator credentials asks for a name and a password when it can read input. A start with no console parent opens the browser and waits for Enter after an error. `--no-browser` suppresses the browser.
+
+[RFC windows-tray-app](../rfc/windows-tray-app.md) holds the parked tray app design.
+
+### Acceptance criteria
+
+- [ ] A double-click on the Windows executable reaches a served site and opens a browser, with no options.
+- [ ] A failed start from a file manager keeps its window open until Enter.
+- [ ] A non-interactive first start without credentials still fails with the current message and writes no Site data.
+- [ ] `--version` prints the version, and `--help` lists every option.
+- [ ] The five test scripts and both Windows test scripts pass.
+
+## Phase 8: Release 0.1.0
+
+### What to build
+
+Tag `0.1.0` on `main` at the Forge after phases 3 to 7.
 
 ### Acceptance criteria
 
