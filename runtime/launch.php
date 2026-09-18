@@ -236,6 +236,14 @@ function adoptedPath(string $directory): string
     return "$directory/site-adopted";
 }
 
+// Recorded the moment a database is first seen fresh, so a crash between that
+// moment and the install step's own bootstrap check still tells a resume the
+// difference between a foreign database and one Drupack is still installing.
+function firstEverPath(string $directory): string
+{
+    return "$directory/first-install";
+}
+
 function credentialsRequired(array $steps): bool
 {
     return array_intersect(['administrator', 'install'], $steps) !== [];
@@ -263,8 +271,15 @@ function remainingSteps(string $directory, string $backend): array
     if (file_exists("$directory/site.sqlite")) {
         throw new RuntimeException("This Site data holds a database without settings: $directory. Restore its settings.php, or start Drupack with an empty Site data directory.");
     }
-    // The steps a first start runs, in order, for one database backend.
-    return $backend === 'sqlite' ? ['seed', 'settings', 'administrator'] : ['settings', 'install', 'modules'];
+    if ($backend === 'sqlite') {
+        return ['seed', 'settings', 'administrator'];
+    }
+    // The directory may not exist yet on the check that runs before it is created;
+    // the authoritative check that runs under the startup lock always finds it.
+    if (is_dir($directory) && file_put_contents(firstEverPath($directory), '', LOCK_EX) === false) {
+        throw new RuntimeException('Cannot record that this database is new to Drupack');
+    }
+    return ['settings', 'install', 'modules'];
 }
 
 function writeProgress(string $data, array $steps): void
@@ -547,7 +562,7 @@ function removeRecipeModules(string $binary): void
     }
 }
 
-function runStep(string $step, string $data, array $options, string $binary, array $steps): void
+function runStep(string $step, string $data, array $options, string $binary): void
 {
     switch ($step) {
         case 'seed':
@@ -567,9 +582,7 @@ function runStep(string $step, string $data, array $options, string $binary, arr
             configureSeedAdministrator($binary);
             return;
         case 'install':
-            // `settings` in the pending list means this is the site's first pass at this
-            // database. A resumed run without it already owns whatever it finds there.
-            if (installSite($data, $options, $binary, in_array('settings', $steps, true))) {
+            if (installSite($data, $options, $binary, file_exists(firstEverPath($data)))) {
                 file_put_contents(adoptedPath($data), '', LOCK_EX);
             }
             return;
@@ -597,7 +610,7 @@ function initialize(string $data, array $steps, array $options, string $binary):
     }
     writeProgress($data, $steps);
     foreach ($steps as $index => $step) {
-        runStep($step, $data, $options, $binary, $steps);
+        runStep($step, $data, $options, $binary);
         writeProgress($data, array_slice($steps, $index + 1));
     }
     if (file_put_contents(markerPath($data), '', LOCK_EX) === false) {
@@ -606,6 +619,9 @@ function initialize(string $data, array $steps, array $options, string $binary):
     unlink(progressPath($data));
     if (file_exists(adoptedPath($data))) {
         unlink(adoptedPath($data));
+    }
+    if (file_exists(firstEverPath($data))) {
+        unlink(firstEverPath($data));
     }
 }
 
