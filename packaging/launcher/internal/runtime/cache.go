@@ -15,6 +15,10 @@ import (
 // rootMode is the permission every candidate cache root is created with.
 const rootMode = 0700
 
+// stagingPrefix separates a cache key from the random suffix os.MkdirTemp adds,
+// and removeOthers matches on it to clear what an interrupted run left.
+const stagingPrefix = ".staging-"
+
 // Root returns the cache directory a runtime unpacks into, creating it. A
 // user-named directory that refuses writes is reported, never silently
 // swapped for another; an unnamed one falls back from the user cache
@@ -25,8 +29,7 @@ func Root() (string, error) {
 	}
 
 	var lastErr error
-	for _, base := range cacheBases() {
-		root := filepath.Join(base, "Drupack", "runtime")
+	for _, root := range cacheRoots() {
 		if err := os.MkdirAll(root, rootMode); err != nil {
 			lastErr = err
 			continue
@@ -36,13 +39,17 @@ func Root() (string, error) {
 	return "", lastErr
 }
 
-// cacheBases lists Root's fallback bases in trial order.
-func cacheBases() []string {
-	var bases []string
+// cacheRoots lists Root's candidates in trial order.
+func cacheRoots() []string {
+	var roots []string
 	if cache, err := os.UserCacheDir(); err == nil {
-		bases = append(bases, cache)
+		roots = append(roots, filepath.Join(cache, "Drupack", "runtime"))
 	}
-	return append(bases, os.TempDir())
+	// The temporary directory is world-writable, so another local user could
+	// pre-create a shared path and leave a runtime there for this one to run.
+	// Naming it per uid keeps each user in their own directory.
+	owned := fmt.Sprintf("Drupack-%d", os.Getuid())
+	return append(roots, filepath.Join(os.TempDir(), owned, "runtime"))
 }
 
 // Key names the cache entry for a version and its payload, so a payload
@@ -127,10 +134,13 @@ func sizesMatch(entry string, m Manifest) bool {
 	return true
 }
 
-// removeOthers deletes every entry under root except key, once key is
-// active, so the cache holds at most one version. It leaves active, lock,
-// and any other process's staging directory, and reports nothing on a
-// removal failure: the next start retries.
+// removeOthers deletes the other versions' entries, once key is active, so the
+// cache holds one version. DRUPACK_CACHE_DIR can name a directory that already
+// holds the reader's own files, so a directory goes only when it carries a
+// manifest this program wrote, or when it is a staging directory an
+// interrupted run abandoned. Staging runs under the root lock, so no live one
+// exists here. A removal failure reports nothing, because the next start
+// retries.
 func removeOthers(root, key string) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -138,13 +148,16 @@ func removeOthers(root, key string) {
 	}
 	for _, candidate := range entries {
 		name := candidate.Name()
-		if name == key || name == "active" || name == "lock" {
+		if name == key || !candidate.IsDir() {
 			continue
 		}
-		if staging, _ := filepath.Match("*.staging-*", name); staging {
-			continue
+		path := filepath.Join(root, name)
+		if abandoned, _ := filepath.Match("*"+stagingPrefix+"*", name); !abandoned {
+			if _, err := readManifest(path); err != nil {
+				continue
+			}
 		}
-		os.RemoveAll(filepath.Join(root, name))
+		os.RemoveAll(path)
 	}
 }
 
@@ -199,7 +212,7 @@ func stagingFailure(root string, m Manifest, err error) error {
 // swaps it in for entry. A checksum failure leaves entry untouched, since the
 // swap happens only after every declared file verifies.
 func stage(root, entry, key string, payload []byte, m Manifest) error {
-	staging, err := os.MkdirTemp(root, key+".staging-")
+	staging, err := os.MkdirTemp(root, key+stagingPrefix)
 	if err != nil {
 		return err
 	}

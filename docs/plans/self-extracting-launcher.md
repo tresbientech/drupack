@@ -67,7 +67,7 @@ The Dockerfile's `artifact` target produces the launcher, built from the
 - [ ] `tests/launcher.sh` passes, covering a cold start, a warm start, two cold
       starts at once producing one cache entry, a non-zero exit code from a
       failing `dr` command, and SIGINT during a serve stopping the server.
-- [ ] `go test ./packaging/launcher/...` passes, covering a warm start that skips
+- [ ] `cd packaging/launcher && go test ./...` passes, covering a warm start that skips
       staging, a changed file size forcing a re-stage, two concurrent stages
       producing one runtime, a manifest path holding `..` or an absolute path
       refused, a payload entry the manifest does not declare refused, and a
@@ -125,7 +125,7 @@ launcher instead of the 361 MB executable. The macOS job's suites run against it
 ### Acceptance criteria
 
 - [ ] `bash packaging/macos/build.sh application <work> dist/drupack` produces an
-      executable under 110 MB.
+      executable under 125 MB.
 - [ ] `tests/database-init.sh`, `tests/browser.py` and `tests/replacement.sh` pass
       against it on macOS.
 - [ ] The release workflow's unsigned-launch check passes: a copy carrying the

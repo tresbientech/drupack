@@ -56,7 +56,7 @@ bash tests/initialization.sh ./dist/drupack
 python3 tests/browser.py ./dist/drupack test-results/browser
 ```
 
-Each shell script takes an optional results directory as its second argument. `tests/browser.py` requires one. `tests/network.sh` and `tests/offline.sh` need Docker. `tests/server-database.sh` starts MySQL and PostgreSQL containers itself. `tests/launcher.sh` packs small fixture launchers with Go and skips those cases when Go is absent.
+Each shell script takes an optional results directory as its second argument. `tests/browser.py` requires one. `tests/network.sh` and `tests/offline.sh` need Docker. `tests/server-database.sh` starts MySQL and PostgreSQL containers itself. `tests/launcher.sh` packs small fixture launchers with Go and skips those cases when Go is absent, and its full-cache case skips without Docker.
 
 The launcher's own unit tests need Go:
 
@@ -86,7 +86,7 @@ A later start needs no options. The test scripts still need a built executable.
 
 The published Linux and macOS executable is a launcher carrying the real executable, compressed with `github.com/klauspost/compress/zstd`. The first run of a version unpacks it under the user's cache directory and replaces its own process with it. Later runs compare a stored manifest and file sizes, then start. `DRUPACK_CACHE_DIR` moves that cache.
 
-`packaging/launcher` holds the launcher and its packer. `docker build --target uncompressed` still produces the unpacked executable, which the packer takes as input.
+`packaging/launcher` holds the launcher and its packer. The `packed` build stage runs the packer over the same executable the `uncompressed` target exports, so `docker build --target uncompressed` still gives you that executable on its own.
 
 ## Releases
 

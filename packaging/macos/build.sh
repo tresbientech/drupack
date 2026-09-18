@@ -51,6 +51,9 @@ cp "$repository/packaging/entrypoint.go" frankenphp/caddy/frankenphp/drupack.go
 
 runtime="$work/runtime"
 entry=drupack
+# The work directory is reused between builds, and the packer collects every
+# file it finds here.
+rm -rf "$runtime"
 mkdir -p "$runtime"
 
 cd frankenphp/caddy/frankenphp

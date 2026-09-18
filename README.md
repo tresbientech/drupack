@@ -69,7 +69,7 @@ Useful options:
 - `--data-dir PATH` puts Site data somewhere else. `DRUPACK_DATA_DIR` sets a default.
 - `--listen IP:PORT` serves on another address, `127.0.0.1:8080` by default.
 - `--no-browser` starts without opening a browser.
-- `drupack --version` names every component it carries, and `drupack --help` lists every option.
+- `drupack --version` prints the release, `drupack version` names every component it carries, and `drupack --help` lists every option.
 
 ## Administer with Drush
 
@@ -107,7 +107,7 @@ Your download carries Drupal, PHP and Caddy compressed. The first start of a ver
 
 One version takes about 400 MB on Linux and macOS, beside your Site data. The space is per version, and a successful start removes the versions it replaces, so upgrading does not stack them up.
 
-`DRUPACK_CACHE_DIR` moves the cache, for a disk with more room. When your home directory refuses writes, Drupack unpacks into the temporary directory instead.
+On Linux and macOS, `DRUPACK_CACHE_DIR` moves the cache, for a disk with more room, and a home directory that refuses writes sends the runtime to the temporary directory instead. Windows uses its own path and reads neither.
 
 ## Use MySQL or PostgreSQL
 

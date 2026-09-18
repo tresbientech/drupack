@@ -19,8 +19,9 @@ unpacks it on first use, so the download is 113 MB.
 
 ## Solution
 
-Every platform downloads one executable of roughly 100 MB, and running it behaves
-as it does today.
+Every platform downloads one executable of about 123 MB, and running it behaves
+as it does today. The 0.1.0 build compressed to about 100 MB, and the build
+input has grown since.
 
 The first run of a version prints one line, unpacks the runtime into the user's
 cache directory, and continues. That unpack takes about two seconds of decoding
@@ -179,9 +180,9 @@ several warm starts.
 ## Further Notes
 
 The build input grew from 379,064,720 bytes at the 0.1.0 build to 417,724,848
-bytes. The same encoder settings turn the older input into 97,546,889 bytes and
-the newer one into 118,089,754. The 38.7 MB of growth is in the build input, so
-it reaches every platform, and it needs its own investigation.
+bytes. The shipped encoder turns the older input into 99,722,120 bytes and the
+newer one into 120,288,092. The 38.7 MB of growth is in the build input, so it
+reaches every platform, and it needs its own investigation.
 
 Measured on the 0.1.0 amd64 build, 379,064,720 bytes:
 

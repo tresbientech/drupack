@@ -1,6 +1,7 @@
 # A self-extracting launcher replaces UPX
 
-Proposed on 2026-09-18. Not implemented.
+Proposed on 2026-09-18. Implemented for Linux and macOS. Windows keeps its own
+launcher until the convergence lands.
 
 ## Question
 

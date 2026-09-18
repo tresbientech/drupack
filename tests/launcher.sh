@@ -224,7 +224,8 @@ if $have_go; then
     HOME="$home8" TMPDIR="$tmp8" "$fixture8" --help >"$results/case8.out" 2>"$results/case8.err" || code8=$?
     chmod 0700 "$home8"
     [[ $code8 -eq 0 ]] || fail 'The launcher did not exit 0 when HOME refuses writes'
-    [[ $(entry_count "$tmp8/Drupack/runtime") -eq 1 ]] || fail 'The runtime did not land under TMPDIR when HOME refuses writes'
+    # The temporary directory is shared, so the launcher names its root per uid.
+    [[ $(entry_count "$tmp8/Drupack-$(id -u)/runtime") -eq 1 ]] || fail 'The runtime did not land under TMPDIR when HOME refuses writes'
   fi
 else
   printf 'Skipping case 8: go is not installed\n' >&2

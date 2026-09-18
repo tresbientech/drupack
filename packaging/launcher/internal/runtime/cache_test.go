@@ -242,6 +242,58 @@ func TestActiveFallbackRefusesAnEditedEntry(t *testing.T) {
 	}
 }
 
+func TestCleanupKeepsContentTheCacheRootAlreadyHeld(t *testing.T) {
+	payload, manifest := buildFixture(t)
+	// DRUPACK_CACHE_DIR can name a directory the reader already uses.
+	root := t.TempDir()
+	keepFile := filepath.Join(root, "holiday-photos.tar")
+	if err := os.WriteFile(keepFile, []byte("not ours"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	keepDir := filepath.Join(root, "someone-elses-project")
+	if err := os.MkdirAll(filepath.Join(keepDir, "src"), 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	first := manifest
+	first.Version = "1.0.0"
+	if _, err := runtimepkg.Prepare(root, payload, first, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	second := manifest
+	second.Version = "2.0.0"
+	if _, err := runtimepkg.Prepare(root, payload, second, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(keepFile); err != nil {
+		t.Fatalf("cleanup removed a file the cache root already held: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(keepDir, "src")); err != nil {
+		t.Fatalf("cleanup removed a directory the cache root already held: %v", err)
+	}
+	firstEntry := filepath.Join(root, runtimepkg.Key(first.Version, payload))
+	if _, err := os.Stat(firstEntry); !os.IsNotExist(err) {
+		t.Fatal("cleanup kept the first version's entry")
+	}
+}
+
+func TestCleanupRemovesAnAbandonedStagingDirectory(t *testing.T) {
+	payload, manifest := buildFixture(t)
+	root := t.TempDir()
+	abandoned := filepath.Join(root, "9.9.9-abcdef012345.staging-777")
+	if err := os.MkdirAll(abandoned, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := runtimepkg.Prepare(root, payload, manifest, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(abandoned); !os.IsNotExist(err) {
+		t.Fatal("an abandoned staging directory survived a successful start")
+	}
+}
+
 func TestParseManifestRejectsDotDot(t *testing.T) {
 	data := []byte(`{"version":"1.0.0","entry":"../escape","files":[{"path":"../escape","size":1,"sha256":"aa"}]}`)
 	if _, err := runtimepkg.ParseManifest(data); err == nil {
