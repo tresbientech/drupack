@@ -754,11 +754,11 @@ try {
     // A later start prints none: the reader holds a password by then, and `dr user:login`
     // issues a fresh link at any time.
     $link = credentialsRequired($steps) ? loginLink($binary, $url) : null;
-    $readiness = "Drupal: $url\n";
+    $readiness = "Drupack is ready\n\n  URL:       $url\n";
     if ($link !== null) {
-        $readiness .= "Log in and set your password: $link\n";
+        $readiness .= "  Login:     $link\n";
     }
-    fwrite(STDOUT, $readiness . "Site data: $data\nLog: $logPath\nStop the site with Ctrl+C.\n");
+    fwrite(STDOUT, $readiness . "  Site data: $data\n  Log:       $logPath\n\nPress Ctrl+C to stop.\n");
     // A first start opens the browser for the person who ran it. A script, a
     // container and a test have no terminal on standard input, so they get none.
     // A file manager on Windows has no other way to reach its reader.

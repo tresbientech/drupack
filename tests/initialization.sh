@@ -113,9 +113,14 @@ administrator() {
   dr php:eval 'print \Drupal\user\Entity\User::load(1)->getAccountName();'
 }
 
-login_line='Log in and set your password: http'
+login_line='  Login:     http'
 
 expect_link() {
+  grep -Fq 'Drupack is ready' "$results/$1.log" || fail "$1: the start printed no readiness heading"
+  grep -Fq '  URL:       http' "$results/$1.log" || fail "$1: the start printed no URL label"
+  grep -Fq '  Site data:' "$results/$1.log" || fail "$1: the start printed no site data label"
+  grep -Fq '  Log:' "$results/$1.log" || fail "$1: the start printed no log label"
+  grep -Fq 'Press Ctrl+C to stop.' "$results/$1.log" || fail "$1: the start printed no stop instruction"
   grep -Fq "$login_line" "$results/$1.log" || fail "$1: the start printed no one-time login link"
 }
 
