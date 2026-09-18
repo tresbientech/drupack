@@ -1,0 +1,84 @@
+# Contributing to Drupack
+
+The canonical repository is `tresbientech/drupack` on git.tresbien.tech. GitHub and drupal.org carry mirrors that a version tag updates, and neither takes issues or pull requests. [ADR 0001](docs/adr/0001-forge-canonical-github-packaging-mirror.md) records why.
+
+## Build
+
+Build on Linux `amd64` or `arm64` with Docker and BuildKit. The executable matches the build host's architecture.
+
+```sh
+docker build --target artifact --output type=local,dest=dist .
+```
+
+The output is `dist/drupack`. The host needs no PHP, Composer or database server.
+
+The Composer project that becomes the packaged site lives in `drupal/`. The files copied into the application root live in `runtime/`. `packaging/` holds the build scripts.
+
+### macOS
+
+The macOS build runs on the target architecture with the Xcode Command Line Tools, Go and Git. It needs the application archive from the Linux `build` stage.
+
+```sh
+bash packaging/macos/build.sh application "$TMPDIR/drupack" dist/drupack
+```
+
+### Windows
+
+The Windows build runs on a Windows host with Visual Studio Build Tools 2022 and its C++ Clang component, Go, Git and PowerShell 7.3 or later. Export the application archive first:
+
+```sh
+docker build --target build -t drupack-build .
+container=$(docker create drupack-build)
+docker cp "$container:/go/src/app/app.tar" application/app.tar
+docker cp "$container:/go/src/app/app_checksum.txt" application/app_checksum.txt
+docker rm "$container"
+```
+
+```powershell
+./packaging/windows/build.ps1 -ApplicationDirectory application -Version dev -WorkDirectory $env:TEMP\drupack -Output dist\drupack.exe
+```
+
+The Windows executable is a launcher: it extracts PHP and FrankenPHP into `%LOCALAPPDATA%\Drupack\runtime\<version>` on first start, hashes every file as it installs them, and compares sizes on later starts.
+
+## Tests
+
+```sh
+docker build --target uncompressed --output type=local,dest=dist/uncompressed .
+bash tests/database-init.sh ./dist/uncompressed/drupack
+bash tests/offline.sh ./dist/uncompressed/drupack
+bash tests/network.sh ./dist/uncompressed/drupack
+bash tests/server-database.sh ./dist/uncompressed/drupack
+bash tests/replacement.sh ./dist/uncompressed/drupack
+bash tests/initialization.sh ./dist/uncompressed/drupack
+python3 tests/browser.py ./dist/uncompressed/drupack
+```
+
+Each script takes an optional results directory as its second argument. `tests/network.sh` and `tests/offline.sh` need Docker. `tests/server-database.sh` starts MySQL and PostgreSQL containers itself.
+
+On Windows, `tests/windows/launcher.Tests.ps1` covers the launcher, and `tests/windows/site.Tests.ps1` takes a built executable:
+
+```powershell
+./tests/windows/launcher.Tests.ps1
+./tests/windows/site.Tests.ps1 -Executable dist\drupack.exe
+```
+
+## Development loop
+
+A change to `runtime/` reaches the executable only through a build, which takes minutes. `packaging/dev-server.sh` serves the application from the build image instead, with `runtime/` copied over it on each start, so a change to `launch.php` or the Caddyfile applies in about a second.
+
+```sh
+docker build --target build -t drupack-build .
+bash packaging/dev-server.sh ./dev-data 8080 --admin-user admin --admin-password 'choose-a-password'
+```
+
+A later start needs no options. The test scripts still need a built executable.
+
+## Compression
+
+The Linux build packs the executable with UPX. PHP links a segment of a few hundred bytes with a 2 MiB alignment, which trips [UPX issue 836](https://github.com/upx/upx/issues/836) and corrupts the packed file on some builds. `packaging/align-segments.php` records a page-sized alignment for that segment after the Go build, and UPX's own test gates every build. To check whether UPX still needs that, build with `DRUPACK_KEEP_ALIGNMENT=1`.
+
+## Releases
+
+A version tag without a `v` prefix, such as `0.1.1`, pushed to the Forge, mirrors to GitHub and drupal.org and starts the release workflow. It builds all five targets, runs their tests, then publishes a GitHub Release with each executable under a versioned and an unversioned name, `checksums.txt`, `release.json`, a CycloneDX SBOM and provenance attestations.
+
+Documents worth reading before a change: `CONTEXT.md` for the vocabulary, `docs/prd/` for what the product promises, `docs/plans/` for the current work, `docs/adr/` for decisions and `docs/rfc/` for proposals.
