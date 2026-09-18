@@ -26,8 +26,8 @@ jobs:
       - uses: actions/checkout@v4
 
       # The runner starts with about 14 GB free, the builder image takes 8.6 GB,
-      # and UPX keeps two copies of a 400 MB executable. Printing the free space
-      # tells a later failure apart from a full disk.
+      # and the packer writes a compressed payload beside the 400 MB executable.
+      # Printing the free space tells a later failure apart from a full disk.
       - name: Free disk space
         run: |
           df -h /
@@ -254,15 +254,21 @@ jobs:
             asset="drupack-${VERSION}-${target}${candidate##*/drupack}"
             cp "$candidate" "release/$asset"
             chmod 0755 "release/$asset"
+            # GitHub's latest-release URL resolves a fixed file name, so each
+            # asset also ships without its version for a copy-and-paste download.
+            latest="drupack-${target}${candidate##*/drupack}"
+            cp "release/$asset" "release/$latest"
             sha256=$(sha256sum "release/$asset" | cut -d ' ' -f 1)
             printf '%s  %s\n' "$sha256" "$asset" >>release/checksums.txt
+            printf '%s  %s\n' "$sha256" "$latest" >>release/checksums.txt
             jq -n \
               --arg asset "$asset" \
               --arg target "$target" \
               --arg url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${VERSION}/${asset}" \
+              --arg latest_url "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/${latest}" \
               --arg sha256 "$sha256" \
               --argjson size "$(stat --format=%s "release/$asset")" \
-              '{asset: $asset, target: $target, url: $url, sha256: $sha256, size: $size}'
+              '{asset: $asset, target: $target, url: $url, latest_url: $latest_url, sha256: $sha256, size: $size}'
           done | jq -s --arg version "$VERSION" --arg commit "$GITHUB_SHA" \
             '{version: $version, build_commit: $commit, assets: .}' >release/release.json
 

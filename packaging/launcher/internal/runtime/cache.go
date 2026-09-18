@@ -1,0 +1,164 @@
+package runtime
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"reflect"
+)
+
+// rootMode is the permission every candidate cache root is created with.
+const rootMode = 0700
+
+// Root returns the cache directory a runtime unpacks into, creating it. A
+// user-named directory that refuses writes is reported, never silently
+// swapped for another; an unnamed one falls back from the user cache
+// directory to the temporary directory.
+func Root() (string, error) {
+	if dir := os.Getenv("DRUPACK_CACHE_DIR"); dir != "" {
+		return dir, os.MkdirAll(dir, rootMode)
+	}
+
+	var lastErr error
+	for _, base := range cacheBases() {
+		root := filepath.Join(base, "Drupack", "runtime")
+		if err := os.MkdirAll(root, rootMode); err != nil {
+			lastErr = err
+			continue
+		}
+		return root, nil
+	}
+	return "", lastErr
+}
+
+// cacheBases lists Root's fallback bases in trial order.
+func cacheBases() []string {
+	var bases []string
+	if cache, err := os.UserCacheDir(); err == nil {
+		bases = append(bases, cache)
+	}
+	return append(bases, os.TempDir())
+}
+
+// Key names the cache entry for a version and its payload, so a payload
+// change without a version bump still lands in its own entry.
+func Key(version string, payload []byte) string {
+	sum := sha256.Sum256(payload)
+	return version + "-" + hex.EncodeToString(sum[:])[:12]
+}
+
+// Prepare returns the directory holding the runtime m describes, staging
+// payload into root's cache the first time m's version and payload are seen.
+func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string, error) {
+	key := Key(m.Version, payload)
+	entry := filepath.Join(root, key)
+
+	if warm(entry, m) {
+		return entry, nil
+	}
+
+	unlock, err := lockRoot(root)
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
+
+	// Another process may have finished staging while this one waited on the lock.
+	if warm(entry, m) {
+		return entry, nil
+	}
+
+	fmt.Fprintf(notice, "Unpacking Drupack %s. This happens once for each version.\n", m.Version)
+
+	if err := stage(root, entry, key, payload, m); err != nil {
+		return "", err
+	}
+	if err := writeActive(root, key); err != nil {
+		return "", err
+	}
+	return entry, nil
+}
+
+// warm reports whether entry already holds the runtime m describes: its
+// stored manifest matches m, and every declared file has m's recorded size.
+func warm(entry string, m Manifest) bool {
+	data, err := os.ReadFile(filepath.Join(entry, ManifestName))
+	if err != nil {
+		return false
+	}
+	stored, err := ParseManifest(data)
+	if err != nil {
+		return false
+	}
+	if !reflect.DeepEqual(stored, m) {
+		return false
+	}
+	for _, file := range m.Files {
+		info, err := os.Stat(filepath.Join(entry, filepath.FromSlash(file.Path)))
+		if err != nil || info.Size() != file.Size {
+			return false
+		}
+	}
+	return true
+}
+
+// stage extracts payload into a fresh staging directory, verifies it, and
+// swaps it in for entry. A checksum failure leaves entry untouched, since the
+// swap happens only after every declared file verifies.
+func stage(root, entry, key string, payload []byte, m Manifest) error {
+	staging, err := os.MkdirTemp(root, key+".staging-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(staging)
+
+	if err := Extract(staging, payload, m); err != nil {
+		return err
+	}
+	if err := verifyChecksums(staging, m); err != nil {
+		return err
+	}
+	contents, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(staging, ManifestName), contents, 0600); err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(entry); err == nil {
+		invalid := fmt.Sprintf("%s.invalid-%d", entry, os.Getpid())
+		if err := os.Rename(entry, invalid); err != nil {
+			return err
+		}
+		if err := os.RemoveAll(invalid); err != nil {
+			return err
+		}
+	}
+	return os.Rename(staging, entry)
+}
+
+func verifyChecksums(directory string, m Manifest) error {
+	for _, file := range m.Files {
+		sum, err := hashFile(filepath.Join(directory, filepath.FromSlash(file.Path)))
+		if err != nil {
+			return err
+		}
+		if sum != file.SHA256 {
+			return fmt.Errorf("checksum mismatch: %s", file.Path)
+		}
+	}
+	return nil
+}
+
+func writeActive(root, key string) error {
+	pending := filepath.Join(root, fmt.Sprintf("active.pending.%d", os.Getpid()))
+	if err := os.WriteFile(pending, []byte(key+"\n"), 0600); err != nil {
+		return err
+	}
+	return os.Rename(pending, filepath.Join(root, "active"))
+}

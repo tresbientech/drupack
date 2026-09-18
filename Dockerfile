@@ -24,28 +24,19 @@ RUN mkdir -p /app/seed/private /app/seed/tmp /app/seed/config /app/web/sites/def
     && rm -f /app/web/sites/default/settings.php
 ARG DRUPACK_VERSION
 COPY packaging/embed.sh /usr/local/bin/embed.sh
-COPY packaging/align-segments.php /usr/local/bin/align-segments.php
 COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
 RUN bash /usr/local/bin/embed.sh
 
 FROM scratch AS uncompressed
 COPY --from=build /out/drupack /drupack
 
-FROM build AS compressed
-# packaging/align-segments.php works around a UPX bug. Retest it when this version changes.
-ARG UPX_VERSION=5.2.1
-ARG DRUPACK_KEEP_ALIGNMENT
-RUN case "$(uname -m)" in \
-        x86_64) upx_arch=amd64; upx_checksum=402162aad30af47e60dbd767fb2e64ca394ace9727ba1f40283641f1d1b91657 ;; \
-        aarch64) upx_arch=arm64; upx_checksum=a72d112c5970a904a31da0b9c84f919bc16b9a311787c12245508544a78c7d36 ;; \
-        *) printf 'Unsupported UPX architecture: %s\n' "$(uname -m)" >&2; exit 1 ;; \
-    esac \
-    && upx_archive="upx-${UPX_VERSION}-${upx_arch}_linux.tar.xz" \
-    && curl -fsSL "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/${upx_archive}" -o /tmp/upx.tar.xz \
-    && printf '%s  /tmp/upx.tar.xz\n' "$upx_checksum" | sha256sum -c - \
-    && tar -xJf /tmp/upx.tar.xz -C /tmp \
-    && "/tmp/upx-${UPX_VERSION}-${upx_arch}_linux/upx" -9 /out/drupack \
-    && "/tmp/upx-${UPX_VERSION}-${upx_arch}_linux/upx" -t /out/drupack
+FROM build AS packed
+ARG DRUPACK_VERSION
+COPY packaging/launcher /src/launcher
+RUN export CGO_ENABLED=0 \
+    && mkdir -p /packed \
+    && cd /src/launcher \
+    && go run ./cmd/pack -runtime /out -entry drupack -version "${DRUPACK_VERSION:-dev}" -source /src/launcher -output /packed/drupack
 
 FROM scratch AS artifact
-COPY --from=compressed /out/drupack /drupack
+COPY --from=packed /packed/drupack /drupack
