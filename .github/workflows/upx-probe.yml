@@ -1,0 +1,47 @@
+name: UPX probe
+
+on:
+  workflow_dispatch:
+
+# Temporary: finds why upx -t rejects its own output on a GitHub runner while
+# the same binary and the same UPX pass on a development machine.
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the uncompressed executable
+        run: docker build --target uncompressed --build-arg DRUPACK_VERSION=probe --output type=local,dest=dist .
+
+      - name: Report the machine
+        run: |
+          nproc
+          free -m
+          df -h /
+          sha256sum dist/drupack
+          stat --format='%s bytes' dist/drupack
+
+      - name: Try each UPX method
+        run: |
+          curl -fsSL https://github.com/upx/upx/releases/download/v5.2.1/upx-5.2.1-amd64_linux.tar.xz -o upx.tar.xz
+          printf '402162aad30af47e60dbd767fb2e64ca394ace9727ba1f40283641f1d1b91657  upx.tar.xz\n' | sha256sum -c -
+          tar -xJf upx.tar.xz
+          upx=upx-5.2.1-amd64_linux/upx
+          for method in "-9" "-9 --no-lzma" "-1"; do
+            cp dist/drupack candidate
+            printf '\n=== upx %s\n' "$method"
+            if ! $upx $method -q candidate; then
+              printf 'pack failed\n'
+              rm -f candidate
+              continue
+            fi
+            stat --format='packed %s bytes' candidate
+            if $upx -t candidate; then
+              printf 'RESULT: %s passed\n' "$method"
+            else
+              printf 'RESULT: %s failed its own test\n' "$method"
+            fi
+            rm -f candidate
+          done
