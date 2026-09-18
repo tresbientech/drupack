@@ -1,6 +1,6 @@
 # Drupack
 
-Drupack runs a Drupal CMS site from a single executable. It carries Drupal CMS with the Byte site template, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers, Drush and Local MCP Tools. Everything it needs to serve a site travels inside that file.
+Drupack runs a Drupal CMS site from a single executable. It carries Drupal CMS with the Mercury Demo site template, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers, Drush and Local MCP Tools. Everything it needs to serve a site travels inside that file.
 
 ## Install
 
@@ -68,6 +68,7 @@ Useful options:
 
 - `--data-dir PATH` puts Site data somewhere else. `DRUPACK_DATA_DIR` sets a default.
 - `--listen IP:PORT` serves on another address, `127.0.0.1:8080` by default.
+- `--site-name NAME` names the site on a first start, `Drupal Mercury Demo` by default. `DRUPACK_SITE_NAME` sets it too. A later start never renames a site.
 - `--no-browser` starts without opening a browser.
 - `drupack --version` prints the release, `drupack version` names every component it carries, and `drupack --help` lists every option.
 
@@ -122,7 +123,7 @@ SQLite runs your site by default, with no setup. To use a database server instea
 
 Use `--database pgsql` for PostgreSQL. `--db-port` defaults to `3306` for MySQL and `5432` for PostgreSQL. Later starts read the connection from Site data.
 
-Every option has an environment variable: `DRUPACK_DATABASE`, `DRUPACK_DB_HOST`, `DRUPACK_DB_PORT`, `DRUPACK_DB_NAME`, `DRUPACK_DB_USER`, `DRUPACK_DB_PASSWORD`, `DRUPACK_ADMIN_USER` and `DRUPACK_ADMIN_PASSWORD`.
+Every option has an environment variable: `DRUPACK_DATABASE`, `DRUPACK_DB_HOST`, `DRUPACK_DB_PORT`, `DRUPACK_DB_NAME`, `DRUPACK_DB_USER`, `DRUPACK_DB_PASSWORD`, `DRUPACK_ADMIN_USER`, `DRUPACK_ADMIN_PASSWORD` and `DRUPACK_SITE_NAME`.
 
 ## Local AI agents
 

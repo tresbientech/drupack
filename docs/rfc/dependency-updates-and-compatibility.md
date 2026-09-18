@@ -4,7 +4,7 @@ Proposed on 2026-09-18. Not implemented.
 
 ## Question
 
-Drupack bundles Drupal core, Drupal CMS with the Byte site template, contributed modules, PHP, FrankenPHP and Caddy. Each moves on its own schedule, and a site owner runs whatever their executable carries. How does a new release happen, what is it called, and what protects Site data when two executables meet it?
+Drupack bundles Drupal core, Drupal CMS with the Mercury Demo site template, contributed modules, PHP, FrankenPHP and Caddy. Each moves on its own schedule, and a site owner runs whatever their executable carries. How does a new release happen, what is it called, and what protects Site data when two executables meet it?
 
 ## Release triggers
 
@@ -20,7 +20,7 @@ Drupack keeps its own version. Tags stay `0.2.0`, `0.3.0`, without a `v` prefix.
 
 Every release states what it carries:
 
-- `drupack --version` prints `Drupack 0.2.0 (Drupal 11.4.8, Drupal CMS with Byte, PHP 8.5.10, FrankenPHP 1.12.7, Caddy 2.11.4)`
+- `drupack --version` prints `Drupack 0.2.0 (Drupal 11.4.8, Drupal CMS with Mercury Demo, PHP 8.5.10, FrankenPHP 1.12.7, Caddy 2.11.4)`
 - `release.json` carries the same values
 - the release notes lead with the Drupal version
 

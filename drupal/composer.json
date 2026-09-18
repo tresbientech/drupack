@@ -1,6 +1,6 @@
 {
     "name": "tresbientech/drupack",
-    "description": "Offline Drupal CMS with the Byte site template",
+    "description": "Offline Drupal CMS with the Mercury Demo site template",
     "type": "project",
     "license": "GPL-2.0-or-later",
     "repositories": [{"type": "composer", "url": "https://packages.drupal.org/8"}],
@@ -8,7 +8,6 @@
         "php": "~8.5.0",
         "ext-pdo_sqlite": "*",
         "composer/installers": "^2.3",
-        "drupal/byte": "1.0.3",
         "drupal/canvas": "1.10.1",
         "drupal/core-composer-scaffold": "^11.3.10",
         "drupal/core-project-message": "^11.3.10",
@@ -17,6 +16,7 @@
         "drupal/drupal_cms_installer": "2.1.2",
         "drupal/mcp_server": "^2.0@beta",
         "drupal/mcp_tools": "^1.0@beta",
+        "drupal/mercury_demo": "1.0.0",
         "drupal/tool": "^1.0@dev",
         "drush/drush": "^13.6"
     },
