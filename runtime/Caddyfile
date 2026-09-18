@@ -45,38 +45,29 @@ http://:{$DRUPACK_RUNTIME_PORT} {
 		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
 		path_regexp ^/(core|modules|themes|libraries)/
 	}
-	# Aggregated CSS/JS carries a "v" token and an image style derivative carries an
-	# "itok" token, never both, and Caddy ANDs keys on one query line. Two separate
-	# matchers, one query key each, take the same header below.
-	@versionedAssetQueryVersion {
-		file
-		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
-		query v=*
-		not path_regexp ^/(core|modules|themes|libraries)/
-	}
-	@versionedAssetQueryToken {
+	# An image style derivative carries an "itok" token. Aggregated CSS/JS carries
+	# delta/language/theme/include instead, never a "v" token. Every asset this
+	# product serves with "v=" is a core, module, theme or library file.
+	# @versionedAssetPath already matches those by path, so there is no "v" matcher here.
+	@versionedAssetQuery {
 		file
 		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
 		query itok=*
 		not path_regexp ^/(core|modules|themes|libraries)/
 	}
-	# An upload can be replaced at the same URL in public storage, so it must
+	# An upload can be replaced at the same URL in public storage. It must
 	# revalidate rather than let a browser trust a year-old cached copy. A
-	# generated derivative under the same prefix still carries its own
-	# cache-busting query token, so it is excluded here, not layered by
-	# directive order. Two "not query" lines AND their negations, excluding
-	# either token; one "not" line with both keys would never exclude anything.
+	# generated derivative under the same prefix still carries its own itok
+	# token, so it is excluded here, not layered by directive order.
 	@publicUpload {
 		file
 		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
 		path_regexp ^/(sites/[^/]+/files/|files/)
-		not query v=*
 		not query itok=*
 	}
 	header @publicUpload Cache-Control "max-age=0,must-revalidate"
 	header @versionedAssetPath Cache-Control "max-age=31536000,public,immutable"
-	header @versionedAssetQueryVersion Cache-Control "max-age=31536000,public,immutable"
-	header @versionedAssetQueryToken Cache-Control "max-age=31536000,public,immutable"
+	header @versionedAssetQuery Cache-Control "max-age=31536000,public,immutable"
 	php_server {
 		root web
 	}
