@@ -23,6 +23,27 @@ jobs:
           sha256sum dist/drupack
           stat --format='%s bytes' dist/drupack
 
+      - name: Pack once and keep the result
+        run: |
+          curl -fsSL https://github.com/upx/upx/releases/download/v5.2.1/upx-5.2.1-amd64_linux.tar.xz -o upx.tar.xz
+          printf '402162aad30af47e60dbd767fb2e64ca394ace9727ba1f40283641f1d1b91657  upx.tar.xz\n' | sha256sum -c -
+          tar -xJf upx.tar.xz
+          cp dist/drupack packed
+          upx-5.2.1-amd64_linux/upx -9 -q packed || true
+          # Two reads of one file: a difference means the runner returns unstable bytes.
+          sha256sum packed
+          sha256sum packed
+          upx-5.2.1-amd64_linux/upx -t packed || true
+          upx-5.2.1-amd64_linux/upx -d -o unpacked packed || true
+          stat --format='unpacked %s bytes' unpacked || true
+          sha256sum unpacked dist/drupack || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upx-packed
+          path: packed
+          if-no-files-found: error
+
       - name: Try each UPX method
         run: |
           curl -fsSL https://github.com/upx/upx/releases/download/v5.2.1/upx-5.2.1-amd64_linux.tar.xz -o upx.tar.xz
