@@ -1,183 +1,169 @@
 # Drupack
 
-Drupack is one FrankenPHP executable for Linux `amd64`, Linux `arm64`, macOS `arm64`, macOS `amd64` or Windows `amd64`. It contains Drupal CMS with the Byte site template, PHP, SQLite, MySQL, PostgreSQL, Drush, Local MCP Tools, and MCP Server source.
+Drupack runs a Drupal CMS site from a single executable. It carries Drupal CMS with the Byte site template, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers, Drush and Local MCP Tools. Everything it needs to serve a site travels inside that file.
 
-## Build
+## Install
 
-Build on Linux `amd64` or `arm64` with Docker and BuildKit. The executable matches the build host's architecture.
+Make a folder for your site and download Drupack into it. Site data lives beside the executable.
+
+### Linux
 
 ```sh
-docker build --target artifact --output type=local,dest=dist .
+mkdir my-site && cd my-site
+curl -L -o drupack https://github.com/tresbientech/drupack/releases/latest/download/drupack-linux-amd64
+chmod +x drupack
 ```
 
-The output is `dist/drupack`. The host needs no PHP, Composer, or database server for SQLite use.
+On a 64-bit Raspberry Pi or another ARM machine, use `drupack-linux-arm64`.
 
 ### macOS
 
-The macOS build runs on the target architecture with the Xcode Command Line Tools, Go and Git. It needs the same application archive as the Windows build.
-
 ```sh
-bash packaging/macos/build.sh application "$TMPDIR/drupack" dist/drupack
+mkdir my-site && cd my-site
+curl -L -o drupack https://github.com/tresbientech/drupack/releases/latest/download/drupack-macos-arm64
+chmod +x drupack
+xattr -d com.apple.quarantine drupack
 ```
+
+On an Intel Mac, use `drupack-macos-amd64`. Gatekeeper blocks a downloaded executable that carries no Apple signature, and the `xattr` command clears that mark.
 
 ### Windows
 
-The Windows build runs on a Windows host with Visual Studio Build Tools 2022, its C++ Clang component, Go, Git and PowerShell 7.3 or later. It needs the application archive from the Linux `build` stage.
-
-```sh
-docker build --target build -t drupack-build .
-container=$(docker create drupack-build)
-docker cp "$container:/go/src/app/app.tar" application/app.tar
-docker cp "$container:/go/src/app/app_checksum.txt" application/app_checksum.txt
-docker rm "$container"
-```
-
 ```powershell
-./packaging/windows/build.ps1 -ApplicationDirectory application -Version dev -WorkDirectory $env:TEMP\drupack -Output dist\drupack.exe
+mkdir my-site; cd my-site
+curl.exe -L -o drupack.exe https://github.com/tresbientech/drupack/releases/latest/download/drupack-windows-amd64.exe
 ```
 
-On first start, `drupack.exe` extracts PHP and FrankenPHP into `%LOCALAPPDATA%\Drupack\runtime\<version>`. Site data stays in `./data` or the `--data-dir` directory.
+SmartScreen shows "Windows protected your PC" the first time, because the executable carries no code signature. Choose "More info", then "Run anyway".
 
-## Start a SQLite site
+### Keeping Drupack on your PATH
 
-First start copies an installed Byte Seed site into `./data`. It needs administrator credentials.
+A folder per site keeps each site with its data. To run `drupack` from anywhere instead, move the executable into a directory on your `PATH`, such as `~/.local/bin`. Site data then lands in whichever directory you start it from, so pass `--data-dir` to choose one.
+
+## Start your site
 
 ```sh
-./dist/drupack \
-  --admin-user admin \
-  --admin-password 'choose-a-password'
+./drupack
 ```
 
-A first start without those options asks for a name and a password in the terminal. A start that cannot read input, such as one in a script, fails instead.
+Drupack asks for an administrator name and password, installs your site, and opens `http://localhost:8080` in your browser. The first start of each version also unpacks its runtime, which adds about a second.
 
-A first start in a terminal opens `http://localhost:8080` in a browser once the site answers. A start with no terminal on its input, such as one in a script or a container, opens none. Drupal's web installer does not run. Later starts use the existing Site data and need no credentials. `--no-browser` stops Drupack from opening a browser in every case. The terminal prints the site address, the Site data path, the log path and how to stop the site, then a readiness line once the site answers.
-
-Caddy's own lines, PHP warnings and PHP errors go to `<data>/logs/caddy.log`, in JSON. Access logs stay off.
-
-A double-click in Windows Explorer opens a console window and asks for credentials on a first start; it opens the browser on every start from Explorer, first or later. `--no-browser` still stops that. A failed start keeps the window open until Enter.
-
-`drupack --version` prints the release, and `drupack --help` lists every option.
-
-`--data-dir` selects another Site data directory. `DRUPACK_DATA_DIR` supplies its default.
-
-## Start a server database site
-
-MySQL and PostgreSQL install the same Byte site on first start.
+Later starts need nothing:
 
 ```sh
-./dist/drupack --database mysql \
+./drupack
+```
+
+To set the credentials without being asked, for a script or a fresh machine:
+
+```sh
+./drupack --admin-user admin --admin-password 'choose-a-password'
+```
+
+Stop the site with Ctrl+C.
+
+The terminal shows the address, where Site data lives, the log file and how to stop. Caddy's messages, PHP warnings and PHP errors go to `data/logs/caddy.log`, so they stay out of your way.
+
+Useful options:
+
+- `--data-dir PATH` puts Site data somewhere else. `DRUPACK_DATA_DIR` sets a default.
+- `--listen IP:PORT` serves on another address, `127.0.0.1:8080` by default.
+- `--no-browser` starts without opening a browser.
+- `drupack --version` prints the release, `drupack version` names every component it carries, and `drupack --help` lists every option.
+
+## Administer with Drush
+
+`dr` runs the bundled Drush commands against your site. Drupack's own options come before the Drush command.
+
+```sh
+./drupack dr status
+./drupack dr --data-dir ./data user:login
+./drupack dr pm:list --status=enabled
+```
+
+## Site data
+
+Site data lives in the `data` directory. It holds your database, uploads, private files, configuration exports and generated settings. Copy that directory to back your site up, with the site stopped. Keep the copy private: it holds your content and your site's secrets.
+
+A newer Drupack keeps working with existing Site data, which every release is tested for.
+
+One start at a time prepares a site. A second start of the same directory stops with a message naming it. Drush keeps working while a site serves.
+
+Drupack refuses to serve in three cases, each naming the directory and the command to run:
+
+- an interrupted setup left the administrator account unset, so the site would still accept the published seed password
+- a site exists that Drupal cannot start
+- the database already holds a site that Drupack did not install
+
+An interrupted setup resumes where it stopped. Drupack never installs Drupal over a database that already holds a site, and never copies its starting site over an existing one.
+
+## The unpacked runtime
+
+Your download carries Drupal, PHP and Caddy compressed. The first start of a version unpacks them into a cache directory, which takes about a second. Every later start of that version uses what is already there.
+
+- Linux: `~/.cache/Drupack/runtime`
+- macOS: `~/Library/Caches/Drupack/runtime`
+- Windows: `%LOCALAPPDATA%\Drupack\runtime`
+
+One version takes about 400 MB on Linux and macOS, beside your Site data. The space is per version, and a successful start removes the versions it replaces, so upgrading does not stack them up.
+
+On Linux and macOS, `DRUPACK_CACHE_DIR` moves the cache, for a disk with more room, and a home directory that refuses writes sends the runtime to the temporary directory instead. Windows uses its own path and reads neither.
+
+## Use MySQL or PostgreSQL
+
+SQLite runs your site by default, with no setup. To use a database server instead, pass its details on the first start:
+
+```sh
+./drupack --database mysql \
   --db-host 127.0.0.1 --db-name drupal \
   --db-user drupal --db-password 'database-password' \
   --admin-user admin --admin-password 'choose-a-password'
 ```
 
-Use `--database pgsql` for PostgreSQL. `--db-port` is optional. MySQL defaults to `3306`; PostgreSQL defaults to `5432`.
+Use `--database pgsql` for PostgreSQL. `--db-port` defaults to `3306` for MySQL and `5432` for PostgreSQL. Later starts read the connection from Site data.
 
-The equivalent environment variables are `DRUPACK_DATABASE`, `DRUPACK_DB_HOST`, `DRUPACK_DB_PORT`, `DRUPACK_DB_NAME`, `DRUPACK_DB_USER`, `DRUPACK_DB_PASSWORD`, `DRUPACK_ADMIN_USER`, and `DRUPACK_ADMIN_PASSWORD`.
+Every option has an environment variable: `DRUPACK_DATABASE`, `DRUPACK_DB_HOST`, `DRUPACK_DB_PORT`, `DRUPACK_DB_NAME`, `DRUPACK_DB_USER`, `DRUPACK_DB_PASSWORD`, `DRUPACK_ADMIN_USER` and `DRUPACK_ADMIN_PASSWORD`.
 
-The executable stores database configuration in Site data. Database migrations and later `settings.php` changes belong to the site owner.
+## Local AI agents
 
-## Administer with Drush
-
-`dr` runs the bundled Drush command set against Site data. Put Drupack options before the Drush command.
+Your site enables Local MCP Tools, so an AI agent on your computer can administer it. This command prints a configuration for Claude Code, Claude Desktop, Cursor or Windsurf:
 
 ```sh
-./dist/drupack dr --data-dir ./data status
-./dist/drupack dr --data-dir ./data pm:list --status=enabled
+./drupack dr mcp-tools:client-config
 ```
 
-Runtime Composer operations are not included. `dr` opens no browser and prints no readiness line.
+Drupack carries MCP Server as well, disabled, with no transport exposed.
 
-## Local MCP tools
+## Updates
 
-The Seed site enables `mcp_tools`. It supports local agents that administer the Drupal site. The package includes `mcp_server` source but does not enable it or expose a transport.
+Drupal core security fixes reach you through a new Drupack release, because a packaged executable cannot update its own Drupal in place. Download the new executable, put it in your site's folder, and start it.
 
-The dependency lock includes `mcp/sdk` 0.6.0, which GHSA-7m52-jw36-44r3 affects. The advisory covers the SDK's client HTTP transport. `mcp_tools` and `mcp_server` use only its server classes.
+Your site ships without `automatic_updates` and `package_manager` enabled. `drupal/automatic_updates` 4.1.0 stalls a request for four minutes when cron runs, and its development branch carries the same code, so enabling either module brings that stall back.
 
-## Automatic updates
+[RFC dependency-updates-and-compatibility](docs/rfc/dependency-updates-and-compatibility.md) plans how releases follow upstream security fixes, and how a newer executable will guide you through a database update.
 
-The Seed site uninstalls `automatic_updates` and `package_manager`. A packaged executable cannot update its own Drupal core in place; Drupack ships a new executable instead. `automated_cron` stays enabled for the site's own scheduled work.
+## Verify a download
 
-`drupal/automatic_updates` 4.1.0's `CommandExecutor::start()` loops on a comparison against a time that never advances. A cron-triggered request then stalls until PHP's execution time limit. The unreleased `4.x-dev` branch, as of 2026-03-31, has the same code. The Seed site's first request returns quickly because it does not ship `automatic_updates` or `package_manager` enabled. Enabling either module brings the 240-second stall back: the loop's code stays in the executable.
-
-Getting a Drupal core security fix means installing a newer Drupack release. A new release carries the newer Drupal core. Site data survives replacing the executable; `tests/replacement.sh` checks that. Nothing yet watches upstream Drupal releases and triggers a new Drupack release for one. [RFC dependency-updates-and-compatibility](docs/rfc/dependency-updates-and-compatibility.md) plans that work.
-
-## Releases
-
-A version tag such as `0.1.0` publishes a GitHub Release with these files:
-
-- `drupack-<version>-linux-amd64`
-- `drupack-<version>-linux-arm64`
-- `drupack-<version>-macos-arm64`
-- `drupack-<version>-macos-amd64`
-- `drupack-<version>-windows-amd64.exe`
-- `checksums.txt`
-- `release.json`, with each asset's target, URL, SHA-256 value and size
-- `drupack.cdx.json`, a CycloneDX SBOM
-
-Verify downloaded executables before use.
+Each release publishes `checksums.txt`, which covers both the versioned and the unversioned file names.
 
 ```sh
 sha256sum --ignore-missing -c checksums.txt
 ```
 
-On Windows, compare the `checksums.txt` entry with this output.
+On Windows, compare your file against the entry in `checksums.txt`:
 
 ```powershell
-(Get-FileHash drupack-<version>-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
+(Get-FileHash drupack-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
 ```
 
-GitHub attests where each release file was built. Verify an attestation with the GitHub CLI.
+GitHub records where each file was built. The GitHub CLI checks that record:
 
 ```sh
-gh attestation verify drupack-<version>-linux-amd64 --repo tresbientech/drupack
+gh attestation verify drupack-linux-amd64 --repo tresbientech/drupack
 ```
 
-The macOS executables are not notarized. macOS blocks a downloaded executable until its quarantine attribute is removed.
+A release also carries `release.json`, listing every file with its target, URLs, SHA-256 value and size, and `drupack.cdx.json`, a CycloneDX inventory of everything inside the executable.
 
-```sh
-xattr -d com.apple.quarantine drupack-<version>-macos-arm64
-chmod +x drupack-<version>-macos-arm64
-```
+## Contributing
 
-The Windows executable is not code-signed. SmartScreen or antivirus software can warn before its first start.
-
-## Site data
-
-Site data contains the database, uploads, private files, generated settings, hash salt, configuration exports, and runtime files. Stop the executable before copying Site data for backup. Keep backups private.
-
-One start at a time prepares a Site data directory. A second start of the same directory fails with a message naming it, and Drush keeps working while a site serves.
-
-A start refuses the directory in three cases, each naming the directory and the command to run:
-
-- setup stopped before the administrator account was set, so the site would still accept the published seed password
-- a site exists that Drupack cannot bootstrap
-- a database already holds a site that Drupack did not install, and the connection settings point at it
-
-An interrupted setup resumes from the step it owed. Drupack never installs Drupal over a database that already holds a site, and never copies its Seed site over an existing one.
-
-## Tests
-
-Build an uncompressed test binary when UPX compression is unnecessary.
-
-```sh
-docker build --target uncompressed --output type=local,dest=dist/uncompressed .
-bash tests/database-init.sh ./dist/uncompressed/drupack
-bash tests/offline.sh ./dist/uncompressed/drupack
-bash tests/network.sh ./dist/uncompressed/drupack
-bash tests/server-database.sh ./dist/uncompressed/drupack
-bash tests/replacement.sh ./dist/uncompressed/drupack
-bash tests/initialization.sh ./dist/uncompressed/drupack
-python3 tests/browser.py ./dist/uncompressed/drupack
-```
-
-### Development loop
-
-A change to `runtime/` reaches the executable only through a build, which takes minutes. `packaging/dev-server.sh` serves the application from the build image instead, with `runtime/` copied over it on each start.
-
-```sh
-docker build --target build -t drupack-build .
-bash packaging/dev-server.sh ./dev-data 8080 --admin-user admin --admin-password 'choose-a-password'
-```
-
-A later start needs no options. The test scripts still need a built executable.
+[CONTRIBUTING.md](CONTRIBUTING.md) covers building Drupack, running its test suites and the development loop.

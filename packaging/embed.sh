@@ -51,7 +51,4 @@ cd caddy
 "$GOROOT/bin/go" build -mod=readonly -buildmode=pie -tags="$build_tags" \
     -ldflags="-s -w -linkmode=external -extldflags '$linker_flags' -X 'main.version=${DRUPACK_VERSION:-dev}' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $($php_config --version) Caddy'" \
     -o /out/drupack ./frankenphp
-if [[ ${DRUPACK_KEEP_ALIGNMENT:-0} != 1 ]]; then
-    /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /usr/local/bin/align-segments.php /out/drupack
-fi
 /out/drupack version
