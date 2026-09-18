@@ -94,11 +94,11 @@ The dependency lock includes `mcp/sdk` 0.6.0, which GHSA-7m52-jw36-44r3 affects.
 
 ## Automatic updates
 
-The Seed site uninstalls `automatic_updates` and `package_manager`. A packaged executable cannot update its own Drupal core in place; Drupack ships a new executable instead. A site owner who wants in-place core updates can enable the modules.
+The Seed site uninstalls `automatic_updates` and `package_manager`. A packaged executable cannot update its own Drupal core in place; Drupack ships a new executable instead. `automated_cron` stays enabled for the site's own scheduled work.
 
-`drupal/automatic_updates` 4.1.0's `CommandExecutor::start()` loops on a comparison against a time that never advances, so a cron-triggered request stalls until PHP's execution time limit. The unreleased `4.x-dev` branch, as of 2026-03-31, has the same code.
+`drupal/automatic_updates` 4.1.0's `CommandExecutor::start()` loops on a comparison against a time that never advances. A cron-triggered request then stalls until PHP's execution time limit. The unreleased `4.x-dev` branch, as of 2026-03-31, has the same code. The Seed site's first request returns quickly because it does not ship `automatic_updates` or `package_manager` enabled. Enabling either module brings the 240-second stall back: the loop's code stays in the executable.
 
-`automated_cron` stays enabled. The Seed site records `system.cron_last` at build time, so the first request of a new site owes no cron run.
+Getting a Drupal core security fix means installing a newer Drupack release. A new release carries the newer Drupal core. Site data survives replacing the executable; `tests/replacement.sh` checks that. Nothing yet watches upstream Drupal releases and triggers a new Drupack release for one.
 
 ## Releases
 

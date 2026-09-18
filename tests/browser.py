@@ -99,6 +99,7 @@ class SeededSite(unittest.TestCase):
         data = self.work / "data"
         self.start(data)
         try:
+            # Latency guard: catches a cron-triggered stall without waiting out the full 240s limit.
             requested = time.monotonic()
             homepage = http("/")
             elapsed = time.monotonic() - requested
@@ -114,6 +115,7 @@ class SeededSite(unittest.TestCase):
             mcp_tools = self.run_dr(data, "mcp-tools:client-config")
             self.assertEqual(mcp_tools.returncode, 0, mcp_tools.stderr)
             self.assertIn("mcp", mcp_tools.stdout.lower())
+            # Deterministic check: the Seed site never enables these modules, regardless of timing.
             enabled = self.run_dr(data, "pm:list", "--status=enabled", "--format=json")
             self.assertEqual(enabled.returncode, 0, enabled.stderr)
             modules = json.loads(enabled.stdout)
