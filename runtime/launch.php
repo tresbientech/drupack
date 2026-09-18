@@ -750,9 +750,11 @@ try {
     }
     $url = "http://{$options['host']}:$port/";
     fwrite(STDOUT, "Drupal: $url\nSite data: $data\nLog: $logPath\nStop the site with Ctrl+C.\n");
-    // The first start is the moment a person wants the site in front of them. A file manager
-    // on Windows has no other way to reach its reader on a later start.
-    $browser = $options['no-browser'] === null && ($created || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1');
+    // A first start opens the browser for the person who ran it. A script, a
+    // container and a test have no terminal on standard input, so they get none.
+    // A file manager on Windows has no other way to reach its reader.
+    $interactive = $created && stream_isatty(STDIN);
+    $browser = $options['no-browser'] === null && ($interactive || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1');
     openWhenServing($binary, $url, $browser);
     replaceProcess($binary, ['php-server'], __DIR__, 'Cannot start FrankenPHP');
 } catch (Throwable $error) {

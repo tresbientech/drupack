@@ -67,8 +67,8 @@ A Homebrew tap installs Linux and macOS releases. WinGet installs the Windows po
 
 ### Release targets
 
-- The Linux stage ships `drupack-<version>-linux-amd64.gz` and `drupack-<version>-linux-arm64.gz`, fully static musl executables, gzipped.
-- The macOS stage ships `drupack-<version>-macos-arm64.gz` and `drupack-<version>-macos-amd64.gz`, native macOS executables, gzipped.
+- The Linux stage ships `drupack-<version>-linux-amd64` and `drupack-<version>-linux-arm64` as fully static musl executables.
+- The macOS stage ships `drupack-<version>-macos-arm64` and `drupack-<version>-macos-amd64` as native macOS executables.
 - The Windows stage ships `drupack-<version>-windows-amd64.exe` as a self-extracting Windows executable.
 - Linux supports `amd64` and `arm64` distributions without a distribution-specific version promise.
 - macOS supports version 13 and later. Windows supports version 10 22H2 and later.

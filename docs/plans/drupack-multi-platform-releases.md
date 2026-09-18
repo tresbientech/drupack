@@ -15,7 +15,7 @@
 - Variables that the launcher sets for its own runtime use the `DRUPACK_RUNTIME_` prefix.
 - The first release ships Linux `amd64` and `arm64` musl executables, macOS `arm64` and `amd64` executables and a Windows `amd64` executable.
 - Every target keeps the same CLI options, environment variables, default `./data` directory, seeded SQLite site, database drivers and `dr` command.
-- A GitHub Release holds the executables, `checksums.txt`, `release.json` and one CycloneDX SBOM. The Linux and macOS executables ship gzipped, because UPX miscompresses a binary with our segment layout ([UPX issue 836](https://github.com/upx/upx/issues/836)).
+- A GitHub Release holds the executables, `checksums.txt`, `release.json` and one CycloneDX SBOM.
 - Each GitHub Release carries provenance attestations for its files.
 - The packaged site template is Byte 1.0.3.
 - The Seed site uninstalls `automatic_updates` and `package_manager`. A packaged executable cannot update its own Drupal core in place; Drupack ships a new executable instead.
@@ -218,7 +218,9 @@ Tag `0.1.0` on `main` at the Forge after phases 3 to 7.
 
 ### Executable compression
 
-UPX packed the Linux executable to 123 MB from 417 MB, until a tagged build produced a file that failed UPX's own test. Every method fails, on any machine, for a build that trips it, and a later build of the same source can pass: [UPX issue 836](https://github.com/upx/upx/issues/836) miscalculates a checksum when a segment carries a large `p_align` and a tiny `p_filesz`. PHP's `.remap_stub` segment is 490 bytes aligned to 2 MiB, so every Drupack build has that shape. Releases now ship gzipped executables instead. A packer that works on this layout, or a smaller application, would bring the single-file download back.
+A tagged build failed because UPX packed the Linux executable and then rejected its own output. The corruption follows the file: the runner's binary fails on a development machine too. PHP's `.remap_stub` segment holds 490 bytes and declares a 2 MiB alignment, which trips [UPX issue 836](https://github.com/upx/upx/issues/836), a checksum bug open since 2005. Whether a given build survives depends on where the compressor's blocks fall.
+
+`packaging/align-segments.php` runs after the Go build and records a page-sized alignment for that segment. Its address stays 2 MiB aligned, so the loader sees no change, and `opcache.huge_code_pages` is off, so nothing reads it at runtime. The script fails when it finds no such segment, which says the workaround has outlived its cause.
 
 ### Aggregated asset caching
 

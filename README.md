@@ -106,25 +106,16 @@ Getting a Drupal core security fix means installing a newer Drupack release. A n
 
 A version tag such as `0.1.0` publishes a GitHub Release with these files:
 
-- `drupack-<version>-linux-amd64.gz`
-- `drupack-<version>-linux-arm64.gz`
-- `drupack-<version>-macos-arm64.gz`
-- `drupack-<version>-macos-amd64.gz`
+- `drupack-<version>-linux-amd64`
+- `drupack-<version>-linux-arm64`
+- `drupack-<version>-macos-arm64`
+- `drupack-<version>-macos-amd64`
 - `drupack-<version>-windows-amd64.exe`
 - `checksums.txt`
 - `release.json`, with each asset's target, URL, SHA-256 value and size
 - `drupack.cdx.json`, a CycloneDX SBOM
 
-The Linux and macOS executables hold Drupal, PHP and Caddy uncompressed, around 400 MB each, so they ship gzipped. Unpack one after downloading it.
-
-```sh
-gunzip drupack-<version>-linux-amd64.gz
-chmod +x drupack-<version>-linux-amd64
-```
-
-The Windows executable needs no unpacking, because its launcher carries a compressed payload.
-
-Verify a download before unpacking it. `checksums.txt` lists the file as published.
+Verify downloaded executables before use.
 
 ```sh
 sha256sum --ignore-missing -c checksums.txt
@@ -145,7 +136,6 @@ gh attestation verify drupack-<version>-linux-amd64 --repo tresbientech/drupack
 The macOS executables are not notarized. macOS blocks a downloaded executable until its quarantine attribute is removed.
 
 ```sh
-gunzip drupack-<version>-macos-arm64.gz
 xattr -d com.apple.quarantine drupack-<version>-macos-arm64
 chmod +x drupack-<version>-macos-arm64
 ```
@@ -158,17 +148,17 @@ Site data contains the database, uploads, private files, generated settings, has
 
 ## Tests
 
-Build the executable, then run the suites against it.
+Build an uncompressed test binary when UPX compression is unnecessary.
 
 ```sh
-docker build --target artifact --output type=local,dest=dist .
-bash tests/database-init.sh ./dist/drupack
-bash tests/offline.sh ./dist/drupack
-bash tests/network.sh ./dist/drupack
-bash tests/server-database.sh ./dist/drupack
-bash tests/replacement.sh ./dist/drupack
-bash tests/initialization.sh ./dist/drupack
-python3 tests/browser.py ./dist/drupack
+docker build --target uncompressed --output type=local,dest=dist/uncompressed .
+bash tests/database-init.sh ./dist/uncompressed/drupack
+bash tests/offline.sh ./dist/uncompressed/drupack
+bash tests/network.sh ./dist/uncompressed/drupack
+bash tests/server-database.sh ./dist/uncompressed/drupack
+bash tests/replacement.sh ./dist/uncompressed/drupack
+bash tests/initialization.sh ./dist/uncompressed/drupack
+python3 tests/browser.py ./dist/uncompressed/drupack
 ```
 
 ### Development loop
