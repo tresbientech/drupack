@@ -45,28 +45,38 @@ http://:{$DRUPACK_RUNTIME_PORT} {
 		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
 		path_regexp ^/(core|modules|themes|libraries)/
 	}
-	# Aggregated CSS/JS and image style derivatives carry a cache-busting
-	# query token, so their URL changes whenever their content does.
-	@versionedAssetQuery {
+	# Aggregated CSS/JS carries a "v" token and an image style derivative carries an
+	# "itok" token, never both, and Caddy ANDs keys on one query line. Two separate
+	# matchers, one query key each, take the same header below.
+	@versionedAssetQueryVersion {
 		file
 		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
-		query v=* itok=*
+		query v=*
+		not path_regexp ^/(core|modules|themes|libraries)/
+	}
+	@versionedAssetQueryToken {
+		file
+		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
+		query itok=*
 		not path_regexp ^/(core|modules|themes|libraries)/
 	}
 	# An upload can be replaced at the same URL in public storage, so it must
 	# revalidate rather than let a browser trust a year-old cached copy. A
 	# generated derivative under the same prefix still carries its own
 	# cache-busting query token, so it is excluded here, not layered by
-	# directive order.
+	# directive order. Two "not query" lines AND their negations, excluding
+	# either token; one "not" line with both keys would never exclude anything.
 	@publicUpload {
 		file
 		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
 		path_regexp ^/(sites/[^/]+/files/|files/)
-		not query v=* itok=*
+		not query v=*
+		not query itok=*
 	}
 	header @publicUpload Cache-Control "max-age=0,must-revalidate"
 	header @versionedAssetPath Cache-Control "max-age=31536000,public,immutable"
-	header @versionedAssetQuery Cache-Control "max-age=31536000,public,immutable"
+	header @versionedAssetQueryVersion Cache-Control "max-age=31536000,public,immutable"
+	header @versionedAssetQueryToken Cache-Control "max-age=31536000,public,immutable"
 	php_server {
 		root web
 	}

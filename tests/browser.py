@@ -213,8 +213,14 @@ class SeededSite(unittest.TestCase):
             # template entry; skip it in favor of a concrete derivative URL.
             derivative = next((url for url in candidates if "%7B" not in url), None)
             self.assertIsNotNone(derivative, "expected an image style derivative on the homepage")
+            # The first request generates the derivative; Drupal serves that response
+            # itself. The file exists on disk from the second request onward. Caddy's
+            # own cache headers apply only to that second request.
             status, _, _ = fetch(derivative)
             self.assertEqual(status, 200)
+            status, headers, _ = fetch(derivative)
+            self.assertEqual(status, 200)
+            self.assertEqual(headers.get("Cache-Control"), "max-age=31536000,public,immutable")
         finally:
             self.stop()
 
