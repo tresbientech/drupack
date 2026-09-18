@@ -50,7 +50,7 @@ First start copies an installed Byte Seed site into `./data`. It needs administr
 
 A first start without those options asks for a name and a password in the terminal. A start that cannot read input, such as one in a script, fails instead.
 
-A first start opens `http://localhost:8080` in a browser once the site answers, on every platform. Drupal's web installer does not run. Later starts use the existing Site data, need no credentials, and open no browser. `--no-browser` stops Drupack from opening one in every case. The terminal prints the site address, the Site data path, the log path and how to stop the site, then a readiness line once the site answers.
+A first start in a terminal opens `http://localhost:8080` in a browser once the site answers. A start with no terminal on its input, such as one in a script or a container, opens none. Drupal's web installer does not run. Later starts use the existing Site data and need no credentials. `--no-browser` stops Drupack from opening a browser in every case. The terminal prints the site address, the Site data path, the log path and how to stop the site, then a readiness line once the site answers.
 
 Caddy's own lines, PHP warnings and PHP errors go to `<data>/logs/caddy.log`, in JSON. Access logs stay off.
 
@@ -100,7 +100,7 @@ The Seed site uninstalls `automatic_updates` and `package_manager`. A packaged e
 
 `drupal/automatic_updates` 4.1.0's `CommandExecutor::start()` loops on a comparison against a time that never advances. A cron-triggered request then stalls until PHP's execution time limit. The unreleased `4.x-dev` branch, as of 2026-03-31, has the same code. The Seed site's first request returns quickly because it does not ship `automatic_updates` or `package_manager` enabled. Enabling either module brings the 240-second stall back: the loop's code stays in the executable.
 
-Getting a Drupal core security fix means installing a newer Drupack release. A new release carries the newer Drupal core. Site data survives replacing the executable; `tests/replacement.sh` checks that. Nothing yet watches upstream Drupal releases and triggers a new Drupack release for one.
+Getting a Drupal core security fix means installing a newer Drupack release. A new release carries the newer Drupal core. Site data survives replacing the executable; `tests/replacement.sh` checks that. Nothing yet watches upstream Drupal releases and triggers a new Drupack release for one. [RFC dependency-updates-and-compatibility](docs/rfc/dependency-updates-and-compatibility.md) plans that work.
 
 ## Releases
 
@@ -145,6 +145,16 @@ The Windows executable is not code-signed. SmartScreen or antivirus software can
 ## Site data
 
 Site data contains the database, uploads, private files, generated settings, hash salt, configuration exports, and runtime files. Stop the executable before copying Site data for backup. Keep backups private.
+
+One start at a time prepares a Site data directory. A second start of the same directory fails with a message naming it, and Drush keeps working while a site serves.
+
+A start refuses the directory in three cases, each naming the directory and the command to run:
+
+- setup stopped before the administrator account was set, so the site would still accept the published seed password
+- a site exists that Drupack cannot bootstrap
+- a database already holds a site that Drupack did not install, and the connection settings point at it
+
+An interrupted setup resumes from the step it owed. Drupack never installs Drupal over a database that already holds a site, and never copies its Seed site over an existing one.
 
 ## Tests
 

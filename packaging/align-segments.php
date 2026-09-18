@@ -9,9 +9,9 @@ declare(strict_types=1);
 // address stays aligned, so recording a page-sized alignment changes nothing for
 // the loader.
 //
-// To find out whether UPX still needs this, build with DRUPACK_KEEP_ALIGNMENT=1.
-// The build then packs the executable as PHP linked it, and UPX's own test says
-// whether the bug survives.
+// UPX's own test decides whether a build ships, so this script reports what it
+// changed and never fails a build. To find out whether UPX still needs it, build
+// with DRUPACK_KEEP_ALIGNMENT=1: the executable then packs as PHP linked it.
 
 const PAGE_ALIGNMENT = 0x1000;
 const PROGRAM_HEADER_OFFSET = 0x20;
@@ -49,5 +49,6 @@ for ($index = 0; $index < $count; $index++) {
 fclose($file);
 
 if ($patched === 0) {
-    throw new RuntimeException('No segment needs realignment. Check whether UPX still needs this and remove it.');
+    // arm64 links the same PHP without that alignment, so it packs as it is.
+    print "No segment needs realignment\n";
 }
