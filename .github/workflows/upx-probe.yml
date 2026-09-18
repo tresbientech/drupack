@@ -44,6 +44,12 @@ jobs:
           path: packed
           if-no-files-found: error
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upx-input
+          path: dist/drupack
+          if-no-files-found: error
+
       - name: Try each UPX method
         run: |
           curl -fsSL https://github.com/upx/upx/releases/download/v5.2.1/upx-5.2.1-amd64_linux.tar.xz -o upx.tar.xz
