@@ -121,6 +121,9 @@ expect_link() {
   grep -Fq '  Site data:' "$results/$1.log" || fail "$1: the start printed no site data label"
   grep -Fq '  Log:' "$results/$1.log" || fail "$1: the start printed no log label"
   grep -Fq 'Press Ctrl+C to stop.' "$results/$1.log" || fail "$1: the start printed no stop instruction"
+  [[ -f "$data/logs/caddy.log" ]] || fail "$1: the Caddy log file was not created"
+  printf '%s\n' caddy-log-sentinel >>"$data/logs/caddy.log"
+  ! grep -Fq caddy-log-sentinel "$results/$1.log" || fail "$1: Caddy log content appeared in CLI output"
   grep -Fq "$login_line" "$results/$1.log" || fail "$1: the start printed no one-time login link"
 }
 
