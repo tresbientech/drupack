@@ -582,8 +582,9 @@ function runStep(string $step, string $data, array $options, string $binary): vo
             configureSeedAdministrator($binary);
             return;
         case 'install':
-            if (installSite($data, $options, $binary, file_exists(firstEverPath($data)))) {
-                file_put_contents(adoptedPath($data), '', LOCK_EX);
+            if (installSite($data, $options, $binary, file_exists(firstEverPath($data)))
+                && file_put_contents(adoptedPath($data), '', LOCK_EX) === false) {
+                throw new RuntimeException('Cannot record that this database already held a site');
             }
             return;
         case 'modules':
