@@ -93,7 +93,7 @@ expect_refusal() {
 reset_site() {
   rm -rf "$data/settings.php" "$data/site-installed" "$data/installation-progress" "$data/hash_salt" \
     "$data/site.sqlite" "$data/site.sqlite-shm" "$data/site.sqlite-wal" "$data/files" "$data/private" \
-    "$data/config" "$data/tmp"
+    "$data/config" "$data/tmp" "$data/site-adopted"
 }
 
 expect_marker() {

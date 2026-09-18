@@ -229,6 +229,13 @@ function progressPath(string $directory): string
     return "$directory/installation-progress";
 }
 
+// Marks a database the install step found already occupied, so a later or resumed
+// modules step changes nothing on it.
+function adoptedPath(string $directory): string
+{
+    return "$directory/site-adopted";
+}
+
 function credentialsRequired(array $steps): bool
 {
     return array_intersect(['administrator', 'install'], $steps) !== [];
@@ -454,20 +461,26 @@ function installDrupal(array $options, string $binary): void
 }
 
 // The database is the user's only copy: an installed site is kept, and other tables stop the start.
-function installSite(string $data, array $options, string $binary): void
+// A resumed installation already owns this database, so only a first-ever run treats it as adopted.
+function installSite(string $data, array $options, string $binary, bool $firstEver): bool
 {
     if (drushField($binary, ['status', '--field=bootstrap']) === 'Successful') {
-        fwrite(STDOUT, "This database already holds a site. Drupack keeps it, with its own administrator account.\n");
-        return;
+        if (!$firstEver) {
+            return false;
+        }
+        fwrite(STDOUT, "This database already holds a site. Drupack enabled nothing on it, and keeps its own administrator account.\n");
+        return true;
     }
     if (databaseHoldsTables($options)) {
         throw new RuntimeException("The database for $data holds tables without an installed site. Empty it or name another database, then start Drupack again.");
     }
     installDrupal($options, $binary);
+    return false;
 }
 
 // The Dockerfile installs the seed with this password, on the site:install line that
-// builds /app/seed. It ships in the Dockerfile and in every executable.
+// builds /app/seed, and tests/initialization.sh checks that they match. It ships in
+// the Dockerfile and in every executable.
 function seedPassword(): string
 {
     return 'drupack-seed-password';
@@ -522,7 +535,19 @@ function configureSeedAdministrator(string $binary): void
     runDrush($binary, [drushPath(), 'php:eval', '$account = \\Drupal\\user\\Entity\\User::load(1); $account->set("name", getenv("DRUPACK_ADMIN_USER")); $account->setPassword(getenv("DRUPACK_ADMIN_PASSWORD")); $account->save();'], 'Cannot configure Drupal administrator');
 }
 
-function runStep(string $step, string $data, array $options, string $binary): void
+// The Byte recipe enables these during site:install; the Dockerfile removes them
+// from the seed the same way. A resumed modules step can run after an earlier one
+// already removed them, and Drush refuses to uninstall a module that is not enabled.
+function removeRecipeModules(string $binary): void
+{
+    $enabled = json_decode(drushField($binary, ['pm:list', '--status=enabled', '--format=json']), true);
+    $present = array_intersect(['automatic_updates', 'package_manager'], array_keys((array) $enabled));
+    if ($present !== []) {
+        runDrush($binary, array_merge([drushPath(), 'pm:uninstall'], $present, ['--yes']), 'Cannot remove automatic updates');
+    }
+}
+
+function runStep(string $step, string $data, array $options, string $binary, array $steps): void
 {
     switch ($step) {
         case 'seed':
@@ -542,9 +567,17 @@ function runStep(string $step, string $data, array $options, string $binary): vo
             configureSeedAdministrator($binary);
             return;
         case 'install':
-            installSite($data, $options, $binary);
+            // `settings` in the pending list means this is the site's first pass at this
+            // database. A resumed run without it already owns whatever it finds there.
+            if (installSite($data, $options, $binary, in_array('settings', $steps, true))) {
+                file_put_contents(adoptedPath($data), '', LOCK_EX);
+            }
             return;
         case 'modules':
+            if (file_exists(adoptedPath($data))) {
+                return;
+            }
+            removeRecipeModules($binary);
             runDrush($binary, [drushPath(), 'pm:enable', 'mcp_tools', '--yes'], 'Cannot enable MCP Tools');
             return;
         case 'adopt':
@@ -564,13 +597,16 @@ function initialize(string $data, array $steps, array $options, string $binary):
     }
     writeProgress($data, $steps);
     foreach ($steps as $index => $step) {
-        runStep($step, $data, $options, $binary);
+        runStep($step, $data, $options, $binary, $steps);
         writeProgress($data, array_slice($steps, $index + 1));
     }
     if (file_put_contents(markerPath($data), '', LOCK_EX) === false) {
         throw new RuntimeException('Cannot record the finished installation');
     }
     unlink(progressPath($data));
+    if (file_exists(adoptedPath($data))) {
+        unlink(adoptedPath($data));
+    }
 }
 
 try {

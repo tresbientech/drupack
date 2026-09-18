@@ -101,6 +101,14 @@ for database in mysql pgsql; do
     exit 1
   fi
 
+  # The Byte recipe enables these during site:install. A runtime install must remove
+  # them, matching the Dockerfile's seed cleanup, or cron stalls for 240s.
+  enabled=$("$binary" dr --data-dir "$data" pm:list --status=enabled --format=json)
+  if grep -q '"automatic_updates"' <<<"$enabled" || grep -q '"package_manager"' <<<"$enabled"; then
+    printf '%s: automatic_updates or package_manager is enabled\n' "$database" >&2
+    exit 1
+  fi
+
   start_site restart
   expect_status / 200
   stop_site
