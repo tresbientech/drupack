@@ -466,11 +466,26 @@ function installSite(string $data, array $options, string $binary): void
     installDrupal($options, $binary);
 }
 
+// The Dockerfile installs the seed with this account name, on the site:install line that
+// builds /app/seed. Its password ships in the Dockerfile and in every executable.
+function seedAdministrator(): string
+{
+    return 'drupack-admin';
+}
+
 // File presence cannot tell a finished site from an interrupted one, so adoption asks Drupal.
+// A first start interrupted before its administrator step can still bootstrap, with the seed
+// account in place, and adoption must not hand that back: its password is public.
 function adoptSite(string $data, string $binary): void
 {
     if (drushField($binary, ['status', '--field=bootstrap']) !== 'Successful') {
         throw new RuntimeException("This Site data holds settings but no installed site: $data. Inspect it with: drupack dr --data-dir $data status");
+    }
+    $seed = seedAdministrator();
+    if (drushField($binary, ['php:eval', 'print \\Drupal\\user\\Entity\\User::load(1)->getAccountName();']) === $seed) {
+        throw new RuntimeException("This Site data holds a site with the packaged seed administrator account: $data. Its password is public. "
+            . "Rename it and set a new password, then start Drupack again: drupack dr --data-dir $data php:eval "
+            . '\'$account = \\Drupal\\user\\Entity\\User::load(1); $account->set("name", "new-name"); $account->setPassword("new-password"); $account->save();\'');
     }
 }
 
