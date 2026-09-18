@@ -50,9 +50,11 @@ First start copies an installed Byte Seed site into `./data`. It needs administr
 
 A first start without those options asks for a name and a password in the terminal. A start that cannot read input, such as one in a script, fails instead.
 
-Open `http://localhost:8080`. Drupal's web installer does not run. Later starts use the existing Site data and need no credentials.
+A first start opens `http://localhost:8080` in a browser once the site answers, on every platform. Drupal's web installer does not run. Later starts use the existing Site data, need no credentials, and open no browser. `--no-browser` stops Drupack from opening one in every case. The terminal prints the site address, the Site data path, the log path and how to stop the site, then a readiness line once the site answers.
 
-A double-click in Windows Explorer opens a console window, asks for the credentials, then opens the site in the browser once it answers. `--no-browser` stops that. A failed start keeps the window open until Enter.
+Caddy's own lines, PHP warnings and PHP errors go to `<data>/logs/caddy.log`, in JSON. Access logs stay off.
+
+A double-click in Windows Explorer opens a console window and asks for credentials on a first start; it opens the browser on every start from Explorer, first or later. `--no-browser` still stops that. A failed start keeps the window open until Enter.
 
 `drupack --version` prints the release, and `drupack --help` lists every option.
 
@@ -84,7 +86,7 @@ The executable stores database configuration in Site data. Database migrations a
 ./dist/drupack dr --data-dir ./data pm:list --status=enabled
 ```
 
-Runtime Composer operations are not included.
+Runtime Composer operations are not included. `dr` opens no browser and prints no readiness line.
 
 ## Local MCP tools
 

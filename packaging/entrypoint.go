@@ -35,15 +35,19 @@ Examples:
   drupack dr --data-dir ./site status
   drupack dr --data-dir ./site user:login`
 
-// openWhenReady waits for the site to answer, then opens it. launch.php starts
-// this command before it replaces itself with the server.
-func openWhenReady(address string) {
+// openWhenReady waits for the site to answer, then reports readiness and opens the
+// browser when asked. launch.php starts this command before it replaces itself with
+// the server, so the terminal keeps one readiness line even when no browser opens.
+func openWhenReady(address string, browser bool) {
 	deadline := time.Now().Add(2 * time.Minute)
 	for time.Now().Before(deadline) {
 		response, err := http.Get(address)
 		if err == nil {
 			response.Body.Close()
-			openBrowser(address)
+			fmt.Println("Drupal is ready.")
+			if browser {
+				openBrowser(address)
+			}
 			return
 		}
 		time.Sleep(500 * time.Millisecond)
@@ -78,8 +82,8 @@ func init() {
 		os.Args = append([]string{os.Args[0], "php-cli", "launch.php"}, os.Args[2:]...)
 		return
 	}
-	if len(os.Args) == 3 && os.Args[1] == "open-when-ready" {
-		openWhenReady(os.Args[2])
+	if len(os.Args) == 4 && os.Args[1] == "open-when-ready" {
+		openWhenReady(os.Args[2], os.Args[3] == "1")
 		os.Exit(0)
 	}
 	if len(os.Args) == 2 && (os.Args[1] == "--help" || os.Args[1] == "-h") {

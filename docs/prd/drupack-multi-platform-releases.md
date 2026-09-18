@@ -58,9 +58,11 @@ A Homebrew tap installs Linux and macOS releases. WinGet installs the Windows po
 
 - A first start without administrator credentials asks for a name, with `admin` as the default, and for a password twice, on a terminal that can read input. The password stays hidden where the platform allows it.
 - A first start that cannot read input keeps the current error, so tests and scripts do not change.
-- A process that is the only one attached to its console was started from a file manager. It then opens the browser once the site answers, and waits for Enter after an error, so the window stays readable.
-- `--no-browser` stops Drupack from opening a browser.
-- A successful start prints the site address, the Site data directory, and how to stop the site.
+- A start that creates or resumes a site opens the browser once the site answers, on every platform. A later start opens the browser only when it is the only process attached to its console, which means a file manager started it; that process also waits for Enter after an error, so the window stays readable.
+- `--no-browser` stops Drupack from opening a browser in every case.
+- Caddy's runtime lines, PHP warnings and PHP errors go to `<data>/logs/caddy.log`, in JSON, with a 100MiB roll size and 10 kept files. Access logs stay off.
+- A successful start prints the site address, the Site data directory, the log path and how to stop the site, followed by a readiness line once the site answers.
+- A `dr` command opens no browser and prints no readiness line.
 - `--version` prints the Drupack version. `--help` lists the options with examples for `dr` and the database options.
 
 ### Release targets

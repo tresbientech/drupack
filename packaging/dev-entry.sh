@@ -31,8 +31,10 @@ cd /data/runtime/app
 # the server starts separately below.
 DRUPACK_RUNTIME_DRUSH=1 "$binary" php-cli launch.php --data-dir /data --listen "0.0.0.0:$listen" "$@" status --field=bootstrap
 
+mkdir -p /data/logs
 export DRUPACK_RUNTIME_DATA_DIR=/data
 export DRUPACK_RUNTIME_BIND=0.0.0.0
 export DRUPACK_RUNTIME_PORT=$listen
 export DRUPACK_RUNTIME_HOST=localhost
+export DRUPACK_RUNTIME_LOG_PATH=/data/logs/caddy.log
 exec "$binary" run --config Caddyfile --adapter caddyfile

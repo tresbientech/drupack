@@ -48,7 +48,7 @@ for mode in loopback network; do
   ready=false
   for attempt in {1..60}; do
     docker logs "$app" >"$results/$mode.log" 2>&1
-    if grep -q 'server running' "$results/$mode.log"; then
+    if grep -Fq 'Drupal is ready.' "$results/$mode.log"; then
       ready=true
       break
     fi

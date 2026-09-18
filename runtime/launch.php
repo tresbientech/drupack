@@ -211,12 +211,12 @@ function askCredentials(array $options, array $steps): array
     return $options;
 }
 
-// The Go entrypoint waits for the first response and opens the browser. This
-// process becomes the server, so it cannot wait for itself.
-function openWhenServing(string $binary, string $url): void
+// The Go entrypoint waits for the first response, prints the readiness line and opens
+// the browser when asked. This process becomes the server, so it cannot wait for itself.
+function openWhenServing(string $binary, string $url, bool $browser): void
 {
-    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['file', nullDevice(), 'w'], 2 => ['file', nullDevice(), 'w']];
-    proc_open([$binary, 'open-when-ready', $url], $descriptors, $pipes, __DIR__);
+    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => STDOUT, 2 => ['file', nullDevice(), 'w']];
+    proc_open([$binary, 'open-when-ready', $url, $browser ? '1' : '0'], $descriptors, $pipes, __DIR__);
 }
 
 function markerPath(string $directory): string
@@ -612,13 +612,14 @@ try {
     umask(0077);
     directory($options['data-dir']);
     $data = realpath($options['data-dir']);
-    foreach (['runtime', 'files', 'files/translations', 'private', 'tmp', 'config'] as $name) {
+    foreach (['runtime', 'files', 'files/translations', 'private', 'tmp', 'config', 'logs'] as $name) {
         directory("$data/$name");
     }
     putenv("DRUPACK_RUNTIME_DATA_DIR=$data");
     putenv("DRUPACK_RUNTIME_BIND=$bind");
     putenv("DRUPACK_RUNTIME_PORT=$port");
     putenv('DRUPACK_RUNTIME_HOST=' . $options['host']);
+    putenv("DRUPACK_RUNTIME_LOG_PATH=$data/logs/caddy.log");
     $runtime = realpath("$data/runtime");
     // FrankenPHP extracts the embedded application under the process temporary directory.
     putenv("TMPDIR=$runtime");
@@ -647,6 +648,9 @@ try {
         }
         putenv('DRUPACK_RUNTIME_RESTARTED=1');
         $arguments = ['php-cli', 'launch.php', '--data-dir', $data, '--listen', $options['listen'], '--host', $options['host']];
+        if ($options['no-browser'] !== null) {
+            $arguments[] = '--no-browser';
+        }
         if ($drush) {
             $arguments = array_merge($arguments, $command);
         }
@@ -660,6 +664,9 @@ try {
         $lock = startupLock($data);
         $steps = remainingSteps($data, $options['database']);
     }
+    // A start that runs no step here found an already-initialized site, so only the start
+    // that creates or resumes one opens a browser on its own.
+    $created = $steps !== [];
     if (file_exists("$data/settings.php")) {
         linkSite($data);
         // A pending settings step rewrites the file, so its contents are read once they are final.
@@ -682,11 +689,11 @@ try {
         exit(process($binary, array_merge(['php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], __DIR__, 'Cannot run Drush'));
     }
     $url = "http://{$options['host']}:$port/";
-    fwrite(STDOUT, "Drupal: $url\nSite data: $data\nStop the site with Ctrl+C.\n");
-    // A file manager started this console, so the site has no other way to reach its reader.
-    if (environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1' && $options['no-browser'] === null) {
-        openWhenServing($binary, $url);
-    }
+    fwrite(STDOUT, "Drupal: $url\nSite data: $data\nLog: $data/logs/caddy.log\nStop the site with Ctrl+C.\n");
+    // The first start is the moment a person wants the site in front of them. A file manager
+    // on Windows has no other way to reach its reader on a later start.
+    $browser = $options['no-browser'] === null && ($created || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1');
+    openWhenServing($binary, $url, $browser);
     replaceProcess($binary, ['php-server'], __DIR__, 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
