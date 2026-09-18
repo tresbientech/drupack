@@ -46,19 +46,23 @@ A folder per site keeps each site with its data. To run `drupack` from anywhere 
 ./drupack
 ```
 
-Drupack asks for an administrator name and password, installs your site, and opens `http://localhost:8080` in your browser. The first start of each version also unpacks its runtime, which adds about a second.
+Drupack installs your site and serves it on `http://localhost:7225`. It prints a one-time login link and opens your browser on it. The link logs you in as `admin` and lands you on your account page, where you set your own password. The first start of each version also unpacks its runtime, which adds about a second.
 
-Later starts need nothing:
+Later starts need nothing and print no link:
 
 ```sh
 ./drupack
 ```
 
-To set the credentials without being asked, for a script or a fresh machine:
+`./drupack dr user:login` prints a fresh one-time login link whenever you need one.
+
+To choose the administrator name and password yourself, for a script or a fresh machine:
 
 ```sh
 ./drupack --admin-user admin --admin-password 'choose-a-password'
 ```
+
+Drupack still prints the login link.
 
 Stop the site with Ctrl+C.
 
@@ -67,7 +71,7 @@ The terminal shows the address, where Site data lives, the log file and how to s
 Useful options:
 
 - `--data-dir PATH` puts Site data somewhere else. `DRUPACK_DATA_DIR` sets a default.
-- `--listen IP:PORT` serves on another address, `127.0.0.1:8080` by default.
+- `--listen IP:PORT` serves on another address, `127.0.0.1:7225` by default. Each start records its address in Site data, so `dr` reaches the site without repeating the option.
 - `--site-name NAME` names the site on a first start, `Drupal Mercury Demo` by default. `DRUPACK_SITE_NAME` sets it too. A later start never renames a site.
 - `--no-browser` starts without opening a browser.
 - `drupack --version` prints the release, `drupack version` names every component it carries, and `drupack --help` lists every option.

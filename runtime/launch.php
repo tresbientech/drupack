@@ -102,8 +102,9 @@ function options(array $arguments, bool $drush): array
 {
     $options = [
         'data-dir' => environment('DRUPACK_DATA_DIR') ?? './data',
-        'listen' => '127.0.0.1:8080',
-        'host' => 'localhost',
+        // The listener defaults after the recorded one is read, so an absent option is still visible here.
+        'listen' => null,
+        'host' => null,
         'database' => environment('DRUPACK_DATABASE') ?? 'sqlite',
         'db-host' => environment('DRUPACK_DB_HOST'),
         'db-port' => environment('DRUPACK_DB_PORT'),
@@ -145,79 +146,27 @@ function options(array $arguments, bool $drush): array
     return [$options, $command];
 }
 
-function readAnswer(): string
-{
-    $line = fgets(STDIN);
-    if ($line === false) {
-        throw new RuntimeException('Cannot read administrator credentials');
-    }
-    return trim($line);
-}
-
-// Reads one line without echo. Windows has no stty, so PowerShell reads the line there.
-function readSecret(string $question): string
-{
-    fwrite(STDOUT, $question);
-    if (windows()) {
-        $script = '$secret = Read-Host -AsSecureString;'
-            . ' [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret))';
-        $output = shell_exec('powershell -NoProfile -NonInteractive -Command ' . escapeshellarg($script));
-        if ($output === null || $output === false) {
-            throw new RuntimeException('Cannot read administrator credentials');
-        }
-        return trim($output);
-    }
-    shell_exec('stty -echo');
-    try {
-        $secret = readAnswer();
-    } finally {
-        shell_exec('stty echo');
-        fwrite(STDOUT, "\n");
-    }
-    return $secret;
-}
-
-// A terminal supplies missing credentials. A start without a terminal keeps the missing-credential failure.
-function askCredentials(array $options, array $steps): array
+// The generated password is never shown: the printed one-time login link takes the reader to
+// the account form, where they choose their own. It only keeps the account from being
+// passwordless. It reaches only the Drupal step that sets it.
+function administratorCredentials(array $options, array $steps): array
 {
     if (!credentialsRequired($steps)) {
         return $options;
     }
-    if ($options['admin-user'] !== null && $options['admin-password'] !== null) {
-        return $options;
-    }
-    if (!stream_isatty(STDIN)) {
-        return $options;
-    }
-    fwrite(STDOUT, in_array('settings', $steps, true)
-        ? "This directory has no site yet. Drupack creates one now.\n"
-        : "This site has no administrator account yet. Drupack finishes its setup now.\n");
-    if ($options['admin-user'] === null) {
-        fwrite(STDOUT, 'Administrator name [admin]: ');
-        $name = readAnswer();
-        $options['admin-user'] = $name === '' ? 'admin' : $name;
-    }
-    while ($options['admin-password'] === null) {
-        $password = readSecret('Administrator password: ');
-        if ($password === '') {
-            fwrite(STDOUT, "A password is required.\n");
-            continue;
-        }
-        if ($password !== readSecret('Repeat the password: ')) {
-            fwrite(STDOUT, "The passwords do not match.\n");
-            continue;
-        }
-        $options['admin-password'] = $password;
-    }
+    $options['admin-user'] ??= 'admin';
+    $options['admin-password'] ??= bin2hex(random_bytes(32));
     return $options;
 }
 
 // The Go entrypoint waits for the first response, prints the readiness line and opens
 // the browser when asked. This process becomes the server, so it cannot wait for itself.
-function openWhenServing(string $binary, string $url, bool $browser): void
+// A request spends a one-time login link, so readiness is polled on $url and the browser
+// opens on $target.
+function openWhenServing(string $binary, string $url, string $target, bool $browser): void
 {
     $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => STDOUT, 2 => ['file', nullDevice(), 'w']];
-    proc_open([$binary, 'open-when-ready', $url, $browser ? '1' : '0'], $descriptors, $pipes, __DIR__);
+    proc_open([$binary, 'open-when-ready', $url, $target, $browser ? '1' : '0'], $descriptors, $pipes, __DIR__);
 }
 
 function markerPath(string $directory): string
@@ -243,6 +192,36 @@ function adoptedPath(string $directory): string
 function firstEverPath(string $directory): string
 {
     return "$directory/first-install";
+}
+
+// Every start records where it serves, so a later `dr` addresses the site on the port it
+// actually uses. Site data written before this record falls back to the listener defaults.
+function listenerPath(string $directory): string
+{
+    return "$directory/listener";
+}
+
+function recordedListener(array $options, string $directory): array
+{
+    if (!file_exists(listenerPath($directory))) {
+        return $options;
+    }
+    $record = json_decode((string) file_get_contents(listenerPath($directory)), true);
+    if (!is_array($record)) {
+        throw new RuntimeException('Cannot read the recorded listener: ' . listenerPath($directory)
+            . ". Remove that file, then start Drupack again to record it.");
+    }
+    $options['listen'] ??= $record['listen'] ?? null;
+    $options['host'] ??= $record['host'] ?? null;
+    return $options;
+}
+
+function writeListener(string $directory, array $options): void
+{
+    $record = json_encode(['listen' => $options['listen'], 'host' => $options['host']]);
+    if (file_put_contents(listenerPath($directory), $record, LOCK_EX) === false) {
+        throw new RuntimeException('Cannot record the listener');
+    }
 }
 
 function credentialsRequired(array $steps): bool
@@ -290,32 +269,16 @@ function writeProgress(string $data, array $steps): void
     }
 }
 
-// A first start takes its connection and credentials from the command line. A resumed start reads the
-// connection from the recorded settings and needs the administrator options alone.
-function requireInitializationOptions(array $options, array $steps, string $directory): void
+// A first start on a database server takes its connection from the command line. SQLite needs
+// none, and a resumed start reads the connection from the recorded settings.
+function requireDatabaseOptions(array $options, array $steps): void
 {
-    $administratorOptions = ['admin-user', 'admin-password'];
-    if (in_array('settings', $steps, true)) {
-        if ($options['database'] !== 'sqlite') {
-            foreach (['db-host', 'db-name', 'db-user', 'db-password'] as $name) {
-                if ($options[$name] === null) {
-                    throw new RuntimeException("Missing database connection details for {$options['database']}");
-                }
-            }
-        }
-        foreach ($administratorOptions as $name) {
-            if ($options[$name] === null) {
-                throw new RuntimeException('Missing Drupal administrator credentials');
-            }
-        }
+    if (!in_array('settings', $steps, true) || $options['database'] === 'sqlite') {
         return;
     }
-    if (!credentialsRequired($steps)) {
-        return;
-    }
-    foreach ($administratorOptions as $name) {
+    foreach (['db-host', 'db-name', 'db-user', 'db-password'] as $name) {
         if ($options[$name] === null) {
-            throw new RuntimeException("This Site data has no administrator account yet: $directory. Start Drupack with --admin-user and --admin-password to finish its setup.");
+            throw new RuntimeException("Missing database connection details for {$options['database']}");
         }
     }
 }
@@ -442,6 +405,19 @@ function drushField(string $binary, array $command): string
     fclose($pipes[1]);
     proc_close($child);
     return trim((string) $output);
+}
+
+// Drush prints the link and nothing else, addressing the site through DRUSH_OPTIONS_URI. It
+// must open no browser of its own: the site is not serving yet, and the Go entrypoint opens one
+// once it answers. The link is a working credential arriving from a subprocess and heading for
+// a browser command, so its origin is checked before anything uses it.
+function loginLink(string $binary, string $url): string
+{
+    $link = drushField($binary, ['user:login', '--no-browser']);
+    if (!str_starts_with($link, $url)) {
+        throw new RuntimeException('Cannot obtain a one-time login link for the administrator account');
+    }
+    return $link;
 }
 
 function databaseHoldsTables(array $options): bool
@@ -654,11 +630,18 @@ try {
         if (!file_exists($options['data-dir'] . '/settings.php')) {
             throw new RuntimeException("This Site data has no site yet: {$options['data-dir']}. Start Drupack once to create one.");
         }
+        // `dr` serves nothing of its own, so it addresses the site where the last start served.
+        $options = recordedListener($options, $options['data-dir']);
     } else {
         $steps = remainingSteps($options['data-dir'], $options['database']);
-        $options = askCredentials($options, $steps);
+        $options = administratorCredentials($options, $steps);
     }
-    requireInitializationOptions($options, $steps, $options['data-dir']);
+    // 7225 spells PACK on a phone keypad, so the default names the product. It is unassigned
+    // in /etc/services. It sits above 1024, so no start needs root, and below 32768, so an
+    // outbound connection's ephemeral port never holds it first.
+    $options['listen'] ??= '127.0.0.1:7225';
+    $options['host'] ??= 'localhost';
+    requireDatabaseOptions($options, $steps);
     // Listener values enter Caddy configuration and must contain only an IP address and port.
     if (!preg_match('/^(\[[0-9a-fA-F:]+\]|[0-9.]+):([0-9]+)$/D', $options['listen'], $listener)) {
         throw new InvalidArgumentException('--listen requires IP:PORT, with IPv6 enclosed in brackets');
@@ -688,6 +671,11 @@ try {
     putenv("DRUPACK_RUNTIME_BIND=$bind");
     putenv("DRUPACK_RUNTIME_PORT=$port");
     putenv('DRUPACK_RUNTIME_HOST=' . $options['host']);
+    // The address a reader types, never the bind address. Drush builds absolute URLs from this
+    // variable. Without it Drupal falls back to http://default, and every printed or mailed
+    // link names an unreachable host.
+    $url = "http://{$options['host']}:$port/";
+    putenv("DRUSH_OPTIONS_URI=$url");
     $logPath = "$data/logs/caddy.log";
     putenv("DRUPACK_RUNTIME_LOG_PATH=$logPath");
     $runtime = realpath("$data/runtime");
@@ -729,6 +717,9 @@ try {
         replaceProcess($binary, $arguments, $runtime, 'Cannot restart the embedded runtime');
     }
 
+    if (!$drush) {
+        writeListener($data, $options);
+    }
     $lock = null;
     if ($steps !== []) {
         // The state check and the writes that follow must not interleave with another start.
@@ -759,14 +750,21 @@ try {
     if ($drush) {
         exit(process($binary, array_merge(['php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], __DIR__, 'Cannot run Drush'));
     }
-    $url = "http://{$options['host']}:$port/";
-    fwrite(STDOUT, "Drupal: $url\nSite data: $data\nLog: $logPath\nStop the site with Ctrl+C.\n");
+    // A start that set the administrator account hands its reader a way in without a password.
+    // A later start prints none: the reader holds a password by then, and `dr user:login`
+    // issues a fresh link at any time.
+    $link = credentialsRequired($steps) ? loginLink($binary, $url) : null;
+    $readiness = "Drupal: $url\n";
+    if ($link !== null) {
+        $readiness .= "Log in and set your password: $link\n";
+    }
+    fwrite(STDOUT, $readiness . "Site data: $data\nLog: $logPath\nStop the site with Ctrl+C.\n");
     // A first start opens the browser for the person who ran it. A script, a
     // container and a test have no terminal on standard input, so they get none.
     // A file manager on Windows has no other way to reach its reader.
     $interactive = $created && stream_isatty(STDIN);
     $browser = $options['no-browser'] === null && ($interactive || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1');
-    openWhenServing($binary, $url, $browser);
+    openWhenServing($binary, $url, $link ?? $url, $browser);
     replaceProcess($binary, ['php-server'], __DIR__, 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");

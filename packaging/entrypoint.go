@@ -18,28 +18,33 @@ const usage = `Usage: drupack [OPTIONS]
 
 Options:
   --data-dir PATH            Site data directory, ./data by default
-  --listen IP:PORT           Listener address, 127.0.0.1:8080 by default
+  --listen IP:PORT           Listener address, 127.0.0.1:7225 by default
   --host HOST                Permitted request host, localhost by default
   --database sqlite|mysql|pgsql
                              Database backend for a first start, sqlite by default
   --db-host, --db-port, --db-name, --db-user, --db-password
                              Connection details for mysql and pgsql
   --admin-user, --admin-password
-                             Administrator account for a first start
+                             Administrator account for a first start. Without them
+                             a first start creates admin and prints a one-time
+                             login link.
   --site-name NAME           Site name for a first start, "Drupal Mercury Demo" by default
   --no-browser               Do not open a browser
   --version, --help
 
 Examples:
-  drupack --admin-user admin --admin-password 'choose-a-password'
+  drupack
   drupack --data-dir ./site --listen 127.0.0.1:9000
+  drupack --admin-user admin --admin-password 'choose-a-password'
   drupack dr --data-dir ./site status
   drupack dr --data-dir ./site user:login`
 
-// openWhenReady waits for the site to answer, then reports readiness and opens the
-// browser when asked. launch.php starts this command before it replaces itself with
-// the server, so the terminal keeps one readiness line even when no browser opens.
-func openWhenReady(address string, browser bool) {
+// openWhenReady waits for the site to answer at address, then reports readiness and opens
+// the browser on target when asked. launch.php starts this command before it replaces itself
+// with the server. The terminal then keeps one readiness line even when no browser opens. A
+// first start's target is a one-time login link, which a request spends, so the poll asks for
+// address instead.
+func openWhenReady(address string, target string, browser bool) {
 	deadline := time.Now().Add(2 * time.Minute)
 	for time.Now().Before(deadline) {
 		response, err := http.Get(address)
@@ -47,7 +52,7 @@ func openWhenReady(address string, browser bool) {
 			response.Body.Close()
 			fmt.Println("Drupal is ready.")
 			if browser {
-				openBrowser(address)
+				openBrowser(target)
 			}
 			return
 		}
@@ -83,8 +88,8 @@ func init() {
 		os.Args = append([]string{os.Args[0], "php-cli", "launch.php"}, os.Args[2:]...)
 		return
 	}
-	if len(os.Args) == 4 && os.Args[1] == "open-when-ready" {
-		openWhenReady(os.Args[2], os.Args[3] == "1")
+	if len(os.Args) == 5 && os.Args[1] == "open-when-ready" {
+		openWhenReady(os.Args[2], os.Args[3], os.Args[4] == "1")
 		os.Exit(0)
 	}
 	if len(os.Args) == 2 && (os.Args[1] == "--help" || os.Args[1] == "-h") {

@@ -8,24 +8,22 @@ results=$(realpath "$results")
 work=$(mktemp -d "$results/drupack-work.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 
-for database in sqlite mysql pgsql; do
+# SQLite needs no connection details and no credentials, so its first start serves instead of
+# refusing. This script starts no server, so tests/browser.py covers that start.
+for database in mysql pgsql; do
   data="$work/$database"
   log="$results/$database.log"
   if timeout 20 "$binary" --data-dir "$data" --database "$database" >"$log" 2>&1; then
-    printf 'Expected %s startup without credentials to fail\n' "$database" >&2
+    printf 'Expected %s startup without connection details to fail\n' "$database" >&2
     exit 1
   fi
-  expected="Missing Drupal administrator credentials"
-  if [[ $database != sqlite ]]; then
-    expected="Missing database connection details for $database"
-  fi
-  if ! grep -Fxq "$expected" "$log"; then
-    printf 'Expected missing-credential diagnostic for %s\n' "$database" >&2
+  if ! grep -Fxq "Missing database connection details for $database" "$log"; then
+    printf 'Expected the missing-connection diagnostic for %s\n' "$database" >&2
     cat "$log" >&2
     exit 1
   fi
   if [[ -e $data ]]; then
-    printf '%s startup without credentials wrote persistent data\n' "$database" >&2
+    printf '%s startup without connection details wrote persistent data\n' "$database" >&2
     exit 1
   fi
 done
@@ -41,7 +39,7 @@ if [[ -e $data ]]; then
 fi
 
 data="$work/quoted\"dir"
-if "$binary" --data-dir "$data" --admin-user x --admin-password x >"$results/quoted.log" 2>&1; then
+if "$binary" --data-dir "$data" >"$results/quoted.log" 2>&1; then
   printf 'Expected a --data-dir with a double quote to fail\n' >&2
   exit 1
 fi

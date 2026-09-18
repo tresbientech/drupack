@@ -77,10 +77,10 @@ A change to `runtime/` reaches the executable only through a build, which takes 
 
 ```sh
 docker build --target build -t drupack-build .
-bash packaging/dev-server.sh ./dev-data 8080 --admin-user admin --admin-password 'choose-a-password'
+bash packaging/dev-server.sh ./dev-data 7225
 ```
 
-A later start needs no options. The test scripts still need a built executable.
+Neither start needs more options. The test scripts still need a built executable.
 
 ## Launcher
 

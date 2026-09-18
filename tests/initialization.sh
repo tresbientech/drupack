@@ -8,6 +8,7 @@ results=$(realpath "$results")
 data="$results/data"
 backup="$results/backup"
 listen=127.0.0.1:18097
+default_url=http://localhost:7225/
 password=Initialization.test.2026
 site_name='Drupack initialization check'
 default_site_name='Drupal Mercury Demo'
@@ -94,7 +95,7 @@ expect_refusal() {
 reset_site() {
   rm -rf "$data/settings.php" "$data/site-installed" "$data/installation-progress" "$data/hash_salt" \
     "$data/site.sqlite" "$data/site.sqlite-shm" "$data/site.sqlite-wal" "$data/files" "$data/private" \
-    "$data/config" "$data/tmp" "$data/site-adopted" "$data/first-install"
+    "$data/config" "$data/tmp" "$data/site-adopted" "$data/first-install" "$data/listener"
 }
 
 expect_marker() {
@@ -112,17 +113,53 @@ administrator() {
   dr php:eval 'print \Drupal\user\Entity\User::load(1)->getAccountName();'
 }
 
+login_line='Log in and set your password: http'
+
+expect_link() {
+  grep -Fq "$login_line" "$results/$1.log" || fail "$1: the start printed no one-time login link"
+}
+
+expect_no_link() {
+  ! grep -Fq "$login_line" "$results/$1.log" || fail "$1: a later start printed a one-time login link"
+}
+
+# Follows a one-time login link with a cookie jar. Drupal redirects it to the account form,
+# so the landing page names the account it logged in.
+follow_link() {
+  local name=$1 link=$2 landing
+  landing=$(curl -s -L -c "$results/$name.cookies" -b "$results/$name.cookies" \
+    -o "$results/$name.html" -w '%{url_effective}' "$link")
+  [[ $landing == *"/user/1/edit"* ]] || fail "$name: the link landed on $landing"
+  grep -Fq "value=\"$3\"" "$results/$name.html" || fail "$name: the account form names no $3"
+}
+
 mkdir -p "$backup"
 
 note 'A first start creates the site and records its completion'
 start_site first-start --admin-user init-admin --admin-password "$password"
 expect_marker first-start
 expect_site_name first-start "$default_site_name"
+expect_link first-start
 dr config:set system.site name "$site_name" --yes >"$results/config-set.log" 2>&1
 
 note 'Drush works while the server runs'
 bootstrap=$(dr status --field=bootstrap)
 [[ $bootstrap == Successful ]] || fail "dr status reported bootstrap $bootstrap while the server ran"
+
+note 'dr addresses the site on the recorded listener, with no options repeated'
+link=$(dr user:login --no-browser)
+[[ $link == "http://localhost:${listen##*:}/"* ]] || fail "dr user:login printed $link"
+follow_link recorded-listener "$link" init-admin
+
+note 'dr --listen overrides the recorded listener'
+link=$(dr --listen 127.0.0.1:19999 user:login --no-browser)
+[[ $link == http://localhost:19999/* ]] || fail "an overridden dr user:login printed $link"
+
+note 'Site data with no recorded listener falls back to the default'
+mv "$data/listener" "$backup/listener"
+link=$(dr user:login --no-browser)
+[[ $link == "$default_url"* ]] || fail "a record-less dr user:login printed $link"
+mv "$backup/listener" "$data/listener"
 stop_site
 
 note 'A completed site keeps its recorded backend when a start passes other database options'
@@ -131,6 +168,7 @@ start_site recorded-backend --database mysql --db-host 127.0.0.1 --db-port 3306 
 driver=$(dr status --field=db-driver)
 [[ $driver == sqlite ]] || fail "the start replaced the recorded backend with $driver"
 expect_site_name recorded-backend "$site_name"
+expect_no_link recorded-backend
 stop_site
 
 note 'A directory without the completion marker is adopted when Drupal bootstraps'
@@ -152,7 +190,7 @@ cp "$backup/site.sqlite" "$data/site.sqlite"
 
 note 'A database without recorded settings refuses instead of taking the seed'
 rm -f "$data/settings.php" "$data/site-installed" "$data/installation-progress"
-expect_refusal orphan-database "$data" --admin-user init-admin --admin-password "$password"
+expect_refusal orphan-database "$data"
 cmp -s "$backup/site.sqlite" "$data/site.sqlite" || fail 'the refused start changed the existing database'
 
 note 'A first start interrupted before the administrator step records its progress'
@@ -190,16 +228,14 @@ grep -Fq "$data" "$results/seed-administrator.log" \
   || fail 'the refusal does not name the Site data directory'
 cp "$backup/installation-progress" "$data/installation-progress"
 
-note 'A start after an interrupted administrator replacement refuses and names the recovery'
-expect_refusal missing-credentials "$data"
-grep -Fq -- --admin-user "$results/missing-credentials.log" \
-  || fail 'the refusal does not name the credential options'
+note 'The interrupted start left the seed administrator in place'
 account=$(administrator)
 [[ $account == drupack-admin ]] || fail "the seed administrator is already replaced by $account"
 
-note 'A start with credentials finishes the interrupted setup'
+note 'A start with credentials finishes the interrupted setup and prints a link'
 start_site recovery --admin-user init-admin --admin-password "$password"
 expect_marker recovery
+expect_link recovery
 account=$(administrator)
 [[ $account == init-admin ]] || fail "the recovery left administrator $account"
 stop_kept
@@ -259,7 +295,7 @@ ln -sfn "$data" "$results/equivalent"
 holder=$!
 code=0
 timeout 180 "$binary" --data-dir "$results/equivalent" --listen "$listen" \
-  --admin-user init-admin --admin-password "$password" >"$results/equivalent.log" 2>&1 </dev/null || code=$?
+  >"$results/equivalent.log" 2>&1 </dev/null || code=$?
 touch "$results/release-lock"
 wait "$holder" 2>/dev/null || true
 holder=
@@ -309,6 +345,7 @@ start_site pgsql-first --db-name drupal "${connection[@]}" \
   --admin-user init-admin --admin-password "$password"
 expect_marker pgsql-first
 expect_site_name pgsql-first "$default_site_name"
+expect_link pgsql-first
 stop_site
 dr config:set system.site name "$site_name" --yes >"$results/pgsql-config-set.log" 2>&1
 
@@ -321,6 +358,7 @@ printf '["install","modules"]' >"$data/installation-progress"
 start_site pgsql-recovery --admin-user init-admin --admin-password "$password"
 expect_marker pgsql-recovery
 expect_site_name pgsql-recovery "$site_name"
+expect_link pgsql-recovery
 enabled=$(dr php:eval 'print \Drupal::moduleHandler()->moduleExists("mcp_tools") ? "enabled" : "missing";')
 [[ $enabled == enabled ]] || fail "the recovery left MCP Tools $enabled"
 driver=$(dr status --field=db-driver)
@@ -338,8 +376,7 @@ stop_site
 
 note 'A first start refuses a database that holds other tables'
 reset_site
-expect_refusal occupied-database "$data" --db-name occupied "${connection[@]}" \
-  --admin-user init-admin --admin-password "$password"
+expect_refusal occupied-database "$data" --db-name occupied "${connection[@]}"
 tables=$(docker exec "$container" psql -U drupal -d occupied -t -A -c \
   "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")
 [[ $tables == 1 ]] || fail "the refused start left $tables tables in the schema, expected the existing one"
