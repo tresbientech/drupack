@@ -25,23 +25,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The runner starts with about 14 GB free, the builder image takes 8.6 GB,
-      # and UPX keeps two copies of a 400 MB executable. Printing the free space
-      # tells a later failure apart from a full disk.
-      - name: Free disk space
-        run: |
-          df -h /
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
-
       - name: Build the executable
         env:
           DRUPACK_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
         run: docker build --target artifact --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" --output type=local,dest=dist .
           
-      - name: Report the free space after the build
-        run: df -h /
-
       - name: Export the application archive
         if: matrix.architecture == 'amd64'
         env:
@@ -254,6 +242,12 @@ jobs:
             asset="drupack-${VERSION}-${target}${candidate##*/drupack}"
             cp "$candidate" "release/$asset"
             chmod 0755 "release/$asset"
+            # A Linux or macOS executable holds Drupal, PHP and Caddy uncompressed,
+            # so it ships gzipped. The Windows launcher carries a compressed payload.
+            if [[ $asset != *.exe ]]; then
+              gzip -9 "release/$asset"
+              asset="$asset.gz"
+            fi
             sha256=$(sha256sum "release/$asset" | cut -d ' ' -f 1)
             printf '%s  %s\n' "$sha256" "$asset" >>release/checksums.txt
             jq -n \
