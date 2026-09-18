@@ -30,14 +30,14 @@ Consequences:
 
 ## Behaviour
 
-- The first start uses port 8080 when it is free, otherwise the next free port from 8081. The tray app records the port in Site data, so bookmarks survive. A later conflict selects a new port and shows it in a notification.
+- The first start uses port 7225 when it is free, otherwise the next free port from 7226. The tray app records the port in Site data, so bookmarks survive. A later conflict selects a new port and shows it in a notification.
 - A second double-click on Site data that is already served asks the running tray app to open the browser, then exits. `drupack-cli` refuses to serve Site data that a tray app serves. `dr` commands keep working.
 - Nothing starts at sign-in. A double-click start opens the browser.
 - The icon appears immediately in a starting state, with the menu disabled. A first start also shows the notification "Setting up your site. This takes up to a minute." A failed start shows the error in a notification.
 
 ## Menu
 
-1. The site address, such as `http://127.0.0.1:8080`, disabled
+1. The site address, such as `http://127.0.0.1:7225`, disabled
 2. Open site
 3. Log in as administrator, which creates a one-time login link
 4. Copy MCP client configuration, the output of `dr mcp-tools:client-config`

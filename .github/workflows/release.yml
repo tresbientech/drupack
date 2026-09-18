@@ -76,7 +76,7 @@ jobs:
             alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d \
             drupack --data-dir /tmp/site --admin-user alpine-admin --admin-password Alpine.check.password.2026
           for attempt in $(seq 1 60); do
-            if docker exec alpine-site wget -q -O /dev/null http://127.0.0.1:8080/user/login 2>/dev/null; then
+            if docker exec alpine-site wget -q -O /dev/null http://127.0.0.1:7225/user/login 2>/dev/null; then
               exit 0
             fi
             sleep 2

@@ -13,15 +13,20 @@ import sys
 import tempfile
 import time
 import unittest
+from http.cookiejar import CookieJar
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import HTTPCookieProcessor, Request, build_opener, urlopen
 
 
 BINARY = Path(sys.argv.pop(1)).resolve()
 RESULTS = Path(sys.argv.pop(1)).resolve()
-ORIGIN = "http://localhost:8080"
+PORT = 7225
+ORIGIN = f"http://localhost:{PORT}"
 ADMIN_USER = "drupack-test-admin"
 ADMIN_PASSWORD = "Offline.test.administrator.2026!"
+CREDENTIALS = ("--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
+LINK_PREFIX = "Log in and set your password: "
+READY_LINE = "Drupal is ready."
 
 
 def fetch(path):
@@ -46,6 +51,17 @@ def wait_until(check, timeout=120):
     raise AssertionError(f"Timed out after {timeout}s")
 
 
+# Reads one line of a running server's output, from the offset the case started at.
+def wait_for_line(log, offset, prefix, timeout=180):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        for line in log.read_text(errors="replace")[offset:].splitlines():
+            if line.startswith(prefix):
+                return line[len(prefix):].strip()
+        time.sleep(0.25)
+    raise AssertionError(f"No line starting with {prefix!r} in {log}")
+
+
 class SeededSite(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -63,10 +79,9 @@ class SeededSite(unittest.TestCase):
         cls.server_log.close()
 
     @classmethod
-    def start(cls, data):
+    def start(cls, data, *options):
         cls.server = subprocess.Popen([
-            str(cls.binary), "--data-dir", str(data), "--admin-user", ADMIN_USER,
-            "--admin-password", ADMIN_PASSWORD,
+            str(cls.binary), "--data-dir", str(data), *options,
         ], cwd=cls.work, stdout=cls.server_log, stderr=subprocess.STDOUT,
            start_new_session=True)
         wait_until(cls.ready)
@@ -75,7 +90,7 @@ class SeededSite(unittest.TestCase):
     def ready(cls):
         if cls.server.poll() is not None:
             raise AssertionError(f"Runtime exited: inspect {RESULTS / 'server.log'}")
-        with socket.create_connection(("127.0.0.1", 8080), timeout=1):
+        with socket.create_connection(("127.0.0.1", PORT), timeout=1):
             return True
 
     @classmethod
@@ -102,7 +117,7 @@ class SeededSite(unittest.TestCase):
 
     def test_seeded_sqlite_site_and_drush(self):
         data = self.work / "data"
-        self.start(data)
+        self.start(data, *CREDENTIALS)
         try:
             # Latency guard: catches a cron-triggered stall without waiting out the full 240s limit.
             requested = time.monotonic()
@@ -128,23 +143,41 @@ class SeededSite(unittest.TestCase):
             self.assertNotIn("package_manager", modules)
         finally:
             self.stop()
-        self.start(data)
+        self.start(data, *CREDENTIALS)
         try:
             self.assertNotIn("core/install.php", http("/"))
         finally:
             self.stop()
 
-    def test_first_start_needs_administrator_credentials(self):
-        data = self.work / "missing-admin"
-        result = subprocess.run([str(self.binary), "--data-dir", str(data)], cwd=self.work,
-                                capture_output=True, text=True, timeout=30)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Missing Drupal administrator credentials", result.stderr)
-        self.assertFalse(data.exists())
+    def test_first_start_without_credentials(self):
+        # No options and no terminal: the start installs a site on the default port and hands
+        # its reader a way in. Following the printed link must log a browser in as admin.
+        data = self.work / "no-credentials"
+        log = RESULTS / "server.log"
+        offset = log.stat().st_size
+        self.start(data)
+        try:
+            link = wait_for_line(log, offset, LINK_PREFIX)
+            self.assertTrue(link.startswith(ORIGIN + "/user/reset/1/"), link)
+            # A browser reaches the link only once the site has answered, so follow the
+            # product's own order instead of racing the first cold request.
+            wait_for_line(log, offset, READY_LINE)
+            opener = build_opener(HTTPCookieProcessor(CookieJar()))
+            with opener.open(link, timeout=30) as response:
+                landing = response.geturl()
+                body = response.read().decode(errors="replace")
+            self.assertIn("/user/1/edit", landing)
+            self.assertIn('value="admin"', body)
+            # The same page refuses an anonymous request, so the link supplied the session.
+            with self.assertRaises(HTTPError) as error:
+                http("/user/1/edit")
+            self.assertEqual(error.exception.code, 403)
+        finally:
+            self.stop()
 
     def test_protected_files(self):
         data = self.work / "protected"
-        self.start(data)
+        self.start(data, *CREDENTIALS)
         try:
             for path in ["/site.sqlite", "/private/probe.txt", "/sites/default/settings.php"]:
                 with self.subTest(path=path):
@@ -164,7 +197,7 @@ class SeededSite(unittest.TestCase):
         # Windows build. Fixtures are written by the test itself so no
         # executable probe ships in the repository.
         data = self.work / "php-barrier"
-        self.start(data)
+        self.start(data, *CREDENTIALS)
         try:
             files = data / "files"
             (files / "probe.php").write_text("<?php echo 'executed';")
@@ -200,7 +233,7 @@ class SeededSite(unittest.TestCase):
         # rather than serve a year-old cached copy. A versioned application
         # asset's URL changes with its content, so it can cache immutably.
         data = self.work / "cache-headers"
-        self.start(data)
+        self.start(data, *CREDENTIALS)
         try:
             (data / "files" / "upload.png").write_bytes(b"not-a-real-png")
             _, headers, _ = fetch("/sites/default/files/upload.png")

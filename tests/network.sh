@@ -76,7 +76,7 @@ import urllib.request
 mode = sys.argv[1]
 if mode == "loopback":
     try:
-        connection = socket.create_connection(("site", 8080), timeout=3)
+        connection = socket.create_connection(("site", 7225), timeout=3)
     except OSError:
         print("PASS: default listener rejects access from another container")
     else:

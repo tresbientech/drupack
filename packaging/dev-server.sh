@@ -4,7 +4,7 @@ set -euo pipefail
 usage='Usage: packaging/dev-server.sh DATA_DIRECTORY [PORT] [DRUPACK_OPTION...]'
 mkdir -p "${1:?$usage}"
 data=$(cd -- "$1" && pwd)
-port=${2:-8080}
+port=${2:-7225}
 shift 2 2>/dev/null || shift 1
 repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 image=${DRUPACK_DEV_IMAGE:-drupack-build}
