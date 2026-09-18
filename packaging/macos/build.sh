@@ -25,6 +25,8 @@ esac
 export MACOSX_DEPLOYMENT_TARGET=13.0
 mkdir -p "$work"
 cd "$work"
+# The script changes directory again below, so the caller's path resolves here.
+work=$(pwd)
 curl -fsSL -o "$spc_archive" "https://github.com/crazywhalecc/static-php-cli/releases/download/$spc_version/$spc_archive"
 printf '%s  %s\n' "$spc_sha256" "$spc_archive" | shasum -a 256 -c -
 tar -xzf "$spc_archive"
@@ -47,9 +49,20 @@ fi
 cp "$application/app.tar" "$application/app_checksum.txt" frankenphp/
 cp "$repository/packaging/entrypoint.go" frankenphp/caddy/frankenphp/drupack.go
 
+runtime="$work/runtime"
+entry=drupack
+mkdir -p "$runtime"
+
 cd frankenphp/caddy/frankenphp
 CGO_ENABLED=1 CGO_CFLAGS="$php_includes -DFRANKENPHP_VERSION=$frankenphp_version" CGO_LDFLAGS="$php_libraries" \
     go build -buildmode=pie -tags=nobadger,nomysql,nopgx \
     -ldflags="-s -w -linkmode=external -X 'main.version=${DRUPACK_VERSION:-dev}' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $php_version Caddy'" \
-    -o "$output"
+    -o "$runtime/$entry"
+"$runtime/$entry" version
+
+# The subshell keeps the packer's build inside the launcher module, off this FrankenPHP checkout.
+(cd "$repository/packaging/launcher" \
+  && go run ./cmd/pack -runtime "$runtime" -entry "$entry" \
+     -version "${DRUPACK_VERSION:-dev}" \
+     -source "$repository/packaging/launcher" -output "$output")
 "$output" version

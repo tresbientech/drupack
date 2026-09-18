@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 )
 
 // rootMode is the permission every candidate cache root is created with.
@@ -53,6 +54,9 @@ func Key(version string, payload []byte) string {
 
 // Prepare returns the directory holding the runtime m describes, staging
 // payload into root's cache the first time m's version and payload are seen.
+// Activating a newly staged key removes every other version's entry. A
+// staging failure falls back to root's active entry, when that entry is
+// still warm for its own manifest.
 func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string, error) {
 	key := Key(m.Version, payload)
 	entry := filepath.Join(root, key)
@@ -75,28 +79,45 @@ func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string,
 	fmt.Fprintf(notice, "Unpacking Drupack %s. This happens once for each version.\n", m.Version)
 
 	if err := stage(root, entry, key, payload, m); err != nil {
-		return "", err
+		wrapped := stagingFailure(root, m, err)
+		if fallbackEntry, ok := activeFallback(root); ok {
+			fmt.Fprintf(notice, "Could not unpack Drupack %s: %s. Using the runtime already in the cache.\n", m.Version, wrapped)
+			return fallbackEntry, nil
+		}
+		return "", wrapped
 	}
 	if err := writeActive(root, key); err != nil {
 		return "", err
 	}
+	removeOthers(root, key)
 	return entry, nil
 }
 
 // warm reports whether entry already holds the runtime m describes: its
 // stored manifest matches m, and every declared file has m's recorded size.
 func warm(entry string, m Manifest) bool {
-	data, err := os.ReadFile(filepath.Join(entry, ManifestName))
-	if err != nil {
-		return false
-	}
-	stored, err := ParseManifest(data)
+	stored, err := readManifest(entry)
 	if err != nil {
 		return false
 	}
 	if !reflect.DeepEqual(stored, m) {
 		return false
 	}
+	return sizesMatch(entry, m)
+}
+
+// readManifest loads and validates the manifest entry stores.
+func readManifest(entry string) (Manifest, error) {
+	data, err := os.ReadFile(filepath.Join(entry, ManifestName))
+	if err != nil {
+		return Manifest{}, err
+	}
+	return ParseManifest(data)
+}
+
+// sizesMatch reports whether every file m declares is present under entry
+// with its declared size.
+func sizesMatch(entry string, m Manifest) bool {
 	for _, file := range m.Files {
 		info, err := os.Stat(filepath.Join(entry, filepath.FromSlash(file.Path)))
 		if err != nil || info.Size() != file.Size {
@@ -104,6 +125,74 @@ func warm(entry string, m Manifest) bool {
 		}
 	}
 	return true
+}
+
+// removeOthers deletes every entry under root except key, once key is
+// active, so the cache holds at most one version. It leaves active, lock,
+// and any other process's staging directory, and reports nothing on a
+// removal failure: the next start retries.
+func removeOthers(root, key string) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return
+	}
+	for _, candidate := range entries {
+		name := candidate.Name()
+		if name == key || name == "active" || name == "lock" {
+			continue
+		}
+		if staging, _ := filepath.Match("*.staging-*", name); staging {
+			continue
+		}
+		os.RemoveAll(filepath.Join(root, name))
+	}
+}
+
+// activeFallback returns the cache entry root's active file names, when its
+// files still hash to what its own manifest declares. That manifest, not the
+// one Prepare was asked to stage, is the authority here, since a fallback
+// entry's version differs from the embedded one. A warm start compares sizes
+// alone, but this path is about to run a runtime the build cannot vouch for,
+// so it hashes every file. The cost lands only when staging has failed.
+func activeFallback(root string) (string, bool) {
+	key, err := activeKey(root)
+	if err != nil {
+		return "", false
+	}
+	entry := filepath.Join(root, key)
+	stored, err := readManifest(entry)
+	if err != nil {
+		return "", false
+	}
+	if err := verifyChecksums(entry, stored); err != nil {
+		return "", false
+	}
+	return entry, true
+}
+
+// activeKey returns the key root's active file names. The file lives in the
+// user's cache directory, a trust boundary, so its content must name a
+// single path element rather than a path Prepare would join outside root.
+func activeKey(root string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(root, "active"))
+	if err != nil {
+		return "", err
+	}
+	key := strings.TrimSpace(string(data))
+	if !SingleElement(key) {
+		return "", fmt.Errorf("active names an unsafe entry: %q", key)
+	}
+	return key, nil
+}
+
+// stagingFailure names the cache root and the total bytes m's files need, so
+// a bare I/O error also says where to look and how much space to free.
+func stagingFailure(root string, m Manifest, err error) error {
+	var total int64
+	for _, file := range m.Files {
+		total += file.Size
+	}
+	return fmt.Errorf("could not unpack the runtime into %s, which needs %d bytes: %w", root, total, err)
 }
 
 // stage extracts payload into a fresh staging directory, verifies it, and

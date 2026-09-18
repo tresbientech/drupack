@@ -56,7 +56,7 @@ bash tests/initialization.sh ./dist/drupack
 python3 tests/browser.py ./dist/drupack test-results/browser
 ```
 
-Each shell script takes an optional results directory as its second argument. `tests/browser.py` requires one. `tests/network.sh` and `tests/offline.sh` need Docker. `tests/server-database.sh` starts MySQL and PostgreSQL containers itself.
+Each shell script takes an optional results directory as its second argument. `tests/browser.py` requires one. `tests/network.sh` and `tests/offline.sh` need Docker. `tests/server-database.sh` starts MySQL and PostgreSQL containers itself. `tests/launcher.sh` packs small fixture launchers with Go and skips those cases when Go is absent.
 
 The launcher's own unit tests need Go:
 

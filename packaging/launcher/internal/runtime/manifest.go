@@ -39,8 +39,7 @@ func ParseManifest(data []byte) (Manifest, error) {
 	if err := json.Unmarshal(data, &m); err != nil {
 		return Manifest{}, err
 	}
-	// SafePath refuses "." and "..", which filepath.Base returns unchanged.
-	if !SafePath(m.Version) || filepath.Base(m.Version) != m.Version {
+	if !SingleElement(m.Version) {
 		return Manifest{}, fmt.Errorf("manifest version is not a single path element: %q", m.Version)
 	}
 	entryDeclared := false
@@ -66,6 +65,12 @@ func SafePath(path string) bool {
 	clean := filepath.Clean(filepath.FromSlash(path))
 	return path != "" && !filepath.IsAbs(clean) && clean != "." &&
 		!strings.HasPrefix(clean, ".."+string(filepath.Separator)) && clean != ".."
+}
+
+// SingleElement reports whether value names exactly one path element, so it
+// is safe to join under a root without escaping or naming the root itself.
+func SingleElement(value string) bool {
+	return SafePath(value) && filepath.Base(value) == value
 }
 
 // hashFile returns the lowercase hex SHA-256 of the file at path, streamed so

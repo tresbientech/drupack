@@ -199,6 +199,12 @@ here. A 32 KB DEFLATE window cannot reach the repetition zstd finds with a
 best compression lands at or above that. A standard-library payload would weigh
 15.9 MB more than the UPX build this change replaces.
 
+The encoder keeps the library's default window. A 128 MB window was measured and
+rejected: it produced a 120,864,930-byte asset that started cold in 2.64 s,
+against 123,064,482 bytes and 0.67 s at the default. The 2.2 MB it saves is 1.8%
+of the download, which a 50 Mbps line fetches in 0.35 s, so the two seconds cost
+more than they buy above about 6 Mbps.
+
 The Go encoder was chosen over the zstd command line tool. It gives up 10 MB and
 spares the Linux, macOS and Windows build machines a command-line tool to
 install. The module itself stays, pinned in `go.sum`. A decode verified byte for

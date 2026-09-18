@@ -13,11 +13,6 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// payloadWindow is the zstd window size both directions use. The runtime
-// repeats itself across hundreds of megabytes, which the 8 MB window that
-// SpeedBestCompression defaults to cannot reach.
-const payloadWindow = 128 << 20
-
 // Build packs directory's regular files into a zstd-compressed tar stream and
 // returns the manifest describing them. Every header carries the same mode,
 // ownership and modification time, so one directory always packs to the same
@@ -29,9 +24,7 @@ func Build(directory, version, entry string) ([]byte, Manifest, error) {
 	}
 
 	var archive bytes.Buffer
-	compressor, err := zstd.NewWriter(&archive,
-		zstd.WithEncoderLevel(zstd.SpeedBestCompression),
-		zstd.WithWindowSize(payloadWindow))
+	compressor, err := zstd.NewWriter(&archive, zstd.WithEncoderLevel(zstd.SpeedBestCompression))
 	if err != nil {
 		return nil, Manifest{}, err
 	}

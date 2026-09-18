@@ -21,7 +21,7 @@ func Extract(destination string, payload []byte, m Manifest) error {
 		declared[file.Path] = true
 	}
 
-	decoder, err := zstd.NewReader(bytes.NewReader(payload), zstd.WithDecoderMaxWindow(payloadWindow))
+	decoder, err := zstd.NewReader(bytes.NewReader(payload))
 	if err != nil {
 		return err
 	}

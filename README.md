@@ -46,7 +46,7 @@ A folder per site keeps each site with its data. To run `drupack` from anywhere 
 ./drupack
 ```
 
-Drupack asks for an administrator name and password, installs your site, and opens `http://localhost:8080` in your browser. The first start also unpacks its runtime, which takes longer.
+Drupack asks for an administrator name and password, installs your site, and opens `http://localhost:8080` in your browser. The first start of each version also unpacks its runtime, which adds about a second.
 
 Later starts need nothing:
 
@@ -85,7 +85,7 @@ Useful options:
 
 Site data lives in the `data` directory. It holds your database, uploads, private files, configuration exports and generated settings. Copy that directory to back your site up, with the site stopped. Keep the copy private: it holds your content and your site's secrets.
 
-A newer Drupack keeps working with existing Site data, which `tests/replacement.sh` checks on every release.
+A newer Drupack keeps working with existing Site data, which every release is tested for.
 
 One start at a time prepares a site. A second start of the same directory stops with a message naming it. Drush keeps working while a site serves.
 
@@ -96,6 +96,18 @@ Drupack refuses to serve in three cases, each naming the directory and the comma
 - the database already holds a site that Drupack did not install
 
 An interrupted setup resumes where it stopped. Drupack never installs Drupal over a database that already holds a site, and never copies its starting site over an existing one.
+
+## The unpacked runtime
+
+Your download carries Drupal, PHP and Caddy compressed. The first start of a version unpacks them into a cache directory, which takes about a second. Every later start of that version uses what is already there.
+
+- Linux: `~/.cache/Drupack/runtime`
+- macOS: `~/Library/Caches/Drupack/runtime`
+- Windows: `%LOCALAPPDATA%\Drupack\runtime`
+
+One version takes about 400 MB on Linux and macOS, beside your Site data. The space is per version, and a successful start removes the versions it replaces, so upgrading does not stack them up.
+
+`DRUPACK_CACHE_DIR` moves the cache, for a disk with more room. When your home directory refuses writes, Drupack unpacks into the temporary directory instead.
 
 ## Use MySQL or PostgreSQL
 
