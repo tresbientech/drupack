@@ -62,7 +62,10 @@ rm -rf "$results/old"
 rm -rf "$data"/runtime/frankenphp_*
 
 start_site "$results/new/drupack" new
-curl -s "http://$listen/" | grep -Fq "$site_name" || fail 'The front page lost the site name'
+# grep -q can exit as soon as it matches, before curl finishes writing the body.
+# Under pipefail, that SIGPIPEs curl and fails the pipeline even on a real match.
+homepage=$(curl -s "http://$listen/")
+grep -Fq "$site_name" <<<"$homepage" || fail 'The front page lost the site name'
 stop_site
 
 [[ $("$results/new/drupack" dr --data-dir "$data" config:get system.site name --format=string) == "$site_name" ]] \
