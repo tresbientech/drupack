@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -81,11 +82,12 @@ func init() {
 	if err := os.Setenv("DRUPACK_RUNTIME_BINARY", executable); err != nil {
 		panic(err)
 	}
+	launchScript := filepath.Join(filepath.Dir(executable), "launch.php")
 	if len(os.Args) > 1 && os.Args[1] == "dr" {
 		if err := os.Setenv("DRUPACK_RUNTIME_DRUSH", "1"); err != nil {
 			panic(err)
 		}
-		os.Args = append([]string{os.Args[0], "php-cli", "launch.php"}, os.Args[2:]...)
+		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[2:]...)
 		return
 	}
 	if len(os.Args) == 5 && os.Args[1] == "open-when-ready" {
@@ -101,6 +103,6 @@ func init() {
 		os.Exit(0)
 	}
 	if len(os.Args) == 1 || strings.HasPrefix(os.Args[1], "-") {
-		os.Args = append([]string{os.Args[0], "php-cli", "launch.php"}, os.Args[1:]...)
+		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[1:]...)
 	}
 }

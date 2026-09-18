@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 )
 
 // rootMode is the permission every candidate cache root is created with.
@@ -25,7 +26,10 @@ const stagingPrefix = ".staging-"
 // directory to the temporary directory.
 func Root() (string, error) {
 	if dir := os.Getenv("DRUPACK_CACHE_DIR"); dir != "" {
-		return dir, os.MkdirAll(dir, rootMode)
+		if err := os.MkdirAll(dir, rootMode); err != nil {
+			return "", err
+		}
+		return privateRoot(dir)
 	}
 
 	var lastErr error
@@ -34,9 +38,28 @@ func Root() (string, error) {
 			lastErr = err
 			continue
 		}
-		return root, nil
+		if owned, err := privateRoot(root); err == nil && owned != "" {
+			return owned, nil
+		} else if err != nil {
+			lastErr = err
+		}
 	}
 	return "", lastErr
+}
+
+func privateRoot(root string) (string, error) {
+	info, err := os.Lstat(root)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() || info.Mode().Perm()&0077 != 0 {
+		return "", fmt.Errorf("cache root is not a private directory: %s", root)
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || int(stat.Uid) != os.Getuid() {
+		return "", fmt.Errorf("cache root is not owned by the current user: %s", root)
+	}
+	return root, nil
 }
 
 // cacheRoots lists Root's candidates in trial order.

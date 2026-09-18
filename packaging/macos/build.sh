@@ -9,6 +9,7 @@ output="$(cd -- "$(dirname -- "$3")" && pwd)/$(basename -- "$3")"
 repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 
 frankenphp_version=1.12.7
+drupack_version=${DRUPACK_VERSION:-dev}
 frankenphp_commit=a765b086f5cc56f6b7753117367d56e1b0da948d
 php_version=8.5.10
 spc_version=2.8.5
@@ -59,13 +60,13 @@ mkdir -p "$runtime"
 cd frankenphp/caddy/frankenphp
 CGO_ENABLED=1 CGO_CFLAGS="$php_includes -DFRANKENPHP_VERSION=$frankenphp_version" CGO_LDFLAGS="$php_libraries" \
     go build -buildmode=pie -tags=nobadger,nomysql,nopgx \
-    -ldflags="-s -w -linkmode=external -X 'main.version=${DRUPACK_VERSION:-dev}' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $php_version Caddy'" \
+    -ldflags="-s -w -linkmode=external -X 'main.version=$drupack_version' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $php_version Caddy'" \
     -o "$runtime/$entry"
 "$runtime/$entry" version
 
 # The subshell keeps the packer's build inside the launcher module, off this FrankenPHP checkout.
 (cd "$repository/packaging/launcher" \
   && go run ./cmd/pack -runtime "$runtime" -entry "$entry" \
-     -version "${DRUPACK_VERSION:-dev}" \
+     -version "$drupack_version" \
      -source "$repository/packaging/launcher" -output "$output")
 "$output" version

@@ -211,8 +211,8 @@ function recordedListener(array $options, string $directory): array
         throw new RuntimeException('Cannot read the recorded listener: ' . listenerPath($directory)
             . ". Remove that file, then start Drupack again to record it.");
     }
-    $options['listen'] ??= $record['listen'] ?? null;
-    $options['host'] ??= $record['host'] ?? null;
+    $options['listen'] ??= $record['listen'] ?? throw new RuntimeException('Recorded listener has no listen address');
+    $options['host'] ??= $record['host'] ?? throw new RuntimeException('Recorded listener has no host');
     return $options;
 }
 
@@ -540,8 +540,8 @@ function configureSeedSiteName(string $binary, string $name): void
 // already removed them, and Drush refuses to uninstall a module that is not enabled.
 function removeRecipeModules(string $binary): void
 {
-    $enabled = json_decode(drushField($binary, ['pm:list', '--status=enabled', '--format=json']), true);
-    $present = array_intersect(['automatic_updates', 'package_manager'], array_keys((array) $enabled));
+    $enabled = json_decode(drushField($binary, ['pm:list', '--status=enabled', '--format=json']), true, 512, JSON_THROW_ON_ERROR);
+    $present = array_intersect(['automatic_updates', 'package_manager'], array_keys($enabled));
     if ($present !== []) {
         runDrush($binary, array_merge([drushPath(), 'pm:uninstall'], $present, ['--yes']), 'Cannot remove automatic updates');
     }
