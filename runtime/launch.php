@@ -646,6 +646,10 @@ try {
         && !filter_var($options['host'], FILTER_VALIDATE_IP)) {
         throw new InvalidArgumentException('Invalid --host value');
     }
+    // The log path reaches the Caddyfile as raw text before Caddy tokenizes it, so a quote breaks it.
+    if (str_contains($options['data-dir'], '"')) {
+        throw new InvalidArgumentException('--data-dir must not contain a double quote');
+    }
 
     umask(0077);
     directory($options['data-dir']);
@@ -657,7 +661,8 @@ try {
     putenv("DRUPACK_RUNTIME_BIND=$bind");
     putenv("DRUPACK_RUNTIME_PORT=$port");
     putenv('DRUPACK_RUNTIME_HOST=' . $options['host']);
-    putenv("DRUPACK_RUNTIME_LOG_PATH=$data/logs/caddy.log");
+    $logPath = "$data/logs/caddy.log";
+    putenv("DRUPACK_RUNTIME_LOG_PATH=$logPath");
     $runtime = realpath("$data/runtime");
     // FrankenPHP extracts the embedded application under the process temporary directory.
     putenv("TMPDIR=$runtime");
@@ -727,7 +732,7 @@ try {
         exit(process($binary, array_merge(['php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], __DIR__, 'Cannot run Drush'));
     }
     $url = "http://{$options['host']}:$port/";
-    fwrite(STDOUT, "Drupal: $url\nSite data: $data\nLog: $data/logs/caddy.log\nStop the site with Ctrl+C.\n");
+    fwrite(STDOUT, "Drupal: $url\nSite data: $data\nLog: $logPath\nStop the site with Ctrl+C.\n");
     // The first start is the moment a person wants the site in front of them. A file manager
     // on Windows has no other way to reach its reader on a later start.
     $browser = $options['no-browser'] === null && ($created || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1');

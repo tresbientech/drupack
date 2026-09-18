@@ -40,6 +40,21 @@ if [[ -e $data ]]; then
   exit 1
 fi
 
+data="$work/quoted\"dir"
+if "$binary" --data-dir "$data" --admin-user x --admin-password x >"$results/quoted.log" 2>&1; then
+  printf 'Expected a --data-dir with a double quote to fail\n' >&2
+  exit 1
+fi
+if ! grep -Fq 'double quote' "$results/quoted.log"; then
+  printf 'Expected the double-quote diagnostic\n' >&2
+  cat "$results/quoted.log" >&2
+  exit 1
+fi
+if [[ -e $data ]]; then
+  printf 'A rejected data-dir with a double quote wrote persistent data\n' >&2
+  exit 1
+fi
+
 data="$work/drush"
 if "$binary" dr --data-dir "$data" status >"$results/drush.log" 2>&1; then
   printf 'Expected a dr command without a site to fail\n' >&2
