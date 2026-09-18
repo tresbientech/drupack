@@ -13,6 +13,7 @@ if [[ -n ${3:-} ]]; then
 fi
 network="drupack-network-$$"
 app="drupack-site-$$"
+space_app=""
 debian=debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
 client=selenium/standalone-chromium@sha256:8745c65008bf01c5e7158a904704560e9971d8b7da2fc7ad1f1d0ffe776812f6
 if [[ $installed == true ]]; then
@@ -30,6 +31,9 @@ fi
 cleanup() {
   docker logs "$app" >"$results/final.log" 2>&1 || true
   docker rm -f "$app" >/dev/null 2>&1 || true
+  if [[ -n $space_app ]]; then
+    docker rm -f "$space_app" >/dev/null 2>&1 || true
+  fi
   docker network rm "$network" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -97,4 +101,42 @@ PY
   docker logs "$app" >"$results/$mode.log" 2>&1
   docker rm -f "$app" >/dev/null
 done
+
+# A Caddyfile placeholder substitutes as raw text before Caddy tokenizes it, so an
+# unquoted path with a space splits into two tokens and Caddy fails to start.
+space_root="$results/space-root"
+mkdir -p "$space_root"
+space_app="drupack-network-space-$$"
+docker run -d --name "$space_app" --network "$network" --network-alias space \
+  --user "$(id -u):$(id -g)" --workdir /site \
+  --mount "type=bind,src=$binary,dst=/artifact/drupack,readonly" \
+  --mount "type=bind,src=$space_root,dst=/site" \
+  "$debian" /artifact/drupack --admin-user space-admin --admin-password Network.space.test.2026! \
+    --data-dir "/site/data with space" --listen 0.0.0.0:8080 --host space >/dev/null
+ready=false
+for attempt in {1..60}; do
+  docker logs "$space_app" >"$results/space.log" 2>&1
+  if grep -Fq 'Drupal is ready.' "$results/space.log"; then
+    ready=true
+    break
+  fi
+  sleep 1
+done
+if [[ $ready != true ]]; then
+  cat "$results/space.log"
+  exit 1
+fi
+docker run --rm -i --network "$network" --entrypoint /usr/bin/python3 "$client" - <<'PY'
+import urllib.request
+
+with urllib.request.urlopen("http://space:8080/user/login", timeout=30) as response:
+    assert response.status == 200
+print("PASS: a Site data path with a space serves the login page")
+PY
+[[ -s "$space_root/data with space/logs/caddy.log" ]] \
+  || { printf 'A Site data path with a space wrote no log file\n' >&2; exit 1; }
+docker logs "$space_app" >"$results/space.log" 2>&1
+docker rm -f "$space_app" >/dev/null
+space_app=""
+
 printf 'Network checks passed. Results: %s\n' "$results"

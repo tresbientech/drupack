@@ -178,10 +178,10 @@ wait "$supervisor" 2>/dev/null || true
 [[ -e $data/settings.php ]] || fail 'the interrupted start recorded no settings'
 [[ ! -e $data/site-installed ]] || fail 'the interrupted start recorded a completed installation'
 
-note 'An interrupted first start that lost its progress record is not adopted with the seed administrator'
+note 'An interrupted first start that lost its progress record is not adopted with the seed password'
 cp "$data/installation-progress" "$backup/installation-progress"
 rm "$data/installation-progress"
-expect_refusal seed-administrator "packaged seed administrator"
+expect_refusal seed-administrator "packaged seed password"
 grep -Fq -- "dr --data-dir" "$results/seed-administrator.log" \
   || fail 'the refusal does not name the recovery command'
 grep -Fq "$data" "$results/seed-administrator.log" \
