@@ -33,6 +33,11 @@ Verified locally on Linux `amd64`:
 
 Known issue: `runtime/php.ini` never loads. `php_ini_loaded_file()` returns `false`, and `memory_limit` stays at PHP's `128M` default.
 
+Verified locally at `88c9d58`, the release candidate for 0.1.0:
+
+- The seven Linux suites: `database-init` 8s, `initialization` 136s, `network` 32s, `replacement` 26s, `offline` 120s, `server-database` 123s, and 6 `browser.py` tests in 44s.
+- The Windows launcher built on Windows 11 at 135 MB, printed its version, and passed `launcher.Tests.ps1` and `site.Tests.ps1`.
+
 Verified on GitHub Actions, run 35228130580 at `fc08bcf`. Every build and test job passed, and `publish` was skipped for the manual dispatch.
 
 | Job | Minutes |
@@ -210,6 +215,14 @@ Tag `0.1.0` on `main` at the Forge after phases 3 to 7.
 ### Shared application extraction
 
 - [ADR 0002](../adr/0002-shared-application-extraction.md) proposes one application extraction per release, shared by all Site data directories. On Windows, a new site spends 18.7 s extracting 24,514 files, and each `frankenphp.exe` start takes 0.6 s.
+
+### Aggregated asset caching
+
+Drupal writes aggregated CSS and JS under public storage, with a content hash in the file name and a query of `delta`, `language`, `theme` and `include`. The Caddy rules give every file under public storage a revalidating policy, so each aggregate costs one conditional request. A matcher on the aggregate path would let those files claim the immutable policy their names already earn.
+
+### Site owner credentials on the command line
+
+`installDrupal()` passes `--account-pass` to Drush, so the administrator password reaches the install process's argument list, which `ps` shows to every account on the machine. `configureSeedAdministrator()` already passes its values through the environment. Move the install to the same shape.
 
 ### drupal.org project
 

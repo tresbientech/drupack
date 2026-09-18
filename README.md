@@ -157,6 +157,8 @@ bash tests/offline.sh ./dist/uncompressed/drupack
 bash tests/network.sh ./dist/uncompressed/drupack
 bash tests/server-database.sh ./dist/uncompressed/drupack
 bash tests/replacement.sh ./dist/uncompressed/drupack
+bash tests/initialization.sh ./dist/uncompressed/drupack
+python3 tests/browser.py ./dist/uncompressed/drupack
 ```
 
 ### Development loop
