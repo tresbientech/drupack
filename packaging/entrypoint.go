@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/dunglas/frankenphp"
 )
 
 // version names the release. Each build script sets it with -ldflags.
@@ -82,7 +84,7 @@ func init() {
 	if err := os.Setenv("DRUPACK_RUNTIME_BINARY", executable); err != nil {
 		panic(err)
 	}
-	launchScript := filepath.Join(filepath.Dir(executable), "launch.php")
+	launchScript := filepath.Join(frankenphp.EmbeddedAppPath, "launch.php")
 	if len(os.Args) > 1 && os.Args[1] == "dr" {
 		if err := os.Setenv("DRUPACK_RUNTIME_DRUSH", "1"); err != nil {
 			panic(err)

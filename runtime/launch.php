@@ -706,14 +706,13 @@ try {
             throw new RuntimeException("The embedded application did not move under $runtime");
         }
         putenv('DRUPACK_RUNTIME_RESTARTED=1');
-        $arguments = ['php-cli', 'launch.php', '--data-dir', $data, '--listen', $options['listen'], '--host', $options['host']];
+        $arguments = ['--data-dir', $data, '--listen', $options['listen'], '--host', $options['host']];
         if ($options['no-browser'] !== null) {
             $arguments[] = '--no-browser';
         }
         if ($drush) {
-            $arguments = array_merge($arguments, $command);
+            $arguments = array_merge(['dr'], $arguments, $command);
         }
-        // php-cli runs a launch.php found in its working directory before the embedded copy.
         replaceProcess($binary, $arguments, $runtime, 'Cannot restart the embedded runtime');
     }
 

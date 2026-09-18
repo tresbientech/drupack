@@ -119,6 +119,22 @@ class SeededSite(unittest.TestCase):
         self.assertIn("pdo_pgsql", {extension.lower() for extension in extensions})
         self.assertTrue({"mysql", "pgsql", "sqlite"} <= set(drivers), drivers)
 
+    def test_startup_ignores_working_directory_script(self):
+        script = self.work / "launch.php"
+        script.write_text("<?php fwrite(STDERR, 'working directory script executed'); exit(42);")
+        data = self.work / "hostile-directory"
+        try:
+            self.start(data, *CREDENTIALS)
+            self.assertEqual(fetch("/user/login")[0], 200)
+            bootstrap = self.run_dr(data, "status", "--field=bootstrap")
+            self.assertEqual(bootstrap.returncode, 0, bootstrap.stderr)
+            self.assertEqual(bootstrap.stdout.strip(), "Successful")
+        finally:
+            try:
+                self.stop()
+            finally:
+                script.unlink()
+
     def test_seeded_sqlite_site_and_drush(self):
         data = self.work / "data"
         self.start(data, *CREDENTIALS)
