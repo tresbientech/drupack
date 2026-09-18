@@ -229,12 +229,6 @@ function progressPath(string $directory): string
     return "$directory/installation-progress";
 }
 
-// The steps a first start runs, in order, for one database backend.
-function initializationSteps(string $backend): array
-{
-    return $backend === 'sqlite' ? ['seed', 'settings', 'administrator'] : ['settings', 'install', 'modules'];
-}
-
 function credentialsRequired(array $steps): bool
 {
     return array_intersect(['administrator', 'install'], $steps) !== [];
@@ -262,7 +256,8 @@ function remainingSteps(string $directory, string $backend): array
     if (file_exists("$directory/site.sqlite")) {
         throw new RuntimeException("This Site data holds a database without settings: $directory. Restore its settings.php, or start Drupack with an empty Site data directory.");
     }
-    return initializationSteps($backend);
+    // The steps a first start runs, in order, for one database backend.
+    return $backend === 'sqlite' ? ['seed', 'settings', 'administrator'] : ['settings', 'install', 'modules'];
 }
 
 function writeProgress(string $data, array $steps): void
