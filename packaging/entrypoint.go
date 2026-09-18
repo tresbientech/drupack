@@ -26,6 +26,7 @@ Options:
                              Connection details for mysql and pgsql
   --admin-user, --admin-password
                              Administrator account for a first start
+  --site-name NAME           Site name for a first start, "Drupal Mercury Demo" by default
   --no-browser               Do not open a browser
   --version, --help
 

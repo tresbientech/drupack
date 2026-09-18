@@ -101,7 +101,7 @@ for database in mysql pgsql; do
     exit 1
   fi
 
-  # The Byte recipe enables these during site:install. A runtime install must remove
+  # The Mercury Demo recipe enables these during site:install. A runtime install must remove
   # them, matching the Dockerfile's seed cleanup, or cron stalls for 240s.
   enabled=$("$binary" dr --data-dir "$data" pm:list --status=enabled --format=json)
   if grep -q '"automatic_updates"' <<<"$enabled" || grep -q '"package_manager"' <<<"$enabled"; then

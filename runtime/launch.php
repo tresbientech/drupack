@@ -112,6 +112,7 @@ function options(array $arguments, bool $drush): array
         'db-password' => environment('DRUPACK_DB_PASSWORD'),
         'admin-user' => environment('DRUPACK_ADMIN_USER'),
         'admin-password' => environment('DRUPACK_ADMIN_PASSWORD'),
+        'site-name' => environment('DRUPACK_SITE_NAME') ?? 'Drupal Mercury Demo',
         'no-browser' => null,
     ];
     $command = [];
@@ -122,7 +123,7 @@ function options(array $arguments, bool $drush): array
             break;
         }
         if ($argument === '--help') {
-            echo "Usage: drupack php-cli launch.php [--data-dir PATH] [--listen IP:PORT] [--host HOST] [--database sqlite|mysql|pgsql] [--no-browser]\n";
+            echo "Usage: drupack php-cli launch.php [--data-dir PATH] [--listen IP:PORT] [--host HOST] [--database sqlite|mysql|pgsql] [--site-name NAME] [--no-browser]\n";
             exit(0);
         }
         $parts = explode('=', $argument, 2);
@@ -460,7 +461,7 @@ function databaseHoldsTables(array $options): bool
 function installDrupal(array $options, string $binary): void
 {
     $drush = drushPath();
-    $recipe = __DIR__ . '/recipes/byte';
+    $recipe = __DIR__ . '/recipes/mercury_demo';
     if (!is_file($drush) || !is_dir($recipe)) {
         throw new RuntimeException('Bundled Drupal installation files are unavailable');
     }
@@ -472,6 +473,7 @@ function installDrupal(array $options, string $binary): void
         '--db-url=' . databaseUrl($options),
         '--account-name=' . $options['admin-user'],
         '--account-pass=' . $options['admin-password'],
+        '--site-name=' . $options['site-name'],
     ], 'Drupal installation failed');
 }
 
@@ -550,7 +552,14 @@ function configureSeedAdministrator(string $binary): void
     runDrush($binary, [drushPath(), 'php:eval', '$account = \\Drupal\\user\\Entity\\User::load(1); $account->set("name", getenv("DRUPACK_ADMIN_USER")); $account->setPassword(getenv("DRUPACK_ADMIN_PASSWORD")); $account->save();'], 'Cannot configure Drupal administrator');
 }
 
-// The Byte recipe enables these during site:install; the Dockerfile removes them
+// Drush names the seed when the Dockerfile installs it. The first start renames it, so a
+// seeded site and an installed one carry the same name.
+function configureSeedSiteName(string $binary, string $name): void
+{
+    runDrush($binary, [drushPath(), 'config:set', 'system.site', 'name', $name, '--yes'], 'Cannot set the site name');
+}
+
+// The Mercury Demo recipe enables these during site:install; the Dockerfile removes them
 // from the seed the same way. A resumed modules step can run after an earlier one
 // already removed them, and Drush refuses to uninstall a module that is not enabled.
 function removeRecipeModules(string $binary): void
@@ -580,6 +589,7 @@ function runStep(string $step, string $data, array $options, string $binary): vo
             return;
         case 'administrator':
             configureSeedAdministrator($binary);
+            configureSeedSiteName($binary, $options['site-name']);
             return;
         case 'install':
             if (installSite($data, $options, $binary, file_exists(firstEverPath($data)))
@@ -696,6 +706,7 @@ try {
         'db-password' => 'DRUPACK_DB_PASSWORD',
         'admin-user' => 'DRUPACK_ADMIN_USER',
         'admin-password' => 'DRUPACK_ADMIN_PASSWORD',
+        'site-name' => 'DRUPACK_SITE_NAME',
     ] as $option => $environment) {
         if ($options[$option] !== null) {
             putenv("$environment={$options[$option]}");

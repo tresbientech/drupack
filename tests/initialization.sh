@@ -10,6 +10,7 @@ backup="$results/backup"
 listen=127.0.0.1:18097
 password=Initialization.test.2026
 site_name='Drupack initialization check'
+default_site_name='Drupal Mercury Demo'
 postgres=postgres:17.11@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675
 container="drupack-initialization-$$"
 server=
@@ -116,6 +117,7 @@ mkdir -p "$backup"
 note 'A first start creates the site and records its completion'
 start_site first-start --admin-user init-admin --admin-password "$password"
 expect_marker first-start
+expect_site_name first-start "$default_site_name"
 dr config:set system.site name "$site_name" --yes >"$results/config-set.log" 2>&1
 
 note 'Drush works while the server runs'
@@ -267,6 +269,24 @@ grep -Fq 'Another Drupack start' "$results/equivalent.log" \
   || { cat "$results/equivalent.log" >&2; fail 'the blocked start names no other start'; }
 grep -Fq "$data" "$results/equivalent.log" || fail 'the blocked start does not name the resolved directory'
 
+note 'A chosen site name survives, and a later start never renames the site'
+reset_site
+start_site chosen-name --site-name 'Chosen initialization name' \
+  --admin-user init-admin --admin-password "$password"
+expect_site_name chosen-name 'Chosen initialization name'
+stop_site
+start_site rename-attempt --site-name 'Rejected initialization name'
+expect_site_name rename-attempt 'Chosen initialization name'
+stop_site
+
+note 'The site name also comes from the environment'
+reset_site
+export DRUPACK_SITE_NAME='Environment initialization name'
+start_site environment-name --admin-user init-admin --admin-password "$password"
+expect_site_name environment-name 'Environment initialization name'
+stop_site
+unset DRUPACK_SITE_NAME
+
 note 'Starting PostgreSQL for the server-database cases'
 reset_site
 docker run -d --name "$container" -p 127.0.0.1::5432 \
@@ -288,6 +308,7 @@ note 'A PostgreSQL first start records its completion'
 start_site pgsql-first --db-name drupal "${connection[@]}" \
   --admin-user init-admin --admin-password "$password"
 expect_marker pgsql-first
+expect_site_name pgsql-first "$default_site_name"
 stop_site
 dr config:set system.site name "$site_name" --yes >"$results/pgsql-config-set.log" 2>&1
 

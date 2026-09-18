@@ -11,16 +11,13 @@ The name of this project and of its Packaged site.
 _Avoid_: Portable Drupal, portable-drupal
 
 **Packaged site**:
-A distributable Drupal CMS application with its Site templates and a Seed site.
+A distributable Drupal CMS application with its Site template and a Seed site.
 
 **Site template**:
-A Drupal CMS recipe that gives a new site its starting configuration and content.
-
-**Retired Site template**:
-A Site template that first start no longer offers. Its modules and theme stay in the Packaged site.
+The Drupal CMS recipe that gives a new site its starting configuration and content. A Packaged site carries one, Mercury Demo.
 
 **Seed site**:
-A preconfigured Drupal site state included in a Packaged site, installed from the default Site template.
+A preconfigured Drupal site state included in a Packaged site, installed from the Site template.
 
 **Local MCP Tools**:
 The Drupal MCP Tools feature that lets local AI agents use a Packaged site.
@@ -49,20 +46,19 @@ SQLite, MySQL, or PostgreSQL, selected when a Packaged site first starts. It sto
 
 ### First start
 
-- A **Packaged site** includes a fixed set of **Site templates**, chosen when it is built.
-- First start installs Mercury Demo unless the user selects another **Site template**.
-- A SQLite first start of the default **Site template** creates **Site data** from the **Seed site**.
-- Any other first start installs the selected **Site template** into new **Site data**.
+- A **Packaged site** includes one **Site template**, chosen when it is built.
+- A SQLite first start creates **Site data** from the **Seed site**.
+- A MySQL or PostgreSQL first start installs the **Site template** into new **Site data**.
+- First start names the site, `Drupal Mercury Demo` unless the user chooses another name.
 - A **Seed site** has one **Database backend**.
 - SQLite is the default **Database backend** for the **Seed site**.
 - First start selects the **Database backend** for a **Packaged site**.
-- First start enables **Local MCP Tools**, whatever the **Site template**.
+- First start enables **Local MCP Tools**.
 - First start leaves **MCP Server** disabled.
 
 ### Site data
 
-- **Site data** records the **Site template** it was installed from.
-- A site installed from a **Retired Site template** keeps running on later releases.
+- **Site data** keeps the name first start gave the site.
 - **Site data** survives replacement of the **Packaged site** with an updated release.
 - **Site data** holds a **Version record**, which a **Packaged site** rewrites on every start.
 - A **Packaged site** older than the **Version record** refuses to serve.
@@ -72,6 +68,6 @@ SQLite, MySQL, or PostgreSQL, selected when a Packaged site first starts. It sto
 ## Example dialogue
 
 > Developer: "Does the packaged site include an installed website?"
-> User: "It copies the Seed site when a SQLite first start picks Mercury Demo. Another Site template installs from its recipe. Its site data then persists across launches."
-> Developer: "Can I switch to another Site template later?"
-> User: "No. Site data records the Site template it was installed from, and a later start only warns when you name another one."
+> User: "It copies the Seed site on a SQLite first start. MySQL and PostgreSQL install the Site template instead. Its site data then persists across launches."
+> Developer: "Can I name the site myself?"
+> User: "On a first start, with --site-name. After that the name belongs to the site, and Drupack never rewrites it."
