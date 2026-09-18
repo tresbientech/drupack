@@ -26,6 +26,9 @@ The public command-line interface that exposes the Drush command set for a Packa
 **`DRUPACK_DATA_DIR`**:
 An environment variable that selects the default Site data directory for a Packaged site.
 
+**Version record**:
+The Drupack and Drupal versions that last served a Site data directory.
+
 **Database backend**:
 SQLite, MySQL, or PostgreSQL, selected when a Packaged site first starts. It stores a Seed site's structured Site data.
 
@@ -41,6 +44,8 @@ The Drupal MCP Server feature included in a Packaged site for later enablement b
 - A **Packaged site** includes exactly one **Site template** for installation: Byte.
 - First use of a **Packaged site** creates **Site data** from its **Seed site**.
 - **Site data** survives replacement of the **Packaged site** with an updated release.
+- **Site data** holds a **Version record**, which a **Packaged site** rewrites on every start.
+- A **Packaged site** older than the **Version record** refuses to serve.
 - The **`dr` command** manages one **Packaged site** and its selected **Site data**.
 - **`DRUPACK_DATA_DIR`** selects **Site data** when no `--data-dir` option is present.
 - A **Seed site** has one **Database backend**.
