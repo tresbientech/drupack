@@ -99,7 +99,10 @@ class SeededSite(unittest.TestCase):
         data = self.work / "data"
         self.start(data)
         try:
+            requested = time.monotonic()
             homepage = http("/")
+            elapsed = time.monotonic() - requested
+            self.assertLess(elapsed, 20, "the first full request waited on cron")
             self.assertNotIn("core/install.php", homepage)
             self.assertNotIn("Choose language", homepage)
             self.assertTrue((data / "site.sqlite").is_file())
@@ -111,6 +114,11 @@ class SeededSite(unittest.TestCase):
             mcp_tools = self.run_dr(data, "mcp-tools:client-config")
             self.assertEqual(mcp_tools.returncode, 0, mcp_tools.stderr)
             self.assertIn("mcp", mcp_tools.stdout.lower())
+            enabled = self.run_dr(data, "pm:list", "--status=enabled", "--format=json")
+            self.assertEqual(enabled.returncode, 0, enabled.stderr)
+            modules = json.loads(enabled.stdout)
+            self.assertNotIn("automatic_updates", modules)
+            self.assertNotIn("package_manager", modules)
         finally:
             self.stop()
         self.start(data)
