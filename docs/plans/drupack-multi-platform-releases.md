@@ -18,6 +18,7 @@
 - A GitHub Release holds the executables, `checksums.txt`, `release.json` and one CycloneDX SBOM.
 - Each GitHub Release carries provenance attestations for its files.
 - The packaged site template is Byte 1.0.3.
+- The Seed site uninstalls `automatic_updates` and `package_manager`. A packaged executable cannot update its own Drupal core in place; Drupack ships a new executable instead.
 - The Docker build downloads fr, zh-hans, es, hi and ar translations for each Drupal project in `drupal/composer.lock` from ftp.drupal.org. Two builds of one commit can embed different translations.
 - The license is GPL-2.0-or-later.
 
