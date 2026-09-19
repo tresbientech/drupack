@@ -7,7 +7,6 @@ from pathlib import Path
 import re
 import shutil
 import signal
-import socket
 import subprocess
 import sys
 import tempfile
@@ -80,28 +79,34 @@ class SeededSite(unittest.TestCase):
 
     @classmethod
     def start(cls, data, *options):
+        cls.ready_offset = (RESULTS / "server.log").stat().st_size
         cls.server = subprocess.Popen([
             str(cls.binary), "--data-dir", str(data), *options,
         ], cwd=cls.work, stdout=cls.server_log, stderr=subprocess.STDOUT,
            start_new_session=True)
         wait_until(cls.ready)
 
+    # The port accepts before the site can answer, and the runtime's own first request
+    # is still running then. Stopping a server mid-request makes it wait out that
+    # request, so a case that starts on the port alone can hang its own teardown.
     @classmethod
     def ready(cls):
         if cls.server.poll() is not None:
             raise AssertionError(f"Runtime exited: inspect {RESULTS / 'server.log'}")
-        with socket.create_connection(("127.0.0.1", PORT), timeout=1):
-            return True
+        return READY_LINE in (RESULTS / "server.log").read_text(errors="replace")[cls.ready_offset:]
 
     @classmethod
     def stop(cls):
         if cls.server is not None and cls.server.poll() is None:
             os.killpg(cls.server.pid, signal.SIGTERM)
             try:
-                cls.server.wait(timeout=60)
+                # The runtime forces its own exit after 10s, so reaching this is a defect
+                # rather than a slow machine. Killing it keeps one case from stalling the run.
+                cls.server.wait(timeout=30)
             except subprocess.TimeoutExpired:
                 os.killpg(cls.server.pid, signal.SIGKILL)
                 cls.server.wait()
+                raise AssertionError(f"Server ignored SIGTERM: inspect {RESULTS / 'server.log'}")
 
     def run_dr(self, data, *command):
         return subprocess.run([
