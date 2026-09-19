@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/dunglas/frankenphp"
@@ -76,7 +78,30 @@ func openBrowser(address string) {
 	_ = command.Start()
 }
 
+// Caddy finishes an in-flight PHP request before it exits, and a request has no
+// upper bound, so one that never returns holds the process open and Ctrl+C never
+// lands. The deadline starts at the first signal and fires only when the ordinary
+// shutdown has not finished by then; a healthy one takes about three seconds.
+const shutdownDeadline = 10 * time.Second
+
+// forceExitOnStalledShutdown runs only for the server. Notifying on these signals
+// suppresses Go's own termination, which a command that handles neither still needs.
+func forceExitOnStalledShutdown() {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-signals
+		time.Sleep(shutdownDeadline)
+		fmt.Fprintf(os.Stderr, "Drupack did not stop within %s. Forcing exit.\n", shutdownDeadline)
+		os.Exit(1)
+	}()
+}
+
 func init() {
+	// launch.php replaces itself with this command to serve the site.
+	if len(os.Args) > 1 && os.Args[1] == "php-server" {
+		forceExitOnStalledShutdown()
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		panic(err)
