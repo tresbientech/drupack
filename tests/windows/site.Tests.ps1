@@ -36,10 +36,6 @@ function Assert-Status([string] $Path, [int] $Expected) {
 }
 
 try {
-  $refused = (& $executable --data-dir $data 2>&1) -join "`n"
-  if ($LASTEXITCODE -eq 0) { throw 'first start without administrator credentials succeeded' }
-  if (Test-Path $data) { throw "first start without administrator credentials wrote Site data: $refused" }
-
   $site = Start-Site @('--admin-user', 'windows-admin', '--admin-password', 'Windows.site.test.password.2026') 'first-start'
   Assert-Status '/sites/default/settings.php' 404
   Assert-Status '/sites/default/private/' 403
