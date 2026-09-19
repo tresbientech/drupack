@@ -74,9 +74,9 @@ Acceptance checks:
 
 ## Windows runtime activation
 
-Medium priority. [The Windows launcher](../../packaging/windows/main.go) shares one `active.pending` filename between processes. Concurrent launches can overwrite or rename each other's pending activation.
+Medium priority. Windows ran its own launcher, which shared one `active.pending` filename between processes, so concurrent launches could overwrite or rename each other's pending activation. Extraction also renamed an existing runtime target without synchronization.
 
-Extraction also renames an existing runtime target without synchronization. Serialize installation and activation under a cache lock. Recheck the target after acquiring that lock.
+All three platforms now run [the shared launcher](../../packaging/launcher), which stages and activates under the cache root's lock and rechecks the target once it holds that lock.
 
 Acceptance checks:
 

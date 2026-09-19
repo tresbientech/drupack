@@ -80,10 +80,11 @@ the signal behaviour do not change.
 
 ## Windows and macOS
 
-Windows already ships this design. `packaging/windows/main.go` embeds
-`runtime.zip`, extracts to `%LOCALAPPDATA%\Drupack\runtime\<version>` and starts
-a child, because Windows has no `exec`. The new launcher reuses its manifest and
-lock handling.
+Windows shipped this design first, in its own program. That program embedded
+`runtime.zip` and extracted to `%LOCALAPPDATA%\Drupack\runtime\<version>`. The
+shared launcher took over its manifest handling, its lock, its console-ownership
+check and its child process, which Windows needs because it has no `exec`. The
+cache now sits at `%LOCALAPPDATA%\Drupack\runtime\<version>-<digest>`.
 
 macOS uses the Linux path. The download carries the quarantine attribute, and the
 README already tells the reader to remove it.

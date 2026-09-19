@@ -61,10 +61,14 @@ func ParseManifest(data []byte) (Manifest, error) {
 }
 
 // SafePath reports whether path is safe to join under an extraction root.
+// filepath.IsAbs calls a path like C:evil or \\server\share relative, since
+// neither starts with a root slash; filepath.VolumeName catches both, and
+// returns "" on unix, where the check costs nothing.
 func SafePath(path string) bool {
 	clean := filepath.Clean(filepath.FromSlash(path))
 	return path != "" && !filepath.IsAbs(clean) && clean != "." &&
-		!strings.HasPrefix(clean, ".."+string(filepath.Separator)) && clean != ".."
+		!strings.HasPrefix(clean, ".."+string(filepath.Separator)) && clean != ".." &&
+		filepath.VolumeName(clean) == ""
 }
 
 // SingleElement reports whether value names exactly one path element, so it

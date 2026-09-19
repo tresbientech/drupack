@@ -139,4 +139,17 @@ Remove-Item Env:PHPRC
 $missing = $dllExtensions + $builtinExtensions | Where-Object { $loaded -notcontains $_ }
 if ($missing) { throw "Runtime is missing PHP extensions: $($missing -join ', ')" }
 
-& (Join-Path $PSScriptRoot 'package.ps1') -RuntimeDirectory $runtime -Version $Version -Output $Output
+# The packer resolves a relative -output against its own working directory,
+# which Push-Location is about to change, so $Output must resolve here.
+$outputDirectory = Split-Path -Parent $Output
+if (-not $outputDirectory) { $outputDirectory = '.' }
+New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
+$outputPath = Join-Path (Resolve-Path $outputDirectory).Path (Split-Path -Leaf $Output)
+$launcherSource = (Resolve-Path (Join-Path $PSScriptRoot '..\launcher')).Path
+$env:CGO_ENABLED = '0'
+Push-Location $launcherSource
+try {
+  go run ./cmd/pack -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $outputPath
+} finally {
+  Pop-Location
+}

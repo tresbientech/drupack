@@ -11,7 +11,7 @@ import (
 // lockRoot serializes staging across every process sharing root. Blocking is
 // correct here: the kernel releases a dead holder's lock.
 func lockRoot(root string) (func(), error) {
-	file, err := os.OpenFile(filepath.Join(root, "lock"), os.O_CREATE|os.O_RDWR, 0600)
+	file, err := os.OpenFile(filepath.Join(root, lockName), os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
 	}

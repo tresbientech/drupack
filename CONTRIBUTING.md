@@ -38,7 +38,7 @@ docker rm "$container"
 ./packaging/windows/build.ps1 -ApplicationDirectory application -Version dev -WorkDirectory $env:TEMP\drupack -Output dist\drupack.exe
 ```
 
-The Windows executable is a launcher: it extracts PHP and FrankenPHP into `%LOCALAPPDATA%\Drupack\runtime\<version>` on first start, hashes every file as it installs them, and compares sizes on later starts.
+The Windows executable is the same launcher as Linux and macOS. It carries the PHP and FrankenPHP tree compressed with zstd, and unpacks under `%LOCALAPPDATA%\Drupack\runtime` on first start. Later starts compare a stored manifest and file sizes. Windows has no `exec`, so the launcher starts a child process instead of replacing itself.
 
 ## Tests
 
@@ -84,7 +84,7 @@ Neither start needs more options. The test scripts still need a built executable
 
 ## Launcher
 
-The published Linux and macOS executable is a launcher carrying the real executable, compressed with `github.com/klauspost/compress/zstd`. The first run of a version unpacks it under the user's cache directory and replaces its own process with it. Later runs compare a stored manifest and file sizes, then start. `DRUPACK_CACHE_DIR` moves that cache.
+Every published executable is a launcher carrying the real executable, compressed with `github.com/klauspost/compress/zstd`. The first run of a version unpacks it under the user's cache directory, then replaces its own process with it on Linux and macOS, or starts it as a child on Windows, which has no `exec`. Later runs compare a stored manifest and file sizes, then start. `DRUPACK_CACHE_DIR` moves that cache.
 
 `packaging/launcher` holds the launcher and its packer. The `packed` build stage runs the packer over the same executable the `uncompressed` target exports, so `docker build --target uncompressed` still gives you that executable on its own.
 

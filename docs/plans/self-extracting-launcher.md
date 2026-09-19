@@ -150,7 +150,9 @@ that keeps a double-clicked window open, and the child's exit code.
 
 ### Acceptance criteria
 
-- [ ] `packaging/windows/build.ps1` produces `drupack.exe` under 110 MB.
+- [ ] `packaging/windows/build.ps1` produces `drupack.exe` under 135 MB. The
+      0.1.1 asset measured 141,409,280 bytes on the old zip launcher, and the
+      Linux launcher measured 123,117,730 bytes.
 - [ ] `tests/windows/launcher.Tests.ps1` passes against the new payload format,
       including its concurrency and liveness cases.
 - [ ] `tests/windows/site.Tests.ps1` passes against the built executable.

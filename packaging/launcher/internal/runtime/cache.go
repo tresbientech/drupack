@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"syscall"
 )
 
 // rootMode is the permission every candidate cache root is created with.
@@ -19,6 +18,11 @@ const rootMode = 0700
 // stagingPrefix separates a cache key from the random suffix os.MkdirTemp adds,
 // and removeOthers matches on it to clear what an interrupted run left.
 const stagingPrefix = ".staging-"
+
+// activeName holds the key of the entry a start last activated, and lockName
+// serializes staging. Both live in the cache root, beside the entries.
+const activeName = "active"
+const lockName = "lock"
 
 // Root returns the cache directory a runtime unpacks into, creating it. A
 // user-named directory that refuses writes is reported, never silently
@@ -47,34 +51,6 @@ func Root() (string, error) {
 	return "", lastErr
 }
 
-func privateRoot(root string) (string, error) {
-	info, err := os.Lstat(root)
-	if err != nil {
-		return "", err
-	}
-	if !info.IsDir() || info.Mode().Perm()&0077 != 0 {
-		return "", fmt.Errorf("cache root is not a private directory: %s", root)
-	}
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok || int(stat.Uid) != os.Getuid() {
-		return "", fmt.Errorf("cache root is not owned by the current user: %s", root)
-	}
-	return root, nil
-}
-
-// cacheRoots lists Root's candidates in trial order.
-func cacheRoots() []string {
-	var roots []string
-	if cache, err := os.UserCacheDir(); err == nil {
-		roots = append(roots, filepath.Join(cache, "Drupack", "runtime"))
-	}
-	// The temporary directory is world-writable, so another local user could
-	// pre-create a shared path and leave a runtime there for this one to run.
-	// Naming it per uid keeps each user in their own directory.
-	owned := fmt.Sprintf("Drupack-%d", os.Getuid())
-	return append(roots, filepath.Join(os.TempDir(), owned, "runtime"))
-}
-
 // Key names the cache entry for a version and its payload, so a payload
 // change without a version bump still lands in its own entry.
 func Key(version string, payload []byte) string {
@@ -97,7 +73,9 @@ func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string,
 
 	unlock, err := lockRoot(root)
 	if err != nil {
-		return "", err
+		// A stuck holder must not wedge every later start, so a lock failure
+		// takes the same fallback as a staging failure.
+		return fallbackOrFail(root, m, fmt.Errorf("could not lock the runtime cache %s: %w", root, err), notice)
 	}
 	defer unlock()
 
@@ -109,18 +87,26 @@ func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string,
 	fmt.Fprintf(notice, "Unpacking Drupack %s. This happens once for each version.\n", m.Version)
 
 	if err := stage(root, entry, key, payload, m); err != nil {
-		wrapped := stagingFailure(root, m, err)
-		if fallbackEntry, ok := activeFallback(root); ok {
-			fmt.Fprintf(notice, "Could not unpack Drupack %s: %s. Using the runtime already in the cache.\n", m.Version, wrapped)
-			return fallbackEntry, nil
-		}
-		return "", wrapped
+		return fallbackOrFail(root, m, stagingFailure(root, m, err), notice)
 	}
 	if err := writeActive(root, key); err != nil {
 		return "", err
 	}
 	removeOthers(root, key)
 	return entry, nil
+}
+
+// fallbackOrFail is Prepare's recovery when reason, a lock or a staging
+// failure, stops it from returning a freshly prepared entry. It reports
+// root's active entry when that entry still verifies, writing why the fresh
+// attempt did not run; otherwise it returns reason.
+func fallbackOrFail(root string, m Manifest, reason error, notice io.Writer) (string, error) {
+	fallbackEntry, ok := activeFallback(root)
+	if !ok {
+		return "", reason
+	}
+	fmt.Fprintf(notice, "Could not unpack Drupack %s: %s. Using the runtime already in the cache.\n", m.Version, reason)
+	return fallbackEntry, nil
 }
 
 // warm reports whether entry already holds the runtime m describes: its
@@ -210,7 +196,7 @@ func activeFallback(root string) (string, bool) {
 // user's cache directory, a trust boundary, so its content must name a
 // single path element rather than a path Prepare would join outside root.
 func activeKey(root string) (string, error) {
-	data, err := os.ReadFile(filepath.Join(root, "active"))
+	data, err := os.ReadFile(filepath.Join(root, activeName))
 	if err != nil {
 		return "", err
 	}
@@ -260,9 +246,10 @@ func stage(root, entry, key string, payload []byte, m Manifest) error {
 		if err := os.Rename(entry, invalid); err != nil {
 			return err
 		}
-		if err := os.RemoveAll(invalid); err != nil {
-			return err
-		}
+		// Windows refuses to delete a directory holding a file a running copy
+		// still has open; invalid still carries its manifest, so removeOthers
+		// collects it on a later start.
+		os.RemoveAll(invalid)
 	}
 	return os.Rename(staging, entry)
 }
@@ -281,9 +268,9 @@ func verifyChecksums(directory string, m Manifest) error {
 }
 
 func writeActive(root, key string) error {
-	pending := filepath.Join(root, fmt.Sprintf("active.pending.%d", os.Getpid()))
+	pending := filepath.Join(root, fmt.Sprintf("%s.pending.%d", activeName, os.Getpid()))
 	if err := os.WriteFile(pending, []byte(key+"\n"), 0600); err != nil {
 		return err
 	}
-	return os.Rename(pending, filepath.Join(root, "active"))
+	return os.Rename(pending, filepath.Join(root, activeName))
 }
