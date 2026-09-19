@@ -35,9 +35,11 @@ jobs:
           printf '%s' "$DEPLOY_KEY_BASE64" | base64 -d >"$HOME/.ssh/github_mirror"
           # GitHub's published host key, from https://api.github.com/meta
           printf 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n' >"$HOME/.ssh/known_hosts"
+          # GitHub refuses these tag names for good: each held an immutable release in the repository deleted on 2026-09-19.
           GIT_SSH_COMMAND="ssh -i $HOME/.ssh/github_mirror -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
             git -C repository.git push --prune git@github.com:tresbientech/drupack.git \
-            '+refs/heads/*:refs/heads/*' '+refs/tags/*:refs/tags/*'
+            '+refs/heads/*:refs/heads/*' '+refs/tags/*:refs/tags/*' \
+            '^refs/tags/0.1.1' '^refs/tags/0.1.2' '^refs/tags/0.1.5'
 
       # A failed GitHub push still leaves drupal.org in sync.
       - name: Push branches and tags to drupal.org

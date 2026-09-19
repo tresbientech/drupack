@@ -28,7 +28,7 @@ Drupack's canonical repository is `tresbientech/drupack` on git.tresbien.tech, t
 - A manual `release.yml` dispatch builds the commit GitHub last received.
 - A failed GitHub push still runs the drupal.org push.
 - The next sync overwrites a merge made on GitHub or drupal.org. drupal.org merge requests land through the Forge.
-- A branch or tag deleted or rewritten on the Forge is deleted or rewritten on both mirrors.
+- A branch or tag deleted or rewritten on the Forge is deleted or rewritten on both mirrors. GitHub refuses the change for a tag that holds a release, and the GitHub push fails.
 - The drupal.org push fails once the project access token expires, until the secret holds a new token.
 - The GitHub repository became public on 2026-09-17. Its Releases download without sign-in.
 
@@ -37,3 +37,5 @@ Drupack's canonical repository is `tresbientech/drupack` on git.tresbien.tech, t
 Until this date the drupal.org push neither forced nor pruned. A history rewrite on the Forge then left drupal.org on the old `main` and `0.1.5`, and every later drupal.org push failed.
 
 The deploy key was a multi-line secret, and the runner printed it unmasked in every mirror run log. A new key replaced it, stored on one line.
+
+The GitHub repository was deleted and recreated on 2026-09-19. GitHub never lets a repository of the same name reuse the tag of an immutable release. Tags `0.1.1`, `0.1.2` and `0.1.5` therefore stay on the Forge and drupal.org only, and the GitHub push excludes them. A tag with a published GitHub release can never move.
