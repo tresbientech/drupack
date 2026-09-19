@@ -84,16 +84,22 @@ func TestPrepareRestagesWhenFileSizeChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again != entry {
-		t.Fatalf("restage returned %q, want %q", again, entry)
-	}
 
-	restored, err := os.ReadFile(appPath)
+	restored, err := os.ReadFile(filepath.Join(again, "bin", "app"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(restored) != fixtureEntryContent {
 		t.Fatalf("file was not restored: %q", restored)
+	}
+	// The re-stage claims its own name, so the corrupted entry is never written
+	// over, and a third start settles on the entry the second one activated.
+	third, err := runtimepkg.Prepare(root, payload, manifest, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if third != again {
+		t.Fatalf("a later start returned %q, want the activated entry %q", third, again)
 	}
 }
 

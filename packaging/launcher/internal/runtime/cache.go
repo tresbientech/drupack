@@ -65,9 +65,8 @@ func Key(version string, payload []byte) string {
 // still warm for its own manifest.
 func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string, error) {
 	key := Key(m.Version, payload)
-	entry := filepath.Join(root, key)
 
-	if warm(entry, m) {
+	if entry, ok := warmEntry(root, key, m); ok {
 		return entry, nil
 	}
 
@@ -80,20 +79,38 @@ func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string,
 	defer unlock()
 
 	// Another process may have finished staging while this one waited on the lock.
-	if warm(entry, m) {
+	if entry, ok := warmEntry(root, key, m); ok {
 		return entry, nil
 	}
 
 	fmt.Fprintf(notice, "Unpacking Drupack %s. This happens once for each version.\n", m.Version)
 
-	if err := stage(root, entry, key, payload, m); err != nil {
+	name, err := stage(root, key, payload, m)
+	if err != nil {
 		return fallbackOrFail(root, m, stagingFailure(root, m, err), notice)
 	}
-	if err := writeActive(root, key); err != nil {
+	if err := writeActive(root, name); err != nil {
 		return "", err
 	}
-	removeOthers(root, key)
-	return entry, nil
+	removeOthers(root, name)
+	return filepath.Join(root, name), nil
+}
+
+// warmEntry reports the directory already holding the runtime m describes: the
+// one named after key, or the one active names, since a start that found key's
+// name taken staged under a name of its own.
+func warmEntry(root, key string, m Manifest) (string, bool) {
+	if entry := filepath.Join(root, key); warm(entry, m) {
+		return entry, true
+	}
+	name, err := activeKey(root)
+	if err != nil || name == key {
+		return "", false
+	}
+	if entry := filepath.Join(root, name); warm(entry, m) {
+		return entry, true
+	}
+	return "", false
 }
 
 // fallbackOrFail is Prepare's recovery when reason, a lock or a staging
@@ -218,40 +235,47 @@ func stagingFailure(root string, m Manifest, err error) error {
 }
 
 // stage extracts payload into a fresh staging directory, verifies it, and
-// swaps it in for entry. A checksum failure leaves entry untouched, since the
-// swap happens only after every declared file verifies.
-func stage(root, entry, key string, payload []byte, m Manifest) error {
+// names it as an entry. It returns that entry's name, which is key unless a
+// directory already holds that name. A checksum failure leaves the cache
+// untouched, since the naming happens only after every declared file verifies.
+func stage(root, key string, payload []byte, m Manifest) (string, error) {
 	staging, err := os.MkdirTemp(root, key+stagingPrefix)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer os.RemoveAll(staging)
 
 	if err := Extract(staging, payload, m); err != nil {
-		return err
+		return "", err
 	}
 	if err := verifyChecksums(staging, m); err != nil {
-		return err
+		return "", err
 	}
 	contents, err := json.Marshal(m)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := os.WriteFile(filepath.Join(staging, ManifestName), contents, 0600); err != nil {
-		return err
+		return "", err
 	}
 
-	if _, err := os.Stat(entry); err == nil {
-		invalid := fmt.Sprintf("%s.invalid-%d", entry, os.Getpid())
-		if err := os.Rename(entry, invalid); err != nil {
-			return err
+	name := freeName(root, key)
+	return name, os.Rename(staging, filepath.Join(root, name))
+}
+
+// freeName returns key, or the first key.N beside it that no directory holds.
+// A site runs from its entry with files open, and Windows refuses to rename or
+// remove a directory while it does, so a re-stage claims its own name rather
+// than displacing the one that is there. The caller holds root's lock, so no
+// other process takes the name in between.
+func freeName(root, key string) string {
+	name := key
+	for n := 1; ; n++ {
+		if _, err := os.Lstat(filepath.Join(root, name)); err != nil {
+			return name
 		}
-		// Windows refuses to delete a directory holding a file a running copy
-		// still has open; invalid still carries its manifest, so removeOthers
-		// collects it on a later start.
-		os.RemoveAll(invalid)
+		name = fmt.Sprintf("%s.%d", key, n)
 	}
-	return os.Rename(staging, entry)
 }
 
 func verifyChecksums(directory string, m Manifest) error {

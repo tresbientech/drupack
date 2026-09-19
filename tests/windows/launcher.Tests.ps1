@@ -104,49 +104,43 @@ try {
   if (-not (Test-Path $strayPending)) { throw 'a start removed a stray pending activation file' }
   if ((Get-ActiveKey) -ne $key1) { throw 'a start with a stray pending file changed the active entry' }
 
-  ## A changed file size forces a re-stage, and the displaced entry is fully
-  ## removed rather than kept around as a '.invalid-*' directory.
+  ## A changed file size forces a re-stage. The fresh runtime takes a name of
+  ## its own, and the stale entry goes once nothing holds it.
   Add-Content -Path (Join-Path $entry1 'frankenphp.exe') -Value 'x' -NoNewline
   $resized = & $exe resized
-  $expectedResized = 'fixture test-v1 args=["resized"] env=forwarded phprc=' + $entry1
-  if ($resized -ne $expectedResized) { throw "a changed file size did not force a working re-stage: $resized" }
-  if (Get-ChildItem $runtimeRoot -Directory -Filter "$key1.invalid-*") { throw 'a re-stage left a displaced entry behind' }
-  if ((Get-ActiveKey) -ne $key1) { throw 'a re-stage changed the active entry' }
+  $entry2 = Join-Path $runtimeRoot (Get-ActiveKey)
+  if ($entry2 -eq $entry1) { throw 'a re-stage wrote over the entry that was there' }
+  if ($resized -ne ('fixture test-v1 args=["resized"] env=forwarded phprc=' + $entry2)) { throw "a changed file size did not force a working re-stage: $resized" }
+  if (Test-Path $entry1) { throw 'a re-stage left the stale entry behind' }
 
   # A running site holds its executable the way the Windows loader does, with
-  # reads and deletes shared. A re-stage displaces that entry and removes it,
-  # and the removal is best-effort while the handle lives. The start must
-  # serve either way, and a later start collects whatever the removal left.
-  Add-Content -Path (Join-Path $entry1 'frankenphp.exe') -Value 'y' -NoNewline
+  # reads and deletes shared. Windows refuses to rename or remove a directory
+  # while any file under it is open, so the re-stage claims its own name and
+  # leaves the held entry alone.
+  Add-Content -Path (Join-Path $entry2 'frankenphp.exe') -Value 'y' -NoNewline
   $share = [System.IO.FileShare]::Read -bor [System.IO.FileShare]::Delete
-  $heldHandle = [System.IO.File]::Open((Join-Path $entry1 'frankenphp.exe'), [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, $share)
+  $heldHandle = [System.IO.File]::Open((Join-Path $entry2 'frankenphp.exe'), [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, $share)
   try {
     $heldResult = & $exe held
-    $expectedHeld = 'fixture test-v1 args=["held"] env=forwarded phprc=' + $entry1
-    if ($heldResult -ne $expectedHeld) { throw "a re-stage with an open file in the displaced entry did not run: $heldResult" }
+    $entry3 = Join-Path $runtimeRoot (Get-ActiveKey)
+    if ($entry3 -eq $entry2) { throw 'a re-stage wrote over the entry a handle held' }
+    if ($heldResult -ne ('fixture test-v1 args=["held"] env=forwarded phprc=' + $entry3)) { throw "a re-stage with an open file did not run: $heldResult" }
   } finally {
     $heldHandle.Dispose()
   }
-  $collected = & $exe collected
-  $expectedCollected = 'fixture test-v1 args=["collected"] env=forwarded phprc=' + $entry1
-  if ($collected -ne $expectedCollected) { throw "a start after the handle closed did not run: $collected" }
-  if (Get-ChildItem $runtimeRoot -Directory -Filter "$key1.invalid-*") { throw 'a later start kept a displaced entry' }
 
-  # An exclusive handle shares nothing, so Windows refuses to rename the
-  # directory holding it. The start stops and names the cache root rather
-  # than serving a runtime it could not replace.
-  Add-Content -Path (Join-Path $entry1 'frankenphp.exe') -Value 'z' -NoNewline
-  $exclusive = [System.IO.File]::Open((Join-Path $entry1 'frankenphp.exe'), [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
+  # An exclusive handle shares nothing at all, which blocks a rename and a
+  # delete alike. The start still serves, since it never touches that entry.
+  Add-Content -Path (Join-Path $entry3 'frankenphp.exe') -Value 'z' -NoNewline
+  $exclusive = [System.IO.File]::Open((Join-Path $entry3 'frankenphp.exe'), [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
   try {
-    $blocked = (& $exe blocked 2>&1) -join "`n"
-    if ($LASTEXITCODE -eq 0) { throw "a start blocked by an exclusive handle reported success: $blocked" }
-    # $runtimeRoot carries a forward slash, and the runtime prints the path as Windows spells it.
-    $printedRoot = [regex]::Escape(($runtimeRoot -replace '/', '\'))
-    if ($blocked -notmatch $printedRoot) { throw "the refusal did not name the cache root: $blocked" }
+    $exclusiveResult = & $exe exclusive
+    $entry4 = Join-Path $runtimeRoot (Get-ActiveKey)
+    if ($entry4 -eq $entry3) { throw 'a re-stage wrote over the entry an exclusive handle held' }
+    if ($exclusiveResult -ne ('fixture test-v1 args=["exclusive"] env=forwarded phprc=' + $entry4)) { throw "a re-stage past an exclusive handle did not run: $exclusiveResult" }
   } finally {
     $exclusive.Dispose()
   }
-  if ((Get-ActiveKey) -ne $key1) { throw 'a re-stage with an open file changed the active entry' }
 
   ## Two simultaneous starts of one release that is not yet installed: only
   ## one process stages it, the cache lock makes the other wait, and both

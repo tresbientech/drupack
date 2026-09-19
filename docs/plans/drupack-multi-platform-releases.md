@@ -134,7 +134,7 @@ On 2026-09-17, `tests/windows/launcher.Tests.ps1` and `tests/windows/site.Tests.
 
 Remaining:
 
-- Old runtime versions, staging directories and `.invalid-<pid>` directories are never removed.
+- Old runtime versions and staging directories go only when a later start unpacks a runtime; a start that finds a warm one leaves them.
 - Stopping a site started without a console needs the whole process tree stopped.
 - No Windows test covers listener access, MySQL, PostgreSQL, help output or executable replacement.
 - No test runs on Windows 10 22H2. The runtime bundles no Visual C++ runtime DLLs.
