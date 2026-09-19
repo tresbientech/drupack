@@ -30,8 +30,8 @@ folder. Starting either one deletes the other's entry. Every start becomes a col
 start, so each pays the unpack and writes 418 MB.
 
 Nothing loses data and no running server stops. `DRUPACK_RUNTIME_BINARY` is
-re-executed only during startup, in `openWhenServing` and the install steps, so a
-serving site never reaches back into its directory.
+re-executed only during startup, in the install steps, so a serving site never
+reaches back into its directory.
 
 ## Decision
 

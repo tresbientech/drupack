@@ -159,14 +159,14 @@ function administratorCredentials(array $options, array $steps): array
     return $options;
 }
 
-// The Go entrypoint waits for the first response, prints the readiness line and opens
-// the browser when asked. This process becomes the server, so it cannot wait for itself.
-// A request spends a one-time login link, so readiness is polled on $url and the browser
-// opens on $target.
-function openWhenServing(string $binary, string $url, string $target, bool $browser): void
+// The server process waits for its own first response, prints the readiness line and opens
+// the browser when asked. A request spends a one-time login link, so readiness is polled on
+// $url and the browser opens on $target.
+function openWhenServing(string $url, string $target, bool $browser): void
 {
-    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => STDOUT, 2 => ['file', nullDevice(), 'w']];
-    proc_open([$binary, 'open-when-ready', $url, $target, $browser ? '1' : '0'], $descriptors, $pipes, __DIR__);
+    putenv("DRUPACK_RUNTIME_URL=$url");
+    putenv("DRUPACK_RUNTIME_OPEN=$target");
+    putenv('DRUPACK_RUNTIME_BROWSER=' . ($browser ? '1' : '0'));
 }
 
 function markerPath(string $directory): string
@@ -763,7 +763,7 @@ try {
     // A file manager on Windows has no other way to reach its reader.
     $interactive = $created && stream_isatty(STDIN);
     $browser = $options['no-browser'] === null && ($interactive || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1');
-    openWhenServing($binary, $url, $link ?? $url, $browser);
+    openWhenServing($url, $link ?? $url, $browser);
     replaceProcess($binary, ['php-server'], __DIR__, 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");

@@ -45,14 +45,16 @@ Examples:
   drupack dr --data-dir ./site user:login`
 
 // openWhenReady waits for the site to answer at address, then reports readiness and opens
-// the browser on target when asked. launch.php starts this command before it replaces itself
-// with the server. The terminal then keeps one readiness line even when no browser opens. A
-// first start's target is a one-time login link, which a request spends, so the poll asks for
-// address instead.
+// the browser on target when asked. The terminal keeps one readiness line even when no
+// browser opens. A first start's target is a one-time login link, which a request spends,
+// so the poll asks for address instead. launch.php passes both through the environment.
 func openWhenReady(address string, target string, browser bool) {
+	// A cold start answers its first request slowly, and a request that never returns would
+	// otherwise hold the poll past the deadline.
+	client := http.Client{Timeout: 30 * time.Second}
 	deadline := time.Now().Add(2 * time.Minute)
 	for time.Now().Before(deadline) {
-		response, err := http.Get(address)
+		response, err := client.Get(address)
 		if err == nil {
 			response.Body.Close()
 			fmt.Println("Drupal is ready.")
@@ -101,6 +103,10 @@ func init() {
 	// launch.php replaces itself with this command to serve the site.
 	if len(os.Args) > 1 && os.Args[1] == "php-server" {
 		forceExitOnStalledShutdown()
+		// The server waits for itself. A separate process would first extract its own copy
+		// of the embedded application, which takes longer than the wait on a slow disk.
+		go openWhenReady(os.Getenv("DRUPACK_RUNTIME_URL"), os.Getenv("DRUPACK_RUNTIME_OPEN"),
+			os.Getenv("DRUPACK_RUNTIME_BROWSER") == "1")
 	}
 	executable, err := os.Executable()
 	if err != nil {
@@ -116,10 +122,6 @@ func init() {
 		}
 		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[2:]...)
 		return
-	}
-	if len(os.Args) == 5 && os.Args[1] == "open-when-ready" {
-		openWhenReady(os.Args[2], os.Args[3], os.Args[4] == "1")
-		os.Exit(0)
 	}
 	if len(os.Args) == 2 && (os.Args[1] == "--help" || os.Args[1] == "-h") {
 		fmt.Println(usage)

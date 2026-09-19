@@ -35,7 +35,8 @@ printf '%s\n' '<?php fwrite(STDOUT, "cwd launch executed\n"); exit(42);' >"$host
 hostile_data="$hostile_root/data"
 (
   cd "$hostile_root"
-  "$binary" --no-browser --data-dir "$hostile_data" --admin-user launcher-admin --admin-password Launcher.test.password.2026
+  # exec makes $! the server rather than the subshell, so the kill below reaches it.
+  exec "$binary" --no-browser --data-dir "$hostile_data" --admin-user launcher-admin --admin-password Launcher.test.password.2026
 ) >"$results/case0.log" 2>&1 &
 hostile_server=$!
 for attempt in {1..150}; do
@@ -194,8 +195,9 @@ args=$(ps -o args= -p "$server")
 # runtime/launch.php re-execs through DRUPACK_RUNTIME_BINARY, so the served
 # process names the cache entry's drupack, never the path this test invoked.
 [[ $args == "$cache456/$key456/drupack"* ]] || fail 'The serving process does not run the cache entry executable'
+# The server waits for its own first response, so a start leaves no helper behind.
 children=$(pgrep -c -P "$server" || true)
-[[ $children -eq 1 ]] || fail 'The serving process did not have exactly one child, the readiness helper'
+[[ $children -eq 0 ]] || fail 'The serving process spawned a child'
 
 ## Case 6: SIGINT stops the server.
 kill -INT "$server"

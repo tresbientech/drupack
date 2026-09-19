@@ -84,7 +84,13 @@ class SeededSite(unittest.TestCase):
             str(cls.binary), "--data-dir", str(data), *options,
         ], cwd=cls.work, stdout=cls.server_log, stderr=subprocess.STDOUT,
            start_new_session=True)
-        wait_until(cls.ready)
+        # A server that never reports ready still holds the port, and every later case would
+        # then answer from it rather than from its own site.
+        try:
+            wait_until(cls.ready, timeout=180)
+        except AssertionError:
+            cls.stop()
+            raise
 
     # The port accepts before the site can answer, and the runtime's own first request
     # is still running then. Stopping a server mid-request makes it wait out that
