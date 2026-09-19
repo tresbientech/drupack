@@ -6,9 +6,9 @@ Drupack's canonical repository is `tresbientech/drupack` on git.tresbien.tech, t
 
 - Only `main` and version tags are pushed, and only to the Forge.
 - A Forge Actions job runs when a version tag reaches the Forge, or on a manual dispatch. It clones the Forge repository, then pushes its branches and tags to each mirror.
-- The GitHub push authenticates with an SSH deploy key stored as a Forge repository secret. It forces and prunes.
+- The GitHub push authenticates with an SSH deploy key, stored base64-encoded as the `MIRROR_DEPLOY_KEY_BASE64` Forge repository secret. The runner masks a secret in logs only when it is one line.
 - The drupal.org push authenticates over HTTPS with a GitLab project access token, stored as the `DRUPAL_ORG_MIRROR_TOKEN` Forge repository secret. The token has the Maintainer role and the `write_repository` scope only.
-- The drupal.org push never forces or prunes.
+- Both pushes force and prune, so each mirror matches the Forge after a sync.
 - Both mirrors carry the full history, with the same commit SHAs as the Forge.
 - A version tag such as `0.1.0` starts a GitHub Actions workflow. It tests the release executables and publishes them as a GitHub Release.
 - GitHub takes no issues or pull requests.
@@ -27,8 +27,13 @@ Drupack's canonical repository is `tresbientech/drupack` on git.tresbien.tech, t
 - Commits pushed between version tags stay on the Forge until the next tag or a manual dispatch.
 - A manual `release.yml` dispatch builds the commit GitHub last received.
 - A failed GitHub push still runs the drupal.org push.
-- The next sync overwrites a merge made on GitHub.
-- After a merge made on drupal.org, the drupal.org push fails until the Forge holds that commit. drupal.org merge requests land through the Forge.
-- A branch or tag deleted on the Forge stays on drupal.org.
+- The next sync overwrites a merge made on GitHub or drupal.org. drupal.org merge requests land through the Forge.
+- A branch or tag deleted or rewritten on the Forge is deleted or rewritten on both mirrors.
 - The drupal.org push fails once the project access token expires, until the secret holds a new token.
 - The GitHub repository became public on 2026-09-17. Its Releases download without sign-in.
+
+## Amendment, 2026-09-19
+
+Until this date the drupal.org push neither forced nor pruned. A history rewrite on the Forge then left drupal.org on the old `main` and `0.1.5`, and every later drupal.org push failed.
+
+The deploy key was a multi-line secret, and the runner printed it unmasked in every mirror run log. A new key replaced it, stored on one line.

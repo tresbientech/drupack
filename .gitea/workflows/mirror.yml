@@ -27,11 +27,12 @@ jobs:
 
       - name: Push branches and tags to GitHub
         env:
-          DEPLOY_KEY: ${{ secrets.MIRROR_DEPLOY_KEY }}
+          # The runner masks a secret in logs only when it is one line, so the key is stored base64-encoded.
+          DEPLOY_KEY_BASE64: ${{ secrets.MIRROR_DEPLOY_KEY_BASE64 }}
         run: |
           umask 077
           mkdir -p "$HOME/.ssh"
-          printf '%s\n' "$DEPLOY_KEY" >"$HOME/.ssh/github_mirror"
+          printf '%s' "$DEPLOY_KEY_BASE64" | base64 -d >"$HOME/.ssh/github_mirror"
           # GitHub's published host key, from https://api.github.com/meta
           printf 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n' >"$HOME/.ssh/known_hosts"
           GIT_SSH_COMMAND="ssh -i $HOME/.ssh/github_mirror -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
@@ -46,6 +47,5 @@ jobs:
         run: |
           # GitLab reads the project access token from the password and ignores the user name.
           authorization=$(printf 'forge-mirror:%s' "$DRUPAL_ORG_TOKEN" | base64 -w0)
-          # Without force, a rewritten Forge ref fails the run. Without prune, refs deleted on the Forge stay on drupal.org.
           git -C repository.git -c "http.extraHeader=Authorization: Basic $authorization" \
-            push https://git.drupalcode.org/project/drupack.git 'refs/heads/*:refs/heads/*' 'refs/tags/*:refs/tags/*'
+            push --prune https://git.drupalcode.org/project/drupack.git '+refs/heads/*:refs/heads/*' '+refs/tags/*:refs/tags/*'
