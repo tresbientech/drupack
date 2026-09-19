@@ -157,11 +157,20 @@ try {
   $procB.WaitForExit()
   if ($procA.ExitCode -ne 0) { throw "the first of two simultaneous starts of one release failed: $(Get-Content $errA -Raw)" }
   if ($procB.ExitCode -ne 0) { throw "the second of two simultaneous starts of one release failed: $(Get-Content $errB -Raw)" }
-  # The pre-fix loser of this race reached exit 0 but warned on stderr that it
-  # fell back to the previous runtime, so a bare exit-code check would pass
-  # against the old code.
-  if (Get-Content $errA -Raw) { throw "the first of two simultaneous starts of one release wrote to standard error: $(Get-Content $errA -Raw)" }
-  if (Get-Content $errB -Raw) { throw "the second of two simultaneous starts of one release wrote to standard error: $(Get-Content $errB -Raw)" }
+  # One process unpacks and says so on standard error; that line is all either
+  # one may write there. The pre-fix loser of this race reached exit 0 but
+  # warned there that it fell back to the previous runtime, so a bare exit-code
+  # check would pass against the old code.
+  $unpacking = 'Unpacking Drupack test-v3. This happens once for each version.'
+  $notices = 0
+  foreach ($pair in @(@($errA, 'first'), @($errB, 'second'))) {
+    $text = (Get-Content $pair[0] -Raw)
+    if (-not $text) { continue }
+    if ($text -match [regex]::Escape($unpacking)) { $notices++ }
+    $rest = ($text -replace [regex]::Escape($unpacking), '').Trim()
+    if ($rest) { throw "the $($pair[1]) of two simultaneous starts of one release wrote to standard error: $text" }
+  }
+  if ($notices -ne 1) { throw "two simultaneous starts printed $notices unpacking lines, expected exactly one" }
   if ((Get-Content $outA -Raw) -notmatch '"one"') { throw 'the first of two simultaneous starts did not forward its own arguments' }
   if ((Get-Content $outB -Raw) -notmatch '"two"') { throw 'the second of two simultaneous starts did not forward its own arguments' }
   $key3 = Get-EntryKey 'test-v3'
