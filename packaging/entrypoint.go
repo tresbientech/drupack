@@ -52,7 +52,9 @@ func openWhenReady(address string, target string, browser bool) {
 	// A cold start answers its first request slowly, and a request that never returns would
 	// otherwise hold the poll past the deadline.
 	client := http.Client{Timeout: 30 * time.Second}
-	deadline := time.Now().Add(2 * time.Minute)
+	started := time.Now()
+	deadline := started.Add(2 * time.Minute)
+	var last error
 	for time.Now().Before(deadline) {
 		response, err := client.Get(address)
 		if err == nil {
@@ -63,8 +65,12 @@ func openWhenReady(address string, target string, browser bool) {
 			}
 			return
 		}
+		last = err
 		time.Sleep(500 * time.Millisecond)
 	}
+	// The site keeps serving, so this names what the wait saw rather than stopping anything.
+	fmt.Fprintf(os.Stderr, "Drupal did not answer at %s within %s: %v\n",
+		address, time.Since(started).Round(time.Second), last)
 }
 
 func openBrowser(address string) {
