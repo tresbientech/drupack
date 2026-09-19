@@ -5,6 +5,18 @@ on:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Target to build and test; a tag push always builds every platform.
+        type: choice
+        default: all
+        options:
+          - all
+          - linux-amd64
+          - linux-arm64
+          - macos-arm64
+          - macos-amd64
+          - windows-amd64
 
 permissions:
   contents: read
@@ -12,16 +24,17 @@ permissions:
 jobs:
   linux:
     name: Linux ${{ matrix.architecture }}
-    runs-on: ${{ matrix.runner }}
+    if: contains(fromJSON('["all","linux-amd64","linux-arm64"]'), inputs.platform || 'all')
+    runs-on: ${{ matrix.architecture == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - architecture: amd64
-            runner: ubuntu-24.04
-          - architecture: arm64
-            runner: ubuntu-24.04-arm
+        architecture: [amd64, arm64]
+        # A dispatch naming one leg excludes the other; exclude has nothing to
+        # remove for 'all' or a tag push, so both legs run.
+        exclude:
+          - architecture: ${{ (inputs.platform || 'all') == 'linux-amd64' && 'arm64' || (inputs.platform || 'all') == 'linux-arm64' && 'amd64' || 'none' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,25 +54,6 @@ jobs:
           
       - name: Report the free space after the build
         run: df -h /
-
-      - name: Export the application archive
-        if: matrix.architecture == 'amd64'
-        env:
-          DRUPACK_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
-        run: |
-          docker build --target build --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-build .
-          container=$(docker create drupack-build)
-          mkdir application
-          docker cp "$container:/go/src/app/app.tar" application/app.tar
-          docker cp "$container:/go/src/app/app_checksum.txt" application/app_checksum.txt
-          docker rm "$container"
-
-      - if: matrix.architecture == 'amd64'
-        uses: actions/upload-artifact@v4
-        with:
-          name: application-archive
-          path: application
-          if-no-files-found: error
 
       - name: Run the test scripts
         run: |
@@ -97,9 +91,43 @@ jobs:
           path: dist/drupack
           if-no-files-found: error
 
+  application:
+    name: application
+    if: contains(fromJSON('["all","windows-amd64","macos-arm64","macos-amd64"]'), inputs.platform || 'all')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      # The runner starts with about 14 GB free, the builder image takes 8.6 GB.
+      # Printing the free space tells a later failure apart from a full disk.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Export the application archive
+        env:
+          DRUPACK_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
+        run: |
+          docker build --target build --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-build .
+          container=$(docker create drupack-build)
+          mkdir application
+          docker cp "$container:/go/src/app/app.tar" application/app.tar
+          docker cp "$container:/go/src/app/app_checksum.txt" application/app_checksum.txt
+          docker rm "$container"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: application-archive
+          path: application
+          if-no-files-found: error
+
   windows:
     name: Windows amd64
-    needs: linux
+    needs: application
+    if: contains(fromJSON('["all","windows-amd64"]'), inputs.platform || 'all')
     runs-on: windows-2025
     timeout-minutes: 90
     defaults:
@@ -147,17 +175,18 @@ jobs:
 
   macos:
     name: macOS ${{ matrix.architecture }}
-    needs: linux
-    runs-on: ${{ matrix.runner }}
+    needs: application
+    if: contains(fromJSON('["all","macos-arm64","macos-amd64"]'), inputs.platform || 'all')
+    runs-on: ${{ matrix.architecture == 'arm64' && 'macos-15' || 'macos-15-intel' }}
     timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - architecture: arm64
-            runner: macos-15
-          - architecture: amd64
-            runner: macos-15-intel
+        architecture: [arm64, amd64]
+        # A dispatch naming one leg excludes the other; exclude has nothing to
+        # remove for 'all' or a tag push, so both legs run.
+        exclude:
+          - architecture: ${{ (inputs.platform || 'all') == 'macos-arm64' && 'amd64' || (inputs.platform || 'all') == 'macos-amd64' && 'arm64' || 'none' }}
     steps:
       - uses: actions/checkout@v4
 
