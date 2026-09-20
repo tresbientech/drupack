@@ -46,6 +46,11 @@ class OfflineRun(harness.ConformanceCase):
             "--entrypoint", "/usr/local/bin/python3",
             OFFLINE_IMAGE,
             "/tests/conformance", "/artifact/drupack", "/results",
+            # The inner run proves SeededSite works with no network; every other case
+            # already ran on the host and needs no second, redundant run in here. The
+            # class name, not the module name, is the selector: "site_cases" also
+            # matches this very method's own name, test_offline_site_cases.
+            "-k", "SeededSite",
         ]
         with open(log_path, "w") as log_handle:
             try:

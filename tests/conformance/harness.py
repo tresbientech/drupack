@@ -54,6 +54,9 @@ WAIT_TABLE = [
     Wait("stop", 30, 10, "stop after the first signal"),
     Wait("dr", 120, None, "a dr command"),
     Wait("php_cli", 30, None, "a php-cli probe"),
+    # No product deadline: a start that should refuse an argument is expected to fail
+    # before it ever reaches the point of attempting a connection.
+    Wait("refusal", 20, None, "a start expected to refuse"),
     # No product deadline: budget for a base-image pull plus the inner run's own site
     # cases, which take under 2 minutes uncontained.
     Wait("offline", 600, None, "the offline container's full site-case run"),

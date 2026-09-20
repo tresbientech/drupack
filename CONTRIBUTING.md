@@ -46,11 +46,9 @@ The suites run against the published executable, which is the launcher.
 
 ```sh
 docker build --target artifact --output type=local,dest=dist .
-bash tests/database-init.sh ./dist/drupack
 bash tests/launcher.sh ./dist/drupack
 bash tests/network.sh ./dist/drupack
 bash tests/server-database.sh ./dist/drupack
-bash tests/replacement.sh ./dist/drupack
 bash tests/initialization.sh ./dist/drupack
 python3 tests/conformance ./dist/drupack test-results/conformance
 ```

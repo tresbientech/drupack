@@ -57,11 +57,9 @@ jobs:
 
       - name: Run the test scripts
         run: |
-          bash tests/database-init.sh dist/drupack test-results/database
           python3 tests/conformance dist/drupack test-results/conformance
           bash tests/network.sh dist/drupack test-results/network
           bash tests/server-database.sh dist/drupack test-results/server-database
-          bash tests/replacement.sh dist/drupack test-results/replacement
 
       - name: Start a SQLite site on a musl host
         run: |
@@ -225,15 +223,8 @@ jobs:
           key: macos-${{ matrix.architecture }}-${{ hashFiles('packaging/macos/build.sh') }}
 
       - name: Run the test scripts
-        env:
-          HOMEBREW_NO_AUTO_UPDATE: 1
         run: |
-          # tests/database-init.sh calls GNU timeout, which macOS lacks.
-          brew install coreutils
-          PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
-          bash tests/database-init.sh dist/drupack test-results/database
           python3 tests/conformance dist/drupack test-results/conformance
-          bash tests/replacement.sh dist/drupack test-results/replacement
 
       - name: Check the unsigned launch steps
         run: |
