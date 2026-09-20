@@ -1,8 +1,9 @@
 """The launcher's own cache: cold starts, fixtures, and the cache states they build.
 
-Ported from tests/launcher.sh cases 1-11 (case 0 moved in phase 2). Most classes stay
-Linux only; ColdWarmStart, ConcurrentColdStart and one FixtureCacheCases method also run
-on Windows, and WindowsLauncherCases holds the cache states only Windows can produce.
+Ported from tests/launcher.sh cases 1-11 (case 0 moved in phase 2). The Go tests in
+packaging/launcher cover the cache-root fallbacks and the concurrent cold start, which
+need no built executable. Most classes stay Linux only; ColdWarmStart also runs on
+Windows, and WindowsLauncherCases holds the cache states only Windows can produce.
 """
 
 import ctypes
@@ -21,10 +22,6 @@ import harness
 # The only line cache.go writes to standard error, once per unpacked version.
 UNPACKING_PATTERN = re.compile(
     r"^Unpacking Drupack .+\. This happens once for each version\.$", re.MULTILINE
-)
-# The line Prepare writes when a corrupted payload falls back to the cached version.
-FALLBACK_PATTERN = re.compile(
-    r"^Could not unpack Drupack [^:]+: .*Using the runtime already in the cache\.$", re.MULTILINE
 )
 
 # The real launcher's entry file inside a cache directory: the Linux distribution's own
@@ -107,78 +104,6 @@ class ColdWarmStart(harness.ConformanceCase):
         )
 
 
-class ConcurrentColdStart(harness.ConformanceCase):
-    """Case 3: two cold starts racing the same private cache."""
-
-    PLATFORMS = (harness.LINUX, harness.WINDOWS)
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
-    def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
-
-    def test_two_simultaneous_cold_starts(self):
-        cache = harness.reserved_dir(self.case_dir / "cache")
-        env = dict(os.environ, DRUPACK_CACHE_DIR=str(cache))
-        started = []
-        for label in ("a", "b"):
-            out_handle = open(self.case_dir / f"{label}.out", "wb")
-            err_handle = open(self.case_dir / f"{label}.err", "wb")
-            process = harness.popen(
-                [str(harness.BINARY), "--help"], cwd=self.case_dir,
-                stdout=out_handle, stderr=err_handle, env=env,
-            )
-            started.append((label, process, out_handle, err_handle))
-
-        codes = {}
-        try:
-            for label, process, out_handle, err_handle in started:
-                try:
-                    codes[label] = process.wait(timeout=harness.WAITS["unpack"].seconds)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
-                    self.fail(f"the {label} cold start exceeded its unpack budget and was killed")
-        finally:
-            for _, _, out_handle, err_handle in started:
-                out_handle.close()
-                err_handle.close()
-
-        self.assertEqual(codes["a"], 0, "the first of two simultaneous cold starts exited non-zero")
-        self.assertEqual(codes["b"], 0, "the second of two simultaneous cold starts exited non-zero")
-        # One process wins the lock and stages; the other finds the entry already warm. That
-        # single unpacking line is the only thing either process may write to standard error,
-        # checked per process so a stray warning on one side cannot hide behind the other's
-        # silence the way a combined count would.
-        notices = 0
-        for label in ("a", "b"):
-            text = (self.case_dir / f"{label}.err").read_text(errors="replace")
-            if not text:
-                continue
-            if UNPACKING_PATTERN.search(text):
-                notices += 1
-            rest = UNPACKING_PATTERN.sub("", text).strip()
-            if rest:
-                self.fail(f"the {label} of two simultaneous cold starts wrote to standard error: {text}")
-        self.assertEqual(
-            notices, 1, f"two simultaneous cold starts printed {notices} unpacking lines, expected exactly one"
-        )
-        self.assertEqual(entry_count(cache), 1, "two simultaneous cold starts did not leave exactly one cache entry")
-        self.assertEqual(
-            list(cache.glob("*.staging-*")), [],
-            "a staging directory survived two simultaneous cold starts",
-        )
-        key = (cache / "active").read_text().strip()
-        self.assertTrue(
-            (cache / key / ENTRY).is_file(), "two simultaneous cold starts did not activate a complete runtime"
-        )
-
-
 class InstalledSiteLauncherCases(harness.ConformanceCase):
     """Cases 4-6: dr, the serving process and SIGINT, against one installed site.
 
@@ -252,113 +177,6 @@ class InstalledSiteLauncherCases(harness.ConformanceCase):
                 self.fail("the port still answers after SIGINT stopped the server")
         finally:
             site.stop()
-
-
-# Case 11's corrupted-payload fallback is the one FixtureCacheCases method with a Windows
-# twin; the other three test POSIX-only cache-root fallbacks a Windows launcher never took.
-WINDOWS_METHODS = frozenset({"test_a_corrupted_payload_falls_back_to_the_cached_version"})
-
-
-class FixtureCacheCases(harness.ConformanceCase):
-    """Cases 7, 8, 10 and 11, against fixture launchers the harness packs from a Go stub,
-    so none of them needs the 400 MB production executable.
-    """
-
-    PLATFORMS = (harness.LINUX, harness.WINDOWS)
-    TOOLS = ("go",)
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
-    def setUp(self):
-        if (harness.current_platform() == harness.WINDOWS
-                and self._testMethodName not in WINDOWS_METHODS):
-            self.skipTest("not marked for windows")
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
-
-    def test_drupack_cache_dir_takes_precedence_over_default_root(self):
-        fixture = harness.pack_fixture(ENTRY, "7.0.0", self.case_dir / "fixture")
-        cache = harness.reserved_dir(self.case_dir / "cache")
-        xdg = harness.fresh_dir(self.case_dir / "xdg")
-        env = dict(os.environ, DRUPACK_CACHE_DIR=str(cache), XDG_CACHE_HOME=str(xdg))
-        code, _, err = run(self.case_dir, fixture, "run", "--help", env=env)
-        self.assertEqual(code, 0, f"the fixture start exited non-zero: inspect {err}")
-        self.assertEqual(entry_count(cache), 1, "DRUPACK_CACHE_DIR did not receive the unpacked runtime")
-        self.assertFalse(
-            (xdg / "Drupack").exists(),
-            "the default cache root gained an entry although DRUPACK_CACHE_DIR was set",
-        )
-
-    def test_a_home_that_refuses_writes_falls_back_to_tmpdir(self):
-        if os.getuid() == 0:
-            self.skipTest("running as root, which ignores directory mode bits")
-        fixture = harness.pack_fixture(ENTRY, "8.0.0", self.case_dir / "fixture")
-        home = harness.fresh_dir(self.case_dir / "home")
-        tmp = harness.fresh_dir(self.case_dir / "tmp")
-        home.chmod(0o500)
-        # DRUPACK_CACHE_DIR is exported for the whole run; this case is about Root()'s own
-        # fallback, so it must run with neither that nor XDG_CACHE_HOME set.
-        env = {key: value for key, value in os.environ.items()
-               if key not in ("DRUPACK_CACHE_DIR", "XDG_CACHE_HOME")}
-        env["HOME"] = str(home)
-        env["TMPDIR"] = str(tmp)
-        try:
-            code, _, err = run(self.case_dir, fixture, "run", "--help", env=env)
-        finally:
-            home.chmod(0o700)
-        self.assertEqual(code, 0, f"the launcher did not exit 0 when HOME refuses writes: inspect {err}")
-        # The temporary directory is shared, so the launcher names its root per uid.
-        runtime_root = tmp / f"Drupack-{os.getuid()}" / "runtime"
-        self.assertEqual(
-            entry_count(runtime_root), 1, "the runtime did not land under TMPDIR when HOME refuses writes"
-        )
-
-    def test_two_versions_leave_one_active_entry(self):
-        fixture_a = harness.pack_fixture(ENTRY, "10.0.0", self.case_dir / "fixture-v1")
-        fixture_b = harness.pack_fixture(ENTRY, "10.0.1", self.case_dir / "fixture-v2")
-        cache = harness.reserved_dir(self.case_dir / "cache")
-        env = dict(os.environ, DRUPACK_CACHE_DIR=str(cache))
-
-        code, _, err = run(self.case_dir, fixture_a, "first", "--help", env=env)
-        self.assertEqual(code, 0, f"the first version exited non-zero: inspect {err}")
-        key_a = (cache / "active").read_text().strip()
-        self.assertTrue((cache / key_a).is_dir(), "the first version did not stage a cache entry")
-
-        code, _, err = run(self.case_dir, fixture_b, "second", "--help", env=env)
-        self.assertEqual(code, 0, f"the second version exited non-zero: inspect {err}")
-        key_b = (cache / "active").read_text().strip()
-        self.assertNotEqual(key_b, key_a, "the second version did not become active")
-        self.assertFalse(
-            (cache / key_a).exists(), "the first version's entry survived a second version's start"
-        )
-        self.assertEqual(entry_count(cache), 1, "two versions did not leave exactly one cache entry")
-
-    def test_a_corrupted_payload_falls_back_to_the_cached_version(self):
-        fixture = harness.pack_fixture(ENTRY, "11.0.0", self.case_dir / "fixture-v1")
-        cache = harness.reserved_dir(self.case_dir / "cache")
-        env = dict(os.environ, DRUPACK_CACHE_DIR=str(cache))
-        code, _, err = run(self.case_dir, fixture, "install", "--help", env=env)
-        self.assertEqual(code, 0, f"installing version one exited non-zero: inspect {err}")
-        self.assertEqual(entry_count(cache), 1, "installing version one did not leave one cache entry")
-        good_key = (cache / "active").read_text().strip()
-
-        broken = harness.pack_corrupted_fixture(ENTRY, "11.0.1", self.case_dir / "fixture-v2")
-        code, out, err = run(self.case_dir, broken, "fallback", "--help", env=env)
-        self.assertEqual(code, 0, "a corrupted payload with a valid cached version did not exit 0")
-        self.assertIn(
-            "fixture 11.0.0", out.read_text(errors="replace"), "the fallback did not run the cached version"
-        )
-        self.assertRegex(
-            err.read_text(errors="replace"), FALLBACK_PATTERN, "the fallback warning was not written to standard error"
-        )
-        self.assertEqual(entry_count(cache), 1, "the fallback start changed the number of cache entries")
-        self.assertEqual(
-            (cache / "active").read_text().strip(), good_key, "a failed stage replaced the active runtime"
-        )
 
 
 def _active_entry(cache):

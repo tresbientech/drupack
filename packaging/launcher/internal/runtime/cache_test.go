@@ -438,6 +438,26 @@ func TestRootFallsBackToTempDirWhenTheCacheDirRefusesWrites(t *testing.T) {
 	}
 }
 
+func TestRootPrefersTheCacheDirOverTheDefaultRoot(t *testing.T) {
+	base := t.TempDir()
+	// Root creates the named directory itself, at the private mode privateRoot demands.
+	cache := filepath.Join(base, "cache")
+	xdg := filepath.Join(base, "xdg")
+	t.Setenv("DRUPACK_CACHE_DIR", cache)
+	t.Setenv("XDG_CACHE_HOME", xdg)
+
+	root, err := runtimepkg.Root()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(root, cache) {
+		t.Fatalf("expected a root under %q, got %q", cache, root)
+	}
+	if _, err := os.Stat(filepath.Join(xdg, "Drupack")); !os.IsNotExist(err) {
+		t.Fatalf("the default root under %q gained an entry", xdg)
+	}
+}
+
 func TestRootRejectsAGroupWritableCacheDir(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Chmod(root, 0750); err != nil {
