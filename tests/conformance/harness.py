@@ -4,15 +4,18 @@ Importable with no built executable and no results directory: BINARY and RESULTS
 None until tests/conformance/__main__.py sets them, before unittest imports a case module.
 """
 
+import hashlib
 import os
 import platform
 import shutil
 import signal
 import socket
 import subprocess
+import tempfile
 import time
 import unittest
 from collections import namedtuple
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -62,6 +65,18 @@ WAIT_TABLE = [
     Wait("offline", 600, None, "the offline container's full site-case run"),
     # No product deadline: docker rm -f on a name it just started, normally near-instant.
     Wait("offline_kill", 30, None, "removing a hung offline container after its budget expires"),
+    # No product deadline: a cold start's own unpack, run by --help with no server to poll.
+    Wait("unpack", 90, None, "an executable unpacking its runtime before --help exits"),
+    # No product deadline: compiling a stdlib-only stub, normally a few seconds.
+    Wait("fixture_build", 30, None, "compiling a fixture stub with go build"),
+    # No product deadline: packing a launcher around the stub, which is itself a go build
+    # of packaging/launcher and can need a first, uncached fetch of its module.
+    Wait("fixture_pack", 180, None, "packing a fixture launcher with go run ./cmd/pack"),
+    # No product deadline: a start denied room to unpack, behind a pull of the pinned image.
+    Wait("cache_full", 120, None, "a start with no room in its cache root, including the image pull"),
+    Wait("cache_full_kill", 30, None, "removing a hung cache-full container after its budget expires"),
+    Wait("probe", 10, None, "a local process-table lookup (ps, pgrep) against a running start"),
+    Wait("port_closed", 2, None, "confirming a stopped server's port refuses a connection"),
 ]
 
 WAITS = {wait.name: wait for wait in WAIT_TABLE}
@@ -72,6 +87,100 @@ def pick_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         probe.bind(("127.0.0.1", 0))
         return probe.getsockname()[1]
+
+
+def fresh_dir(path):
+    """Recreate path as an empty directory, for a case that needs its own cache, home or root."""
+    shutil.rmtree(path, ignore_errors=True)
+    path.mkdir(parents=True)
+    return path
+
+
+def reserved_dir(path):
+    """Clear path without creating it, for a case that hands path to the launcher as a cache
+    root. runtime.Root() creates a missing root itself, at the private mode 0700 privateRoot()
+    requires; a directory this process pre-created would carry the host umask instead.
+    """
+    shutil.rmtree(path, ignore_errors=True)
+    return path
+
+
+# packaging/launcher, the module cmd/pack builds every fixture launcher from.
+LAUNCHER_SRC = Path(__file__).resolve().parent.parent.parent / "packaging" / "launcher"
+
+# The stub every fixture launcher packs as its runtime: it reports its own version, its
+# arguments, one forwarded environment value and PHPRC, so a case can tell a fixture start
+# from a real one and, on Windows in phase 10, prove the launcher forwards all four. The
+# version is baked in as literal source text, once per build, like tests/windows/launcher.Tests.ps1's
+# stub does for its own fixtures.
+_STUB_SOURCE = """package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {{
+	fmt.Printf("fixture {version} args=%q env=%s phprc=%s", os.Args[1:], os.Getenv("DRUPACK_TEST_VALUE"), os.Getenv("PHPRC"))
+}}
+"""
+
+
+def _build_stub(work, runtime_dir, entry, version):
+    """Compile the stub into runtime_dir/entry. The source stays in work, beside runtime_dir
+    rather than inside it, since cmd/pack collects every regular file the runtime holds.
+    """
+    source = work / "main.go"
+    source.write_text(_STUB_SOURCE.format(version=version))
+    subprocess.run(
+        ["go", "build", "-o", str(runtime_dir / entry), str(source)],
+        check=True, capture_output=True, text=True, timeout=WAITS["fixture_build"].seconds,
+    )
+
+
+def _run_pack(runtime_dir, entry, version, output):
+    output.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["go", "run", "./cmd/pack", "-runtime", str(runtime_dir), "-entry", entry,
+         "-version", version, "-source", ".", "-output", str(output)],
+        cwd=LAUNCHER_SRC, check=True, capture_output=True, text=True,
+        timeout=WAITS["fixture_pack"].seconds,
+    )
+
+
+def pack_fixture(entry, version, output):
+    """Build a launcher whose runtime is the stub, packed under entry (the platform's entry name)."""
+    with tempfile.TemporaryDirectory(prefix="drupack-fixture-") as work:
+        work = Path(work)
+        runtime_dir = work / "runtime"
+        runtime_dir.mkdir()
+        _build_stub(work, runtime_dir, entry, version)
+        _run_pack(runtime_dir, entry, version, output)
+    return output
+
+
+def pack_corrupted_fixture(entry, version, output):
+    """Build a fixture like pack_fixture, then flip one hex digit of its entry's checksum.
+
+    The checksum is embedded in the built binary as literal hex text, so the edit is unique
+    and leaves every other offset unchanged, unlike patching the compressed payload.
+    """
+    with tempfile.TemporaryDirectory(prefix="drupack-fixture-") as work:
+        work = Path(work)
+        runtime_dir = work / "runtime"
+        runtime_dir.mkdir()
+        _build_stub(work, runtime_dir, entry, version)
+        correct = hashlib.sha256((runtime_dir / entry).read_bytes()).hexdigest()
+        _run_pack(runtime_dir, entry, version, output)
+
+    data = bytearray(output.read_bytes())
+    needle = correct.encode()
+    offset = data.find(needle)
+    if offset < 0:
+        raise AssertionError("expected checksum not found in the fixture binary")
+    data[offset] = ord("0") if correct[0] != "0" else ord("1")
+    output.write_bytes(data)
+    return output
 
 
 # POSIX only: sends to the process group. Windows support arrives in phase 9, and this is
