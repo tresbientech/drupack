@@ -44,11 +44,13 @@ def entry_count(cache_root):
 def run(case_dir, executable, name, *args, env=None):
     """Run executable, capturing stdout and stderr into case_dir/name.{out,err} like the
     old script's own redirections, so a failure points straight at the same two files.
+    harness.run() pins standard input closed, since executable is sometimes the real
+    product binary (ColdWarmStart's own --help calls).
     """
     out_path = case_dir / f"{name}.out"
     err_path = case_dir / f"{name}.err"
     with open(out_path, "wb") as out_handle, open(err_path, "wb") as err_handle:
-        result = subprocess.run(
+        result = harness.run(
             [str(executable), *args], cwd=case_dir, stdout=out_handle, stderr=err_handle,
             env=env, timeout=harness.WAITS["unpack"].seconds,
         )
@@ -127,7 +129,7 @@ class ConcurrentColdStart(harness.ConformanceCase):
         for label in ("a", "b"):
             out_handle = open(self.case_dir / f"{label}.out", "wb")
             err_handle = open(self.case_dir / f"{label}.err", "wb")
-            process = subprocess.Popen(
+            process = harness.popen(
                 [str(harness.BINARY), "--help"], cwd=self.case_dir,
                 stdout=out_handle, stderr=err_handle, env=env,
             )

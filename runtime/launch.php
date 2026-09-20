@@ -146,8 +146,8 @@ function options(array $arguments, bool $drush): array
     return [$options, $command];
 }
 
-// The generated password is never shown: the printed one-time login link takes the reader to
-// the account form, where they choose their own. It only keeps the account from being
+// The generated password is never shown: the printed one-time login link signs the reader
+// in directly, landing on the dashboard, so the password only keeps the account from being
 // passwordless. It reaches only the Drupal step that sets it.
 function administratorCredentials(array $options, array $steps): array
 {
@@ -725,9 +725,6 @@ try {
         $lock = startupLock($data);
         $steps = remainingSteps($data, $options['database']);
     }
-    // A start that runs no step here found an already-initialized site, so only the start
-    // that creates or resumes one opens a browser on its own.
-    $created = $steps !== [];
     if (file_exists("$data/settings.php")) {
         linkSite($data);
         // A pending settings step rewrites the file, so its contents are read once they are final.
@@ -754,10 +751,10 @@ try {
     $link = loginLink($binary, $url, '/admin/dashboard');
     $readiness = "Drupack is ready\n\n  URL:       $url\n  Login:     $link\n";
     fwrite(STDOUT, $readiness . "  Site data: $data\n  Log:       $logPath\n\nPress Ctrl+C to stop.\n");
-    // A first start opens the browser for the person who ran it. A script, a
-    // container and a test have no terminal on standard input, so they get none.
-    // A file manager on Windows has no other way to reach its reader.
-    $interactive = $created && stream_isatty(STDIN);
+    // A start with a terminal on standard input opens the browser for the person who ran
+    // it, first start or later. A script, a container and a test have none, so they get
+    // none. A file manager on Windows has no other way to reach its reader.
+    $interactive = stream_isatty(STDIN);
     $browser = $options['no-browser'] === null && ($interactive || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1');
     openWhenServing($url, $link, $browser);
     replaceProcess($binary, ['php-server'], __DIR__, 'Cannot start FrankenPHP');

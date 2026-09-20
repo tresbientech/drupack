@@ -5,7 +5,6 @@ import re
 import shutil
 import tempfile
 import time
-import subprocess
 from http.cookiejar import CookieJar
 from urllib.error import HTTPError
 from urllib.request import HTTPCookieProcessor, build_opener
@@ -66,8 +65,8 @@ class SeededSite(harness.ConformanceCase):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".php", dir=self.case_dir) as probe:
             probe.write("<?php echo json_encode([get_loaded_extensions(), PDO::getAvailableDrivers()]);")
             probe.flush()
-            result = subprocess.run([str(self.binary), "php-cli", probe.name], cwd=self.case_dir,
-                                    capture_output=True, text=True, timeout=harness.WAITS["php_cli"].seconds)
+            result = harness.run([str(self.binary), "php-cli", probe.name], cwd=self.case_dir,
+                                 capture_output=True, text=True, timeout=harness.WAITS["php_cli"].seconds)
         self.assertEqual(result.returncode, 0, result.stderr)
         extensions, drivers = json.loads(result.stdout)
         self.assertIn("pdo_pgsql", {extension.lower() for extension in extensions})

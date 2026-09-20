@@ -98,7 +98,7 @@ def refuse(case, case_dir, name, *args):
     log = case_dir / f"{name}.log"
     with open(log, "wb") as handle:
         try:
-            result = subprocess.run(
+            result = harness.run(
                 [str(harness.BINARY), *args], cwd=case_dir, stdout=handle, stderr=subprocess.STDOUT,
                 timeout=harness.WAITS["bootstrap_refusal"].seconds,
             )
@@ -272,7 +272,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
         interrupted_dir.mkdir(exist_ok=True)
         log = interrupted_dir / "run.log"
         with open(log, "wb") as handle:
-            process = subprocess.Popen(
+            process = harness.popen(
                 [str(harness.BINARY), "--data-dir", str(data), "--admin-user", "init-admin",
                  "--admin-password", PASSWORD],
                 cwd=interrupted_dir, stdout=handle, stderr=subprocess.STDOUT, start_new_session=True,
@@ -336,7 +336,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
         for label in ("a", "b"):
             handle = open(race_dir / f"{label}.log", "wb")
             handles.append(handle)
-            candidates.append((label, subprocess.Popen(
+            candidates.append((label, harness.popen(
                 [str(harness.BINARY), "--data-dir", str(data), "--listen", f"127.0.0.1:{port}",
                  "--admin-user", "init-admin", "--admin-password", PASSWORD],
                 cwd=race_dir, stdout=handle, stderr=subprocess.STDOUT, start_new_session=True,
@@ -426,7 +426,7 @@ class EquivalentPathLock(harness.ConformanceCase):
             log = self.case_dir / "equivalent.log"
             with open(log, "wb") as handle:
                 try:
-                    result = subprocess.run(
+                    result = harness.run(
                         [str(harness.BINARY), "--data-dir", str(equivalent)], cwd=self.case_dir,
                         stdout=handle, stderr=subprocess.STDOUT, timeout=harness.WAITS["refusal"].seconds,
                     )

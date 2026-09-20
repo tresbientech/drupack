@@ -19,7 +19,7 @@ These hold across every phase.
 
 - A new harness capability attaches a start to a pseudoterminal and puts a recorder first on `PATH`, named for the platform's opener: `xdg-open` on Linux, `open` on macOS. It appends the URL it receives to a file.
 - Cases built on this capability are marked Linux and macOS only. Windows calls `rundll32` directly, with no `PATH` command to intercept.
-- No wait-table change. The extra Drush call stays inside the existing `start` and `dr` budgets.
+- The extra Drush call needs no wait-table row: it stays inside the existing `start` and `dr` budgets. The recorder is another matter, since a browser that never opens must fail its case, so phase 2 gives it a row of its own.
 
 ### Commands the criteria use
 
