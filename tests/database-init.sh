@@ -9,7 +9,7 @@ work=$(mktemp -d "$results/drupack-work.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 
 # SQLite needs no connection details and no credentials, so its first start serves instead of
-# refusing. This script starts no server, so tests/browser.py covers that start.
+# refusing. This script starts no server, so tests/conformance covers that start.
 for database in mysql pgsql; do
   data="$work/$database"
   log="$results/$database.log"

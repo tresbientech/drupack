@@ -232,7 +232,7 @@ jobs:
           brew install coreutils
           PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
           bash tests/database-init.sh dist/drupack test-results/database
-          python3 tests/browser.py dist/drupack test-results/browser
+          python3 tests/conformance dist/drupack test-results/conformance
           bash tests/replacement.sh dist/drupack test-results/replacement
 
       - name: Check the unsigned launch steps

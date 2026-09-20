@@ -16,4 +16,4 @@ docker run --rm --network none --shm-size 2g \
   --mount "type=bind,src=$results,dst=/results" \
   --entrypoint /usr/bin/python3 \
   selenium/standalone-chromium:143.0.7499.169 \
-  /tests/browser.py /artifact/drupack /results
+  /tests/conformance /artifact/drupack /results

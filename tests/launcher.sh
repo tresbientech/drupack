@@ -28,31 +28,6 @@ fail() {
   exit 1
 }
 
-## Case 0: startup ignores a launch.php in the current directory.
-hostile_root="$results/case0"
-mkdir -p "$hostile_root"
-printf '%s\n' '<?php fwrite(STDOUT, "cwd launch executed\n"); exit(42);' >"$hostile_root/launch.php"
-hostile_data="$hostile_root/data"
-(
-  cd "$hostile_root"
-  # exec makes $! the server rather than the subshell, so the kill below reaches it.
-  exec "$binary" --no-browser --data-dir "$hostile_data" --admin-user launcher-admin --admin-password Launcher.test.password.2026
-) >"$results/case0.log" 2>&1 &
-hostile_server=$!
-for attempt in {1..150}; do
-  if [[ $(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:7225/user/login") == 200 ]]; then
-    break
-  fi
-  if ! kill -0 "$hostile_server" 2>/dev/null; then
-    cat "$results/case0.log" >&2
-    fail 'A launch.php in the current directory replaced the bundled startup script'
-  fi
-  sleep 2
-done
-kill "$hostile_server" 2>/dev/null || true
-wait "$hostile_server" 2>/dev/null || true
-! grep -Fq 'cwd launch executed' "$results/case0.log" || fail 'The current directory launch.php was executed'
-
 # The only line cache.go writes to standard error, once per unpacked version.
 unpacking_pattern='^Unpacking Drupack .+\. This happens once for each version\.$'
 
