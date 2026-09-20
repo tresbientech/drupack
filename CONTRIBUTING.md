@@ -46,17 +46,16 @@ The suites run against the published executable, which is the launcher.
 
 ```sh
 docker build --target artifact --output type=local,dest=dist .
-bash tests/database-init.sh ./dist/drupack
-bash tests/launcher.sh ./dist/drupack
-bash tests/offline.sh ./dist/drupack
-bash tests/network.sh ./dist/drupack
-bash tests/server-database.sh ./dist/drupack
-bash tests/replacement.sh ./dist/drupack
-bash tests/initialization.sh ./dist/drupack
-python3 tests/browser.py ./dist/drupack test-results/browser
+python3 tests/conformance ./dist/drupack test-results/conformance
 ```
 
-Each shell script takes an optional results directory as its second argument. `tests/browser.py` requires one. `tests/network.sh` and `tests/offline.sh` need Docker. `tests/server-database.sh` starts MySQL and PostgreSQL containers itself. `tests/launcher.sh` packs small fixture launchers with Go and skips those cases when Go is absent, and its full-cache case skips without Docker.
+`tests/conformance` takes a results directory as its second argument. On Linux it also needs Docker, which it uses to prove its site cases offline inside a container instead of running them on the host, to run its network cases against a second container, and to start MySQL and PostgreSQL containers for its server-database cases. On Linux, `tests/conformance` also needs Go, to pack small fixture launchers for its launcher cases.
+
+The harness's own unit tests need no built executable:
+
+```sh
+python3 -m unittest discover -s tests/conformance -p 'test_harness.py'
+```
 
 The launcher's own unit tests need Go:
 
@@ -64,11 +63,10 @@ The launcher's own unit tests need Go:
 cd packaging/launcher && go test ./...
 ```
 
-On Windows, `tests/windows/launcher.Tests.ps1` covers the launcher, and `tests/windows/site.Tests.ps1` takes a built executable:
+On Windows, `python` runs the suite in place of `python3`, which Windows does not provide:
 
 ```powershell
-./tests/windows/launcher.Tests.ps1
-./tests/windows/site.Tests.ps1 -Executable dist\drupack.exe
+python tests/conformance dist\drupack.exe test-results\conformance
 ```
 
 ## Development loop

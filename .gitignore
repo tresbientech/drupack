@@ -10,3 +10,4 @@
 /drupal/.gitattributes
 .superpowers/
 .idea
+__pycache__/
