@@ -56,12 +56,12 @@ def current_administrator(work_dir, data):
 
 
 def follow_link(link):
-    """Follow a one-time login link with a cookie jar. Drupal redirects it to the account
-    form, so the landing page names the account it logged in.
+    """Follow a one-time login link with a cookie jar, returning where it landed and the
+    session's opener, so a caller can prove the session's identity with a further request.
     """
     opener = build_opener(HTTPCookieProcessor(CookieJar()))
     with opener.open(link, timeout=harness.WAITS["http_request"].seconds) as response:
-        return response.geturl(), response.read().decode(errors="replace")
+        return response.geturl(), opener
 
 
 def assert_readiness(case, log_path, caddy_log):
@@ -80,12 +80,9 @@ def assert_readiness(case, log_path, caddy_log):
         handle.write(sentinel + "\n")
     case.assertNotIn(sentinel, log_path.read_text(errors="replace"), "Caddy log content appeared in CLI output")
     case.assertIn(LOGIN_LINE, text, f"the start printed no one-time login link: inspect {log_path}")
+    case.assertIn("?destination=/admin/dashboard", text,
+                   f"the printed login link carries no dashboard destination: inspect {log_path}")
     return text
-
-
-def assert_no_login_link(case, log_path):
-    text = log_path.read_text(errors="replace")
-    case.assertNotIn(LOGIN_LINE, text, f"a later start printed a one-time login link: inspect {log_path}")
 
 
 def assert_marker(case, data):
@@ -101,7 +98,7 @@ def refuse(case, case_dir, name, *args):
     log = case_dir / f"{name}.log"
     with open(log, "wb") as handle:
         try:
-            result = subprocess.run(
+            result = harness.run(
                 [str(harness.BINARY), *args], cwd=case_dir, stdout=handle, stderr=subprocess.STDOUT,
                 timeout=harness.WAITS["bootstrap_refusal"].seconds,
             )
@@ -155,13 +152,20 @@ class FirstStartAndListener(harness.ConformanceCase):
             self.assertEqual(bootstrap.returncode, 0, bootstrap.stderr)
             self.assertEqual(bootstrap.stdout.strip(), "Successful", "dr status while the server ran")
 
-            link_result = harness.run_dr(harness.BINARY, self.case_dir, data, "user:login", "--no-browser")
+            link_result = harness.run_dr(harness.BINARY, self.case_dir, data, "user:login", "--no-browser",
+                                          "/admin/dashboard")
             self.assertEqual(link_result.returncode, 0, link_result.stderr)
             link = link_result.stdout.strip()
             self.assertTrue(link.startswith(f"http://localhost:{site.port}/"), link)
-            landing, body = follow_link(link)
-            self.assertIn("/user/1/edit", landing, landing)
-            self.assertIn('value="init-admin"', body)
+            self.assertIn("?destination=/admin/dashboard", link)
+            landing, opener = follow_link(link)
+            self.assertIn("/admin/dashboard", landing, landing)
+            # The same session that landed on the dashboard is signed in as init-admin: the
+            # account page's title names the account viewing it.
+            with opener.open(f"http://localhost:{site.port}/user/1",
+                              timeout=harness.WAITS["http_request"].seconds) as response:
+                body = response.read().decode(errors="replace")
+            self.assertIn(f"init-admin | {DEFAULT_SITE_NAME}", body)
 
             overridden = harness.run_dr(harness.BINARY, self.case_dir, data,
                                          "--listen", "127.0.0.1:19999", "user:login", "--no-browser")
@@ -211,7 +215,7 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
             driver = harness.run_dr(harness.BINARY, self.case_dir, data, "status", "--field=db-driver")
             self.assertEqual(driver.stdout.strip(), "sqlite", "the start replaced the recorded backend")
             self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), SITE_NAME)
-            assert_no_login_link(self, site.log_path)
+            assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
         finally:
             site.stop()
 
@@ -268,7 +272,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
         interrupted_dir.mkdir(exist_ok=True)
         log = interrupted_dir / "run.log"
         with open(log, "wb") as handle:
-            process = subprocess.Popen(
+            process = harness.popen(
                 [str(harness.BINARY), "--data-dir", str(data), "--admin-user", "init-admin",
                  "--admin-password", PASSWORD],
                 cwd=interrupted_dir, stdout=handle, stderr=subprocess.STDOUT, start_new_session=True,
@@ -332,7 +336,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
         for label in ("a", "b"):
             handle = open(race_dir / f"{label}.log", "wb")
             handles.append(handle)
-            candidates.append((label, subprocess.Popen(
+            candidates.append((label, harness.popen(
                 [str(harness.BINARY), "--data-dir", str(data), "--listen", f"127.0.0.1:{port}",
                  "--admin-user", "init-admin", "--admin-password", PASSWORD],
                 cwd=race_dir, stdout=handle, stderr=subprocess.STDOUT, start_new_session=True,
@@ -422,7 +426,7 @@ class EquivalentPathLock(harness.ConformanceCase):
             log = self.case_dir / "equivalent.log"
             with open(log, "wb") as handle:
                 try:
-                    result = subprocess.run(
+                    result = harness.run(
                         [str(harness.BINARY), "--data-dir", str(equivalent)], cwd=self.case_dir,
                         stdout=handle, stderr=subprocess.STDOUT, timeout=harness.WAITS["refusal"].seconds,
                     )

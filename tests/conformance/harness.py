@@ -13,12 +13,18 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from collections import namedtuple
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+try:
+    import pty
+except ImportError:  # Windows has no pty module; only a Linux or macOS case attaches one.
+    pty = None
 
 # Set by __main__ before unittest discovers case modules. None when a module imports the
 # harness on its own, as test_harness.py does.
@@ -56,6 +62,10 @@ WAIT_TABLE = [
     Wait("start", 180, 150, "readiness of a start"),
     # entrypoint.go forces its own exit 10s after the first stop signal.
     Wait("stop", 30, 10, "stop after the first signal"),
+    # No product deadline: openBrowser runs in the same goroutine that already printed
+    # "Drupal is ready.", so the recorder standing in for it sees the URL within a
+    # process spawn, not a poll of any kind.
+    Wait("browser_open", 10, None, "a start's background browser-open handing its target to the recorder"),
     Wait("dr", 120, None, "a dr command"),
     Wait("php_cli", 30, None, "a php-cli probe"),
     # No product deadline: a start that should refuse an argument is expected to fail
@@ -272,8 +282,66 @@ def wait_for_line(log_path, offset, prefix, timeout):
     raise AssertionError(f"no line starting with {prefix!r} in {log_path}")
 
 
+def opener_name():
+    """The name packaging/entrypoint.go's openBrowser looks up on PATH for this platform,
+    so a case's recorder answers to the same name the product would call.
+    """
+    return "open" if current_platform() == MACOS else "xdg-open"
+
+
+def install_recorder(directory):
+    """Write an executable posing as this platform's browser opener into directory, meant to
+    sit first on PATH for a start under a pseudo-terminal. Returns the script's own path and
+    the file it appends each URL it receives to, one per line.
+
+    A rerun into the same results directory must not find a URL the last run recorded here,
+    so any file left from that run is cleared before the script is written.
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    script = directory / opener_name()
+    recorded = directory / "recorded-urls"
+    recorded.unlink(missing_ok=True)
+    script.write_text(f'#!/bin/sh\necho "$1" >> "{recorded}"\n')
+    script.chmod(0o700)
+    return script, recorded
+
+
+def wait_for_recorded_url(recorded, timeout):
+    """Poll recorded, the file install_recorder's script appends to, until a start's
+    background browser-open has written a line. Bounded, so a browser that never opens
+    fails the case instead of hanging it.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if recorded.exists():
+            lines = recorded.read_text(errors="replace").splitlines()
+            if lines:
+                return lines[0]
+        time.sleep(0.1)
+    raise AssertionError(f"the browser recorder wrote no URL to {recorded} within {timeout}s")
+
+
+# Dropping the browser-eligibility gate in phase 2 means any spawn of the product
+# executable that inherits an interactive terminal now qualifies to open one. popen() and
+# run() are the one place every such spawn in this suite pins standard input closed, so a
+# case run from a developer's own terminal cannot hand a start a terminal by accident. The
+# one deliberate exception is Site's own pseudo-terminal branch, which wants exactly that.
+def popen(args, **kwargs):
+    """subprocess.Popen with standard input pinned closed unless the caller overrides it."""
+    kwargs.setdefault("stdin", subprocess.DEVNULL)
+    return subprocess.Popen(args, **kwargs)
+
+
+def run(args, **kwargs):
+    """subprocess.run's counterpart to popen(): standard input pinned closed unless the
+    caller overrides it.
+    """
+    kwargs.setdefault("stdin", subprocess.DEVNULL)
+    return subprocess.run(args, **kwargs)
+
+
 def run_dr(binary, work_dir, data_dir, *command):
-    return subprocess.run(
+    return run(
         [str(binary), "dr", "--data-dir", str(data_dir), *command],
         cwd=work_dir, capture_output=True, text=True, timeout=WAITS["dr"].seconds,
     )
@@ -294,8 +362,9 @@ class Site:
         self.log_path = case_dir / "run.log"
         self.process = None
         self.port = None
+        self._pty_thread = None
 
-    def start(self, data_dir, *options, listen=True, ready_wait="start"):
+    def start(self, data_dir, *options, listen=True, ready_wait="start", attach_pty=False, env=None):
         self.port = pick_port() if listen else self.DEFAULT_PORT
         args = [str(self.binary), "--data-dir", str(data_dir)]
         if listen:
@@ -304,16 +373,58 @@ class Site:
         # A caller's own subdirectory names one Site process among several sharing a case,
         # like every other case directory in this suite: created on first use, not in advance.
         self.case_dir.mkdir(parents=True, exist_ok=True)
-        with open(self.log_path, "wb") as log_handle:
-            self.process = subprocess.Popen(
-                args, cwd=self.case_dir, stdout=log_handle, stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
+        if attach_pty:
+            self._start_under_pty(args, env)
+        else:
+            # popen() pins standard input closed: a headless start must never inherit a
+            # terminal this process happens to have, or the product would treat it as
+            # interactive too.
+            with open(self.log_path, "wb") as log_handle:
+                self.process = popen(
+                    args, cwd=self.case_dir, stdout=log_handle,
+                    stderr=subprocess.STDOUT, start_new_session=True, env=env,
+                )
         try:
             self._wait_ready(ready_wait)
         except AssertionError:
             self.stop()
             raise
+
+    def _start_under_pty(self, args, env):
+        # The product checks stream_isatty(STDIN); a pseudo-terminal on all three streams
+        # is the harness's own way to make that check true with no real terminal of its own.
+        master_fd, slave_fd = pty.openpty()
+        try:
+            self.process = subprocess.Popen(
+                args, cwd=self.case_dir, stdin=slave_fd, stdout=slave_fd, stderr=slave_fd,
+                start_new_session=True, env=env,
+            )
+        finally:
+            # The child already holds its own copy from the fork; the parent's must close so
+            # a read on master_fd sees the far end hang up once the child does, instead of
+            # blocking behind a second open writer.
+            os.close(slave_fd)
+        self._pty_master = master_fd
+        self._pty_thread = threading.Thread(target=self._drain_pty, daemon=True)
+        self._pty_thread.start()
+
+    def _drain_pty(self):
+        """Copy the pseudo-terminal's output into log_path, the same file a headless start
+        writes directly, so every case reads a start's output the same way regardless of
+        which branch produced it.
+        """
+        with open(self.log_path, "wb") as log_handle:
+            while True:
+                try:
+                    chunk = os.read(self._pty_master, 4096)
+                except OSError:
+                    # The far end hung up: every fd onto the slave closed when the child exited.
+                    break
+                if not chunk:
+                    break
+                log_handle.write(chunk)
+                log_handle.flush()
+        os.close(self._pty_master)
 
     # The port accepts before the site can answer, and the runtime's own first request is
     # still running then. An HTTP 200 on /user/login is the site's own evidence that the
@@ -354,6 +465,8 @@ class Site:
         if self.process is None:
             return
         stop_process(self.process, WAITS["stop"].seconds, context=f": inspect {self.log_path}")
+        if self._pty_thread is not None:
+            self._pty_thread.join(WAITS["stop"].seconds)
 
 
 class ConformanceCase(unittest.TestCase):

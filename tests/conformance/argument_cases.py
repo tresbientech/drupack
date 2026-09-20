@@ -22,7 +22,7 @@ class ArgumentCases(harness.ConformanceCase):
         """Run a start expected to refuse within the refusal budget; assert no Site data."""
         log = self.case_dir / "run.log"
         with open(log, "wb") as log_handle:
-            result = subprocess.run(
+            result = harness.run(
                 [str(harness.BINARY), *args], cwd=self.case_dir,
                 stdout=log_handle, stderr=subprocess.STDOUT,
                 timeout=harness.WAITS["refusal"].seconds,

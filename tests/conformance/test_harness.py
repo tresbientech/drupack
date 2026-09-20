@@ -120,5 +120,30 @@ class RemoveCacheDirTest(unittest.TestCase):
             shutil.rmtree(cache_dir, ignore_errors=True)
 
 
+class InstallRecorderTest(unittest.TestCase):
+    """No built executable: the recorder is a plain shell script, run directly."""
+
+    def test_the_recorder_appends_each_url_it_receives(self):
+        directory = harness.Path(tempfile.mkdtemp(prefix="drupack-recorder-test-"))
+        try:
+            script, recorded = harness.install_recorder(directory)
+            self.assertEqual(script.name, harness.opener_name())
+
+            first = subprocess.run([str(script), "http://localhost:7225/admin/dashboard"],
+                                    capture_output=True, text=True, timeout=5)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            self.assertEqual(recorded.read_text().splitlines(), ["http://localhost:7225/admin/dashboard"])
+
+            second = subprocess.run([str(script), "http://localhost:7225/user/login"],
+                                     capture_output=True, text=True, timeout=5)
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertEqual(
+                recorded.read_text().splitlines(),
+                ["http://localhost:7225/admin/dashboard", "http://localhost:7225/user/login"],
+            )
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

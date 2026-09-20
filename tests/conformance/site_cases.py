@@ -5,7 +5,6 @@ import re
 import shutil
 import tempfile
 import time
-import subprocess
 from http.cookiejar import CookieJar
 from urllib.error import HTTPError
 from urllib.request import HTTPCookieProcessor, build_opener
@@ -66,8 +65,8 @@ class SeededSite(harness.ConformanceCase):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".php", dir=self.case_dir) as probe:
             probe.write("<?php echo json_encode([get_loaded_extensions(), PDO::getAvailableDrivers()]);")
             probe.flush()
-            result = subprocess.run([str(self.binary), "php-cli", probe.name], cwd=self.case_dir,
-                                    capture_output=True, text=True, timeout=harness.WAITS["php_cli"].seconds)
+            result = harness.run([str(self.binary), "php-cli", probe.name], cwd=self.case_dir,
+                                 capture_output=True, text=True, timeout=harness.WAITS["php_cli"].seconds)
         self.assertEqual(result.returncode, 0, result.stderr)
         extensions, drivers = json.loads(result.stdout)
         self.assertIn("pdo_pgsql", {extension.lower() for extension in extensions})
@@ -120,24 +119,29 @@ class SeededSite(harness.ConformanceCase):
 
     def test_default_port_first_start_without_credentials(self):
         # No options and no terminal: the start installs a site on the default port and hands
-        # its reader a way in. Following the printed link must log a browser in as admin.
+        # its reader a way in. Following the printed link must log a browser in as admin, on
+        # the dashboard.
         data = self.case_dir / "no-credentials"
         self.site.start(data, listen=False)
         origin = f"http://localhost:{self.site.port}"
         link = harness.wait_for_line(self.site.log_path, 0, LINK_PREFIX, harness.WAITS["start"].seconds)
         self.assertTrue(link.startswith(origin + "/user/reset/1/"), link)
+        self.assertIn("?destination=/admin/dashboard", link)
         # A browser reaches the link only once the site has answered, so follow the
         # product's own order instead of racing the first cold request.
         harness.wait_for_line(self.site.log_path, 0, READY_LINE, harness.WAITS["start"].seconds)
         opener = build_opener(HTTPCookieProcessor(CookieJar()))
         with opener.open(link, timeout=harness.WAITS["http_request"].seconds) as response:
             landing = response.geturl()
+        self.assertIn("/admin/dashboard", landing)
+        # The same session that landed on the dashboard is signed in as admin: the account
+        # page's title names the account viewing it.
+        with opener.open(f"{origin}/user/1", timeout=harness.WAITS["http_request"].seconds) as response:
             body = response.read().decode(errors="replace")
-        self.assertIn("/user/1/edit", landing)
-        self.assertIn('value="admin"', body)
+        self.assertIn("admin | Drupal Mercury Demo", body)
         # The same page refuses an anonymous request, so the link supplied the session.
         with self.assertRaises(HTTPError) as error:
-            self.site.http("/user/1/edit")
+            self.site.http("/admin/dashboard")
         self.assertEqual(error.exception.code, 403)
 
     def test_protected_files(self):

@@ -46,8 +46,8 @@ Examples:
 
 // openWhenReady waits for the site to answer at address, then reports readiness and opens
 // the browser on target when asked. The terminal keeps one readiness line even when no
-// browser opens. A first start's target is a one-time login link, which a request spends,
-// so the poll asks for address instead. launch.php passes both through the environment.
+// browser opens. The target is a one-time login link, which a request spends, so the poll
+// asks for address instead. launch.php passes both through the environment.
 func openWhenReady(address string, target string, browser bool) {
 	// A cold start answers its first request slowly, and a request that never returns would
 	// otherwise hold the poll past the deadline.
