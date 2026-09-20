@@ -1,6 +1,6 @@
 # Dashboard on every start
 
-From [dashboard-on-every-start.md](./dashboard-on-every-start.md).
+From [docs/rfc/dashboard-on-every-start.md](../rfc/dashboard-on-every-start.md).
 
 ## Problem Statement
 
@@ -31,12 +31,12 @@ Every start that opens a browser opens it on a one-time login link whose destina
 
 1. As the site owner, I want every start that opens a browser to land me signed in on the dashboard, so that I never meet a login form.
 2. As the site owner, I want my first start's printed link to also land on the dashboard, so that choosing my password does not cost me the page I land on anyway.
-3. As the site owner, I want a start that opens no browser to print no login link, so that a script or container run leaks no working credential into its log.
-4. As the site owner, I want a later start to open my browser without printing its link, so that a credential that already works never sits in a log I might share.
+3. As the site owner, I want every start to print its link, so that I can reach my dashboard from the terminal when no browser opened.
+4. As the site owner, I want to know that a printed link is a working credential, so that I treat a captured log as something to guard.
 5. As the site owner, I want a plain restart of my already-running site to also open my browser on the dashboard, so that "every start" means every start.
 6. As the maintainer, I want the login command itself to carry the destination, so that no new code parses or builds a URL.
 7. As the maintainer, I want the printed link and the browser-opening link to share one mint whenever both apply, so that a start never asks Drush for two links it only needs one of.
-8. As the maintainer, I want the conformance suite to drive a real browser-opening start and follow the link it receives, so that the dashboard landing is proven, not just described.
+8. As the maintainer, I want the conformance suite to drive a real browser-opening start and follow the link it receives, so that a case proves the dashboard landing.
 9. As the maintainer, I want the site and initialization cases' assertions of today's `/user/1/edit` landing moved to the dashboard, so that the suite tests what Drupack now ships.
 10. As the maintainer, I want the README's first-run story to name the dashboard, so that a new site owner reads an accurate first run.
 
@@ -75,6 +75,6 @@ Prior art: `site_cases.py`'s `test_default_port_first_start_without_credentials`
 
 ## Further Notes
 
-The RFC's own account of today's browser-opening condition names a terminal on standard input, or Windows console ownership, and the absence of `--no-browser`. The code adds one more requirement: the start must have run an initialization step. This PRD's second owner decision proposes dropping it; until that lands, "later start" test coverage on Linux and macOS is narrower than the RFC's language suggests.
+The RFC's first account of the browser-opening condition named a terminal on standard input, or Windows console ownership, and the absence of `--no-browser`. The code carried one more requirement, that the start had run an initialization step, which the owner's second decision dropped. Phase 2 removed it and covered the result on Linux and macOS.
 
 The RFC measured the extra Drush call at 0.55s against a start that already takes seconds. This PRD makes no change to that cost.

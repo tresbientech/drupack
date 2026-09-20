@@ -22,7 +22,7 @@ Today the answer depends on which start it is. A first start that created the ad
 ## Decision
 
 1. Every start that opens a browser opens it on a one-time login link whose destination is `/admin/dashboard`. The reader lands signed in, on the dashboard, on a first start and on every later one.
-2. A start opens a browser whenever it has a terminal, or owns its Windows console, and `--no-browser` says nothing. The `$created` half of today's condition goes, since it is what keeps a later start from opening anything.
+2. A start opens a browser whenever it has a terminal, or owns its Windows console, and `--no-browser` says nothing. The `$created` half of today's condition goes, since it keeps a later start from opening anything.
 3. The link comes from the same Drush command with a path: `user:login --no-browser /admin/dashboard`, which returns a link carrying `?destination=/admin/dashboard`. Nothing new parses or builds a URL.
 4. Every start mints one link and prints it in the readiness block, whether or not it opens a browser. A reader who lost the browser window, or who runs with `--no-browser`, still has a way in from the terminal.
 5. The link names the administrator account the site was installed with, which is uid 1, as `dr user:login` already does.
@@ -42,7 +42,7 @@ Today the answer depends on which start it is. A first start that created the ad
 - Open `/admin/dashboard` with no login link. The reader lands on the login form, since the dashboard needs a session. That is the behaviour this proposal removes.
 - Keep the link to a first start, and open the front page later. Today's behaviour, and the reason a returning reader has to find the login form.
 - Mint the link after the site answers, from the Go entrypoint. It keeps the 0.55 s off the start path, at the cost of a second place that runs Drush and handles a credential. The measurement does not justify it.
-- Print the link on every start. A credential in the log on every start, for a reader who already has a password.
+- Print the link only when a browser opens. It keeps a credential out of a container's log, and it leaves a reader whose browser never appeared with no way in. Decision 4 takes the other side, and the consequences record what that costs.
 - Send the reader to `/admin/content` or the front page while signed in. The dashboard is the page Drupal CMS builds for this moment, and the reader can navigate from it.
 
 ## Open question

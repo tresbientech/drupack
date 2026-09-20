@@ -1,7 +1,7 @@
 # Plan: Dashboard on every start
 
-> Source PRD: [dashboard-on-every-start-prd.md](./dashboard-on-every-start-prd.md)
-> Source RFC: [dashboard-on-every-start.md](./dashboard-on-every-start.md)
+> Source PRD: [docs/prd/dashboard-on-every-start.md](../prd/dashboard-on-every-start.md)
+> Source RFC: [docs/rfc/dashboard-on-every-start.md](../rfc/dashboard-on-every-start.md)
 
 ## Architectural decisions
 

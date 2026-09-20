@@ -54,7 +54,7 @@ Later starts need nothing:
 ./drupack
 ```
 
-Each one prints its own link and opens your dashboard the same way. A link works once, so `./drupack dr user:login` prints a fresh one whenever you need it. `--no-browser` starts the site without opening anything, and still prints the link.
+Each one prints its own link and opens your dashboard the same way. A link works once, so `./drupack dr user:login /admin/dashboard` prints a fresh one whenever you need it. `--no-browser` starts the site without opening anything, and still prints the link.
 
 To choose the administrator name and password yourself, for a script or a fresh machine:
 
