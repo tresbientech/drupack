@@ -53,14 +53,14 @@ class ReplacementCases(harness.ConformanceCase):
         (self.data / "files" / "replacement.txt").write_text("public-replacement-sentinel")
         (self.data / "private" / "replacement.txt").write_text("private-replacement-sentinel")
         before = self.case_dir / "before"
-        before.mkdir()
+        before.mkdir(exist_ok=True)
         shutil.copyfile(self.data / "settings.php", before / "settings.php")
         shutil.copyfile(self.data / "hash_salt", before / "hash_salt")
 
         new_binary = self._copy_binary("new")
-        # The old binary's own directory holds nothing the running site depends on; removing
-        # it, and the application the old binary unpacked under Site data, proves the new
-        # binary is what serves what follows, not a leftover from the old one.
+        # The old binary's own directory holds nothing the running site depends on. Removing
+        # it, and the application the old binary unpacked under Site data, leaves the new
+        # binary serving what follows, with no leftover from the old one.
         shutil.rmtree(self.case_dir / "old")
         for extracted in glob.glob(str(self.data / "runtime" / "frankenphp_*")):
             shutil.rmtree(extracted)

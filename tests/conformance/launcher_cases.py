@@ -192,7 +192,7 @@ class InstalledSiteLauncherCases(harness.ConformanceCase):
         cls.class_dir.mkdir(parents=True, exist_ok=True)
         cls.data = cls.class_dir / "data"
         install_dir = cls.class_dir / "install"
-        install_dir.mkdir()
+        install_dir.mkdir(exist_ok=True)
         site = harness.Site(harness.BINARY, install_dir)
         site.start(cls.data, "--admin-user", "launcher-admin", "--admin-password", "Launcher.test.password.2026")
         site.stop()
@@ -342,6 +342,7 @@ class FixtureCacheCases(harness.ConformanceCase):
         code, _, err = run(self.case_dir, fixture, "install", "--help", env=env)
         self.assertEqual(code, 0, f"installing version one exited non-zero: inspect {err}")
         self.assertEqual(entry_count(cache), 1, "installing version one did not leave one cache entry")
+        good_key = (cache / "active").read_text().strip()
 
         broken = harness.pack_corrupted_fixture(ENTRY, "11.0.1", self.case_dir / "fixture-v2")
         code, out, err = run(self.case_dir, broken, "fallback", "--help", env=env)
@@ -353,6 +354,9 @@ class FixtureCacheCases(harness.ConformanceCase):
             err.read_text(errors="replace"), FALLBACK_PATTERN, "the fallback warning was not written to standard error"
         )
         self.assertEqual(entry_count(cache), 1, "the fallback start changed the number of cache entries")
+        self.assertEqual(
+            (cache / "active").read_text().strip(), good_key, "a failed stage replaced the active runtime"
+        )
 
 
 def _active_entry(cache):

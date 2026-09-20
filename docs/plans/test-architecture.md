@@ -275,7 +275,8 @@ The `launcher.Tests.ps1` cases merge into their launcher twins, which gain the
 `windows` mark. Windows-only cases stay marked `windows`. The fixture stub uses
 the platform's entry name and reports `PHPRC`. `tests/windows` is deleted, and
 CONTRIBUTING names one command. The repository's `qa.command` becomes the final
-chain.
+chain after the merge, since that config is shared with the main checkout, which
+keeps the old suites until then.
 
 ### Acceptance criteria
 

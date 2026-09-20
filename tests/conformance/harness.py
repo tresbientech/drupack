@@ -69,8 +69,10 @@ WAIT_TABLE = [
     Wait("offline", 600, None, "the offline container's full site-case run"),
     # No product deadline: docker rm -f on a name it just started, normally near-instant.
     Wait("offline_kill", 30, None, "removing a hung offline container after its budget expires"),
-    # No product deadline: a cold start's own unpack, run by --help with no server to poll.
-    Wait("unpack", 90, None, "an executable unpacking its runtime before --help exits"),
+    # packaging/launcher/internal/runtime/lock_windows.go's lockRoot() bounds a losing
+    # process's wait for the winner's exclusive lock handle at 60s on Windows, before it
+    # can even begin its own unpack; the deadline this row covers is that 60s lock wait.
+    Wait("unpack", 150, 60, "a losing process's Windows lock wait, then unpacking its runtime"),
     # No product deadline: compiling a stdlib-only stub, normally a few seconds.
     Wait("fixture_build", 30, None, "compiling a fixture stub with go build"),
     # No product deadline: packing a launcher around the stub, which is itself a go build
@@ -81,6 +83,10 @@ WAIT_TABLE = [
     Wait("cache_full_kill", 30, None, "removing a hung cache-full container after its budget expires"),
     Wait("probe", 10, None, "a local process-table lookup (ps, pgrep) against a running start"),
     Wait("port_closed", 2, None, "confirming a stopped server's port refuses a connection"),
+    # packaging/entrypoint.go's readiness poller uses an http.Client{Timeout: 30 * time.Second}
+    # for each request; every case's own HTTP call against a running site or a login link
+    # carries the same per-request deadline.
+    Wait("http_request", 60, 30, "an HTTP request against a running site or a login link"),
     # No product deadline: a first start records its pending administrator step once the seed
     # and settings steps finish, normally within a few seconds.
     Wait("progress", 180, None, "a first start to record its pending administrator step"),
@@ -336,7 +342,7 @@ class Site:
 
     def fetch(self, path):
         request = Request(f"http://localhost:{self.port}{path}")
-        with urlopen(request, timeout=30) as response:
+        with urlopen(request, timeout=WAITS["http_request"].seconds) as response:
             return response.status, response.headers, response.read().decode(errors="replace")
 
     def http(self, path):

@@ -60,7 +60,7 @@ def follow_link(link):
     form, so the landing page names the account it logged in.
     """
     opener = build_opener(HTTPCookieProcessor(CookieJar()))
-    with opener.open(link, timeout=harness.WAITS["dr"].seconds) as response:
+    with opener.open(link, timeout=harness.WAITS["http_request"].seconds) as response:
         return response.geturl(), response.read().decode(errors="replace")
 
 
@@ -257,11 +257,15 @@ class InterruptedStartAndRace(harness.ConformanceCase):
 
     def test_interrupted_start_then_concurrent_race(self):
         data = self.case_dir / "data"
+        # A rerun into the same results directory finds this method's own race step left a
+        # fully installed site here; the interrupted start below needs a truly uninstalled
+        # data directory to reach its own pending-administrator step.
+        reset_installation_state(data)
 
         # A first start interrupted before the administrator step records its progress, in
         # its own process group, and leaves the settings behind without a completion marker.
         interrupted_dir = self.case_dir / "interrupted"
-        interrupted_dir.mkdir()
+        interrupted_dir.mkdir(exist_ok=True)
         log = interrupted_dir / "run.log"
         with open(log, "wb") as handle:
             process = subprocess.Popen(
@@ -308,7 +312,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
         # graceful shutdown removes the extracted application, so this case, which the race
         # below reuses, kills the server hard instead.
         recovery_dir = self.case_dir / "recovery"
-        recovery_dir.mkdir()
+        recovery_dir.mkdir(exist_ok=True)
         site = harness.Site(harness.BINARY, recovery_dir)
         site.start(data, "--admin-user", "init-admin", "--admin-password", PASSWORD)
         assert_marker(self, data)
@@ -322,7 +326,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
         reset_installation_state(data)
         port = harness.pick_port()
         race_dir = self.case_dir / "race"
-        race_dir.mkdir()
+        race_dir.mkdir(exist_ok=True)
         candidates = []
         handles = []
         for label in ("a", "b"):
@@ -358,7 +362,8 @@ class InterruptedStartAndRace(harness.ConformanceCase):
                 if winner.poll() is not None:
                     break
                 try:
-                    if urlopen(f"http://localhost:{port}/user/login", timeout=5).status == 200:
+                    if urlopen(f"http://localhost:{port}/user/login",
+                               timeout=harness.WAITS["http_request"].seconds).status == 200:
                         ready = True
                         break
                 except (URLError, HTTPError, ConnectionError, TimeoutError):
@@ -389,11 +394,19 @@ class EquivalentPathLock(harness.ConformanceCase):
 
     def test_an_equivalent_path_takes_the_same_lock(self):
         data = self.case_dir / "data"
-        data.mkdir()
+        data.mkdir(exist_ok=True)
         equivalent = self.case_dir / "equivalent"
+        # A rerun into the same results directory finds this symlink from the last run.
+        equivalent.unlink(missing_ok=True)
         equivalent.symlink_to(data, target_is_directory=True)
         ack = self.case_dir / "lock-acquired"
         release = self.case_dir / "release-lock"
+        # LOCK_HOLDER_SCRIPT keys its own handshake on these two paths, so a rerun into the
+        # same results directory must not find either surviving from the last pass: a stale
+        # ack lets this test race ahead of the new holder actually taking the lock, and a
+        # stale release lets the new holder exit before ever really holding it.
+        ack.unlink(missing_ok=True)
+        release.unlink(missing_ok=True)
 
         holder = subprocess.Popen(
             [sys.executable, "-c", LOCK_HOLDER_SCRIPT, str(data / "startup.lock"), str(ack), str(release),

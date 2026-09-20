@@ -130,7 +130,7 @@ class SeededSite(harness.ConformanceCase):
         # product's own order instead of racing the first cold request.
         harness.wait_for_line(self.site.log_path, 0, READY_LINE, harness.WAITS["start"].seconds)
         opener = build_opener(HTTPCookieProcessor(CookieJar()))
-        with opener.open(link, timeout=30) as response:
+        with opener.open(link, timeout=harness.WAITS["http_request"].seconds) as response:
             landing = response.geturl()
             body = response.read().decode(errors="replace")
         self.assertIn("/user/1/edit", landing)
