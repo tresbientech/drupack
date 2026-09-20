@@ -35,7 +35,7 @@ These hold across every phase.
 
 ### What to build
 
-`loginLink()` gains a destination-path argument, and `runtime/launch.php`'s mint passes `/admin/dashboard`. The printed line loses its `credentialsRequired($steps)` gate in this phase rather than the next, so every start prints a link and the readiness block needs no guard around that line. Browser eligibility stays as it is; phase 2 takes it. `site_cases.py`'s `test_default_port_first_start_without_credentials` and `initialization_cases.py`'s `FirstStartAndListener` case move their landing-page assertion from `/user/1/edit` to `/admin/dashboard`, and add an assertion that the printed link carries the dashboard destination. Every other assertion in both cases stays.
+`loginLink()` gains a destination-path argument, and `runtime/launch.php`'s mint passes `/admin/dashboard`. The printed line loses its `credentialsRequired($steps)` gate in this phase rather than the next, so every start prints a link. A later change added a mint that can fail, and with it the one guard that line now carries. Browser eligibility stays as it is; phase 2 takes it. `site_cases.py`'s `test_default_port_first_start_without_credentials` and `initialization_cases.py`'s `FirstStartAndListener` case move their landing-page assertion from `/user/1/edit` to `/admin/dashboard`, and add an assertion that the printed link carries the dashboard destination. Every other assertion in both cases stays.
 
 ### Acceptance criteria
 

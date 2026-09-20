@@ -245,6 +245,31 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
         self.assertEqual((data / "site.sqlite").read_bytes(), sqlite_backup,
                           "the refused start changed the existing database")
 
+    def test_a_blocked_administrator_does_not_stop_a_later_start(self):
+        # A later start needs no generated password, so credentialsRequired() reports it
+        # false, and the site keeps serving without a link: the owner already has a password.
+        data = self.case_dir / "data"
+        site = harness.Site(harness.BINARY, self.case_dir / "install")
+        site.start(data, "--admin-user", "init-admin", "--admin-password", PASSWORD)
+        site.stop()
+
+        blocked = harness.run_dr(harness.BINARY, self.case_dir, data, "php:eval",
+                                  r'\Drupal\user\Entity\User::load(1)->block()->save();')
+        self.assertEqual(blocked.returncode, 0, blocked.stderr)
+
+        restart = harness.Site(harness.BINARY, self.case_dir / "restart")
+        restart.start(data)
+        try:
+            text = restart.log_path.read_text(errors="replace")
+            self.assertIn("Drupack is ready", text, "a start whose mint failed did not serve")
+            self.assertNotIn(LOGIN_LINE, text, "the readiness block printed a login link despite a failed mint")
+            self.assertIn("dr --data-dir", text, "the diagnostic does not name the recovery command")
+            self.assertIn("user:login /admin/dashboard", text,
+                           "the diagnostic does not name the recovery destination")
+            self.assertIn("blocked", text, "the diagnostic does not carry the reason Drush gave")
+        finally:
+            restart.stop()
+
 
 class InterruptedStartAndRace(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX,)

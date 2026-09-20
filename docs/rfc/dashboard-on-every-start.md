@@ -25,7 +25,8 @@ Today the answer depends on which start it is. A first start that created the ad
 2. A start opens a browser whenever it has a terminal, or owns its Windows console, and `--no-browser` says nothing. The `$created` half of today's condition goes, since it keeps a later start from opening anything.
 3. The link comes from the same Drush command with a path: `user:login --no-browser /admin/dashboard`, which returns a link carrying `?destination=/admin/dashboard`. Nothing new parses or builds a URL.
 4. Every start mints one link and prints it in the readiness block, whether or not it opens a browser. A reader who lost the browser window, or who runs with `--no-browser`, still has a way in from the terminal.
-5. The link names the administrator account the site was installed with, which is uid 1, as `dr user:login` already does.
+5. A mint that fails stops only a start that generated the administrator password, since that reader has no other way in. Any other start serves without a link, and says on standard error why the mint failed and how to ask for one.
+6. The link names the administrator account the site was installed with, which is uid 1, as `dr user:login` already does.
 
 ## Consequences
 

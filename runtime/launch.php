@@ -161,11 +161,15 @@ function administratorCredentials(array $options, array $steps): array
 
 // The server process waits for its own first response, prints the readiness line and opens
 // the browser when asked. A request spends a one-time login link, so readiness is polled on
-// $url and the browser opens on $target.
-function openWhenServing(string $url, string $target, bool $browser): void
+// $url and the browser opens on $target. $target is a working credential for uid 1, so it
+// enters the serving process's environment only when a browser will actually spend it: any
+// PHP running inside that process can otherwise read it through getenv, $_ENV or phpinfo.
+function openWhenServing(string $url, ?string $target, bool $browser): void
 {
     putenv("DRUPACK_RUNTIME_URL=$url");
-    putenv("DRUPACK_RUNTIME_OPEN=$target");
+    if ($browser) {
+        putenv("DRUPACK_RUNTIME_OPEN=$target");
+    }
     putenv('DRUPACK_RUNTIME_BROWSER=' . ($browser ? '1' : '0'));
 }
 
@@ -407,15 +411,52 @@ function drushField(string $binary, array $command): string
     return trim((string) $output);
 }
 
+// Carries the reason Drush gave for a failed mint, since a start that can still serve
+// without the link reports that reason; getMessage() stays the fixed text a start that
+// cannot serve without the link exits with.
+final class LoginLinkFailure extends RuntimeException
+{
+    public function __construct(public readonly string $reason)
+    {
+        parent::__construct('Cannot obtain a one-time login link for the administrator account');
+    }
+}
+
 // Drush prints the link and nothing else, addressing the site through DRUSH_OPTIONS_URI. It
 // must open no browser of its own: the site is not serving yet, and the Go entrypoint opens one
 // once it answers. The link is a working credential arriving from a subprocess and heading for
 // a browser command, so its origin is checked before anything uses it.
 function loginLink(string $binary, string $url, string $destination): string
 {
-    $link = drushField($binary, ['user:login', '--no-browser', $destination]);
+    $errors = tempnam(sys_get_temp_dir(), 'drupack-mint-');
+    if ($errors === false) {
+        throw new RuntimeException('Cannot create a temporary file for the mint diagnostic');
+    }
+    try {
+        // stderr is a file, not a pipe: two pipes deadlock if Drush fills one's kernel
+        // buffer while this drains only the other to exhaustion first, and nothing here
+        // reads both at once.
+        $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => ['file', $errors, 'w']];
+        // Drush wraps its boxed error text to a column count it reads from COLUMNS, defaulting
+        // to 80 with no terminal attached; a wide one keeps a failed mint's reason on one line
+        // instead of hard-wrapping mid-word.
+        $environment = getenv();
+        $environment['COLUMNS'] = '1000';
+        $child = proc_open(array_merge([$binary, 'php-cli', drushPath(), 'user:login', '--no-browser', $destination]), $descriptors, $pipes, __DIR__, $environment);
+        if (!is_resource($child)) {
+            throw new RuntimeException('Cannot run Drush');
+        }
+        $link = trim((string) stream_get_contents($pipes[1]));
+        fclose($pipes[1]);
+        proc_close($child);
+        // Read only for a failed mint's diagnostic: drushField()'s null device is right for
+        // every other caller, which has no diagnostic to put Drush's own reason into.
+        $reason = preg_replace('/\s+/', ' ', trim((string) file_get_contents($errors)));
+    } finally {
+        unlink($errors);
+    }
     if (!str_starts_with($link, $url)) {
-        throw new RuntimeException('Cannot obtain a one-time login link for the administrator account');
+        throw new LoginLinkFailure($reason);
     }
     return $link;
 }
@@ -747,15 +788,28 @@ try {
         exit(process($binary, array_merge(['php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], __DIR__, 'Cannot run Drush'));
     }
     // Every start hands its reader a one-time way in, signed in as the administrator account,
-    // uid 1, landing on the dashboard.
-    $link = loginLink($binary, $url, '/admin/dashboard');
-    $readiness = "Drupack is ready\n\n  URL:       $url\n  Login:     $link\n";
+    // uid 1, landing on the dashboard. A start that generated the password has no other way
+    // in, so it still fails when the mint fails; every other start serves without the link.
+    try {
+        $link = loginLink($binary, $url, '/admin/dashboard');
+    } catch (LoginLinkFailure $failure) {
+        if (credentialsRequired($steps)) {
+            throw $failure;
+        }
+        $link = null;
+        $reason = rtrim($failure->reason, '. ');
+        fwrite(STDERR, 'Cannot mint a one-time login link' . ($reason === '' ? '' : ": $reason")
+            . ". Get one with: drupack dr --data-dir $data user:login /admin/dashboard\n");
+    }
+    $readiness = "Drupack is ready\n\n  URL:       $url\n" . ($link === null ? '' : "  Login:     $link\n");
     fwrite(STDOUT, $readiness . "  Site data: $data\n  Log:       $logPath\n\nPress Ctrl+C to stop.\n");
     // A start with a terminal on standard input opens the browser for the person who ran
     // it, first start or later. A script, a container and a test have none, so they get
-    // none. A file manager on Windows has no other way to reach its reader.
+    // none. A file manager on Windows has no other way to reach its reader. A start with
+    // no link has nothing to open.
     $interactive = stream_isatty(STDIN);
-    $browser = $options['no-browser'] === null && ($interactive || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1');
+    $browser = $link !== null && $options['no-browser'] === null
+        && ($interactive || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1');
     openWhenServing($url, $link, $browser);
     replaceProcess($binary, ['php-server'], __DIR__, 'Cannot start FrankenPHP');
 } catch (Throwable $error) {

@@ -16,6 +16,7 @@ Every start that opens a browser opens it on a one-time login link whose destina
 
 - The link comes from `user:login --no-browser /admin/dashboard`, which Drush returns already carrying `?destination=/admin/dashboard`. Nothing new parses or builds a URL.
 - Every start mints one link and prints it, whether or not it opens a browser. A script, a container and a start under `--no-browser` print one too, where today only a first start does.
+- A mint can fail, and then the start prints no link. It stops only when it generated the administrator password, and otherwise serves, naming the reason and the command that issues a link.
 - The printed link carries the dashboard destination, so an owner who follows it from the terminal lands where the browser would have.
 - The link names the administrator account the site was installed with, uid 1, as `dr user:login` already does.
 - A site whose dashboard module was uninstalled gets a link to a path that 404s. The owner sees Drupal's own page.
@@ -23,7 +24,7 @@ Every start that opens a browser opens it on a one-time login link whose destina
 ## Decisions the owner took, 2026-09-20
 
 - A start of an already-installed site opens a browser. The `$created` half of today's condition goes, so any start with a terminal, or Windows console ownership, opens one unless `--no-browser` says otherwise.
-- Every start prints its link, a first start and every later one. The link is a working credential, so it now appears in whatever captures a start's output, including a container's log.
+- Every start prints its link, a first start and every later one, unless its mint failed. The link is a working credential, so it now appears in whatever captures a start's output, including a container's log.
 - The Windows console-owned path carries the same link, and no case proves which URL reached the browser there, since it calls `rundll32` directly. The gap is accepted.
 - Two starts of one site each mint a link and each open a browser. Extending the startup lock to a start with no step to run stays its own change.
 
@@ -31,7 +32,7 @@ Every start that opens a browser opens it on a one-time login link whose destina
 
 1. As the site owner, I want every start that opens a browser to land me signed in on the dashboard, so that I never meet a login form.
 2. As the site owner, I want my first start's printed link to also land on the dashboard, so that choosing my password does not cost me the page I land on anyway.
-3. As the site owner, I want every start to print its link, so that I can reach my dashboard from the terminal when no browser opened.
+3. As the site owner, I want every start to print its link, so that I can reach my dashboard from the terminal when no browser opened. When the link cannot be minted, I want the start to serve anyway and tell me why.
 4. As the site owner, I want to know that a printed link is a working credential, so that I treat a captured log as something to guard.
 5. As the site owner, I want a plain restart of my already-running site to also open my browser on the dashboard, so that "every start" means every start.
 6. As the maintainer, I want the login command itself to carry the destination, so that no new code parses or builds a URL.

@@ -105,3 +105,36 @@ class BrowserOpenCases(harness.ConformanceCase):
                              "the adoption start recorded no completion marker")
         finally:
             restart.stop()
+
+    def test_a_failed_mint_opens_no_browser_and_leaks_no_link(self):
+        # A blocked administrator leaves the start with no link to open, so the terminal it
+        # runs under, which would otherwise qualify it to open one, must not matter here.
+        env, recorded = _recorder_env(self.case_dir / "recorder")
+        self._install(env, recorded)
+        blocked = harness.run_dr(harness.BINARY, self.case_dir, self.data, "php:eval",
+                                  r'\Drupal\user\Entity\User::load(1)->block()->save();')
+        self.assertEqual(blocked.returncode, 0, blocked.stderr)
+
+        restart = harness.Site(harness.BINARY, self.case_dir / "restart")
+        restart.start(self.data, attach_pty=True, env=env)
+        try:
+            text = restart.log_path.read_text(errors="replace")
+            self.assertNotIn(LINK_PREFIX, text, "the readiness block printed a login link despite a failed mint")
+            # Bounded by the same budget the positive case gives a real browser-open, so a
+            # regression that opens one late is still caught instead of a check that races
+            # ahead of it.
+            time.sleep(harness.WAITS["browser_open"].seconds)
+            self.assertFalse(recorded.exists(),
+                              f"the recorder was called although the mint failed: inspect {recorded}")
+
+            # /proc/<pid>/environ exists only on Linux; the fact it proves here, that a
+            # failed mint leaves no login link in the serving process's own environment,
+            # is not itself platform-specific, only this way of checking it.
+            if harness.current_platform() == harness.LINUX:
+                with open(f"/proc/{restart.process.pid}/environ", "rb") as handle:
+                    server_environment = handle.read()
+                self.assertNotIn(b"DRUPACK_RUNTIME_OPEN", server_environment,
+                                  "the serving process's environment carries a login link "
+                                  "although the mint failed")
+        finally:
+            restart.stop()
