@@ -36,9 +36,11 @@ jobs:
         exclude:
           - architecture: ${{ (inputs.platform || 'all') == 'linux-amd64' && 'arm64' || (inputs.platform || 'all') == 'linux-arm64' && 'amd64' || 'none' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      # setup-go sets GOTOOLCHAIN=local from v6 on, so go fetches no newer toolchain of
+      # its own: this version must stay at or above the go line in packaging/launcher/go.mod.
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.27.0'
           cache: false
@@ -88,12 +90,12 @@ jobs:
 
       - name: Upload test results
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-linux-${{ matrix.architecture }}
           path: test-results
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: drupack-linux-${{ matrix.architecture }}
           path: dist/drupack
@@ -105,7 +107,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The runner starts with about 14 GB free, the builder image takes 8.6 GB.
       # Printing the free space tells a later failure apart from a full disk.
@@ -126,7 +128,7 @@ jobs:
           docker cp "$container:/go/src/app/app_checksum.txt" application/app_checksum.txt
           docker rm "$container"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: application-archive
           path: application
@@ -142,9 +144,9 @@ jobs:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.27.0'
           cache: false
@@ -153,12 +155,12 @@ jobs:
         working-directory: packaging/launcher
         run: go test ./...
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: application-archive
           path: application
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ${{ runner.temp }}\drupack\downloads
@@ -178,12 +180,12 @@ jobs:
 
       - name: Upload test results
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-windows-amd64
           path: test-results
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: drupack-windows-amd64
           path: dist/drupack.exe
@@ -204,9 +206,9 @@ jobs:
         exclude:
           - architecture: ${{ (inputs.platform || 'all') == 'macos-arm64' && 'amd64' || (inputs.platform || 'all') == 'macos-amd64' && 'arm64' || 'none' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.27.0'
           cache: false
@@ -215,12 +217,12 @@ jobs:
         working-directory: packaging/launcher
         run: go test ./...
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: application-archive
           path: application
 
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: |
             ${{ runner.temp }}/drupack/downloads
@@ -236,7 +238,7 @@ jobs:
         run: bash packaging/macos/build.sh application "$RUNNER_TEMP/drupack" dist/drupack
 
       # Saved before the tests, so a failed test does not repeat the PHP build.
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@v6
         with:
           path: |
             ${{ runner.temp }}/drupack/downloads
@@ -257,12 +259,12 @@ jobs:
 
       - name: Upload test results
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-macos-${{ matrix.architecture }}
           path: test-results
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: drupack-macos-${{ matrix.architecture }}
           path: dist/drupack
@@ -280,9 +282,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       VERSION: ${{ github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: drupack-*
           path: candidates
