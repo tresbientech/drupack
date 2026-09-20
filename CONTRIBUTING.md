@@ -57,11 +57,11 @@ The launcher's own unit tests need Go:
 cd packaging/launcher && go test ./...
 ```
 
-On Windows, `tests/windows/launcher.Tests.ps1` covers the launcher, and `tests/windows/site.Tests.ps1` takes a built executable:
+On Windows, `tests/windows/launcher.Tests.ps1` covers the launcher, and the suite covers the site behaviour, through `python` rather than `python3`, which Windows does not provide:
 
 ```powershell
 ./tests/windows/launcher.Tests.ps1
-./tests/windows/site.Tests.ps1 -Executable dist\drupack.exe
+python tests/conformance dist\drupack.exe test-results\conformance
 ```
 
 ## Development loop

@@ -165,8 +165,15 @@ jobs:
       - name: Test the launcher
         run: ./tests/windows/launcher.Tests.ps1
 
-      - name: Test a SQLite site
-        run: ./tests/windows/site.Tests.ps1 -Executable dist\drupack.exe
+      - name: Run the conformance suite
+        run: python tests/conformance dist\drupack.exe test-results\conformance
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-windows-amd64
+          path: test-results
 
       - uses: actions/upload-artifact@v4
         with:

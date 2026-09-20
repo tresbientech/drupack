@@ -113,7 +113,8 @@ short CI round.
 
 - Standard library `unittest`, Python 3.10 or later, no third-party package.
   The development machine has 3.10.
-- The suite is a directory `python3` runs through its main module. It takes the
+- The suite is a directory `python3` runs through its main module, or `python`
+  on Windows, which ships no `python3`. It takes the
   executable and a results directory. Remaining arguments go to `unittest`, so
   `-k` selects cases.
 - Case modules follow product areas: argument checks, the site, the launcher,

@@ -9,7 +9,8 @@ These hold across every phase.
 
 ### Suite
 
-- Command: `python3 tests/conformance EXECUTABLE RESULTS [unittest arguments]`.
+- Command: `python3 tests/conformance EXECUTABLE RESULTS [unittest arguments]`,
+  and `python` in place of `python3` on Windows, which ships no `python3`.
   Python 3.10 or later, standard library only.
 - Layout: one directory holding a main module, one harness module, the harness
   unit tests, and one case module per product area.

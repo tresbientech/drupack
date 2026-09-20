@@ -6,6 +6,7 @@ import socket
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
 import harness
 
@@ -49,6 +50,33 @@ class StopProcessTest(unittest.TestCase):
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
             process.stdout.close()
+
+
+class StopProcessWindowsBranchTest(unittest.TestCase):
+    """This host is Linux, with no taskkill: patch the platform and subprocess.run to prove
+    the branch itself builds the right command and still waits for the exit it caused,
+    which is as far as a Linux run can verify it; the command's own behaviour is Windows CI's.
+    """
+
+    def test_taskkills_the_pid_and_waits_for_exit(self):
+        process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        calls = []
+
+        def fake_run(command, **kwargs):
+            calls.append(command)
+            process.kill()
+            return subprocess.CompletedProcess(command, 0)
+
+        try:
+            with mock.patch.object(harness, "current_platform", return_value=harness.WINDOWS), \
+                    mock.patch.object(harness.subprocess, "run", side_effect=fake_run):
+                harness.stop_process(process, timeout=5)
+            self.assertEqual(calls, [["taskkill", "/T", "/F", "/PID", str(process.pid)]])
+            self.assertIsNotNone(process.poll())
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
 
 
 if __name__ == "__main__":

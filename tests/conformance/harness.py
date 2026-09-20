@@ -208,11 +208,21 @@ def pack_corrupted_fixture(entry, version, output):
     return output
 
 
-# POSIX only: sends to the process group. Windows support arrives in phase 9, and this is
-# the one place it needs to branch.
+# The one place stopping branches on platform: POSIX signals the process group, which covers
+# a launcher's own children too. Windows has neither process groups nor a way to signal
+# another process, so it force-kills the whole tree at once instead, the same one step
+# tests/windows/site.Tests.ps1's Stop-Site took with taskkill /T /F.
 def stop_process(process, timeout, context=""):
-    """Send SIGTERM to the process group; kill and report a process that outlives timeout."""
+    """Stop process and everything under it; kill and report one that outlives timeout."""
     if process.poll() is not None:
+        return
+    if current_platform() == WINDOWS:
+        try:
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(process.pid)],
+                            capture_output=True, timeout=timeout)
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            raise AssertionError(f"process {process.pid} outlived taskkill /T /F{context}")
         return
     os.killpg(process.pid, signal.SIGTERM)
     try:
