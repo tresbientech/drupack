@@ -60,6 +60,9 @@ WAIT_TABLE = [
     # No product deadline: a start that should refuse an argument is expected to fail
     # before it ever reaches the point of attempting a connection.
     Wait("refusal", 20, None, "a start expected to refuse"),
+    # No product deadline: a start that should refuse only after it has bootstrapped
+    # Drupal (or attempted to) against a real database, slower than an argument refusal.
+    Wait("bootstrap_refusal", 180, None, "a start that reaches Drupal before refusing"),
     # No product deadline: budget for a base-image pull plus the inner run's own site
     # cases, which take under 2 minutes uncontained.
     Wait("offline", 600, None, "the offline container's full site-case run"),
@@ -77,6 +80,18 @@ WAIT_TABLE = [
     Wait("cache_full_kill", 30, None, "removing a hung cache-full container after its budget expires"),
     Wait("probe", 10, None, "a local process-table lookup (ps, pgrep) against a running start"),
     Wait("port_closed", 2, None, "confirming a stopped server's port refuses a connection"),
+    # No product deadline: a first start records its pending administrator step once the seed
+    # and settings steps finish, normally within a few seconds.
+    Wait("progress", 180, None, "a first start to record its pending administrator step"),
+    # No product deadline: budget for a database container's own image pull plus its startup.
+    Wait("database_container", 300, None, "starting a database container, including an image pull"),
+    Wait("database_ready", 180, None, "a database container answering a readiness probe"),
+    # No product deadline: a metadata call against a container already running.
+    Wait("docker_admin", 30, None, "a short docker command against a running container: port, exec, rm, logs"),
+    Wait("lock_ack", 10, None, "a helper process to confirm it holds startup.lock before a blocked start runs"),
+    # No product deadline: safety valve bounding how long the lock-holding helper waits for
+    # its release signal, past whatever the blocked start and the assertions on it take.
+    Wait("lock_hold", 60, None, "a helper process holding startup.lock until told to release it"),
 ]
 
 WAITS = {wait.name: wait for wait in WAIT_TABLE}
@@ -238,6 +253,9 @@ class Site:
         if listen:
             args += ["--listen", f"127.0.0.1:{self.port}"]
         args += list(options)
+        # A caller's own subdirectory names one Site process among several sharing a case,
+        # like every other case directory in this suite: created on first use, not in advance.
+        self.case_dir.mkdir(parents=True, exist_ok=True)
         with open(self.log_path, "wb") as log_handle:
             self.process = subprocess.Popen(
                 args, cwd=self.case_dir, stdout=log_handle, stderr=subprocess.STDOUT,
