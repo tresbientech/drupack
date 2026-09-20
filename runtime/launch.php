@@ -411,9 +411,9 @@ function drushField(string $binary, array $command): string
 // must open no browser of its own: the site is not serving yet, and the Go entrypoint opens one
 // once it answers. The link is a working credential arriving from a subprocess and heading for
 // a browser command, so its origin is checked before anything uses it.
-function loginLink(string $binary, string $url): string
+function loginLink(string $binary, string $url, string $destination): string
 {
-    $link = drushField($binary, ['user:login', '--no-browser']);
+    $link = drushField($binary, ['user:login', '--no-browser', $destination]);
     if (!str_starts_with($link, $url)) {
         throw new RuntimeException('Cannot obtain a one-time login link for the administrator account');
     }
@@ -749,21 +749,17 @@ try {
     if ($drush) {
         exit(process($binary, array_merge(['php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], __DIR__, 'Cannot run Drush'));
     }
-    // A start that set the administrator account hands its reader a way in without a password.
-    // A later start prints none: the reader holds a password by then, and `dr user:login`
-    // issues a fresh link at any time.
-    $link = credentialsRequired($steps) ? loginLink($binary, $url) : null;
-    $readiness = "Drupack is ready\n\n  URL:       $url\n";
-    if ($link !== null) {
-        $readiness .= "  Login:     $link\n";
-    }
+    // Every start hands its reader a one-time way in, signed in as the administrator account,
+    // uid 1, landing on the dashboard.
+    $link = loginLink($binary, $url, '/admin/dashboard');
+    $readiness = "Drupack is ready\n\n  URL:       $url\n  Login:     $link\n";
     fwrite(STDOUT, $readiness . "  Site data: $data\n  Log:       $logPath\n\nPress Ctrl+C to stop.\n");
     // A first start opens the browser for the person who ran it. A script, a
     // container and a test have no terminal on standard input, so they get none.
     // A file manager on Windows has no other way to reach its reader.
     $interactive = $created && stream_isatty(STDIN);
     $browser = $options['no-browser'] === null && ($interactive || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1');
-    openWhenServing($url, $link ?? $url, $browser);
+    openWhenServing($url, $link, $browser);
     replaceProcess($binary, ['php-server'], __DIR__, 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
