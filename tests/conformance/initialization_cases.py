@@ -94,12 +94,16 @@ def refuse(case, case_dir, name, *args):
     """Run a start that bootstraps Drupal against a real database before refusing; return
     its combined output. Every caller in this module reaches that far, so this waits on the
     bootstrap_refusal budget, not the shorter argument-refusal one.
+
+    A start asks who owns its address before it refuses anything, so each one gets a port of
+    its own here; the machine-global default would answer for whatever else holds it.
     """
     log = case_dir / f"{name}.log"
     with open(log, "wb") as handle:
         try:
             result = harness.run(
-                [str(harness.BINARY), *args], cwd=case_dir, stdout=handle, stderr=subprocess.STDOUT,
+                [str(harness.BINARY), *args, "--listen", f"127.0.0.1:{harness.pick_port()}"],
+                cwd=case_dir, stdout=handle, stderr=subprocess.STDOUT,
                 timeout=harness.WAITS["bootstrap_refusal"].seconds,
             )
         except subprocess.TimeoutExpired:
@@ -299,7 +303,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
         with open(log, "wb") as handle:
             process = harness.popen(
                 [str(harness.BINARY), "--data-dir", str(data), "--admin-user", "init-admin",
-                 "--admin-password", PASSWORD],
+                 "--admin-password", PASSWORD, "--listen", f"127.0.0.1:{harness.pick_port()}"],
                 cwd=interrupted_dir, stdout=handle, stderr=subprocess.STDOUT, start_new_session=True,
             )
         try:
@@ -452,7 +456,8 @@ class EquivalentPathLock(harness.ConformanceCase):
             with open(log, "wb") as handle:
                 try:
                     result = harness.run(
-                        [str(harness.BINARY), "--data-dir", str(equivalent)], cwd=self.case_dir,
+                        [str(harness.BINARY), "--data-dir", str(equivalent),
+                         "--listen", f"127.0.0.1:{harness.pick_port()}"], cwd=self.case_dir,
                         stdout=handle, stderr=subprocess.STDOUT, timeout=harness.WAITS["refusal"].seconds,
                     )
                 except subprocess.TimeoutExpired:

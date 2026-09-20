@@ -114,6 +114,13 @@ func init() {
 		go openWhenReady(os.Getenv("DRUPACK_RUNTIME_URL"), os.Getenv("DRUPACK_RUNTIME_OPEN"),
 			os.Getenv("DRUPACK_RUNTIME_BROWSER") == "1")
 	}
+	// launch.php replaces itself with this command when its Site data is already served,
+	// since a handover starts no server to open the browser from. The target is a working
+	// credential, so it arrives in the environment, which only this user can read.
+	if len(os.Args) > 1 && os.Args[1] == "browser-open" {
+		openBrowser(os.Getenv("DRUPACK_RUNTIME_OPEN"))
+		os.Exit(0)
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		panic(err)

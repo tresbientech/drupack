@@ -198,6 +198,37 @@ function firstEverPath(string $directory): string
     return "$directory/first-install";
 }
 
+// The token names this Site data over HTTP without disclosing its path. Windows spells one
+// path in several casings, so the hash reads a single one.
+function siteToken(string $data): string
+{
+    return hash('sha256', windows() ? strtolower($data) : $data);
+}
+
+// Reports who holds $bind:$port: "free" when nothing answers, "mine" when the server there
+// serves this Site data, "foreign" for anything else. A connect answers this on every
+// platform, where a trial bind would report a taken port as free under Windows
+// SO_REUSEADDR.
+function portOwner(string $bind, int $port, string $token): string
+{
+    $host = in_array($bind, ['0.0.0.0', '::'], true) ? '127.0.0.1' : $bind;
+    $address = str_contains($host, ':') ? "[$host]" : $host;
+    $probe = @stream_socket_client("tcp://$address:$port", $code, $error, 1);
+    if ($probe === false) {
+        return 'free';
+    }
+    fclose($probe);
+    $context = stream_context_create(['http' => ['timeout' => 2, 'ignore_errors' => true]]);
+    $answer = @file_get_contents("http://$address:$port/.drupack-id?id=$token", false, $context);
+    return $answer !== false && str_contains($http_response_header[0] ?? '', ' 204') ? 'mine' : 'foreign';
+}
+
+// A person is present when a terminal started this, or a file manager's console did.
+function personPresent(): bool
+{
+    return stream_isatty(STDIN) || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1';
+}
+
 // Every start records where it serves, so a later `dr` addresses the site on the port it
 // actually uses. Site data written before this record falls back to the listener defaults.
 function listenerPath(string $directory): string
@@ -461,6 +492,36 @@ function loginLink(string $binary, string $url, string $destination): string
     return $link;
 }
 
+// Names the reason Drush gave for a failed mint, and the command that mints one by hand.
+function explainMintFailure(LoginLinkFailure $failure, string $data): void
+{
+    $reason = rtrim($failure->reason, '. ');
+    fwrite(STDERR, 'Cannot mint a one-time login link' . ($reason === '' ? '' : ": $reason")
+        . ". Get one with: drupack dr --data-dir $data user:login /admin/dashboard\n");
+}
+
+// A start whose address this Site data already serves runs no server of its own: two
+// FrankenPHP processes over one database and one runtime directory would corrupt both.
+function handOver(string $binary, string $url, string $data, array $options): never
+{
+    try {
+        $link = loginLink($binary, $url, '/admin/dashboard');
+    } catch (LoginLinkFailure $failure) {
+        $link = null;
+        explainMintFailure($failure, $data);
+    }
+    fwrite(STDOUT, "Drupack is already serving this Site data.\n\n  URL:    $url\n"
+        . ($link === null ? '' : "  Login:  $link\n"));
+    if ($link === null || $options['no-browser'] !== null) {
+        exit(0);
+    }
+    // The link is a working credential, so it reaches the opener through the environment,
+    // which only this user can read, rather than through a command line every local
+    // account can list.
+    putenv("DRUPACK_RUNTIME_OPEN=$link");
+    replaceProcess($binary, ['browser-open'], __DIR__, 'Cannot open the browser');
+}
+
 function databaseHoldsTables(array $options): bool
 {
     $connection = new PDO(
@@ -711,6 +772,7 @@ try {
     putenv("DRUPACK_RUNTIME_DATA_DIR=$data");
     putenv("DRUPACK_RUNTIME_BIND=$bind");
     putenv("DRUPACK_RUNTIME_PORT=$port");
+    putenv('DRUPACK_RUNTIME_ID=' . siteToken($data));
     putenv('DRUPACK_RUNTIME_HOST=' . $options['host']);
     // The address a reader types, never the bind address. Drush builds absolute URLs from this
     // variable. Without it Drupal falls back to http://default, and every printed or mailed
@@ -757,6 +819,21 @@ try {
         replaceProcess($binary, $arguments, $runtime, 'Cannot restart the embedded runtime');
     }
 
+    // Asked before the listener record and every install step, so a taken port costs
+    // nothing and reaches its reader as a sentence rather than a bind error.
+    if (!$drush) {
+        $owner = portOwner($bind, $port, siteToken($data));
+        if ($owner === 'mine' && personPresent()) {
+            handOver($binary, $url, $data, $options);
+        }
+        if ($owner !== 'free') {
+            throw new RuntimeException($owner === 'mine'
+                ? "Drupack already serves this Site data at $url: $data"
+                : "Another program is listening on {$options['listen']}. Stop it, or start on"
+                    . " a free port: drupack --listen $bind:" . ($port + 1));
+        }
+    }
+
     if (!$drush) {
         writeListener($data, $options);
     }
@@ -797,9 +874,7 @@ try {
             throw $failure;
         }
         $link = null;
-        $reason = rtrim($failure->reason, '. ');
-        fwrite(STDERR, 'Cannot mint a one-time login link' . ($reason === '' ? '' : ": $reason")
-            . ". Get one with: drupack dr --data-dir $data user:login /admin/dashboard\n");
+        explainMintFailure($failure, $data);
     }
     $readiness = "Drupack is ready\n\n  URL:       $url\n" . ($link === null ? '' : "  Login:     $link\n");
     fwrite(STDOUT, $readiness . "  Site data: $data\n  Log:       $logPath\n\nPress Ctrl+C to stop.\n");
@@ -807,9 +882,7 @@ try {
     // it, first start or later. A script, a container and a test have none, so they get
     // none. A file manager on Windows has no other way to reach its reader. A start with
     // no link has nothing to open.
-    $interactive = stream_isatty(STDIN);
-    $browser = $link !== null && $options['no-browser'] === null
-        && ($interactive || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1');
+    $browser = $link !== null && $options['no-browser'] === null && personPresent();
     openWhenServing($url, $link, $browser);
     replaceProcess($binary, ['php-server'], __DIR__, 'Cannot start FrankenPHP');
 } catch (Throwable $error) {

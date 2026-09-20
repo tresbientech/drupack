@@ -92,7 +92,7 @@ Windows runs the exit codes and messages. The browser recorder stays on Linux an
 
 ## Order of work
 
-The mint-failure branch landed as `835f454`, so `LoginLinkFailure` and its catch are in `main`. Implementation starts from there in its own worktree. It touches `runtime/launch.php`, `runtime/Caddyfile`, `tests/conformance/` and `README.md:95`.
+The mint-failure branch landed as `835f454`, so `LoginLinkFailure` and its catch are in `main`. Implementation starts from there in its own worktree. It touches `runtime/launch.php`, `runtime/Caddyfile`, `tests/conformance/` and `README.md:95`. The browser opener lives in `packaging/entrypoint.go`, which gains the one command a handover uses to reach it, since a handover runs no server of its own.
 
 ## Out of scope
 

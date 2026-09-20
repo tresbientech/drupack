@@ -92,7 +92,7 @@ Site data lives in the `data` directory. It holds your database, uploads, privat
 
 A newer Drupack keeps working with existing Site data, which every release is tested for.
 
-One start at a time prepares a site. A second start of the same directory stops with a message naming it. Drush keeps working while a site serves.
+One start at a time prepares a site. A second start of a site that already serves opens your browser on it, then stops, so a double-click always lands you on your dashboard. A second start with no terminal, and a start whose port another program holds, stop with a message naming the port. Drush keeps working while a site serves.
 
 Drupack refuses to serve in three cases, each naming the directory and the command to run:
 

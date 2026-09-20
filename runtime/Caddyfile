@@ -18,6 +18,17 @@ http://:{$DRUPACK_RUNTIME_PORT} {
 	root * web
 	encode zstd br gzip
 
+	# A start that finds this port taken asks who owns it. The token names the Site data
+	# this server serves, and a caller without it gets 404, so the route tells it nothing.
+	# Placed ahead of the protected-file matchers, which answer 403 for any dot path.
+	@drupackIdentity {
+		path /.drupack-id
+		query id={$DRUPACK_RUNTIME_ID}
+	}
+	respond @drupackIdentity 204
+	@drupackIdentityOther path /.drupack-id
+	respond @drupackIdentityOther 404
+
 	@hiddenPhpFilesRegexp path_regexp \..*/.*\.php$
 	respond @hiddenPhpFilesRegexp 403
 	@notFoundPhpFiles path_regexp /vendor/.*\.php$
