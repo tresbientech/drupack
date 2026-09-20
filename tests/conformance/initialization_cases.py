@@ -27,7 +27,7 @@ LOGIN_LINE = "  Login:     http"
 READY_LINE = "Drupal is ready."
 # Dockerfile installs the seed under this account; launch.php's seedPassword() carries its password.
 SEED_ADMIN = "drupack-admin"
-# postgres:17.11, pinned the way tests/server-database.sh pins its own copy of the same image:
+# postgres:17.11, pinned the way server_database_cases.py pins its own copy of the same image:
 # docker buildx imagetools inspect postgres:17.11 --format '{{.Manifest.Digest}}'
 POSTGRES_IMAGE = "postgres:17.11@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675"
 
@@ -145,8 +145,11 @@ class FirstStartAndListener(harness.ConformanceCase):
         try:
             assert_marker(self, data)
             self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), DEFAULT_SITE_NAME)
-            text = assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
-            self.assertIn(READY_LINE, text, f"no Drupal readiness line: inspect {site.log_path}")
+            assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
+            # site.start() already got its own 200 from /user/login; the launcher's separate
+            # internal poller writes this line only once its own first request finishes, so
+            # the two race under load. Wait for it instead of trusting one read to have it.
+            harness.wait_for_line(site.log_path, 0, READY_LINE, harness.WAITS["start"].seconds)
 
             bootstrap = harness.run_dr(harness.BINARY, self.case_dir, data, "status", "--field=bootstrap")
             self.assertEqual(bootstrap.returncode, 0, bootstrap.stderr)
@@ -480,27 +483,34 @@ class PostgresqlLifecycle(harness.ConformanceCase):
              POSTGRES_IMAGE],
             check=True, capture_output=True, timeout=harness.WAITS["database_container"].seconds,
         )
-        port_output = subprocess.run(
-            ["docker", "port", cls.container, "5432/tcp"], check=True, capture_output=True, text=True,
-            timeout=harness.WAITS["docker_admin"].seconds,
-        ).stdout
-        cls.port = int(port_output.strip().splitlines()[0].rsplit(":", 1)[-1])
-        deadline = time.monotonic() + harness.WAITS["database_ready"].seconds
-        ready = False
-        while time.monotonic() < deadline:
-            probe = subprocess.run(
-                ["docker", "exec", cls.container, "pg_isready", "-h", "127.0.0.1", "-U", "drupal", "-d", "drupal"],
-                capture_output=True, timeout=harness.WAITS["docker_admin"].seconds,
-            )
-            if probe.returncode == 0:
-                ready = True
-                break
-            time.sleep(2)
-        if not ready:
-            raise AssertionError(
-                f"the PostgreSQL container did not become ready within "
-                f"{harness.WAITS['database_ready'].seconds}s"
-            )
+        # unittest skips tearDownClass once setUpClass raises, so a failure past this point
+        # removes the container itself before re-raising, the way the old script's EXIT trap did.
+        try:
+            port_output = subprocess.run(
+                ["docker", "port", cls.container, "5432/tcp"], check=True, capture_output=True, text=True,
+                timeout=harness.WAITS["docker_admin"].seconds,
+            ).stdout
+            cls.port = int(port_output.strip().splitlines()[0].rsplit(":", 1)[-1])
+            deadline = time.monotonic() + harness.WAITS["database_ready"].seconds
+            ready = False
+            while time.monotonic() < deadline:
+                probe = subprocess.run(
+                    ["docker", "exec", cls.container, "pg_isready", "-h", "127.0.0.1", "-U", "drupal", "-d", "drupal"],
+                    capture_output=True, timeout=harness.WAITS["docker_admin"].seconds,
+                )
+                if probe.returncode == 0:
+                    ready = True
+                    break
+                time.sleep(2)
+            if not ready:
+                raise AssertionError(
+                    f"the PostgreSQL container did not become ready within "
+                    f"{harness.WAITS['database_ready'].seconds}s"
+                )
+        except Exception:
+            subprocess.run(["docker", "rm", "-f", cls.container], capture_output=True,
+                            timeout=harness.WAITS["docker_admin"].seconds)
+            raise
 
     @classmethod
     def tearDownClass(cls):

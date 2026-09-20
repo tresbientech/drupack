@@ -86,6 +86,9 @@ WAIT_TABLE = [
     # No product deadline: budget for a database container's own image pull plus its startup.
     Wait("database_container", 300, None, "starting a database container, including an image pull"),
     Wait("database_ready", 180, None, "a database container answering a readiness probe"),
+    # No product deadline: a first start installing into a live MySQL or PostgreSQL server,
+    # slower than a local sqlite start; budget carried over from tests/server-database.sh.
+    Wait("database_start", 600, None, "a start serving /user/login against a MySQL or PostgreSQL server"),
     # No product deadline: a metadata call against a container already running.
     Wait("docker_admin", 30, None, "a short docker command against a running container: port, exec, rm, logs"),
     Wait("lock_ack", 10, None, "a helper process to confirm it holds startup.lock before a blocked start runs"),
@@ -247,7 +250,7 @@ class Site:
         self.process = None
         self.port = None
 
-    def start(self, data_dir, *options, listen=True):
+    def start(self, data_dir, *options, listen=True, ready_wait="start"):
         self.port = pick_port() if listen else self.DEFAULT_PORT
         args = [str(self.binary), "--data-dir", str(data_dir)]
         if listen:
@@ -262,7 +265,7 @@ class Site:
                 start_new_session=True,
             )
         try:
-            self._wait_ready()
+            self._wait_ready(ready_wait)
         except AssertionError:
             self.stop()
             raise
@@ -270,8 +273,8 @@ class Site:
     # The port accepts before the site can answer, and the runtime's own first request is
     # still running then. An HTTP 200 on /user/login is the site's own evidence that the
     # first request finished, unlike a bare port-accept, which would let a stop race it.
-    def _wait_ready(self):
-        timeout = WAITS["start"].seconds
+    def _wait_ready(self, ready_wait):
+        timeout = WAITS[ready_wait].seconds
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self.process.poll() is not None:

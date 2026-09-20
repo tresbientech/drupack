@@ -64,7 +64,6 @@ jobs:
         run: |
           python3 tests/conformance dist/drupack test-results/conformance
           bash tests/network.sh dist/drupack test-results/network
-          bash tests/server-database.sh dist/drupack test-results/server-database
 
       - name: Start a SQLite site on a musl host
         run: |
