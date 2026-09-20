@@ -59,7 +59,7 @@ func openWhenReady(address string, target string, browser bool) {
 		response, err := client.Get(address)
 		if err == nil {
 			response.Body.Close()
-			fmt.Println("Drupal is ready.")
+			fmt.Println("\nDrupack is ready. Press Ctrl+C to stop.")
 			if browser {
 				openBrowser(target)
 			}

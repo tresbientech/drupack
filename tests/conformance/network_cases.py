@@ -19,7 +19,7 @@ SPACE_ADMIN_USER = "space-admin"
 SPACE_ADMIN_PASSWORD = "Network.space.test.2026!"
 # Printed once Drupal's own poller confirms bootstrap; initialization_cases.py and
 # site_cases.py assert the same line from a host-run start's own log.
-READY_LINE = "Drupal is ready."
+READY_LINE = "Drupack is ready."
 
 # debian, pinned the way launcher_cases.py pins its own copy of the same image:
 # docker buildx imagetools inspect debian --format '{{.Manifest.Digest}}'

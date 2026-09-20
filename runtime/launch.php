@@ -876,8 +876,10 @@ try {
         $link = null;
         explainMintFailure($failure, $data);
     }
-    $readiness = "Drupack is ready\n\n  URL:       $url\n" . ($link === null ? '' : "  Login:     $link\n");
-    fwrite(STDOUT, $readiness . "  Site data: $data\n  Log:       $logPath\n\nPress Ctrl+C to stop.\n");
+    // The addresses and paths only, never a readiness claim: the server binds after this
+    // process execs into it, so the process that answers a request announces that itself.
+    $details = "  URL:       $url\n" . ($link === null ? '' : "  Login:     $link\n");
+    fwrite(STDOUT, $details . "  Site data: $data\n  Log:       $logPath\n");
     // A start with a terminal on standard input opens the browser for the person who ran
     // it, first start or later. A script, a container and a test have none, so they get
     // none. A file manager on Windows has no other way to reach its reader. A start with

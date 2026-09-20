@@ -24,7 +24,7 @@ DEFAULT_URL = "http://localhost:7225/"
 LOGIN_LINE = "  Login:     http"
 # Phase 2 leaves this line to the default-port case in site_cases.py and this one; phase 8's
 # network_cases.py asserts it too, each module keeping its own copy.
-READY_LINE = "Drupal is ready."
+READY_LINE = "Drupack is ready."
 # Dockerfile installs the seed under this account; launch.php's seedPassword() carries its password.
 SEED_ADMIN = "drupack-admin"
 # postgres:17.11, pinned the way server_database_cases.py pins its own copy of the same image:
@@ -65,11 +65,13 @@ def follow_link(link):
 
 
 def assert_readiness(case, log_path, caddy_log):
-    """Assert the readiness block launch.php prints, and that Caddy's own log never reaches
-    the terminal output the launcher captures. Returns the log text for further assertions.
+    """Assert both halves of a start's terminal output, the addresses and paths launch.php
+    prints and the readiness line the serving process adds once it answers, and that Caddy's
+    own log never reaches that output. Returns the log text for further assertions.
     """
+    # A case's own readiness wait can return before the serving process prints this.
+    harness.wait_for_line(log_path, 0, READY_LINE, harness.WAITS["start"].seconds)
     text = log_path.read_text(errors="replace")
-    case.assertIn("Drupack is ready", text, f"the start printed no readiness heading: inspect {log_path}")
     case.assertIn("  URL:       http", text, f"the start printed no URL label: inspect {log_path}")
     case.assertIn("  Site data:", text, f"the start printed no site data label: inspect {log_path}")
     case.assertIn("  Log:", text, f"the start printed no log label: inspect {log_path}")
@@ -264,8 +266,8 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
         restart = harness.Site(harness.BINARY, self.case_dir / "restart")
         restart.start(data)
         try:
+            harness.wait_for_line(restart.log_path, 0, READY_LINE, harness.WAITS["start"].seconds)
             text = restart.log_path.read_text(errors="replace")
-            self.assertIn("Drupack is ready", text, "a start whose mint failed did not serve")
             self.assertNotIn(LOGIN_LINE, text, "the readiness block printed a login link despite a failed mint")
             self.assertIn("dr --data-dir", text, "the diagnostic does not name the recovery command")
             self.assertIn("user:login /admin/dashboard", text,

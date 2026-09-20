@@ -63,7 +63,7 @@ WAIT_TABLE = [
     # entrypoint.go forces its own exit 10s after the first stop signal.
     Wait("stop", 30, 10, "stop after the first signal"),
     # No product deadline: openBrowser runs in the same goroutine that already printed
-    # "Drupal is ready.", so the recorder standing in for it sees the URL within a
+    # "Drupack is ready.", so the recorder standing in for it sees the URL within a
     # process spawn, not a poll of any kind.
     Wait("browser_open", 10, None, "a start's background browser-open handing its target to the recorder"),
     Wait("dr", 120, None, "a dr command"),

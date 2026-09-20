@@ -188,7 +188,8 @@ deleted.
 
 The `initialization.sh` cases move into the suite, marked `linux`, with
 PostgreSQL marked `docker`. The case about terminal output asserts the
-`Drupack is ready` block, the `Drupal is ready.` line and the login link. The
+address block, the `Drupack is ready.` line the server prints once it answers,
+and the login link. The
 interrupted start runs in its own process group. `initialization.sh` is
 deleted.
 
@@ -196,7 +197,7 @@ deleted.
 
 - [ ] The suite exits 0 on the Linux host.
 - [ ] `test ! -e tests/initialization.sh` succeeds.
-- [ ] `grep -rn 'Drupal is ready' tests/conformance` matches only the
+- [ ] `grep -rn 'Drupack is ready' tests/conformance` matches only the
   terminal-output case and the default-port case.
 - [ ] The phase audit maps every assertion of `initialization.sh` to a case.
 - [ ] A dispatch with `platform=linux-amd64` succeeds, and its log shows the
