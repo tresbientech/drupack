@@ -46,15 +46,15 @@ A folder per site keeps each site with its data. To run `drupack` from anywhere 
 ./drupack
 ```
 
-Drupack installs your site and serves it on `http://localhost:7225`. It prints a one-time login link and opens your browser on it. The link logs you in as `admin` and lands you on your account page, where you set your own password. The first start of each version also unpacks its runtime, which adds about a second.
+Drupack installs your site and serves it on `http://localhost:7225`. It prints a one-time login link and opens your browser on it. The link logs you in as `admin` and lands you on your dashboard. Set your own password from there, under your account. The first start of each version also unpacks its runtime, which adds about a second.
 
-Later starts need nothing and print no link:
+Later starts need nothing:
 
 ```sh
 ./drupack
 ```
 
-`./drupack dr user:login` prints a fresh one-time login link whenever you need one.
+Each one prints its own link and opens your dashboard the same way. A link works once, so `./drupack dr user:login` prints a fresh one whenever you need it. `--no-browser` starts the site without opening anything, and still prints the link.
 
 To choose the administrator name and password yourself, for a script or a fresh machine:
 
