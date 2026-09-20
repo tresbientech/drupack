@@ -51,16 +51,21 @@ python3 tests/conformance ./dist/drupack test-results/conformance
 
 `tests/conformance` takes a results directory as its second argument. On Linux it also needs Docker, which it uses to prove its site cases offline inside a container instead of running them on the host, to run its network cases against a second container, and to start MySQL and PostgreSQL containers for its server-database cases. On Linux, `tests/conformance` also needs Go, to pack small fixture launchers for its launcher cases.
 
+The harness's own unit tests need no built executable:
+
+```sh
+python3 -m unittest discover -s tests/conformance -p 'test_harness.py'
+```
+
 The launcher's own unit tests need Go:
 
 ```sh
 cd packaging/launcher && go test ./...
 ```
 
-On Windows, `tests/windows/launcher.Tests.ps1` covers the launcher, and the suite covers the site behaviour, through `python` rather than `python3`, which Windows does not provide:
+On Windows, `python` runs the suite in place of `python3`, which Windows does not provide:
 
 ```powershell
-./tests/windows/launcher.Tests.ps1
 python tests/conformance dist\drupack.exe test-results\conformance
 ```
 

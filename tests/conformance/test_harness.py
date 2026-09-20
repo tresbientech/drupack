@@ -1,10 +1,12 @@
 """Unit tests for the harness itself. No product binary, no results directory."""
 
 import os
+import shutil
 import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -77,6 +79,45 @@ class StopProcessWindowsBranchTest(unittest.TestCase):
             if process.poll() is None:
                 process.kill()
                 process.wait()
+
+
+class RemoveCacheDirTest(unittest.TestCase):
+    """This host is POSIX, which holds no handle on a directory it just unpacked into: the
+    retry path itself is proven by forcing shutil.rmtree to fail, as far as a Linux run can
+    verify it; that a real Windows handle actually clears within the budget is Windows CI's.
+    """
+
+    def test_removes_a_directory_nothing_holds_on_the_first_try(self):
+        cache_dir = tempfile.mkdtemp(prefix="drupack-cache-test-")
+        (harness.Path(cache_dir) / "marker").write_text("x")
+        harness.remove_cache_dir(cache_dir, timeout=5)
+        self.assertFalse(os.path.exists(cache_dir))
+
+    def test_retries_past_a_held_handle_then_succeeds(self):
+        cache_dir = tempfile.mkdtemp(prefix="drupack-cache-test-")
+        real_rmtree = shutil.rmtree
+        attempts = []
+
+        def flaky_rmtree(path):
+            attempts.append(path)
+            if len(attempts) < 3:
+                raise PermissionError(5, "Access is denied")
+            real_rmtree(path)
+
+        with mock.patch.object(harness.shutil, "rmtree", side_effect=flaky_rmtree):
+            harness.remove_cache_dir(cache_dir, timeout=5)
+        self.assertEqual(len(attempts), 3)
+        self.assertFalse(os.path.exists(cache_dir))
+
+    def test_gives_up_past_the_budget_without_raising(self):
+        cache_dir = tempfile.mkdtemp(prefix="drupack-cache-test-")
+        try:
+            with mock.patch.object(
+                harness.shutil, "rmtree", side_effect=PermissionError(5, "Access is denied")
+            ):
+                harness.remove_cache_dir(cache_dir, timeout=0.3)
+        finally:
+            shutil.rmtree(cache_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

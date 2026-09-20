@@ -35,7 +35,9 @@ class ReplacementCases(harness.ConformanceCase):
     def _copy_binary(self, name):
         directory = self.case_dir / name
         directory.mkdir(parents=True, exist_ok=True)
-        binary = directory / "drupack"
+        # BINARY's own suffix carries the platform's naming rule: none on Linux and macOS,
+        # ".exe" on Windows, where a copy named plainly "drupack" would not run.
+        binary = directory / f"drupack{harness.BINARY.suffix}"
         shutil.copyfile(harness.BINARY, binary)
         binary.chmod(0o700)
         return binary

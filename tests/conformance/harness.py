@@ -11,6 +11,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -102,6 +103,9 @@ WAIT_TABLE = [
     # No product deadline: safety valve bounding how long the lock-holding helper waits for
     # its release signal, past whatever the blocked start and the assertions on it take.
     Wait("lock_hold", 60, None, "a helper process holding startup.lock until told to release it"),
+    # No product deadline: budget for Windows to release a just-exited process's file
+    # handles under the run cache, normally near-instant.
+    Wait("cache_cleanup", 10, None, "a run cache directory outliving the process that unpacked into it"),
 ]
 
 WAITS = {wait.name: wait for wait in WAIT_TABLE}
@@ -135,9 +139,8 @@ LAUNCHER_SRC = Path(__file__).resolve().parent.parent.parent / "packaging" / "la
 
 # The stub every fixture launcher packs as its runtime: it reports its own version, its
 # arguments, one forwarded environment value and PHPRC, so a case can tell a fixture start
-# from a real one and, on Windows in phase 10, prove the launcher forwards all four. The
-# version is baked in as literal source text, once per build, like tests/windows/launcher.Tests.ps1's
-# stub does for its own fixtures.
+# from a real one and prove the launcher forwards all four. The version is baked in as
+# literal source text, once per build.
 _STUB_SOURCE = """package main
 
 import (
@@ -231,6 +234,25 @@ def stop_process(process, timeout, context=""):
         os.killpg(process.pid, signal.SIGKILL)
         process.wait()
         raise AssertionError(f"process {process.pid} ignored SIGTERM and was killed{context}")
+
+
+# Another place stopping branches on platform: Windows releases a just-exited process's
+# file handles a moment after it exits, so the run cache directory that process unpacked
+# into can still be held when the run tries to remove it; POSIX holds no such handle.
+def remove_cache_dir(cache_dir, timeout):
+    """Remove cache_dir, retrying past a held handle; print one line and keep whatever exit
+    code the run already earned if cache_dir outlives timeout, rather than fail the run.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            shutil.rmtree(cache_dir)
+            return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                print(f"could not remove the run cache, still held: {cache_dir}", file=sys.stderr)
+                return
+            time.sleep(0.25)
 
 
 # Reads one line of a running process' output, from the offset the case started at.

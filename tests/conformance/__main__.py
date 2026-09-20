@@ -30,9 +30,14 @@ def main(argv):
         # mount rather than unpacking a second copy inside the container.
         program = unittest.main(module=None, argv=discover_argv, exit=False)
     else:
-        with tempfile.TemporaryDirectory(prefix="drupack-cache-") as cache_dir:
-            os.environ["DRUPACK_CACHE_DIR"] = cache_dir
+        cache_dir = tempfile.mkdtemp(prefix="drupack-cache-")
+        os.environ["DRUPACK_CACHE_DIR"] = cache_dir
+        try:
             program = unittest.main(module=None, argv=discover_argv, exit=False)
+        finally:
+            # A plain TemporaryDirectory cleanup would raise on a handle Windows has not yet
+            # released, turning a green run red; harness.remove_cache_dir retries instead.
+            harness.remove_cache_dir(cache_dir, harness.WAITS["cache_cleanup"].seconds)
     return 0 if program.result.wasSuccessful() else 1
 
 

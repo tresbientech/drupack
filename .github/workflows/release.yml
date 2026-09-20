@@ -60,6 +60,9 @@ jobs:
       - name: Report the free space after the build
         run: df -h /
 
+      - name: Run the harness unit tests
+        run: python3 -m unittest discover -s tests/conformance -p 'test_harness.py'
+
       - name: Run the test scripts
         run: |
           python3 tests/conformance dist/drupack test-results/conformance
@@ -161,9 +164,6 @@ jobs:
         env:
           RUNTIME_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
         run: ./packaging/windows/build.ps1 -ApplicationDirectory application -Version $env:RUNTIME_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupack.exe
-
-      - name: Test the launcher
-        run: ./tests/windows/launcher.Tests.ps1
 
       - name: Run the conformance suite
         run: python tests/conformance dist\drupack.exe test-results\conformance
