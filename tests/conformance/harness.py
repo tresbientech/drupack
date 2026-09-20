@@ -89,8 +89,15 @@ WAIT_TABLE = [
     # No product deadline: a first start installing into a live MySQL or PostgreSQL server,
     # slower than a local sqlite start; budget carried over from tests/server-database.sh.
     Wait("database_start", 600, None, "a start serving /user/login against a MySQL or PostgreSQL server"),
-    # No product deadline: a metadata call against a container already running.
-    Wait("docker_admin", 30, None, "a short docker command against a running container: port, exec, rm, logs"),
+    # No product deadline: budget for a network case's site container, including a debian
+    # image pull, mirroring database_container's role for the server-database cases.
+    Wait("network_container", 300, None, "starting a network case's site container, including a debian image pull"),
+    # No product deadline: the client container's own worst-case sequence, a 60s front-page
+    # fetch plus four 10s private-path probes, with margin for the container's own start.
+    Wait("network_client", 150, None, "a client container's requests against a network case's site container"),
+    # No product deadline: a metadata call against a container already running, or a quick
+    # network command run against neither.
+    Wait("docker_admin", 30, None, "a short docker command: container port, exec, rm, logs; network create, rm"),
     Wait("lock_ack", 10, None, "a helper process to confirm it holds startup.lock before a blocked start runs"),
     # No product deadline: safety valve bounding how long the lock-holding helper waits for
     # its release signal, past whatever the blocked start and the assertions on it take.

@@ -22,8 +22,8 @@ SITE_NAME = "Drupack initialization check"
 DEFAULT_SITE_NAME = "Drupal Mercury Demo"
 DEFAULT_URL = "http://localhost:7225/"
 LOGIN_LINE = "  Login:     http"
-# Phase 2 leaves this line to the default-port case in site_cases.py and this one; no other
-# case in the suite asserts it.
+# Phase 2 leaves this line to the default-port case in site_cases.py and this one; phase 8's
+# network_cases.py asserts it too, each module keeping its own copy.
 READY_LINE = "Drupal is ready."
 # Dockerfile installs the seed under this account; launch.php's seedPassword() carries its password.
 SEED_ADMIN = "drupack-admin"

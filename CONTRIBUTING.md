@@ -46,11 +46,10 @@ The suites run against the published executable, which is the launcher.
 
 ```sh
 docker build --target artifact --output type=local,dest=dist .
-bash tests/network.sh ./dist/drupack
 python3 tests/conformance ./dist/drupack test-results/conformance
 ```
 
-Each shell script takes an optional results directory as its second argument. `tests/conformance` requires one. `tests/network.sh` needs Docker; on Linux, so does `tests/conformance`, which proves its site cases offline inside a container instead of running them on the host, and starts MySQL and PostgreSQL containers for its server-database cases. On Linux, `tests/conformance` also needs Go, to pack small fixture launchers for its launcher cases.
+`tests/conformance` takes a results directory as its second argument. On Linux it also needs Docker, which it uses to prove its site cases offline inside a container instead of running them on the host, to run its network cases against a second container, and to start MySQL and PostgreSQL containers for its server-database cases. On Linux, `tests/conformance` also needs Go, to pack small fixture launchers for its launcher cases.
 
 The launcher's own unit tests need Go:
 

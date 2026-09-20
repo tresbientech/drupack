@@ -28,7 +28,7 @@ FALLBACK_PATTERN = re.compile(
 # frankenphp.exe for Windows through the same harness.pack_fixture.
 ENTRY = "drupack"
 
-# debian, pinned the way tests/network.sh pins its own copy of the same image:
+# debian, pinned the way network_cases.py pins its own copy of the same image:
 # docker buildx imagetools inspect debian --format '{{.Manifest.Digest}}'
 DEBIAN_IMAGE = "debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171"
 
