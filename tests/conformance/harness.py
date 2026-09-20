@@ -32,6 +32,15 @@ def current_platform():
     return _PLATFORM_NAMES[platform.system()]
 
 
+# The offline case's docker invocation sets this in the container; running_offline() is
+# true only for that inner run, never for the host run that launches the container.
+OFFLINE_ENV = "CONFORMANCE_OFFLINE"
+
+
+def running_offline():
+    return os.environ.get(OFFLINE_ENV) == "1"
+
+
 # Wait table: each row names the product deadline it covers, the harness wait above it, and
 # the margin that buys. A row with no product deadline states its own budget instead.
 Wait = namedtuple("Wait", ["name", "seconds", "deadline", "covers"])
@@ -45,6 +54,11 @@ WAIT_TABLE = [
     Wait("stop", 30, 10, "stop after the first signal"),
     Wait("dr", 120, None, "a dr command"),
     Wait("php_cli", 30, None, "a php-cli probe"),
+    # No product deadline: budget for a base-image pull plus the inner run's own site
+    # cases, which take under 2 minutes uncontained.
+    Wait("offline", 600, None, "the offline container's full site-case run"),
+    # No product deadline: docker rm -f on a name it just started, normally near-instant.
+    Wait("offline_kill", 30, None, "removing a hung offline container after its budget expires"),
 ]
 
 WAITS = {wait.name: wait for wait in WAIT_TABLE}

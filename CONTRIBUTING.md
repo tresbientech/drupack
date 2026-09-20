@@ -48,7 +48,6 @@ The suites run against the published executable, which is the launcher.
 docker build --target artifact --output type=local,dest=dist .
 bash tests/database-init.sh ./dist/drupack
 bash tests/launcher.sh ./dist/drupack
-bash tests/offline.sh ./dist/drupack
 bash tests/network.sh ./dist/drupack
 bash tests/server-database.sh ./dist/drupack
 bash tests/replacement.sh ./dist/drupack
@@ -56,7 +55,7 @@ bash tests/initialization.sh ./dist/drupack
 python3 tests/conformance ./dist/drupack test-results/conformance
 ```
 
-Each shell script takes an optional results directory as its second argument. `tests/conformance` requires one. `tests/network.sh` and `tests/offline.sh` need Docker. `tests/server-database.sh` starts MySQL and PostgreSQL containers itself. `tests/launcher.sh` packs small fixture launchers with Go and skips those cases when Go is absent, and its full-cache case skips without Docker.
+Each shell script takes an optional results directory as its second argument. `tests/conformance` requires one. `tests/network.sh` needs Docker; on Linux, so does `tests/conformance`, which proves its site cases offline inside a container instead of running them on the host. `tests/server-database.sh` starts MySQL and PostgreSQL containers itself. `tests/launcher.sh` packs small fixture launchers with Go and skips those cases when Go is absent, and its full-cache case skips without Docker.
 
 The launcher's own unit tests need Go:
 

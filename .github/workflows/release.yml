@@ -58,7 +58,7 @@ jobs:
       - name: Run the test scripts
         run: |
           bash tests/database-init.sh dist/drupack test-results/database
-          bash tests/offline.sh dist/drupack test-results/offline
+          python3 tests/conformance dist/drupack test-results/conformance
           bash tests/network.sh dist/drupack test-results/network
           bash tests/server-database.sh dist/drupack test-results/server-database
           bash tests/replacement.sh dist/drupack test-results/replacement

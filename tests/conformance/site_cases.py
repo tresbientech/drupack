@@ -32,6 +32,10 @@ class SeededSite(harness.ConformanceCase):
         cls.binary.chmod(0o700)
 
     def setUp(self):
+        # A setUp skip, unlike a setUpClass skip, reports each test method on its own
+        # line, so -v marks every site case skipped rather than the class once.
+        if harness.current_platform() == harness.LINUX and not harness.running_offline():
+            self.skipTest("Linux runs these cases through the offline case; see -k offline")
         self.case_dir = self.class_dir / self._testMethodName
         self.case_dir.mkdir(parents=True, exist_ok=True)
         self.site = harness.Site(self.binary, self.case_dir)

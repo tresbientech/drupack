@@ -24,13 +24,15 @@ def main(argv):
     harness.RESULTS = Path(results).resolve()
     harness.RESULTS.mkdir(parents=True, exist_ok=True)
     case_dir = Path(__file__).resolve().parent
-    with tempfile.TemporaryDirectory(prefix="drupack-cache-") as cache_dir:
-        os.environ["DRUPACK_CACHE_DIR"] = cache_dir
-        program = unittest.main(
-            module=None,
-            argv=["conformance", "discover", "-s", str(case_dir), "-p", "*_cases.py", "-v", *rest],
-            exit=False,
-        )
+    discover_argv = ["conformance", "discover", "-s", str(case_dir), "-p", "*_cases.py", "-v", *rest]
+    if os.environ.get("DRUPACK_CACHE_DIR"):
+        # Set already: this is the offline case's inner run, sharing its outer run's cache
+        # mount rather than unpacking a second copy inside the container.
+        program = unittest.main(module=None, argv=discover_argv, exit=False)
+    else:
+        with tempfile.TemporaryDirectory(prefix="drupack-cache-") as cache_dir:
+            os.environ["DRUPACK_CACHE_DIR"] = cache_dir
+            program = unittest.main(module=None, argv=discover_argv, exit=False)
     return 0 if program.result.wasSuccessful() else 1
 
 
