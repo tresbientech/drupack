@@ -8,8 +8,8 @@ fetch that survives a host trust store pointed at nothing.
 
 RuntimeConfigurationServed asserts the same two settings a different way: from
 inside a started site's own php-server hop, never through php-cli. Every case
-above it drives php-cli, which would stay green even if the mechanism that
-puts php.ini on the php-server hop's scan path stopped reaching it.
+above it drives php-cli, which would stay green even if php.ini stopped
+reaching the hop that answers a site's requests.
 """
 
 import json
@@ -172,10 +172,9 @@ class RuntimeConfigurationServed(harness.ConformanceCase):
     """The shipped php.ini, read from inside a started site's php-server hop.
 
     Every case in RuntimeConfiguration drives php-cli, a different hop from the one that
-    answers a site's requests. serveApplication once appended to PHP_INI_SCAN_DIR to reach
-    that second hop; this branch replaced that mechanism with PHPRC. If PHPRC ever stopped
-    reaching php-server, every php-cli probe here would stay green while a live site ran at
-    PHP's 128M default and a 2M upload cap. This starts a real site, follows its own
+    answers a site's requests. PHPRC is what carries php.ini to that second hop. If it
+    stopped reaching php-server, every php-cli probe here would stay green while a live
+    site ran at PHP's 128M default and a 2M upload cap. This starts a real site, follows its own
     printed one-time login link, and reads phpinfo() the way an administrator would, at
     Drupal's own status-report page. Closes phase 6's "a 64M upload succeeds on a site
     started from a release build" criterion.
