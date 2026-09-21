@@ -452,8 +452,10 @@ class WindowsLauncherCases(harness.ConformanceCase):
             "a release did not run its own runtime",
         )
         active = (cache / "active").read_text().strip()
+        # Key() puts a letter in front of the version, so a release numbered
+        # from a digit cannot start a path element.
         self.assertTrue(
-            active.startswith("test-v4-") or active.startswith("test-v5-"),
+            active.startswith("vtest-v4-") or active.startswith("vtest-v5-"),
             f"active named neither concurrent release: {active}",
         )
         self.assertTrue((cache / active / ENTRY).is_file(), "the active release directory is incomplete")
