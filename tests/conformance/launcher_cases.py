@@ -24,6 +24,14 @@ UNPACKING_PATTERN = re.compile(
     r"^Unpacking Drupack .+\. This happens once for each version\.$", re.MULTILINE
 )
 
+# The line app.go writes to standard error, once per unpacked release.
+APPLICATION_PATTERN = re.compile(
+    r"^Unpacking the Drupack application\. This happens once for each release\.$", re.MULTILINE
+)
+
+# One progress report, which names how far the unpacking has read and the whole payload.
+PROGRESS_PATTERN = re.compile(r"^  (\d+) of (\d+) MB$", re.MULTILINE)
+
 # The real launcher's entry file inside a cache directory: the Linux distribution's own
 # multicall binary, or FrankenPHP on Windows, matching what each platform's build packs.
 ENTRY = "frankenphp.exe" if harness.current_platform() == harness.WINDOWS else "drupack"
@@ -101,6 +109,30 @@ class ColdWarmStart(harness.ConformanceCase):
         self.assertTrue((self.cache / key).is_dir(), "a warm start replaced the cache entry")
         self.assertEqual(
             (self.cache / "active").read_text().strip(), key, "a warm start changed the active entry"
+        )
+
+    def test_cold_start_reports_unpacking_progress(self):
+        code, out, err = run(self.case_dir, harness.BINARY, "cold", "--help", env=self.env)
+        self.assertEqual(code, 0, f"a cold start exited non-zero: inspect {err}")
+        cold_err = err.read_text(errors="replace")
+        self.assertEqual(
+            len(APPLICATION_PATTERN.findall(cold_err)), 1,
+            "a cold start did not print exactly one application unpacking line",
+        )
+        reports = PROGRESS_PATTERN.findall(cold_err)
+        self.assertGreaterEqual(
+            len(reports), 2, f"a cold start reported progress {len(reports)} times: inspect {err}"
+        )
+        totals = {total for _, total in reports}
+        self.assertEqual(len(totals), 1, f"the reports name different totals: {totals}")
+        read, total = reports[-1]
+        self.assertEqual(read, total, "the closing report does not name the whole payload")
+
+        code, out, err = run(self.case_dir, harness.BINARY, "warm", "--help", env=self.env)
+        self.assertEqual(code, 0, f"a warm start exited non-zero: inspect {err}")
+        self.assertEqual(
+            len(PROGRESS_PATTERN.findall(err.read_text(errors="replace"))), 0,
+            "a warm start reported unpacking progress",
         )
 
 
