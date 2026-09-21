@@ -12,6 +12,7 @@ COPY packaging/install-translations.php /build/
 RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /build/install-translations.php
 COPY runtime/ ./
 COPY packaging/site-templates.php web/sites/default/site-templates.php
+RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /usr/local/bin/composer.phar dump-autoload --optimize
 RUN mkdir -p /app/seed/private /app/seed/tmp /app/seed/config /app/web/sites/default/files \
     && printf 'drupack-seed-hash-salt' > /app/seed/hash_salt \
     && cp /app/settings.php /app/web/sites/default/settings.php \

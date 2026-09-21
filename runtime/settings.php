@@ -1,5 +1,7 @@
 <?php
 
+$GLOBALS['conf']['container_service_providers']['drupack'] = 'Drupack\Support\WindowsPathServiceProvider';
+
 $data = getenv('DRUPACK_RUNTIME_DATA_DIR');
 $databases['default']['default'] = __DRUPACK_DATABASE_CONFIGURATION__;
 $settings['hash_salt'] = file_get_contents($data . '/hash_salt');
