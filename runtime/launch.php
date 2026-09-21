@@ -22,8 +22,11 @@ function removePreviousCopies(string $runtime): void
     $removed = 0;
     $freed = 0;
     foreach (PreviousCopies::under($runtime) as $copy) {
-        $freed += treeSize($copy);
-        removeTree($copy);
+        $size = treeSize($copy);
+        if (!removeTree($copy)) {
+            continue;
+        }
+        $freed += $size;
         $removed++;
     }
     if ($removed === 0) {
@@ -37,33 +40,49 @@ function removePreviousCopies(string $runtime): void
     ));
 }
 
+// The previous layout linked Site data into its copies, on Windows through a
+// junction, which PHP reports as neither a file nor a directory. Nothing here
+// follows one, so the Site data behind it stays.
+function linkedEntry(string $path): bool
+{
+    return is_link($path) || @readlink($path) !== false;
+}
+
 function treeSize(string $path): int
 {
+    if (linkedEntry($path)) {
+        return 0;
+    }
+    if (!is_dir($path)) {
+        return (int) @filesize($path);
+    }
     $total = 0;
-    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS)) as $file) {
-        $total += $file->getSize();
+    foreach (scandir($path) ?: [] as $name) {
+        if ($name !== '.' && $name !== '..') {
+            $total += treeSize($path . DIRECTORY_SEPARATOR . $name);
+        }
     }
     return $total;
 }
 
-// Drupal hardens a site directory to read-only, so the modes come back before
-// the entries go.
-function removeTree(string $path): void
+// Reports whether the path is gone. Drupal hardens a site directory to
+// read-only, so the mode comes back before the entries go. A junction goes with
+// rmdir, which Windows refuses to unlink.
+function removeTree(string $path): bool
 {
-    chmod($path, 0700);
-    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST) as $entry) {
-        if ($entry->isDir()) {
-            chmod($entry->getPathname(), 0700);
+    if (linkedEntry($path)) {
+        return @unlink($path) || @rmdir($path);
+    }
+    if (!is_dir($path)) {
+        return @unlink($path);
+    }
+    @chmod($path, 0700);
+    foreach (scandir($path) ?: [] as $name) {
+        if ($name !== '.' && $name !== '..') {
+            removeTree($path . DIRECTORY_SEPARATOR . $name);
         }
     }
-    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST) as $entry) {
-        if ($entry->isDir()) {
-            rmdir($entry->getPathname());
-            continue;
-        }
-        unlink($entry->getPathname());
-    }
-    rmdir($path);
+    return @rmdir($path);
 }
 
 function windows(): bool
@@ -863,6 +882,10 @@ try {
         // A pending settings step rewrites the file, so its contents are read once they are final.
         if (!in_array('settings', $steps, true)) {
             $options = recordedOptions($options, $data);
+            // The file names the application, which every release unpacks under its
+            // own directory, so each start writes it again from the template this
+            // release ships. The recorded connection details come back unchanged.
+            writeSettings("$data/settings.php", __DIR__ . '/settings.php', databaseConfiguration($options, $data));
         }
     }
     initialize($data, $steps, $options, $binary);
