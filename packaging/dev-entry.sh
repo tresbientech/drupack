@@ -17,7 +17,7 @@ if [ ! -d /data/runtime/app ]; then
 fi
 # The copied files keep the image user's mode, so replace each by name: the
 # directory permits the unlink, the file mode does not permit a write.
-for name in Caddyfile launch.php php.ini settings.php; do
+for name in Caddyfile launch.php php.ini settings.php cacert.pem; do
     rm -f "/data/runtime/app/$name"
     cp "/dev-runtime/$name" "/data/runtime/app/$name"
 done
@@ -25,6 +25,12 @@ done
 binary=/go/src/app/dist/static-php-cli/buildroot/bin/frankenphp
 export DRUPACK_RUNTIME_BINARY=$binary
 cd /data/runtime/app
+
+# A release start gets these from the launcher's environment function. The
+# development image runs frankenphp directly, so it sets the same two here, and
+# a caller's own bundle still wins.
+export PHPRC=/data/runtime/app
+export DRUPACK_CA_FILE=${DRUPACK_CA_FILE:-/data/runtime/app/cacert.pem}
 
 # launch.php sets up the site, then hands over to a server. Its Drush path runs
 # the same setup and stops, and this image's php-server ignores a Caddyfile, so
