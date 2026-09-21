@@ -34,6 +34,9 @@ COPY --from=build /out/drupack /drupack
 FROM build AS packed
 ARG DRUPACK_VERSION
 COPY packaging/launcher /src/launcher
+# php.ini and the trust bundle join the entry executable in the packed runtime
+# directory, so the launcher's environment function finds both beside it.
+RUN cp /app/php.ini /app/cacert.pem /out/
 RUN export CGO_ENABLED=0 \
     && mkdir -p /packed \
     && cd /src/launcher \

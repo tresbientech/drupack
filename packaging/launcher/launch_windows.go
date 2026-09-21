@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"syscall"
 	"unsafe"
+
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
 
 // launch starts executable as a child, since Windows has no process image
@@ -19,8 +21,9 @@ func launch(executable string, args []string) error {
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
-	// php.ini in the runtime directory locates its extensions through PHPRC.
-	command.Env = append(os.Environ(), "PHPRC="+filepath.Dir(executable))
+	// php.ini and the bundled trust store load through the same environment
+	// rules launch_unix.go applies, so the two entry points cannot drift apart.
+	command.Env = runtime.Environment(filepath.Dir(executable), os.Environ())
 	if consoleOwned() {
 		command.Env = append(command.Env, "DRUPACK_RUNTIME_CONSOLE_OWNED=1")
 	}
