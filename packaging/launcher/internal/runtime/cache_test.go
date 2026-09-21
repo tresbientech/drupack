@@ -422,12 +422,23 @@ func TestRootPrefersTheCacheDirOverTheDefaultRoot(t *testing.T) {
 	t.Setenv("DRUPACK_CACHE_DIR", cache)
 	t.Setenv("XDG_CACHE_HOME", xdg)
 
-	root, err := runtimepkg.Root()
+	root, err := runtimepkg.Root(io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(root, cache) {
-		t.Fatalf("expected a root under %q, got %q", cache, root)
+	// A prefix comparison breaks on a Windows account whose name is non-ASCII:
+	// asciiRoot resolves cache to its 8.3 short name there, which does not share
+	// cache's spelling. os.SameFile identifies the same directory either way.
+	cacheInfo, err := os.Stat(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootInfo, err := os.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(cacheInfo, rootInfo) {
+		t.Fatalf("expected root %q to be the same directory as %q", root, cache)
 	}
 	if _, err := os.Stat(filepath.Join(xdg, "Drupack")); !os.IsNotExist(err) {
 		t.Fatalf("the default root under %q gained an entry", xdg)
