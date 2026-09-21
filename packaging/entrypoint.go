@@ -148,6 +148,15 @@ func init() {
 	// A build step runs this binary on its own to read its version, with no
 	// launcher to name a directory and no embedded application to fall back to.
 	if application != "" {
+		// The site resolves its own relative paths from the application, so the
+		// directory the reader started in has to reach launch.php separately.
+		// Site data named relative to it belongs there, not in a copy every
+		// site of the release shares.
+		if directory, err := os.Getwd(); err == nil {
+			if err := os.Setenv("DRUPACK_RUNTIME_CWD", directory); err != nil {
+				panic(err)
+			}
+		}
 		if err := os.Chdir(application); err != nil {
 			panic(err)
 		}

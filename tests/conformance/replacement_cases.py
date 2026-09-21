@@ -58,12 +58,9 @@ class ReplacementCases(harness.ConformanceCase):
         shutil.copyfile(self.data / "hash_salt", before / "hash_salt")
 
         new_binary = self._copy_binary("new")
-        # The old binary's own directory holds nothing the running site depends on. Removing
-        # it, and the application the old binary unpacked under Site data, leaves the new
-        # binary serving what follows, with no leftover from the old one.
+        # The old binary's own directory holds nothing the running site depends
+        # on, so removing it leaves the new binary serving what follows.
         shutil.rmtree(self.case_dir / "old")
-        for extracted in glob.glob(str(self.data / "runtime" / "frankenphp_*")):
-            shutil.rmtree(extracted)
 
         self.new_site = harness.Site(new_binary, self.case_dir / "new")
         self.new_site.start(self.data)
@@ -84,5 +81,11 @@ class ReplacementCases(harness.ConformanceCase):
         self.assertEqual((self.data / "private" / "replacement.txt").read_text(), "private-replacement-sentinel")
         self.assertEqual((before / "settings.php").read_bytes(), (self.data / "settings.php").read_bytes())
         self.assertEqual((before / "hash_salt").read_bytes(), (self.data / "hash_salt").read_bytes())
-        self.assertTrue(glob.glob(str(self.data / "runtime" / "frankenphp_*")),
-                         "the new executable did not extract its own application")
+        # The application lives in the user cache, one directory per release, so
+        # Site data holds none of it whichever executable ran.
+        self.assertEqual(
+            glob.glob(str(self.data / "runtime" / "frankenphp_*")), [],
+            "an executable left a copy of the application inside Site data",
+        )
+        self.assertFalse((self.data / "web").exists(),
+                         "an executable left the site tree inside Site data")

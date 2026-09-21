@@ -71,6 +71,26 @@ function windows(): bool
     return PHP_OS_FAMILY === 'Windows';
 }
 
+function absolutePath(string $path): bool
+{
+    if (windows()) {
+        return (bool) preg_match('#^([A-Za-z]:[\\\\/]|[\\\\/])#', $path);
+    }
+    return str_starts_with($path, '/');
+}
+
+// The server runs from the application directory, which every site of a release
+// shares, so a path the reader wrote relative to their own directory resolves
+// against the one they started in.
+function fromStartDirectory(string $path): string
+{
+    $start = environment('DRUPACK_RUNTIME_CWD');
+    if ($start === null || absolutePath($path)) {
+        return $path;
+    }
+    return $start . DIRECTORY_SEPARATOR . $path;
+}
+
 function nullDevice(): string
 {
     return windows() ? 'NUL' : '/dev/null';
@@ -727,6 +747,7 @@ function initialize(string $data, array $steps, array $options, string $binary):
 try {
     $drush = environment('DRUPACK_RUNTIME_DRUSH') === '1';
     [$options, $command] = options(array_slice($argv, 1), $drush);
+    $options['data-dir'] = fromStartDirectory($options['data-dir']);
     // PHP_BINARY is empty in embedded FrankenPHP; the Go entrypoint exports its own path.
     $binary = getenv('DRUPACK_RUNTIME_BINARY');
     if ($drush && in_array($command[0] ?? '', ['--help', '-h', 'list'], true)) {

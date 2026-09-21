@@ -54,9 +54,14 @@ final class SiteDataPublicStream extends PublicStream {
       $realpath = realpath(dirname($path)) . '/' . basename($path);
     }
     $directory = realpath($root);
+    if (!$realpath || !$directory) {
+      return FALSE;
+    }
     // A target that resolves outside public storage is refused, whatever
-    // produced it.
-    if (!$realpath || !$directory || !str_starts_with($realpath, $directory)) {
+    // produced it. The separator keeps a sibling directory whose name merely
+    // starts with this one out.
+    if ($realpath !== $directory
+      && !str_starts_with($realpath, $directory . DIRECTORY_SEPARATOR)) {
       return FALSE;
     }
     return $realpath;
