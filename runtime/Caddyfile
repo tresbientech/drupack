@@ -2,7 +2,13 @@
 	admin off
 	auto_https off
 	persist_config off
-	frankenphp
+	# Windows PHP keys its opcache segment per user account, so a second server attaches to
+	# the first one's segment, finds opcode handlers from a differently based image and aborts
+	# before it binds. The cache id gives each Site data its own segment. Other platforms do
+	# not register the directive and ignore it.
+	frankenphp {
+		php_ini "opcache.cache_id" "{$DRUPACK_RUNTIME_ID}"
+	}
 	order php_server before file_server
 	log {
 		output file "{$DRUPACK_RUNTIME_LOG_PATH}" {
