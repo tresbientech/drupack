@@ -43,8 +43,10 @@ func run() error {
 		return err
 	}
 	// The server resolves the site from its working directory, which the entry
-	// point sets from this variable once it starts.
-	if err := os.Setenv("DRUPACK_RUNTIME_APP_DIR", application); err != nil {
+	// point sets from this variable once it starts. PHP, Caddy and the reader's
+	// terminal read the exported value, so it takes Drupack's canonical form;
+	// application itself stays native for the join below.
+	if err := os.Setenv("DRUPACK_RUNTIME_APP_DIR", runtime.Canonical(application)); err != nil {
 		return err
 	}
 	// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.

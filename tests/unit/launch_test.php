@@ -280,6 +280,11 @@ test('a given administrator name and password survive', function (): void {
     same('given', $filled['admin-password']);
 });
 
+test('canonical rewrites backslashes as forward slashes', function (): void {
+    same('C:/Users/theno/Downloads', canonical('C:\\Users\\theno\\Downloads'));
+    same('/var/www/html', canonical('/var/www/html'), 'a path with no backslash comes back unchanged');
+});
+
 test('the site token hashes the path, lowercased on windows', function (): void {
     $data = '/Users/Ann/Site Data';
     same(hash('sha256', windows() ? strtolower($data) : $data), siteToken($data));
@@ -299,6 +304,45 @@ test('site data file names hang off the directory', function (): void {
     same('/x/site-adopted', adoptedPath('/x'));
     same('/x/first-install', firstEverPath('/x'));
     same('/x/listener', listenerPath('/x'));
+});
+
+// An upgraded Windows site's application directory still carries the native,
+// backslash form it was keyed with before the launcher exported the canonical
+// one. Hashing a slash-normalised value keeps both forms behind one container.
+test('the deployment identifier keys the native and canonical form alike', function (): void {
+    $data = scratch();
+    file_put_contents("$data/hash_salt", 'test-hash-salt');
+    $content = settings(__DIR__ . '/../../runtime/settings.php', [
+        'driver' => 'sqlite',
+        'database' => "$data/site.sqlite",
+        'namespace' => 'Drupal\\sqlite\\Driver\\Database\\sqlite',
+        'autoload' => 'core/modules/sqlite/src/Driver/Database/sqlite/',
+    ]);
+    $path = "$data/settings-under-test.php";
+    file_put_contents($path, $content);
+
+    putenv("DRUPACK_RUNTIME_DATA_DIR=$data");
+    putenv('DRUPACK_RUNTIME_HOST=localhost');
+
+    putenv('DRUPACK_RUNTIME_APP_DIR=C:\\Users\\theno\\AppData\\Local\\Drupack\\runtime\\app\\r2e2893a48a83');
+    $databases = [];
+    $settings = [];
+    $config = [];
+    require $path;
+    $native = $settings['deployment_identifier'];
+
+    putenv('DRUPACK_RUNTIME_APP_DIR=C:/Users/theno/AppData/Local/Drupack/runtime/app/r2e2893a48a83');
+    $databases = [];
+    $settings = [];
+    $config = [];
+    require $path;
+    $canonical = $settings['deployment_identifier'];
+
+    putenv('DRUPACK_RUNTIME_APP_DIR');
+    putenv('DRUPACK_RUNTIME_HOST');
+    putenv('DRUPACK_RUNTIME_DATA_DIR');
+
+    same($native, $canonical, 'the native and canonical form of the same directory must key one container');
 });
 
 $failed = 0;

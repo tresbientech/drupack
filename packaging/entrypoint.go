@@ -123,12 +123,22 @@ func serveApplication(application string) {
 	}
 }
 
+// canonical rewrites path in Drupack's canonical form: forward slashes. This
+// file builds inside frankenphp's own module, which cannot import the
+// launcher's internal/runtime package, so the conversion is restated here;
+// packaging/launcher/internal/runtime/canonical_test.go covers the algorithm.
+func canonical(path string) string {
+	return strings.ReplaceAll(path, `\`, "/")
+}
+
 func init() {
 	executable, err := os.Executable()
 	if err != nil {
 		panic(err)
 	}
-	if err := os.Setenv("DRUPACK_RUNTIME_BINARY", executable); err != nil {
+	// PHP, Caddy and the reader's terminal read this variable, so it takes
+	// Drupack's canonical form; executable itself is used for nothing else.
+	if err := os.Setenv("DRUPACK_RUNTIME_BINARY", canonical(executable)); err != nil {
 		panic(err)
 	}
 	// The launcher unpacks the application once per release and names its
@@ -145,7 +155,9 @@ func init() {
 		// Site data named relative to it belongs there, not in a copy every
 		// site of the release shares.
 		if directory, err := os.Getwd(); err == nil {
-			if err := os.Setenv("DRUPACK_RUNTIME_CWD", directory); err != nil {
+			// launch.php reads this variable to resolve a relative --data-dir
+			// against the reader's own directory, so it takes the canonical form.
+			if err := os.Setenv("DRUPACK_RUNTIME_CWD", canonical(directory)); err != nil {
 				panic(err)
 			}
 		}

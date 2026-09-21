@@ -98,6 +98,14 @@ function absolutePath(string $path): bool
     return str_starts_with($path, '/');
 }
 
+// realpath() returns the native form, backslashes included on Windows. Every path
+// Drupack exports or prints takes the canonical form instead, so a Windows reader's
+// terminal agrees with the forward slashes Drupal's own stack traces already carry.
+function canonical(string $path): string
+{
+    return str_replace('\\', '/', $path);
+}
+
 // The server runs from the application directory, which every site of a release
 // shares, so a path the reader wrote relative to their own directory resolves
 // against the one they started in.
@@ -821,7 +829,9 @@ try {
 
     umask(0077);
     directory($options['data-dir']);
-    $data = realpath($options['data-dir']);
+    // realpath() resolves in the native form, so the result is re-canonicalised
+    // before it travels into every export, hash and printed line that follows.
+    $data = canonical(realpath($options['data-dir']));
     foreach (['runtime', 'files', 'files/translations', 'private', 'tmp', 'config', 'logs'] as $name) {
         directory("$data/$name");
     }
@@ -837,7 +847,7 @@ try {
     putenv("DRUSH_OPTIONS_URI=$url");
     $logPath = "$data/logs/caddy.log";
     putenv("DRUPACK_RUNTIME_LOG_PATH=$logPath");
-    $runtime = realpath("$data/runtime");
+    $runtime = canonical(realpath("$data/runtime"));
     removePreviousCopies($runtime);
     // Caddy state and every temporary file stay beside the site they belong to.
     putenv("TMPDIR=$runtime");
