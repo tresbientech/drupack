@@ -31,6 +31,7 @@ $local_file_uri_cases = [
   ['public://x.svg', FALSE],
   ['http://h/x.svg', FALSE],
   ['//host/share/x.svg', FALSE],
+  ['\\\\host\share\x.svg', FALSE],
   ['php://input', FALSE],
   ['C:\\x.svg', TRUE],
   ['C:/x.svg', TRUE],

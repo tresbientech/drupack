@@ -30,7 +30,9 @@ final class LocalFileUri {
     if (isset($parts['scheme']) && strlen($parts['scheme']) !== 1) {
       return FALSE;
     }
-    return TRUE;
+    // parse_url() reads an authority only after "//", so the native Windows
+    // UNC form "\\host\share" arrives as a path carrying no host.
+    return !str_starts_with($parts['path'] ?? '', '\\\\');
   }
 
 }
