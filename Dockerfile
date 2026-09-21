@@ -36,6 +36,10 @@ ARG DRUPACK_VERSION
 COPY packaging/launcher /src/launcher
 # php.ini and the trust bundle join the entry executable in the packed runtime
 # directory, so the launcher's environment function finds both beside it.
+# runtime/cacert.pem comes from https://curl.se/ca/cacert.pem, sha256
+# f66dff1bdf8f96060b8177976f8b7d9254bc89bc4db933d769f7384d28480bc9, 121
+# certificates. A refresh replaces the file and that checksum in one commit;
+# no build fetches it.
 RUN cp /app/php.ini /app/cacert.pem /out/
 RUN export CGO_ENABLED=0 \
     && mkdir -p /packed \

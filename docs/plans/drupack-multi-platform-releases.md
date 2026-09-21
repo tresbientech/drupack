@@ -140,7 +140,7 @@ Remaining:
 - No test runs on Windows 10 22H2. The runtime bundles no Visual C++ runtime DLLs.
 - A WinGet submission needs version, installer and locale manifest files.
 - The Windows runtime loads the extensions Drupal, Drush, Local MCP Tools and MCP Server need. The Linux executable loads a larger set.
-- `runtime/php.ini` never loads on Windows either.
+- Closed: `runtime/php.ini` loads on Windows too, from the packed runtime directory the build now copies it into.
 
 ### Acceptance criteria
 
