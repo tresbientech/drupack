@@ -69,6 +69,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if key := runtime.Key(*version, payload); !runtime.MintedSegment(key) {
+		return fmt.Errorf("version %q would mint the cache entry %q, breaking the rule %s", *version, key, runtime.MintedSegmentPattern)
+	}
 
 	build, err := os.MkdirTemp("", "drupack-pack-")
 	if err != nil {

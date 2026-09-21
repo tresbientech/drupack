@@ -28,11 +28,9 @@ const usedName = ".used"
 // unusedFor is how long an application directory survives with no start using it.
 const unusedFor = 30 * 24 * time.Hour
 
-// entryName names the directory holding one release's application. A PHP
-// library that builds a path through preg_replace reads a backslash followed
-// by a digit as a backreference and drops both, so the name starts with a
-// letter. The short form also keeps the vendor paths inside the tree well
-// clear of the Windows path limit.
+// entryName names the directory holding one release's application. The short
+// form keeps the vendor paths inside the tree well clear of the Windows path
+// limit.
 func entryName(checksum string) string {
 	return "r" + checksum[:12]
 }
