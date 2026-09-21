@@ -28,8 +28,11 @@ const lockName = "lock"
 // Root returns the cache directory a runtime unpacks into, creating it. A
 // user-named directory that refuses writes is reported, never silently
 // swapped for another; an unnamed one falls back from the user cache
-// directory to the temporary directory.
-func Root() (string, error) {
+// directory to the temporary directory. On Windows, a chosen root PHP's
+// startup cannot read as ASCII falls to the temporary directory too, with one
+// line written to notice naming why; a root with no ASCII form anywhere stops
+// the start instead.
+func Root(notice io.Writer) (string, error) {
 	if dir := os.Getenv("DRUPACK_CACHE_DIR"); dir != "" {
 		if err := os.MkdirAll(dir, rootMode); err != nil {
 			return "", err
@@ -38,7 +41,7 @@ func Root() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return asciiRoot(root)
+		return asciiRoot(root, notice)
 	}
 
 	var lastErr error
@@ -48,7 +51,7 @@ func Root() (string, error) {
 			continue
 		}
 		if owned, err := privateRoot(root); err == nil && owned != "" {
-			return asciiRoot(owned)
+			return asciiRoot(owned, notice)
 		} else if err != nil {
 			lastErr = err
 		}
@@ -61,26 +64,48 @@ func Root() (string, error) {
 // ANSI code page, so a root outside that code page breaks extension loading.
 // mkdir runs first because Windows allocates a short name only for a path that
 // exists. A candidate already in ASCII is returned untouched, since resolve
-// also rewrites a long ASCII segment, which no reader asked for. Two exhausted
-// candidates stop the start: a site missing its extensions is worse than a
+// also rewrites a long ASCII segment, which no reader asked for. Falling from
+// root to fallback writes one line to notice, the shape fallbackOrFail uses
+// for its own swap, naming why root was passed over; two exhausted candidates
+// stop the start instead, since a site missing its extensions is worse than a
 // start that refuses.
-func resolveASCIIRoot(root, fallback string, mkdir func(string) error, resolve func(string) (string, error)) (string, error) {
-	for _, candidate := range []string{root, fallback} {
-		if err := mkdir(candidate); err != nil {
-			continue
-		}
-		if isASCII(candidate) {
-			return candidate, nil
-		}
-		resolved, err := resolve(candidate)
-		if err != nil {
-			continue
-		}
-		if isASCII(resolved) {
-			return resolved, nil
-		}
+func resolveASCIIRoot(root, fallback string, mkdir func(string) error, resolve func(string) (string, error), notice io.Writer) (string, error) {
+	ascii, rootErr := asciiForm(root, mkdir, resolve)
+	if rootErr == nil {
+		return ascii, nil
 	}
-	return "", fmt.Errorf("cache root %s has no ASCII path PHP can load extensions from; set DRUPACK_CACHE_DIR to an ASCII directory", root)
+
+	ascii, fallbackErr := asciiForm(fallback, mkdir, resolve)
+	if fallbackErr == nil {
+		fmt.Fprintf(notice, "Could not use cache root %s: %s. Using %s instead.\n", root, rootErr, fallback)
+		return ascii, nil
+	}
+
+	return "", fmt.Errorf(
+		"cache root %s (%s) and fallback %s (%s) have no ASCII path PHP can load extensions from: set DRUPACK_CACHE_DIR to an ASCII directory",
+		root, rootErr, fallback, fallbackErr,
+	)
+}
+
+// asciiForm creates candidate, then returns it unchanged when it is already
+// ASCII, or its resolved short name when that is ASCII. An error names why
+// candidate carries no ASCII form: mkdir's own failure, resolve's own
+// failure, or resolve succeeding on a name that is still not ASCII.
+func asciiForm(candidate string, mkdir func(string) error, resolve func(string) (string, error)) (string, error) {
+	if err := mkdir(candidate); err != nil {
+		return "", err
+	}
+	if isASCII(candidate) {
+		return candidate, nil
+	}
+	resolved, err := resolve(candidate)
+	if err != nil {
+		return "", err
+	}
+	if !isASCII(resolved) {
+		return "", fmt.Errorf("resolved to %s, still not ASCII", resolved)
+	}
+	return resolved, nil
 }
 
 // isASCII reports whether s holds bytes in the ASCII range alone. Any UTF-8

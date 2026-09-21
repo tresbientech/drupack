@@ -23,7 +23,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	root, err := runtime.Root()
+	root, err := runtime.Root(os.Stderr)
 	if err != nil {
 		return err
 	}

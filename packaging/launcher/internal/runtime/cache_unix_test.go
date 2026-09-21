@@ -34,7 +34,7 @@ func TestRootFallsBackToTempDirWhenTheCacheDirRefusesWrites(t *testing.T) {
 	t.Cleanup(func() { os.Chmod(home, 0700) })
 	t.Setenv("HOME", home)
 
-	root, err := runtimepkg.Root()
+	root, err := runtimepkg.Root(io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestRootRejectsAGroupWritableCacheDir(t *testing.T) {
 	}
 	t.Setenv("DRUPACK_CACHE_DIR", root)
 
-	if _, err := runtimepkg.Root(); err == nil {
+	if _, err := runtimepkg.Root(io.Discard); err == nil {
 		t.Fatal("expected a group-writable cache directory to be rejected")
 	}
 }

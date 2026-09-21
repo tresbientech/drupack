@@ -4,14 +4,18 @@ package runtime
 
 import (
 	"fmt"
+	"io"
 	"os"
+	"os/user"
 	"path/filepath"
 	"syscall"
 )
 
 // privateRoot reports root when it is a directory. Windows carries no mode
-// bits for Lstat to read, and cacheRoots only ever names a directory inside
-// the profile Windows keeps to this account.
+// bits for Lstat to read, so this checks no further than that: cacheRoots'
+// own candidate sits inside the profile Windows keeps to this account, and
+// asciiRoot's temp fallback is namespaced per account below instead of
+// relying on that guarantee.
 func privateRoot(root string) (string, error) {
 	info, err := os.Lstat(root)
 	if err != nil {
@@ -37,13 +41,37 @@ func cacheRoots() []string {
 
 // asciiRoot resolves root to the ASCII path PHP startup needs: phase 1 found
 // PHP resolves its PHPRC-derived configuration path through the ANSI code
-// page, so an account name it cannot represent breaks extension loading.
-// The temporary directory is the fallback rung, since it sits under the
-// same per-account profile and carries the same name.
-func asciiRoot(root string) (string, error) {
-	fallback := filepath.Join(os.TempDir(), "Drupack", "runtime")
-	mkdir := func(dir string) error { return os.MkdirAll(dir, rootMode) }
-	return resolveASCIIRoot(root, fallback, mkdir, shortPathName)
+// page, so an account name it cannot represent breaks extension loading. The
+// temporary directory is the fallback rung, since it sits under the same
+// per-account profile and carries the same name; its candidate still runs
+// through privateRoot like every other one, since %TEMP% is not the fixed,
+// account-private location cacheRoots' own candidate is.
+func asciiRoot(root string, notice io.Writer) (string, error) {
+	fallback, err := fallbackRoot()
+	if err != nil {
+		return "", err
+	}
+	mkdir := func(dir string) error {
+		if err := os.MkdirAll(dir, rootMode); err != nil {
+			return err
+		}
+		_, err := privateRoot(dir)
+		return err
+	}
+	return resolveASCIIRoot(root, fallback, mkdir, shortPathName, notice)
+}
+
+// fallbackRoot names asciiRoot's temp rung. %TMP% and %TEMP% are policy- and
+// reader-writable, unlike cacheRoots' own candidate under the profile, so a
+// fixed name here would let another account's start collide with this one's;
+// namespacing it by SID, the way unix namespaces its own temp candidate by
+// uid, keeps every account in its own directory.
+func fallbackRoot() (string, error) {
+	current, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(os.TempDir(), "Drupack-"+current.Uid, "runtime"), nil
 }
 
 // shortPathName wraps GetShortPathNameW, the Windows API that names an

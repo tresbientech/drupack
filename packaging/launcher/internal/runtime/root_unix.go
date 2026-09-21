@@ -4,6 +4,7 @@ package runtime
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -28,8 +29,9 @@ func privateRoot(root string) (string, error) {
 }
 
 // asciiRoot returns root unchanged. The ANSI-code-page boundary phase 1 found
-// in PHP startup is Windows-only, so unix keeps its current cache root.
-func asciiRoot(root string) (string, error) {
+// in PHP startup is Windows-only, so unix keeps its current cache root and
+// takes no branch that would write to notice.
+func asciiRoot(root string, notice io.Writer) (string, error) {
 	return root, nil
 }
 
