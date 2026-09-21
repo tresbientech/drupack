@@ -84,16 +84,59 @@ count, and the exact warning text when one appears.
 
 ---
 
-## Phase 2: The fix
+## Phase 2: An ASCII cache root on Windows
 
 **User stories**: 1, 2, 3, 4, 5, 12
 
-Written after phase 1 reports. The fix lands where the evidence puts the fault,
-and ships with the conformance cases that prove it: accented Latin, Cyrillic and
-CJK cache roots, each asserting a 200 and zero extension load failures.
+### What to build
 
-This phase carries no acceptance criteria yet. Writing them before the
-diagnosis would commit the work to a repair nobody can describe.
+Phase 1 named the layer: PHP startup resolves the `PHPRC`-derived
+configuration path through the ANSI code page, so a root it cannot represent
+breaks extension loading, and for Cyrillic and CJK roots it fails to locate
+`php.ini` at all. The product cannot fix PHP, so it stops handing PHP a path
+that breaks.
+
+`runtime.Root()` gains the rule on Windows, and nowhere else. The launcher
+creates the cache directory, then asks Windows for its 8.3 short name, because
+a short name exists only for a path that exists. An ASCII result becomes the
+cache root, and every later path derives from it.
+
+Three conditions leave that result non-ASCII: 8.3 creation disabled on the
+volume, a name Windows leaves in Unicode, and a path with no alias yet. Each
+one falls to the next rung.
+
+The rungs, in order:
+
+1. The chosen cache root, short name resolved.
+2. The temporary directory, short name resolved. The default temporary
+   directory sits under the same profile, so it carries the same account name
+   and needs the same treatment.
+3. A stop. The start fails with one line naming the cache root it could not
+   make ASCII and the variable that overrides it.
+
+A start that stops is better than a start that serves a site with 12 extensions
+missing, which is what happens today.
+
+Linux and macOS keep `runtime.Root()` exactly as it is.
+
+### Acceptance criteria
+
+- [ ] `cd packaging/launcher && go test ./...` exits 0, including a table over
+      the rung order: an ASCII candidate is kept, a non-ASCII candidate with an
+      ASCII alias takes the alias, and a candidate with no ASCII form anywhere
+      reaches the stop.
+- [ ] That table fails when the rung order is reversed.
+- [ ] A site started with `DRUPACK_CACHE_DIR` under an accented Latin path
+      answers 200 with zero extension load failures in its log.
+- [ ] The same holds for a Cyrillic path and for a CJK path.
+- [ ] The conformance cases covering those three scripts are marked Windows and
+      pass against `dist\drupack.exe`.
+- [ ] Those three cases fail against a build without this change, which phase 1
+      already measured at HTTP 500.
+- [ ] A start whose cache root cannot be made ASCII prints one line naming the
+      root and `DRUPACK_CACHE_DIR`, and exits non-zero.
+- [ ] `python3 tests/conformance ./dist/drupack test-results/conformance` shows
+      no change on Linux, since no Linux path runs the new rule.
 
 ---
 
