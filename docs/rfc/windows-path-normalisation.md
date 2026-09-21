@@ -1,6 +1,6 @@
 # Windows path handling breaks icons and component assets
 
-Proposed on 2026-09-21. Not implemented.
+Proposed on 2026-09-21. Implemented and merged into main.
 
 ## The question
 

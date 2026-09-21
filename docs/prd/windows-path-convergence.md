@@ -137,9 +137,11 @@ drive letter, a backslash or the application root prefix.
 
 - `path/filepath` keeps the native form for every path the launcher joins,
   walks or opens.
-- `filepath.ToSlash` converts at the boundary where another program reads the
-  value: `DRUPACK_RUNTIME_APP_DIR`, `DRUPACK_RUNTIME_CWD` and
-  `DRUPACK_RUNTIME_BINARY`.
+- One conversion runs at the boundary where another program reads the value:
+  `DRUPACK_RUNTIME_APP_DIR`, `DRUPACK_RUNTIME_CWD` and
+  `DRUPACK_RUNTIME_BINARY`. It takes the separator as an argument and returns
+  the path untouched where the separator is already `/`, which is what
+  `filepath.ToSlash` does and which a table test can drive on any host.
 - A minted cache segment matches `^[a-z][a-z0-9.-]{0,31}$`. The rule lives in
   one exported place in `internal/runtime`, replacing the two comments that
   state it today.
