@@ -89,7 +89,7 @@ own bundle taking precedence.
       for both precedence rules.
 - [ ] Those unit tests fail when `PHPRC` is left to the caller, and when a
       caller's `DRUPACK_CA_FILE` is overwritten.
-- [ ] `python3 tests/conformance ./dist/drupack test-results/conformance RuntimeConfiguration` passes.
+- [ ] `python3 tests/conformance ./dist/drupack test-results/conformance -k RuntimeConfiguration` passes.
 - [ ] That class asserts the loaded ini sits under the runtime cache, the memory
       limit reads 512M, and the certificate path parses as over 100 certificates.
 - [ ] A php.ini written into the working directory changes no setting.
@@ -115,7 +115,7 @@ the executable. The conformance class from phase 1 gains its Windows mark.
 
 - [ ] `./packaging/windows/build.ps1` completes, and its extension check still
       finds every required extension.
-- [ ] `python tests\conformance dist\drupack.exe test-results\conformance RuntimeConfiguration` passes.
+- [ ] `python tests\conformance dist\drupack.exe test-results\conformance -k RuntimeConfiguration` passes.
 - [ ] A site started from that executable reports available updates with no
       OpenSSL message, and its log holds no cURL error 60.
 - [ ] The same site reads 512M for its memory limit.
@@ -135,7 +135,7 @@ the packer. The conformance class gains its macOS mark.
 ### Acceptance criteria
 
 - [ ] `packaging/macos/build.sh` produces an executable that prints its version.
-- [ ] `python3 tests/conformance ./dist/drupack test-results/conformance RuntimeConfiguration` passes on macOS.
+- [ ] `python3 tests/conformance ./dist/drupack test-results/conformance -k RuntimeConfiguration` passes on macOS.
 - [ ] With `SSL_CERT_FILE` and `SSL_CERT_DIR` pointed at a missing path, the
       release history fetch returns 200.
 - [ ] The full conformance run passes on macOS.
@@ -174,11 +174,11 @@ container stays green.
 
 ### Acceptance criteria
 
-- [ ] `python3 tests/conformance ./dist/drupack test-results/conformance RuntimeTrustOnline` passes,
+- [ ] `python3 tests/conformance ./dist/drupack test-results/conformance -k RuntimeTrustOnline` passes,
       and asserts a 200 from the Drupal release history.
 - [ ] That case fails against a build whose bundle is truncated to one
       certificate.
-- [ ] `python3 tests/conformance ./dist/drupack test-results/conformance OfflineRun` passes,
+- [ ] `python3 tests/conformance ./dist/drupack test-results/conformance -k OfflineRun` passes,
       and its inner run skips the network case by name.
 - [ ] The network case passes on Windows and macOS.
 
