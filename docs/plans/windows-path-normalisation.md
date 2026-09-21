@@ -42,9 +42,14 @@ The last command joins from task 1.
 
 ## Windows runs
 
-Windows runs from this checkout through WSL interop, so a task is proven on the
-platform carrying the defect without waiting for CI. Docker runs in WSL only, so
-the Linux side produces the application archive and the Windows side consumes it.
+The Windows side builds and runs from a Windows-local copy of `HEAD`. That
+proves a task on the platform carrying the defect without waiting for CI. Docker
+runs in WSL only, so the Linux side produces the application archive and the
+Windows side consumes it.
+
+Go cannot take a module lock over `\\wsl.localhost`, so `build.ps1` stops at its
+packing step when it runs against the worktree. Export the tree instead, about
+1 MB.
 
 ```sh
 docker build --target build -t drupack-build .
@@ -52,13 +57,25 @@ container=$(docker create drupack-build)
 docker cp "$container:/go/src/app/app.tar" application/app.tar
 docker cp "$container:/go/src/app/app_checksum.txt" application/app_checksum.txt
 docker rm "$container"
+
+win=/mnt/c/Users/theno/AppData/Local/Temp/drupack-winsrc
+rm -rf "$win" && mkdir -p "$win/application"
+git archive HEAD | tar -x -C "$win"
+cp application/app.tar application/app_checksum.txt "$win/application/"
 ```
 
+Run the two PowerShell commands from that copy. PowerShell refuses `build.ps1`
+under its execution policy, so pass `-ExecutionPolicy Bypass`. Never pipe the
+call: a piped failure reports exit 0.
+
 ```powershell
-./packaging/windows/build.ps1 -ApplicationDirectory application -Version dev `
-  -WorkDirectory $env:TEMP\drupack -Output dist\drupack.exe
+pwsh -NoProfile -ExecutionPolicy Bypass -Command '& ./packaging/windows/build.ps1 -ApplicationDirectory application -Version dev -WorkDirectory "$env:TEMP\drupack" -Output dist\drupack.exe; exit $LASTEXITCODE'
 python tests/conformance dist\drupack.exe test-results\conformance
 ```
+
+Stop every Drupack server on the machine first. A second server fails to attach
+to the PHP opcache segment the first one holds. It dies with `Opcode handlers
+are unusable due to ASLR`, which names neither the conflict nor the other site.
 
 The suite hands trailing arguments to `unittest discover`, which takes no bare
 test id. Select a case with `-k <name>`.
