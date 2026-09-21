@@ -115,10 +115,10 @@ WAIT_TABLE = [
     # No product deadline: a metadata call against a container already running, or a quick
     # network command run against neither.
     Wait("docker_admin", 30, None, "a short docker command: container port, exec, rm, logs; network create, rm"),
-    Wait("lock_ack", 10, None, "a helper process to confirm it holds startup.lock before a blocked start runs"),
+    Wait("lock_ack", 10, None, "a helper process to confirm it holds serving.lock before a blocked start runs"),
     # No product deadline: safety valve bounding how long the lock-holding helper waits for
     # its release signal, past whatever the blocked start and the assertions on it take.
-    Wait("lock_hold", 60, None, "a helper process holding startup.lock until told to release it"),
+    Wait("lock_hold", 60, None, "a helper process holding serving.lock until told to release it"),
     # No product deadline: budget for Windows to release a just-exited process's file
     # handles under the run cache, normally near-instant.
     Wait("cache_cleanup", 10, None, "a run cache directory outliving the process that unpacked into it"),

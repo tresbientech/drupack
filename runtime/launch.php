@@ -261,22 +261,56 @@ function siteToken(string $data): string
     return hash('sha256', windows() ? strtolower($data) : $data);
 }
 
-// Reports who holds $bind:$port: "free" when nothing answers, "mine" when the server there
-// serves this Site data, "foreign" for anything else. A connect answers this on every
-// platform, where a trial bind would report a taken port as free under Windows
-// SO_REUSEADDR.
-function portOwner(string $bind, int $port, string $token): string
+function leasePath(string $directory): string
+{
+    return "$directory/serving.lock";
+}
+
+// The lease one server holds over its Site data, for as long as it serves. Two servers
+// over one database and one runtime directory would corrupt both, whatever addresses
+// they bind, so the claim belongs to the data rather than to a port.
+//
+// The lock lives on the open file description, which survives the exec into the server,
+// so the kernel holds it for that process and releases it when the process ends, a kill
+// included. On Windows this process waits for the server it starts, so the handle lives
+// exactly as long. The caller keeps the returned handle: closing it drops the lease.
+// A null return means another start serves this Site data.
+function servingLease(string $data)
+{
+    $handle = fopen(leasePath($data), 'c');
+    if ($handle === false) {
+        throw new RuntimeException('Cannot open the serving lease: ' . leasePath($data));
+    }
+    if (!flock($handle, LOCK_EX | LOCK_NB)) {
+        fclose($handle);
+        return null;
+    }
+    return $handle;
+}
+
+// Reports whether anything holds $bind:$port. A connect answers this on every platform,
+// where a trial bind would report a taken port as free under Windows SO_REUSEADDR.
+function portTaken(string $bind, int $port): bool
 {
     $host = in_array($bind, ['0.0.0.0', '::'], true) ? '127.0.0.1' : $bind;
     $address = str_contains($host, ':') ? "[$host]" : $host;
     $probe = @stream_socket_client("tcp://$address:$port", $code, $error, 1);
     if ($probe === false) {
-        return 'free';
+        return false;
     }
     fclose($probe);
-    $context = stream_context_create(['http' => ['timeout' => 2, 'ignore_errors' => true]]);
-    $answer = @file_get_contents("http://$address:$port/.drupack-id?id=$token", false, $context);
-    return $answer !== false && str_contains($http_response_header[0] ?? '', ' 204') ? 'mine' : 'foreign';
+    return true;
+}
+
+// Where the running server serves, read from the record that start wrote, so a handover
+// names the port that server took rather than the one this start asked for.
+function servedAddress(string $data, string $fallback): string
+{
+    $record = recordedListener(['listen' => null, 'host' => null], $data);
+    if ($record['listen'] === null) {
+        return $fallback;
+    }
+    return 'http://' . $record['host'] . ':' . (int) substr(strrchr($record['listen'], ':'), 1) . '/';
 }
 
 // A person is present when a terminal started this, or a file manager's console did.
@@ -346,7 +380,7 @@ function remainingSteps(string $directory, string $backend): array
         return ['seed', 'settings', 'administrator'];
     }
     // The directory may not exist yet on the check that runs before it is created;
-    // the authoritative check that runs under the startup lock always finds it.
+    // the authoritative check that runs under the serving lease always finds it.
     if (is_dir($directory) && file_put_contents(firstEverPath($directory), '', LOCK_EX) === false) {
         throw new RuntimeException('Cannot record that this database is new to Drupack');
     }
@@ -375,18 +409,6 @@ function requireDatabaseOptions(array $options, array $steps): void
 }
 
 // One start at a time initializes a Site data directory. The resolved path gives equivalent paths one lock.
-function startupLock(string $data)
-{
-    $handle = fopen("$data/startup.lock", 'c');
-    if ($handle === false) {
-        throw new RuntimeException("Cannot open the startup lock: $data/startup.lock");
-    }
-    if (!flock($handle, LOCK_EX | LOCK_NB)) {
-        throw new RuntimeException("Another Drupack start is preparing this Site data: $data");
-    }
-    return $handle;
-}
-
 function databasePort(array $options): string
 {
     return $options['db-port'] ?? ($options['database'] === 'mysql' ? '3306' : '5432');
@@ -426,9 +448,13 @@ function settings(string $template, array $database): string
     return str_replace('__DRUPACK_DATABASE_CONFIGURATION__', var_export($database, true), $content);
 }
 
+// A serving site requires this file on every request, and a `dr` command runs while it
+// serves. The replacement is written beside it and renamed over it, so a request reads
+// the old file or the new one; a truncating write would let one read half of it.
 function writeSettings(string $path, string $template, array $database): void
 {
-    if (file_put_contents($path, settings($template, $database), LOCK_EX) === false) {
+    $staging = "$path.new";
+    if (file_put_contents($staging, settings($template, $database)) === false || !rename($staging, $path)) {
         throw new RuntimeException('Cannot initialize Drupal settings');
     }
 }
@@ -465,11 +491,37 @@ function databaseUrl(array $options): string
     );
 }
 
+// DIAGNOSTIC_LIMIT bounds how much of a failed step's explanation reaches the terminal.
+// Drush prints its reason first and its backtrace after, so the head is the useful end.
+const DIAGNOSTIC_LIMIT = 400;
+
+// Reads what Drush wrote to stderr, as one line a reader can act on. The database URL
+// carries the connection password, and a failing step often echoes it back, so the
+// credentials go before anything prints.
+function diagnostic(string $path): string
+{
+    $text = preg_replace('#(?<=://)[^:@/\s]+:[^@/\s]+(?=@)#', 'USER:PASSWORD', (string) file_get_contents($path));
+    $text = trim((string) preg_replace('/\s+/', ' ', $text));
+    return strlen($text) > DIAGNOSTIC_LIMIT ? substr($text, 0, DIAGNOSTIC_LIMIT) . '...' : $text;
+}
+
 function runDrush(string $binary, array $command, string $failure): void
 {
-    $exitCode = process($binary, array_merge(['php-cli'], $command), [0 => ['file', nullDevice(), 'r'], 1 => ['file', nullDevice(), 'w'], 2 => ['file', nullDevice(), 'w']], __DIR__, $failure);
+    $errors = tempnam(sys_get_temp_dir(), 'drupack-step-');
+    if ($errors === false) {
+        throw new RuntimeException('Cannot create a temporary file for the step diagnostic');
+    }
+    try {
+        // stderr is a file, not a pipe, for the reason loginLink() states: nothing here
+        // drains a pipe while the child runs, so a full one would deadlock.
+        $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['file', nullDevice(), 'w'], 2 => ['file', $errors, 'w']];
+        $exitCode = process($binary, array_merge(['php-cli'], $command), $descriptors, __DIR__, $failure);
+        $reason = $exitCode === 0 ? '' : diagnostic($errors);
+    } finally {
+        unlink($errors);
+    }
     if ($exitCode !== 0) {
-        throw new RuntimeException($failure);
+        throw new RuntimeException($reason === '' ? $failure : "$failure: $reason");
     }
 }
 
@@ -751,7 +803,7 @@ function runStep(string $step, string $data, array $options, string $binary): vo
     }
 }
 
-// Runs under the startup lock. The remaining steps reach the disk before the first one changes anything,
+// Runs under the serving lease. The remaining steps reach the disk before the first one changes anything,
 // and the completion marker follows the last one.
 function initialize(string $data, array $steps, array $options, string $binary): void
 {
@@ -797,7 +849,7 @@ try {
     }
     $steps = [];
     if ($drush) {
-        // `dr` initializes nothing and takes no startup lock, so Drush works while the server runs.
+        // `dr` initializes nothing and takes no lease, so Drush works while the server runs.
         if (!file_exists($options['data-dir'] . '/settings.php')) {
             throw new RuntimeException("This Site data has no site yet: {$options['data-dir']}. Start Drupack once to create one.");
         }
@@ -875,45 +927,49 @@ try {
             putenv("$environment={$options[$option]}");
         }
     }
-    // Asked before the listener record and every install step, so a taken port costs
-    // nothing and reaches its reader as a sentence rather than a bind error.
+    // Both questions are asked before the listener record and every install step, so a
+    // served site and a taken port each reach their reader as a sentence rather than as
+    // a bind error or a corrupted database.
+    $lease = null;
     if (!$drush) {
-        $owner = portOwner($bind, $port, siteToken($data));
-        if ($owner === 'mine' && personPresent()) {
-            handOver($binary, $url, $data, $options);
+        $lease = servingLease($data);
+        if ($lease === null) {
+            // The holder is still installing while no completion marker exists, and
+            // serving once it does. A handover addresses a site that answers requests,
+            // so an installation in progress refuses instead.
+            if (!file_exists(markerPath($data))) {
+                throw new RuntimeException("Another Drupack start is preparing this Site data: $data");
+            }
+            $served = servedAddress($data, $url);
+            if (personPresent()) {
+                handOver($binary, $served, $data, $options);
+            }
+            throw new RuntimeException("Drupack already serves this Site data at $served: $data");
         }
-        if ($owner !== 'free') {
-            throw new RuntimeException($owner === 'mine'
-                ? "Drupack already serves this Site data at $url: $data"
-                : "Another program is listening on {$options['listen']}. Stop it, or start on"
-                    . " a free port: drupack --listen $bind:" . ($port + 1));
+        if (portTaken($bind, $port)) {
+            throw new RuntimeException("Another program is listening on {$options['listen']}. Stop it, or start on"
+                . " a free port: drupack --listen $bind:" . ($port + 1));
         }
-    }
-
-    if (!$drush) {
         writeListener($data, $options);
     }
-    $lock = null;
     if ($steps !== []) {
-        // The state check and the writes that follow must not interleave with another start.
-        $lock = startupLock($data);
+        // Read again under the lease: another start may have finished initializing between
+        // the first read and the moment this one claimed the Site data.
         $steps = remainingSteps($data, $options['database']);
     }
-    if (file_exists("$data/settings.php")) {
-        // A pending settings step rewrites the file, so its contents are read once they are final.
+    // A start refreshes the recorded settings from the template this release ships, so a
+    // site installed by an earlier release gains the settings this one added. The
+    // recorded connection details come back unchanged. A `dr` command reads that site
+    // and writes nothing to it, since the file it would rewrite is being required by
+    // the server answering requests.
+    if (!$drush && file_exists("$data/settings.php")) {
+        // A pending settings step writes the file itself, so its contents are read once they are final.
         if (!in_array('settings', $steps, true)) {
             $options = recordedOptions($options, $data);
-            // The file names the application, which every release unpacks under its
-            // own directory, so each start writes it again from the template this
-            // release ships. The recorded connection details come back unchanged.
             writeSettings("$data/settings.php", __DIR__ . '/settings.php', databaseConfiguration($options, $data));
         }
     }
     initialize($data, $steps, $options, $binary);
-    if ($lock !== null) {
-        flock($lock, LOCK_UN);
-        fclose($lock);
-    }
     foreach (glob(__DIR__ . '/translations/*.po') as $translation) {
         $destination = "$data/files/translations/" . basename($translation);
         if (!file_exists($destination) && !copy($translation, $destination)) {
@@ -946,6 +1002,10 @@ try {
     // no link has nothing to open.
     $browser = $link !== null && $options['no-browser'] === null && personPresent();
     openWhenServing($url, $link, $browser);
+    // Every step that needed the administrator password has run. The server inherits
+    // this environment and passes it to every process it starts, including PHP code a
+    // site runs, so the credential stops here.
+    putenv('DRUPACK_ADMIN_PASSWORD');
     fwrite(STDOUT, "Starting the web server.\n");
     replaceProcess($binary, ['php-server'], __DIR__, 'Cannot start FrankenPHP');
 } catch (Throwable $error) {

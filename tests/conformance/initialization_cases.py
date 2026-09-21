@@ -1,5 +1,5 @@
 """Ported from tests/initialization.sh: first starts, listener records, database adoption,
-interrupted installs, the startup lock, site naming, and PostgreSQL recovery.
+interrupted installs, the serving lease, site naming, and PostgreSQL recovery.
 
 Every case here is Linux only, matching where the old file ran in CI; the PostgreSQL
 cases are also marked docker, through TOOLS.
@@ -31,7 +31,7 @@ SEED_ADMIN = "drupack-admin"
 # docker buildx imagetools inspect postgres:17.11 --format '{{.Manifest.Digest}}'
 POSTGRES_IMAGE = "postgres:17.11@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675"
 
-# A helper process for the startup-lock case: holds an exclusive flock on the path in argv[1],
+# A helper process for the serving-lease case: holds an exclusive flock on the path in argv[1],
 # signals argv[2] once it has it, then waits for argv[3] to appear, bounded by the seconds in
 # argv[4]. It releases the lock by exiting, never by a signal.
 LOCK_HOLDER_SCRIPT = """
@@ -453,7 +453,7 @@ class EquivalentPathLock(harness.ConformanceCase):
         release.unlink(missing_ok=True)
 
         holder = subprocess.Popen(
-            [sys.executable, "-c", LOCK_HOLDER_SCRIPT, str(data / "startup.lock"), str(ack), str(release),
+            [sys.executable, "-c", LOCK_HOLDER_SCRIPT, str(data / "serving.lock"), str(ack), str(release),
              str(harness.WAITS["lock_hold"].seconds)],
             start_new_session=True,
         )
@@ -461,7 +461,7 @@ class EquivalentPathLock(harness.ConformanceCase):
             deadline = time.monotonic() + harness.WAITS["lock_ack"].seconds
             while time.monotonic() < deadline and not ack.exists():
                 time.sleep(0.05)
-            self.assertTrue(ack.exists(), "the lock-holding helper did not acquire startup.lock")
+            self.assertTrue(ack.exists(), "the lock-holding helper did not acquire serving.lock")
 
             log = self.case_dir / "equivalent.log"
             with open(log, "wb") as handle:
