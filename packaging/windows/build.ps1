@@ -134,9 +134,12 @@ foreach ($library in 'brotlienc.dll', 'brotlidec.dll', 'brotlicommon.dll', 'pthr
   Copy-Item (Join-Path $vcpkgRoot "bin\$library") $runtime
 }
 
-# The launcher sets PHPRC to the extracted runtime directory.
-$ini = @('extension_dir = "${PHPRC}\ext"') + ($dllExtensions | ForEach-Object { "extension=$_" })
-Set-Content -Path (Join-Path $runtime 'php.ini') -Value $ini
+# The repository's php.ini is the only source of PHP settings; this build only adds
+# what only it can supply: where this PHP puts its extensions, and which to load. The
+# launcher sets PHPRC to the extracted runtime directory.
+Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\php.ini') (Join-Path $runtime 'php.ini')
+Add-Content -Path (Join-Path $runtime 'php.ini') -Value (@('extension_dir = "${PHPRC}\ext"') + ($dllExtensions | ForEach-Object { "extension=$_" }))
+Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\cacert.pem') $runtime
 
 $check = Join-Path $work 'extensions.php'
 Set-Content -Path $check -Value '<?php echo implode("\n", array_map("strtolower", get_loaded_extensions()));'

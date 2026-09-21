@@ -112,18 +112,10 @@ func forceExitOnStalledShutdown() {
 	}()
 }
 
-// serveApplication runs the application's own Caddyfile and adds its php.ini
-// to the scan path. php-server does both, but only for a directory named in
-// frankenphp.EmbeddedAppPath, and frankenphp deletes that directory when the
-// server stops. The launcher's copy is shared by every site of the release, so
-// it never goes in that variable.
+// serveApplication runs the application's own Caddyfile. PHPRC already names
+// the runtime directory in every hop, including this one, so php.ini loads
+// from there without a scan path naming the application too.
 func serveApplication(application string) {
-	if _, err := os.Stat(filepath.Join(application, "php.ini")); err == nil {
-		scan := os.Getenv("PHP_INI_SCAN_DIR")
-		if err := os.Setenv("PHP_INI_SCAN_DIR", scan+string(os.PathListSeparator)+application); err != nil {
-			panic(err)
-		}
-	}
 	os.Args = []string{
 		os.Args[0], "run",
 		"--config", filepath.Join(application, "Caddyfile"),

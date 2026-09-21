@@ -6,8 +6,12 @@ archive_options=(--mtime=@0 --owner=0 --group=0 --numeric-owner --mode=u+rw,go+r
 # Drupal's cached absolute paths use the full application input identity.
 tar "${archive_options[@]}" -cf - -C /app . \
     | sha256sum | cut -d ' ' -f 1 | tr -d '\n' > app_checksum.txt
+# php.ini and cacert.pem ride beside the entry executable in the packed
+# runtime directory instead, which PHPRC names in every hop; nothing reads
+# either file from the application directory.
 tar "${archive_options[@]}" \
     --exclude='tests' --exclude='Tests' \
+    --exclude='./php.ini' --exclude='./cacert.pem' \
     --exclude='*.js.map' --exclude='*.css.map' --exclude='*.pcss.css' \
     --exclude='package-lock.json' --exclude='yarn.lock' \
     --exclude='pnpm-lock.yaml' --exclude='npm-shrinkwrap.json' \
