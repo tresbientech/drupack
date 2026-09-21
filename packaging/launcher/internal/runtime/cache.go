@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"unicode/utf8"
 )
 
 // rootMode is the permission every candidate cache root is created with.
@@ -33,7 +34,11 @@ func Root() (string, error) {
 		if err := os.MkdirAll(dir, rootMode); err != nil {
 			return "", err
 		}
-		return privateRoot(dir)
+		root, err := privateRoot(dir)
+		if err != nil {
+			return "", err
+		}
+		return asciiRoot(root)
 	}
 
 	var lastErr error
@@ -43,12 +48,61 @@ func Root() (string, error) {
 			continue
 		}
 		if owned, err := privateRoot(root); err == nil && owned != "" {
-			return owned, nil
+			return asciiRoot(owned)
 		} else if err != nil {
 			lastErr = err
 		}
 	}
 	return "", lastErr
+}
+
+// resolveASCIIRoot walks the rungs a Windows cache root needs before PHP
+// startup can locate it: phase 1 found PHP resolves its PHPRC-derived
+// configuration path through the ANSI code page, so a root it cannot
+// represent breaks extension loading. root is tried first, then fallback,
+// since both an account name Windows leaves in Unicode and a volume with
+// 8.3 name generation off leave root's own resolution non-ASCII. mkdir
+// creates each candidate, since Windows allocates a short name only for a
+// path that exists.
+//
+// A candidate already in ASCII is kept as-is, with no call to resolve: it is
+// already safe for PHP's ANSI code page, and asking Windows for its short
+// name would rewrite a long-but-ASCII segment too (an installed name like
+// "Drupack" survives untouched, but a longer one does not), which no reader
+// asked for. resolve, standing in for GetShortPathName, only runs on a
+// candidate the ASCII check has already rejected, so every rung runs under
+// test without calling Windows. Exhausting both candidates is a stop, not a
+// guess: a site missing its DLL extensions is worse than a start that
+// refuses.
+func resolveASCIIRoot(root, fallback string, mkdir func(string) error, resolve func(string) (string, error)) (string, error) {
+	for _, candidate := range []string{root, fallback} {
+		if err := mkdir(candidate); err != nil {
+			continue
+		}
+		if isASCII(candidate) {
+			return candidate, nil
+		}
+		resolved, err := resolve(candidate)
+		if err != nil {
+			continue
+		}
+		if isASCII(resolved) {
+			return resolved, nil
+		}
+	}
+	return "", fmt.Errorf("cache root %s has no ASCII path PHP can load extensions from; set DRUPACK_CACHE_DIR to an ASCII directory", root)
+}
+
+// isASCII reports whether s holds bytes in the ASCII range alone. Any UTF-8
+// encoding of a non-ASCII rune uses a byte at or above utf8.RuneSelf, so a
+// byte-wise scan is enough.
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
 }
 
 // Key names the cache entry for a version and its payload, so a payload

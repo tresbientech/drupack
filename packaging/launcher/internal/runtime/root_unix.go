@@ -27,6 +27,12 @@ func privateRoot(root string) (string, error) {
 	return root, nil
 }
 
+// asciiRoot returns root unchanged. The ANSI-code-page boundary phase 1 found
+// in PHP startup is Windows-only, so unix keeps its current cache root.
+func asciiRoot(root string) (string, error) {
+	return root, nil
+}
+
 // cacheRoots lists Root's candidates in trial order.
 func cacheRoots() []string {
 	var roots []string
