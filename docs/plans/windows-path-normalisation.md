@@ -60,6 +60,9 @@ docker rm "$container"
 python tests/conformance dist\drupack.exe test-results\conformance
 ```
 
+The suite hands trailing arguments to `unittest discover`, which takes no bare
+test id. Select a case with `-k <name>`.
+
 Confirmed present on the Windows side:
 
 - Go 1.27.0
@@ -102,8 +105,8 @@ content.
 - [ ] That unit table asserts a refusal for `public://x.svg`, `http://h/x.svg`,
       `//host/share/x.svg` and `php://input`, and an acceptance for `C:\x.svg`
       and `C:/x.svg`.
-- [ ] `python3 tests/conformance ./dist/drupack test-results/conformance WindowsPathCases.test_icons_carry_their_svg_content` passes.
-- [ ] `python tests/conformance dist\drupack.exe test-results\conformance WindowsPathCases.test_icons_carry_their_svg_content` passes on Windows.
+- [ ] `python3 tests/conformance ./dist/drupack test-results/conformance -k test_icons_carry_their_svg_content` passes.
+- [ ] `python tests/conformance dist\drupack.exe test-results\conformance -k test_icons_carry_their_svg_content` passes on Windows.
 - [ ] That Windows case fails against the current release, proving it reaches the fault.
 - [ ] `cd packaging/launcher && go test ./...` exits 0.
 - [ ] `python3 -m unittest discover -s tests/conformance -p 'test_harness.py'` exits 0.
@@ -131,9 +134,9 @@ with a success status.
 - [ ] `./dist/drupack php-cli tests/unit/windows_paths.php` exits 0.
 - [ ] That unit table covers a mixed-separator absolute path, a uniform absolute
       path, an already relative path, and a root carrying a trailing separator.
-- [ ] `python3 tests/conformance ./dist/drupack test-results/conformance WindowsPathCases` passes, including the three address assertions.
+- [ ] `python3 tests/conformance ./dist/drupack test-results/conformance -k WindowsPathCases` passes, including the three address assertions.
 - [ ] The rendered page fetched by those cases contains no `%3A` and no `%5C`.
-- [ ] `python tests/conformance dist\drupack.exe test-results\conformance WindowsPathCases` passes on Windows.
+- [ ] `python tests/conformance dist\drupack.exe test-results\conformance -k WindowsPathCases` passes on Windows.
 - [ ] Those Windows cases fail against the current release, proving they reach the fault.
 - [ ] `cd packaging/launcher && go test ./...` exits 0.
 - [ ] `python3 -m unittest discover -s tests/conformance -p 'test_harness.py'` exits 0.
