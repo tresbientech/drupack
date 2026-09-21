@@ -128,10 +128,10 @@ drive letter, a backslash or the application root prefix.
 - Kept: the `realpath()` resolution in `SiteDataPublicStream::getLocalPath()`.
   `Path::isBasePath()` replaces the text comparison after it, and follows no
   symlink of its own.
-- `settings.php` hashes a slash-normalised `DRUPACK_RUNTIME_APP_DIR` for
-  `deployment_identifier`. The old native value and the new canonical value
-  then produce one identifier, and an upgraded Windows site keeps its container
-  cache. Two application directories still key apart.
+- `settings.php` hashes `DRUPACK_RUNTIME_APP_DIR` directly for
+  `deployment_identifier`, with no normalising step of its own: the launcher
+  always exports the canonical form. Two application directories still key
+  apart.
 
 ### Go
 

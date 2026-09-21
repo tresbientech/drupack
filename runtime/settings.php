@@ -15,10 +15,10 @@ $settings['file_temp_path'] = $data . '/tmp';
 // Drupal compiles the application path into its container and keys that cache
 // without it, so a site whose application moved would boot a container naming
 // the directory it left. Each application directory gets its own key. The
-// launcher now exports the canonical, forward-slash form; hashing it
-// slash-normalised keeps a site upgraded from the native form under the same
-// key, so only two distinct application directories key apart.
-$settings['deployment_identifier'] = substr(hash('sha256', str_replace('\\', '/', (string) getenv('DRUPACK_RUNTIME_APP_DIR'))), 0, 16);
+// launcher that ships with this settings file always exports
+// DRUPACK_RUNTIME_APP_DIR in its canonical, forward-slash form, so hashing the
+// exported value directly is enough to key it.
+$settings['deployment_identifier'] = substr(hash('sha256', (string) getenv('DRUPACK_RUNTIME_APP_DIR')), 0, 16);
 $settings['update_free_access'] = FALSE;
 // The site directory lives inside the application, which every site of this
 // release shares and no site writes to. Hardening it to read-only stops a later
