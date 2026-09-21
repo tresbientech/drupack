@@ -5,15 +5,25 @@ site_cases.py's own extensions check uses, and asserts what a site owner
 could observe: which ini loaded, the active memory limit, a certificate path
 that resolves and parses, a working-directory php.ini changing nothing, and a
 fetch that survives a host trust store pointed at nothing.
+
+RuntimeConfigurationServed asserts the same two settings a different way: from
+inside a started site's own php-server hop, never through php-cli. Every case
+above it drives php-cli, which would stay green even if the mechanism that
+puts php.ini on the php-server hop's scan path stopped reaching it.
 """
 
 import json
 import os
+import re
+import shutil
+from http.cookiejar import CookieJar
+from urllib.request import HTTPCookieProcessor, build_opener
 
 import harness
 
 CERTIFICATE_MARKER = "-----BEGIN CERTIFICATE-----"
 RELEASE_HISTORY_URL = "https://updates.drupal.org/release-history/drupal/current"
+LOGIN_PREFIX = "  Login:     "
 
 INI_PROBE = """<?php
 echo json_encode([
@@ -148,3 +158,72 @@ class RuntimeTrustOnline(harness.ConformanceCase):
         values = json.loads(result.stdout)
         self.assertEqual(values["curl_errno"], 0, values)
         self.assertEqual(values["http_status"], 200, values)
+
+
+def _phpinfo_local_value(page, directive):
+    """Return directive's Local Value cell from a rendered phpinfo() table, or None."""
+    match = re.search(
+        rf'<tr><td class="e">{re.escape(directive)}</td><td class="v">([^<]*)</td>', page,
+    )
+    return match.group(1) if match else None
+
+
+class RuntimeConfigurationServed(harness.ConformanceCase):
+    """The shipped php.ini, read from inside a started site's php-server hop.
+
+    Every case in RuntimeConfiguration drives php-cli, a different hop from the one that
+    answers a site's requests. serveApplication once appended to PHP_INI_SCAN_DIR to reach
+    that second hop; this branch replaced that mechanism with PHPRC. If PHPRC ever stopped
+    reaching php-server, every php-cli probe here would stay green while a live site ran at
+    PHP's 128M default and a 2M upload cap. This starts a real site, follows its own
+    printed one-time login link, and reads phpinfo() the way an administrator would, at
+    Drupal's own status-report page. Closes phase 6's "a 64M upload succeeds on a site
+    started from a release build" criterion.
+    """
+
+    PLATFORMS = (harness.LINUX, harness.WINDOWS)
+
+    ADMIN_USER = "drupack-runtime-admin"
+    ADMIN_PASSWORD = "Runtime.probe.administrator.2026!"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.class_dir = harness.RESULTS / cls.__name__
+        cls.class_dir.mkdir(parents=True, exist_ok=True)
+        # Same reason SeededSite copies the binary under its own name: BINARY's suffix
+        # carries the platform's naming rule, none on Linux, ".exe" on Windows.
+        cls.binary = cls.class_dir / f"drupack{harness.BINARY.suffix}"
+        shutil.copyfile(harness.BINARY, cls.binary)
+        cls.binary.chmod(0o700)
+
+    def setUp(self):
+        self.case_dir = self.class_dir / self._testMethodName
+        self.case_dir.mkdir(parents=True, exist_ok=True)
+        self.site = harness.Site(self.binary, self.case_dir)
+
+    def tearDown(self):
+        self.site.stop()
+
+    def test_memory_limit_and_upload_limit_from_the_running_server(self):
+        data = self.case_dir / "data"
+        self.site.start(data, "--admin-user", self.ADMIN_USER, "--admin-password", self.ADMIN_PASSWORD)
+        link = harness.wait_for_line(self.site.log_path, 0, LOGIN_PREFIX, harness.WAITS["start"].seconds)
+        opener = build_opener(HTTPCookieProcessor(CookieJar()))
+        # Spends the one-time link and signs the opener's cookie jar in as the
+        # administrator; the phpinfo page below reuses that same session.
+        with opener.open(link, timeout=harness.WAITS["http_request"].seconds):
+            pass
+        with opener.open(
+            f"http://localhost:{self.site.port}/admin/reports/status/php",
+            timeout=harness.WAITS["http_request"].seconds,
+        ) as response:
+            page = response.read().decode(errors="replace")
+        self.assertEqual(
+            _phpinfo_local_value(page, "memory_limit"), "512M",
+            "phase 6: 512M memory limit, read from the running php-server hop",
+        )
+        self.assertEqual(
+            _phpinfo_local_value(page, "upload_max_filesize"), "64M",
+            "phase 6: a 64M upload succeeds on a site started from a release build",
+        )
