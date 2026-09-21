@@ -124,7 +124,7 @@ jobs:
           docker build --target build --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-build .
           container=$(docker create drupack-build)
           mkdir application
-          docker cp "$container:/go/src/app/app.tar" application/app.tar
+          docker cp "$container:/go/src/app/app-payload.tar" application/app-payload.tar
           docker cp "$container:/go/src/app/app_checksum.txt" application/app_checksum.txt
           docker rm "$container"
 

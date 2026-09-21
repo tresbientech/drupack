@@ -41,9 +41,13 @@ ENTRY = "frankenphp.exe" if harness.current_platform() == harness.WINDOWS else "
 DEBIAN_IMAGE = "debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171"
 
 
+# The cache root holds the unpacked applications beside the runtime entries.
+APPLICATIONS = "app"
+
+
 def entry_count(cache_root):
     """Count cache_root's immediate subdirectories: one cache entry each."""
-    return sum(1 for path in cache_root.iterdir() if path.is_dir())
+    return sum(1 for path in cache_root.iterdir() if path.is_dir() and path.name != APPLICATIONS)
 
 
 def run(case_dir, executable, name, *args, env=None):
@@ -92,7 +96,10 @@ class ColdWarmStart(harness.ConformanceCase):
             "a cold start leaked the unpacking line to standard output",
         )
         self.assertEqual(entry_count(self.cache), 1, "a cold start did not leave exactly one cache entry")
-        key = next(path for path in self.cache.iterdir() if path.is_dir()).name
+        key = next(
+            path.name for path in self.cache.iterdir()
+            if path.is_dir() and path.name != APPLICATIONS
+        )
         self.assertTrue((self.cache / key / "manifest.json").is_file(), "the cache entry has no manifest.json")
         self.assertTrue((self.cache / key / ENTRY).is_file(), f"the cache entry has no {ENTRY} executable")
         self.assertEqual(
@@ -138,7 +145,7 @@ class ColdWarmStart(harness.ConformanceCase):
     def test_clean_lists_the_unpacked_application_then_removes_it(self):
         code, out, err = run(self.case_dir, harness.BINARY, "cold", "--help", env=self.env)
         self.assertEqual(code, 0, f"a cold start exited non-zero: inspect {err}")
-        applications = self.cache / "app"
+        applications = self.cache / APPLICATIONS
         self.assertEqual(
             entry_count(applications), 1, "a cold start did not leave exactly one application"
         )

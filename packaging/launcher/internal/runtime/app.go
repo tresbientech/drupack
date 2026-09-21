@@ -81,22 +81,22 @@ func PrepareApp(root, checksum string, payload []byte, notice io.Writer) (string
 // leaves nothing a later start mistakes for a finished copy.
 func unpackApp(appRoot, entry, checksum string, payload []byte, notice io.Writer) error {
 	staging := filepath.Join(appRoot, stagingPrefix+checksum)
-	if err := os.RemoveAll(staging); err != nil {
+	if err := removeTree(staging); err != nil {
 		return err
 	}
 	if err := extractApp(staging, payload, notice); err != nil {
-		os.RemoveAll(staging)
+		removeTree(staging)
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(staging, completeName), nil, 0600); err != nil {
-		os.RemoveAll(staging)
+		removeTree(staging)
 		return err
 	}
-	if err := os.RemoveAll(entry); err != nil {
+	if err := removeTree(entry); err != nil {
 		return err
 	}
 	if err := os.Rename(staging, entry); err != nil {
-		os.RemoveAll(staging)
+		removeTree(staging)
 		return err
 	}
 	return nil
@@ -125,7 +125,7 @@ func sweepApps(appRoot, keep string, now time.Time) {
 		}
 		path := filepath.Join(appRoot, name)
 		if strings.HasPrefix(name, stagingPrefix) {
-			os.RemoveAll(path)
+			removeTree(path)
 			continue
 		}
 		info, err := os.Stat(filepath.Join(path, usedName))
@@ -134,7 +134,7 @@ func sweepApps(appRoot, keep string, now time.Time) {
 			continue
 		}
 		if now.Sub(info.ModTime()) > unusedFor {
-			os.RemoveAll(path)
+			removeTree(path)
 		}
 	}
 }
@@ -166,7 +166,7 @@ func CleanApps(root string, dry bool, out io.Writer) error {
 		size := directorySize(path)
 		fmt.Fprintf(out, "  %s  %d MB\n", candidate.Name(), size/megabyte)
 		if !dry {
-			if err := os.RemoveAll(path); err != nil {
+			if err := removeTree(path); err != nil {
 				return err
 			}
 		}
@@ -320,4 +320,17 @@ func (c *countingReader) Read(buffer []byte) (int, error) {
 	n, err := c.source.Read(buffer)
 	c.progress.advance(n)
 	return n, err
+}
+
+// removeTree deletes path, restoring the modes on the way down. An application
+// a site has served carries directories an installer made read-only, which the
+// plain removal cannot unlink the contents of.
+func removeTree(path string) error {
+	filepath.WalkDir(path, func(name string, entry fs.DirEntry, err error) error {
+		if err == nil && entry.IsDir() {
+			os.Chmod(name, 0700)
+		}
+		return nil
+	})
+	return os.RemoveAll(path)
 }

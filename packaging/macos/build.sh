@@ -47,7 +47,10 @@ if [[ $frankenphp_head != "$frankenphp_commit" ]]; then
     printf 'FrankenPHP v%s resolved to %s, expected %s\n' "$frankenphp_version" "$frankenphp_head" "$frankenphp_commit" >&2
     exit 1
 fi
-cp "$application/app.tar" "$application/app_checksum.txt" frankenphp/
+# The launcher carries the application, so the server embeds an empty archive,
+# which leaves frankenphp's own extraction unused.
+: > frankenphp/app.tar
+cp "$application/app_checksum.txt" frankenphp/
 cp "$repository/packaging/entrypoint.go" frankenphp/caddy/frankenphp/drupack.go
 
 runtime="$work/runtime"
@@ -68,5 +71,6 @@ CGO_ENABLED=1 CGO_CFLAGS="$php_includes -DFRANKENPHP_VERSION=$frankenphp_version
 (cd "$repository/packaging/launcher" \
   && go run ./cmd/pack -runtime "$runtime" -entry "$entry" \
      -version "$drupack_version" \
-     -source "$repository/packaging/launcher" -output "$output")
+     -source "$repository/packaging/launcher" -output "$output" \
+     -app "$application/app-payload.tar" -app-checksum "$application/app_checksum.txt")
 "$output" version

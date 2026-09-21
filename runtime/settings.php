@@ -11,6 +11,10 @@ $settings['file_public_base_url'] = '/sites/default/files';
 $settings['file_private_path'] = $data . '/private';
 $settings['file_temp_path'] = $data . '/tmp';
 $settings['update_free_access'] = FALSE;
+// The site directory lives inside the application, which every site of this
+// release shares and no site writes to. Hardening it to read-only stops a later
+// start from replacing or clearing that copy.
+$settings['skip_permissions_hardening'] = TRUE;
 $settings['trusted_host_patterns'] = [
   '^localhost$',
   '^127\\.0\\.0\\.1$',
