@@ -125,8 +125,9 @@ func serveApplication(application string) {
 
 // canonical rewrites path in Drupack's canonical form: forward slashes. This
 // file builds inside frankenphp's own module, which cannot import the
-// launcher's internal/runtime package, so the conversion is restated here;
-// packaging/launcher/internal/runtime/canonical_test.go covers the algorithm.
+// launcher's internal/runtime package, so the conversion is restated here.
+// filepath.ToSlash does the same work as the launcher's own copy, which its
+// canonical_test.go covers.
 func canonical(path string) string {
 	return filepath.ToSlash(path)
 }

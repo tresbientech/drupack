@@ -59,6 +59,21 @@ The harness's own unit tests need no built executable:
 python3 -m unittest discover -s tests/conformance -p 'test_harness.py'
 ```
 
+The PHP unit files run through the bundled runtime, because `launch.php`
+requires `vendor/autoload.php` and the lock targets a PHP the host may not
+have. They also need `runtime/vendor`, a symlink to `drupal/vendor` that
+`composer install --working-dir=drupal` fills:
+
+```sh
+./dist/drupack php-cli "$PWD/tests/unit/launch_test.php"
+./dist/drupack php-cli "$PWD/tests/unit/windows_paths.php"
+./dist/drupack php-cli "$PWD/tests/unit/previous_copies.php"
+./dist/drupack php-cli "$PWD/tests/unit/site_data_public_stream.php"
+```
+
+`site_data_public_stream.php` covers the check that refuses a public file
+target resolving outside Site data.
+
 The launcher's own unit tests need Go:
 
 ```sh

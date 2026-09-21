@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 // Unit cases for the pure functions in runtime/launch.php. Run with:
-//   php tests/unit/launch_test.php
-// No product binary, no container, no dependency. The constant loads launch.php
-// for its functions alone; the guard above its main block answers to it.
+//   ./dist/drupack php-cli "$PWD/tests/unit/launch_test.php"
+// launch.php requires vendor/autoload.php, whose lock targets a PHP the host
+// may not have, so the bundled runtime runs this file. The constant loads
+// launch.php for its functions alone; the guard above its main block answers
+// to it.
 
 define('DRUPACK_LAUNCH_LIBRARY', true);
 require __DIR__ . '/../../runtime/launch.php';

@@ -22,8 +22,8 @@ Durable across every phase.
   `internal/runtime` and enforced by `cmd/pack` at build time.
 - **Drupal**: one service override per defect. No scaffold override, no
   Composer patch.
-- **Container key**: `settings.php` hashes a slash-normalised
-  `DRUPACK_RUNTIME_APP_DIR`, so an upgraded Windows site keeps its container.
+- **Container key**: `settings.php` hashes `DRUPACK_RUNTIME_APP_DIR` as the
+  launcher exports it, which is the canonical form on every platform.
 
 ## Suite
 
@@ -76,8 +76,8 @@ python tests/conformance dist\drupack.exe test-results\conformance
 
 The boundary conversion and its two consequences. The launcher keeps native
 paths inside and exports canonical ones. `launch.php` prints canonical paths in
-the lines a reader copies. `settings.php` hashes a slash-normalised application
-directory, so the container key stays what it was.
+the lines a reader copies. `settings.php` hashes the application
+directory as the launcher exports it.
 
 A `realpath()` call returns the native form, so a resolution re-canonicalises
 its result before the value travels.
