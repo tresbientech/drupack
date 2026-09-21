@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/klauspost/compress/zstd"
 )
 
 // TestProgressReportsEachStep reads a payload in pieces and checks that the
@@ -122,5 +124,40 @@ func TestSweepDatesAnUnmarkedDirectory(t *testing.T) {
 	sweepApps(appRoot, "running", time.Now())
 	if _, err := os.Stat(unmarked); err != nil {
 		t.Errorf("a directory the sweep had just dated went: %v", err)
+	}
+}
+
+// TestPrepareAppUnpacksAnEmptyArchive covers a launcher built with no site,
+// which the conformance fixtures pack. The archive names no directory, so the
+// unpacking has to create the one it writes into.
+func TestPrepareAppUnpacksAnEmptyArchive(t *testing.T) {
+	root := t.TempDir()
+	payload := &bytes.Buffer{}
+	compressor, err := zstd.NewWriter(payload)
+	if err != nil {
+		t.Fatalf("could not compress: %v", err)
+	}
+	if err := compressor.Close(); err != nil {
+		t.Fatalf("could not close the compressor: %v", err)
+	}
+
+	notice := &bytes.Buffer{}
+	entry, err := PrepareApp(root, "abc123", payload.Bytes(), notice)
+	if err != nil {
+		t.Fatalf("PrepareApp failed: %v", err)
+	}
+	if !complete(entry) {
+		t.Errorf("%s carries no completion marker", entry)
+	}
+	if strings.Contains(notice.String(), "0 of 0 MB") {
+		t.Errorf("an empty archive reported progress: %q", notice.String())
+	}
+
+	notice.Reset()
+	if _, err := PrepareApp(root, "abc123", payload.Bytes(), notice); err != nil {
+		t.Fatalf("the second PrepareApp failed: %v", err)
+	}
+	if notice.Len() != 0 {
+		t.Errorf("a second start reported %q", notice.String())
 	}
 }

@@ -84,6 +84,11 @@ func unpackApp(appRoot, entry, checksum string, payload []byte, notice io.Writer
 	if err := removeTree(staging); err != nil {
 		return err
 	}
+	// The archive names every directory it holds, so the staging directory is
+	// the one the extraction never creates for itself.
+	if err := os.MkdirAll(staging, 0700); err != nil {
+		return err
+	}
 	if err := extractApp(staging, payload, notice); err != nil {
 		removeTree(staging)
 		return err
@@ -285,8 +290,13 @@ type progress struct {
 	reported int64
 }
 
-// reading returns source wrapped so every read counts toward the reports.
+// reading returns source wrapped so every read counts toward the reports. A
+// payload under a megabyte unpacks faster than a reader reads one line, and
+// reporting it in megabytes would name zero throughout, so it gets none.
 func (p *progress) reading(source io.Reader) io.Reader {
+	if p.total < megabyte {
+		return source
+	}
 	return &countingReader{progress: p, source: source}
 }
 
@@ -302,7 +312,7 @@ func (p *progress) advance(n int) {
 // last names the whole payload, so the closing report matches the total even
 // when the final read fell short of a step.
 func (p *progress) last() {
-	if p.reported < p.total {
+	if p.total >= megabyte && p.reported < p.total {
 		p.report(p.total)
 	}
 }

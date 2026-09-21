@@ -182,11 +182,19 @@ def _build_stub(work, runtime_dir, entry, version):
     )
 
 
-def _run_pack(runtime_dir, entry, version, output):
+def _run_pack(work, runtime_dir, entry, version, output):
     output.parent.mkdir(parents=True, exist_ok=True)
+    # A launcher carries the application beside its runtime. A fixture's stub serves
+    # no site, so it carries an empty archive, under a checksum of its own version so
+    # two fixtures never share a cache entry.
+    application = work / "app.tar"
+    application.write_bytes(b"")
+    checksum = work / "app_checksum.txt"
+    checksum.write_text(hashlib.sha256(version.encode()).hexdigest())
     subprocess.run(
         ["go", "run", "./cmd/pack", "-runtime", str(runtime_dir), "-entry", entry,
-         "-version", version, "-source", ".", "-output", str(output)],
+         "-version", version, "-source", ".", "-output", str(output),
+         "-app", str(application), "-app-checksum", str(checksum)],
         cwd=LAUNCHER_SRC, check=True, capture_output=True, text=True,
         timeout=WAITS["fixture_pack"].seconds,
     )
@@ -199,7 +207,7 @@ def pack_fixture(entry, version, output):
         runtime_dir = work / "runtime"
         runtime_dir.mkdir()
         _build_stub(work, runtime_dir, entry, version)
-        _run_pack(runtime_dir, entry, version, output)
+        _run_pack(work, runtime_dir, entry, version, output)
     return output
 
 
@@ -215,7 +223,7 @@ def pack_corrupted_fixture(entry, version, output):
         runtime_dir.mkdir()
         _build_stub(work, runtime_dir, entry, version)
         correct = hashlib.sha256((runtime_dir / entry).read_bytes()).hexdigest()
-        _run_pack(runtime_dir, entry, version, output)
+        _run_pack(work, runtime_dir, entry, version, output)
 
     data = bytearray(output.read_bytes())
     needle = correct.encode()
