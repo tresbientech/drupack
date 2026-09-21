@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -107,6 +108,62 @@ func TestSweepRemovesTheUnusedAndKeepsTheRest(t *testing.T) {
 	}
 }
 
+// Environment names the child below reads. A child, not this process: the marker
+// answers whether another process runs from an entry, and Windows refuses to delete
+// a file this process still holds, which would fail the temporary directory cleanup.
+const (
+	holdEntryVariable   = "DRUPACK_TEST_HOLD_ENTRY"
+	holdAckVariable     = "DRUPACK_TEST_HOLD_ACK"
+	holdReleaseVariable = "DRUPACK_TEST_HOLD_RELEASE"
+)
+
+// TestHoldsUsageForAnotherProcess runs as that child. Started on its own it skips.
+func TestHoldsUsageForAnotherProcess(t *testing.T) {
+	entry := os.Getenv(holdEntryVariable)
+	if entry == "" {
+		t.Skip("child process of TestCleanupKeepsAnEntryARunningStartHolds")
+	}
+	HoldUsage(entry)
+	if err := os.WriteFile(os.Getenv(holdAckVariable), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	release := os.Getenv(holdReleaseVariable)
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(release); err == nil {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("the parent never released this holder")
+}
+
+// holdUsageInChild starts that child on entry and returns once it holds the marker.
+// The handshake files live in work, outside the cache the caller sweeps.
+func holdUsageInChild(t *testing.T, work, entry string) {
+	t.Helper()
+	ack := filepath.Join(work, "held")
+	release := filepath.Join(work, "release")
+	child := exec.Command(os.Args[0], "-test.run=TestHoldsUsageForAnotherProcess")
+	child.Env = append(os.Environ(),
+		holdEntryVariable+"="+entry, holdAckVariable+"="+ack, holdReleaseVariable+"="+release)
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.WriteFile(release, nil, 0600)
+		child.Wait()
+	})
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(ack); err == nil {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("the holder never took the usage marker")
+}
+
 // A server that started more than unusedFor ago refreshes no timestamp, so the
 // sweep and the clean command both ask the entry itself whether a process holds it.
 func TestCleanupKeepsAnEntryARunningStartHolds(t *testing.T) {
@@ -117,7 +174,7 @@ func TestCleanupKeepsAnEntryARunningStartHolds(t *testing.T) {
 	}
 	running := unpackedApp(t, appRoot, "running", 400*24*time.Hour)
 	stale := unpackedApp(t, appRoot, "stale", 400*24*time.Hour)
-	HoldUsage(running)
+	holdUsageInChild(t, root, running)
 
 	sweepApps(appRoot, "other", time.Now())
 
