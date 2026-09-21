@@ -107,7 +107,10 @@ one falls to the next rung.
 
 The rungs, in order:
 
-1. The chosen cache root, short name resolved.
+1. The chosen cache root, short name resolved. A real Windows run forced one
+   exception: a candidate already in ASCII is kept as-is, with no resolve
+   call, since Windows aliases any long path segment, ASCII or not, and a
+   merely long ASCII root asked for no rewrite.
 2. The temporary directory, short name resolved. The default temporary
    directory sits under the same profile, so it carries the same account name
    and needs the same treatment.

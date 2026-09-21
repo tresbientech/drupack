@@ -156,8 +156,7 @@ ASCII, and an accented Latin, a Cyrillic and a CJK root each serve 200 with no
 extension load failure. The measurements below stand as the record of the
 fault.
 
-Found while measuring this RFC, on the dev build, Windows 11, 2026-09-21. It
-needs its own investigation and its own fix.
+Found while measuring this RFC, on the dev build, Windows 11, 2026-09-21.
 
 Three full starts, one variable between them:
 

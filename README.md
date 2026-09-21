@@ -112,7 +112,7 @@ Your download carries Drupal, PHP and Caddy compressed. The first start of a ver
 
 One version takes about 400 MB on Linux and macOS, beside your Site data. The space is per version, and a successful start removes the versions it replaces, so upgrading does not stack them up.
 
-`DRUPACK_CACHE_DIR` moves the cache, for a disk with more room. On Linux and macOS a home directory that refuses writes sends the runtime to the temporary directory instead.
+`DRUPACK_CACHE_DIR` moves the cache, for a disk with more room. On Linux and macOS a home directory that refuses writes sends the runtime to the temporary directory instead. On Windows, a cache root PHP's startup cannot read sends the runtime to the temporary directory too, printing why.
 
 ## Use MySQL or PostgreSQL
 
