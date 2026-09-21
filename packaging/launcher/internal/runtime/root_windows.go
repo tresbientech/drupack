@@ -75,7 +75,7 @@ func fallbackRoot() (string, error) {
 }
 
 // shortPathName wraps GetShortPathNameW, the Windows API that names an
-// existing path's 8.3 alias — the one Windows-only call resolveASCIIRoot
+// existing path's 8.3 alias, the one Windows-only call resolveASCIIRoot
 // needs, kept behind this thin function so the rung logic itself is
 // testable on any host.
 func shortPathName(path string) (string, error) {

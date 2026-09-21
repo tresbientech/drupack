@@ -101,7 +101,7 @@ class AsciiCacheRootCases(harness.ConformanceCase):
 
     def test_accented_latin_data_and_cache_dir_serve_cleanly(self):
         # The PRD's default-start stories: a non-ASCII account name puts the data
-        # directory under a non-ASCII path too, not only the cache root every other
-        # case here varies alone.
+        # directory under a non-ASCII path as well as the cache root. Every other
+        # case here varies the cache root alone.
         data = self.case_dir / "tëst-data"
         self._assert_serves_from("tëst", data_dir=data)
