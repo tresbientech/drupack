@@ -42,6 +42,17 @@ The Drupack and Drupal versions that last served a Site data directory.
 **Database backend**:
 SQLite, MySQL, or PostgreSQL, selected when a Packaged site first starts. It stores the structured part of Site data.
 
+### Paths
+
+**Canonical path**:
+The written form Drupack uses for every path it computes, exports or prints: absolute, forward slashes, no trailing separator, no `.` or `..` segment.
+
+**Minted segment**:
+A path element Drupack names itself, rather than one inherited from the reader or the operating system. It matches `^[a-z][a-z0-9.-]{0,31}$`, and the build refuses a version that would break the rule.
+
+**Application root**:
+The directory holding one release's unpacked application. Every site of that release reads it and none writes to it.
+
 ## Relationships
 
 ### First start

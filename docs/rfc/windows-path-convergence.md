@@ -1,6 +1,6 @@
 # Path handling converges on one form per language
 
-Proposed on 2026-09-21. Not implemented.
+Proposed on 2026-09-21. Implemented on the branch `rfc/windows-path-convergence`.
 
 ## The question
 
