@@ -12,3 +12,4 @@
 .idea
 __pycache__/
 /test-results/
+/application/
