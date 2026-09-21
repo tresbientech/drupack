@@ -280,9 +280,13 @@ test('a given administrator name and password survive', function (): void {
     same('given', $filled['admin-password']);
 });
 
-test('canonical rewrites backslashes as forward slashes', function (): void {
-    same('C:/Users/theno/Downloads', canonical('C:\\Users\\theno\\Downloads'));
+test('canonical rewrites backslashes as forward slashes on a host whose separator is one', function (): void {
+    same('C:/Users/theno/Downloads', canonicalSeparator('C:\\Users\\theno\\Downloads', '\\'));
     same('/var/www/html', canonical('/var/www/html'), 'a path with no backslash comes back unchanged');
+});
+
+test('canonical leaves a backslash alone where it is not the separator', function (): void {
+    same('a\\b', canonicalSeparator('a\\b', '/'), 'a backslash is a legal character in a Linux file name');
 });
 
 test('a relative data-dir resolves against the directory the reader started from', function (): void {

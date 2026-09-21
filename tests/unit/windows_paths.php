@@ -8,6 +8,10 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../runtime/support/LocalFileUri.php';
 
+// launch_test.php defines this to load launch.php's functions without starting a site.
+define('DRUPACK_LAUNCH_LIBRARY', true);
+require __DIR__ . '/../../runtime/launch.php';
+
 use Drupack\Support\LocalFileUri;
 
 $total = 0;
@@ -41,6 +45,12 @@ $local_file_uri_cases = [
 foreach ($local_file_uri_cases as [$uri, $expected]) {
   check("LocalFileUri::permitsRead($uri)", $expected, LocalFileUri::permitsRead($uri));
 }
+
+// A backslash is a legal file name character everywhere it is not the path
+// separator, so canonical() must leave one alone on such a host: a reader who
+// passes --data-dir 'a\b' on Linux gets the directory named 'a\b', not 'a/b'.
+$want = DIRECTORY_SEPARATOR === '\\' ? 'a/b' : 'a\\b';
+check('canonical touches a backslash only where it is the path separator', true, canonical('a\\b') === $want);
 
 if ($failures > 0) {
   fwrite(STDERR, "$failures of $total checks failed\n");

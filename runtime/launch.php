@@ -94,13 +94,21 @@ function windows(): bool
 // realpath() returns the native form, backslashes included on Windows. Every path
 // Drupack exports or prints takes the canonical form instead, so a Windows reader's
 // terminal agrees with the forward slashes Drupal's own stack traces already carry.
-// Symfony's own Path::canonicalize() only converts on a host whose separator is
-// already backslash, which makes a table exercising the Windows case host-dependent;
-// this stays Drupack's own function for the same reason canonical.go takes its
-// separator as an argument.
 function canonical(string $path): string
 {
-    return str_replace('\\', '/', $path);
+    return canonicalSeparator($path, DIRECTORY_SEPARATOR);
+}
+
+// canonicalSeparator takes the separator, the same way canonical.go's internal helper
+// does, so a test on any host can drive the Windows case. A backslash is a legal
+// character in a file name where it is not the separator, so a host whose separator
+// is already '/' gets the path back untouched.
+function canonicalSeparator(string $path, string $separator): string
+{
+    if ($separator === '/') {
+        return $path;
+    }
+    return str_replace($separator, '/', $path);
 }
 
 // The server runs from the application directory, which every site of a release
