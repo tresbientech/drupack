@@ -52,6 +52,21 @@ def suite_lock():
     return handle
 
 
+def warm_cache():
+    """Pays the one-time unpack into the run's own cache before any case is timed.
+
+    Discovery is alphabetical, so whichever case runs first would otherwise pay it
+    inside its own budget. WAITS["refusal"] gives a refusal 20 seconds, which a
+    slow disk spends on the unpack alone.
+    """
+    result = harness.run(
+        [str(harness.BINARY), "--version"],
+        capture_output=True, text=True, timeout=harness.WAITS["unpack"].seconds,
+    )
+    if result.returncode != 0:
+        raise SystemExit(f"Cannot unpack {harness.BINARY} into the run cache: {result.stderr}")
+
+
 def main(argv):
     if len(argv) < 2:
         print(USAGE, file=sys.stderr)
@@ -71,6 +86,7 @@ def main(argv):
         cache_dir = tempfile.mkdtemp(prefix="drupack-cache-")
         os.environ["DRUPACK_CACHE_DIR"] = cache_dir
         try:
+            warm_cache()
             program = unittest.main(module=None, argv=discover_argv, exit=False)
         finally:
             # A plain TemporaryDirectory cleanup would raise on a handle Windows has not yet
