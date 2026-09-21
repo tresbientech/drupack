@@ -35,6 +35,15 @@ const usedName = ".used"
 // unusedFor is how long an application directory survives with no start using it.
 const unusedFor = 30 * 24 * time.Hour
 
+// entryName names the directory holding one release's application. A PHP
+// library that builds a path through preg_replace reads a backslash followed
+// by a digit as a backreference and drops both, so the name starts with a
+// letter. The short form also keeps the vendor paths inside the tree well
+// clear of the Windows path limit.
+func entryName(checksum string) string {
+	return "r" + checksum[:12]
+}
+
 // AppRoot returns the directory holding unpacked applications under root.
 func AppRoot(root string) string {
 	return filepath.Join(root, appDirName)
@@ -47,11 +56,12 @@ func AppRoot(root string) string {
 // once the marker is written, so a start interrupted halfway leaves nothing a
 // later start mistakes for a finished copy.
 func PrepareApp(root, checksum string, payload []byte, notice io.Writer) (string, error) {
-	if !SingleElement(checksum) {
+	if !SingleElement(checksum) || len(checksum) < 12 {
 		return "", fmt.Errorf("application checksum is not a single path element: %q", checksum)
 	}
 	appRoot := AppRoot(root)
-	entry := filepath.Join(appRoot, checksum)
+	name := entryName(checksum)
+	entry := filepath.Join(appRoot, name)
 	if err := os.MkdirAll(appRoot, rootMode); err != nil {
 		return "", err
 	}
@@ -65,22 +75,22 @@ func PrepareApp(root, checksum string, payload []byte, notice io.Writer) (string
 	// Another process may have unpacked this release while this one waited on the lock.
 	if !complete(entry) {
 		fmt.Fprintf(notice, "Unpacking the Drupack application. This happens once for each release.\n")
-		if err := unpackApp(appRoot, entry, checksum, payload, notice); err != nil {
+		if err := unpackApp(appRoot, entry, name, payload, notice); err != nil {
 			return "", err
 		}
 	}
 	if err := markUsed(entry); err != nil {
 		return "", err
 	}
-	sweepApps(appRoot, checksum, time.Now())
+	sweepApps(appRoot, name, time.Now())
 	return entry, nil
 }
 
 // unpackApp writes the application into a staging directory and moves it to
 // entry once the completion marker is written, so a start interrupted halfway
 // leaves nothing a later start mistakes for a finished copy.
-func unpackApp(appRoot, entry, checksum string, payload []byte, notice io.Writer) error {
-	staging := filepath.Join(appRoot, stagingPrefix+checksum)
+func unpackApp(appRoot, entry, name string, payload []byte, notice io.Writer) error {
+	staging := filepath.Join(appRoot, stagingPrefix+name)
 	if err := removeTree(staging); err != nil {
 		return err
 	}

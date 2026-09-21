@@ -55,7 +55,10 @@ func Root() (string, error) {
 // change without a version bump still lands in its own entry.
 func Key(version string, payload []byte) string {
 	sum := sha256.Sum256(payload)
-	return version + "-" + hex.EncodeToString(sum[:])[:12]
+	// A release version starts with a digit, and a PHP library that builds a
+	// path through preg_replace reads a backslash followed by a digit as a
+	// backreference and drops both, so the name starts with a letter.
+	return "v" + version + "-" + hex.EncodeToString(sum[:])[:12]
 }
 
 // Prepare returns the directory holding the runtime m describes, staging

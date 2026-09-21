@@ -142,7 +142,7 @@ func TestPrepareAppUnpacksAnEmptyArchive(t *testing.T) {
 	}
 
 	notice := &bytes.Buffer{}
-	entry, err := PrepareApp(root, "abc123", payload.Bytes(), notice)
+	entry, err := PrepareApp(root, "abc123def4567890", payload.Bytes(), notice)
 	if err != nil {
 		t.Fatalf("PrepareApp failed: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestPrepareAppUnpacksAnEmptyArchive(t *testing.T) {
 	}
 
 	notice.Reset()
-	if _, err := PrepareApp(root, "abc123", payload.Bytes(), notice); err != nil {
+	if _, err := PrepareApp(root, "abc123def4567890", payload.Bytes(), notice); err != nil {
 		t.Fatalf("the second PrepareApp failed: %v", err)
 	}
 	if notice.Len() != 0 {
