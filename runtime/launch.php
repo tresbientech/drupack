@@ -764,6 +764,11 @@ function initialize(string $data, array $steps, array $options, string $binary):
     }
 }
 
+// tests/unit/launch_test.php defines this to load the functions above without starting a site.
+if (defined('DRUPACK_LAUNCH_LIBRARY')) {
+    return;
+}
+
 try {
     $drush = environment('DRUPACK_RUNTIME_DRUSH') === '1';
     [$options, $command] = options(array_slice($argv, 1), $drush);
