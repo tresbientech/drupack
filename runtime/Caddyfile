@@ -28,8 +28,10 @@ http://:{$DRUPACK_RUNTIME_PORT} {
 	# matcher that guards it. One route block keeps the written order instead, so
 	# each guard is stated once and runs before the routes it protects.
 	route {
-		# A start that finds this port taken asks who owns it. The token names the Site data
-		# this server serves, and a caller without it gets 404, so the route tells it nothing.
+		# The readiness probe packaging/entrypoint.go polls until this server answers. The
+		# token names the Site data this server serves, and a caller without it gets 404,
+		# so the route tells it nothing. Caddy answers it without reaching Drupal, which
+		# keeps a cold start from rendering a page nobody reads.
 		# Placed ahead of the protected-file matchers, which answer 403 for any dot path.
 		@drupackIdentity {
 			path /.drupack-id

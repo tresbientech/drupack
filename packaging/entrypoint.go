@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -51,26 +52,39 @@ Examples:
   drupack dr --data-dir ./site user:login
   drupack clean --dry-run`
 
+// readinessPath answers 204 for a request carrying this site's own identity token, and 404
+// for anything else. The Caddyfile serves it without reaching Drupal, so the poll below
+// costs no page render and no session.
+const readinessPath = "/.drupack-id?id="
+
 // openWhenReady waits for the site to answer at address, then reports readiness and opens
 // the browser on target when asked. The terminal keeps one readiness line even when no
 // browser opens. The target is a one-time login link, which a request spends, so the poll
-// asks for address instead. launch.php passes both through the environment.
-func openWhenReady(address string, target string, browser bool) {
+// asks for the readiness path instead. launch.php passes both through the environment.
+//
+// Only 204 from that path counts. A 500 from a failed bootstrap and a 400 from a rejected
+// host both reach a client that connects, so a poll accepting any answer would announce a
+// site nobody can use.
+func openWhenReady(address string, token string, target string, browser bool) {
 	// A cold start answers its first request slowly, and a request that never returns would
 	// otherwise hold the poll past the deadline.
 	client := http.Client{Timeout: 30 * time.Second}
+	probe := strings.TrimSuffix(address, "/") + readinessPath + url.QueryEscape(token)
 	started := time.Now()
 	deadline := started.Add(2 * time.Minute)
 	var last error
 	for time.Now().Before(deadline) {
-		response, err := client.Get(address)
+		response, err := client.Get(probe)
 		if err == nil {
 			response.Body.Close()
-			fmt.Println("\nDrupack is ready. Press Ctrl+C to stop.")
-			if browser {
-				openBrowser(target)
+			if response.StatusCode == http.StatusNoContent {
+				fmt.Println("\nDrupack is ready. Press Ctrl+C to stop.")
+				if browser {
+					openBrowser(target)
+				}
+				return
 			}
-			return
+			err = fmt.Errorf("the server answered %s", response.Status)
 		}
 		last = err
 		time.Sleep(500 * time.Millisecond)
@@ -171,8 +185,8 @@ func init() {
 		forceExitOnStalledShutdown()
 		// The server waits for itself. A separate process would first extract its own copy
 		// of the embedded application, which takes longer than the wait on a slow disk.
-		go openWhenReady(os.Getenv("DRUPACK_RUNTIME_URL"), os.Getenv("DRUPACK_RUNTIME_OPEN"),
-			os.Getenv("DRUPACK_RUNTIME_BROWSER") == "1")
+		go openWhenReady(os.Getenv("DRUPACK_RUNTIME_URL"), os.Getenv("DRUPACK_RUNTIME_ID"),
+			os.Getenv("DRUPACK_RUNTIME_OPEN"), os.Getenv("DRUPACK_RUNTIME_BROWSER") == "1")
 		serveApplication(application)
 		return
 	}
