@@ -22,7 +22,10 @@ fi
 # The release executable embeds runtime/ and deletes its extracted copy when it
 # exits, so only a build changes those files there. This serves the application
 # from the build image instead, with runtime/ copied over it on every start.
+# -e DRUPACK_CA_FILE with no value forwards the caller's own, unset or not, the
+# same way a release start's environment reaches dev-entry.sh's export.
 exec docker run --rm "${terminal[@]}" --user "$(id -u):$(id -g)" -p "127.0.0.1:$port:$port" \
+    -e DRUPACK_CA_FILE \
     --mount "type=bind,src=$repository/runtime,dst=/dev-runtime,readonly" \
     --mount "type=bind,src=$repository/packaging/dev-entry.sh,dst=/dev-entry.sh,readonly" \
     --mount "type=bind,src=$data,dst=/data" \
