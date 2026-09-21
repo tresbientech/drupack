@@ -92,7 +92,7 @@ No `setUpClass`. No `setUp`. No `addCleanup(site.stop)`. No `PATH` rebuild.
 
 ### What stays outside
 
-The Docker container lifecycle. `initialization_cases.py:523-570` and `server_database_cases.py:34-78` run the same poll-and-remove shape line for line, and 33 raw `docker` calls sit across five modules. That is a maintained package's job, not this base class's. Run the `adopt-ecosystem-packages` skill against it and evaluate `testcontainers-python`.
+The Docker container lifecycle. `initialization_cases.py:523-570` and `server_database_cases.py:34-78` run the same poll-and-remove shape line for line, and 33 raw `docker` calls sit across five modules. That belongs to a maintained package rather than to this base class. Surveyed separately in [container-lifecycle-and-testcontainers.md](container-lifecycle-and-testcontainers.md), which decides to consolidate here first.
 
 ## Dependency strategy
 
@@ -146,7 +146,7 @@ Step 1 stands alone and is reviewable without a suite run.
 
 ## Out of scope
 
-- The Docker container lifecycle, routed to `adopt-ecosystem-packages`.
+- The Docker container lifecycle, in [container-lifecycle-and-testcontainers.md](container-lifecycle-and-testcontainers.md).
 - The wait table, which the suite already owns and `test_harness.py` already checks.
 - Running `test_harness.py` on Windows and macOS, which is a workflow change.
 - The other follow-up items, which are not about scaffolding.
