@@ -105,7 +105,8 @@ replaces two service classes with subclasses of its own.
   The Dockerfile already copies `runtime/` into the application root, so they
   ship at `/app/support/`.
 - `DriveLetterIconFinder` extends `IconFinder` and overrides
-  `getFileContents()`. It asks the filesystem before it asks `parse_url()`.
+  `getFileContents()`. It asks the gate before it touches the filesystem, so a
+  refused URI never reaches `file_exists()` and never resolves a stream wrapper.
 - `RootRelativeComponentPluginManager` extends `ComponentPluginManager` and
   overrides `alterDefinition()`. It rewrites `path` to the form Linux already
   produces: forward slashes, relative to the application root.
