@@ -175,8 +175,12 @@ directly.
   release can replace. The update module keeps its current behavior.
 - Exporting the Windows certificate store, or merging machine roots into the
   shipped bundle. The override covers a corporate machine.
-- The copy of php.ini that still travels inside the application archive, unused
-  once `PHPRC` wins. Removing it is a follow-up.
+- The copy of php.ini that travels inside the application archive was scoped out
+  here as a follow-up, on the reading that it sits unused once `PHPRC` wins. It
+  came back into scope during phase 2: main had meanwhile started appending the
+  application directory to `PHP_INI_SCAN_DIR`, which made that copy a second
+  live source of PHP settings and broke this work's own "one ini" decision. The
+  build now excludes both it and the bundle from the archive.
 - The Windows extension set, smaller than the Linux one, already recorded in
   the multi-platform plan.
 - Proxy configuration, certificate pinning, and the update check against the
