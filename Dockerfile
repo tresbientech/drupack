@@ -22,7 +22,7 @@ RUN mkdir -p /app/seed/private /app/seed/tmp /app/seed/config /app/web/sites/def
     # automatic_updates and package_manager: add any other module here that a future Mercury Demo release enables and that also depends on package_manager.
     && DRUPACK_RUNTIME_DATA_DIR=/app/seed DRUPACK_RUNTIME_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php pm:uninstall automatic_updates package_manager --yes \
     && mv /app/web/sites/default/files /app/seed/files \
-    && rm -f /app/web/sites/default/settings.php
+    && printf '%s\n%s\n' '<?php' "require getenv('DRUPACK_RUNTIME_DATA_DIR') . DIRECTORY_SEPARATOR . 'settings.php';" > /app/web/sites/default/settings.php
 ARG DRUPACK_VERSION
 COPY packaging/embed.sh /usr/local/bin/embed.sh
 COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go

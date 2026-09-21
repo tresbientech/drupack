@@ -40,58 +40,6 @@ function replaceProcess(string $binary, array $arguments, string $directory, str
     exit(process($binary, $arguments, [0 => STDIN, 1 => STDOUT, 2 => STDERR], $directory, $failure));
 }
 
-function windowsJunction(string $target, string $link): void
-{
-    // proc_open quotes array arguments, and cmd.exe does not run a quoted "mklink". mklink rejects forward slashes.
-    $command = 'mklink /J ' . escapeshellarg(str_replace('/', '\\', $link)) . ' ' . escapeshellarg(str_replace('/', '\\', $target));
-    $child = proc_open($command, [0 => ['file', nullDevice(), 'r'], 1 => ['file', nullDevice(), 'w'], 2 => ['file', nullDevice(), 'w']], $pipes, __DIR__);
-    if (!is_resource($child) || proc_close($child) !== 0) {
-        throw new RuntimeException("Cannot link site storage: $link");
-    }
-}
-
-function settingsProxy(string $link): void
-{
-    $content = "<?php\nrequire getenv('DRUPACK_RUNTIME_DATA_DIR') . DIRECTORY_SEPARATOR . 'settings.php';\n";
-    if (is_file($link)) {
-        if (file_get_contents($link) === $content) {
-            return;
-        }
-        throw new RuntimeException("Unexpected application path: $link");
-    }
-    if (file_put_contents($link, $content, LOCK_EX) === false) {
-        throw new RuntimeException("Cannot write site configuration: $link");
-    }
-}
-
-function siteLink(string $target, string $link): void
-{
-    if (windows()) {
-        if (is_file($target)) {
-            settingsProxy($link);
-            return;
-        }
-        if (is_dir($link) && realpath($link) === realpath($target)) {
-            return;
-        }
-        if (file_exists($link) || is_link($link)) {
-            throw new RuntimeException("Unexpected application path: $link");
-        }
-        windowsJunction($target, $link);
-        return;
-    }
-    // Existing application paths must never redirect writes into another site.
-    if (is_link($link) && readlink($link) === $target) {
-        return;
-    }
-    if (file_exists($link) || is_link($link)) {
-        throw new RuntimeException("Unexpected application path: $link");
-    }
-    if (!symlink($target, $link)) {
-        throw new RuntimeException("Cannot link site storage: $link");
-    }
-}
-
 function environment(string $name): ?string
 {
     $value = getenv($name);
@@ -394,12 +342,6 @@ function recordedOptions(array $options, string $directory): array
     return $options;
 }
 
-function linkSite(string $data): void
-{
-    siteLink("$data/settings.php", __DIR__ . '/web/sites/default/settings.php');
-    siteLink("$data/files", __DIR__ . '/web/sites/default/files');
-}
-
 function databaseUrl(array $options): string
 {
     $host = str_contains($options['db-host'], ':') ? "[{$options['db-host']}]" : $options['db-host'];
@@ -674,7 +616,6 @@ function runStep(string $step, string $data, array $options, string $binary): vo
                 throw new RuntimeException('Cannot initialize the site secret');
             }
             writeSettings("$data/settings.php", __DIR__ . '/settings.php', databaseConfiguration($options, $data));
-            linkSite($data);
             return;
         case 'administrator':
             configureSeedAdministrator($binary);
@@ -857,7 +798,6 @@ try {
         $steps = remainingSteps($data, $options['database']);
     }
     if (file_exists("$data/settings.php")) {
-        linkSite($data);
         // A pending settings step rewrites the file, so its contents are read once they are final.
         if (!in_array('settings', $steps, true)) {
             $options = recordedOptions($options, $data);
