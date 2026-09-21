@@ -30,7 +30,7 @@ cd /data/runtime/app
 # development image runs frankenphp directly, so it sets the same two here, and
 # a caller's own bundle still wins.
 export PHPRC=/data/runtime/app
-export DRUPACK_CA_FILE=${DRUPACK_CA_FILE:-/data/runtime/app/cacert.pem}
+export DRUPACK_CA_FILE=${DRUPACK_CA_FILE-/data/runtime/app/cacert.pem}
 
 # launch.php sets up the site, then hands over to a server. Its Drush path runs
 # the same setup and stops, and this image's php-server ignores a Caddyfile, so
