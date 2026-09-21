@@ -24,75 +24,80 @@ http://:{$DRUPACK_RUNTIME_PORT} {
 	root * web
 	encode zstd br gzip
 
-	# A start that finds this port taken asks who owns it. The token names the Site data
-	# this server serves, and a caller without it gets 404, so the route tells it nothing.
-	# Placed ahead of the protected-file matchers, which answer 403 for any dot path.
-	@drupackIdentity {
-		path /.drupack-id
-		query id={$DRUPACK_RUNTIME_ID}
-	}
-	respond @drupackIdentity 204
-	@drupackIdentityOther path /.drupack-id
-	respond @drupackIdentityOther 404
+	# Caddy sorts directives by kind, which puts a file route ahead of every
+	# matcher that guards it. One route block keeps the written order instead, so
+	# each guard is stated once and runs before the routes it protects.
+	route {
+		# A start that finds this port taken asks who owns it. The token names the Site data
+		# this server serves, and a caller without it gets 404, so the route tells it nothing.
+		# Placed ahead of the protected-file matchers, which answer 403 for any dot path.
+		@drupackIdentity {
+			path /.drupack-id
+			query id={$DRUPACK_RUNTIME_ID}
+		}
+		respond @drupackIdentity 204
+		@drupackIdentityOther path /.drupack-id
+		respond @drupackIdentityOther 404
 
-	@hiddenPhpFilesRegexp path_regexp \..*/.*\.php$
-	respond @hiddenPhpFilesRegexp 403
-	@notFoundPhpFiles path_regexp /vendor/.*\.php$
-	respond @notFoundPhpFiles 404
-	# Public storage is writable. FrankenPHP still executes a script when a
-	# PATH_INFO suffix follows it, so block every casing and path shape here,
-	# not only a filename ending exactly in ".php". Win32 also strips trailing
-	# dots and spaces from a path component, so "probe.php." and "probe.php "
-	# open "probe.php" on the Windows build.
-	@publicStoragePhpRegexp path_regexp "(?i)^/(sites/[^/]+/files/|files/).*\.php[. ]*(/|$)"
-	respond @publicStoragePhpRegexp 404
-	@privateDirRegexp path_regexp ^/(private|sites/.*/private)/
-	respond @privateDirRegexp 403
-	@siteConfiguration path /sites/*/settings* /sites/*/services* /sites/*/site-templates.php /sites/*/files/config_*
-	respond @siteConfiguration 404
-	@protectedFilesRegexp {
-		not path /.well-known*
-		path_regexp \.(engine|inc|install|make|module|profile|po|sh|.*sql|theme|twig|tpl(\.php)?|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?$|/\..*|/(Entries.*|Repository|Root|Tag|Template|composer\.(json|lock)|web\.config|yarn\.lock|package\.json)$|/#.*#$|\.php(~|\.sw[op]|\.bak|\.orig|\.save)$
-	}
-	respond @protectedFilesRegexp 403
-	# Drupal core, module, theme and library assets are versioned by release,
-	# so they are safe to cache forever.
-	@versionedAssetPath {
-		file
-		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
-		path_regexp ^/(core|modules|themes|libraries)/
-	}
-	# An image style derivative carries an "itok" token. Aggregated CSS/JS carries
-	# delta/language/theme/include instead, never a "v" token. Every asset this
-	# product serves with "v=" is a core, module, theme or library file.
-	# @versionedAssetPath already matches those by path, so there is no "v" matcher here.
-	@versionedAssetQuery {
-		file
-		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
-		query itok=*
-		not path_regexp ^/(core|modules|themes|libraries)/
-	}
-	# An upload can be replaced at the same URL in public storage. It must
-	# revalidate rather than let a browser trust a year-old cached copy. A
-	# generated derivative under the same prefix still carries its own itok
-	# token, so it is excluded here, not layered by directive order.
-	@publicUpload {
-		file
-		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
-		path_regexp ^/(sites/[^/]+/files/|files/)
-		not query itok=*
-	}
-	header @publicUpload Cache-Control "max-age=0,must-revalidate"
-	header @versionedAssetPath Cache-Control "max-age=31536000,public,immutable"
-	header @versionedAssetQuery Cache-Control "max-age=31536000,public,immutable"
-	# Public files live in Site data, never under the application, which one release
-	# shares across sites. The address stays root-relative, so it survives a restart
-	# on another port.
-	handle_path /sites/default/files/* {
-		root * {$DRUPACK_RUNTIME_DATA_DIR}/files
-		file_server
-	}
-	php_server {
-		root web
+		@hiddenPhpFilesRegexp path_regexp \..*/.*\.php$
+		respond @hiddenPhpFilesRegexp 403
+		@notFoundPhpFiles path_regexp /vendor/.*\.php$
+		respond @notFoundPhpFiles 404
+		# Public storage is writable. FrankenPHP still executes a script when a
+		# PATH_INFO suffix follows it, so block every casing and path shape here,
+		# not only a filename ending exactly in ".php". Win32 also strips trailing
+		# dots and spaces from a path component, so "probe.php." and "probe.php "
+		# open "probe.php" on the Windows build.
+		@publicStoragePhpRegexp path_regexp "(?i)^/(sites/[^/]+/files/|files/).*\.php[. ]*(/|$)"
+		respond @publicStoragePhpRegexp 404
+		@privateDirRegexp path_regexp ^/(private|sites/.*/private)/
+		respond @privateDirRegexp 403
+		@siteConfiguration path /sites/*/settings* /sites/*/services* /sites/*/site-templates.php /sites/*/files/config_*
+		respond @siteConfiguration 404
+		@protectedFilesRegexp {
+			not path /.well-known*
+			path_regexp \.(engine|inc|install|make|module|profile|po|sh|.*sql|theme|twig|tpl(\.php)?|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?$|/\..*|/(Entries.*|Repository|Root|Tag|Template|composer\.(json|lock)|web\.config|yarn\.lock|package\.json)$|/#.*#$|\.php(~|\.sw[op]|\.bak|\.orig|\.save)$
+		}
+		respond @protectedFilesRegexp 403
+		# Drupal core, module, theme and library assets are versioned by release,
+		# so they are safe to cache forever.
+		@versionedAssetPath {
+			file
+			path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
+			path_regexp ^/(core|modules|themes|libraries)/
+		}
+		# An image style derivative carries an "itok" token. Aggregated CSS/JS carries
+		# delta/language/theme/include instead, never a "v" token. Every asset this
+		# product serves with "v=" is a core, module, theme or library file.
+		# @versionedAssetPath already matches those by path, so there is no "v" matcher here.
+		# No file matcher: a derivative lives in Site data, which this root does
+		# not cover, and a header on a missing file costs nothing.
+		@versionedAssetQuery {
+			path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
+			query itok=*
+			not path_regexp ^/(core|modules|themes|libraries)/
+		}
+		# An upload can be replaced at the same URL in public storage. It must
+		# revalidate rather than let a browser trust a year-old cached copy. A
+		# generated derivative under the same prefix still carries its own itok
+		# token, so it is excluded here, not layered by directive order.
+		@publicUpload {
+			path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
+			path_regexp ^/(sites/[^/]+/files/|files/)
+			not query itok=*
+		}
+		header @publicUpload Cache-Control "max-age=0,must-revalidate"
+		header @versionedAssetPath Cache-Control "max-age=31536000,public,immutable"
+		header @versionedAssetQuery Cache-Control "max-age=31536000,public,immutable"
+		# Public files live in Site data, never under the application, which one release
+		# shares across sites. The address stays root-relative, so it survives a restart
+		# on another port.
+		handle_path /sites/default/files/* {
+			root * "{$DRUPACK_RUNTIME_DATA_DIR}/files"
+			file_server
+		}
+		php_server {
+			root web
+		}
 	}
 }

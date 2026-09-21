@@ -112,22 +112,26 @@ func forceExitOnStalledShutdown() {
 	}()
 }
 
+// serveApplication runs the application's own Caddyfile and adds its php.ini
+// to the scan path. php-server does both, but only for a directory named in
+// frankenphp.EmbeddedAppPath, and frankenphp deletes that directory when the
+// server stops. The launcher's copy is shared by every site of the release, so
+// it never goes in that variable.
+func serveApplication(application string) {
+	if _, err := os.Stat(filepath.Join(application, "php.ini")); err == nil {
+		scan := os.Getenv("PHP_INI_SCAN_DIR")
+		if err := os.Setenv("PHP_INI_SCAN_DIR", scan+string(os.PathListSeparator)+application); err != nil {
+			panic(err)
+		}
+	}
+	os.Args = []string{
+		os.Args[0], "run",
+		"--config", filepath.Join(application, "Caddyfile"),
+		"--adapter", "caddyfile",
+	}
+}
+
 func init() {
-	// launch.php replaces itself with this command to serve the site.
-	if len(os.Args) > 1 && os.Args[1] == "php-server" {
-		forceExitOnStalledShutdown()
-		// The server waits for itself. A separate process would first extract its own copy
-		// of the embedded application, which takes longer than the wait on a slow disk.
-		go openWhenReady(os.Getenv("DRUPACK_RUNTIME_URL"), os.Getenv("DRUPACK_RUNTIME_OPEN"),
-			os.Getenv("DRUPACK_RUNTIME_BROWSER") == "1")
-	}
-	// launch.php replaces itself with this command when its Site data is already served,
-	// since a handover starts no server to open the browser from. The target is a working
-	// credential, so it arrives in the environment, which only this user can read.
-	if len(os.Args) > 1 && os.Args[1] == "browser-open" {
-		openBrowser(os.Getenv("DRUPACK_RUNTIME_OPEN"))
-		os.Exit(0)
-	}
 	executable, err := os.Executable()
 	if err != nil {
 		panic(err)
@@ -144,12 +148,26 @@ func init() {
 	// A build step runs this binary on its own to read its version, with no
 	// launcher to name a directory and no embedded application to fall back to.
 	if application != "" {
-		// php-server reads the application's Caddyfile and php.ini only through this
-		// variable. The embedded archive is empty, so its own init left it unset.
-		frankenphp.EmbeddedAppPath = application
 		if err := os.Chdir(application); err != nil {
 			panic(err)
 		}
+	}
+	// launch.php replaces itself with this command to serve the site.
+	if len(os.Args) > 1 && os.Args[1] == "php-server" {
+		forceExitOnStalledShutdown()
+		// The server waits for itself. A separate process would first extract its own copy
+		// of the embedded application, which takes longer than the wait on a slow disk.
+		go openWhenReady(os.Getenv("DRUPACK_RUNTIME_URL"), os.Getenv("DRUPACK_RUNTIME_OPEN"),
+			os.Getenv("DRUPACK_RUNTIME_BROWSER") == "1")
+		serveApplication(application)
+		return
+	}
+	// launch.php replaces itself with this command when its Site data is already served,
+	// since a handover starts no server to open the browser from. The target is a working
+	// credential, so it arrives in the environment, which only this user can read.
+	if len(os.Args) > 1 && os.Args[1] == "browser-open" {
+		openBrowser(os.Getenv("DRUPACK_RUNTIME_OPEN"))
+		os.Exit(0)
 	}
 	launchScript := filepath.Join(application, "launch.php")
 	if len(os.Args) > 1 && os.Args[1] == "dr" {
