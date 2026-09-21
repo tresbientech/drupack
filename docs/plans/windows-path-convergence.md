@@ -52,9 +52,10 @@ application archive in WSL, and the Windows side builds and tests against it.
 ```sh
 docker build --target build -t drupack-build .
 container=$(docker create drupack-build)
-docker cp "$container:/go/src/app/app-payload.tar" application/app.tar
-# app-payload.tar holds the application. embed.sh empties app.tar on purpose,
-# so that frankenphp's embed init returns early and leaves EmbeddedAppPath unset.
+# build.ps1 reads application/app-payload.tar. embed.sh empties app.tar on
+# purpose, so that frankenphp's embed init returns early and leaves
+# EmbeddedAppPath unset.
+docker cp "$container:/go/src/app/app-payload.tar" application/app-payload.tar
 docker cp "$container:/go/src/app/app_checksum.txt" application/app_checksum.txt
 docker rm "$container"
 ```
