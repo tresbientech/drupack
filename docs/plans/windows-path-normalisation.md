@@ -6,7 +6,7 @@
 
 ## Architectural decisions
 
-Durable across every phase.
+Durable across every task.
 
 - **Namespace**: `Drupack\Support\`, autoloaded from the application root by a
   PSR-4 entry in the packaged Composer project.
@@ -27,7 +27,7 @@ Durable across every phase.
 
 ## Suite
 
-Every phase runs the Linux suite first. The build comes before the rest, because
+Every task runs the Linux suite first. The build comes before the rest, because
 the conformance suite runs against the built executable.
 
 ```sh
@@ -38,11 +38,11 @@ python3 tests/conformance ./dist/drupack test-results/conformance
 ./dist/drupack php-cli tests/unit/windows_paths.php
 ```
 
-The last command joins from phase 1.
+The last command joins from task 1.
 
 ## Windows runs
 
-Windows runs from this checkout through WSL interop, so a phase is proven on the
+Windows runs from this checkout through WSL interop, so a task is proven on the
 platform carrying the defect without waiting for CI. Docker runs in WSL only, so
 the Linux side produces the application archive and the Windows side consumes it.
 
@@ -69,14 +69,14 @@ Confirmed present on the Windows side:
 
 A rebuild reuses that work directory.
 
-Phases 1 and 2 repair defects that appear on Windows alone, so their cases must
-run there. Phases 3 to 6 change behaviour on every platform, and their Windows
+Tasks 1 and 2 repair defects that appear on Windows alone, so their cases must
+run there. Tasks 3 to 6 change behaviour on every platform, and their Windows
 run confirms the platform with the different separator and the different process
 model.
 
 ---
 
-## Phase 1: Icons render on Windows
+## Task 1: Icons render on Windows
 
 **User stories**: 1, 4, 5, 6, 22, 23, 24, 25
 
@@ -103,7 +103,6 @@ content.
       `//host/share/x.svg` and `php://input`, and an acceptance for `C:\x.svg`
       and `C:/x.svg`.
 - [ ] `python3 tests/conformance ./dist/drupack test-results/conformance WindowsPathCases.test_icons_carry_their_svg_content` passes.
-- [ ] That same case fails against a build without the provider registered.
 - [ ] `python tests/conformance dist\drupack.exe test-results\conformance WindowsPathCases.test_icons_carry_their_svg_content` passes on Windows.
 - [ ] That Windows case fails against the current release, proving it reaches the fault.
 - [ ] `cd packaging/launcher && go test ./...` exits 0.
@@ -112,7 +111,7 @@ content.
 
 ---
 
-## Phase 2: Addresses carry no disk path
+## Task 2: Addresses carry no disk path
 
 **User stories**: 2, 3, 4, 5, 6, 22, 23, 24, 25
 
@@ -120,7 +119,7 @@ content.
 
 A pure function that expresses an absolute application path relative to the
 application root, with forward slashes. A component discovery subclass calls it
-where core records a component directory. The provider from phase 1 registers
+where core records a component directory. The provider from task 1 registers
 that subclass too.
 
 Conformance assertions cover the rendered page: no address carries a drive
@@ -142,7 +141,7 @@ with a success status.
 
 ---
 
-## Phase 3: Public files leave the application directory
+## Task 3: Public files leave the application directory
 
 **User stories**: 18, 19, 20
 
@@ -153,7 +152,7 @@ base address. The server maps the public file address prefix onto Site data. The
 launcher stops linking settings and files into the application copy, and the
 application ships a settings file that includes the one in Site data.
 
-Extraction stays per-site in this phase.
+Extraction stays per-site in this task.
 
 ### Acceptance criteria
 
@@ -170,7 +169,7 @@ Extraction stays per-site in this phase.
 
 ---
 
-## Phase 4: One extraction per release
+## Task 4: One extraction per release
 
 **User stories**: 9, 10, 11, 12, 21
 
@@ -199,7 +198,7 @@ restart goes, along with the temporary directory redirection that required it.
 
 ---
 
-## Phase 5: The first start reports progress
+## Task 5: The first start reports progress
 
 **User stories**: 7, 8
 
@@ -220,7 +219,7 @@ A start that unpacks nothing prints no progress.
 
 ---
 
-## Phase 6: Old copies leave
+## Task 6: Old copies leave
 
 **User stories**: 13, 14, 15, 16, 17
 

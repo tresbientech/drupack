@@ -11,3 +11,4 @@
 .superpowers/
 .idea
 __pycache__/
+/test-results/
