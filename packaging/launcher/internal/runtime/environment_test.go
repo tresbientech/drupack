@@ -18,6 +18,20 @@ func lookup(env []string, name string) (string, bool) {
 	return "", false
 }
 
+// count returns how many entries of env name key, so a test can catch a
+// duplicate that os/exec would resolve to its last entry, silently
+// overriding a caller's own value on Windows.
+func count(env []string, key string) int {
+	prefix := key + "="
+	found := 0
+	for _, entry := range env {
+		if len(entry) > len(prefix) && entry[:len(prefix)] == prefix {
+			found++
+		}
+	}
+	return found
+}
+
 // A caller that already set PHPRC, the way a shell profile or another launcher
 // would, must still get the runtime directory: FrankenPHP resolves php.ini
 // through PHPRC, so a stale value here would load the wrong settings.
@@ -32,6 +46,11 @@ func TestEnvironmentPHPRCAlwaysNamesTheRuntimeDirectory(t *testing.T) {
 	}
 	if value != "/runtime/dir" {
 		t.Fatalf("PHPRC = %q, want the runtime directory %q", value, "/runtime/dir")
+	}
+	// os/exec resolves a duplicated key to its last entry: a second PHPRC
+	// hiding behind the caller's own would silently win on Windows.
+	if n := count(env, "PHPRC"); n != 1 {
+		t.Fatalf("PHPRC appears %d times in the built environment, want exactly 1", n)
 	}
 }
 
@@ -48,6 +67,12 @@ func TestEnvironmentDRUPACKCAFileKeepsACallersValue(t *testing.T) {
 	}
 	if value != "/proxy/bundle.pem" {
 		t.Fatalf("DRUPACK_CA_FILE = %q, want the caller's own bundle %q", value, "/proxy/bundle.pem")
+	}
+	// An implementation that keeps the caller's entry and also appends the
+	// bundled one would pass the check above while breaking the override on
+	// Windows, where os/exec resolves a duplicate to its last entry.
+	if n := count(env, "DRUPACK_CA_FILE"); n != 1 {
+		t.Fatalf("DRUPACK_CA_FILE appears %d times in the built environment, want exactly 1", n)
 	}
 }
 
