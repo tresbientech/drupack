@@ -30,7 +30,7 @@ func Environment(directory string, parent []string) []string {
 	}
 	env = append(env, "PHPRC="+directory)
 	if !callerSetCAFile {
-		env = append(env, "DRUPACK_CA_FILE="+filepath.Join(directory, caFileName))
+		env = append(env, "DRUPACK_CA_FILE="+Canonical(filepath.Join(directory, caFileName)))
 	}
 	return env
 }
