@@ -22,12 +22,17 @@ tar "${archive_options[@]}" \
     --exclude='./web/modules/contrib/project_browser/sveltejs/src' \
     --exclude='./web/modules/contrib/project_browser/sveltejs/scripts' \
     --exclude='./vendor/html2text/html2text/test' \
-    -cf app.tar -C /app .
-tar "${archive_options[@]}" --no-recursion -rf app.tar -C /app \
+    -cf app-payload.tar -C /app .
+tar "${archive_options[@]}" --no-recursion -rf app-payload.tar -C /app \
     ./web/modules/contrib/canvas/ui/src \
     ./web/modules/contrib/canvas/ui/src/local_packages \
     ./web/modules/contrib/canvas/ui/src/local_packages/hyperscriptify \
     ./web/modules/contrib/canvas/ui/src/local_packages/hyperscriptify/LICENSE
+# The launcher carries the application and unpacks it once per release, so the server
+# embeds nothing. frankenphp's embed.go still needs the file to exist, and its init
+# returns early on an empty one, which leaves EmbeddedAppPath unset.
+: > app.tar
+
 php_config=/go/src/app/dist/static-php-cli/buildroot/bin/php-config
 frankenphp_version=1.12.7
 export CGO_ENABLED=1

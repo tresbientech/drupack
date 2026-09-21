@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/klauspost/compress/zstd"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
@@ -26,6 +29,12 @@ var payload []byte
 
 //go:embed manifest.json
 var manifestData []byte
+
+//go:embed app.tar.zst
+var appPayload []byte
+
+//go:embed app_checksum.txt
+var appChecksum []byte
 `
 
 func main() {
@@ -41,13 +50,17 @@ func run() error {
 	entry := flag.String("entry", "", "entry file, relative to -runtime")
 	source := flag.String("source", "", "launcher source directory")
 	output := flag.String("output", "", "path for the built launcher")
+	app := flag.String("app", "", "application tar to carry")
+	appChecksum := flag.String("app-checksum", "", "file holding the application checksum")
 	flag.Parse()
 	if err := requireFlags(map[string]string{
-		"runtime": *runtimeDir,
-		"version": *version,
-		"entry":   *entry,
-		"source":  *source,
-		"output":  *output,
+		"runtime":      *runtimeDir,
+		"version":      *version,
+		"entry":        *entry,
+		"source":       *source,
+		"output":       *output,
+		"app":          *app,
+		"app-checksum": *appChecksum,
 	}); err != nil {
 		return err
 	}
@@ -64,6 +77,9 @@ func run() error {
 	defer os.RemoveAll(build)
 
 	if err := writeBuildCopy(build, *source, payload, manifest); err != nil {
+		return err
+	}
+	if err := writeAppPayload(build, *app, *appChecksum); err != nil {
 		return err
 	}
 
@@ -110,6 +126,42 @@ func writeBuildCopy(build, source string, payload []byte, manifest runtime.Manif
 		return err
 	}
 	return os.WriteFile(filepath.Join(build, "payload.go"), []byte(embeddedPayload), 0600)
+}
+
+// writeAppPayload compresses the application tar into the build copy, beside
+// the checksum that names its cache entry.
+func writeAppPayload(build, archive, checksumFile string) error {
+	raw, err := os.Open(archive)
+	if err != nil {
+		return err
+	}
+	defer raw.Close()
+	out, err := os.OpenFile(filepath.Join(build, "app.tar.zst"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	}
+	compressor, err := zstd.NewWriter(out, zstd.WithEncoderLevel(zstd.SpeedBestCompression))
+	if err != nil {
+		out.Close()
+		return err
+	}
+	if _, err := io.Copy(compressor, raw); err != nil {
+		compressor.Close()
+		out.Close()
+		return err
+	}
+	if err := compressor.Close(); err != nil {
+		out.Close()
+		return err
+	}
+	if err := out.Close(); err != nil {
+		return err
+	}
+	checksum, err := os.ReadFile(checksumFile)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(build, "app_checksum.txt"), bytes.TrimSpace(checksum), 0600)
 }
 
 func buildLauncher(build, output string) error {

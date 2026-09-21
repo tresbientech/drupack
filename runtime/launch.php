@@ -736,7 +736,7 @@ try {
     $logPath = "$data/logs/caddy.log";
     putenv("DRUPACK_RUNTIME_LOG_PATH=$logPath");
     $runtime = realpath("$data/runtime");
-    // FrankenPHP extracts the embedded application under the process temporary directory.
+    // Caddy state and every temporary file stay beside the site they belong to.
     putenv("TMPDIR=$runtime");
     putenv("TEMP=$runtime");
     putenv("TMP=$runtime");
@@ -757,22 +757,6 @@ try {
             putenv("$environment={$options[$option]}");
         }
     }
-    // FrankenPHP extracts before CLI parsing; re-execute once to obtain a site-specific application root.
-    if (dirname(__DIR__) !== $runtime) {
-        if (environment('DRUPACK_RUNTIME_RESTARTED') === '1') {
-            throw new RuntimeException("The embedded application did not move under $runtime");
-        }
-        putenv('DRUPACK_RUNTIME_RESTARTED=1');
-        $arguments = ['--data-dir', $data, '--listen', $options['listen'], '--host', $options['host']];
-        if ($options['no-browser'] !== null) {
-            $arguments[] = '--no-browser';
-        }
-        if ($drush) {
-            $arguments = array_merge(['dr'], $arguments, $command);
-        }
-        replaceProcess($binary, $arguments, $runtime, 'Cannot restart the embedded runtime');
-    }
-
     // Asked before the listener record and every install step, so a taken port costs
     // nothing and reaches its reader as a sentence rather than a bind error.
     if (!$drush) {

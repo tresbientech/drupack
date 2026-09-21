@@ -37,7 +37,7 @@ COPY packaging/launcher /src/launcher
 RUN export CGO_ENABLED=0 \
     && mkdir -p /packed \
     && cd /src/launcher \
-    && go run ./cmd/pack -runtime /out -entry drupack -version "${DRUPACK_VERSION:-dev}" -source /src/launcher -output /packed/drupack
+    && go run ./cmd/pack -runtime /out -entry drupack -version "${DRUPACK_VERSION:-dev}" -source /src/launcher -output /packed/drupack -app /go/src/app/app-payload.tar -app-checksum /go/src/app/app_checksum.txt
 
 FROM scratch AS artifact
 COPY --from=packed /packed/drupack /drupack

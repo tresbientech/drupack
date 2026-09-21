@@ -128,7 +128,23 @@ func init() {
 	if err := os.Setenv("DRUPACK_RUNTIME_BINARY", executable); err != nil {
 		panic(err)
 	}
-	launchScript := filepath.Join(frankenphp.EmbeddedAppPath, "launch.php")
+	// The launcher unpacks the application once per release and names its
+	// directory here. Every relative path the site resolves starts from it.
+	application := os.Getenv("DRUPACK_RUNTIME_APP_DIR")
+	if application == "" {
+		application = frankenphp.EmbeddedAppPath
+	}
+	// A build step runs this binary on its own to read its version, with no
+	// launcher to name a directory and no embedded application to fall back to.
+	if application != "" {
+		// php-server reads the application's Caddyfile and php.ini only through this
+		// variable. The embedded archive is empty, so its own init left it unset.
+		frankenphp.EmbeddedAppPath = application
+		if err := os.Chdir(application); err != nil {
+			panic(err)
+		}
+	}
+	launchScript := filepath.Join(application, "launch.php")
 	if len(os.Args) > 1 && os.Args[1] == "dr" {
 		if err := os.Setenv("DRUPACK_RUNTIME_DRUSH", "1"); err != nil {
 			panic(err)

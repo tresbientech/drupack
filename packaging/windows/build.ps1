@@ -104,7 +104,9 @@ $vcpkgInstalled = Join-Path $frankenphp 'vcpkg_installed'
 & (Join-Path $vcpkg 'vcpkg.exe') install --vcpkg-root=$vcpkg --x-manifest-root=$frankenphp --x-install-root=$vcpkgInstalled --triplet=x64-windows --disable-metrics
 $vcpkgRoot = Join-Path $vcpkgInstalled 'x64-windows'
 
-Copy-Item (Join-Path $ApplicationDirectory 'app.tar') (Join-Path $frankenphp 'app.tar')
+# The launcher carries the application, so the server embeds an empty archive. Its
+# embed directive still needs the file to exist.
+Set-Content -Path (Join-Path $frankenphp 'app.tar') -Value $null -NoNewline
 Copy-Item (Join-Path $ApplicationDirectory 'app_checksum.txt') (Join-Path $frankenphp 'app_checksum.txt')
 Copy-Item (Join-Path $PSScriptRoot '..\entrypoint.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack.go')
 
@@ -149,7 +151,7 @@ $launcherSource = (Resolve-Path (Join-Path $PSScriptRoot '..\launcher')).Path
 $env:CGO_ENABLED = '0'
 Push-Location $launcherSource
 try {
-  go run ./cmd/pack -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $outputPath
+  go run ./cmd/pack -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $outputPath -app (Join-Path $ApplicationDirectory 'app.tar') -app-checksum (Join-Path $ApplicationDirectory 'app_checksum.txt')
 } finally {
   Pop-Location
 }

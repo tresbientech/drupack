@@ -31,6 +31,15 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	application, err := runtime.PrepareApp(root, string(appChecksum), appPayload, os.Stderr)
+	if err != nil {
+		return err
+	}
+	// The server resolves the site from its working directory, which the entry
+	// point sets from this variable once it starts.
+	if err := os.Setenv("DRUPACK_RUNTIME_APP_DIR", application); err != nil {
+		return err
+	}
 	// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.
 	return launch(filepath.Join(directory, m.Entry), os.Args)
 }
