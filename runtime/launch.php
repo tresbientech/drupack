@@ -649,6 +649,17 @@ function removeRecipeModules(string $binary): void
     }
 }
 
+// What each initialization step tells the person waiting. A first start spends minutes
+// inside one of these, and prints nothing else until the site answers.
+const STEP_REPORTS = [
+    'seed' => 'Copying the packaged site into Site data',
+    'settings' => 'Writing the site settings',
+    'install' => 'Installing the site',
+    'modules' => 'Enabling the site modules',
+    'administrator' => 'Creating the administrator account',
+    'adopt' => 'Adopting the site already in Site data',
+];
+
 function runStep(string $step, string $data, array $options, string $binary): void
 {
     switch ($step) {
@@ -698,7 +709,9 @@ function initialize(string $data, array $steps, array $options, string $binary):
         return;
     }
     writeProgress($data, $steps);
+    $total = count($steps);
     foreach ($steps as $index => $step) {
+        fwrite(STDOUT, sprintf("[%d/%d] %s\n", $index + 1, $total, STEP_REPORTS[$step]));
         runStep($step, $data, $options, $binary);
         writeProgress($data, array_slice($steps, $index + 1));
     }

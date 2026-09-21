@@ -147,6 +147,15 @@ class FirstStartAndListener(harness.ConformanceCase):
         site.start(data, "--admin-user", "init-admin", "--admin-password", PASSWORD)
         try:
             assert_marker(self, data)
+            # A first start spends minutes inside these steps and prints nothing else
+            # until the site answers, so each one names itself as it runs.
+            started = site.log_path.read_text(errors="replace")
+            for report in (
+                "[1/3] Copying the packaged site into Site data",
+                "[2/3] Writing the site settings",
+                "[3/3] Creating the administrator account",
+            ):
+                self.assertIn(report, started, "a first start reported no progress")
             self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), DEFAULT_SITE_NAME)
             assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
             # site.start() already got its own 200 from /user/login; the launcher's separate
