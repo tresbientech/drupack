@@ -67,6 +67,10 @@ CGO_ENABLED=1 CGO_CFLAGS="$php_includes -DFRANKENPHP_VERSION=$frankenphp_version
     -o "$runtime/$entry"
 "$runtime/$entry" version
 
+# php.ini and the trust bundle ride beside the entry executable, where PHPRC
+# names them at every hop.
+cp "$repository/runtime/php.ini" "$repository/runtime/cacert.pem" "$runtime/"
+
 # The subshell keeps the packer's build inside the launcher module, off this FrankenPHP checkout.
 (cd "$repository/packaging/launcher" \
   && go run ./cmd/pack -runtime "$runtime" -entry "$entry" \

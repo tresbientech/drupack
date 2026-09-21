@@ -48,7 +48,7 @@ echo json_encode([
 class RuntimeConfiguration(harness.ConformanceCase):
     """The shipped php.ini and trust bundle, probed with no site started."""
 
-    PLATFORMS = (harness.LINUX, harness.WINDOWS)
+    PLATFORMS = (harness.LINUX, harness.WINDOWS, harness.MACOS)
 
     @classmethod
     def setUpClass(cls):
