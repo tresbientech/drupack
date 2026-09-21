@@ -3,8 +3,11 @@ package runtime
 import (
 	"bytes"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestProgressReportsEachStep reads a payload in pieces and checks that the
@@ -53,5 +56,71 @@ func TestProgressLastNamesTheTotal(t *testing.T) {
 	reports := strings.Split(strings.TrimSuffix(notice.String(), "\n"), "\n")
 	if got, want := reports[len(reports)-1], "  15 of 15 MB"; got != want {
 		t.Errorf("last report is %q, wanted %q", got, want)
+	}
+}
+
+// unpackedApp builds an application directory with the two markers a finished
+// unpacking leaves, dated used days ago.
+func unpackedApp(t *testing.T, appRoot, name string, used time.Duration) string {
+	t.Helper()
+	path := filepath.Join(appRoot, name)
+	if err := os.MkdirAll(path, 0700); err != nil {
+		t.Fatalf("could not build %s: %v", path, err)
+	}
+	for _, marker := range []string{completeName, usedName} {
+		if err := os.WriteFile(filepath.Join(path, marker), nil, 0600); err != nil {
+			t.Fatalf("could not write %s: %v", marker, err)
+		}
+	}
+	stamp := time.Now().Add(-used)
+	if err := os.Chtimes(filepath.Join(path, usedName), stamp, stamp); err != nil {
+		t.Fatalf("could not date %s: %v", path, err)
+	}
+	return path
+}
+
+func TestSweepRemovesTheUnusedAndKeepsTheRest(t *testing.T) {
+	appRoot := t.TempDir()
+	stale := unpackedApp(t, appRoot, "stale", 31*24*time.Hour)
+	fresh := unpackedApp(t, appRoot, "fresh", 29*24*time.Hour)
+	running := unpackedApp(t, appRoot, "running", 400*24*time.Hour)
+	staging := filepath.Join(appRoot, stagingPrefix+"abandoned")
+	if err := os.MkdirAll(staging, 0700); err != nil {
+		t.Fatalf("could not build the staging directory: %v", err)
+	}
+
+	sweepApps(appRoot, "running", time.Now())
+
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Errorf("a directory unused for 31 days stayed")
+	}
+	if _, err := os.Stat(fresh); err != nil {
+		t.Errorf("a directory unused for 29 days went: %v", err)
+	}
+	if _, err := os.Stat(running); err != nil {
+		t.Errorf("the directory this start runs went: %v", err)
+	}
+	if _, err := os.Stat(staging); !os.IsNotExist(err) {
+		t.Errorf("an abandoned staging directory stayed")
+	}
+}
+
+// TestSweepDatesAnUnmarkedDirectory covers a release unpacked before this one
+// wrote markers, which has to survive its first sweep.
+func TestSweepDatesAnUnmarkedDirectory(t *testing.T) {
+	appRoot := t.TempDir()
+	unmarked := filepath.Join(appRoot, "unmarked")
+	if err := os.MkdirAll(unmarked, 0700); err != nil {
+		t.Fatalf("could not build %s: %v", unmarked, err)
+	}
+
+	sweepApps(appRoot, "running", time.Now())
+
+	if _, err := os.Stat(filepath.Join(unmarked, usedName)); err != nil {
+		t.Fatalf("the sweep left no marker: %v", err)
+	}
+	sweepApps(appRoot, "running", time.Now())
+	if _, err := os.Stat(unmarked); err != nil {
+		t.Errorf("a directory the sweep had just dated went: %v", err)
 	}
 }

@@ -54,14 +54,14 @@ packing step when it runs against the worktree. Export the tree instead, about
 ```sh
 docker build --target build -t drupack-build .
 container=$(docker create drupack-build)
-docker cp "$container:/go/src/app/app.tar" application/app.tar
+docker cp "$container:/go/src/app/app-payload.tar" application/app-payload.tar
 docker cp "$container:/go/src/app/app_checksum.txt" application/app_checksum.txt
 docker rm "$container"
 
 win=/mnt/c/Users/theno/AppData/Local/Temp/drupack-winsrc
 rm -rf "$win" && mkdir -p "$win/application"
 git archive HEAD | tar -x -C "$win"
-cp application/app.tar application/app_checksum.txt "$win/application/"
+cp application/app-payload.tar application/app_checksum.txt "$win/application/"
 ```
 
 Run the two PowerShell commands from that copy. PowerShell refuses `build.ps1`

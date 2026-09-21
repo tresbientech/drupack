@@ -5,8 +5,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/klauspost/compress/zstd"
 )
@@ -25,6 +28,13 @@ const megabyte = 1_000_000
 // progressReports is how many reports one unpacking writes before its last one.
 const progressReports = 10
 
+// usedName records the last start that ran an application directory. The sweep
+// reads its modification time.
+const usedName = ".used"
+
+// unusedFor is how long an application directory survives with no start using it.
+const unusedFor = 30 * 24 * time.Hour
+
 // AppRoot returns the directory holding unpacked applications under root.
 func AppRoot(root string) string {
 	return filepath.Join(root, appDirName)
@@ -42,9 +52,6 @@ func PrepareApp(root, checksum string, payload []byte, notice io.Writer) (string
 	}
 	appRoot := AppRoot(root)
 	entry := filepath.Join(appRoot, checksum)
-	if complete(entry) {
-		return entry, nil
-	}
 	if err := os.MkdirAll(appRoot, rootMode); err != nil {
 		return "", err
 	}
@@ -55,33 +62,148 @@ func PrepareApp(root, checksum string, payload []byte, notice io.Writer) (string
 	}
 	defer unlock()
 
-	// Another process may have finished while this one waited on the lock.
-	if complete(entry) {
-		return entry, nil
+	// Another process may have unpacked this release while this one waited on the lock.
+	if !complete(entry) {
+		fmt.Fprintf(notice, "Unpacking the Drupack application. This happens once for each release.\n")
+		if err := unpackApp(appRoot, entry, checksum, payload, notice); err != nil {
+			return "", err
+		}
 	}
+	if err := markUsed(entry); err != nil {
+		return "", err
+	}
+	sweepApps(appRoot, checksum, time.Now())
+	return entry, nil
+}
 
-	fmt.Fprintf(notice, "Unpacking the Drupack application. This happens once for each release.\n")
-
+// unpackApp writes the application into a staging directory and moves it to
+// entry once the completion marker is written, so a start interrupted halfway
+// leaves nothing a later start mistakes for a finished copy.
+func unpackApp(appRoot, entry, checksum string, payload []byte, notice io.Writer) error {
 	staging := filepath.Join(appRoot, stagingPrefix+checksum)
 	if err := os.RemoveAll(staging); err != nil {
-		return "", err
+		return err
 	}
 	if err := extractApp(staging, payload, notice); err != nil {
 		os.RemoveAll(staging)
-		return "", err
+		return err
 	}
 	if err := os.WriteFile(filepath.Join(staging, completeName), nil, 0600); err != nil {
 		os.RemoveAll(staging)
-		return "", err
+		return err
 	}
 	if err := os.RemoveAll(entry); err != nil {
-		return "", err
+		return err
 	}
 	if err := os.Rename(staging, entry); err != nil {
 		os.RemoveAll(staging)
-		return "", err
+		return err
 	}
-	return entry, nil
+	return nil
+}
+
+// markUsed dates the entry this start runs. Writing the file rather than
+// touching it keeps one call for a marker that may not exist yet.
+func markUsed(entry string) error {
+	return os.WriteFile(filepath.Join(entry, usedName), nil, 0600)
+}
+
+// sweepApps removes the application directories no start has used for
+// unusedFor, and the staging directories interrupted starts abandoned. It runs
+// under the application cache lock, so no live staging directory exists here.
+// A directory carrying no marker gets one, which dates a release unpacked
+// before this release wrote markers instead of removing it.
+func sweepApps(appRoot, keep string, now time.Time) {
+	entries, err := os.ReadDir(appRoot)
+	if err != nil {
+		return
+	}
+	for _, candidate := range entries {
+		name := candidate.Name()
+		if name == keep || !candidate.IsDir() {
+			continue
+		}
+		path := filepath.Join(appRoot, name)
+		if strings.HasPrefix(name, stagingPrefix) {
+			os.RemoveAll(path)
+			continue
+		}
+		info, err := os.Stat(filepath.Join(path, usedName))
+		if err != nil {
+			markUsed(path)
+			continue
+		}
+		if now.Sub(info.ModTime()) > unusedFor {
+			os.RemoveAll(path)
+		}
+	}
+}
+
+// CleanApps reports every unpacked application under root, with the space it
+// holds, and removes it unless dry names a listing alone. The release a reader
+// runs next unpacks again on its first start.
+func CleanApps(root string, dry bool, out io.Writer) error {
+	appRoot := AppRoot(root)
+	entries, err := os.ReadDir(appRoot)
+	if err != nil {
+		fmt.Fprintf(out, "No unpacked application in %s\n", appRoot)
+		return nil
+	}
+
+	unlock, err := lockRoot(appRoot)
+	if err != nil {
+		return fmt.Errorf("could not lock the application cache %s: %w", appRoot, err)
+	}
+	defer unlock()
+
+	var count int
+	var freed int64
+	for _, candidate := range entries {
+		if !candidate.IsDir() {
+			continue
+		}
+		path := filepath.Join(appRoot, candidate.Name())
+		size := directorySize(path)
+		fmt.Fprintf(out, "  %s  %d MB\n", candidate.Name(), size/megabyte)
+		if !dry {
+			if err := os.RemoveAll(path); err != nil {
+				return err
+			}
+		}
+		count++
+		freed += size
+	}
+	if dry {
+		fmt.Fprintf(out, "%d MB in %d unpacked %s. Run drupack clean to remove them.\n",
+			freed/megabyte, count, applicationWord(count))
+		return nil
+	}
+	fmt.Fprintf(out, "Removed %d unpacked %s, freeing %d MB.\n", count, applicationWord(count), freed/megabyte)
+	return nil
+}
+
+func applicationWord(count int) string {
+	if count == 1 {
+		return "application"
+	}
+	return "applications"
+}
+
+// directorySize adds up the file sizes under path. A file that disappears
+// while the walk runs counts nothing, which keeps a report from failing.
+func directorySize(path string) int64 {
+	var total int64
+	filepath.WalkDir(path, func(_ string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err == nil {
+			total += info.Size()
+		}
+		return nil
+	})
+	return total
 }
 
 // complete reports whether entry holds a fully unpacked application.

@@ -20,6 +20,7 @@ var version = "dev"
 
 const usage = `Usage: drupack [OPTIONS]
        drupack dr [OPTIONS] DRUSH_COMMAND
+       drupack clean [--dry-run]
 
 Options:
   --data-dir PATH            Site data directory, ./data by default
@@ -37,12 +38,18 @@ Options:
   --no-browser               Do not open a browser
   --version, --help
 
+Commands:
+  dr                         Run a Drush command against the site
+  clean                      Remove the unpacked applications from the cache.
+                             --dry-run lists them and removes nothing.
+
 Examples:
   drupack
   drupack --data-dir ./site --listen 127.0.0.1:9000
   drupack --admin-user admin --admin-password 'choose-a-password'
   drupack dr --data-dir ./site status
-  drupack dr --data-dir ./site user:login`
+  drupack dr --data-dir ./site user:login
+  drupack clean --dry-run`
 
 // openWhenReady waits for the site to answer at address, then reports readiness and opens
 // the browser on target when asked. The terminal keeps one readiness line even when no

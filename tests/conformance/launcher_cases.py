@@ -135,6 +135,30 @@ class ColdWarmStart(harness.ConformanceCase):
             "a warm start reported unpacking progress",
         )
 
+    def test_clean_lists_the_unpacked_application_then_removes_it(self):
+        code, out, err = run(self.case_dir, harness.BINARY, "cold", "--help", env=self.env)
+        self.assertEqual(code, 0, f"a cold start exited non-zero: inspect {err}")
+        applications = self.cache / "app"
+        self.assertEqual(
+            entry_count(applications), 1, "a cold start did not leave exactly one application"
+        )
+
+        code, out, err = run(self.case_dir, harness.BINARY, "dry", "clean", "--dry-run", env=self.env)
+        self.assertEqual(code, 0, f"a dry run exited non-zero: inspect {err}")
+        self.assertIn(
+            "Run drupack clean", out.read_text(errors="replace"),
+            f"a dry run did not say how to remove what it listed: inspect {out}",
+        )
+        self.assertEqual(entry_count(applications), 1, "a dry run removed an application")
+
+        code, out, err = run(self.case_dir, harness.BINARY, "clean", "clean", env=self.env)
+        self.assertEqual(code, 0, f"clean exited non-zero: inspect {err}")
+        self.assertIn(
+            "Removed 1 unpacked application", out.read_text(errors="replace"),
+            f"clean did not report what it removed: inspect {out}",
+        )
+        self.assertEqual(entry_count(applications), 0, "clean left an application behind")
+
 
 class InstalledSiteLauncherCases(harness.ConformanceCase):
     """Cases 4-6: dr, the serving process and SIGINT, against one installed site.

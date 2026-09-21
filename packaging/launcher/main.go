@@ -27,6 +27,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if len(os.Args) > 1 && os.Args[1] == "clean" {
+		dry, err := cleanArguments(os.Args[2:])
+		if err != nil {
+			return err
+		}
+		return runtime.CleanApps(root, dry, os.Stdout)
+	}
 	directory, err := runtime.Prepare(root, payload, m, os.Stderr)
 	if err != nil {
 		return err
@@ -42,4 +49,15 @@ func run() error {
 	}
 	// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.
 	return launch(filepath.Join(directory, m.Entry), os.Args)
+}
+
+// cleanArguments reads what follows the clean command, which a reader types.
+func cleanArguments(arguments []string) (bool, error) {
+	switch {
+	case len(arguments) == 0:
+		return false, nil
+	case len(arguments) == 1 && arguments[0] == "--dry-run":
+		return true, nil
+	}
+	return false, fmt.Errorf("clean takes --dry-run alone")
 }

@@ -2,12 +2,68 @@
 
 declare(strict_types=1);
 
+require __DIR__ . '/support/PreviousCopies.php';
+
+use Drupack\Support\PreviousCopies;
+
 function directory(string $path): void
 {
     // Another start can create the same directory between the check and the call.
     if (!is_dir($path) && !mkdir($path, 0700, true) && !is_dir($path)) {
         throw new RuntimeException("Cannot create directory: $path");
     }
+}
+
+// The previous layout unpacked the application into each site's runtime
+// directory, one copy per site. This release unpacks once per release into the
+// user cache, so those copies hold space no start reads.
+function removePreviousCopies(string $runtime): void
+{
+    $removed = 0;
+    $freed = 0;
+    foreach (PreviousCopies::under($runtime) as $copy) {
+        $freed += treeSize($copy);
+        removeTree($copy);
+        $removed++;
+    }
+    if ($removed === 0) {
+        return;
+    }
+    fwrite(STDOUT, sprintf(
+        "Removed %d application %s an earlier release left, freeing %d MB\n",
+        $removed,
+        $removed === 1 ? 'copy' : 'copies',
+        intdiv($freed, 1000000)
+    ));
+}
+
+function treeSize(string $path): int
+{
+    $total = 0;
+    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS)) as $file) {
+        $total += $file->getSize();
+    }
+    return $total;
+}
+
+// Drupal hardens a site directory to read-only, so the modes come back before
+// the entries go.
+function removeTree(string $path): void
+{
+    chmod($path, 0700);
+    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST) as $entry) {
+        if ($entry->isDir()) {
+            chmod($entry->getPathname(), 0700);
+        }
+    }
+    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST) as $entry) {
+        if ($entry->isDir()) {
+            rmdir($entry->getPathname());
+            continue;
+        }
+        unlink($entry->getPathname());
+    }
+    rmdir($path);
 }
 
 function windows(): bool
@@ -736,6 +792,7 @@ try {
     $logPath = "$data/logs/caddy.log";
     putenv("DRUPACK_RUNTIME_LOG_PATH=$logPath");
     $runtime = realpath("$data/runtime");
+    removePreviousCopies($runtime);
     // Caddy state and every temporary file stay beside the site they belong to.
     putenv("TMPDIR=$runtime");
     putenv("TEMP=$runtime");
