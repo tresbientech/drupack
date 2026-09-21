@@ -11,6 +11,7 @@ package runtime_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,7 +70,7 @@ func TestPrepareLockFailureFallsBackToActiveEntry(t *testing.T) {
 	if err := os.MkdirAll(entry, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := runtimepkg.Extract(entry, payload, installed); err != nil {
+	if err := runtimepkg.Extract(entry, payload, installed, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	contents, err := json.Marshal(installed)

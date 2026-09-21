@@ -126,14 +126,26 @@ class ColdWarmStart(harness.ConformanceCase):
             len(APPLICATION_PATTERN.findall(cold_err)), 1,
             "a cold start did not print exactly one application unpacking line",
         )
-        reports = PROGRESS_PATTERN.findall(cold_err)
-        self.assertGreaterEqual(
-            len(reports), 2, f"a cold start reported progress {len(reports)} times: inspect {err}"
-        )
-        totals = {total for _, total in reports}
-        self.assertEqual(len(totals), 1, f"the reports name different totals: {totals}")
-        read, total = reports[-1]
-        self.assertEqual(read, total, "the closing report does not name the whole payload")
+        # Both unpackings report, so each payload's reports are read on their own:
+        # the runtime's before the application line, the application's after it.
+        boundary = APPLICATION_PATTERN.search(cold_err)
+        streams = {
+            "runtime": PROGRESS_PATTERN.findall(cold_err[: boundary.start()]),
+            "application": PROGRESS_PATTERN.findall(cold_err[boundary.end() :]),
+        }
+        for name, reports in streams.items():
+            self.assertGreaterEqual(
+                len(reports), 2,
+                f"the {name} unpacking reported progress {len(reports)} times: inspect {err}",
+            )
+            totals = {total for _, total in reports}
+            self.assertEqual(
+                len(totals), 1, f"the {name} reports name different totals: {totals}"
+            )
+            read, total = reports[-1]
+            self.assertEqual(
+                read, total, f"the closing {name} report does not name the whole payload"
+            )
 
         code, out, err = run(self.case_dir, harness.BINARY, "warm", "--help", env=self.env)
         self.assertEqual(code, 0, f"a warm start exited non-zero: inspect {err}")

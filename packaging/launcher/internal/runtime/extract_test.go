@@ -1,6 +1,7 @@
 package runtime_test
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -19,7 +20,7 @@ func TestExtractRefusesUndeclaredEntry(t *testing.T) {
 	}
 
 	destination := t.TempDir()
-	err := runtimepkg.Extract(destination, payload, trimmed)
+	err := runtimepkg.Extract(destination, payload, trimmed, io.Discard)
 	if err == nil {
 		t.Fatal("expected an error for an undeclared payload entry")
 	}

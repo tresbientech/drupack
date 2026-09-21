@@ -14,18 +14,20 @@ import (
 // Extract unpacks payload, a zstd-compressed tar stream, into destination.
 // Every entry must be a regular file at a path m declares, and each file
 // streams straight from the decoder to disk, since a runtime file can run
-// several hundred megabytes decoded.
-func Extract(destination string, payload []byte, m Manifest) error {
+// several hundred megabytes decoded. It reports how far it has read to notice.
+func Extract(destination string, payload []byte, m Manifest, notice io.Writer) error {
 	declared := make(map[string]bool, len(m.Files))
 	for _, file := range m.Files {
 		declared[file.Path] = true
 	}
 
-	decoder, err := zstd.NewReader(bytes.NewReader(payload))
+	reports := newProgress(int64(len(payload)), notice)
+	decoder, err := zstd.NewReader(reports.reading(bytes.NewReader(payload)))
 	if err != nil {
 		return err
 	}
 	defer decoder.Close()
+	defer reports.last()
 
 	reader := tar.NewReader(decoder)
 	for {

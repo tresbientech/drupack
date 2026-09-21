@@ -21,13 +21,6 @@ const appDirName = "app"
 // file created, so a directory without it was interrupted and unpacks again.
 const completeName = ".complete"
 
-// megabyte is the unit progress reports name, decimal so the figures match the
-// size a file manager shows for the executable.
-const megabyte = 1_000_000
-
-// progressReports is how many reports one unpacking writes before its last one.
-const progressReports = 10
-
 // usedName records the last start that ran an application directory. The sweep
 // reads its modification time.
 const usedName = ".used"
@@ -232,13 +225,13 @@ func complete(entry string) bool {
 // than trusted: a crafted binary is a different problem, but a path outside
 // destination is refused here whatever produced it.
 func extractApp(destination string, payload []byte, notice io.Writer) error {
-	progress := &progress{total: int64(len(payload)), notice: notice}
-	decoder, err := zstd.NewReader(progress.reading(bytes.NewReader(payload)))
+	reports := newProgress(int64(len(payload)), notice)
+	decoder, err := zstd.NewReader(reports.reading(bytes.NewReader(payload)))
 	if err != nil {
 		return err
 	}
 	defer decoder.Close()
-	defer progress.last()
+	defer reports.last()
 
 	reader := tar.NewReader(decoder)
 	for {
@@ -288,58 +281,6 @@ func writeAppFile(path string, contents io.Reader, mode os.FileMode) error {
 		err = closeErr
 	}
 	return err
-}
-
-// progress reports how much of a payload an unpacking has read. Unpacking a
-// release takes long enough that a terminal showing nothing reads as a hang,
-// so the reports name a figure that keeps moving.
-type progress struct {
-	notice   io.Writer
-	total    int64
-	read     int64
-	reported int64
-}
-
-// reading returns source wrapped so every read counts toward the reports. A
-// payload under a megabyte unpacks faster than a reader reads one line, and
-// reporting it in megabytes would name zero throughout, so it gets none.
-func (p *progress) reading(source io.Reader) io.Reader {
-	if p.total < megabyte {
-		return source
-	}
-	return &countingReader{progress: p, source: source}
-}
-
-// advance counts n more bytes and reports once each step of the payload passes.
-func (p *progress) advance(n int) {
-	p.read += int64(n)
-	if p.read-p.reported >= p.total/progressReports {
-		p.reported = p.read
-		p.report(p.read)
-	}
-}
-
-// last names the whole payload, so the closing report matches the total even
-// when the final read fell short of a step.
-func (p *progress) last() {
-	if p.total >= megabyte && p.reported < p.total {
-		p.report(p.total)
-	}
-}
-
-func (p *progress) report(read int64) {
-	fmt.Fprintf(p.notice, "  %d of %d MB\n", read/megabyte, p.total/megabyte)
-}
-
-type countingReader struct {
-	progress *progress
-	source   io.Reader
-}
-
-func (c *countingReader) Read(buffer []byte) (int, error) {
-	n, err := c.source.Read(buffer)
-	c.progress.advance(n)
-	return n, err
 }
 
 // removeTree deletes path, restoring the modes on the way down. An application

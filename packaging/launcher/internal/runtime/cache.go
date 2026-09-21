@@ -88,7 +88,7 @@ func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string,
 
 	fmt.Fprintf(notice, "Unpacking Drupack %s. This happens once for each version.\n", m.Version)
 
-	name, err := stage(root, key, payload, m)
+	name, err := stage(root, key, payload, m, notice)
 	if err != nil {
 		return fallbackOrFail(root, m, stagingFailure(root, m, err), notice)
 	}
@@ -241,14 +241,14 @@ func stagingFailure(root string, m Manifest, err error) error {
 // names it as an entry. It returns that entry's name, which is key unless a
 // directory already holds that name. A checksum failure leaves the cache
 // untouched, since the naming happens only after every declared file verifies.
-func stage(root, key string, payload []byte, m Manifest) (string, error) {
+func stage(root, key string, payload []byte, m Manifest, notice io.Writer) (string, error) {
 	staging, err := os.MkdirTemp(root, key+stagingPrefix)
 	if err != nil {
 		return "", err
 	}
 	defer os.RemoveAll(staging)
 
-	if err := Extract(staging, payload, m); err != nil {
+	if err := Extract(staging, payload, m, notice); err != nil {
 		return "", err
 	}
 	if err := verifyChecksums(staging, m); err != nil {
