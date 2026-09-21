@@ -56,24 +56,14 @@ func Root() (string, error) {
 	return "", lastErr
 }
 
-// resolveASCIIRoot walks the rungs a Windows cache root needs before PHP
-// startup can locate it: phase 1 found PHP resolves its PHPRC-derived
-// configuration path through the ANSI code page, so a root it cannot
-// represent breaks extension loading. root is tried first, then fallback,
-// since both an account name Windows leaves in Unicode and a volume with
-// 8.3 name generation off leave root's own resolution non-ASCII. mkdir
-// creates each candidate, since Windows allocates a short name only for a
-// path that exists.
-//
-// A candidate already in ASCII is kept as-is, with no call to resolve: it is
-// already safe for PHP's ANSI code page, and asking Windows for its short
-// name would rewrite a long-but-ASCII segment too (an installed name like
-// "Drupack" survives untouched, but a longer one does not), which no reader
-// asked for. resolve, standing in for GetShortPathName, only runs on a
-// candidate the ASCII check has already rejected, so every rung runs under
-// test without calling Windows. Exhausting both candidates is a stop, not a
-// guess: a site missing its DLL extensions is worse than a start that
-// refuses.
+// resolveASCIIRoot returns the first candidate PHP startup can locate: root,
+// then fallback. PHP resolves its PHPRC-derived configuration path through the
+// ANSI code page, so a root outside that code page breaks extension loading.
+// mkdir runs first because Windows allocates a short name only for a path that
+// exists. A candidate already in ASCII is returned untouched, since resolve
+// also rewrites a long ASCII segment, which no reader asked for. Two exhausted
+// candidates stop the start: a site missing its extensions is worse than a
+// start that refuses.
 func resolveASCIIRoot(root, fallback string, mkdir func(string) error, resolve func(string) (string, error)) (string, error) {
 	for _, candidate := range []string{root, fallback} {
 		if err := mkdir(candidate); err != nil {

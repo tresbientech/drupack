@@ -138,6 +138,16 @@ status, the extension count, the log.
 - Linux and macOS. Neither shows the fault.
 - Any fix phase not yet written. Phase 1 produces the evidence that names them.
 
+## What the fix does not reach
+
+- A volume with 8.3 name creation disabled, where no candidate resolves to an
+  ASCII path. The start stops with a line naming the cache root and
+  `DRUPACK_CACHE_DIR`. Proven at the table-test level, not on such a volume:
+  the setting is volume wide on a shared machine.
+- PHP itself. The ANSI code page boundary in PHP startup stays where it is, so
+  a reader who points `DRUPACK_CA_FILE` or any other PHP path at a non-ASCII
+  location meets the same fault, and it fails silently.
+
 ## Further Notes
 
 - No reader has an installed site today, so nothing migrates. A fix may change

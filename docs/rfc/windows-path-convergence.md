@@ -149,6 +149,13 @@ For `CONTEXT.md` on the implementing branch:
 
 ## Out of scope: a non-ASCII cache root breaks the server
 
+Taken up as its own work: [docs/plans/ascii-cache-root.md](../plans/ascii-cache-root.md).
+The layer is PHP startup resolving its `PHPRC`-derived configuration path
+through the ANSI code page. The launcher now keeps the Windows cache root in
+ASCII, and an accented Latin, a Cyrillic and a CJK root each serve 200 with no
+extension load failure. The measurements below stand as the record of the
+fault.
+
 Found while measuring this RFC, on the dev build, Windows 11, 2026-09-21. It
 needs its own investigation and its own fix.
 
