@@ -45,6 +45,18 @@ echo json_encode([
 """
 
 
+def probe(case_dir, source, env=None):
+    """Write source as probe.php in case_dir and run it through the built executable's
+    php-cli subcommand. Returns the completed process, for the caller to assert and parse.
+    """
+    script = case_dir / "probe.php"
+    script.write_text(source)
+    return harness.run(
+        [str(harness.BINARY), "php-cli", str(script)], cwd=case_dir,
+        capture_output=True, text=True, timeout=harness.WAITS["php_cli"].seconds, env=env,
+    )
+
+
 class RuntimeConfiguration(harness.ConformanceCase):
     """The shipped php.ini and trust bundle, probed with no site started."""
 
@@ -61,12 +73,7 @@ class RuntimeConfiguration(harness.ConformanceCase):
         self.case_dir.mkdir(parents=True, exist_ok=True)
 
     def php_cli(self, source, env=None):
-        script = self.case_dir / "probe.php"
-        script.write_text(source)
-        result = harness.run(
-            [str(harness.BINARY), "php-cli", str(script)], cwd=self.case_dir,
-            capture_output=True, text=True, timeout=harness.WAITS["php_cli"].seconds, env=env,
-        )
+        result = probe(self.case_dir, source, env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
 
@@ -108,5 +115,36 @@ class RuntimeConfiguration(harness.ConformanceCase):
             SSL_CERT_DIR="/nonexistent/missing-ca-dir",
         )
         values = self.php_cli(FETCH_PROBE, env=env)
+        self.assertEqual(values["curl_errno"], 0, values)
+        self.assertEqual(values["http_status"], 200, values)
+
+
+class RuntimeTrustOnline(harness.ConformanceCase):
+    """Proves the shipped anchors verify a real endpoint, not only a file that parses.
+
+    No hijacked host trust store here: RuntimeConfiguration's own fetch case already
+    covers surviving one of those. This case runs with the environment a release start
+    actually gets, so a bundle truncated to one certificate is the only thing that can
+    turn it red.
+    """
+
+    PLATFORMS = (harness.LINUX, harness.WINDOWS, harness.MACOS)
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.class_dir = harness.RESULTS / cls.__name__
+        cls.class_dir.mkdir(parents=True, exist_ok=True)
+
+    def setUp(self):
+        self.case_dir = self.class_dir / self._testMethodName
+        self.case_dir.mkdir(parents=True, exist_ok=True)
+
+    def test_release_history_returns_200(self):
+        if harness.running_offline():
+            self.skipTest("no network inside the offline container")
+        result = probe(self.case_dir, FETCH_PROBE)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        values = json.loads(result.stdout)
         self.assertEqual(values["curl_errno"], 0, values)
         self.assertEqual(values["http_status"], 200, values)
