@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/support/PreviousCopies.php';
+require __DIR__ . '/vendor/autoload.php';
 
 use Drupack\Support\PreviousCopies;
+use Symfony\Component\Filesystem\Path;
 
 function directory(string $path): void
 {
@@ -90,17 +91,13 @@ function windows(): bool
     return PHP_OS_FAMILY === 'Windows';
 }
 
-function absolutePath(string $path): bool
-{
-    if (windows()) {
-        return (bool) preg_match('#^([A-Za-z]:[\\\\/]|[\\\\/])#', $path);
-    }
-    return str_starts_with($path, '/');
-}
-
 // realpath() returns the native form, backslashes included on Windows. Every path
 // Drupack exports or prints takes the canonical form instead, so a Windows reader's
 // terminal agrees with the forward slashes Drupal's own stack traces already carry.
+// Symfony's own Path::canonicalize() only converts on a host whose separator is
+// already backslash, which makes a table exercising the Windows case host-dependent;
+// this stays Drupack's own function for the same reason canonical.go takes its
+// separator as an argument.
 function canonical(string $path): string
 {
     return str_replace('\\', '/', $path);
@@ -112,10 +109,10 @@ function canonical(string $path): string
 function fromStartDirectory(string $path): string
 {
     $start = environment('DRUPACK_RUNTIME_CWD');
-    if ($start === null || absolutePath($path)) {
+    if ($start === null || Path::isAbsolute($path)) {
         return $path;
     }
-    return $start . DIRECTORY_SEPARATOR . $path;
+    return Path::makeAbsolute($path, $start);
 }
 
 function nullDevice(): string

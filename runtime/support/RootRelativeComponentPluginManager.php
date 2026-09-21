@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupack\Support;
 
 use Drupal\canvas\Plugin\ComponentPluginManager;
+use Symfony\Component\Filesystem\Path;
 
 /**
  * Rewrites a component's recorded directory relative to the application
@@ -23,7 +24,7 @@ class RootRelativeComponentPluginManager extends ComponentPluginManager {
    */
   protected function alterDefinition(array $definition): array {
     $definition = parent::alterDefinition($definition);
-    $definition['path'] = RootRelativePath::relativeTo($definition['path'], $this->appRoot);
+    $definition['path'] = Path::makeRelative($definition['path'], $this->appRoot);
     return $definition;
   }
 

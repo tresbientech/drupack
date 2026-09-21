@@ -1,6 +1,11 @@
 /drupal/vendor/
 /drupal/web/
 /drupal/recipes/
+# launch.php now requires vendor/autoload.php as a sibling, which only the
+# build's COPY into /app provides. A local run of the unit tests that touch
+# it (launch_test.php, site_data_public_stream.php) needs this symlinked to
+# drupal/vendor after a `composer install --working-dir=drupal`.
+/runtime/vendor
 /dist/
 /dist-phase1/
 /build/

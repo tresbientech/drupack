@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupack\Support;
 
 use Drupal\Core\StreamWrapper\PublicStream;
+use Symfony\Component\Filesystem\Path;
 
 /**
  * Public files stored in Site data, addressed as if they sat under the site.
@@ -58,10 +59,9 @@ final class SiteDataPublicStream extends PublicStream {
       return FALSE;
     }
     // A target that resolves outside public storage is refused, whatever
-    // produced it. The separator keeps a sibling directory whose name merely
+    // produced it. isBasePath() keeps a sibling directory whose name merely
     // starts with this one out.
-    if ($realpath !== $directory
-      && !str_starts_with($realpath, $directory . DIRECTORY_SEPARATOR)) {
+    if (!Path::isBasePath($directory, $realpath)) {
       return FALSE;
     }
     return $realpath;

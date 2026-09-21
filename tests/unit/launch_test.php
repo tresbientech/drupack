@@ -285,6 +285,18 @@ test('canonical rewrites backslashes as forward slashes', function (): void {
     same('/var/www/html', canonical('/var/www/html'), 'a path with no backslash comes back unchanged');
 });
 
+test('a relative data-dir resolves against the directory the reader started from', function (): void {
+    putenv('DRUPACK_RUNTIME_CWD=/reader/start');
+    same('/reader/start/data', fromStartDirectory('data'));
+    same('/x', fromStartDirectory('/x'), 'an absolute path is returned unchanged');
+    putenv('DRUPACK_RUNTIME_CWD');
+});
+
+test('a relative data-dir with no recorded start directory is returned unchanged', function (): void {
+    putenv('DRUPACK_RUNTIME_CWD');
+    same('./data', fromStartDirectory('./data'));
+});
+
 test('the site token hashes the path, lowercased on windows', function (): void {
     $data = '/Users/Ann/Site Data';
     same(hash('sha256', windows() ? strtolower($data) : $data), siteToken($data));
