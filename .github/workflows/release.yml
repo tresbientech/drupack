@@ -60,8 +60,16 @@ jobs:
 
       - name: Build the executable
         env:
-          DRUPACK_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
-        run: docker build --target artifact --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" --output type=local,dest=dist .
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ "$REF_TYPE" = tag ]; then
+            version=$REF_NAME
+          else
+            version="dev-${SHA:0:12}"
+          fi
+          docker build --target artifact --build-arg "DRUPACK_VERSION=$version" --output type=local,dest=dist .
           
       - name: Report the free space after the build
         run: df -h /
@@ -172,8 +180,16 @@ jobs:
 
       - name: Build the executable
         env:
-          RUNTIME_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
-        run: ./packaging/windows/build.ps1 -ApplicationDirectory application -Version $env:RUNTIME_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupack.exe
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          if ($env:REF_TYPE -eq 'tag') {
+            $version = $env:REF_NAME
+          } else {
+            $version = "dev-$($env:SHA.Substring(0,12))"
+          }
+          ./packaging/windows/build.ps1 -ApplicationDirectory application -Version $version -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupack.exe
 
       - name: Run the conformance suite
         run: python tests/conformance dist\drupack.exe test-results\conformance
@@ -234,8 +250,16 @@ jobs:
         env:
           # static-php-cli reads library releases from the GitHub API, which rate-limits anonymous requests.
           GITHUB_TOKEN: ${{ github.token }}
-          DRUPACK_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
-        run: bash packaging/macos/build.sh application "$RUNNER_TEMP/drupack" dist/drupack
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ "$REF_TYPE" = tag ]; then
+            version=$REF_NAME
+          else
+            version="dev-${SHA:0:12}"
+          fi
+          DRUPACK_VERSION=$version bash packaging/macos/build.sh application "$RUNNER_TEMP/drupack" dist/drupack
 
       # Saved before the tests, so a failed test does not repeat the PHP build.
       - uses: actions/cache/save@v6
