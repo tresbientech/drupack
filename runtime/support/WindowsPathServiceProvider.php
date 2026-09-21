@@ -20,6 +20,7 @@ class WindowsPathServiceProvider implements ServiceModifierInterface {
    */
   public function alter(ContainerBuilder $container) {
     $container->getDefinition(IconFinder::class)->setClass(DriveLetterIconFinder::class);
+    $container->getDefinition('stream_wrapper.public')->setClass(SiteDataPublicStream::class);
     // This provider runs on every compile, including the ones before
     // site:install has made Canvas active, when Drupal has not yet
     // registered its namespace and RootRelativeComponentPluginManager's

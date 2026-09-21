@@ -6,8 +6,10 @@ $data = getenv('DRUPACK_RUNTIME_DATA_DIR');
 $databases['default']['default'] = __DRUPACK_DATABASE_CONFIGURATION__;
 $settings['hash_salt'] = file_get_contents($data . '/hash_salt');
 $settings['config_sync_directory'] = $data . '/config';
-$settings['file_public_path'] = $data . '/files';
-$settings['file_public_base_url'] = '/sites/default/files';
+// The address, not the directory: SiteDataPublicStream resolves it into Site
+// data, so a page carries a root-relative address for a file the application
+// never holds.
+$settings['file_public_path'] = 'sites/default/files';
 $settings['file_private_path'] = $data . '/private';
 $settings['file_temp_path'] = $data . '/tmp';
 $settings['update_free_access'] = FALSE;

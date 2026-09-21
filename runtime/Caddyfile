@@ -92,9 +92,18 @@ http://:{$DRUPACK_RUNTIME_PORT} {
 		# Public files live in Site data, never under the application, which one release
 		# shares across sites. The address stays root-relative, so it survives a restart
 		# on another port.
-		handle_path /sites/default/files/* {
-			root * "{$DRUPACK_RUNTIME_DATA_DIR}/files"
-			file_server
+		route /sites/default/files/* {
+			root * "{$DRUPACK_RUNTIME_DATA_DIR}"
+			# Site data holds public files under "files", which the site addresses
+			# as "sites/default/files".
+			uri strip_prefix /sites/default
+			@stored file
+			file_server @stored
+			# An image style derivative exists only once the site has generated
+			# it. A request finding no file carries on to the site, under the
+			# address the reader asked for.
+			@absent not file
+			uri @absent replace /files /sites/default/files 1
 		}
 		php_server {
 			root web
