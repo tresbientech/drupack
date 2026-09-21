@@ -144,7 +144,7 @@ func TestPrepareConcurrentCallsAgreeAndLeaveNoStaging(t *testing.T) {
 	}
 }
 
-func TestPrepareChecksumMismatchFallsBackToActiveEntry(t *testing.T) {
+func TestPrepareChecksumMismatchLeavesTheActiveEntryUntouched(t *testing.T) {
 	payload, manifest := buildFixture(t)
 	root := t.TempDir()
 
@@ -155,51 +155,6 @@ func TestPrepareChecksumMismatchFallsBackToActiveEntry(t *testing.T) {
 	appPath := filepath.Join(entry, "bin", "app")
 	original, err := os.ReadFile(appPath)
 	if err != nil {
-		t.Fatal(err)
-	}
-
-	tampered := manifest
-	tampered.Files = append([]runtimepkg.File(nil), manifest.Files...)
-	tampered.Files[0].SHA256 = "0000000000000000000000000000000000000000000000000000000000000000"
-
-	// tampered keys to the same entry that is already active, so the failed
-	// restage falls back to it instead of returning an error.
-	var notice bytes.Buffer
-	again, err := runtimepkg.Prepare(root, payload, tampered, &notice)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if again != entry {
-		t.Fatalf("fallback returned %q, want the existing entry %q", again, entry)
-	}
-	if !strings.Contains(notice.String(), "Using the runtime already in the cache.") {
-		t.Fatalf("notice did not explain the fallback: %q", notice.String())
-	}
-
-	unchanged, err := os.ReadFile(appPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(unchanged) != string(original) {
-		t.Fatal("the existing entry changed after a checksum mismatch")
-	}
-}
-
-func TestPrepareChecksumMismatchWithNoFallbackLeavesEntryUntouched(t *testing.T) {
-	payload, manifest := buildFixture(t)
-	root := t.TempDir()
-
-	entry, err := runtimepkg.Prepare(root, payload, manifest, io.Discard)
-	if err != nil {
-		t.Fatal(err)
-	}
-	appPath := filepath.Join(entry, "bin", "app")
-	original, err := os.ReadFile(appPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Without the active file there is no fallback, so the staging error stands.
-	if err := os.Remove(filepath.Join(root, "active")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -208,7 +163,15 @@ func TestPrepareChecksumMismatchWithNoFallbackLeavesEntryUntouched(t *testing.T)
 	tampered.Files[0].SHA256 = "0000000000000000000000000000000000000000000000000000000000000000"
 
 	if _, err := runtimepkg.Prepare(root, payload, tampered, io.Discard); err == nil {
-		t.Fatal("a checksum mismatch with no fallback returned no error")
+		t.Fatal("a checksum mismatch returned no error")
+	}
+	active, err := os.ReadFile(filepath.Join(root, "active"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(active)) != filepath.Base(entry) {
+		t.Fatalf("active names %q after a failed restage, want %q",
+			strings.TrimSpace(string(active)), filepath.Base(entry))
 	}
 
 	unchanged, err := os.ReadFile(appPath)
@@ -217,34 +180,6 @@ func TestPrepareChecksumMismatchWithNoFallbackLeavesEntryUntouched(t *testing.T)
 	}
 	if string(unchanged) != string(original) {
 		t.Fatal("the existing entry changed after a checksum mismatch")
-	}
-}
-
-func TestActiveFallbackRefusesAnEditedEntry(t *testing.T) {
-	payload, manifest := buildFixture(t)
-	root := t.TempDir()
-
-	entry, err := runtimepkg.Prepare(root, payload, manifest, io.Discard)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Same length, different bytes, so a size check would still call it warm.
-	appPath := filepath.Join(entry, "bin", "app")
-	original, err := os.ReadFile(appPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	edited := make([]byte, len(original))
-	copy(edited, original)
-	edited[0] ^= 0xff
-	if err := os.WriteFile(appPath, edited, 0700); err != nil {
-		t.Fatal(err)
-	}
-
-	other := manifest
-	other.Version = "9.9.9"
-	if _, err := runtimepkg.Prepare(root, []byte("not a zstd stream"), other, io.Discard); err == nil {
-		t.Fatal("an edited entry was accepted as the fallback")
 	}
 }
 
@@ -352,7 +287,9 @@ func TestPrepareSecondVersionRemovesFirstVersionEntry(t *testing.T) {
 	}
 }
 
-func TestPrepareFallsBackToActiveEntryWhenPayloadDoesNotDecode(t *testing.T) {
+// A release whose runtime does not unpack cannot run on the release already in the
+// cache: the application beside it belongs to the release that failed.
+func TestPrepareRefusesAPayloadThatDoesNotDecodeAndKeepsTheActiveEntry(t *testing.T) {
 	payload, installed := buildFixture(t)
 	root := t.TempDir()
 
@@ -363,19 +300,18 @@ func TestPrepareFallsBackToActiveEntryWhenPayloadDoesNotDecode(t *testing.T) {
 
 	broken := installed
 	broken.Version = "2.0.0"
-	var notice bytes.Buffer
-	entry, err := runtimepkg.Prepare(root, []byte("not a zstd frame"), broken, &notice)
+	if _, err := runtimepkg.Prepare(root, []byte("not a zstd frame"), broken, io.Discard); err == nil {
+		t.Fatal("a payload that does not decode returned no error")
+	}
+	if _, err := os.Stat(filepath.Join(activeEntry, "bin", "app")); err != nil {
+		t.Fatalf("the active entry did not survive the failed stage: %v", err)
+	}
+	active, err := os.ReadFile(filepath.Join(root, "active"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if entry != activeEntry {
-		t.Fatalf("fallback returned %q, want the active entry %q", entry, activeEntry)
-	}
-	if !strings.Contains(notice.String(), "Could not unpack Drupack 2.0.0") {
-		t.Fatalf("notice did not name the failed version: %q", notice.String())
-	}
-	if !strings.Contains(notice.String(), "Using the runtime already in the cache.") {
-		t.Fatalf("notice did not explain the fallback: %q", notice.String())
+	if strings.TrimSpace(string(active)) != filepath.Base(activeEntry) {
+		t.Fatalf("active names %q, want %q", strings.TrimSpace(string(active)), filepath.Base(activeEntry))
 	}
 }
 

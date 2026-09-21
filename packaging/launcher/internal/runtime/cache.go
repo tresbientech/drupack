@@ -25,6 +25,11 @@ const stagingPrefix = ".staging-"
 const activeName = "active"
 const lockName = "lock"
 
+// usageName lives inside one entry, runtime or application, and carries the
+// lock a running start holds on the files it serves from. Cleanup tests it
+// before removing anything.
+const usageName = ".inuse"
+
 // Root returns the cache directory a runtime unpacks into, creating it. A
 // user-named directory that refuses writes is reported, never silently
 // swapped for another; an unnamed one falls back from the user cache
@@ -129,9 +134,9 @@ func Key(version string, payload []byte) string {
 
 // Prepare returns the directory holding the runtime m describes, staging
 // payload into root's cache the first time m's version and payload are seen.
-// Activating a newly staged key removes every other version's entry. A
-// staging failure falls back to root's active entry, when that entry is
-// still warm for its own manifest.
+// Activating a newly staged key removes every other version's entry. A start
+// that cannot stage the runtime it carries reports the failure and stops,
+// since the application beside it belongs to this release alone.
 func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string, error) {
 	key := Key(m.Version, payload)
 
@@ -141,9 +146,7 @@ func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string,
 
 	unlock, err := lockRoot(root)
 	if err != nil {
-		// A stuck holder must not wedge every later start, so a lock failure
-		// takes the same fallback as a staging failure.
-		return fallbackOrFail(root, m, fmt.Errorf("could not lock the runtime cache %s: %w", root, err), notice)
+		return "", fmt.Errorf("could not lock the runtime cache %s: %w", root, err)
 	}
 	defer unlock()
 
@@ -156,7 +159,7 @@ func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string,
 
 	name, err := stage(root, key, payload, m, notice)
 	if err != nil {
-		return fallbackOrFail(root, m, stagingFailure(root, m, err), notice)
+		return "", stagingFailure(root, m, err)
 	}
 	if err := writeActive(root, name); err != nil {
 		return "", err
@@ -180,19 +183,6 @@ func warmEntry(root, key string, m Manifest) (string, bool) {
 		return entry, true
 	}
 	return "", false
-}
-
-// fallbackOrFail is Prepare's recovery when reason, a lock or a staging
-// failure, stops it from returning a freshly prepared entry. It reports
-// root's active entry when that entry still verifies, writing why the fresh
-// attempt did not run; otherwise it returns reason.
-func fallbackOrFail(root string, m Manifest, reason error, notice io.Writer) (string, error) {
-	fallbackEntry, ok := activeFallback(root)
-	if !ok {
-		return "", reason
-	}
-	fmt.Fprintf(notice, "Could not unpack Drupack %s: %s. Using the runtime already in the cache.\n", m.Version, reason)
-	return fallbackEntry, nil
 }
 
 // warm reports whether entry already holds the runtime m describes: its
@@ -234,8 +224,9 @@ func sizesMatch(entry string, m Manifest) bool {
 // holds the reader's own files, so a directory goes only when it carries a
 // manifest this program wrote, or when it is a staging directory an
 // interrupted run abandoned. Staging runs under the root lock, so no live one
-// exists here. A removal failure reports nothing, because the next start
-// retries.
+// exists here. An entry another start still serves from stays, since removing
+// it would pull PHP files out from under a running site. A removal failure
+// reports nothing, because the next start retries.
 func removeOthers(root, key string) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -251,31 +242,12 @@ func removeOthers(root, key string) {
 			if _, err := readManifest(path); err != nil {
 				continue
 			}
+			if entryInUse(path) {
+				continue
+			}
 		}
 		os.RemoveAll(path)
 	}
-}
-
-// activeFallback returns the cache entry root's active file names, when its
-// files still hash to what its own manifest declares. That manifest, not the
-// one Prepare was asked to stage, is the authority here, since a fallback
-// entry's version differs from the embedded one. A warm start compares sizes
-// alone, but this path is about to run a runtime the build cannot vouch for,
-// so it hashes every file. The cost lands only when staging has failed.
-func activeFallback(root string) (string, bool) {
-	key, err := activeKey(root)
-	if err != nil {
-		return "", false
-	}
-	entry := filepath.Join(root, key)
-	stored, err := readManifest(entry)
-	if err != nil {
-		return "", false
-	}
-	if err := verifyChecksums(entry, stored); err != nil {
-		return "", false
-	}
-	return entry, true
 }
 
 // activeKey returns the key root's active file names. The file lives in the

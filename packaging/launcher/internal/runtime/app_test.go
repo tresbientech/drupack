@@ -107,6 +107,39 @@ func TestSweepRemovesTheUnusedAndKeepsTheRest(t *testing.T) {
 	}
 }
 
+// A server that started more than unusedFor ago refreshes no timestamp, so the
+// sweep and the clean command both ask the entry itself whether a process holds it.
+func TestCleanupKeepsAnEntryARunningStartHolds(t *testing.T) {
+	root := t.TempDir()
+	appRoot := AppRoot(root)
+	if err := os.MkdirAll(appRoot, rootMode); err != nil {
+		t.Fatal(err)
+	}
+	running := unpackedApp(t, appRoot, "running", 400*24*time.Hour)
+	stale := unpackedApp(t, appRoot, "stale", 400*24*time.Hour)
+	HoldUsage(running)
+
+	sweepApps(appRoot, "other", time.Now())
+
+	if _, err := os.Stat(running); err != nil {
+		t.Errorf("the sweep removed a directory a start holds: %v", err)
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Errorf("the sweep kept a directory no start holds")
+	}
+
+	var out bytes.Buffer
+	if err := CleanApps(root, false, &out); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(running); err != nil {
+		t.Errorf("clean removed a directory a start holds: %v", err)
+	}
+	if !strings.Contains(out.String(), "in use by a running site") {
+		t.Errorf("clean did not report the held directory: %q", out.String())
+	}
+}
+
 // TestSweepDatesAnUnmarkedDirectory covers a release unpacked before this one
 // wrote markers, which has to survive its first sweep.
 func TestSweepDatesAnUnmarkedDirectory(t *testing.T) {

@@ -139,7 +139,9 @@ func sweepApps(appRoot, keep string, now time.Time) {
 			markUsed(path)
 			continue
 		}
-		if now.Sub(info.ModTime()) > unusedFor {
+		// A server started more than unusedFor ago refreshes no timestamp, so the
+		// marker alone would date a directory a site still serves from.
+		if now.Sub(info.ModTime()) > unusedFor && !entryInUse(path) {
 			removeTree(path)
 		}
 	}
@@ -164,12 +166,19 @@ func CleanApps(root string, dry bool, out io.Writer) error {
 
 	var count int
 	var freed int64
+	var held int
 	for _, candidate := range entries {
 		if !candidate.IsDir() {
 			continue
 		}
 		path := filepath.Join(appRoot, candidate.Name())
 		size := directorySize(path)
+		// A site serving from this directory reads its PHP files on every request.
+		if entryInUse(path) {
+			fmt.Fprintf(out, "  %s  %d MB  in use by a running site, kept\n", candidate.Name(), size/megabyte)
+			held++
+			continue
+		}
 		fmt.Fprintf(out, "  %s  %d MB\n", candidate.Name(), size/megabyte)
 		if !dry {
 			if err := removeTree(path); err != nil {
@@ -182,10 +191,22 @@ func CleanApps(root string, dry bool, out io.Writer) error {
 	if dry {
 		fmt.Fprintf(out, "%d MB in %d unpacked %s. Run drupack clean to remove them.\n",
 			freed/megabyte, count, applicationWord(count))
+		reportHeld(out, held)
 		return nil
 	}
 	fmt.Fprintf(out, "Removed %d unpacked %s, freeing %d MB.\n", count, applicationWord(count), freed/megabyte)
+	reportHeld(out, held)
 	return nil
+}
+
+// reportHeld names the applications cleanup left in place, so a reader who
+// expected an empty cache knows a site still runs from one.
+func reportHeld(out io.Writer, held int) {
+	if held == 0 {
+		return
+	}
+	fmt.Fprintf(out, "Kept %d unpacked %s a running site still serves from. Stop the site, then clean again.\n",
+		held, applicationWord(held))
 }
 
 func applicationWord(count int) string {

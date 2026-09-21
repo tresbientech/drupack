@@ -9,7 +9,6 @@ package runtime_test
 // creating its lock file.
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"os"
@@ -55,7 +54,7 @@ func TestRootRejectsAGroupWritableCacheDir(t *testing.T) {
 	}
 }
 
-func TestPrepareLockFailureFallsBackToActiveEntry(t *testing.T) {
+func TestPrepareLockFailureStopsAndKeepsTheActiveEntry(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root ignores directory mode bits, so a 0500 root would not refuse the write")
 	}
@@ -93,15 +92,14 @@ func TestPrepareLockFailureFallsBackToActiveEntry(t *testing.T) {
 
 	broken := installed
 	broken.Version = "2.0.0"
-	var notice bytes.Buffer
-	got, err := runtimepkg.Prepare(root, payload, broken, &notice)
-	if err != nil {
-		t.Fatal(err)
+	_, err = runtimepkg.Prepare(root, payload, broken, io.Discard)
+	if err == nil {
+		t.Fatal("a cache this start cannot lock returned no error")
 	}
-	if got != entry {
-		t.Fatalf("fallback returned %q, want the active entry %q", got, entry)
+	if !strings.Contains(err.Error(), "could not lock the runtime cache") {
+		t.Fatalf("error did not name the lock failure: %v", err)
 	}
-	if !strings.Contains(notice.String(), "Using the runtime already in the cache.") {
-		t.Fatalf("notice did not explain the fallback: %q", notice.String())
+	if _, statErr := os.Stat(filepath.Join(entry, "bin", "app")); statErr != nil {
+		t.Fatalf("the active entry did not survive the lock failure: %v", statErr)
 	}
 }
