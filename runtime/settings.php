@@ -12,6 +12,10 @@ $settings['config_sync_directory'] = $data . '/config';
 $settings['file_public_path'] = 'sites/default/files';
 $settings['file_private_path'] = $data . '/private';
 $settings['file_temp_path'] = $data . '/tmp';
+// Drupal compiles the application path into its container and keys that cache
+// without it, so a site whose application moved would boot a container naming
+// the directory it left. Each application directory gets its own key.
+$settings['deployment_identifier'] = substr(hash('sha256', (string) getenv('DRUPACK_RUNTIME_APP_DIR')), 0, 16);
 $settings['update_free_access'] = FALSE;
 // The site directory lives inside the application, which every site of this
 // release shares and no site writes to. Hardening it to read-only stops a later
