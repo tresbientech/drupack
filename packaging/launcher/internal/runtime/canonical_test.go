@@ -18,9 +18,18 @@ func TestCanonical(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.variable, func(t *testing.T) {
-			if got := Canonical(c.native); got != c.want {
-				t.Errorf("Canonical(%q) = %q, want %q", c.native, got, c.want)
+			if got := canonical(c.native, '\\'); got != c.want {
+				t.Errorf("canonical(%q) = %q, want %q", c.native, got, c.want)
 			}
 		})
+	}
+}
+
+// A platform whose separator is already '/' leaves a path alone, because a
+// backslash is a legal character in a file name there.
+func TestCanonicalKeepsABackslashWhereItIsALegalCharacter(t *testing.T) {
+	native := `/home/theodore/a\\b/data`
+	if got := canonical(native, '/'); got != native {
+		t.Errorf("canonical(%q, '/') = %q, want it unchanged", native, got)
 	}
 }

@@ -128,7 +128,7 @@ func serveApplication(application string) {
 // launcher's internal/runtime package, so the conversion is restated here;
 // packaging/launcher/internal/runtime/canonical_test.go covers the algorithm.
 func canonical(path string) string {
-	return strings.ReplaceAll(path, `\`, "/")
+	return filepath.ToSlash(path)
 }
 
 func init() {

@@ -1,13 +1,24 @@
 package runtime
 
-import "strings"
+import (
+	"os"
+	"strings"
+)
 
 // Canonical rewrites path in Drupack's canonical form: forward slashes. The
 // launcher keeps the native form for everything it joins, walks or opens, and
 // converts only the three variables it exports for PHP, Caddy and the
-// terminal to read. filepath.ToSlash is a no-op once Separator is already
-// '/', which is every build but Windows, so the replacement below is what a
-// Windows build needs, and what a test run on any host can exercise.
+// terminal to read.
 func Canonical(path string) string {
-	return strings.ReplaceAll(path, `\`, "/")
+	return canonical(path, os.PathSeparator)
+}
+
+// canonical takes the separator so a test on any host can drive the Windows
+// case. A platform whose separator is already '/' gets the path back untouched,
+// because a backslash is a legal character in a file name there.
+func canonical(path string, separator rune) string {
+	if separator == '/' {
+		return path
+	}
+	return strings.ReplaceAll(path, string(separator), "/")
 }
