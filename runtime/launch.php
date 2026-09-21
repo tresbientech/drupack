@@ -541,6 +541,7 @@ function explainMintFailure(LoginLinkFailure $failure, string $data): void
 // FrankenPHP processes over one database and one runtime directory would corrupt both.
 function handOver(string $binary, string $url, string $data, array $options): never
 {
+    fwrite(STDOUT, "Creating a one-time login link.\n");
     try {
         $link = loginLink($binary, $url, '/admin/dashboard');
     } catch (LoginLinkFailure $failure) {
@@ -905,6 +906,7 @@ try {
     // Every start hands its reader a one-time way in, signed in as the administrator account,
     // uid 1, landing on the dashboard. A start that generated the password has no other way
     // in, so it still fails when the mint fails; every other start serves without the link.
+    fwrite(STDOUT, "Creating a one-time login link.\n");
     try {
         $link = loginLink($binary, $url, '/admin/dashboard');
     } catch (LoginLinkFailure $failure) {
@@ -924,6 +926,7 @@ try {
     // no link has nothing to open.
     $browser = $link !== null && $options['no-browser'] === null && personPresent();
     openWhenServing($url, $link, $browser);
+    fwrite(STDOUT, "Starting the web server.\n");
     replaceProcess($binary, ['php-server'], __DIR__, 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
