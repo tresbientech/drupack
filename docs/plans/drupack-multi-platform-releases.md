@@ -31,7 +31,7 @@ Verified locally on Linux `amd64`:
 - The interactive first start under a pseudo-terminal, with no password echo, at `f066463`.
 - The `release.yml` asset naming, `checksums.txt` and `release.json` step, on stand-in files.
 
-Known issue: `runtime/php.ini` never loads. `php_ini_loaded_file()` returns `false`, and `memory_limit` stays at PHP's `128M` default.
+Closed by [the bundled TLS trust work](bundled-tls-trust.md) on Linux: `PHPRC` names the packed runtime directory, `php_ini_loaded_file()` returns the ini under the runtime cache, and `memory_limit` reads 512M.
 
 Verified locally at `88c9d58`, the release candidate for 0.1.0:
 

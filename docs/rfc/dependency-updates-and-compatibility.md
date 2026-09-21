@@ -12,7 +12,7 @@ A security release in Drupal core, PHP, or a bundled contributed module starts a
 
 ## Watching
 
-A Forge Actions workflow runs daily. It runs `composer audit` against the lock, then checks for a newer Drupal core, PHP, FrankenPHP and Caddy release. It fails when any of them moved, and the run log names what changed. A failed scheduled run in the Forge's Actions tab is the notification. It files nothing on a remote forge, which [ADR 0001](../adr/0001-forge-canonical-github-packaging-mirror.md) keeps free of issues and pull requests.
+A Forge Actions workflow runs daily. It runs `composer audit` against the lock, then checks for a newer Drupal core, PHP, FrankenPHP and Caddy release. It also compares the published SHA-256 of curl's `cacert.pem` against the vendored `runtime/cacert.pem`. It fails when any of them moved, and the run log names what changed. A failed scheduled run in the Forge's Actions tab is the notification. It files nothing on a remote forge, which [ADR 0001](../adr/0001-forge-canonical-github-packaging-mirror.md) keeps free of issues and pull requests.
 
 ## Naming
 
