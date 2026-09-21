@@ -92,7 +92,7 @@ Site data lives in the `data` directory. It holds your database, uploads, privat
 
 A newer Drupack keeps working with existing Site data, which every release is tested for.
 
-One start at a time prepares a site. A second start of a site that already serves opens your browser on it, then stops, so a double-click always lands you on your dashboard. A second start with no terminal, and a start whose port another program holds, stop with a message naming the port. Drush keeps working while a site serves.
+One start at a time prepares a site, and one server at a time serves it, whatever port a second start asks for. A second start of a site that already serves opens your browser on it, then stops, so a double-click always lands you on your dashboard. A second start with no terminal, and a start whose port another program holds, stop with a message naming the port. Drush keeps working while a site serves.
 
 Drupack refuses to serve in three cases, each naming the directory and the command to run:
 
@@ -153,7 +153,7 @@ Drupal core security fixes reach you through a new Drupack release, because a pa
 
 Your site ships without `automatic_updates` and `package_manager` enabled. `drupal/automatic_updates` 4.1.0 stalls a request for four minutes when cron runs, and its development branch carries the same code, so enabling either module brings that stall back.
 
-[RFC dependency-updates-and-compatibility](docs/rfc/dependency-updates-and-compatibility.md) plans how releases follow upstream security fixes, and how a newer executable will guide you through a database update.
+[The backlog](docs/backlog.md) records how releases will follow upstream security fixes, and how a newer executable will guide you through a database update.
 
 ## Verify a download
 

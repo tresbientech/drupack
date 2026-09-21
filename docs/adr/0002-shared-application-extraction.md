@@ -58,7 +58,7 @@ That same line rules out pointing `EmbeddedAppPath` at a shared directory. The f
 
 ## Decision: what leaves the cache
 
-- An application entry lives while it has been used within 30 days. The [launcher cache retention RFC](../rfc/launcher-cache-retention.md) sets that rule for the runtime cache.
+- An application entry lives while it has been used within 30 days. [ADR 0007](0007-launcher-cache-retention.md) sets that rule for the runtime cache.
 - A first start on this version removes the previous layout: a directory named `frankenphp_` plus 64 hexadecimal characters, under `%TEMP%` or `<data>/runtime`, that holds a file this product ships. It reports the count and the bytes freed.
 - `drupack clean` reports and removes cache entries on demand, for the runtime cache and the application cache.
 

@@ -107,4 +107,4 @@ Every published executable is a launcher carrying the real executable, compresse
 
 A version tag without a `v` prefix, such as `0.1.1`, pushed to the Forge, mirrors to GitHub and drupal.org and starts the release workflow. It builds all five targets, runs their tests, then publishes a GitHub Release with each executable under a versioned and an unversioned name, `checksums.txt`, `release.json`, a CycloneDX SBOM and provenance attestations.
 
-Documents worth reading before a change: `CONTEXT.md` for the vocabulary, `docs/prd/` for what the product promises, `docs/plans/` for the current work, `docs/adr/` for decisions and `docs/rfc/` for proposals.
+Documents worth reading before a change: `CONTEXT.md` for the vocabulary, `README.md` for what the product promises, `docs/adr/` for the decisions behind the current shape, `docs/backlog.md` for open questions and `docs/plans/` for work already scheduled. A decision lands as a short numbered ADR, and a plan is deleted once its work ships, so the tree holds no finished checklists.

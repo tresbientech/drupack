@@ -1,7 +1,6 @@
 """An ASCII cache root on Windows: phase 1 found PHP startup resolves the
 PHPRC-derived configuration path through the ANSI code page, so a cache root
-it cannot represent breaks extension loading (see
-docs/prd/ascii-cache-root.md, which carries the measurements).
+it cannot represent breaks extension loading.
 runtime.Root() now resolves such a root to its ASCII short name before the
 server ever sees it.
 
@@ -32,7 +31,7 @@ CREDENTIALS = ("--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
 
 LOAD_FAILURE = "Unable to load dynamic library"
 
-# The 13 extensions the Windows build loads as DLLs (docs/prd/ascii-cache-root.md).
+# The 13 extensions the Windows build loads as DLLs.
 DLL_EXTENSIONS = frozenset({
     "curl", "exif", "fileinfo", "gd", "intl", "mbstring", "mysqli", "openssl",
     "pdo_mysql", "pdo_pgsql", "pdo_sqlite", "sodium", "zip",

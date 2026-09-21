@@ -42,6 +42,9 @@ The Drupack and Drupal versions that last served a Site data directory.
 **Database backend**:
 SQLite, MySQL, or PostgreSQL, selected when a Packaged site first starts. It stores the structured part of Site data.
 
+**Serving lease**:
+The exclusive claim one start holds over a Site data directory, from the moment it begins preparing until its server exits. A second start refuses or hands over, whatever address it was given.
+
 ### Paths
 
 **Canonical path**:

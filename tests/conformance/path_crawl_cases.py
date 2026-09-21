@@ -1,10 +1,10 @@
 """Crawls a fixed page set after a real install: every rendered href, src and inline
 style must carry no drive letter, no backslash and no application-root prefix.
 
-See docs/rfc/windows-path-convergence.md, "Decision: the Drupal layer gets a crawl" —
-both Drupal-side path defects found so far would have failed this crawl. The RFC fixes
-the page set: the front page, /card-components, /admin/dashboard, /admin/modules, and
-one node carrying an uploaded image, so an image style derivative address appears.
+Both Drupal-side path defects found so far would have failed this crawl. The page set is
+fixed: the front page, /card-components, /admin/dashboard, /admin/modules, and one node
+carrying an uploaded image, so an image style derivative address appears. See
+docs/adr/0010-one-canonical-path-form.md.
 """
 
 import re
