@@ -71,19 +71,34 @@ func Build(directory, version, entry string) ([]byte, Manifest, error) {
 	return archive.Bytes(), Manifest{Version: version, Entry: entry, Interpreter: interpreter, Files: files}, nil
 }
 
-// elfInterpreter returns the program interpreter path an ELF entry needs, and
-// "" for a static ELF or for a Mach-O or PE entry, which carry no PT_INTERP
-// segment and which elf.Open reports as a format error.
+// elfMagic opens every ELF file. A Mach-O or PE entry starts with its own, and a
+// file shorter than four bytes has none, so both answer "no interpreter" below.
+var elfMagic = [4]byte{0x7f, 'E', 'L', 'F'}
+
+// elfInterpreter returns the program interpreter path an ELF entry needs, and ""
+// for a static ELF or for an entry of another format. The magic number is read
+// here rather than left to elf.Open, which reports a short file as io.EOF and a
+// wrong magic as a format error, two shapes for one answer.
 func elfInterpreter(path string) (string, error) {
-	file, err := elf.Open(path)
+	handle, err := os.Open(path)
 	if err != nil {
-		var format *elf.FormatError
-		if errors.As(err, &format) {
+		return "", err
+	}
+	defer handle.Close()
+	var magic [4]byte
+	if _, err := io.ReadFull(handle, magic[:]); err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			return "", nil
 		}
 		return "", err
 	}
-	defer file.Close()
+	if magic != elfMagic {
+		return "", nil
+	}
+	file, err := elf.NewFile(handle)
+	if err != nil {
+		return "", err
+	}
 	for _, program := range file.Progs {
 		if program.Type != elf.PT_INTERP {
 			continue

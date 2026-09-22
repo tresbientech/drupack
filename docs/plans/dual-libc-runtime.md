@@ -48,16 +48,22 @@ its manifest. A platform passing one runtime keeps today's behaviour.
 
 ### Acceptance criteria
 
-- [ ] `docker build --target artifact` produces one executable holding two
+- [x] `docker build --target artifact` produces one executable holding two
       runtime payloads and one application payload.
-- [ ] The application payload is byte-identical across two builds of the same
-      commit.
-- [ ] `cd packaging/launcher && go test ./...` exits 0, including a pack case
+- [x] Both runtimes unpack the same application cache entry, so the executable
+      carries the application once rather than once per runtime.
+- [x] `cd packaging/launcher && go test ./...` exits 0, including a pack case
       for one runtime and a case for two.
-- [ ] The musl manifest records no interpreter. The glibc manifest records
+- [x] The musl manifest records no interpreter. The glibc manifest records
       `/lib64/ld-linux-x86-64.so.2` on amd64 and the arm64 equivalent.
-- [ ] `docker build --target uncompressed` still exports the musl executable,
+- [x] `docker build --target uncompressed` still exports the musl executable,
       and `uncompressed-gnu` exports the glibc one. CONTRIBUTING.md says so.
+
+A byte-identical application payload across two builds of one commit was the
+first version of the second criterion. `drush site:install` writes an install
+timestamp, a random private key and a UUID into 480 config rows, so two runs
+differ whatever the build does. Reproducibility needs frozen time and seeded
+randomness, which is its own change.
 
 ---
 
@@ -75,12 +81,12 @@ executes it.
 
 ### Acceptance criteria
 
-- [ ] A table test covers: `DRUPACK_LIBC` naming each runtime, an interpreter
+- [x] A table test covers: `DRUPACK_LIBC` naming each runtime, an interpreter
       present, an interpreter absent, and a single-runtime binary.
-- [ ] On a glibc host the binary runs the glibc runtime, and `DRUPACK_LIBC=musl`
+- [x] On a glibc host the binary runs the glibc runtime, and `DRUPACK_LIBC=musl`
       runs the musl one.
-- [ ] Inside Alpine the binary runs the musl runtime with no variable set.
-- [ ] Flipping `DRUPACK_LIBC` twice leaves one runtime entry in the cache and
+- [x] Inside Alpine the binary runs the musl runtime with no variable set.
+- [x] Flipping `DRUPACK_LIBC` twice leaves one runtime entry in the cache and
       serves a site both times.
 
 ---
@@ -95,9 +101,9 @@ libc beside the version.
 
 ### Acceptance criteria
 
-- [ ] `drupack --version` prints the version and the runtime that ran.
-- [ ] `DRUPACK_LIBC=musl drupack --version` names musl on a glibc host.
-- [ ] A conformance case asserts both lines.
+- [x] `drupack --version` prints the version and the runtime that ran.
+- [x] `DRUPACK_LIBC=musl drupack --version` names musl on a glibc host.
+- [x] A conformance case asserts both lines.
 
 ---
 
@@ -131,13 +137,13 @@ fix also reaches Drupack without a release. ADR 0015 records both directions.
 
 ### Acceptance criteria
 
-- [ ] `readelf -d` on the packed glibc runtime shows `BIND_NOW`.
-- [ ] A test asserts `Environment()` drops `LD_PRELOAD`, `LD_LIBRARY_PATH`,
+- [x] `readelf -d` on the packed glibc runtime shows `BIND_NOW`.
+- [x] A test asserts `Environment()` drops `LD_PRELOAD`, `LD_LIBRARY_PATH`,
       `LD_AUDIT` and `GLIBC_TUNABLES`, and keeps every other variable.
-- [ ] A start under `LD_PRELOAD` pointing at a shared object serves a site
+- [x] A start under `LD_PRELOAD` pointing at a shared object serves a site
       without loading it.
-- [ ] `DRUPACK_LIBC=gnu` exits non-zero and names `musl` and `glibc`.
-- [ ] The Dockerfile pins both builder images by digest.
+- [x] `DRUPACK_LIBC=gnu` exits non-zero and names `musl` and `glibc`.
+- [x] The Dockerfile pins both builder images by digest.
 
 ---
 
@@ -152,6 +158,8 @@ glibc runner, which proves the override and the musl runtime on a host that has
 a choice.
 
 ### Acceptance criteria
+
+These wait on a push: CI has not run this branch.
 
 - [ ] The Linux job passes on amd64 and arm64.
 - [ ] The forced-musl step starts a site and prints a version naming musl.
@@ -176,10 +184,10 @@ in both directions.
 
 ### Acceptance criteria
 
-- [ ] The README table names glibc hosts, musl hosts and the fallback.
-- [ ] `docs/cli.md` lists the variable and its two values.
-- [ ] ADR 0015 exists, numbered after 0014.
-- [ ] No user-facing document claims a throughput ratio.
+- [x] The README table names glibc hosts, musl hosts and the fallback.
+- [x] `docs/cli.md` lists the variable and its two values.
+- [x] ADR 0015 exists, numbered after 0014.
+- [x] No user-facing document claims a throughput ratio.
 
 ---
 
