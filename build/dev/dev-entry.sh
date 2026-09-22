@@ -19,7 +19,7 @@ fi
 # directory permits the unlink, the file mode does not permit a write.
 for name in Caddyfile launch.php php.ini settings.php cacert.pem; do
     rm -f "/data/runtime/app/$name"
-    cp "/dev-runtime/$name" "/data/runtime/app/$name"
+    cp "/dev-application/$name" "/data/runtime/app/$name"
 done
 
 binary=/go/src/app/dist/static-php-cli/buildroot/bin/frankenphp

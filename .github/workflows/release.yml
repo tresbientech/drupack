@@ -229,6 +229,9 @@ jobs:
 
   linux:
     name: Linux ${{ matrix.arch }}
+    # GitHub waits on the whole linux-runtime matrix, so this architecture also
+    # waits on the other one's two legs. With the builder images published every
+    # leg finishes within a minute of the rest.
     needs: [gate, payload, linux-runtime]
     if: needs.gate.outputs.linux != '[]'
     runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
