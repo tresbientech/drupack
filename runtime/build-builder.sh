@@ -4,6 +4,7 @@ set -euo pipefail
 # Builds one FrankenPHP static-builder image carrying the extensions
 # runtime/php-extensions.txt names. PHP_EXTENSIONS takes effect while the
 # image is built, so a published image cannot carry a narrowed PHP.
+# builder-tag.sh names the image a build of these inputs belongs under.
 #
 # Usage: build-builder.sh musl|gnu TAG [WORK_DIRECTORY]
 
@@ -13,9 +14,7 @@ tag=${2:?$usage}
 work=${3:-$(mktemp -d)}
 repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 
-frankenphp_version=1.12.7
-frankenphp_commit=a765b086f5cc56f6b7753117367d56e1b0da948d
-php_version=8.5.10
+. "$repository/runtime/builder-inputs.sh"
 extension_libs=$(bash "$repository/runtime/extensions-list.sh" "$repository/runtime/php-extension-libs.txt")
 
 case "$libc" in

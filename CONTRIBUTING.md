@@ -14,6 +14,8 @@ bash runtime/build-builder.sh gnu drupack-builder-gnu:local
 docker build --target artifact --output type=local,dest=dist .
 ```
 
+The release workflow names the same image after its inputs. `runtime/builder-tag.sh` digests the FrankenPHP commit, the PHP version, both extension list files, the C library and the machine type, and the workflow pulls `ghcr.io/tresbientech/drupack-builder` under that tag. A run whose inputs are unchanged pulls the published image; a run that changes one builds the image and publishes it under the new tag. `runtime/builder-inputs.sh` holds the version pins both scripts read.
+
 The output is `dist/drupack`. The host needs no PHP, Composer or database server.
 
 `application/` holds the Composer project and the files laid over it, which together become the application root. `runtime/` holds the PHP and FrankenPHP compile. `launcher/` is the Go module for the launcher and its packer. `build/` holds the macOS and Windows builds and the development loop, and the `Dockerfile` at the root is the Linux build. [ADR 0017](docs/adr/0017-one-directory-per-artifact.md) records the shape.
