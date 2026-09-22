@@ -6,4 +6,5 @@ set -euo pipefail
 # that compile PHP read packaging/php-extension-libs.txt the same way.
 
 usage='Usage: extensions-list.sh FILE'
-sed 's/#.*//; s/[[:space:]]//g' "${1:?$usage}" | grep . | paste -sd,
+# The trailing - names stdin, which the BSD paste on macOS requires.
+sed 's/#.*//; s/[[:space:]]//g' "${1:?$usage}" | grep . | paste -s -d , -
