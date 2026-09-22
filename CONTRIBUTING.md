@@ -20,7 +20,7 @@ The Composer project that becomes the packaged site lives in `drupal/`. The file
 
 ### macOS
 
-The macOS build runs on the target architecture with the Xcode Command Line Tools, Go and Git. It needs the application archive from the Linux `build` stage.
+The macOS build runs on the target architecture with the Xcode Command Line Tools, Go and Git. It needs the application archive from the Linux `app` stage.
 
 ```sh
 bash packaging/macos/build.sh application "$TMPDIR/drupack" dist/drupack
@@ -31,9 +31,9 @@ bash packaging/macos/build.sh application "$TMPDIR/drupack" dist/drupack
 The Windows build runs on a Windows host with Visual Studio Build Tools 2022 and its C++ Clang component, Go, Git and PowerShell 7.3 or later. Export the application archive first:
 
 ```sh
-docker build --target build -t drupack-build .
+docker build --target app -t drupack-build .
 container=$(docker create drupack-build)
-docker cp "$container:/go/src/app/app.tar" application/app.tar
+docker cp "$container:/go/src/app/app-payload.tar" application/app-payload.tar
 docker cp "$container:/go/src/app/app_checksum.txt" application/app_checksum.txt
 docker rm "$container"
 ```
@@ -95,7 +95,7 @@ python tests/conformance dist\drupack.exe test-results\conformance
 A change to `runtime/` reaches the executable only through a build, which takes minutes. `packaging/dev-server.sh` serves the application from the build image instead, with `runtime/` copied over it on each start, so a change to `launch.php` or the Caddyfile applies in about a second.
 
 ```sh
-docker build --target build -t drupack-build .
+docker build --target app -t drupack-build .
 bash packaging/dev-server.sh ./dev-data 7225
 ```
 
