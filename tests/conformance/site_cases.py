@@ -69,7 +69,13 @@ class SeededSite(harness.ConformanceCase):
                                  capture_output=True, text=True, timeout=harness.WAITS["php_cli"].seconds)
         self.assertEqual(result.returncode, 0, result.stderr)
         extensions, drivers = json.loads(result.stdout)
-        self.assertIn("pdo_pgsql", {extension.lower() for extension in extensions})
+        loaded = {extension.lower() for extension in extensions}
+        # These builds compile the extensions the allowlist names and nothing
+        # else, so an absence and a surplus are both failures. The Windows PHP
+        # carries a fixed set of its own, and its case asserts presence alone.
+        self.assertEqual(
+            sorted(harness.expected_extensions() | harness.ALWAYS_COMPILED), sorted(loaded),
+        )
         self.assertTrue({"mysql", "pgsql", "sqlite"} <= set(drivers), drivers)
 
     def test_startup_ignores_working_directory_script(self):
