@@ -13,8 +13,9 @@ drupack_version=${DRUPACK_VERSION:-dev}
 frankenphp_commit=a765b086f5cc56f6b7753117367d56e1b0da948d
 php_version=8.5.10
 spc_version=2.8.5
-# FrankenPHP's build-static.sh defaults at the pinned commit, which the Linux builder image also uses.
-extensions=amqp,apcu,ast,bcmath,brotli,bz2,calendar,ctype,curl,dba,dom,exif,fileinfo,filter,ftp,gd,gmp,gettext,iconv,igbinary,imagick,intl,ldap,lz4,mbregex,mbstring,memcached,mysqli,mysqlnd,opcache,openssl,password-argon2,parallel,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,protobuf,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,ssh2,sysvmsg,sysvsem,sysvshm,tidy,tokenizer,xlswriter,xml,xmlreader,xmlwriter,xsl,xz,zip,zlib,yaml,zstd
+# The allowlist every builder compiles. spc resolves the libraries each name needs.
+extensions=$(bash "$repository/packaging/extensions-list.sh" "$repository/packaging/php-extensions.txt")
+# watcher serves FrankenPHP and the nghttp trio serves Caddy, so no extension pulls them.
 extension_libs=libavif,nghttp2,nghttp3,ngtcp2,watcher
 
 case "$(uname -m)" in

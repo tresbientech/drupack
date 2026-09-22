@@ -6,7 +6,11 @@ The canonical repository is `tresbientech/drupack` on git.tresbien.tech. GitHub 
 
 Build on Linux `amd64` or `arm64` with Docker and BuildKit. The executable matches the build host's architecture.
 
+A runtime carries the PHP extensions `packaging/php-extensions.txt` names, and a builder image compiles that set while the image itself is built. Build one image per C library first. Each run compiles PHP from source and takes well over an hour; the images survive between builds, so a later `docker build` reuses them.
+
 ```sh
+bash packaging/build-builder.sh musl drupack-builder-musl:local
+bash packaging/build-builder.sh gnu drupack-builder-gnu:local
 docker build --target artifact --output type=local,dest=dist .
 ```
 

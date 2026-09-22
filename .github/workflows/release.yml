@@ -35,12 +35,20 @@ jobs:
     outputs:
       build: ${{ steps.inputs.outputs.build }}
       full: ${{ steps.inputs.outputs.full }}
+      version: ${{ steps.inputs.outputs.version }}
     steps:
       - id: inputs
         env:
           GH_TOKEN: ${{ github.token }}
           BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
         run: |
+          # A runtime job and the job that packs it must name one version.
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            echo "version=$GITHUB_REF_NAME" >>"$GITHUB_OUTPUT"
+          else
+            echo "version=dev-${SHA:0:12}" >>"$GITHUB_OUTPUT"
+          fi
           if [ "$GITHUB_REF_TYPE" = tag ] || [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
             printf 'build=true\nfull=true\n' >>"$GITHUB_OUTPUT"
             exit 0
@@ -63,9 +71,74 @@ jobs:
           printf 'Building for:\n%s\n' "$changed"
           echo 'build=true' >>"$GITHUB_OUTPUT"
 
+  # Every builder compiles the extensions packaging/php-extensions.txt names, so
+  # a lock that declares one the file omits stops the release here.
+  extensions:
+    name: extensions
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the allowlist against the lock
+        run: python3 packaging/check-extensions.py
+
+  # A builder image carries the PHP its own build compiled, so each runtime
+  # compiles one. A builder image and a compile fill a runner between them,
+  # which is why a job carries one libc rather than both.
+  linux-runtime:
+    name: Linux ${{ matrix.architecture }} ${{ matrix.libc }} runtime
+    needs: [changes, extensions]
+    if: needs.changes.outputs.build == 'true' && contains(fromJSON('["all","linux-amd64","linux-arm64"]'), inputs.platform || 'all')
+    runs-on: ${{ matrix.architecture == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [amd64, arm64]
+        libc: [musl, gnu]
+        exclude:
+          - architecture: ${{ needs.changes.outputs.full == 'false' && 'arm64' || (inputs.platform || 'all') == 'linux-amd64' && 'arm64' || (inputs.platform || 'all') == 'linux-arm64' && 'amd64' || 'none' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      # build-static.sh reads the token to raise its GitHub API rate limit while
+      # it downloads the PHP and extension sources.
+      - name: Build the builder image
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LIBC: ${{ matrix.libc }}
+        run: bash packaging/build-builder.sh "$LIBC" "drupack-builder-$LIBC:local" "$RUNNER_TEMP/builder"
+
+      - name: Build the runtime
+        env:
+          DRUPACK_VERSION: ${{ needs.changes.outputs.version }}
+          LIBC: ${{ matrix.libc }}
+          BUILDER_ARG: ${{ matrix.libc == 'musl' && 'MUSL_BUILDER' || 'GNU_BUILDER' }}
+        run: |
+          docker build --target "runtime-$LIBC-files" \
+            --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" \
+            --build-arg "$BUILDER_ARG=drupack-builder-$LIBC:local" \
+            --output "type=local,dest=runtime-$LIBC" .
+          df -h /
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: runtime-linux-${{ matrix.architecture }}-${{ matrix.libc }}
+          path: runtime-${{ matrix.libc }}
+          if-no-files-found: error
+
   linux:
     name: Linux ${{ matrix.architecture }}
-    needs: changes
+    needs: [changes, extensions, linux-runtime]
     if: needs.changes.outputs.build == 'true' && contains(fromJSON('["all","linux-amd64","linux-arm64"]'), inputs.platform || 'all')
     runs-on: ${{ matrix.architecture == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 90
@@ -92,9 +165,9 @@ jobs:
         working-directory: packaging/launcher
         run: go test ./...
 
-      # The runner starts with about 14 GB free, each builder image takes 8.6 GB,
-      # and this job pulls one per libc. The packer then writes two compressed
-      # payloads beside the 400 MB executables.
+      # The runner starts with about 14 GB free and this job pulls the one image
+      # that builds the application and runs the packer. The packer then writes
+      # two compressed payloads beside the 400 MB executables.
       # Printing the free space tells a later failure apart from a full disk.
       - name: Free disk space
         run: |
@@ -102,19 +175,29 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           df -h /
 
+      - uses: actions/download-artifact@v7
+        with:
+          name: runtime-linux-${{ matrix.architecture }}-musl
+          path: runtime-musl
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: runtime-linux-${{ matrix.architecture }}-gnu
+          path: runtime-gnu
+
+      # Each runtime arrives from its own job, so a build context named for the
+      # stage stands in for it and no builder image is pulled for either.
       - name: Build the executable
         env:
-          REF_TYPE: ${{ github.ref_type }}
-          REF_NAME: ${{ github.ref_name }}
-          SHA: ${{ github.sha }}
+          DRUPACK_VERSION: ${{ needs.changes.outputs.version }}
         run: |
-          if [ "$REF_TYPE" = tag ]; then
-            version=$REF_NAME
-          else
-            version="dev-${SHA:0:12}"
-          fi
-          docker build --target artifact --build-arg "DRUPACK_VERSION=$version" --output type=local,dest=dist .
-          
+          chmod +x runtime-musl/out/drupack runtime-gnu/out/drupack
+          docker build --target artifact \
+            --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" \
+            --build-context runtime-musl=runtime-musl \
+            --build-context runtime-gnu=runtime-gnu \
+            --output type=local,dest=dist .
+
       - name: Report the free space after the build
         run: df -h /
 
@@ -177,7 +260,7 @@ jobs:
 
   application:
     name: application
-    needs: changes
+    needs: [changes, extensions]
     # windows and macos need this job, so skipping it skips them too.
     if: needs.changes.outputs.full == 'true' && contains(fromJSON('["all","windows-amd64","macos-arm64","macos-amd64"]'), inputs.platform || 'all')
     runs-on: ubuntu-24.04

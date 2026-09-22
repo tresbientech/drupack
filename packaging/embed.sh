@@ -14,10 +14,14 @@ php_config=/go/src/app/dist/static-php-cli/buildroot/bin/php-config
 frankenphp_version=1.12.7
 export CGO_ENABLED=1
 export CGO_CFLAGS="-fPIC -O2 -I/go/src/app/dist/static-php-cli/buildroot/include $($php_config --includes) -DFRANKENPHP_VERSION=$frankenphp_version"
-php_libraries=$($php_config --libs)
+# static-php-cli owns the mapping from extensions to libraries, and the image
+# compiled PHP from this same list, so the link flags follow the allowlist
+# rather than a written-out set that would name a library no extension pulls.
+extensions=$(bash /build/extensions-list.sh /build/php-extensions.txt)
+php_libraries=$(/go/src/app/dist/static-php-cli/bin/spc spc-config "$extensions" --libs)
 php_libraries=${php_libraries//-lstdc++/$(gcc -print-file-name=libstdc++.a)}
-native_libraries=$(PKG_CONFIG_PATH=/go/src/app/dist/static-php-cli/buildroot/lib/pkgconfig pkg-config --static --libs libcurl libzip freetype2 libavif libwebp)
-export CGO_LDFLAGS="-L/go/src/app/dist/static-php-cli/buildroot/lib -static-libgcc -Wl,--start-group -lphp $php_libraries $native_libraries -lwatcher-c -lpq -lpgcommon -lpgport -lhashkit -lcharset -largon2 -Wl,--end-group"
+# watcher serves FrankenPHP itself, so no extension pulls it.
+export CGO_LDFLAGS="-L/go/src/app/dist/static-php-cli/buildroot/lib -static-libgcc -Wl,--start-group $php_libraries -lwatcher-c -Wl,--end-group"
 build_tags=nobadger,nomysql,nopgx
 linker_flags="-Wl,--dynamic-list=/go/src/app/dist/static-php-cli/buildroot/lib/libphp.a.dynsym"
 # The builder image sets SPC_LIBC. A glibc build links a dynamic PIE against the

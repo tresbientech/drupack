@@ -37,10 +37,16 @@ $downloads = [ordered]@{
     Sha256 = '13b8175e99a884c5ad34249218754b45541a1a63f216e92603aee57a285ac741'
   }
 }
-# Extensions Drupal, Drush, Local MCP Tools and MCP Server need. The Linux executable loads a larger set.
-# The PHP zip ships the first list as DLLs in ext\ and compiles the second into php8ts.dll.
-$dllExtensions = @('curl', 'exif', 'fileinfo', 'gd', 'intl', 'mbstring', 'mysqli', 'openssl', 'pdo_mysql', 'pdo_pgsql', 'pdo_sqlite', 'sodium', 'zip')
-$builtinExtensions = @('ctype', 'dom', 'filter', 'iconv', 'mysqlnd', 'pdo', 'phar', 'session', 'simplexml', 'tokenizer', 'xml', 'xmlreader', 'xmlwriter', 'zend opcache', 'zlib')
+# packaging/php-extensions.txt names what every platform compiles. Three of its
+# names this PHP cannot load: apcu and brotli ship as PECL DLLs the php.net zip
+# leaves out, and password-argon2 is a static-php-cli build input for a PHP that
+# compiles argon2 into php8ts.dll.
+$absentExtensions = @('apcu', 'brotli', 'password-argon2')
+# opcache loads with no php.ini line here, and reports itself under another name.
+$preloadedExtensions = @{ 'opcache' = 'zend opcache' }
+$extensions = Get-Content (Join-Path $PSScriptRoot '..\php-extensions.txt') |
+  ForEach-Object { ($_ -split '#')[0].Trim() } |
+  Where-Object { $_ -and $absentExtensions -notcontains $_ }
 
 function Get-PinnedFile([string] $Name, [hashtable] $Source) {
   $path = Join-Path $downloadDirectory $Name
@@ -138,6 +144,11 @@ foreach ($library in 'brotlienc.dll', 'brotlidec.dll', 'brotlicommon.dll', 'pthr
 # what only it can supply: where this PHP puts its extensions, and which to load. The
 # launcher sets PHPRC to the extracted runtime directory.
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\php.ini') (Join-Path $runtime 'php.ini')
+# An extension the zip carries as a DLL needs a php.ini line. The rest are in
+# php8ts.dll already, and the load check below catches a name from neither.
+$dllExtensions = $extensions | Where-Object {
+  -not $preloadedExtensions.ContainsKey($_) -and (Test-Path (Join-Path $php "ext\php_$_.dll"))
+}
 Add-Content -Path (Join-Path $runtime 'php.ini') -Value (@('extension_dir = "${PHPRC}\ext"') + ($dllExtensions | ForEach-Object { "extension=$_" }))
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\cacert.pem') $runtime
 
@@ -146,7 +157,10 @@ Set-Content -Path $check -Value '<?php echo implode("\n", array_map("strtolower"
 $env:PHPRC = $runtime
 $loaded = & $frankenphpExecutable php-cli $check
 Remove-Item Env:PHPRC
-$missing = $dllExtensions + $builtinExtensions | Where-Object { $loaded -notcontains $_ }
+$expected = $extensions | ForEach-Object {
+  if ($preloadedExtensions.ContainsKey($_)) { $preloadedExtensions[$_] } else { $_ }
+}
+$missing = $expected | Where-Object { $loaded -notcontains $_ }
 if ($missing) { throw "Runtime is missing PHP extensions: $($missing -join ', ')" }
 
 # The packer resolves a relative -output against its own working directory,
