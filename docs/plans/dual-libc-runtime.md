@@ -129,7 +129,11 @@ The glibc runtime links with lazy binding: `readelf -d` shows `JMPREL` and no
 names the accepted pair, the way `activeKey` and `MintedSegment` already refuse
 a value they cannot trust.
 
-Both builder images stay pinned by digest and get reviewed together.
+Both builder images stay pinned by digest and get reviewed together. The
+extension allowlist has since replaced that pin for the two runtime images,
+which the workflow builds from a pinned FrankenPHP commit and a pinned PHP
+version. The published digest still names the image that builds the
+application and runs the packer.
 
 One exposure stays. The host's glibc enters the trust base, and the launcher
 cannot verify it the way staging verifies every file it unpacks. A host glibc
