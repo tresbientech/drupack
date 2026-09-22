@@ -199,3 +199,17 @@ in both directions.
 - A `--libc` command-line option. `docs/backlog.md` already carries an open
   question about the options `dr` accepts and ignores.
 - Windows and macOS, which have one libc each.
+
+---
+
+## State on 2026-09-22
+
+Phases 1, 2, 3, 4 and 6 are merged on `main` at `e2cf739`, with 21 of 25
+acceptance criteria met. The full conformance suite passed 58 tests with no
+failures, and `cd packaging/launcher && go test ./...` is green.
+
+Phase 5's four criteria stay open. They need a push, since CI has not run this
+branch, and the Linux job now pulls one 8.6 GB builder image per libc on a
+runner that starts with about 14 GB free.
+
+Next session: push and read the Linux job, on amd64 and arm64.

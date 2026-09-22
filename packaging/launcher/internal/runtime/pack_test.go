@@ -55,8 +55,8 @@ func TestBuildRecordsTheEntryInterpreter(t *testing.T) {
 }
 
 // A static entry, and an entry of another format, both answer with no interpreter,
-// so a launcher carrying one of them runs it on any host. A file too short to hold
-// a magic number is the shape that made elf.Open report io.EOF.
+// so a launcher carrying one of them runs it on any host. An entry shorter than a
+// magic number answers the same way.
 func TestBuildRecordsNoInterpreterForANonELFEntry(t *testing.T) {
 	for name, content := range map[string][]byte{
 		"shorter than a magic number": []byte("hi"),
