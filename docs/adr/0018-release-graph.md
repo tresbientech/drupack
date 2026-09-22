@@ -54,8 +54,11 @@ on `b6ceb1d` and on the last full green run.
 
 ## Consequences
 
-- A tag run costs about 110 runner-minutes and 30 minutes of wall clock. macOS
-  amd64 sets the floor.
+- Measured on `aa2bc7a` with an empty registry: five platforms in 41 minutes of
+  wall clock and 158 runner-minutes, against 45 minutes and 191 before. A main
+  push with the images published takes 13 minutes and 20 runner-minutes, where
+  a runtime job pulls its builder image in 78 seconds instead of compiling PHP
+  for 25 minutes.
 - `0016` rejected published builder images because one image cannot serve a
   per-site extension set. A tag derived from the inputs answers that objection.
   A different allowlist is a different tag, and a miss builds the image.

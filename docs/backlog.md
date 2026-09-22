@@ -55,13 +55,6 @@ maintained package would replace it, at the cost of the first Python dependency
 in a repo that has none. Lean: consolidate the lifecycle into one harness helper
 first, then judge the dependency against what is left.
 
-## Runtime footprint and the extension allowlist
-
-The build bundles PHP extensions with no recorded consumer list. Earlier
-experiments measured roughly 5 to 6 percent compressed size for extension
-reduction, which does not establish savings for the current release. Lean:
-record what each extension serves before removing any.
-
 ## A Windows start without a terminal
 
 A double-click on the Windows executable opens a console window that closes

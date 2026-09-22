@@ -51,7 +51,13 @@ declares `pdo_mysql`, `pdo_pgsql`, `opcache` or `argon2`.
 - The builder pin moves from an image digest to a FrankenPHP source commit and a
   PHP version. An upgrade review reads a source diff instead of two digests.
 - Linux gains one CI job per libc, each compiling PHP, and a job that packs both
-  runtimes. The added build time and disk are unmeasured.
+  runtimes. A cold builder image takes 18 to 25 minutes, which
+  `docs/adr/0018-release-graph.md` answers with a published image.
+- Measured on `f6b280c` against `74d1992`, the last build before the allowlist:
+  the musl runtime executable fell from 170,275,248 to 146,212,008 bytes, 14.1
+  percent. The macOS executables fell 5.4 percent on arm64 and 5.9 percent on
+  amd64. Windows moved 0.01 percent, since its DLL set already matched. A build
+  loads 41 extensions where the FrankenPHP default set loaded 77.
 - The always-loaded extensions belong in the file, among them `Core`,
   `standard`, `SPL`, `Reflection` and `date`. The assertion compares the whole
   loaded set.
