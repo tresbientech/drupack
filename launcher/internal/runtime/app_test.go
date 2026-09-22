@@ -186,7 +186,7 @@ func TestCleanupKeepsAnEntryARunningStartHolds(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := CleanApps(root, false, &out); err != nil {
+	if err := CleanApps(root, "acme", false, &out); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(running); err != nil {

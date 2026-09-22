@@ -11,8 +11,8 @@ use Symfony\Component\Filesystem\Path;
 // The option set also reaches a reader through runtime/entrypoint.go's usage and
 // docs/cli.md. application/tests/launch_test.php asserts all three against options().
 const HELP = <<<'TEXT'
-Usage: drupack [OPTIONS]
-       drupack dr [OPTIONS] DRUSH_COMMAND
+Usage: %1$s [OPTIONS]
+       %1$s dr [OPTIONS] DRUSH_COMMAND
 
 Options:
   --data-dir PATH            Site data directory, ./data by default
@@ -180,6 +180,13 @@ function environment(string $name): ?string
     return $value === false || $value === '' ? null : $value;
 }
 
+// The executable the reader ran, which the launcher exports. Every message naming a
+// command names it, since one engine serves every site built on it.
+function executableName(): string
+{
+    return getenv('DRUPACK_RUNTIME_NAME');
+}
+
 // The packaged site's defaults, written from its drupack.yml when the application was built.
 function siteSettings(): array
 {
@@ -213,7 +220,7 @@ function options(array $arguments, bool $drush, array $site): array
             break;
         }
         if ($argument === '--help') {
-            echo HELP . "\n";
+            printf(HELP . "\n", executableName());
             exit(0);
         }
         $parts = explode('=', $argument, 2);
@@ -367,7 +374,7 @@ function recordedListener(array $options, string $directory): array
     $record = json_decode((string) file_get_contents(listenerPath($directory)), true);
     if (!is_array($record)) {
         throw new RuntimeException('Cannot read the recorded listener: ' . listenerPath($directory)
-            . ". Remove that file, then start Drupack again to record it.");
+            . ". Remove that file, then start " . executableName() . " again to record it.");
     }
     $options['listen'] ??= $record['listen'] ?? throw new RuntimeException('Recorded listener has no listen address');
     $options['host'] ??= $record['host'] ?? throw new RuntimeException('Recorded listener has no host');
@@ -398,7 +405,7 @@ function remainingSteps(string $directory, string $backend): array
         $steps = json_decode((string) file_get_contents(progressPath($directory)), true);
         if (!is_array($steps)) {
             throw new RuntimeException('Cannot read the recorded initialization progress: ' . progressPath($directory)
-                . ". Remove that file, then start Drupack again to check the site.");
+                . ". Remove that file, then start " . executableName() . " again to check the site.");
         }
         return $steps;
     }
@@ -407,7 +414,7 @@ function remainingSteps(string $directory, string $backend): array
     }
     // The database is the user's only copy, so a start without recorded settings never seeds over one.
     if (file_exists("$directory/site.sqlite")) {
-        throw new RuntimeException("This Site data holds a database without settings: $directory. Restore its settings.php, or start Drupack with an empty Site data directory.");
+        throw new RuntimeException("This Site data holds a database without settings: $directory. Restore its settings.php, or start " . executableName() . " with an empty Site data directory.");
     }
     if ($backend === 'sqlite') {
         return ['seed', 'settings', 'administrator'];
@@ -415,7 +422,7 @@ function remainingSteps(string $directory, string $backend): array
     // The directory may not exist yet on the check that runs before it is created;
     // the authoritative check that runs under the serving lease always finds it.
     if (is_dir($directory) && file_put_contents(firstEverPath($directory), '', LOCK_EX) === false) {
-        throw new RuntimeException('Cannot record that this database is new to Drupack');
+        throw new RuntimeException('Cannot record that this database is new to ' . executableName());
     }
     return ['settings', 'install', 'modules'];
 }
@@ -636,7 +643,7 @@ function explainMintFailure(LoginLinkFailure $failure, string $data): void
 {
     $reason = rtrim($failure->reason, '. ');
     fwrite(STDERR, 'Cannot mint a one-time login link' . ($reason === '' ? '' : ": $reason")
-        . ". Get one with: drupack dr --data-dir $data user:login /admin/dashboard\n");
+        . ". Get one with: " . executableName() . " dr --data-dir $data user:login /admin/dashboard\n");
 }
 
 // A start whose address this Site data already serves runs no server of its own: two
@@ -650,7 +657,7 @@ function handOver(string $binary, string $url, string $data, array $options): ne
         $link = null;
         explainMintFailure($failure, $data);
     }
-    fwrite(STDOUT, "Drupack is already serving this Site data.\n\n  URL:    $url\n"
+    fwrite(STDOUT, executableName() . " is already serving this Site data.\n\n  URL:    $url\n"
         . ($link === null ? '' : "  Login:  $link\n"));
     if ($link === null || $options['no-browser'] !== null) {
         exit(0);
@@ -703,11 +710,11 @@ function installSite(string $data, array $options, string $binary, bool $firstEv
         if (!$firstEver) {
             return false;
         }
-        fwrite(STDOUT, "This database already holds a site. Drupack enabled nothing on it, and keeps its own administrator account.\n");
+        fwrite(STDOUT, "This database already holds a site. " . executableName() . " enabled nothing on it, and keeps its own administrator account.\n");
         return true;
     }
     if (databaseHoldsTables($options)) {
-        throw new RuntimeException("The database for $data holds tables without an installed site. Empty it or name another database, then start Drupack again.");
+        throw new RuntimeException("The database for $data holds tables without an installed site. Empty it or name another database, then start " . executableName() . " again.");
     }
     installDrupal($options, $binary);
     return false;
@@ -728,13 +735,13 @@ function seedPassword(): string
 function adoptSite(string $data, string $binary): void
 {
     if (drushField($binary, ['status', '--field=bootstrap']) !== 'Successful') {
-        throw new RuntimeException("This Site data holds settings but no installed site: $data. Inspect it with: drupack dr --data-dir $data status");
+        throw new RuntimeException("This Site data holds settings but no installed site: $data. Inspect it with: " . executableName() . " dr --data-dir $data status");
     }
     $expression = '$account = \\Drupal\\user\\Entity\\User::load(1); print \\Drupal::service("password")->check('
         . var_export(seedPassword(), true) . ', $account->getPassword()) ? "yes" : "no";';
     if (drushField($binary, ['php:eval', $expression]) === 'yes') {
         throw new RuntimeException("This Site data holds a site whose administrator still accepts the packaged seed password: $data. "
-            . "Set a new password, then start Drupack again: drupack dr --data-dir $data php:eval "
+            . "Set a new password, then start " . executableName() . " again: " . executableName() . " dr --data-dir $data php:eval "
             . '\'$account = \\Drupal\\user\\Entity\\User::load(1); $account->setPassword("new-password"); $account->save();\'');
     }
 }
@@ -888,7 +895,7 @@ try {
     if ($drush) {
         // `dr` initializes nothing and takes no lease, so Drush works while the server runs.
         if (!file_exists($options['data-dir'] . '/settings.php')) {
-            throw new RuntimeException("This Site data has no site yet: {$options['data-dir']}. Start Drupack once to create one.");
+            throw new RuntimeException("This Site data has no site yet: {$options['data-dir']}. Start " . executableName() . " once to create one.");
         }
         // `dr` serves nothing of its own, so it addresses the site where the last start served.
         $options = recordedListener($options, $options['data-dir']);
@@ -972,17 +979,17 @@ try {
             // serving once it does. A handover addresses a site that answers requests,
             // so an installation in progress refuses instead.
             if (!file_exists(markerPath($data))) {
-                throw new RuntimeException("Another Drupack start is preparing this Site data: $data");
+                throw new RuntimeException("Another " . executableName() . " start is preparing this Site data: $data");
             }
             $served = servedAddress($data, $url);
             if (personPresent()) {
                 handOver($binary, $served, $data, $options);
             }
-            throw new RuntimeException("Drupack already serves this Site data at $served: $data");
+            throw new RuntimeException(executableName() . " already serves this Site data at $served: $data");
         }
         if (portTaken($bind, $port)) {
             throw new RuntimeException("Another program is listening on {$options['listen']}. Stop it, or start on"
-                . " a free port: drupack --listen $bind:" . ($port + 1));
+                . " a free port: " . executableName() . " --listen $bind:" . ($port + 1));
         }
         writeListener($data, $options);
     }

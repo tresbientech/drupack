@@ -37,7 +37,7 @@ const usageName = ".inuse"
 // startup cannot read as ASCII falls to the temporary directory too, with one
 // line written to notice naming why; a root with no ASCII form anywhere stops
 // the start instead.
-func Root(notice io.Writer) (string, error) {
+func Root(name string, notice io.Writer) (string, error) {
 	if dir := os.Getenv("DRUPACK_CACHE_DIR"); dir != "" {
 		if err := os.MkdirAll(dir, rootMode); err != nil {
 			return "", err
@@ -46,17 +46,17 @@ func Root(notice io.Writer) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return asciiRoot(root, notice)
+		return asciiRoot(root, name, notice)
 	}
 
 	var lastErr error
-	for _, root := range cacheRoots() {
+	for _, root := range cacheRoots(name) {
 		if err := os.MkdirAll(root, rootMode); err != nil {
 			lastErr = err
 			continue
 		}
 		if owned, err := privateRoot(root); err == nil && owned != "" {
-			return asciiRoot(owned, notice)
+			return asciiRoot(owned, name, notice)
 		} else if err != nil {
 			lastErr = err
 		}
@@ -155,7 +155,7 @@ func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string,
 		return entry, nil
 	}
 
-	fmt.Fprintf(notice, "Unpacking Drupack %s. This happens once for each version.\n", m.Version)
+	fmt.Fprintf(notice, "Unpacking runtime %s. This happens once for each version.\n", m.Version)
 
 	name, err := stage(root, key, payload, m, notice)
 	if err != nil {

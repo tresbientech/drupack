@@ -25,6 +25,9 @@ done
 binary=/go/src/app/dist/static-php-cli/buildroot/bin/frankenphp
 export DRUPACK_RUNTIME_BINARY=$binary
 cd /data/runtime/app
+# A release start gets the site's name from its launcher.
+DRUPACK_RUNTIME_NAME=$(jq -r .name site.json)
+export DRUPACK_RUNTIME_NAME
 
 # A release start gets these from the launcher's environment function. The
 # development image runs frankenphp directly, so it sets the same two here, and

@@ -76,5 +76,6 @@ cp "$repository/application/php.ini" "$repository/application/cacert.pem" "$runt
   && go run ./cmd/pack -runtime "$runtime" -entry "$entry" \
      -version "$drupack_version" \
      -source "$repository/launcher" -output "$output" \
-     -app "$payload/app-payload.tar" -app-checksum "$payload/app_checksum.txt")
+     -app "$payload/app-payload.tar" -app-checksum "$payload/app_checksum.txt" \
+     -site "$payload/site.json" -site-version "$drupack_version")
 "$output" version

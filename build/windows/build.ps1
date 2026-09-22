@@ -174,7 +174,7 @@ $launcherSource = (Resolve-Path (Join-Path $PSScriptRoot '..\..\launcher')).Path
 $env:CGO_ENABLED = '0'
 Push-Location $launcherSource
 try {
-  go run ./cmd/pack -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $outputPath -app (Join-Path $payload 'app-payload.tar') -app-checksum (Join-Path $payload 'app_checksum.txt')
+  go run ./cmd/pack -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $outputPath -app (Join-Path $payload 'app-payload.tar') -app-checksum (Join-Path $payload 'app_checksum.txt') -site (Join-Path $payload 'site.json') -site-version $Version
 } finally {
   Pop-Location
 }

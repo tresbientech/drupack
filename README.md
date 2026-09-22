@@ -120,9 +120,11 @@ An interrupted setup resumes where it stopped. Drupack never installs Drupal ove
 
 Your download carries Drupal, PHP and Caddy compressed. The first start of a version unpacks them into a cache directory, which takes about a second. Every later start of that version uses what is already there.
 
-- Linux: `~/.cache/Drupack/runtime`
-- macOS: `~/Library/Caches/Drupack/runtime`
-- Windows: `%LOCALAPPDATA%\Drupack\runtime`
+- Linux: `~/.cache/drupack/runtime`
+- macOS: `~/Library/Caches/drupack/runtime`
+- Windows: `%LOCALAPPDATA%\drupack\runtime`
+
+Releases up to 0.2.0 unpacked into `~/.cache/Drupack/runtime` on Linux. Nothing reads that directory any more, so delete it after upgrading.
 
 One version takes about 400 MB on Linux and macOS, beside your Site data. The space is per version, and a successful start removes the versions it replaces, so upgrading does not stack them up.
 

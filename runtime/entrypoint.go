@@ -17,7 +17,7 @@ import (
 	"github.com/dunglas/frankenphp"
 )
 
-// version names the release. Each build script sets it with -ldflags.
+// version names the engine release. Each build script sets it with -ldflags.
 var version = "dev"
 
 // libc names the C library this runtime was linked against. embed.sh sets it
@@ -26,18 +26,26 @@ var version = "dev"
 // about one of them has to say which ran.
 var libc = ""
 
-// release describes what ran: the version, and the libc when more than one
-// build of this release exists.
-func release() string {
-	if libc == "" {
-		return "Drupack " + version
-	}
-	return "Drupack " + version + " (" + libc + " runtime)"
+// siteName names the executable the reader ran. The launcher exports it with
+// the site's release, since one runtime build serves every site of an engine
+// release.
+func siteName() string {
+	return os.Getenv("DRUPACK_RUNTIME_NAME")
 }
 
-const usage = `Usage: drupack [OPTIONS]
-       drupack dr [OPTIONS] DRUSH_COMMAND
-       drupack clean [--dry-run]
+// release describes what ran: the site and its release, the engine release,
+// and the libc when more than one build of this release exists.
+func release() string {
+	site := siteName() + " " + os.Getenv("DRUPACK_RUNTIME_SITE_VERSION")
+	if libc == "" {
+		return site + " (drupack " + version + ")"
+	}
+	return site + " (drupack " + version + ", " + libc + ")"
+}
+
+const usage = `Usage: %[1]s [OPTIONS]
+       %[1]s dr [OPTIONS] DRUSH_COMMAND
+       %[1]s clean [--dry-run]
 
 Options:
   --data-dir PATH            Site data directory, ./data by default
@@ -61,12 +69,12 @@ Commands:
                              --dry-run lists them and removes nothing.
 
 Examples:
-  drupack
-  drupack --data-dir ./site --listen 127.0.0.1:9000
-  drupack --admin-user admin --admin-password 'choose-a-password'
-  drupack dr --data-dir ./site status
-  drupack dr --data-dir ./site user:login
-  drupack clean --dry-run`
+  %[1]s
+  %[1]s --data-dir ./site --listen 127.0.0.1:9000
+  %[1]s --admin-user admin --admin-password 'choose-a-password'
+  %[1]s dr --data-dir ./site status
+  %[1]s dr --data-dir ./site user:login
+  %[1]s clean --dry-run`
 
 // readinessPath answers 204 for a request carrying this site's own identity token, and 404
 // for anything else. The Caddyfile serves it without reaching Drupal, so the poll below
@@ -94,7 +102,7 @@ func openWhenReady(address string, token string, target string, browser bool, re
 		if err == nil {
 			response.Body.Close()
 			if response.StatusCode == http.StatusNoContent {
-				fmt.Println("\nDrupack is ready. Press Ctrl+C to stop.")
+				fmt.Printf("\n%s is ready. Press Ctrl+C to stop.\n", siteName())
 				close(ready)
 				if browser {
 					openBrowser(target)
@@ -142,7 +150,7 @@ func forceExitOnStalledShutdown() context.Context {
 		<-signals
 		stop()
 		time.Sleep(shutdownDeadline)
-		fmt.Fprintf(os.Stderr, "Drupack did not stop within %s. Forcing exit.\n", shutdownDeadline)
+		fmt.Fprintf(os.Stderr, "%s did not stop within %s. Forcing exit.\n", siteName(), shutdownDeadline)
 		os.Exit(1)
 	}()
 	return stopping
@@ -269,7 +277,7 @@ func init() {
 		return
 	}
 	if len(os.Args) == 2 && (os.Args[1] == "--help" || os.Args[1] == "-h") {
-		fmt.Println(usage)
+		fmt.Printf(usage+"\n", siteName())
 		os.Exit(0)
 	}
 	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {

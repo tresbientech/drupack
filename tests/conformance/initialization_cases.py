@@ -24,7 +24,7 @@ DEFAULT_URL = "http://localhost:7225/"
 LOGIN_LINE = "  Login:     http"
 # Phase 2 leaves this line to the default-port case in site_cases.py and this one; phase 8's
 # network_cases.py asserts it too, each module keeping its own copy.
-READY_LINE = "Drupack is ready."
+READY_LINE = "drupack is ready."
 # Dockerfile installs the seed under this account; launch.php's seedPassword() carries its password.
 SEED_ADMIN = "drupack-admin"
 # postgres:17.11, pinned the way server_database_cases.py pins its own copy of the same image:
@@ -397,7 +397,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
             code = loser.wait(timeout=harness.WAITS["stop"].seconds)
             self.assertNotEqual(code, 0, "a simultaneous start exited without a failure")
             loser_log = (race_dir / f"{loser_label}.log").read_text(errors="replace")
-            self.assertIn("Another Drupack start", loser_log, "the losing start names no other start")
+            self.assertIn("Another drupack start", loser_log, "the losing start names no other start")
             self.assertIn(str(data), loser_log, "the losing start does not name the Site data directory")
 
             ready_deadline = time.monotonic() + harness.WAITS["start"].seconds
@@ -475,7 +475,7 @@ class EquivalentPathLock(harness.ConformanceCase):
                     self.fail("a start waited for a lock another process held")
             self.assertNotEqual(result.returncode, 0, "a start took a lock another process held")
             text = log.read_text(errors="replace")
-            self.assertIn("Another Drupack start", text, f"the blocked start names no other start: inspect {log}")
+            self.assertIn("Another drupack start", text, f"the blocked start names no other start: inspect {log}")
             self.assertIn(str(data.resolve()), text, "the blocked start does not name the resolved directory")
         finally:
             release.touch()

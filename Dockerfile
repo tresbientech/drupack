@@ -96,7 +96,7 @@ COPY --from=runtime-gnu /out /out
 FROM ${APP_BUILDER} AS packed
 ARG DRUPACK_VERSION
 COPY launcher /src/launcher
-COPY --from=app /go/src/app/app-payload.tar /go/src/app/app_checksum.txt /payload/
+COPY --from=app /go/src/app/app-payload.tar /go/src/app/app_checksum.txt /app/site.json /payload/
 COPY --from=runtime-musl /out /runtime/musl
 COPY --from=runtime-gnu /out /runtime/glibc
 RUN export CGO_ENABLED=0 \
@@ -104,7 +104,8 @@ RUN export CGO_ENABLED=0 \
     && cd /src/launcher \
     && go run ./cmd/pack -runtime glibc=/runtime/glibc -runtime musl=/runtime/musl \
         -entry drupack -version "${DRUPACK_VERSION:-dev}" -source /src/launcher \
-        -output /packed/drupack -app /payload/app-payload.tar -app-checksum /payload/app_checksum.txt
+        -output /packed/drupack -app /payload/app-payload.tar -app-checksum /payload/app_checksum.txt \
+        -site /payload/site.json -site-version "${DRUPACK_VERSION:-dev}"
 
 FROM scratch AS artifact
 COPY --from=packed /packed/drupack /drupack

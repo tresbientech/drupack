@@ -28,6 +28,9 @@ const OPTION_VARIABLES = [
 
 // The site.json a build writes, reduced to what options() reads.
 const FIXTURE_SITE = ['site_name' => 'Fixture Site'];
+// The launcher exports the executable's name to every hop; this file runs outside one.
+const FIXTURE_NAME = 'fixture-site';
+putenv('DRUPACK_RUNTIME_NAME=' . FIXTURE_NAME);
 
 $cases = [];
 $scratches = [];
@@ -252,6 +255,17 @@ test('an unreadable listener record refuses', function (): void {
     $data = scratch();
     file_put_contents(listenerPath($data), 'not json');
     throws('Cannot read the recorded listener', fn() => recordedListener(['listen' => null, 'host' => null], $data));
+});
+
+test('a refusal names the executable the launcher exported', function (): void {
+    $data = scratch();
+    file_put_contents(listenerPath($data), 'not json');
+    putenv('DRUPACK_RUNTIME_NAME=acme-intranet');
+    try {
+        throws('then start acme-intranet again', fn() => recordedListener(['listen' => null, 'host' => null], $data));
+    } finally {
+        putenv('DRUPACK_RUNTIME_NAME=' . FIXTURE_NAME);
+    }
 });
 
 test('a listener record missing its host refuses', function (): void {

@@ -38,6 +38,7 @@ container=$(docker create drupack-build)
 mkdir -p dist/payload
 docker cp "$container:/go/src/app/app-payload.tar" dist/payload/app-payload.tar
 docker cp "$container:/go/src/app/app_checksum.txt" dist/payload/app_checksum.txt
+docker cp "$container:/app/site.json" dist/payload/site.json
 docker rm "$container"
 ```
 

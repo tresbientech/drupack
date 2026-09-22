@@ -28,7 +28,7 @@ type embeddedRuntime struct {
 }
 
 func run() error {
-	root, err := runtime.Root(os.Stderr)
+	root, err := runtime.Root(siteName, os.Stderr)
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		return runtime.CleanApps(root, dry, os.Stdout)
+		return runtime.CleanApps(root, siteName, dry, os.Stdout)
 	}
 	selected, m, err := selectRuntime()
 	if err != nil {
@@ -61,6 +61,14 @@ func run() error {
 	// terminal read the exported value, so it takes Drupack's canonical form;
 	// application itself stays native for the join below.
 	if err := os.Setenv("DRUPACK_RUNTIME_APP_DIR", runtime.Canonical(application)); err != nil {
+		return err
+	}
+	// The runtime and launch.php are shared by every site built on this engine, so
+	// the site's name and release reach them from here.
+	if err := os.Setenv("DRUPACK_RUNTIME_NAME", siteName); err != nil {
+		return err
+	}
+	if err := os.Setenv("DRUPACK_RUNTIME_SITE_VERSION", siteVersion); err != nil {
 		return err
 	}
 	// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.

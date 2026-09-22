@@ -15,7 +15,7 @@ ADMIN_USER = "drupack-test-admin"
 ADMIN_PASSWORD = "Offline.test.administrator.2026!"
 CREDENTIALS = ("--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
 LINK_PREFIX = "  Login:     "
-READY_LINE = "Drupack is ready."
+READY_LINE = "drupack is ready."
 
 # The three methods that together cover every assertion tests/windows/site.Tests.ps1 made:
 # a credentialed first start with the settings and private-path codes, dr status

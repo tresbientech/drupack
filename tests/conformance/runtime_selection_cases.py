@@ -16,7 +16,7 @@ from pathlib import Path
 import harness
 
 # The line entrypoint.go prints for a build carrying a runtime per libc.
-VERSION_PATTERN = re.compile(r"^Drupack \S+ \((glibc|musl) runtime\)$", re.MULTILINE)
+VERSION_PATTERN = re.compile(r"^drupack \S+ \(drupack \S+, (glibc|musl)\)$", re.MULTILINE)
 
 # The interpreter a glibc build records, per architecture. A host holding the file runs
 # the glibc runtime; a host without it falls to the musl one, which needs no loader.
@@ -61,14 +61,14 @@ class RuntimeSelection(harness.ConformanceCase):
         expected = "glibc" if interpreter.exists() else "musl"
         result = self.version()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn(f"({expected} runtime)", result.stdout)
+        self.assertIn(f", {expected})", result.stdout)
 
     def test_the_variable_selects_each_carried_runtime(self):
         for libc in ("musl", "glibc"):
             with self.subTest(libc=libc):
                 result = self.version(libc)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn(f"({libc} runtime)", result.stdout)
+                self.assertIn(f", {libc})", result.stdout)
 
     def test_an_unknown_libc_stops_the_start(self):
         result = self.version("gnu")

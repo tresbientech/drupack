@@ -5,6 +5,7 @@ None until tests/conformance/__main__.py sets them, before unittest imports a ca
 """
 
 import hashlib
+import json
 import os
 import platform
 import shutil
@@ -92,7 +93,7 @@ WAIT_TABLE = [
     # entrypoint.go forces its own exit 10s after the first stop signal.
     Wait("stop", 30, 10, "stop after the first signal"),
     # No product deadline: openBrowser runs in the same goroutine that already printed
-    # "Drupack is ready.", so the recorder standing in for it sees the URL within a
+    # "drupack is ready.", so the recorder standing in for it sees the URL within a
     # process spawn, not a poll of any kind.
     Wait("browser_open", 10, None, "a start's background browser-open handing its target to the recorder"),
     Wait("dr", 120, None, "a dr command"),
@@ -211,7 +212,7 @@ def _build_stub(work, runtime_dir, entry, version):
     )
 
 
-def _run_pack(work, runtime_dir, entry, version, output):
+def _run_pack(work, runtime_dir, entry, version, output, name):
     output.parent.mkdir(parents=True, exist_ok=True)
     # A launcher carries the application beside its runtime. A fixture's stub serves
     # no site, so it carries an empty archive, under a checksum of its own version so
@@ -220,23 +221,28 @@ def _run_pack(work, runtime_dir, entry, version, output):
     application.write_bytes(b"")
     checksum = work / "app_checksum.txt"
     checksum.write_text(hashlib.sha256(version.encode()).hexdigest())
+    # The packer reads the site's name from the site.json a build writes.
+    site = work / "site.json"
+    site.write_text(json.dumps({"name": name}))
     subprocess.run(
         ["go", "run", "./cmd/pack", "-runtime", str(runtime_dir), "-entry", entry,
          "-version", version, "-source", ".", "-output", str(output),
-         "-app", str(application), "-app-checksum", str(checksum)],
+         "-app", str(application), "-app-checksum", str(checksum),
+         "-site", str(site), "-site-version", version],
         cwd=LAUNCHER_SRC, check=True, capture_output=True, text=True,
         timeout=WAITS["fixture_pack"].seconds,
     )
 
 
-def pack_fixture(entry, version, output):
-    """Build a launcher whose runtime is the stub, packed under entry (the platform's entry name)."""
+def pack_fixture(entry, version, output, name="fixture"):
+    """Build a launcher whose runtime is the stub, packed under entry (the platform's entry
+    name), for a site called name, which names its cache root."""
     with tempfile.TemporaryDirectory(prefix="drupack-fixture-") as work:
         work = Path(work)
         runtime_dir = work / "runtime"
         runtime_dir.mkdir()
         _build_stub(work, runtime_dir, entry, version)
-        _run_pack(work, runtime_dir, entry, version, output)
+        _run_pack(work, runtime_dir, entry, version, output, name)
     return output
 
 
@@ -252,7 +258,7 @@ def pack_corrupted_fixture(entry, version, output):
         runtime_dir.mkdir()
         _build_stub(work, runtime_dir, entry, version)
         correct = hashlib.sha256((runtime_dir / entry).read_bytes()).hexdigest()
-        _run_pack(work, runtime_dir, entry, version, output)
+        _run_pack(work, runtime_dir, entry, version, output, "fixture")
 
     data = bytearray(output.read_bytes())
     needle = correct.encode()
