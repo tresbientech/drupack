@@ -31,8 +31,8 @@ func dynamicELF(t *testing.T) string {
 	return ""
 }
 
-// The interpreter Build records is what Select stats to tell a host that runs the
-// glibc runtime from one that does not.
+// Select stats the interpreter Build records, to tell a host that runs the glibc
+// runtime from one that does not.
 func TestBuildRecordsTheEntryInterpreter(t *testing.T) {
 	if goruntime.GOOS != "linux" {
 		t.Skip("PT_INTERP is an ELF segment")
