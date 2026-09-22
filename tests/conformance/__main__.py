@@ -5,6 +5,7 @@ unittest, so a caller's own -k, -v or -q still applies on top of this suite's de
 """
 
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -13,6 +14,25 @@ from pathlib import Path
 import harness
 
 USAGE = "Usage: python3 tests/conformance EXECUTABLE RESULTS [unittest arguments]"
+
+# A run writes this into the results directory it creates, so a later run empties
+# only a tree the suite made, never whatever path the command line handed it.
+RESULTS_MARKER = ".drupack-conformance-results"
+
+
+def reset_results(results):
+    """Empties the results directory, so no case finds what an earlier run left there.
+
+    A first-start case handed an earlier run's Site data finds a site already
+    installed and fails. A non-empty directory without the marker stops the run
+    instead of being deleted.
+    """
+    if results.is_dir() and any(results.iterdir()) and not (results / RESULTS_MARKER).exists():
+        raise SystemExit(f"{results} holds files no conformance run wrote. Pass a new or empty directory.")
+    if results.exists():
+        shutil.rmtree(results)
+    results.mkdir(parents=True)
+    (results / RESULTS_MARKER).touch()
 
 
 def suite_lock():
@@ -74,15 +94,17 @@ def main(argv):
     binary, results, *rest = argv
     harness.BINARY = Path(binary).resolve()
     harness.RESULTS = Path(results).resolve()
-    harness.RESULTS.mkdir(parents=True, exist_ok=True)
     case_dir = Path(__file__).resolve().parent
     discover_argv = ["conformance", "discover", "-s", str(case_dir), "-p", "*_cases.py", "-v", *rest]
     if os.environ.get("DRUPACK_CACHE_DIR"):
         # Set already: this is the offline case's inner run, sharing its outer run's cache
-        # mount rather than unpacking a second copy inside the container.
+        # mount rather than unpacking a second copy inside the container. Its results
+        # directory is the outer run's OfflineRun case, which that run emptied and logs into.
         program = unittest.main(module=None, argv=discover_argv, exit=False)
     else:
         lock = suite_lock()  # held until this process exits
+        # Emptied under the lock, so no other run is writing into it.
+        reset_results(harness.RESULTS)
         cache_dir = tempfile.mkdtemp(prefix="drupack-cache-")
         os.environ["DRUPACK_CACHE_DIR"] = cache_dir
         try:

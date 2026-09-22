@@ -56,7 +56,7 @@ docker build --target artifact --output type=local,dest=dist .
 python3 tests/conformance ./dist/drupack test-results/conformance
 ```
 
-`tests/conformance` takes a results directory as its second argument. On Linux it also needs Docker, which it uses to prove its site cases offline inside a container instead of running them on the host, to run its network cases against a second container, and to start MySQL and PostgreSQL containers for its server-database cases. On Linux, `tests/conformance` also needs Go, to pack small fixture launchers for its launcher cases.
+`tests/conformance` takes a results directory as its second argument, and empties it before any case runs. It refuses a non-empty directory that no earlier run created. On Linux it also needs Docker, which it uses to prove its site cases offline inside a container instead of running them on the host, to run its network cases against a second container, and to start MySQL and PostgreSQL containers for its server-database cases. On Linux, `tests/conformance` also needs Go, to pack small fixture launchers for its launcher cases.
 
 One conformance run happens at a time on a machine. A second run waits for the first, and says so on standard error. Two at once bind the same ports and collide on container names, which times out site starts in both. `DRUPACK_SUITE_LOCK` names the lock file, so a machine that needs two independent runs can give each its own.
 
