@@ -42,6 +42,34 @@ def current_platform():
     return _PLATFORM_NAMES[platform.system()]
 
 
+# packaging/php-extensions.txt names what every builder compiles, under
+# static-php-cli's names. Three of them never answer to get_loaded_extensions():
+# password-argon2 is a build input for argon2 support inside the standard
+# extension, and the Windows PHP zip carries no apcu or brotli DLL.
+_ALLOWLIST = Path(__file__).resolve().parent.parent.parent / "packaging" / "php-extensions.txt"
+_UNLOADABLE = {LINUX: {"password-argon2"}, MACOS: {"password-argon2"},
+               WINDOWS: {"password-argon2", "apcu", "brotli"}}
+_REPORTED_AS = {"opcache": "zend opcache"}
+
+
+# PHP compiles these whatever a build selects, so no allowlist names them.
+# Read off a PHP 8.5 static build; a release that changes the set corrects it.
+ALWAYS_COMPILED = frozenset({
+    "core", "date", "hash", "json", "lexbor", "pcre", "random", "reflection",
+    "spl", "standard", "uri",
+})
+
+
+def expected_extensions():
+    """The allowlist, under the names this platform's PHP reports them by."""
+    names = set()
+    for line in _ALLOWLIST.read_text().splitlines():
+        name = line.split("#", 1)[0].strip()
+        if name and name not in _UNLOADABLE[current_platform()]:
+            names.add(_REPORTED_AS.get(name, name))
+    return frozenset(names)
+
+
 # The offline case's docker invocation sets this in the container; running_offline() is
 # true only for that inner run, never for the host run that launches the container.
 OFFLINE_ENV = "CONFORMANCE_OFFLINE"

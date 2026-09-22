@@ -1,0 +1,48 @@
+# Every PHP extension a Drupack build compiles, one per line, with what needs
+# it. static-php-cli owns the names: Linux and macOS pass this list to
+# PHP_EXTENSIONS and spc resolves the libraries behind it. Windows maps each
+# name to a DLL in the PHP zip, or to an extension its php8ts.dll already
+# carries.
+#
+# packaging/check-extensions.py fails when drupal/composer.lock declares an
+# extension this file omits.
+#
+# Not shipped. bcmath, ftp, mbregex, pcntl, posix, readline and xz reach only
+# guarded call sites, and the Windows build runs without them today. pathauto
+# asks for mb_eregi_replace and falls back to preg_replace. calendar, exif,
+# shmop, sockets, sysvmsg, sysvsem, sysvshm, tidy and zstd have no call site at
+# all. amqp, ast, dba, gettext, gmp, igbinary, imagick, ldap, lz4, memcached,
+# mysqli, parallel, protobuf, redis, soap, ssh2, xlswriter, xmlreader,
+# xmlwriter, xsl and yaml serve modules or database drivers Drupack does not
+# ship.
+
+apcu             # Drupal file cache and class loader cache
+brotli           # Caddy's brotli module; core AssetDumper writes .br assets
+ctype            # Drupal core, webmozart/assert
+curl             # Drupal HTTP client; the build fetches translations with it
+dom              # Drupal core, Drush, svg-sanitize, html5
+fileinfo         # MIME detection; mcp/sdk declares it
+filter           # Drupal core
+gd               # Drupal core image toolkit
+iconv            # Drupal core, opis/string, symfony polyfill
+intl             # canvas labels, symfony validator
+libxml           # dom, simplexml and xml read it
+mbstring         # Drupal core string handling
+mysqlnd          # the driver library behind pdo_mysql
+opcache          # bytecode cache for every request
+openssl          # HTTPS requests and Drupal crypto
+password-argon2  # argon2 password hashing; loads no extension of its own
+pdo              # Drupal core database layer
+pdo_mysql        # MySQL database backend
+pdo_pgsql        # PostgreSQL database backend
+pdo_sqlite       # SQLite database backend and the Seed site
+pgsql            # pdo_pgsql needs it
+phar             # composer.phar runs under this PHP during the build
+session          # Drupal core
+simplexml        # Drupal core, project_browser
+sodium           # friendlycaptcha, symfony/uid
+sqlite3          # pdo_sqlite needs it
+tokenizer        # Drupal core, nikic/php-parser, psysh
+xml              # Drupal core
+zip              # core Archiver; composer --prefer-dist during the build
+zlib             # Drupal core

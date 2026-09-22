@@ -65,6 +65,14 @@ A path element Drupack names itself rather than inherits, matching `^[a-z][a-z0-
 **Application root**:
 The directory holding one release's unpacked application, which every site of that release reads and none writes to.
 
+### Extensions
+
+**Extension allowlist**:
+The record of every PHP extension a Packaged site ships, each with what it serves.
+
+**Declared extension**:
+A PHP extension that a package in the application's lock file names as a requirement.
+
 ## Relationships
 
 ### First start
@@ -87,6 +95,12 @@ The directory holding one release's unpacked application, which every site of th
 - A **Packaged site** older than the **Version record** refuses to serve.
 - The **`dr` command** manages one **Packaged site** and its selected **Site data**.
 - **`DRUPACK_DATA_DIR`** selects **Site data** when no `--data-dir` option is present.
+
+### Extensions
+
+- The **Extension allowlist** gives every **Declared extension** a verdict, kept or dropped, and a build stops on one it does not name.
+- The **Extension allowlist** also carries extensions no package declares, among them the drivers for every **Database backend** a first start can select.
+- Each platform build takes the extensions it compiles from the **Extension allowlist**.
 
 ## Example dialogue
 

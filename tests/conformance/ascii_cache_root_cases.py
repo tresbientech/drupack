@@ -15,9 +15,9 @@ and the fix are both Windows-specific, and %LocalAppData% carries the account
 name only there.
 
 Cyrillic and CJK never print the load-failure warning even when broken, so
-every case also counts the DLL extensions a php-cli probe loads against the
-same cache root: the signal that separates a fixed start from a broken one
-for those two scripts.
+every case also checks that a php-cli probe against the same cache root loads
+every extension packaging/php-extensions.txt names: the signal that separates
+a fixed start from a broken one for those two scripts.
 """
 
 import json
@@ -30,12 +30,6 @@ ADMIN_PASSWORD = "Ascii.cache.root.test.password.2026"
 CREDENTIALS = ("--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
 
 LOAD_FAILURE = "Unable to load dynamic library"
-
-# The 13 extensions the Windows build loads as DLLs.
-DLL_EXTENSIONS = frozenset({
-    "curl", "exif", "fileinfo", "gd", "intl", "mbstring", "mysqli", "openssl",
-    "pdo_mysql", "pdo_pgsql", "pdo_sqlite", "sodium", "zip",
-})
 
 
 class AsciiCacheRootCases(harness.ConformanceCase):
@@ -82,11 +76,11 @@ class AsciiCacheRootCases(harness.ConformanceCase):
             LOAD_FAILURE, log,
             f"an extension failed to load from a {script_name!r} cache root: inspect {self.site.log_path}",
         )
-        loaded = self._loaded_extensions(script_name, env)
-        missing = sorted(DLL_EXTENSIONS - loaded)
+        expected = harness.expected_extensions()
+        missing = sorted(expected - self._loaded_extensions(script_name, env))
         self.assertEqual(
-            len(DLL_EXTENSIONS), len(DLL_EXTENSIONS & loaded),
-            f"a {script_name!r} cache root did not load {missing} of the 13 DLL extensions",
+            [], missing,
+            f"a {script_name!r} cache root did not load {missing}",
         )
 
     def test_accented_latin_cache_root_serves_cleanly(self):

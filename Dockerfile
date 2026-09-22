@@ -2,13 +2,21 @@
 # SPC_LIBC, which embed.sh reads to pick its link mode. A Linux executable
 # carries both runtimes: the glibc one serves a rendered page several times
 # faster, and the musl one is the single file that runs on any host.
-ARG MUSL_BUILDER=dunglas/frankenphp:static-builder-musl@sha256:a78af5ef3b46b5f382a702ee7aed22b367a6dc1bce382de0aebac7f4d73dade1
-ARG GNU_BUILDER=dunglas/frankenphp:static-builder-gnu@sha256:14330dbe7984e001ee3a6ad0621cbfbfed66ebb5fbd863ec059f57f199cb4760
+#
+# A runtime links the PHP that packaging/php-extensions.txt names, and
+# PHP_EXTENSIONS takes effect while a builder image is built, so
+# packaging/build-builder.sh builds one image per libc before this file runs.
+ARG MUSL_BUILDER=drupack-builder-musl:local
+ARG GNU_BUILDER=drupack-builder-gnu:local
+# Composer, the translation fetch, the site install and the packer need a PHP
+# and a Go toolchain rather than the runtime's extension set, so they stay on
+# the published image.
+ARG APP_BUILDER=dunglas/frankenphp:static-builder-musl@sha256:a78af5ef3b46b5f382a702ee7aed22b367a6dc1bce382de0aebac7f4d73dade1
 
 # The application is PHP source, vendor, translations and a seeded database.
 # None of it depends on the libc a runtime links against, so one builder image
 # installs it once and both runtimes carry the same payload.
-FROM ${MUSL_BUILDER} AS app
+FROM ${APP_BUILDER} AS app
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN curl -fsSL https://getcomposer.org/download/2.8.12/composer.phar -o /usr/local/bin/composer.phar \
@@ -46,6 +54,7 @@ RUN bash /usr/local/bin/app-payload.sh
 FROM ${MUSL_BUILDER} AS runtime-musl
 ARG DRUPACK_VERSION
 COPY packaging/embed.sh /usr/local/bin/embed.sh
+COPY packaging/php-extensions.txt packaging/extensions-list.sh /build/
 COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
 RUN bash /usr/local/bin/embed.sh
 COPY runtime/php.ini runtime/cacert.pem /out/
@@ -53,6 +62,7 @@ COPY runtime/php.ini runtime/cacert.pem /out/
 FROM ${GNU_BUILDER} AS runtime-gnu
 ARG DRUPACK_VERSION
 COPY packaging/embed.sh /usr/local/bin/embed.sh
+COPY packaging/php-extensions.txt packaging/extensions-list.sh /build/
 COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
 RUN bash /usr/local/bin/embed.sh
 COPY runtime/php.ini runtime/cacert.pem /out/
@@ -63,9 +73,19 @@ COPY --from=runtime-musl /out/drupack /drupack
 FROM scratch AS uncompressed-gnu
 COPY --from=runtime-gnu /out/drupack /drupack
 
+# One runner builds one runtime, since a builder image per libc and a PHP
+# compile do not share a runner. A later job hands the exported directory back
+# as a build context named for the stage it replaces, and the packed stage
+# reads /out at the same path either way.
+FROM scratch AS runtime-musl-files
+COPY --from=runtime-musl /out /out
+
+FROM scratch AS runtime-gnu-files
+COPY --from=runtime-gnu /out /out
+
 # The runtimes are listed with the one needing a host loader first, which is
 # the order the launcher tries them in.
-FROM ${MUSL_BUILDER} AS packed
+FROM ${APP_BUILDER} AS packed
 ARG DRUPACK_VERSION
 COPY packaging/launcher /src/launcher
 COPY --from=app /go/src/app/app-payload.tar /go/src/app/app_checksum.txt /payload/
