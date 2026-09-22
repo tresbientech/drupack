@@ -43,12 +43,13 @@ def current_platform():
 
 
 # packaging/php-extensions.txt names what every builder compiles, under
-# static-php-cli's names. Three of them never answer to get_loaded_extensions():
+# static-php-cli's names. Some never answer to get_loaded_extensions():
 # password-argon2 is a build input for argon2 support inside the standard
-# extension, and the Windows PHP zip carries no apcu or brotli DLL.
+# extension, the Windows PHP zip carries no apcu or brotli DLL, and Windows PHP
+# has no pcntl at all.
 _ALLOWLIST = Path(__file__).resolve().parent.parent.parent / "packaging" / "php-extensions.txt"
 _UNLOADABLE = {LINUX: {"password-argon2"}, MACOS: {"password-argon2"},
-               WINDOWS: {"password-argon2", "apcu", "brotli"}}
+               WINDOWS: {"password-argon2", "apcu", "brotli", "pcntl"}}
 _REPORTED_AS = {"opcache": "zend opcache"}
 
 

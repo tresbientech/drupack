@@ -7,9 +7,9 @@
 # packaging/check-extensions.py fails when drupal/composer.lock declares an
 # extension this file omits.
 #
-# Not shipped. bcmath, ftp, mbregex, pcntl, posix, readline and xz reach only
-# guarded call sites, and the Windows build runs without them today. pathauto
-# asks for mb_eregi_replace and falls back to preg_replace. calendar, exif,
+# Not shipped. bcmath, ftp, mbregex, posix, readline and xz reach only guarded
+# call sites, and the Windows build runs without them today. pathauto asks for
+# mb_eregi_replace and falls back to preg_replace. calendar, exif,
 # shmop, sockets, sysvmsg, sysvsem, sysvshm, tidy and zstd have no call site at
 # all. amqp, ast, dba, gettext, gmp, igbinary, imagick, ldap, lz4, memcached,
 # mysqli, parallel, protobuf, redis, soap, ssh2, xlswriter, xmlreader,
@@ -32,6 +32,7 @@ mysqlnd          # the driver library behind pdo_mysql
 opcache          # bytecode cache for every request
 openssl          # HTTPS requests and Drupal crypto
 password-argon2  # argon2 password hashing; loads no extension of its own
+pcntl            # launch.php replaces itself with the server outside Windows
 pdo              # Drupal core database layer
 pdo_mysql        # MySQL database backend
 pdo_pgsql        # PostgreSQL database backend
