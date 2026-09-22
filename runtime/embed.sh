@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Links the runtime executable for the libc the builder image names in
-# SPC_LIBC. packaging/app-payload.sh packs the application separately.
+# SPC_LIBC. build/app-payload.sh packs the application separately.
 
 cd /go/src/app
 # The launcher carries the application and unpacks it once per release, so the server
@@ -18,10 +18,15 @@ export CGO_CFLAGS="-fPIC -O2 -I/go/src/app/dist/static-php-cli/buildroot/include
 # compiled PHP from this same list, so the link flags follow the allowlist
 # rather than a written-out set that would name a library no extension pulls.
 extensions=$(bash /build/extensions-list.sh /build/php-extensions.txt)
-php_libraries=$(/go/src/app/dist/static-php-cli/spc spc-config "$extensions" --libs)
+extension_libs=$(bash /build/extensions-list.sh /build/php-extension-libs.txt)
+# spc resolves buildroot against its working directory, and reports a missing
+# library on stdout, where a command substitution hides it.
+if ! php_libraries=$(cd /go/src/app/dist/static-php-cli && ./spc spc-config "$extensions" --with-libs="$extension_libs" --libs); then
+    printf '%s\n' "$php_libraries" >&2
+    exit 1
+fi
 php_libraries=${php_libraries//-lstdc++/$(gcc -print-file-name=libstdc++.a)}
-# watcher serves FrankenPHP itself, so no extension pulls it.
-export CGO_LDFLAGS="-L/go/src/app/dist/static-php-cli/buildroot/lib -static-libgcc -Wl,--start-group $php_libraries -lwatcher-c -Wl,--end-group"
+export CGO_LDFLAGS="-L/go/src/app/dist/static-php-cli/buildroot/lib -static-libgcc -Wl,--start-group $php_libraries -Wl,--end-group"
 build_tags=nobadger,nomysql,nopgx
 linker_flags="-Wl,--dynamic-list=/go/src/app/dist/static-php-cli/buildroot/lib/libphp.a.dynsym"
 # The builder image sets SPC_LIBC. A glibc build links a dynamic PIE against the

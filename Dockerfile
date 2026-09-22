@@ -54,7 +54,7 @@ RUN bash /usr/local/bin/app-payload.sh
 FROM ${MUSL_BUILDER} AS runtime-musl
 ARG DRUPACK_VERSION
 COPY runtime/embed.sh /usr/local/bin/embed.sh
-COPY runtime/php-extensions.txt runtime/extensions-list.sh /build/
+COPY runtime/php-extensions.txt runtime/php-extension-libs.txt runtime/extensions-list.sh /build/
 COPY runtime/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
 RUN bash /usr/local/bin/embed.sh
 COPY application/php.ini application/cacert.pem /out/
@@ -62,7 +62,7 @@ COPY application/php.ini application/cacert.pem /out/
 FROM ${GNU_BUILDER} AS runtime-gnu
 ARG DRUPACK_VERSION
 COPY runtime/embed.sh /usr/local/bin/embed.sh
-COPY runtime/php-extensions.txt runtime/extensions-list.sh /build/
+COPY runtime/php-extensions.txt runtime/php-extension-libs.txt runtime/extensions-list.sh /build/
 COPY runtime/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
 RUN bash /usr/local/bin/embed.sh
 COPY application/php.ini application/cacert.pem /out/
