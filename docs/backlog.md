@@ -69,3 +69,46 @@ before its message can be read. A tray app would run a site in the background
 and show a notification icon, which needs a second GUI executable built from the
 same source. Parked in favour of a clearer command line first. The console
 detection and the browser open have since removed the worst of it.
+
+## The musl build's cost on authenticated pages
+
+A load study of 2026-09-22 measured two HEAD builds differing only in libc,
+against one MariaDB, at 1 to 64 concurrent users. Anonymous throughput matched
+within 8 percent. Authenticated throughput did not: 141 requests per second for
+musl against 488 for glibc at 16 users, 166 against 568 at 64, with p95 at 526ms
+against 150ms. Reversing the run order reproduced the musl figure. An anonymous
+request comes from the page cache and an authenticated one renders the page, so
+the split follows allocation volume. musl is the only libc a release ships.
+Lean: profile allocation in a rendered request before treating the number as a
+property of musl, since a mallocng tuning knob or a thread count may carry it.
+
+## SQLite as the default backend under concurrency
+
+The same study measured SQLite at 377 requests per second with one user and 139
+with 64, p95 rising from 3.3ms to 544ms. Concurrency subtracts throughput. The
+same binary on MariaDB reached 5,050. A first start chooses SQLite.
+Lean: keep the default, which suits the one reader a portable site serves, and
+record the ceiling in the docs so a reader who needs more knows to pass
+`--database`.
+
+## A first request that hangs after the port is bound
+
+11 of 46 warm starts and 3 of 9 cold starts served their first page request
+never. Caddy bound the port at 0.29s and answered the identity route at 0.79s,
+while a page request opened in that window did not return on its own
+connection. A second connection answered in 39ms while the first had waited
+past 100 seconds. The hung request also holds shutdown open, which is what the
+10 second forced-exit deadline and the 30 second readiness client timeout
+already work around. Lean: find what the first request blocks on before adding a
+third timeout.
+
+## What a start verifies before it announces readiness
+
+A start whose database refuses the connection prints `Drupack is ready.` and
+then serves 500 to every request, because Caddy answers the identity route
+without reaching Drupal. The same study reached that state through a second
+gap: `recordedOptions()` overwrites `db-host`, `db-port`, `db-name`, `db-user`
+and `db-password` from the recorded settings, so a start given a corrected
+`--db-port` keeps the stale one. Lean: decide what readiness should mean, and
+whether a recorded connection detail can be corrected from the command line at
+all.
