@@ -28,9 +28,10 @@ except ImportError:  # Windows has no pty module; only a Linux or macOS case att
     pty = None
 
 # Set by __main__ before unittest discovers case modules. None when a module imports the
-# harness on its own, as test_harness.py does.
+# harness on its own, as test_harness.py does. SITE is the site.json beside BINARY.
 BINARY = None
 RESULTS = None
+SITE = None
 
 LINUX = "linux"
 MACOS = "macos"
@@ -81,6 +82,38 @@ def running_offline():
     return os.environ.get(OFFLINE_ENV) == "1"
 
 
+def load_site(binary):
+    """Reads the site.json a build writes beside the executable it packs."""
+    return json.loads((binary.parent / "site.json").read_text())
+
+
+def ready_line():
+    """The line a start prints once its site answers, naming the executable."""
+    return f"{SITE['name']} is ready."
+
+
+def skip_report(skipped):
+    """One line per skipped case, so a run on a host without a tool names what it did not prove."""
+    return [f"  {test}: {reason}" for test, reason in skipped]
+
+
+DOCKER_SKIP = "needs a Docker daemon, which does not answer"
+_docker_answers = None
+
+
+def docker_answers():
+    """Reports whether a Docker daemon answers, probing once per run."""
+    global _docker_answers
+    if _docker_answers is None:
+        try:
+            _docker_answers = shutil.which("docker") is not None and subprocess.run(
+                ["docker", "info"], capture_output=True, timeout=WAITS["docker_probe"].seconds,
+            ).returncode == 0
+        except subprocess.TimeoutExpired:
+            _docker_answers = False
+    return _docker_answers
+
+
 # Wait table: each row names the product deadline it covers, the harness wait above it, and
 # the margin that buys. A row with no product deadline states its own budget instead.
 Wait = namedtuple("Wait", ["name", "seconds", "deadline", "covers"])
@@ -98,6 +131,7 @@ WAIT_TABLE = [
     Wait("browser_open", 10, None, "a start's background browser-open handing its target to the recorder"),
     Wait("dr", 120, None, "a dr command"),
     Wait("php_cli", 30, None, "a php-cli probe"),
+    Wait("docker_probe", 10, None, "docker info answering, or reporting no daemon"),
     # No product deadline: a start that should refuse an argument is expected to fail
     # before it ever reaches the point of attempting a connection.
     Wait("refusal", 20, None, "a start expected to refuse"),
@@ -397,8 +431,6 @@ class Site:
     trusts only '^localhost$', so a request addressed to 127.0.0.1 would be refused.
     """
 
-    DEFAULT_PORT = 7225
-
     def __init__(self, binary, case_dir):
         self.binary = binary
         self.case_dir = case_dir
@@ -408,7 +440,7 @@ class Site:
         self._pty_thread = None
 
     def start(self, data_dir, *options, listen=True, ready_wait="start", attach_pty=False, env=None):
-        self.port = pick_port() if listen else self.DEFAULT_PORT
+        self.port = pick_port() if listen else SITE["port"]
         args = [str(self.binary), "--data-dir", str(data_dir)]
         if listen:
             args += ["--listen", f"127.0.0.1:{self.port}"]
@@ -524,5 +556,150 @@ class ConformanceCase(unittest.TestCase):
         if current not in cls.PLATFORMS:
             raise unittest.SkipTest(f"not marked for {current}")
         for tool in cls.TOOLS:
+            # A CI runner without a daemon still runs every case that needs none.
+            if tool == "docker" and not docker_answers():
+                raise unittest.SkipTest(DOCKER_SKIP)
             if shutil.which(tool) is None:
                 raise RuntimeError(f"{cls.__name__} needs {tool!r}, which is not on PATH")
+
+
+# The account every server-database case connects as. A CI service the variables below
+# name creates it with these values: database drupal, user drupal, this password.
+DATABASE_USER = "drupal"
+DATABASE_PASSWORD = "Server.database.test.2026"
+
+# mysql:8.4.11 and postgres:17.11, pinned by index digest:
+# docker buildx imagetools inspect IMAGE --format '{{.Manifest.Digest}}'
+_DATABASE_CONTAINERS = {
+    "mysql": (
+        "mysql:8.4.11@sha256:85b9bf2e29cf836ecb8c2a15a935d4ba0c606631dff1dd79531a11983c638f2a", 3306,
+        ("-e", "MYSQL_DATABASE=drupal", "-e", f"MYSQL_USER={DATABASE_USER}",
+         "-e", f"MYSQL_PASSWORD={DATABASE_PASSWORD}", "-e", "MYSQL_RANDOM_ROOT_PASSWORD=yes"),
+    ),
+    "pgsql": (
+        "postgres:17.11@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675", 5432,
+        ("-e", "POSTGRES_DB=drupal", "-e", f"POSTGRES_USER={DATABASE_USER}",
+         "-e", f"POSTGRES_PASSWORD={DATABASE_PASSWORD}"),
+    ),
+}
+
+# host:port of a server the caller already runs, such as a CI service.
+DATABASE_VARIABLES = {"mysql": "DRUPACK_TEST_MYSQL", "pgsql": "DRUPACK_TEST_PGSQL"}
+
+# Runs one statement through PDO, printing the first column of its first row when asked.
+# The product's own PHP runs it, so no database client or container exec is needed.
+_DATABASE_CLIENT = r"""<?php
+$pdo = new PDO(getenv('DB_DSN'), getenv('DB_USER'), getenv('DB_PASSWORD'),
+    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+$sql = getenv('DB_SQL');
+if ($sql !== '') {
+    $statement = $pdo->query($sql);
+    if (getenv('DB_FETCH') === '1') {
+        echo $statement->fetchColumn();
+    }
+}
+"""
+
+
+def database_address(backend):
+    """The (host, port) DATABASE_VARIABLES names for backend, or None when it is unset."""
+    variable = DATABASE_VARIABLES[backend]
+    value = os.environ.get(variable)
+    if not value:
+        return None
+    # The variable comes from whoever runs the suite, so a malformed one stops the run.
+    host, separator, port = value.rpartition(":")
+    if not separator or not host or not port.isdigit():
+        raise ValueError(f"{variable} must be HOST:PORT, got {value!r}")
+    return host, int(port)
+
+
+class DatabaseServer:
+    """A MySQL or PostgreSQL server for the cases that need one: the one its variable names,
+    or a container this run starts, which needs a Docker daemon.
+    """
+
+    def __init__(self, backend, label, log_dir):
+        self.backend = backend
+        self.log_dir = log_dir
+        self.container = None
+        self._label = label
+        self.host, self.port = None, None
+
+    def start(self):
+        address = database_address(self.backend)
+        if address is not None:
+            self.host, self.port = address
+        else:
+            if not docker_answers():
+                raise unittest.SkipTest(f"{DOCKER_SKIP}, and {DATABASE_VARIABLES[self.backend]} is unset")
+            self._start_container()
+        try:
+            self._wait_ready()
+        except Exception:
+            self.stop()
+            raise
+
+    def _start_container(self):
+        image, port, environment = _DATABASE_CONTAINERS[self.backend]
+        self.container = f"drupack-{self._label}-{self.backend}-{os.getpid()}"
+        subprocess.run(
+            ["docker", "run", "-d", "--name", self.container, "-p", f"127.0.0.1::{port}", *environment, image],
+            check=True, capture_output=True, timeout=WAITS["database_container"].seconds,
+        )
+        output = subprocess.run(
+            ["docker", "port", self.container, f"{port}/tcp"], check=True,
+            capture_output=True, text=True, timeout=WAITS["docker_admin"].seconds,
+        ).stdout
+        self.host = "127.0.0.1"
+        self.port = int(output.strip().splitlines()[0].rsplit(":", 1)[-1])
+
+    def _wait_ready(self):
+        # MySQL's initialization server listens on a socket only, so a TCP connection
+        # waits for the final server.
+        deadline = time.monotonic() + WAITS["database_ready"].seconds
+        while time.monotonic() < deadline:
+            if self._client("drupal", "").returncode == 0:
+                return
+            time.sleep(2)
+        raise AssertionError(
+            f"the {self.backend} server at {self.host}:{self.port} did not answer within "
+            f"{WAITS['database_ready'].seconds}s"
+        )
+
+    def _client(self, database, sql, fetch=False):
+        script = RESULTS / "database-client.php"
+        if not script.exists():
+            script.write_text(_DATABASE_CLIENT)
+        env = dict(os.environ, DB_DSN=f"{self.backend}:host={self.host};port={self.port};dbname={database}",
+                   DB_USER=DATABASE_USER, DB_PASSWORD=DATABASE_PASSWORD, DB_SQL=sql,
+                   DB_FETCH="1" if fetch else "0")
+        return run([str(BINARY), "php-cli", str(script)], env=env, capture_output=True, text=True,
+                   timeout=WAITS["php_cli"].seconds)
+
+    def execute(self, database, sql):
+        result = self._client(database, sql)
+        if result.returncode != 0:
+            raise AssertionError(f"{sql!r} failed on {self.backend}: {result.stdout}{result.stderr}")
+
+    def query(self, database, sql):
+        """The first column of the first row sql returns."""
+        result = self._client(database, sql, fetch=True)
+        if result.returncode != 0:
+            raise AssertionError(f"{sql!r} failed on {self.backend}: {result.stdout}{result.stderr}")
+        return result.stdout.strip()
+
+    def connection(self, database="drupal"):
+        """The launch options that point a first start at database on this server."""
+        return ["--database", self.backend, "--db-host", self.host, "--db-port", str(self.port),
+                "--db-name", database, "--db-user", DATABASE_USER, "--db-password", DATABASE_PASSWORD]
+
+    def stop(self):
+        if self.container is None:
+            return
+        with open(self.log_dir / f"{self.backend}-server.log", "wb") as handle:
+            subprocess.run(["docker", "logs", self.container], stdout=handle, stderr=subprocess.STDOUT,
+                            timeout=WAITS["docker_admin"].seconds)
+        subprocess.run(["docker", "rm", "-f", self.container], capture_output=True,
+                        timeout=WAITS["docker_admin"].seconds)
+        self.container = None

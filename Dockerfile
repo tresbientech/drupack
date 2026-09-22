@@ -109,3 +109,4 @@ RUN export CGO_ENABLED=0 \
 
 FROM scratch AS artifact
 COPY --from=packed /packed/drupack /drupack
+COPY --from=packed /payload/site.json /site.json

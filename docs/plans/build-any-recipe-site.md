@@ -10,7 +10,7 @@ These hold across all phases:
 - Site contract: `drupack.yml` beside `composer.json`, with fields `name`, `port`, `recipe`, `site_name`, `languages`, `smoke_paths`, and `extensions` reserved.
 - Normalized form: `site.json`, written by the one Go parser. It travels in the application payload and beside each executable.
 - Readers: `launch.php`, `drupack-build` and the conformance suite read `site.json` only.
-- Identity variables: `DRUPACK_RUNTIME_NAME`, `DRUPACK_RUNTIME_SITE_VERSION` and `DRUPACK_RUNTIME_ENGINE_VERSION`, exported by the launcher.
+- Identity variables: `DRUPACK_RUNTIME_NAME` and `DRUPACK_RUNTIME_SITE_VERSION`, exported by the launcher. The runtime's own version is the engine version.
 - Cache root: `<user cache>/<name>/runtime`, with `<tmp>/<name>-<uid>/runtime` as the fallback.
 - Executable assets: `<name>-linux-<arch>`, as today's `drupack-linux-<arch>`.
 - Runtime archives: `drupack-runtime-<engine version>-linux-<arch>-<libc>.tar.zst`, listed in the engine release's `checksums.txt`.
@@ -50,9 +50,9 @@ uninstall stays.
 
 ### What to build
 
-The packer takes `name`, `port`, the site version and the engine version and
-writes them into the launcher. The launcher derives its cache root from `name`
-and exports the three identity variables. The entry point and `launch.php` use
+The packer takes `name` and the site version and writes them into the launcher.
+The launcher derives its cache root from `name` and exports both identity
+variables. The entry point and `launch.php` use
 the name in usage, readiness and error text. The default listen port comes from
 `site.json`. `--version` prints the name, both versions and the libc.
 
@@ -66,7 +66,29 @@ the name in usage, readiness and error text. The default listen port comes from
 
 ---
 
-## Phase 3: drupack-build on Linux with local runtimes
+## Phase 3: Site-agnostic suite without a daemon
+
+**User stories**: 16, 17, 18, 19
+
+### What to build
+
+The conformance suite takes the site from `site.json`: its name and its smoke
+paths. Server-database cases take their database from environment variables, so
+CI services can provide one. Cases that need a Docker daemon report as skipped by
+name when none answers. The run then passes on the rest.
+
+### Acceptance criteria
+
+- [ ] `grep -rniE 'mercury|mcp_tools' tests/conformance` prints nothing.
+- [ ] `python3 -m unittest discover -s tests/conformance -p 'test_harness.py'` passes, with cases for reading `site.json` and for the skip report.
+- [ ] `DOCKER_HOST=unix:///nonexistent python3 tests/conformance ./dist/drupack test-results/conformance` exits 0 and prints each skipped case by name.
+- [ ] A `site.json` whose `smoke_paths` names a missing path makes the suite exit non-zero, naming the path.
+- [ ] With the MySQL and PostgreSQL variables pointed at local containers, the server-database cases pass.
+- [ ] `git config --get qa.command` passes in full.
+
+---
+
+## Phase 4: drupack-build on Linux with local runtimes
 
 **User stories**: 11, 12, 13, 20, 28, 31, 33
 
@@ -88,28 +110,6 @@ documents the local build as one `docker run` of the job image.
 - [ ] `--platform macos-arm64` and a `drupack.yml` with `extensions: [gmp]` each exit non-zero with a message naming the refused value.
 - [ ] `grep -cE ' AS (app|packed|artifact)$' Dockerfile` prints 0.
 - [ ] `git config --get qa.command`, rewritten to call `drupack-build`, passes in full.
-
----
-
-## Phase 4: Site-agnostic suite without a daemon
-
-**User stories**: 16, 17, 18, 19
-
-### What to build
-
-The conformance suite takes the site from `site.json`: its name and its smoke
-paths. Server-database cases take their database from environment variables, so
-CI services can provide one. Cases that need a Docker daemon report as skipped by
-name when none answers. The run then passes on the rest.
-
-### Acceptance criteria
-
-- [ ] `grep -rniE 'mercury|mcp_tools' tests/conformance` prints nothing.
-- [ ] `python3 -m unittest discover -s tests/conformance -p 'test_harness.py'` passes, with cases for reading `site.json` and for the skip report.
-- [ ] `DOCKER_HOST=unix:///nonexistent python3 tests/conformance ./dist/drupack test-results/conformance` exits 0 and prints each skipped case by name.
-- [ ] A `site.json` whose `smoke_paths` names a missing path makes the suite exit non-zero, naming the path.
-- [ ] With the MySQL and PostgreSQL variables pointed at local containers, the server-database cases pass.
-- [ ] `git config --get qa.command` passes in full.
 
 ---
 

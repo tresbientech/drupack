@@ -12,7 +12,7 @@ ADMIN_USER = "windows-paths-admin"
 ADMIN_PASSWORD = "Windows.paths.test.password.2026"
 CREDENTIALS = ("--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
 
-# mercury:icon wraps every icon in a div bearing only this class, sized from
+# Mercury's icon component wraps every icon in a div bearing only this class, sized from
 # a fixed enum (16, 20, 24, 32, 48 or 64); a fault leaves it empty, so the
 # wrapper is the signal to search rather than the site's icon count.
 ICON_WRAPPER = re.compile(r'<div class="min-w:\d+">(.*?)</div>', re.DOTALL)

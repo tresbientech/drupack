@@ -49,11 +49,12 @@ Lean: make both shapes fail the run rather than skip it.
 
 ## Container lifecycle in the conformance suite
 
-The suite drives Docker through 28 raw `subprocess.run` calls across five
-modules, and two modules carry the same database lifecycle line for line. A
-maintained package would replace it, at the cost of the first Python dependency
-in a repo that has none. Lean: consolidate the lifecycle into one harness helper
-first, then judge the dependency against what is left.
+`harness.DatabaseServer` now owns the database lifecycle both database modules
+shared. The suite still drives Docker through 14 raw `subprocess.run` calls in
+three modules: the network cases, the offline case and one launcher case. A
+maintained package would replace them, at the cost of the first Python
+dependency in a repo that has none. Lean: judge the dependency against those 14
+calls.
 
 ## A Windows start without a terminal
 

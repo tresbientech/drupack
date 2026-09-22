@@ -54,10 +54,18 @@ The suites run against the published executable, which is the launcher.
 
 ```sh
 docker build --target artifact --output type=local,dest=dist .
-python3 tests/conformance ./dist/drupack test-results/conformance
+python3 tests/conformance ./dist/drupack test-results/conformance --site-tests examples/mercury-demo/tests
 ```
 
-`tests/conformance` takes a results directory as its second argument, and empties it before any case runs. It refuses a non-empty directory that no earlier run created. On Linux it also needs Docker, which it uses to prove its site cases offline inside a container instead of running them on the host, to run its network cases against a second container, and to start MySQL and PostgreSQL containers for its server-database cases. On Linux, `tests/conformance` also needs Go, to pack small fixture launchers for its launcher cases.
+`tests/conformance` takes a results directory as its second argument, and empties it before any case runs. It refuses a non-empty directory that no earlier run created. It reads the site from the `site.json` beside the executable. `--site-tests DIR` adds a site's own `*_cases.py` modules to the run; Mercury Demo's live in `examples/mercury-demo/tests`.
+
+On Linux the suite uses Docker for three things:
+
+- proving the site cases offline inside a container, instead of on the host
+- running the network cases against a second container
+- starting MySQL and PostgreSQL containers for the server-database cases
+
+With no Docker daemon, the site cases run on the host and the other container cases skip, each named in the `Skipped:` report at the end of the run. `DRUPACK_TEST_MYSQL` and `DRUPACK_TEST_PGSQL` name a running server as `HOST:PORT` in place of a container. The suite connects to database `drupal` as user `drupal` with the password `harness.DATABASE_PASSWORD` holds. On Linux, `tests/conformance` also needs Go, to pack small fixture launchers for its launcher cases.
 
 One conformance run happens at a time on a machine. A second run waits for the first, and says so on standard error. Two at once bind the same ports and collide on container names, which times out site starts in both. `DRUPACK_SUITE_LOCK` names the lock file, so a machine that needs two independent runs can give each its own.
 
@@ -98,7 +106,7 @@ cd launcher && go test ./...
 On Windows, `python` runs the suite in place of `python3`, which Windows does not provide:
 
 ```powershell
-python tests/conformance dist\drupack.exe test-results\conformance
+python tests/conformance dist\drupack.exe test-results\conformance --site-tests examples\mercury-demo\tests
 ```
 
 ## Development loop

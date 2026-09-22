@@ -15,7 +15,8 @@ TESTS_DIR = Path(__file__).resolve().parent.parent
 
 
 class OfflineRun(harness.ConformanceCase):
-    """Marked linux and docker: -k offline selects it; a missing docker fails it by name."""
+    """Marked linux and docker: -k offline selects it; with no daemon it skips by name, and the
+    site cases it would carry run on the host instead."""
 
     PLATFORMS = (harness.LINUX,)
     TOOLS = ("docker",)
@@ -40,6 +41,8 @@ class OfflineRun(harness.ConformanceCase):
             "-e", f"{harness.OFFLINE_ENV}=1",
             "-e", "DRUPACK_CACHE_DIR=/cache",
             "--mount", f"type=bind,src={harness.BINARY},dst=/artifact/drupack,readonly",
+            # The inner run reads the site from the site.json beside the executable.
+            "--mount", f"type=bind,src={harness.BINARY.parent / 'site.json'},dst=/artifact/site.json,readonly",
             "--mount", f"type=bind,src={TESTS_DIR},dst=/tests,readonly",
             # The harness finds the allowlist three directories above itself, which
             # lands here once the suite runs from /tests.

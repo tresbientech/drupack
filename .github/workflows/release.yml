@@ -285,13 +285,14 @@ jobs:
             -entry drupack -version "$DRUPACK_VERSION" -source . -output ../dist/drupack \
             -app ../dist/payload/app-payload.tar -app-checksum ../dist/payload/app_checksum.txt \
             -site ../dist/payload/site.json -site-version "$DRUPACK_VERSION"
+          cp ../dist/payload/site.json ../dist/site.json
 
       - name: Run the harness unit tests
         run: python3 -m unittest discover -s tests/conformance -p 'test_harness.py'
 
       - name: Run the test scripts
         run: |
-          python3 tests/conformance dist/drupack test-results/conformance
+          python3 tests/conformance dist/drupack test-results/conformance --site-tests examples/mercury-demo/tests
 
       # The executable carries a runtime per libc and picks one per host. This
       # runner has glibc, so the step above exercised the glibc runtime. Forcing
@@ -386,7 +387,9 @@ jobs:
           ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupack.exe
 
       - name: Run the conformance suite
-        run: python tests/conformance dist\drupack.exe test-results\conformance
+        run: |
+          Copy-Item dist\payload\site.json dist\site.json
+          python tests/conformance dist\drupack.exe test-results\conformance --site-tests examples\mercury-demo\tests
 
       - name: Upload test results
         if: failure()
@@ -443,7 +446,9 @@ jobs:
           # static-php-cli reads library releases from the GitHub API, which rate-limits anonymous requests.
           GITHUB_TOKEN: ${{ github.token }}
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
-        run: bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/drupack
+        run: |
+          bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/drupack
+          cp dist/payload/site.json dist/site.json
 
       # Saved before the tests, so a failed test does not repeat the PHP build.
       - uses: actions/cache/save@v6
@@ -456,7 +461,7 @@ jobs:
 
       - name: Run the test scripts
         run: |
-          python3 tests/conformance dist/drupack test-results/conformance
+          python3 tests/conformance dist/drupack test-results/conformance --site-tests examples/mercury-demo/tests
 
       - name: Check the unsigned launch steps
         run: |
