@@ -167,6 +167,8 @@ Drupal core security fixes reach you through a new Drupack release, because a pa
 
 Your site ships without `automatic_updates` and `package_manager` enabled. `drupal/automatic_updates` 4.1.0 stalls a request for four minutes when cron runs, and its development branch carries the same code, so enabling either module brings that stall back.
 
+Drupack runs Drupal's cron itself, in a separate process, a couple of minutes after your site answers and every three hours it keeps serving. The `automated_cron` module stays installed, as Drupal CMS installs it, with its interval set to 0 so it runs nothing at the end of a page request. A reader never waits on a queue or on a fetch that cannot reach drupal.org.
+
 [The backlog](docs/backlog.md) records how releases will follow upstream security fixes, and how a newer executable will guide you through a database update.
 
 ## Verify a download

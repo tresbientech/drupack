@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -72,15 +73,15 @@ Examples:
 // costs no page render and no session.
 const readinessPath = "/.drupack-id?id="
 
-// openWhenReady waits for the site to answer at address, then reports readiness and opens
-// the browser on target when asked. The terminal keeps one readiness line even when no
-// browser opens. The target is a one-time login link, which a request spends, so the poll
+// openWhenReady waits for the site to answer at address, then reports readiness, closes
+// ready and opens the browser on target when asked. The terminal keeps one readiness
+// line even when no browser opens. The target is a one-time login link, which a request spends, so the poll
 // asks for the readiness path instead. launch.php passes both through the environment.
 //
 // Only 204 from that path counts. A 500 from a failed bootstrap and a 400 from a rejected
 // host both reach a client that connects, so a poll accepting any answer would announce a
 // site nobody can use.
-func openWhenReady(address string, token string, target string, browser bool) {
+func openWhenReady(address string, token string, target string, browser bool, ready chan<- struct{}) {
 	// A cold start answers its first request slowly, and a request that never returns would
 	// otherwise hold the poll past the deadline.
 	client := http.Client{Timeout: 30 * time.Second}
@@ -94,6 +95,7 @@ func openWhenReady(address string, token string, target string, browser bool) {
 			response.Body.Close()
 			if response.StatusCode == http.StatusNoContent {
 				fmt.Println("\nDrupack is ready. Press Ctrl+C to stop.")
+				close(ready)
 				if browser {
 					openBrowser(target)
 				}
@@ -130,15 +132,59 @@ const shutdownDeadline = 10 * time.Second
 
 // forceExitOnStalledShutdown runs only for the server. Notifying on these signals
 // suppresses Go's own termination, which a command that handles neither still needs.
-func forceExitOnStalledShutdown() {
+// The returned context ends at the first signal, so work this process started
+// outside a request stops before the deadline below fires.
+func forceExitOnStalledShutdown() context.Context {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	stopping, stop := context.WithCancel(context.Background())
 	go func() {
 		<-signals
+		stop()
 		time.Sleep(shutdownDeadline)
 		fmt.Fprintf(os.Stderr, "Drupack did not stop within %s. Forcing exit.\n", shutdownDeadline)
 		os.Exit(1)
 	}()
+	return stopping
+}
+
+// cronInterval is the period automated_cron ships with, whose in-request run the
+// packaged settings turn off. cronFirstDelay holds the first run back, so a
+// reader's opening pages, which compile the container and render uncached, do
+// not share the database with it.
+const cronInterval = 3 * time.Hour
+const cronFirstDelay = 2 * time.Minute
+
+// runScheduledWork runs Drupal's cron in a child process for as long as this
+// server serves. automated_cron runs the same work inside whichever request
+// arrives after its interval elapses, where a fetch that cannot reach
+// drupal.org, or a queue that takes a minute, holds that request's PHP thread
+// and the database rows behind it. The context ends the child at the first
+// shutdown signal, so a run in flight cannot hold the process open.
+func runScheduledWork(stopping context.Context, executable string, application string, ready <-chan struct{}) {
+	select {
+	case <-ready:
+	case <-stopping.Done():
+		return
+	}
+	timer := time.NewTimer(cronFirstDelay)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+		case <-stopping.Done():
+			return
+		}
+		cron := exec.CommandContext(stopping, executable, "php-cli",
+			filepath.Join(application, "vendor", "drush", "drush", "drush.php"), "cron")
+		cron.Dir = application
+		// A failed run is reported and the next one still runs: cron carries
+		// search indexing and queue work, which a later run picks up.
+		if output, err := cron.CombinedOutput(); err != nil && stopping.Err() == nil {
+			fmt.Fprintf(os.Stderr, "Scheduled work did not finish: %v\n%s", err, output)
+		}
+		timer.Reset(cronInterval)
+	}
 }
 
 // serveApplication runs the application's own Caddyfile. PHPRC already names
@@ -197,11 +243,13 @@ func init() {
 	}
 	// launch.php replaces itself with this command to serve the site.
 	if len(os.Args) > 1 && os.Args[1] == "php-server" {
-		forceExitOnStalledShutdown()
+		stopping := forceExitOnStalledShutdown()
+		ready := make(chan struct{})
 		// The server waits for itself. A separate process would first extract its own copy
 		// of the embedded application, which takes longer than the wait on a slow disk.
 		go openWhenReady(os.Getenv("DRUPACK_RUNTIME_URL"), os.Getenv("DRUPACK_RUNTIME_ID"),
-			os.Getenv("DRUPACK_RUNTIME_OPEN"), os.Getenv("DRUPACK_RUNTIME_BROWSER") == "1")
+			os.Getenv("DRUPACK_RUNTIME_OPEN"), os.Getenv("DRUPACK_RUNTIME_BROWSER") == "1", ready)
+		go runScheduledWork(stopping, executable, application, ready)
 		serveApplication(application)
 		return
 	}
