@@ -10,4 +10,6 @@ application/recipes
 !build/**
 !runtime/
 !runtime/**
+!launcher/
+!launcher/**
 !Dockerfile
