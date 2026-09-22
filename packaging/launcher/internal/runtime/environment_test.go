@@ -90,3 +90,29 @@ func TestEnvironmentSetsBothVariablesWhenTheCallerSetsNeither(t *testing.T) {
 		t.Fatalf("DRUPACK_CA_FILE = %q, %v, want %q, true", caFile, ok, "/runtime/dir/cacert.pem")
 	}
 }
+
+// A Linux release carries a glibc runtime, which runs under the host's dynamic
+// loader. A caller who sets one of the loader's controls would otherwise load
+// code of their choosing into the PHP process.
+func TestEnvironmentDropsTheLoaderControls(t *testing.T) {
+	parent := []string{
+		"LD_PRELOAD=/tmp/evil.so",
+		"LD_LIBRARY_PATH=/tmp/lib",
+		"LD_AUDIT=/tmp/audit.so",
+		"GLIBC_TUNABLES=glibc.malloc.check=0",
+		"LD_PRELOADED_BY_NOBODY=keep",
+		"HOME=/home/user",
+	}
+	env := runtimepkg.Environment("/runtime/dir", parent)
+	for _, dropped := range []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "GLIBC_TUNABLES"} {
+		if value, found := lookup(env, dropped); found {
+			t.Fatalf("Environment kept %s=%s", dropped, value)
+		}
+	}
+	if value, found := lookup(env, "LD_PRELOADED_BY_NOBODY"); !found || value != "keep" {
+		t.Fatalf("Environment dropped a variable whose name only starts like a loader control")
+	}
+	if value, found := lookup(env, "HOME"); !found || value != "/home/user" {
+		t.Fatalf("Environment did not keep HOME: %q, %v", value, found)
+	}
+}

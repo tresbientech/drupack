@@ -3,6 +3,8 @@ package runtime
 import (
 	"archive/tar"
 	"bytes"
+	"debug/elf"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -61,7 +63,38 @@ func Build(directory, version, entry string) ([]byte, Manifest, error) {
 		return nil, Manifest{}, err
 	}
 
-	return archive.Bytes(), Manifest{Version: version, Entry: entry, Files: files}, nil
+	interpreter, err := elfInterpreter(filepath.Join(directory, filepath.FromSlash(entry)))
+	if err != nil {
+		return nil, Manifest{}, err
+	}
+
+	return archive.Bytes(), Manifest{Version: version, Entry: entry, Interpreter: interpreter, Files: files}, nil
+}
+
+// elfInterpreter returns the program interpreter path an ELF entry needs, and
+// "" for a static ELF or for a Mach-O or PE entry, which carry no PT_INTERP
+// segment and which elf.Open reports as a format error.
+func elfInterpreter(path string) (string, error) {
+	file, err := elf.Open(path)
+	if err != nil {
+		var format *elf.FormatError
+		if errors.As(err, &format) {
+			return "", nil
+		}
+		return "", err
+	}
+	defer file.Close()
+	for _, program := range file.Progs {
+		if program.Type != elf.PT_INTERP {
+			continue
+		}
+		raw, err := io.ReadAll(program.Open())
+		if err != nil {
+			return "", err
+		}
+		return string(bytes.TrimRight(raw, "\x00")), nil
+	}
+	return "", nil
 }
 
 // writeTarFile appends one entry, header and content, to w. Every header uses

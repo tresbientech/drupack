@@ -1,37 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Links the runtime executable for the libc the builder image names in
+# SPC_LIBC. packaging/app-payload.sh packs the application separately.
+
 cd /go/src/app
-archive_options=(--mtime=@0 --owner=0 --group=0 --numeric-owner --mode=u+rw,go+rX)
-# Drupal's cached absolute paths use the full application input identity.
-tar "${archive_options[@]}" -cf - -C /app . \
-    | sha256sum | cut -d ' ' -f 1 | tr -d '\n' > app_checksum.txt
-# php.ini and cacert.pem ride beside the entry executable in the packed
-# runtime directory instead, which PHPRC names in every hop; nothing reads
-# either file from the application directory.
-tar "${archive_options[@]}" \
-    --exclude='tests' --exclude='Tests' \
-    --exclude='./php.ini' --exclude='./cacert.pem' \
-    --exclude='*.js.map' --exclude='*.css.map' --exclude='*.pcss.css' \
-    --exclude='package-lock.json' --exclude='yarn.lock' \
-    --exclude='pnpm-lock.yaml' --exclude='npm-shrinkwrap.json' \
-    --exclude='.github' --exclude='.gitlab' \
-    --exclude='./web/modules/contrib/canvas/ui/src' \
-    --exclude='./web/modules/contrib/canvas/ui/lib' \
-    --exclude='./web/modules/contrib/canvas/ui/assets/videos' \
-    --exclude='./web/modules/contrib/canvas/packages/cli/src' \
-    --exclude='./web/modules/contrib/canvas/packages/workbench/src' \
-    --exclude='./web/modules/contrib/canvas/packages/eslint-config/src' \
-    --exclude='./web/modules/contrib/modeler_api/ui/src' \
-    --exclude='./web/modules/contrib/project_browser/sveltejs/src' \
-    --exclude='./web/modules/contrib/project_browser/sveltejs/scripts' \
-    --exclude='./vendor/html2text/html2text/test' \
-    -cf app-payload.tar -C /app .
-tar "${archive_options[@]}" --no-recursion -rf app-payload.tar -C /app \
-    ./web/modules/contrib/canvas/ui/src \
-    ./web/modules/contrib/canvas/ui/src/local_packages \
-    ./web/modules/contrib/canvas/ui/src/local_packages/hyperscriptify \
-    ./web/modules/contrib/canvas/ui/src/local_packages/hyperscriptify/LICENSE
 # The launcher carries the application and unpacks it once per release, so the server
 # embeds nothing. frankenphp's embed.go still needs the file to exist, and its init
 # returns early on an empty one, which leaves EmbeddedAppPath unset.
@@ -44,9 +17,23 @@ export CGO_CFLAGS="-fPIC -O2 -I/go/src/app/dist/static-php-cli/buildroot/include
 php_libraries=$($php_config --libs)
 php_libraries=${php_libraries//-lstdc++/$(gcc -print-file-name=libstdc++.a)}
 native_libraries=$(PKG_CONFIG_PATH=/go/src/app/dist/static-php-cli/buildroot/lib/pkgconfig pkg-config --static --libs libcurl libzip freetype2 libavif libwebp)
-export CGO_LDFLAGS="-static-pie -L/go/src/app/dist/static-php-cli/buildroot/lib -static-libgcc -Wl,--start-group -lphp $php_libraries $native_libraries -lwatcher-c -lpq -lpgcommon -lpgport -lhashkit -lcharset -largon2 -Wl,--end-group"
-build_tags=static_build,nobadger,nomysql,nopgx
-linker_flags="-static-pie -Wl,-z,stack-size=0x80000 -Wl,--dynamic-list=/go/src/app/dist/static-php-cli/buildroot/lib/libphp.a.dynsym"
+export CGO_LDFLAGS="-L/go/src/app/dist/static-php-cli/buildroot/lib -static-libgcc -Wl,--start-group -lphp $php_libraries $native_libraries -lwatcher-c -lpq -lpgcommon -lpgport -lhashkit -lcharset -largon2 -Wl,--end-group"
+build_tags=nobadger,nomysql,nopgx
+linker_flags="-Wl,--dynamic-list=/go/src/app/dist/static-php-cli/buildroot/lib/libphp.a.dynsym"
+# The builder image sets SPC_LIBC. A glibc build links a dynamic PIE against the
+# host libc. A musl build links a single file that runs on any host. A Linux
+# executable carries both, and the launcher picks one per host.
+# -z now resolves every relocation at load, which leaves the GOT read-only for
+# the process lifetime. The static-pie link already reports BIND_NOW.
+case "$SPC_LIBC" in
+    glibc) linker_flags="-pie -Wl,-z,now $linker_flags" ;;
+    musl)
+        CGO_LDFLAGS="-static-pie $CGO_LDFLAGS"
+        linker_flags="-static-pie -Wl,-z,stack-size=0x80000 $linker_flags"
+        build_tags="static_build,$build_tags"
+        ;;
+    *) printf 'Unsupported libc: %s\n' "$SPC_LIBC" >&2; exit 1 ;;
+esac
 native_arch="$(uname -m)"
 case "$native_arch" in
     x86_64|aarch64) static_php_arch="$native_arch-linux" ;;
@@ -58,6 +45,7 @@ export GOTOOLCHAIN=local
 mkdir -p /out
 cd caddy
 "$GOROOT/bin/go" build -mod=readonly -buildmode=pie -tags="$build_tags" \
-    -ldflags="-s -w -linkmode=external -extldflags '$linker_flags' -X 'main.version=${DRUPACK_VERSION:-dev}' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $($php_config --version) Caddy'" \
+    -ldflags="-s -w -linkmode=external -extldflags '$linker_flags' -X 'main.version=${DRUPACK_VERSION:-dev}' -X 'main.libc=$SPC_LIBC' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $($php_config --version) Caddy'" \
     -o /out/drupack ./frankenphp
 /out/drupack version
+

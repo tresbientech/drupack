@@ -1,5 +1,14 @@
+# The builder images carry the static PHP toolchain and name their libc in
+# SPC_LIBC, which embed.sh reads to pick its link mode. A Linux executable
+# carries both runtimes: the glibc one serves a rendered page several times
+# faster, and the musl one is the single file that runs on any host.
 ARG MUSL_BUILDER=dunglas/frankenphp:static-builder-musl@sha256:a78af5ef3b46b5f382a702ee7aed22b367a6dc1bce382de0aebac7f4d73dade1
-FROM ${MUSL_BUILDER} AS build
+ARG GNU_BUILDER=dunglas/frankenphp:static-builder-gnu@sha256:14330dbe7984e001ee3a6ad0621cbfbfed66ebb5fbd863ec059f57f199cb4760
+
+# The application is PHP source, vendor, translations and a seeded database.
+# None of it depends on the libc a runtime links against, so one builder image
+# installs it once and both runtimes carry the same payload.
+FROM ${MUSL_BUILDER} AS app
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN curl -fsSL https://getcomposer.org/download/2.8.12/composer.phar -o /usr/local/bin/composer.phar \
@@ -9,7 +18,9 @@ WORKDIR /app
 COPY drupal/composer.json drupal/composer.lock ./
 RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /usr/local/bin/composer.phar install --no-dev --prefer-dist --no-interaction --optimize-autoloader
 COPY packaging/install-translations.php /build/
-RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /build/install-translations.php
+# The translation fetch reaches ftp.drupal.org over TLS on the bundle pinned below.
+COPY runtime/cacert.pem /build/cacert.pem
+RUN CURL_CA_BUNDLE=/build/cacert.pem /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /build/install-translations.php
 COPY runtime/ ./
 COPY packaging/site-templates.php web/sites/default/site-templates.php
 RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /usr/local/bin/composer.phar dump-autoload --optimize
@@ -23,28 +34,49 @@ RUN mkdir -p /app/seed/private /app/seed/tmp /app/seed/config /app/web/sites/def
     && DRUPACK_RUNTIME_DATA_DIR=/app/seed DRUPACK_RUNTIME_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php pm:uninstall automatic_updates package_manager --yes \
     && mv /app/web/sites/default/files /app/seed/files \
     && printf '%s\n%s\n' '<?php' "require getenv('DRUPACK_RUNTIME_DATA_DIR') . DIRECTORY_SEPARATOR . 'settings.php';" > /app/web/sites/default/settings.php
-ARG DRUPACK_VERSION
-COPY packaging/embed.sh /usr/local/bin/embed.sh
-COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
-RUN bash /usr/local/bin/embed.sh
+COPY packaging/app-payload.sh /usr/local/bin/app-payload.sh
+RUN bash /usr/local/bin/app-payload.sh
 
-FROM scratch AS uncompressed
-COPY --from=build /out/drupack /drupack
-
-FROM build AS packed
-ARG DRUPACK_VERSION
-COPY packaging/launcher /src/launcher
-# php.ini and the trust bundle join the entry executable in the packed runtime
+# php.ini and the trust bundle join the entry executable in each runtime
 # directory, so the launcher's environment function finds both beside it.
 # runtime/cacert.pem comes from https://curl.se/ca/cacert.pem, sha256
 # f66dff1bdf8f96060b8177976f8b7d9254bc89bc4db933d769f7384d28480bc9, 121
 # certificates. A refresh replaces the file and that checksum in one commit;
 # no build fetches it.
-RUN cp /app/php.ini /app/cacert.pem /out/
+FROM ${MUSL_BUILDER} AS runtime-musl
+ARG DRUPACK_VERSION
+COPY packaging/embed.sh /usr/local/bin/embed.sh
+COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
+RUN bash /usr/local/bin/embed.sh
+COPY runtime/php.ini runtime/cacert.pem /out/
+
+FROM ${GNU_BUILDER} AS runtime-gnu
+ARG DRUPACK_VERSION
+COPY packaging/embed.sh /usr/local/bin/embed.sh
+COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
+RUN bash /usr/local/bin/embed.sh
+COPY runtime/php.ini runtime/cacert.pem /out/
+
+FROM scratch AS uncompressed
+COPY --from=runtime-musl /out/drupack /drupack
+
+FROM scratch AS uncompressed-gnu
+COPY --from=runtime-gnu /out/drupack /drupack
+
+# The runtimes are listed with the one needing a host loader first, which is
+# the order the launcher tries them in.
+FROM ${MUSL_BUILDER} AS packed
+ARG DRUPACK_VERSION
+COPY packaging/launcher /src/launcher
+COPY --from=app /go/src/app/app-payload.tar /go/src/app/app_checksum.txt /payload/
+COPY --from=runtime-musl /out /runtime/musl
+COPY --from=runtime-gnu /out /runtime/glibc
 RUN export CGO_ENABLED=0 \
     && mkdir -p /packed \
     && cd /src/launcher \
-    && go run ./cmd/pack -runtime /out -entry drupack -version "${DRUPACK_VERSION:-dev}" -source /src/launcher -output /packed/drupack -app /go/src/app/app-payload.tar -app-checksum /go/src/app/app_checksum.txt
+    && go run ./cmd/pack -runtime glibc=/runtime/glibc -runtime musl=/runtime/musl \
+        -entry drupack -version "${DRUPACK_VERSION:-dev}" -source /src/launcher \
+        -output /packed/drupack -app /payload/app-payload.tar -app-checksum /payload/app_checksum.txt
 
 FROM scratch AS artifact
 COPY --from=packed /packed/drupack /drupack

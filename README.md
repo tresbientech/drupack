@@ -16,6 +16,18 @@ chmod +x drupack
 
 On a 64-bit Raspberry Pi or another ARM machine, use `drupack-linux-arm64`.
 
+One Linux download runs everywhere. It carries a runtime built against each C
+library and picks one when it starts.
+
+| Your host | Runtime it runs | Why |
+|---|---|---|
+| glibc, which covers Debian, Ubuntu, Fedora, RHEL and Arch | glibc | serves a rendered page faster |
+| musl, which covers Alpine and most slim containers | musl | the only one that runs there |
+| anything the check cannot place | musl | runs on any host |
+
+`drupack --version` names the runtime that ran. To run the other one, set
+`DRUPACK_LIBC` to `musl` or `glibc`.
+
 ### macOS
 
 ```sh

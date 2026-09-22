@@ -92,8 +92,9 @@ jobs:
         working-directory: packaging/launcher
         run: go test ./...
 
-      # The runner starts with about 14 GB free, the builder image takes 8.6 GB,
-      # and the packer writes a compressed payload beside the 400 MB executable.
+      # The runner starts with about 14 GB free, each builder image takes 8.6 GB,
+      # and this job pulls one per libc. The packer then writes two compressed
+      # payloads beside the 400 MB executables.
       # Printing the free space tells a later failure apart from a full disk.
       - name: Free disk space
         run: |
@@ -123,6 +124,28 @@ jobs:
       - name: Run the test scripts
         run: |
           python3 tests/conformance dist/drupack test-results/conformance
+
+      # The executable carries a runtime per libc and picks one per host. This
+      # runner has glibc, so the step above exercised the glibc runtime. Forcing
+      # musl here covers the other runtime and the variable that selects it.
+      - name: Start a site on the musl runtime
+        run: |
+          set -eu
+          dist/drupack --version | grep -q 'glibc runtime'
+          DRUPACK_LIBC=musl dist/drupack --version | grep -q 'musl runtime'
+          if DRUPACK_LIBC=gnu dist/drupack --version; then
+            echo 'An unknown DRUPACK_LIBC value was accepted' >&2
+            exit 1
+          fi
+          DRUPACK_LIBC=musl dist/drupack --data-dir "$RUNNER_TEMP/musl-site" \
+            --admin-user musl-admin --admin-password Musl.check.password.2026 --no-browser &
+          for attempt in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://127.0.0.1:7225/user/login; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
 
       - name: Start a SQLite site on a musl host
         run: |

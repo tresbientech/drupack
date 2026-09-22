@@ -108,12 +108,18 @@ entry it runs, and cleanup removes an entry unused for 30 days.
 Ten options read a variable when the option is absent. The table above names
 each one.
 
-Two variables have no option:
+Three variables have no option:
 
 | Variable | Selects |
 |---|---|
 | `DRUPACK_CACHE_DIR` | where a release unpacks, for a disk with more room |
 | `DRUPACK_CA_FILE` | the TLS trust bundle PHP verifies HTTPS against |
+| `DRUPACK_LIBC` | `musl` or `glibc`, the runtime a Linux executable runs |
+
+A Linux executable carries a runtime per C library and picks one per host, so
+`DRUPACK_LIBC` is for a host where that choice needs overriding. A value naming
+neither runtime stops the start. The macOS and Windows executables carry one
+runtime and ignore the variable.
 
 ## Other words
 

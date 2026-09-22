@@ -101,7 +101,7 @@ Neither start needs more options. The test scripts still need a built executable
 
 Every published executable is a launcher carrying the real executable, compressed with `github.com/klauspost/compress/zstd`. The first run of a version unpacks it under the user's cache directory, then replaces its own process with it on Linux and macOS, or starts it as a child on Windows, which has no `exec`. Later runs compare a stored manifest and file sizes, then start. `DRUPACK_CACHE_DIR` moves that cache.
 
-`packaging/launcher` holds the launcher and its packer. The `packed` build stage runs the packer over the same executable the `uncompressed` target exports, so `docker build --target uncompressed` still gives you that executable on its own.
+`packaging/launcher` holds the launcher and its packer. A Linux executable carries a runtime per C library, built from one builder image each, and the launcher picks one per host. The `packed` build stage runs the packer over the same executables the `uncompressed` and `uncompressed-gnu` targets export, so `docker build --target uncompressed` gives you the musl one on its own and `--target uncompressed-gnu` the glibc one.
 
 ## Releases
 

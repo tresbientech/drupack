@@ -19,6 +19,21 @@ import (
 // version names the release. Each build script sets it with -ldflags.
 var version = "dev"
 
+// libc names the C library this runtime was linked against. embed.sh sets it
+// from the builder image's SPC_LIBC, and a build that links no libc of its own
+// leaves it empty. A Linux executable carries a runtime per libc, so a report
+// about one of them has to say which ran.
+var libc = ""
+
+// release describes what ran: the version, and the libc when more than one
+// build of this release exists.
+func release() string {
+	if libc == "" {
+		return "Drupack " + version
+	}
+	return "Drupack " + version + " (" + libc + " runtime)"
+}
+
 const usage = `Usage: drupack [OPTIONS]
        drupack dr [OPTIONS] DRUSH_COMMAND
        drupack clean [--dry-run]
@@ -210,7 +225,7 @@ func init() {
 		os.Exit(0)
 	}
 	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
-		fmt.Println("Drupack " + version)
+		fmt.Println(release())
 		os.Exit(0)
 	}
 	if len(os.Args) == 1 || strings.HasPrefix(os.Args[1], "-") {

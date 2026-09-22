@@ -20,7 +20,10 @@ function translationProjects(array $packages): array
 function fetchTranslation(string $url): ?string
 {
     $request = curl_init($url);
+    // Builder images differ in what trust store they carry, and this libcurl ignores
+    // CURL_CA_BUNDLE, so the bundle the build pins is named on the handle itself.
     curl_setopt_array($request, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60,
+        CURLOPT_CAINFO => getenv('CURL_CA_BUNDLE'),
         CURLOPT_FOLLOWLOCATION => true, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS]);
     $body = curl_exec($request);
     $status = curl_getinfo($request, CURLINFO_RESPONSE_CODE);
