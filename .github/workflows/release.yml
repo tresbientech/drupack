@@ -75,10 +75,13 @@ jobs:
           elif [ "$BEFORE" = 0000000000000000000000000000000000000000 ]; then
             linux='[{"arch":"amd64"}]'
           else
+            # A comparison that fails reports no file, which would read as a
+            # documentation commit and skip the build, so it fails the run first.
+            files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" \
+              --jq '.files[].filename')
             # Documentation reaches no executable. A path this list does not name
             # builds rather than skips, so a new directory never goes untested.
-            changed=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" \
-              --jq '.files[].filename' | grep -vE '^docs/|^LICENSE$|^[^/]+\.md$' || true)
+            changed=$(printf '%s\n' "$files" | grep -vE '^docs/|^LICENSE$|^[^/]+\.md$' || true)
             if [ -n "$changed" ]; then
               printf 'Building for:\n%s\n' "$changed"
               linux='[{"arch":"amd64"}]'
