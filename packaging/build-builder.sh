@@ -16,9 +16,7 @@ repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 frankenphp_version=1.12.7
 frankenphp_commit=a765b086f5cc56f6b7753117367d56e1b0da948d
 php_version=8.5.10
-# watcher serves FrankenPHP and the nghttp trio serves Caddy, so no extension
-# pulls them. libavif gives gd its AVIF support.
-extension_libs=libavif,nghttp2,nghttp3,ngtcp2,watcher
+extension_libs=$(bash "$repository/packaging/extensions-list.sh" "$repository/packaging/php-extension-libs.txt")
 
 case "$libc" in
     musl|gnu) ;;

@@ -15,8 +15,7 @@ php_version=8.5.10
 spc_version=2.8.5
 # The allowlist every builder compiles. spc resolves the libraries each name needs.
 extensions=$(bash "$repository/packaging/extensions-list.sh" "$repository/packaging/php-extensions.txt")
-# watcher serves FrankenPHP and the nghttp trio serves Caddy, so no extension pulls them.
-extension_libs=libavif,nghttp2,nghttp3,ngtcp2,watcher
+extension_libs=$(bash "$repository/packaging/extensions-list.sh" "$repository/packaging/php-extension-libs.txt")
 
 case "$(uname -m)" in
     arm64) spc_archive=spc-macos-aarch64.tar.gz; spc_sha256=acf2f25d56d0cbf8e65aa82e5054fef555f7be7c5c38046c6e0819f266d83225 ;;
