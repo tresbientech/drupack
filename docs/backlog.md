@@ -55,6 +55,15 @@ maintained package would replace it, at the cost of the first Python dependency
 in a repo that has none. Lean: consolidate the lifecycle into one harness helper
 first, then judge the dependency against what is left.
 
+## Two build paths no run has exercised
+
+A tag build has never published a Linux executable carrying two runtimes, so the
+asset names and checksums come from reasoning rather than a run. The release
+workflow packs on the runner, so nothing builds `docker build --target
+artifact`, which `CONTRIBUTING.md` names as the local build. Lean: build that
+target once against a published builder image, and read the first tag run's
+asset list before announcing the release.
+
 ## A Windows start without a terminal
 
 A double-click on the Windows executable opens a console window that closes
