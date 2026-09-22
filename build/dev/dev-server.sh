@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-usage='Usage: packaging/dev-server.sh DATA_DIRECTORY [PORT] [DRUPACK_OPTION...]'
+usage='Usage: build/dev/dev-server.sh DATA_DIRECTORY [PORT] [DRUPACK_OPTION...]'
 mkdir -p "${1:?$usage}"
 data=$(cd -- "$1" && pwd)
 port=${2:-7225}
 shift 2 2>/dev/null || shift 1
-repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 image=${DRUPACK_DEV_IMAGE:-drupack-build}
 
 if ! docker image inspect "$image" >/dev/null 2>&1; then
@@ -27,6 +27,6 @@ fi
 exec docker run --rm "${terminal[@]}" --user "$(id -u):$(id -g)" -p "127.0.0.1:$port:$port" \
     -e DRUPACK_CA_FILE \
     --mount "type=bind,src=$repository/runtime,dst=/dev-runtime,readonly" \
-    --mount "type=bind,src=$repository/packaging/dev-entry.sh,dst=/dev-entry.sh,readonly" \
+    --mount "type=bind,src=$repository/build/dev/dev-entry.sh,dst=/dev-entry.sh,readonly" \
     --mount "type=bind,src=$data,dst=/data" \
     "$image" sh /dev-entry.sh "$port" "$@"

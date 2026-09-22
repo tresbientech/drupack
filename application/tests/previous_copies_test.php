@@ -6,7 +6,7 @@ declare(strict_types=1);
 // import, so this runs standalone under php-cli with no container. The subject
 // reads the filesystem, so each case builds the directory it describes.
 
-require __DIR__ . '/../../runtime/support/PreviousCopies.php';
+require __DIR__ . '/../support/PreviousCopies.php';
 
 use Drupack\Support\PreviousCopies;
 

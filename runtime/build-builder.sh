@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Builds one FrankenPHP static-builder image carrying the extensions
-# packaging/php-extensions.txt names. PHP_EXTENSIONS takes effect while the
+# runtime/php-extensions.txt names. PHP_EXTENSIONS takes effect while the
 # image is built, so a published image cannot carry a narrowed PHP.
 #
 # Usage: build-builder.sh musl|gnu TAG [WORK_DIRECTORY]
@@ -16,7 +16,7 @@ repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 frankenphp_version=1.12.7
 frankenphp_commit=a765b086f5cc56f6b7753117367d56e1b0da948d
 php_version=8.5.10
-extension_libs=$(bash "$repository/packaging/extensions-list.sh" "$repository/packaging/php-extension-libs.txt")
+extension_libs=$(bash "$repository/runtime/extensions-list.sh" "$repository/runtime/php-extension-libs.txt")
 
 case "$libc" in
     musl|gnu) ;;
@@ -28,7 +28,7 @@ case "$(uname -m)" in
     *) printf 'Unsupported architecture: %s\n' "$(uname -m)" >&2; exit 1 ;;
 esac
 
-extensions=$(bash "$repository/packaging/extensions-list.sh" "$repository/packaging/php-extensions.txt")
+extensions=$(bash "$repository/runtime/extensions-list.sh" "$repository/runtime/php-extensions.txt")
 
 source=$work/frankenphp
 rm -rf "$source"

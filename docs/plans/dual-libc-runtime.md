@@ -52,7 +52,7 @@ its manifest. A platform passing one runtime keeps today's behaviour.
       runtime payloads and one application payload.
 - [x] Both runtimes unpack the same application cache entry, so the executable
       carries the application once rather than once per runtime.
-- [x] `cd packaging/launcher && go test ./...` exits 0, including a pack case
+- [x] `cd launcher && go test ./...` exits 0, including a pack case
       for one runtime and a case for two.
 - [x] The musl manifest records no interpreter. The glibc manifest records
       `/lib64/ld-linux-x86-64.so.2` on amd64 and the arm64 equivalent.
@@ -210,7 +210,7 @@ in both directions.
 
 Phases 1, 2, 3, 4 and 6 are merged on `main` at `e2cf739`, with 21 of 25
 acceptance criteria met. The full conformance suite passed 58 tests with no
-failures, and `cd packaging/launcher && go test ./...` is green.
+failures, and `cd launcher && go test ./...` is green.
 
 Phase 5's four criteria stay open. They need a push, since CI has not run this
 branch, and the Linux job now pulls one 8.6 GB builder image per libc on a

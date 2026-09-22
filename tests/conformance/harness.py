@@ -42,12 +42,12 @@ def current_platform():
     return _PLATFORM_NAMES[platform.system()]
 
 
-# packaging/php-extensions.txt names what every builder compiles, under
+# runtime/php-extensions.txt names what every builder compiles, under
 # static-php-cli's names. Some never answer to get_loaded_extensions():
 # password-argon2 is a build input for argon2 support inside the standard
 # extension, the Windows PHP zip carries no apcu or brotli DLL, and Windows PHP
 # has no pcntl at all.
-_ALLOWLIST = Path(__file__).resolve().parent.parent.parent / "packaging" / "php-extensions.txt"
+_ALLOWLIST = Path(__file__).resolve().parent.parent.parent / "runtime" / "php-extensions.txt"
 _UNLOADABLE = {LINUX: {"password-argon2"}, MACOS: {"password-argon2"},
                WINDOWS: {"password-argon2", "apcu", "brotli", "pcntl"}}
 _REPORTED_AS = {"opcache": "zend opcache"}
@@ -85,7 +85,7 @@ def running_offline():
 Wait = namedtuple("Wait", ["name", "seconds", "deadline", "covers"])
 
 WAIT_TABLE = [
-    # packaging/entrypoint.go polls 2 minutes with a 30s per-request timeout: a request
+    # runtime/entrypoint.go polls 2 minutes with a 30s per-request timeout: a request
     # already in flight when the poll gives up can still take 30s more, so the deadline
     # this row covers is 150s.
     Wait("start", 180, 150, "readiness of a start"),
@@ -108,21 +108,21 @@ WAIT_TABLE = [
     Wait("offline", 600, None, "the offline container's full site-case run"),
     # No product deadline: docker rm -f on a name it just started, normally near-instant.
     Wait("offline_kill", 30, None, "removing a hung offline container after its budget expires"),
-    # packaging/launcher/internal/runtime/lock_windows.go's lockRoot() bounds a losing
+    # launcher/internal/runtime/lock_windows.go's lockRoot() bounds a losing
     # process's wait for the winner's exclusive lock handle at 60s on Windows, before it
     # can even begin its own unpack; the deadline this row covers is that 60s lock wait.
     Wait("unpack", 150, 60, "a losing process's Windows lock wait, then unpacking its runtime"),
     # No product deadline: compiling a stdlib-only stub, normally a few seconds.
     Wait("fixture_build", 30, None, "compiling a fixture stub with go build"),
     # No product deadline: packing a launcher around the stub, which is itself a go build
-    # of packaging/launcher and can need a first, uncached fetch of its module.
+    # of launcher and can need a first, uncached fetch of its module.
     Wait("fixture_pack", 180, None, "packing a fixture launcher with go run ./cmd/pack"),
     # No product deadline: a start denied room to unpack, behind a pull of the pinned image.
     Wait("cache_full", 120, None, "a start with no room in its cache root, including the image pull"),
     Wait("cache_full_kill", 30, None, "removing a hung cache-full container after its budget expires"),
     Wait("probe", 10, None, "a local process-table lookup (ps, pgrep) against a running start"),
     Wait("port_closed", 2, None, "confirming a stopped server's port refuses a connection"),
-    # packaging/entrypoint.go's readiness poller uses an http.Client{Timeout: 30 * time.Second}
+    # runtime/entrypoint.go's readiness poller uses an http.Client{Timeout: 30 * time.Second}
     # for each request; every case's own HTTP call against a running site or a login link
     # carries the same per-request deadline.
     Wait("http_request", 60, 30, "an HTTP request against a running site or a login link"),
@@ -179,8 +179,8 @@ def reserved_dir(path):
     return path
 
 
-# packaging/launcher, the module cmd/pack builds every fixture launcher from.
-LAUNCHER_SRC = Path(__file__).resolve().parent.parent.parent / "packaging" / "launcher"
+# launcher, the module cmd/pack builds every fixture launcher from.
+LAUNCHER_SRC = Path(__file__).resolve().parent.parent.parent / "launcher"
 
 # The stub every fixture launcher packs as its runtime: it reports its own version, its
 # arguments, one forwarded environment value and PHPRC, so a case can tell a fixture start
@@ -320,7 +320,7 @@ def wait_for_line(log_path, offset, prefix, timeout):
 
 
 def opener_name():
-    """The name packaging/entrypoint.go's openBrowser looks up on PATH for this platform,
+    """The name runtime/entrypoint.go's openBrowser looks up on PATH for this platform,
     so a case's recorder answers to the same name the product would call.
     """
     return "open" if current_platform() == MACOS else "xdg-open"

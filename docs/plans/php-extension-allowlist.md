@@ -9,11 +9,11 @@ that stop diverging, and a check that works on any site's lock.
 `docs/adr/0016-extension-allowlist.md` holds the decision and the rejected
 alternatives.
 
-`packaging/php-extensions.txt` is the allowlist. One name per line, sorted, with
+`runtime/php-extensions.txt` is the allowlist. One name per line, sorted, with
 a trailing comment naming what it serves. The Linux, macOS and Windows builders
 read it, and so does the conformance suite.
 
-`spc dump-extensions` reads `drupal/composer.lock` and reports the extensions
+`spc dump-extensions` reads `application/composer.lock` and reports the extensions
 packages declare. A CI check fails when the lock declares a name the file omits.
 The lock declares 20 names today, and never declares `pdo_mysql`, `pdo_pgsql`,
 `opcache` or `argon2`.
@@ -31,7 +31,7 @@ The lock declares 20 names today, and never declares `pdo_mysql`, `pdo_pgsql`,
 
 ### What to build
 
-`packaging/php-extensions.txt` starts from the Windows set, which ships today
+`runtime/php-extensions.txt` starts from the Windows set, which ships today
 and passes the suite. It adds the spc names for the same capabilities
 (`opcache`, `password-argon2`, `mysqlnd`) and the build-time consumers. Composer
 and the translation fetch run under the same PHP, so `phar`, `zip`, `curl` and
@@ -42,7 +42,7 @@ The always-loaded names belong in the file, among them `Core`, `standard`,
 against it.
 
 `packaging/check-extensions.sh` downloads spc at the pinned version, runs
-`spc dump-extensions drupal/ --no-dev`, and compares the result to the file. A
+`spc dump-extensions application/ --no-dev`, and compares the result to the file. A
 declared name the file omits fails the check, and the message names the packages
 that declare it. A CI job runs the script.
 
@@ -54,7 +54,7 @@ that declare it. A CI job runs the script.
       declaring packages.
 - [ ] The check runs without the builder image and without a docker build.
 - [ ] `spc dump-extensions` exists at the pinned spc version. If it does not,
-      the version moves and `packaging/macos/build.sh` moves with it.
+      the version moves and `build/macos/build.sh` moves with it.
 
 ---
 
@@ -62,7 +62,7 @@ that declare it. A CI job runs the script.
 
 ### What to build
 
-`packaging/windows/build.ps1` holds two lists, `$dllExtensions` and
+`build/windows/build.ps1` holds two lists, `$dllExtensions` and
 `$builtinExtensions`. Both go. The script reads the file and tests for
 `ext\php_<name>.dll` in the PHP zip to tell a DLL from a built-in extension.
 
@@ -87,7 +87,7 @@ file carries.
 
 ### What to build
 
-`packaging/macos/build.sh:16` holds the 68-name `extensions` literal. It reads
+`build/macos/build.sh:16` holds the 68-name `extensions` literal. It reads
 the file instead. `extension_libs` keeps its own list, since `watcher`,
 `nghttp2`, `nghttp3` and `ngtcp2` serve FrankenPHP and Caddy rather than any
 extension.
@@ -109,7 +109,7 @@ The equality case from phase 2 runs on macOS.
 `PHP_EXTENSIONS` takes effect when a static-builder image is built, so the
 pinned `dunglas/frankenphp` digests cannot carry a narrowed PHP. The workflow
 builds both images from `php/frankenphp` at the commit
-`packaging/macos/build.sh` already pins, with `PHP_VERSION=8.5.10` and
+`build/macos/build.sh` already pins, with `PHP_VERSION=8.5.10` and
 `PHP_EXTENSIONS` read from the file. It tags them locally and passes the tags as
 `MUSL_BUILDER` and `GNU_BUILDER`.
 
@@ -117,7 +117,7 @@ Each libc gets its own CI job, since one runner holds neither two builder images
 nor two PHP compiles. A packing job takes both `/out` directories and the
 application payload.
 
-`packaging/embed.sh:19` names five libraries for `pkg-config`. A narrowed PHP
+`runtime/embed.sh:19` names five libraries for `pkg-config`. A narrowed PHP
 drops some of them from the buildroot, so the line reads `spc spc-config
 --libs` instead. `-lwatcher-c` and the database client libraries stay written
 out.

@@ -1,8 +1,8 @@
 # Drupack command line
 
 Every option Drupack accepts, what it sets, and when it takes effect. The
-parser in `runtime/launch.php` is the contract this page records. A test in
-`tests/unit/launch_test.php` fails when the two disagree.
+parser in `application/launch.php` is the contract this page records. A test in
+`application/tests/launch_test.php` fails when the two disagree.
 
 ## Synopsis
 

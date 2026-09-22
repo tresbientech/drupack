@@ -1,6 +1,6 @@
 # Follow-ups from the conformance suite
 
-> Source plan: [docs/plans/test-architecture.md](test-architecture.md)
+> Source plan: `docs/plans/test-architecture.md`, deleted when its work shipped.
 
 Every item below was found by a review or an audit during the ten phases, judged
 not to block the merge, and left for later. None changes what the suite proves

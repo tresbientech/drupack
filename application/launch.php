@@ -7,8 +7,8 @@ require __DIR__ . '/vendor/autoload.php';
 use Drupack\Support\PreviousCopies;
 use Symfony\Component\Filesystem\Path;
 
-// The option set also reaches a reader through packaging/entrypoint.go's usage and
-// docs/cli.md. tests/unit/launch_test.php asserts all three against options().
+// The option set also reaches a reader through runtime/entrypoint.go's usage and
+// docs/cli.md. application/tests/launch_test.php asserts all three against options().
 const HELP = <<<'TEXT'
 Usage: drupack [OPTIONS]
        drupack dr [OPTIONS] DRUSH_COMMAND
@@ -854,7 +854,7 @@ function initialize(string $data, array $steps, array $options, string $binary):
     }
 }
 
-// tests/unit/launch_test.php defines this to load the functions above without starting a site.
+// application/tests/launch_test.php defines this to load the functions above without starting a site.
 if (defined('DRUPACK_LAUNCH_LIBRARY')) {
     return;
 }

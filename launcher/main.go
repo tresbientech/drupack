@@ -1,5 +1,5 @@
 // Command launcher unpacks its embedded runtime into the user's cache and
-// runs it. packaging/launcher/cmd/pack builds one launcher per runtime build.
+// runs it. launcher/cmd/pack builds one launcher per runtime build.
 package main
 
 import (

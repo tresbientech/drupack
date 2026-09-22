@@ -1,7 +1,7 @@
 """The launcher's own cache: cold starts, fixtures, and the cache states they build.
 
 Ported from tests/launcher.sh cases 1-11 (case 0 moved in phase 2). The Go tests in
-packaging/launcher cover the cache-root fallbacks and the concurrent cold start, which
+launcher cover the cache-root fallbacks and the concurrent cold start, which
 need no built executable. Most classes stay Linux only; ColdWarmStart also runs on
 Windows, and WindowsLauncherCases holds the cache states only Windows can produce.
 """

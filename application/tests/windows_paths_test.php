@@ -6,11 +6,11 @@ declare(strict_types=1);
 // import, so this runs standalone under php-cli with no container. Each
 // pure function gets its own require and its own table.
 
-require __DIR__ . '/../../runtime/support/LocalFileUri.php';
+require __DIR__ . '/../support/LocalFileUri.php';
 
 // launch_test.php defines this to load launch.php's functions without starting a site.
 define('DRUPACK_LAUNCH_LIBRARY', true);
-require __DIR__ . '/../../runtime/launch.php';
+require __DIR__ . '/../launch.php';
 
 use Drupack\Support\LocalFileUri;
 

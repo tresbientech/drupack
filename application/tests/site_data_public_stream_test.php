@@ -7,8 +7,8 @@ declare(strict_types=1);
 // through the Drupal\Core\ mapping composer already generates, and Symfony's
 // Path, which the containment check in getLocalPath() now calls.
 
-require __DIR__ . '/../../runtime/vendor/autoload.php';
-require __DIR__ . '/../../runtime/support/SiteDataPublicStream.php';
+require __DIR__ . '/../vendor/autoload.php';
+require __DIR__ . '/../support/SiteDataPublicStream.php';
 
 use Drupack\Support\SiteDataPublicStream;
 

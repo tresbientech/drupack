@@ -71,7 +71,7 @@ jobs:
           printf 'Building for:\n%s\n' "$changed"
           echo 'build=true' >>"$GITHUB_OUTPUT"
 
-  # Every builder compiles the extensions packaging/php-extensions.txt names, so
+  # Every builder compiles the extensions runtime/php-extensions.txt names, so
   # a lock that declares one the file omits stops the release here.
   extensions:
     name: extensions
@@ -83,7 +83,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Check the allowlist against the lock
-        run: python3 packaging/check-extensions.py
+        run: python3 runtime/check-extensions.py
 
   # A builder image carries the PHP its own build compiled, so each runtime
   # compiles one. A builder image and a compile fill a runner between them,
@@ -116,7 +116,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           LIBC: ${{ matrix.libc }}
-        run: bash packaging/build-builder.sh "$LIBC" "drupack-builder-$LIBC:local" "$RUNNER_TEMP/builder"
+        run: bash runtime/build-builder.sh "$LIBC" "drupack-builder-$LIBC:local" "$RUNNER_TEMP/builder"
 
       - name: Build the runtime
         env:
@@ -155,14 +155,14 @@ jobs:
       - uses: actions/checkout@v7
 
       # setup-go sets GOTOOLCHAIN=local from v6 on, so go fetches no newer toolchain of
-      # its own: this version must stay at or above the go line in packaging/launcher/go.mod.
+      # its own: this version must stay at or above the go line in launcher/go.mod.
       - uses: actions/setup-go@v7
         with:
           go-version: '1.27.0'
           cache: false
 
       - name: Run the launcher unit tests
-        working-directory: packaging/launcher
+        working-directory: launcher
         run: go test ./...
 
       # The runner starts with about 14 GB free and this job pulls the one image
@@ -258,8 +258,8 @@ jobs:
           path: dist/drupack
           if-no-files-found: error
 
-  application:
-    name: application
+  payload:
+    name: payload
     needs: [changes, extensions]
     # windows and macos need this job, so skipping it skips them too.
     if: needs.changes.outputs.full == 'true' && contains(fromJSON('["all","windows-amd64","macos-arm64","macos-amd64"]'), inputs.platform || 'all')
@@ -276,26 +276,26 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           df -h /
 
-      - name: Export the application archive
+      - name: Export the application payload
         env:
           DRUPACK_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
         run: |
           docker build --target app --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-build .
           container=$(docker create drupack-build)
-          mkdir application
-          docker cp "$container:/go/src/app/app-payload.tar" application/app-payload.tar
-          docker cp "$container:/go/src/app/app_checksum.txt" application/app_checksum.txt
+          mkdir -p dist/payload
+          docker cp "$container:/go/src/app/app-payload.tar" dist/payload/app-payload.tar
+          docker cp "$container:/go/src/app/app_checksum.txt" dist/payload/app_checksum.txt
           docker rm "$container"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: application-archive
-          path: application
+          name: payload-archive
+          path: dist/payload
           if-no-files-found: error
 
   windows:
     name: Windows amd64
-    needs: application
+    needs: payload
     if: contains(fromJSON('["all","windows-amd64"]'), inputs.platform || 'all')
     runs-on: windows-2025
     timeout-minutes: 90
@@ -311,13 +311,13 @@ jobs:
           cache: false
 
       - name: Run the launcher unit tests
-        working-directory: packaging/launcher
+        working-directory: launcher
         run: go test ./...
 
       - uses: actions/download-artifact@v8
         with:
-          name: application-archive
-          path: application
+          name: payload-archive
+          path: dist/payload
 
       - uses: actions/cache@v6
         with:
@@ -327,7 +327,7 @@ jobs:
             ~\AppData\Local\vcpkg\archives
             ~\go\pkg\mod
             ~\AppData\Local\go-build
-          key: windows-build-${{ hashFiles('packaging/windows/build.ps1') }}
+          key: windows-build-${{ hashFiles('build/windows/build.ps1') }}
 
       - name: Build the executable
         env:
@@ -340,7 +340,7 @@ jobs:
           } else {
             $version = "dev-$($env:SHA.Substring(0,12))"
           }
-          ./packaging/windows/build.ps1 -ApplicationDirectory application -Version $version -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupack.exe
+          ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $version -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupack.exe
 
       - name: Run the conformance suite
         run: python tests/conformance dist\drupack.exe test-results\conformance
@@ -360,7 +360,7 @@ jobs:
 
   macos:
     name: macOS ${{ matrix.architecture }}
-    needs: application
+    needs: payload
     if: contains(fromJSON('["all","macos-arm64","macos-amd64"]'), inputs.platform || 'all')
     runs-on: ${{ matrix.architecture == 'arm64' && 'macos-15' || 'macos-15-intel' }}
     timeout-minutes: 240
@@ -381,13 +381,13 @@ jobs:
           cache: false
 
       - name: Run the launcher unit tests
-        working-directory: packaging/launcher
+        working-directory: launcher
         run: go test ./...
 
       - uses: actions/download-artifact@v8
         with:
-          name: application-archive
-          path: application
+          name: payload-archive
+          path: dist/payload
 
       - uses: actions/cache/restore@v6
         with:
@@ -395,7 +395,7 @@ jobs:
             ${{ runner.temp }}/drupack/downloads
             ${{ runner.temp }}/drupack/buildroot
             ${{ runner.temp }}/drupack/pkgroot
-          key: macos-${{ matrix.architecture }}-${{ hashFiles('packaging/macos/build.sh') }}
+          key: macos-${{ matrix.architecture }}-${{ hashFiles('build/macos/build.sh') }}
 
       - name: Build the executable
         env:
@@ -410,7 +410,7 @@ jobs:
           else
             version="dev-${SHA:0:12}"
           fi
-          DRUPACK_VERSION=$version bash packaging/macos/build.sh application "$RUNNER_TEMP/drupack" dist/drupack
+          DRUPACK_VERSION=$version bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/drupack
 
       # Saved before the tests, so a failed test does not repeat the PHP build.
       - uses: actions/cache/save@v6
@@ -419,7 +419,7 @@ jobs:
             ${{ runner.temp }}/drupack/downloads
             ${{ runner.temp }}/drupack/buildroot
             ${{ runner.temp }}/drupack/pkgroot
-          key: macos-${{ matrix.architecture }}-${{ hashFiles('packaging/macos/build.sh') }}
+          key: macos-${{ matrix.architecture }}-${{ hashFiles('build/macos/build.sh') }}
 
       - name: Run the test scripts
         run: |

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Fails when drupal/composer.lock declares a PHP extension that
-packaging/php-extensions.txt omits.
+"""Fails when application/composer.lock declares a PHP extension that
+runtime/php-extensions.txt omits.
 
 static-php-cli reads the lock and reports the extensions its packages require.
 This compares that set against the allowlist and names the packages behind
@@ -29,8 +29,8 @@ SPC_ARCHIVES = {
 ALWAYS_COMPILED = frozenset({"date"})
 
 ROOT = Path(__file__).resolve().parent.parent
-ALLOWLIST = ROOT / "packaging" / "php-extensions.txt"
-PROJECT = ROOT / "drupal"
+ALLOWLIST = ROOT / "runtime" / "php-extensions.txt"
+PROJECT = ROOT / "application"
 
 
 def allowlist() -> set[str]:
@@ -79,7 +79,7 @@ def declaring_packages(extension: str) -> list[str]:
     key = f"ext-{extension}"
     names = []
     if key in lock.get("platform", {}):
-        names.append("drupal/composer.json")
+        names.append("application/composer.json")
     names.extend(p["name"] for p in lock["packages"] if key in p.get("require", {}))
     return names
 

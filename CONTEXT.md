@@ -62,6 +62,12 @@ The written form Drupack uses for every path it computes, exports or prints: abs
 **Minted segment**:
 A path element Drupack names itself rather than inherits, matching `^[a-z][a-z0-9.-]{0,31}$`, which the build refuses to break.
 
+### Runtime
+
+**Runtime**:
+The PHP interpreter and web server a Packaged site runs on, built against one C library.
+_Avoid_: naming the Application root or the `runtime` directory in Site data a Runtime.
+
 **Application root**:
 The directory holding one release's unpacked application, which every site of that release reads and none writes to.
 
@@ -96,6 +102,13 @@ A PHP extension that a package in the application's lock file names as a require
 - The **`dr` command** manages one **Packaged site** and its selected **Site data**.
 - **`DRUPACK_DATA_DIR`** selects **Site data** when no `--data-dir` option is present.
 
+### Runtime
+
+- A Linux **Packaged site** carries one **Runtime** per C library and picks one per host.
+- A macOS or Windows **Packaged site** carries one **Runtime**.
+- `--version` names the **Runtime** that ran.
+- A **Runtime** and an **Application root** each unpack to their own cache. The **`clean` command** removes entries from both.
+
 ### Extensions
 
 - The **Extension allowlist** gives every **Declared extension** a verdict, kept or dropped, and a build stops on one it does not name.
@@ -108,3 +121,7 @@ A PHP extension that a package in the application's lock file names as a require
 > User: "It copies the Seed site on a SQLite first start. MySQL and PostgreSQL install the Site template instead. Its site data then persists across launches."
 > Developer: "Can I name the site myself?"
 > User: "On a first start, with --site-name. After that the name belongs to the site, and Drupack never rewrites it."
+
+## Flagged ambiguities
+
+- `runtime` named four things: the PHP application files, the compiled interpreter and server, the `runtime` directory in Site data, and a Go package. Resolved: a **Runtime** is the compiled interpreter and server. [ADR 0017](docs/adr/0017-one-directory-per-artifact.md) gives the repository layout that follows.

@@ -16,7 +16,7 @@ name only there.
 
 Cyrillic and CJK never print the load-failure warning even when broken, so
 every case also checks that a php-cli probe against the same cache root loads
-every extension packaging/php-extensions.txt names: the signal that separates
+every extension runtime/php-extensions.txt names: the signal that separates
 a fixed start from a broken one for those two scripts.
 """
 

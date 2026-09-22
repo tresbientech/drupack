@@ -3,9 +3,9 @@
 # carries both runtimes: the glibc one serves a rendered page several times
 # faster, and the musl one is the single file that runs on any host.
 #
-# A runtime links the PHP that packaging/php-extensions.txt names, and
+# A runtime links the PHP that runtime/php-extensions.txt names, and
 # PHP_EXTENSIONS takes effect while a builder image is built, so
-# packaging/build-builder.sh builds one image per libc before this file runs.
+# runtime/build-builder.sh builds one image per libc before this file runs.
 ARG MUSL_BUILDER=drupack-builder-musl:local
 ARG GNU_BUILDER=drupack-builder-gnu:local
 # Composer, the translation fetch, the site install and the packer need a PHP
@@ -23,14 +23,14 @@ RUN curl -fsSL https://getcomposer.org/download/2.8.12/composer.phar -o /usr/loc
     && echo 'f446ea719708bb85fcbf4ef18def5d0515f1f9b4d703f6d820c9c1656e10a2f2  /usr/local/bin/composer.phar' | sha256sum -c -
 
 WORKDIR /app
-COPY drupal/composer.json drupal/composer.lock ./
+COPY application/composer.json application/composer.lock ./
 RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /usr/local/bin/composer.phar install --no-dev --prefer-dist --no-interaction --optimize-autoloader
-COPY packaging/install-translations.php /build/
+COPY build/install-translations.php /build/
 # The translation fetch reaches ftp.drupal.org over TLS on the bundle pinned below.
-COPY runtime/cacert.pem /build/cacert.pem
+COPY application/cacert.pem /build/cacert.pem
 RUN CURL_CA_BUNDLE=/build/cacert.pem /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /build/install-translations.php
-COPY runtime/ ./
-COPY packaging/site-templates.php web/sites/default/site-templates.php
+COPY application/ ./
+COPY build/site-templates.php web/sites/default/site-templates.php
 RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /usr/local/bin/composer.phar dump-autoload --optimize
 RUN mkdir -p /app/seed/private /app/seed/tmp /app/seed/config /app/web/sites/default/files \
     && printf 'drupack-seed-hash-salt' > /app/seed/hash_salt \
@@ -42,30 +42,30 @@ RUN mkdir -p /app/seed/private /app/seed/tmp /app/seed/config /app/web/sites/def
     && DRUPACK_RUNTIME_DATA_DIR=/app/seed DRUPACK_RUNTIME_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php pm:uninstall automatic_updates package_manager --yes \
     && mv /app/web/sites/default/files /app/seed/files \
     && printf '%s\n%s\n' '<?php' "require getenv('DRUPACK_RUNTIME_DATA_DIR') . DIRECTORY_SEPARATOR . 'settings.php';" > /app/web/sites/default/settings.php
-COPY packaging/app-payload.sh /usr/local/bin/app-payload.sh
+COPY build/app-payload.sh /usr/local/bin/app-payload.sh
 RUN bash /usr/local/bin/app-payload.sh
 
 # php.ini and the trust bundle join the entry executable in each runtime
 # directory, so the launcher's environment function finds both beside it.
-# runtime/cacert.pem comes from https://curl.se/ca/cacert.pem, sha256
+# application/cacert.pem comes from https://curl.se/ca/cacert.pem, sha256
 # f66dff1bdf8f96060b8177976f8b7d9254bc89bc4db933d769f7384d28480bc9, 121
 # certificates. A refresh replaces the file and that checksum in one commit;
 # no build fetches it.
 FROM ${MUSL_BUILDER} AS runtime-musl
 ARG DRUPACK_VERSION
-COPY packaging/embed.sh /usr/local/bin/embed.sh
-COPY packaging/php-extensions.txt packaging/extensions-list.sh /build/
-COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
+COPY runtime/embed.sh /usr/local/bin/embed.sh
+COPY runtime/php-extensions.txt runtime/extensions-list.sh /build/
+COPY runtime/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
 RUN bash /usr/local/bin/embed.sh
-COPY runtime/php.ini runtime/cacert.pem /out/
+COPY application/php.ini application/cacert.pem /out/
 
 FROM ${GNU_BUILDER} AS runtime-gnu
 ARG DRUPACK_VERSION
-COPY packaging/embed.sh /usr/local/bin/embed.sh
-COPY packaging/php-extensions.txt packaging/extensions-list.sh /build/
-COPY packaging/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
+COPY runtime/embed.sh /usr/local/bin/embed.sh
+COPY runtime/php-extensions.txt runtime/extensions-list.sh /build/
+COPY runtime/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
 RUN bash /usr/local/bin/embed.sh
-COPY runtime/php.ini runtime/cacert.pem /out/
+COPY application/php.ini application/cacert.pem /out/
 
 FROM scratch AS uncompressed
 COPY --from=runtime-musl /out/drupack /drupack
@@ -87,7 +87,7 @@ COPY --from=runtime-gnu /out /out
 # the order the launcher tries them in.
 FROM ${APP_BUILDER} AS packed
 ARG DRUPACK_VERSION
-COPY packaging/launcher /src/launcher
+COPY launcher /src/launcher
 COPY --from=app /go/src/app/app-payload.tar /go/src/app/app_checksum.txt /payload/
 COPY --from=runtime-musl /out /runtime/musl
 COPY --from=runtime-gnu /out /runtime/glibc

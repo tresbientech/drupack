@@ -4,7 +4,7 @@
 # name to a DLL in the PHP zip, or to an extension its php8ts.dll already
 # carries.
 #
-# packaging/check-extensions.py fails when drupal/composer.lock declares an
+# runtime/check-extensions.py fails when application/composer.lock declares an
 # extension this file omits.
 #
 # Not shipped. bcmath, ftp, mbregex, posix, readline and xz reach only guarded

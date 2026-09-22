@@ -30,8 +30,8 @@ suite runs against the built executable.
 
 ```sh
 docker build --target artifact --output type=local,dest=dist .
-cd packaging/launcher && go test ./...
-./dist/drupack php-cli tests/unit/launch_test.php
+cd launcher && go test ./...
+./dist/drupack php-cli application/tests/launch_test.php
 python3 tests/conformance ./dist/drupack test-results/conformance
 ```
 
@@ -46,13 +46,14 @@ listing. It runs the Windows suite before its report.
 ```sh
 docker build --target build -t drupack-build .
 container=$(docker create drupack-build)
-docker cp "$container:/go/src/app/app-payload.tar" application/app-payload.tar
-docker cp "$container:/go/src/app/app_checksum.txt" application/app_checksum.txt
+mkdir -p dist/payload
+docker cp "$container:/go/src/app/app-payload.tar" dist/payload/app-payload.tar
+docker cp "$container:/go/src/app/app_checksum.txt" dist/payload/app_checksum.txt
 docker rm "$container"
 ```
 
 ```powershell
-./packaging/windows/build.ps1 -ApplicationDirectory application -Version dev `
+./build/windows/build.ps1 -PayloadDirectory dist\payload -Version dev `
   -WorkDirectory $env:TEMP\drupack -Output dist\drupack.exe
 python tests\conformance dist\drupack.exe test-results\conformance
 ```
@@ -79,7 +80,7 @@ Previous-release fallback returns only when a need for it appears.
 
 ### Acceptance criteria
 
-- [ ] `cd packaging/launcher && go test ./...` exits 0, including a table where
+- [ ] `cd launcher && go test ./...` exits 0, including a table where
       both components prepare, where the application fails after a staged
       runtime, and where the runtime itself fails.
 - [ ] A forced application failure leaves the previous release active, and the
@@ -157,8 +158,8 @@ Named here so no phase absorbs them.
   the launcher would put the option contract in a fourth place, against
   [ADR 0014](../adr/0014-the-parser-owns-the-command-line.md).
 - An unknown first word prints `unknown command "X" for "caddy"`, naming a
-  product Drupack never mentions. `packaging/entrypoint.go` forwards whatever it
+  product Drupack never mentions. `runtime/entrypoint.go` forwards whatever it
   does not handle to the embedded server's own CLI.
 - `README.md` says `drupack version` names every component Drupack carries. It
-  prints FrankenPHP, PHP and Caddy, set by `packaging/embed.sh` as Caddy's
+  prints FrankenPHP, PHP and Caddy, set by `runtime/embed.sh` as Caddy's
   `CustomVersion`, and names neither Drupal nor Drush.

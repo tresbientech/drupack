@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-// Unit cases for the pure functions in runtime/launch.php. Run with:
-//   ./dist/drupack php-cli "$PWD/tests/unit/launch_test.php"
+// Unit cases for the pure functions in application/launch.php. Run with:
+//   ./dist/drupack php-cli "$PWD/application/tests/launch_test.php"
 // launch.php requires vendor/autoload.php, whose lock targets a PHP the host
 // may not have, so the bundled runtime runs this file. The constant loads
 // launch.php for its functions alone; the guard above its main block answers
 // to it.
 
 define('DRUPACK_LAUNCH_LIBRARY', true);
-require __DIR__ . '/../../runtime/launch.php';
+require __DIR__ . '/../launch.php';
 
 // Every variable options() reads for a default.
 const OPTION_VARIABLES = [
@@ -331,7 +331,7 @@ test('site data file names hang off the directory', function (): void {
 test('the deployment identifier hashes the exported application directory directly', function (): void {
     $data = scratch();
     file_put_contents("$data/hash_salt", 'test-hash-salt');
-    $content = settings(__DIR__ . '/../../runtime/settings.php', [
+    $content = settings(__DIR__ . '/../settings.php', [
         'driver' => 'sqlite',
         'database' => "$data/site.sqlite",
         'namespace' => 'Drupal\\sqlite\\Driver\\Database\\sqlite',
@@ -362,7 +362,7 @@ test('the deployment identifier hashes the exported application directory direct
 // other three are asserted against it here. docs/adr/0014 records the decision.
 const REPOSITORY = __DIR__ . '/../..';
 
-// packaging/entrypoint.go answers these two itself, so neither reaches an option key.
+// runtime/entrypoint.go answers these two itself, so neither reaches an option key.
 const USAGE_NON_OPTIONS = ['help', 'version'];
 
 function optionNames(string $text): array
@@ -382,7 +382,7 @@ function parserOptions(): array
 
 function entrypointOptions(): array
 {
-    $source = (string) file_get_contents(REPOSITORY . '/packaging/entrypoint.go');
+    $source = (string) file_get_contents(REPOSITORY . '/runtime/entrypoint.go');
     // The Options: block alone. The examples under it repeat options and add --dry-run.
     if (!preg_match('/\nOptions:\n(.*?)\nCommands:\n/s', $source, $block)) {
         throw new RuntimeException('entrypoint.go has no Options: block ending at Commands:');

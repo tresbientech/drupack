@@ -1,5 +1,5 @@
 param(
-  [Parameter(Mandatory = $true)] [string] $ApplicationDirectory,
+  [Parameter(Mandatory = $true)] [string] $PayloadDirectory,
   [Parameter(Mandatory = $true)] [string] $Version,
   [Parameter(Mandatory = $true)] [string] $WorkDirectory,
   [Parameter(Mandatory = $true)] [string] $Output
@@ -10,7 +10,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 
 # Push-Location changes the working directory further down, and the packer
 # resolves a relative path against its own, so the application resolves here.
-$applicationRoot = (Resolve-Path $ApplicationDirectory).Path
+$payload = (Resolve-Path $PayloadDirectory).Path
 
 $frankenphpVersion = '1.12.7'
 $frankenphpCommit = 'a765b086f5cc56f6b7753117367d56e1b0da948d'
@@ -37,7 +37,7 @@ $downloads = [ordered]@{
     Sha256 = '13b8175e99a884c5ad34249218754b45541a1a63f216e92603aee57a285ac741'
   }
 }
-# packaging/php-extensions.txt names what every platform compiles. Four of its
+# runtime/php-extensions.txt names what every platform compiles. Four of its
 # names this PHP cannot load: apcu and brotli ship as PECL DLLs the php.net zip
 # leaves out, password-argon2 is a static-php-cli build input for a PHP that
 # compiles argon2 into php8ts.dll, and PHP has no pcntl on Windows, where
@@ -45,7 +45,7 @@ $downloads = [ordered]@{
 $absentExtensions = @('apcu', 'brotli', 'password-argon2', 'pcntl')
 # opcache loads with no php.ini line here, and reports itself under another name.
 $preloadedExtensions = @{ 'opcache' = 'zend opcache' }
-$extensions = Get-Content (Join-Path $PSScriptRoot '..\php-extensions.txt') |
+$extensions = Get-Content (Join-Path $PSScriptRoot '..\..\runtime\php-extensions.txt') |
   ForEach-Object { ($_ -split '#')[0].Trim() } |
   Where-Object { $_ -and $absentExtensions -notcontains $_ }
 
@@ -119,8 +119,8 @@ $vcpkgRoot = Join-Path $vcpkgInstalled 'x64-windows'
 # which leaves frankenphp's own extraction unused. Its embed directive still
 # needs both files to exist.
 Set-Content -Path (Join-Path $frankenphp 'app.tar') -Value $null -NoNewline
-Copy-Item (Join-Path $applicationRoot 'app_checksum.txt') (Join-Path $frankenphp 'app_checksum.txt')
-Copy-Item (Join-Path $PSScriptRoot '..\entrypoint.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack.go')
+Copy-Item (Join-Path $payload 'app_checksum.txt') (Join-Path $frankenphp 'app_checksum.txt')
+Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\entrypoint.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack.go')
 
 $env:PATH = @("$buildTools\VC\Tools\Llvm\x64\bin", "$vcpkgRoot\bin", $watcherRoot, $php, $env:PATH) -join ';'
 $env:CC = 'clang'
@@ -144,14 +144,14 @@ foreach ($library in 'brotlienc.dll', 'brotlidec.dll', 'brotlicommon.dll', 'pthr
 # The repository's php.ini is the only source of PHP settings; this build only adds
 # what only it can supply: where this PHP puts its extensions, and which to load. The
 # launcher sets PHPRC to the extracted runtime directory.
-Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\php.ini') (Join-Path $runtime 'php.ini')
+Copy-Item (Join-Path $PSScriptRoot '..\..\application\php.ini') (Join-Path $runtime 'php.ini')
 # An extension the zip carries as a DLL needs a php.ini line. The rest are in
 # php8ts.dll already, and the load check below catches a name from neither.
 $dllExtensions = $extensions | Where-Object {
   -not $preloadedExtensions.ContainsKey($_) -and (Test-Path (Join-Path $php "ext\php_$_.dll"))
 }
 Add-Content -Path (Join-Path $runtime 'php.ini') -Value (@('extension_dir = "${PHPRC}\ext"') + ($dllExtensions | ForEach-Object { "extension=$_" }))
-Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\cacert.pem') $runtime
+Copy-Item (Join-Path $PSScriptRoot '..\..\application\cacert.pem') $runtime
 
 $check = Join-Path $work 'extensions.php'
 Set-Content -Path $check -Value '<?php echo implode("\n", array_map("strtolower", get_loaded_extensions()));'
@@ -170,11 +170,11 @@ $outputDirectory = Split-Path -Parent $Output
 if (-not $outputDirectory) { $outputDirectory = '.' }
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
 $outputPath = Join-Path (Resolve-Path $outputDirectory).Path (Split-Path -Leaf $Output)
-$launcherSource = (Resolve-Path (Join-Path $PSScriptRoot '..\launcher')).Path
+$launcherSource = (Resolve-Path (Join-Path $PSScriptRoot '..\..\launcher')).Path
 $env:CGO_ENABLED = '0'
 Push-Location $launcherSource
 try {
-  go run ./cmd/pack -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $outputPath -app (Join-Path $applicationRoot 'app-payload.tar') -app-checksum (Join-Path $applicationRoot 'app_checksum.txt')
+  go run ./cmd/pack -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $outputPath -app (Join-Path $payload 'app-payload.tar') -app-checksum (Join-Path $payload 'app_checksum.txt')
 } finally {
   Pop-Location
 }

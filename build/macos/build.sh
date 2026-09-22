@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-usage='Usage: build.sh APPLICATION_DIRECTORY WORK_DIRECTORY OUTPUT'
-application=$(cd -- "${1:?$usage}" && pwd)
+usage='Usage: build.sh PAYLOAD_DIRECTORY WORK_DIRECTORY OUTPUT'
+payload=$(cd -- "${1:?$usage}" && pwd)
 work=${2:?$usage}
 mkdir -p "$(dirname -- "${3:?$usage}")"
 output="$(cd -- "$(dirname -- "$3")" && pwd)/$(basename -- "$3")"
@@ -14,8 +14,8 @@ frankenphp_commit=a765b086f5cc56f6b7753117367d56e1b0da948d
 php_version=8.5.10
 spc_version=2.8.5
 # The allowlist every builder compiles. spc resolves the libraries each name needs.
-extensions=$(bash "$repository/packaging/extensions-list.sh" "$repository/packaging/php-extensions.txt")
-extension_libs=$(bash "$repository/packaging/extensions-list.sh" "$repository/packaging/php-extension-libs.txt")
+extensions=$(bash "$repository/runtime/extensions-list.sh" "$repository/runtime/php-extensions.txt")
+extension_libs=$(bash "$repository/runtime/extensions-list.sh" "$repository/runtime/php-extension-libs.txt")
 
 case "$(uname -m)" in
     arm64) spc_archive=spc-macos-aarch64.tar.gz; spc_sha256=acf2f25d56d0cbf8e65aa82e5054fef555f7be7c5c38046c6e0819f266d83225 ;;
@@ -50,8 +50,8 @@ fi
 # The launcher carries the application, so the server embeds an empty archive,
 # which leaves frankenphp's own extraction unused.
 : > frankenphp/app.tar
-cp "$application/app_checksum.txt" frankenphp/
-cp "$repository/packaging/entrypoint.go" frankenphp/caddy/frankenphp/drupack.go
+cp "$payload/app_checksum.txt" frankenphp/
+cp "$repository/runtime/entrypoint.go" frankenphp/caddy/frankenphp/drupack.go
 
 runtime="$work/runtime"
 entry=drupack
@@ -69,12 +69,12 @@ CGO_ENABLED=1 CGO_CFLAGS="$php_includes -DFRANKENPHP_VERSION=$frankenphp_version
 
 # php.ini and the trust bundle ride beside the entry executable, where PHPRC
 # names them at every hop.
-cp "$repository/runtime/php.ini" "$repository/runtime/cacert.pem" "$runtime/"
+cp "$repository/application/php.ini" "$repository/application/cacert.pem" "$runtime/"
 
 # The subshell keeps the packer's build inside the launcher module, off this FrankenPHP checkout.
-(cd "$repository/packaging/launcher" \
+(cd "$repository/launcher" \
   && go run ./cmd/pack -runtime "$runtime" -entry "$entry" \
      -version "$drupack_version" \
-     -source "$repository/packaging/launcher" -output "$output" \
-     -app "$application/app-payload.tar" -app-checksum "$application/app_checksum.txt")
+     -source "$repository/launcher" -output "$output" \
+     -app "$payload/app-payload.tar" -app-checksum "$payload/app_checksum.txt")
 "$output" version

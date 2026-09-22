@@ -1,12 +1,13 @@
 *
-!drupal/composer.json
-!drupal/composer.lock
+!application/
+!application/**
+# The image builds these three from composer.lock. A local copy of any of
+# them would enter the build context and collide with the one composer writes.
+application/vendor
+application/web
+application/recipes
+!build/
+!build/**
 !runtime/
 !runtime/**
-# A local composer install symlinked here for tests that run outside the
-# build (launch.php now requires vendor/autoload.php); the image builds its
-# own vendor/ from drupal/composer.json and would collide with this one.
-runtime/vendor
-!packaging/
-!packaging/**
 !Dockerfile

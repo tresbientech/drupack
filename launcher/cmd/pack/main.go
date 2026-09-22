@@ -58,7 +58,7 @@ type builtRuntime struct {
 }
 
 // embeddedPayloadSource returns the payload.go that replaces
-// packaging/launcher's own in the build copy, so the launcher embeds this
+// launcher's own in the build copy, so the launcher embeds this
 // build's runtimes instead of the zero-value placeholder committed there.
 func embeddedPayloadSource(built []builtRuntime) string {
 	var source strings.Builder
