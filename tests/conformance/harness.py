@@ -47,7 +47,7 @@ def current_platform():
 # password-argon2 is a build input for argon2 support inside the standard
 # extension, the Windows PHP zip carries no apcu or brotli DLL, and Windows PHP
 # has no pcntl at all.
-_ALLOWLIST = Path(__file__).resolve().parent.parent.parent / "runtime" / "php-extensions.txt"
+ALLOWLIST = Path(__file__).resolve().parent.parent.parent / "runtime" / "php-extensions.txt"
 _UNLOADABLE = {LINUX: {"password-argon2"}, MACOS: {"password-argon2"},
                WINDOWS: {"password-argon2", "apcu", "brotli", "pcntl"}}
 _REPORTED_AS = {"opcache": "zend opcache"}
@@ -64,7 +64,7 @@ ALWAYS_COMPILED = frozenset({
 def expected_extensions():
     """The allowlist, under the names this platform's PHP reports them by."""
     names = set()
-    for line in _ALLOWLIST.read_text().splitlines():
+    for line in ALLOWLIST.read_text().splitlines():
         name = line.split("#", 1)[0].strip()
         if name and name not in _UNLOADABLE[current_platform()]:
             names.add(_REPORTED_AS.get(name, name))
