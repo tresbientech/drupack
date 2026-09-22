@@ -24,83 +24,105 @@ permissions:
   contents: read
 
 jobs:
-  # What a push reaches. A tag and a dispatch build every platform. A main push
-  # builds Linux amd64, and only when it touched something an executable carries.
-  # GitHub leaves the effect of a path filter on a tag push undocumented, so the
-  # comparison happens here rather than under `on:`.
-  changes:
-    name: changes
+  # What a run covers. A tag and a dispatch cover every platform, and a dispatch
+  # can name one. A main push covers Linux amd64, and only when it touched
+  # something an executable carries. GitHub leaves the effect of a path filter on
+  # a tag push undocumented, so the comparison happens here rather than under `on:`.
+  gate:
+    name: gate
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      build: ${{ steps.inputs.outputs.build }}
-      full: ${{ steps.inputs.outputs.full }}
-      version: ${{ steps.inputs.outputs.version }}
+      build: ${{ steps.targets.outputs.build }}
+      version: ${{ steps.targets.outputs.version }}
+      linux: ${{ steps.targets.outputs.linux }}
+      linux_runtime: ${{ steps.targets.outputs.linux_runtime }}
+      macos: ${{ steps.targets.outputs.macos }}
+      windows: ${{ steps.targets.outputs.windows }}
     steps:
-      - id: inputs
+      - uses: actions/checkout@v7
+
+      - id: targets
         env:
           GH_TOKEN: ${{ github.token }}
           BEFORE: ${{ github.event.before }}
           SHA: ${{ github.sha }}
+          PLATFORM: ${{ inputs.platform || 'all' }}
         run: |
-          # A runtime job and the job that packs it must name one version.
+          # Every job that builds a runtime or packs one names the same version.
           if [ "$GITHUB_REF_TYPE" = tag ]; then
-            echo "version=$GITHUB_REF_NAME" >>"$GITHUB_OUTPUT"
+            version=$GITHUB_REF_NAME
           else
-            echo "version=dev-${SHA:0:12}" >>"$GITHUB_OUTPUT"
+            version=dev-${SHA:0:12}
           fi
+          linux='[]'
+          macos='[]'
+          windows='[]'
           if [ "$GITHUB_REF_TYPE" = tag ] || [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
-            printf 'build=true\nfull=true\n' >>"$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo 'full=false' >>"$GITHUB_OUTPUT"
+            case "$PLATFORM" in
+              all)
+                linux='[{"arch":"amd64"},{"arch":"arm64"}]'
+                macos='[{"arch":"arm64"},{"arch":"amd64"}]'
+                windows='[{"arch":"amd64"}]'
+                ;;
+              linux-amd64) linux='[{"arch":"amd64"}]' ;;
+              linux-arm64) linux='[{"arch":"arm64"}]' ;;
+              macos-arm64) macos='[{"arch":"arm64"}]' ;;
+              macos-amd64) macos='[{"arch":"amd64"}]' ;;
+              windows-amd64) windows='[{"arch":"amd64"}]' ;;
+            esac
           # A new branch reports an all-zero before, which compares against nothing.
-          if [ "$BEFORE" = 0000000000000000000000000000000000000000 ]; then
-            echo 'build=true' >>"$GITHUB_OUTPUT"
-            exit 0
+          elif [ "$BEFORE" = 0000000000000000000000000000000000000000 ]; then
+            linux='[{"arch":"amd64"}]'
+          else
+            # Documentation reaches no executable. A path this list does not name
+            # builds rather than skips, so a new directory never goes untested.
+            changed=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" \
+              --jq '.files[].filename' | grep -vE '^docs/|^LICENSE$|^[^/]+\.md$' || true)
+            if [ -n "$changed" ]; then
+              printf 'Building for:\n%s\n' "$changed"
+              linux='[{"arch":"amd64"}]'
+            else
+              echo 'Documentation alone changed. Nothing to build.'
+            fi
           fi
-          # Documentation reaches no executable. A path this list does not name
-          # builds rather than skips, so a new directory never goes untested.
-          changed=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" \
-            --jq '.files[].filename' | grep -vE '^docs/|^LICENSE$|^[^/]+\.md$' || true)
-          if [ -z "$changed" ]; then
-            echo 'Documentation alone changed. Nothing to build.'
-            echo 'build=false' >>"$GITHUB_OUTPUT"
-            exit 0
-          fi
-          printf 'Building for:\n%s\n' "$changed"
-          echo 'build=true' >>"$GITHUB_OUTPUT"
+          # Each Linux architecture carries a runtime per C library.
+          linux_runtime=$(jq -cn --argjson linux "$linux" \
+            '[$linux[] | ({arch: .arch, libc: "musl"}, {arch: .arch, libc: "gnu"})]')
+          # Every platform packs the payload job's output, so any target calls for it.
+          build=true
+          [ "$linux$macos$windows" != '[][][]' ] || build=false
+          {
+            printf 'version=%s\n' "$version"
+            printf 'build=%s\n' "$build"
+            printf 'linux=%s\n' "$linux"
+            printf 'linux_runtime=%s\n' "$linux_runtime"
+            printf 'macos=%s\n' "$macos"
+            printf 'windows=%s\n' "$windows"
+          } >>"$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
 
-  # Every builder compiles the extensions runtime/php-extensions.txt names, so
-  # a lock that declares one the file omits stops the release here.
-  extensions:
-    name: extensions
-    needs: changes
-    if: needs.changes.outputs.build == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-
+      # Every builder compiles the extensions runtime/php-extensions.txt names, so
+      # a lock that declares one the file omits stops the release here.
       - name: Check the allowlist against the lock
         run: python3 runtime/check-extensions.py
 
-  # A builder image carries the PHP its own build compiled, so each runtime
-  # compiles one. A builder image and a compile fill a runner between them,
-  # which is why a job carries one libc rather than both.
+  # A builder image carries the PHP its own build compiled, so one image serves
+  # one libc on one architecture. Its content follows the inputs
+  # runtime/builder-tag.sh digests, and the registry holds it under that digest.
   linux-runtime:
-    name: Linux ${{ matrix.architecture }} ${{ matrix.libc }} runtime
-    needs: [changes, extensions]
-    if: needs.changes.outputs.build == 'true' && contains(fromJSON('["all","linux-amd64","linux-arm64"]'), inputs.platform || 'all')
-    runs-on: ${{ matrix.architecture == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+    name: Linux ${{ matrix.arch }} ${{ matrix.libc }} runtime
+    needs: gate
+    if: needs.gate.outputs.linux_runtime != '[]'
+    runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 180
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
-        architecture: [amd64, arm64]
-        libc: [musl, gnu]
-        exclude:
-          - architecture: ${{ needs.changes.outputs.full == 'false' && 'arm64' || (inputs.platform || 'all') == 'linux-amd64' && 'arm64' || (inputs.platform || 'all') == 'linux-arm64' && 'amd64' || 'none' }}
+        include: ${{ fromJSON(needs.gate.outputs.linux_runtime) }}
     steps:
       - uses: actions/checkout@v7
 
@@ -110,47 +132,108 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           df -h /
 
-      # build-static.sh reads the token to raise its GitHub API rate limit while
-      # it downloads the PHP and extension sources.
-      - name: Build the builder image
+      - id: builder
+        name: Name the builder image
+        env:
+          LIBC: ${{ matrix.libc }}
+        run: |
+          tag=$(bash runtime/builder-tag.sh "$LIBC")
+          printf 'image=ghcr.io/%s-builder:%s\n' "$GITHUB_REPOSITORY" "$tag" >>"$GITHUB_OUTPUT"
+
+      - name: Log in to the registry
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      # An image under this tag carries the PHP this run needs, whatever run built
+      # it. build-static.sh reads the token to raise its GitHub API rate limit
+      # while it downloads the PHP and extension sources.
+      - id: image
+        name: Pull or build the builder image
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          IMAGE: ${{ steps.builder.outputs.image }}
           LIBC: ${{ matrix.libc }}
-        run: bash runtime/build-builder.sh "$LIBC" "drupack-builder-$LIBC:local" "$RUNNER_TEMP/builder"
+        run: |
+          if docker pull -q "$IMAGE"; then
+            exit 0
+          fi
+          bash runtime/build-builder.sh "$LIBC" "$IMAGE" "$RUNNER_TEMP/builder"
+          echo 'built=true' >>"$GITHUB_OUTPUT"
+
+      # A fork holds a read-only token. The image it built stays on the runner,
+      # where the build below finds it under the same name.
+      - name: Publish the builder image
+        if: steps.image.outputs.built == 'true' && github.event.repository.fork == false
+        env:
+          IMAGE: ${{ steps.builder.outputs.image }}
+        run: docker push "$IMAGE"
 
       - name: Build the runtime
         env:
-          DRUPACK_VERSION: ${{ needs.changes.outputs.version }}
+          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+          IMAGE: ${{ steps.builder.outputs.image }}
           LIBC: ${{ matrix.libc }}
           BUILDER_ARG: ${{ matrix.libc == 'musl' && 'MUSL_BUILDER' || 'GNU_BUILDER' }}
         run: |
           docker build --target "runtime-$LIBC-files" \
             --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" \
-            --build-arg "$BUILDER_ARG=drupack-builder-$LIBC:local" \
+            --build-arg "$BUILDER_ARG=$IMAGE" \
             --output "type=local,dest=runtime-$LIBC" .
           df -h /
 
       - uses: actions/upload-artifact@v7
         with:
-          name: runtime-linux-${{ matrix.architecture }}-${{ matrix.libc }}
+          name: runtime-linux-${{ matrix.arch }}-${{ matrix.libc }}
           path: runtime-${{ matrix.libc }}
           if-no-files-found: error
 
+  # The application is PHP source, vendor, translations and a seeded database.
+  # None of it depends on a platform, so every executable packs this one build.
+  payload:
+    name: payload
+    needs: gate
+    if: needs.gate.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      # The runner starts with about 14 GB free, the builder image takes 8.6 GB.
+      # Printing the free space tells a later failure apart from a full disk.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Export the application payload
+        env:
+          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          docker build --target app --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-build .
+          container=$(docker create drupack-build)
+          mkdir -p dist/payload
+          docker cp "$container:/go/src/app/app-payload.tar" dist/payload/app-payload.tar
+          docker cp "$container:/go/src/app/app_checksum.txt" dist/payload/app_checksum.txt
+          docker rm "$container"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: payload-archive
+          path: dist/payload
+          if-no-files-found: error
+
   linux:
-    name: Linux ${{ matrix.architecture }}
-    needs: [changes, extensions, linux-runtime]
-    if: needs.changes.outputs.build == 'true' && contains(fromJSON('["all","linux-amd64","linux-arm64"]'), inputs.platform || 'all')
-    runs-on: ${{ matrix.architecture == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+    name: Linux ${{ matrix.arch }}
+    needs: [gate, payload, linux-runtime]
+    if: needs.gate.outputs.linux != '[]'
+    runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        architecture: [amd64, arm64]
-        # A main push builds amd64 alone. A dispatch naming one leg excludes the
-        # other; exclude has nothing to remove for 'all' or a tag push, so both
-        # legs run.
-        exclude:
-          - architecture: ${{ needs.changes.outputs.full == 'false' && 'arm64' || (inputs.platform || 'all') == 'linux-amd64' && 'arm64' || (inputs.platform || 'all') == 'linux-arm64' && 'amd64' || 'none' }}
+        include: ${{ fromJSON(needs.gate.outputs.linux) }}
     steps:
       - uses: actions/checkout@v7
 
@@ -165,41 +248,35 @@ jobs:
         working-directory: launcher
         run: go test ./...
 
-      # The runner starts with about 14 GB free and this job pulls the one image
-      # that builds the application and runs the packer. The packer then writes
-      # two compressed payloads beside the 400 MB executables.
-      # Printing the free space tells a later failure apart from a full disk.
-      - name: Free disk space
-        run: |
-          df -h /
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
-
       - uses: actions/download-artifact@v7
         with:
-          name: runtime-linux-${{ matrix.architecture }}-musl
+          name: runtime-linux-${{ matrix.arch }}-musl
           path: runtime-musl
 
       - uses: actions/download-artifact@v7
         with:
-          name: runtime-linux-${{ matrix.architecture }}-gnu
+          name: runtime-linux-${{ matrix.arch }}-gnu
           path: runtime-gnu
 
-      # Each runtime arrives from its own job, so a build context named for the
-      # stage stands in for it and no builder image is pulled for either.
-      - name: Build the executable
-        env:
-          DRUPACK_VERSION: ${{ needs.changes.outputs.version }}
-        run: |
-          chmod +x runtime-musl/out/drupack runtime-gnu/out/drupack
-          docker build --target artifact \
-            --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" \
-            --build-context runtime-musl=runtime-musl \
-            --build-context runtime-gnu=runtime-gnu \
-            --output type=local,dest=dist .
+      - uses: actions/download-artifact@v7
+        with:
+          name: payload-archive
+          path: dist/payload
 
-      - name: Report the free space after the build
-        run: df -h /
+      # The runtimes are listed with the one needing a host loader first, which is
+      # the order the launcher tries them in. The launcher itself carries no cgo,
+      # so one file runs on a glibc and a musl host alike.
+      - name: Pack the executable
+        working-directory: launcher
+        env:
+          CGO_ENABLED: '0'
+          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          chmod +x ../runtime-musl/out/drupack ../runtime-gnu/out/drupack
+          mkdir -p ../dist
+          go run ./cmd/pack -runtime glibc=../runtime-gnu/out -runtime musl=../runtime-musl/out \
+            -entry drupack -version "$DRUPACK_VERSION" -source . -output ../dist/drupack \
+            -app ../dist/payload/app-payload.tar -app-checksum ../dist/payload/app_checksum.txt
 
       - name: Run the harness unit tests
         run: python3 -m unittest discover -s tests/conformance -p 'test_harness.py'
@@ -249,54 +326,19 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: test-results-linux-${{ matrix.architecture }}
+          name: test-results-linux-${{ matrix.arch }}
           path: test-results
 
       - uses: actions/upload-artifact@v7
         with:
-          name: drupack-linux-${{ matrix.architecture }}
+          name: drupack-linux-${{ matrix.arch }}
           path: dist/drupack
-          if-no-files-found: error
-
-  payload:
-    name: payload
-    needs: [changes, extensions]
-    # windows and macos need this job, so skipping it skips them too.
-    if: needs.changes.outputs.full == 'true' && contains(fromJSON('["all","windows-amd64","macos-arm64","macos-amd64"]'), inputs.platform || 'all')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v7
-
-      # The runner starts with about 14 GB free, the builder image takes 8.6 GB.
-      # Printing the free space tells a later failure apart from a full disk.
-      - name: Free disk space
-        run: |
-          df -h /
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
-
-      - name: Export the application payload
-        env:
-          DRUPACK_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
-        run: |
-          docker build --target app --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-build .
-          container=$(docker create drupack-build)
-          mkdir -p dist/payload
-          docker cp "$container:/go/src/app/app-payload.tar" dist/payload/app-payload.tar
-          docker cp "$container:/go/src/app/app_checksum.txt" dist/payload/app_checksum.txt
-          docker rm "$container"
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: payload-archive
-          path: dist/payload
           if-no-files-found: error
 
   windows:
     name: Windows amd64
-    needs: payload
-    if: contains(fromJSON('["all","windows-amd64"]'), inputs.platform || 'all')
+    needs: [gate, payload]
+    if: needs.gate.outputs.windows != '[]'
     runs-on: windows-2025
     timeout-minutes: 90
     defaults:
@@ -331,16 +373,9 @@ jobs:
 
       - name: Build the executable
         env:
-          REF_TYPE: ${{ github.ref_type }}
-          REF_NAME: ${{ github.ref_name }}
-          SHA: ${{ github.sha }}
+          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
-          if ($env:REF_TYPE -eq 'tag') {
-            $version = $env:REF_NAME
-          } else {
-            $version = "dev-$($env:SHA.Substring(0,12))"
-          }
-          ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $version -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupack.exe
+          ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupack.exe
 
       - name: Run the conformance suite
         run: python tests/conformance dist\drupack.exe test-results\conformance
@@ -359,19 +394,15 @@ jobs:
           if-no-files-found: error
 
   macos:
-    name: macOS ${{ matrix.architecture }}
-    needs: payload
-    if: contains(fromJSON('["all","macos-arm64","macos-amd64"]'), inputs.platform || 'all')
-    runs-on: ${{ matrix.architecture == 'arm64' && 'macos-15' || 'macos-15-intel' }}
+    name: macOS ${{ matrix.arch }}
+    needs: [gate, payload]
+    if: needs.gate.outputs.macos != '[]'
+    runs-on: ${{ matrix.arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
     timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
-        architecture: [arm64, amd64]
-        # A dispatch naming one leg excludes the other; exclude has nothing to
-        # remove for 'all' or a tag push, so both legs run.
-        exclude:
-          - architecture: ${{ (inputs.platform || 'all') == 'macos-arm64' && 'amd64' || (inputs.platform || 'all') == 'macos-amd64' && 'arm64' || 'none' }}
+        include: ${{ fromJSON(needs.gate.outputs.macos) }}
     steps:
       - uses: actions/checkout@v7
 
@@ -389,28 +420,22 @@ jobs:
           name: payload-archive
           path: dist/payload
 
+      # The buildroot holds the PHP the allowlist names, so the list files belong
+      # in the key beside the script that compiles them.
       - uses: actions/cache/restore@v6
         with:
           path: |
             ${{ runner.temp }}/drupack/downloads
             ${{ runner.temp }}/drupack/buildroot
             ${{ runner.temp }}/drupack/pkgroot
-          key: macos-${{ matrix.architecture }}-${{ hashFiles('build/macos/build.sh') }}
+          key: macos-${{ matrix.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/php-extensions.txt', 'runtime/php-extension-libs.txt') }}
 
       - name: Build the executable
         env:
           # static-php-cli reads library releases from the GitHub API, which rate-limits anonymous requests.
           GITHUB_TOKEN: ${{ github.token }}
-          REF_TYPE: ${{ github.ref_type }}
-          REF_NAME: ${{ github.ref_name }}
-          SHA: ${{ github.sha }}
-        run: |
-          if [ "$REF_TYPE" = tag ]; then
-            version=$REF_NAME
-          else
-            version="dev-${SHA:0:12}"
-          fi
-          DRUPACK_VERSION=$version bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/drupack
+          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+        run: bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/drupack
 
       # Saved before the tests, so a failed test does not repeat the PHP build.
       - uses: actions/cache/save@v6
@@ -419,7 +444,7 @@ jobs:
             ${{ runner.temp }}/drupack/downloads
             ${{ runner.temp }}/drupack/buildroot
             ${{ runner.temp }}/drupack/pkgroot
-          key: macos-${{ matrix.architecture }}-${{ hashFiles('build/macos/build.sh') }}
+          key: macos-${{ matrix.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/php-extensions.txt', 'runtime/php-extension-libs.txt') }}
 
       - name: Run the test scripts
         run: |
@@ -436,12 +461,12 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: test-results-macos-${{ matrix.architecture }}
+          name: test-results-macos-${{ matrix.arch }}
           path: test-results
 
       - uses: actions/upload-artifact@v7
         with:
-          name: drupack-macos-${{ matrix.architecture }}
+          name: drupack-macos-${{ matrix.arch }}
           path: dist/drupack
           if-no-files-found: error
 

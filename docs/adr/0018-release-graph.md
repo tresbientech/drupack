@@ -27,13 +27,14 @@ on `b6ceb1d` and on the last full green run.
 - A `gate` job merges `changes` and `extensions`. It emits the version and one
   JSON matrix per platform family. Each job reads it with `fromJSON` and carries
   no `exclude`.
-- `prepare-builder` tags a builder image with a SHA-256 over its six inputs and
-  pushes it to `ghcr.io`. A run whose tag already exists skips the build.
-- A runtime job pulls that tag instead of compiling PHP.
+- `runtime/builder-tag.sh` digests a builder image's six inputs into a tag under
+  `ghcr.io/tresbientech/drupack-builder`. A runtime job pulls that tag. A miss
+  builds the image, uses it in place and pushes it for later runs.
 - `payload` runs for every build and feeds all five platforms. Linux downloads
   the artifact that Windows and macOS already use.
 - Linux packs on the runner with the Go toolchain the job installs for the unit
-  tests. The `packed` and `artifact` stages go.
+  tests. The `packed` and `artifact` stages stay for a local build, which
+  `CONTRIBUTING.md` documents as one `docker build`.
 - The macOS cache key hashes the two extension list files as well.
 
 ## Considered options
@@ -63,3 +64,5 @@ on `b6ceb1d` and on the last full green run.
 - The registry holds one image per input set. Old tags need a retention rule.
 - A builder change costs one 25-minute run. Every later run pulls.
 - The application that Linux ships is the one Windows and macOS tested.
+- No CI job runs the `packed` stage any more, so a break there shows up in a
+  local build rather than in a run.

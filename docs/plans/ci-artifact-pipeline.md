@@ -57,19 +57,20 @@ over the FrankenPHP commit, the PHP version, `runtime/php-extensions.txt`,
 characters. `runtime/build-builder.sh` reads the same values, so both take them
 from one place.
 
-`prepare-builder` runs on the `arch × libc` matrix. It calls `docker manifest
-inspect` on `ghcr.io/<owner>/drupack-builder:<tag>`. On a hit it exits. On a
-miss it builds and pushes. A fork builds without pushing, and the runtime job
-then builds too.
+`linux-runtime` pulls `ghcr.io/tresbientech/drupack-builder:<tag>` and passes it
+as `MUSL_BUILDER` or `GNU_BUILDER`. A pull that fails builds the image, which
+stays on the runner under the same name, and a push publishes it for later runs.
+A fork skips the push and builds on every run.
 
-`linux-runtime` passes `--build-arg MUSL_BUILDER=ghcr.io/...:<tag>` or the gnu
-equivalent, and drops its builder build step.
+A separate `prepare-builder` job was the first shape. It buys nothing here: the
+image and the runtime stand in one-to-one, so a miss would push 8.6 GB and pull
+it straight back.
 
 ### How to check
 
-Run twice on an unchanged tree. The second run's `prepare-builder` jobs finish
-in about a minute each. Change one line in `runtime/php-extensions.txt` and
-confirm all four rebuild.
+Run twice on an unchanged tree. The second run's `Pull or build the builder
+image` step finishes in about three minutes. Change one line in
+`runtime/php-extensions.txt` and confirm all four rebuild.
 
 ### Done when
 
@@ -87,11 +88,11 @@ confirm all four rebuild.
 
 The `linux` job downloads `payload-archive` beside the two runtime artifacts and
 runs `go run ./cmd/pack` with the Go toolchain it installs for the unit tests.
-Its `docker build` step goes, along with the `packed` and `artifact` stages in
-the `Dockerfile` and the two `--build-context` flags.
+Its `docker build` step goes, along with the two `--build-context` flags.
 
-The `Dockerfile` keeps the `app` stage, the two runtime stages and the two
-export stages.
+The `Dockerfile` keeps every stage. `CONTRIBUTING.md` documents `--target
+artifact` as the local build, which packs through `packed` from the `app` stage
+and both runtime stages.
 
 ### How to check
 
