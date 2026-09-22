@@ -12,11 +12,6 @@ libc=${1:?$usage}
 directory=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 . "$directory/builder-inputs.sh"
 
-case "$libc" in
-    musl|gnu) ;;
-    *) printf 'Unsupported libc: %s\n' "$libc" >&2; exit 1 ;;
-esac
-
 # extensions-list.sh drops the comments, so a comment edit keeps the tag.
 extensions=$(bash "$directory/extensions-list.sh" "$directory/php-extensions.txt")
 extension_libs=$(bash "$directory/extensions-list.sh" "$directory/php-extension-libs.txt")
