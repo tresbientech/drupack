@@ -358,6 +358,58 @@ test('the deployment identifier hashes the exported application directory direct
         'the identifier hashes the exported value with no normalising step of its own');
 });
 
+// The command line is described in four places. options() is the contract, and the
+// other three are asserted against it here. docs/adr/0014 records the decision.
+const REPOSITORY = __DIR__ . '/../..';
+
+// packaging/entrypoint.go answers these two itself, so neither reaches an option key.
+const USAGE_NON_OPTIONS = ['help', 'version'];
+
+function optionNames(string $text): array
+{
+    preg_match_all('/--([a-z][a-z-]*)/', $text, $found);
+    $names = array_values(array_unique(array_diff($found[1], USAGE_NON_OPTIONS)));
+    sort($names);
+    return $names;
+}
+
+function parserOptions(): array
+{
+    $names = array_keys(parse([])[0]);
+    sort($names);
+    return $names;
+}
+
+function entrypointOptions(): array
+{
+    $source = (string) file_get_contents(REPOSITORY . '/packaging/entrypoint.go');
+    // The Options: block alone. The examples under it repeat options and add --dry-run.
+    if (!preg_match('/\nOptions:\n(.*?)\nCommands:\n/s', $source, $block)) {
+        throw new RuntimeException('entrypoint.go has no Options: block ending at Commands:');
+    }
+    return optionNames($block[1]);
+}
+
+function referenceOptions(): array
+{
+    $page = (string) file_get_contents(REPOSITORY . '/docs/cli.md');
+    // The option table alone. Its first column holds one option per row.
+    preg_match_all('/^\| `(--[a-z-]+)` \|/m', $page, $rows);
+    return optionNames(implode(' ', $rows[1]));
+}
+
+test('the help constant names every option the parser accepts', function () {
+    same(parserOptions(), optionNames(HELP));
+});
+
+test('the entrypoint usage names every option the parser accepts', function () {
+    same(parserOptions(), entrypointOptions());
+});
+
+test('docs/cli.md names every option the parser accepts', function () {
+    same(parserOptions(), referenceOptions());
+});
+
 $failed = 0;
 foreach ($cases as $name => $case) {
     try {

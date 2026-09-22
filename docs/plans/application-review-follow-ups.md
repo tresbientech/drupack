@@ -154,5 +154,11 @@ Named here so no phase absorbs them.
 - F16, the development entrypoint cannot install a fresh site.
 - A cold `drupack --help` unpacks the whole release before printing usage, since
   argv reaches the entry point only after preparation. Moving that decision into
-  the launcher would put the option contract in a third place, which
-  [the backlog](../backlog.md) already covers.
+  the launcher would put the option contract in a fourth place, against
+  [ADR 0014](../adr/0014-the-parser-owns-the-command-line.md).
+- An unknown first word prints `unknown command "X" for "caddy"`, naming a
+  product Drupack never mentions. `packaging/entrypoint.go` forwards whatever it
+  does not handle to the embedded server's own CLI.
+- `README.md` says `drupack version` names every component Drupack carries. It
+  prints FrankenPHP, PHP and Caddy, set by `packaging/embed.sh` as Caddy's
+  `CustomVersion`, and names neither Drupal nor Drush.

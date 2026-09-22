@@ -30,14 +30,23 @@ The Drupal MCP Server feature included in a Packaged site for later enablement b
 **Site data**:
 The persistent information of one installed site, including its content and uploaded files.
 
+**First start**:
+The start that turns an empty Site data directory into an installed site.
+
 **`dr` command**:
 The public command-line interface that exposes the Drush command set for a Packaged site and its Site data. Global options precede the command. It uses `./data` unless the user selects another Site data directory.
+
+**`clean` command**:
+The public command that removes unpacked releases from the cache.
 
 **`DRUPACK_DATA_DIR`**:
 An environment variable that selects the default Site data directory for a Packaged site.
 
 **Version record**:
 The Drupack and Drupal versions that last served a Site data directory.
+
+**Listener record**:
+The listen address and permitted host the last start served on, held in Site data.
 
 **Database backend**:
 SQLite, MySQL, or PostgreSQL, selected when a Packaged site first starts. It stores the structured part of Site data.

@@ -76,6 +76,8 @@ Useful options:
 - `--no-browser` starts without opening a browser.
 - `drupack --version` prints the release, `drupack version` names every component it carries, and `drupack --help` lists every option.
 
+[The command line reference](docs/cli.md) covers every option, including the ones this list leaves out.
+
 ## Administer with Drush
 
 `dr` runs the bundled Drush commands against your site. Drupack's own options come before the Drush command.
@@ -135,7 +137,7 @@ SQLite runs your site by default, with no setup. To use a database server instea
 
 Use `--database pgsql` for PostgreSQL. `--db-port` defaults to `3306` for MySQL and `5432` for PostgreSQL. Later starts read the connection from Site data.
 
-Every option has an environment variable: `DRUPACK_DATABASE`, `DRUPACK_DB_HOST`, `DRUPACK_DB_PORT`, `DRUPACK_DB_NAME`, `DRUPACK_DB_USER`, `DRUPACK_DB_PASSWORD`, `DRUPACK_ADMIN_USER`, `DRUPACK_ADMIN_PASSWORD` and `DRUPACK_SITE_NAME`.
+Ten options read an environment variable when the option is absent: `DRUPACK_DATA_DIR`, `DRUPACK_DATABASE`, `DRUPACK_DB_HOST`, `DRUPACK_DB_PORT`, `DRUPACK_DB_NAME`, `DRUPACK_DB_USER`, `DRUPACK_DB_PASSWORD`, `DRUPACK_ADMIN_USER`, `DRUPACK_ADMIN_PASSWORD` and `DRUPACK_SITE_NAME`. `--listen`, `--host` and `--no-browser` have none.
 
 ## Local AI agents
 

@@ -15,13 +15,15 @@ Release cadence and the daily watch job belong to the same answer: a security
 release in core, PHP or a bundled module ships within days, and one refresh a
 month picks up the rest.
 
-## One place for the command line
+## The options `dr` accepts and ignores
 
-Drupack accepts 13 options. The parser in `runtime/launch.php` holds them with
-their defaults, the usage text in `packaging/entrypoint.go` describes six, and
-the README describes its own set. The three have already drifted. Lean: keep the
-parser as the contract and assert the usage text against it in a test, rather
-than generating one from the other.
+`dr` parses all 13 launch options before the Drush command and acts on three:
+`--data-dir`, `--listen` and `--host`. It consumes the other ten and drops
+them, so `dr --admin-password x user:login` spends a secret for nothing and
+`dr --database bogus status` exits 1 over a value it never reads. Lean: give
+`options()` the accepted set per mode, so an option `dr` cannot use raises the
+unknown-argument error it already has for an unknown word. `docs/cli.md`
+records the current behaviour until then.
 
 ## The variables a start passes between its own processes
 
