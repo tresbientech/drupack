@@ -39,3 +39,21 @@ Until this date the drupal.org push neither forced nor pruned. A history rewrite
 The deploy key was a multi-line secret, and the runner printed it unmasked in every mirror run log. A new key replaced it, stored on one line.
 
 The GitHub repository was deleted and recreated on 2026-09-19. GitHub never lets a repository of the same name reuse the tag of an immutable release. Tags `0.1.1`, `0.1.2` and `0.1.5` therefore stay on the Forge and drupal.org only, and the GitHub push excludes them. A tag with a published GitHub release can never move.
+
+## Amendment, 2026-09-22
+
+The mirror job now runs on every push to `main` as well as on a version tag. A
+commit reaches GitHub and drupal.org when it lands, rather than at the next tag.
+The earlier consequence, that commits pushed between version tags stay on the
+Forge, no longer holds.
+
+GitHub therefore receives ordinary commits, and `release.yml` runs on a `main`
+push. A `changes` job decides what follows. A tag and a manual dispatch build
+every platform and publish. A `main` push builds Linux amd64 alone, and only
+when it touched a path outside `docs/`, `LICENSE` and the root Markdown files.
+A documentation commit starts no packaging.
+
+That comparison lives in a job rather than in a `paths-ignore` filter. GitHub
+documents the effect of a path filter on a branch push and says nothing about a
+tag push. A tag whose build was filtered away would publish no release.
+

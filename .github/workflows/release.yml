@@ -2,6 +2,8 @@ name: Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
@@ -22,19 +24,60 @@ permissions:
   contents: read
 
 jobs:
+  # What a push reaches. A tag and a dispatch build every platform. A main push
+  # builds Linux amd64, and only when it touched something an executable carries.
+  # GitHub leaves the effect of a path filter on a tag push undocumented, so the
+  # comparison happens here rather than under `on:`.
+  changes:
+    name: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.inputs.outputs.build }}
+      full: ${{ steps.inputs.outputs.full }}
+    steps:
+      - id: inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ] || [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            printf 'build=true\nfull=true\n' >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo 'full=false' >>"$GITHUB_OUTPUT"
+          # A new branch reports an all-zero before, which compares against nothing.
+          if [ "$BEFORE" = 0000000000000000000000000000000000000000 ]; then
+            echo 'build=true' >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Documentation reaches no executable. A path this list does not name
+          # builds rather than skips, so a new directory never goes untested.
+          changed=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" \
+            --jq '.files[].filename' | grep -vE '^docs/|^LICENSE$|^[^/]+\.md$' || true)
+          if [ -z "$changed" ]; then
+            echo 'Documentation alone changed. Nothing to build.'
+            echo 'build=false' >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf 'Building for:\n%s\n' "$changed"
+          echo 'build=true' >>"$GITHUB_OUTPUT"
+
   linux:
     name: Linux ${{ matrix.architecture }}
-    if: contains(fromJSON('["all","linux-amd64","linux-arm64"]'), inputs.platform || 'all')
+    needs: changes
+    if: needs.changes.outputs.build == 'true' && contains(fromJSON('["all","linux-amd64","linux-arm64"]'), inputs.platform || 'all')
     runs-on: ${{ matrix.architecture == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         architecture: [amd64, arm64]
-        # A dispatch naming one leg excludes the other; exclude has nothing to
-        # remove for 'all' or a tag push, so both legs run.
+        # A main push builds amd64 alone. A dispatch naming one leg excludes the
+        # other; exclude has nothing to remove for 'all' or a tag push, so both
+        # legs run.
         exclude:
-          - architecture: ${{ (inputs.platform || 'all') == 'linux-amd64' && 'arm64' || (inputs.platform || 'all') == 'linux-arm64' && 'amd64' || 'none' }}
+          - architecture: ${{ needs.changes.outputs.full == 'false' && 'arm64' || (inputs.platform || 'all') == 'linux-amd64' && 'arm64' || (inputs.platform || 'all') == 'linux-arm64' && 'amd64' || 'none' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -111,7 +154,9 @@ jobs:
 
   application:
     name: application
-    if: contains(fromJSON('["all","windows-amd64","macos-arm64","macos-amd64"]'), inputs.platform || 'all')
+    needs: changes
+    # windows and macos need this job, so skipping it skips them too.
+    if: needs.changes.outputs.full == 'true' && contains(fromJSON('["all","windows-amd64","macos-arm64","macos-amd64"]'), inputs.platform || 'all')
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:

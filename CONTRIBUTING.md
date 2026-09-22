@@ -1,6 +1,6 @@
 # Contributing to Drupack
 
-The canonical repository is `tresbientech/drupack` on git.tresbien.tech. GitHub and drupal.org carry mirrors that a version tag updates, and neither takes issues or pull requests. [ADR 0001](docs/adr/0001-forge-canonical-github-packaging-mirror.md) records why.
+The canonical repository is `tresbientech/drupack` on git.tresbien.tech. GitHub and drupal.org carry mirrors that every push to `main` updates, and neither takes issues or pull requests. [ADR 0001](docs/adr/0001-forge-canonical-github-packaging-mirror.md) records why.
 
 ## Build
 
@@ -106,5 +106,7 @@ Every published executable is a launcher carrying the real executable, compresse
 ## Releases
 
 A version tag without a `v` prefix, such as `0.1.1`, pushed to the Forge, mirrors to GitHub and drupal.org and starts the release workflow. It builds all five targets, runs their tests, then publishes a GitHub Release with each executable under a versioned and an unversioned name, `checksums.txt`, `release.json`, a CycloneDX SBOM and provenance attestations.
+
+A push to `main` mirrors the same way. It builds and tests Linux amd64 when the push touched a path outside `docs/`, `LICENSE` and the root Markdown files. A documentation commit starts no build.
 
 Documents worth reading before a change: `CONTEXT.md` for the vocabulary, `README.md` for what the product promises, `docs/adr/` for the decisions behind the current shape, `docs/backlog.md` for open questions and `docs/plans/` for work already scheduled. A decision lands as a short numbered ADR, and a plan is deleted once its work ships, so the tree holds no finished checklists.
