@@ -18,7 +18,7 @@ export CGO_CFLAGS="-fPIC -O2 -I/go/src/app/dist/static-php-cli/buildroot/include
 # compiled PHP from this same list, so the link flags follow the allowlist
 # rather than a written-out set that would name a library no extension pulls.
 extensions=$(bash /build/extensions-list.sh /build/php-extensions.txt)
-php_libraries=$(/go/src/app/dist/static-php-cli/bin/spc spc-config "$extensions" --libs)
+php_libraries=$(/go/src/app/dist/static-php-cli/spc spc-config "$extensions" --libs)
 php_libraries=${php_libraries//-lstdc++/$(gcc -print-file-name=libstdc++.a)}
 # watcher serves FrankenPHP itself, so no extension pulls it.
 export CGO_LDFLAGS="-L/go/src/app/dist/static-php-cli/buildroot/lib -static-libgcc -Wl,--start-group $php_libraries -lwatcher-c -Wl,--end-group"
