@@ -18,7 +18,7 @@ The release workflow names the same image after its inputs. `runtime/builder-tag
 
 The output is `dist/drupack`. The host needs no PHP, Composer or database server.
 
-`application/` holds the Composer project and the files laid over it, which together become the application root. `runtime/` holds the PHP and FrankenPHP compile. `launcher/` is the Go module for the launcher and its packer. `build/` holds the macOS and Windows builds and the development loop, and the `Dockerfile` at the root is the Linux build. [ADR 0017](docs/adr/0017-one-directory-per-artifact.md) records the shape.
+`application/` holds the engine's PHP files, which the build lays over a site's Composer project to make the application root. `examples/mercury-demo/` is the site the Drupack release packages: its Composer project and its `drupack.yml`, which `launcher/internal/siteconfig` validates and writes out as `site.json`. The `Dockerfile` builds the site `SITE_DIR` names, `examples/mercury-demo` by default. `runtime/` holds the PHP and FrankenPHP compile. `launcher/` is the Go module for the launcher and its packer. `build/` holds the macOS and Windows builds and the development loop, and the `Dockerfile` at the root is the Linux build. [ADR 0017](docs/adr/0017-one-directory-per-artifact.md) records the shape.
 
 ### macOS
 
@@ -68,8 +68,15 @@ python3 -m unittest discover -s tests/conformance -p 'test_harness.py'
 
 The PHP unit files run through the bundled runtime, because `launch.php`
 requires `vendor/autoload.php` and the lock targets a PHP the host may not
-have. They read `application/vendor`, which
-`composer install --working-dir=application` fills:
+have. They read `application/vendor`, a link to the vendor directory of an
+installed site:
+
+```sh
+composer install --working-dir=examples/mercury-demo
+ln -s ../examples/mercury-demo/vendor application/vendor
+```
+
+Then:
 
 ```sh
 ./dist/drupack php-cli "$PWD/application/tests/launch_test.php"

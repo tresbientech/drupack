@@ -607,8 +607,6 @@ class PostgresqlLifecycle(harness.ConformanceCase):
         renamed = harness.run_dr(harness.BINARY, self.case_dir, data,
                                   "config:set", "system.site", "name", SITE_NAME, "--yes")
         self.assertEqual(renamed.returncode, 0, renamed.stderr)
-        uninstalled = harness.run_dr(harness.BINARY, self.case_dir, data, "pm:uninstall", "mcp_tools", "--yes")
-        self.assertEqual(uninstalled.returncode, 0, uninstalled.stderr)
         (data / "site-installed").unlink()
         (data / "installation-progress").write_text('["install","modules"]')
 
@@ -618,9 +616,6 @@ class PostgresqlLifecycle(harness.ConformanceCase):
         assert_marker(self, data)
         self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), SITE_NAME)
         assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
-        enabled = harness.run_dr(harness.BINARY, self.case_dir, data, "php:eval",
-                                  r'print \Drupal::moduleHandler()->moduleExists("mcp_tools") ? "enabled" : "missing";')
-        self.assertEqual(enabled.stdout.strip(), "enabled", "the recovery left MCP Tools disabled")
         driver = harness.run_dr(harness.BINARY, self.case_dir, data, "status", "--field=db-driver")
         self.assertEqual(driver.stdout.strip(), "pgsql", "the recovery served the wrong driver")
         site.stop()

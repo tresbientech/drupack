@@ -41,7 +41,7 @@ const usage = `Usage: drupack [OPTIONS]
 
 Options:
   --data-dir PATH            Site data directory, ./data by default
-  --listen IP:PORT           Listener address, 127.0.0.1:7225 by default
+  --listen IP:PORT           Listener address, 127.0.0.1 on the site's port by default
   --host HOST                Permitted request host, localhost by default
   --database sqlite|mysql|pgsql
                              Database backend for a first start, sqlite by default
@@ -51,7 +51,7 @@ Options:
                              Administrator account for a first start. Without them
                              a first start creates admin and prints a one-time
                              login link.
-  --site-name NAME           Site name for a first start, "Drupal Mercury Demo" by default
+  --site-name NAME           Site name for a first start, the packaged site's name by default
   --no-browser               Do not open a browser
   --version, --help
 

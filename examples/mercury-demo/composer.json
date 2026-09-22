@@ -20,11 +20,6 @@
         "drupal/tool": "^1.0@dev",
         "drush/drush": "^13.6"
     },
-    "autoload": {
-        "psr-4": {
-            "Drupack\\Support\\": "support/"
-        }
-    },
     "minimum-stability": "stable",
     "prefer-stable": true,
     "config": {

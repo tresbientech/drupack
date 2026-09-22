@@ -4,8 +4,11 @@
 # The image builds these three from composer.lock. A local copy of any of
 # them would enter the build context and collide with the one composer writes.
 application/vendor
-application/web
-application/recipes
+!examples/
+!examples/**
+examples/*/vendor
+examples/*/web
+examples/*/recipes
 !build/
 !build/**
 !runtime/

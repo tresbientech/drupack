@@ -26,6 +26,9 @@ const OPTION_VARIABLES = [
     'DRUPACK_SITE_NAME',
 ];
 
+// The site.json a build writes, reduced to what options() reads.
+const FIXTURE_SITE = ['site_name' => 'Fixture Site'];
+
 $cases = [];
 $scratches = [];
 
@@ -63,7 +66,7 @@ function parse(array $arguments, bool $drush = false, array $environment = []): 
     foreach (OPTION_VARIABLES as $name) {
         putenv(array_key_exists($name, $environment) ? "$name={$environment[$name]}" : $name);
     }
-    return options($arguments, $drush);
+    return options($arguments, $drush, FIXTURE_SITE);
 }
 
 function scratch(): string
@@ -100,7 +103,7 @@ test('an absent option falls back to its default', function (): void {
     [$options, $command] = parse([]);
     same('./data', $options['data-dir']);
     same('sqlite', $options['database']);
-    same('Drupal Mercury Demo', $options['site-name']);
+    same('Fixture Site', $options['site-name'], 'the site name defaults to the one site.json names');
     same(null, $options['listen'], 'the listener defaults after the recorded one is read');
     same(null, $options['host']);
     same([], $command);
@@ -345,6 +348,9 @@ test('the deployment identifier hashes the exported application directory direct
 
     $appDir = 'C:/Users/theno/AppData/Local/Drupack/runtime/app/r2e2893a48a83';
     putenv("DRUPACK_RUNTIME_APP_DIR=$appDir");
+    // Settings::initialize() gives settings.php these two, beside the arrays below.
+    $app_root = dirname(__DIR__) . '/web';
+    $class_loader = new \Composer\Autoload\ClassLoader();
     $databases = [];
     $settings = [];
     $config = [];

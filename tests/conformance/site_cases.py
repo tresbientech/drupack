@@ -108,9 +108,6 @@ class SeededSite(harness.ConformanceCase):
         status = self.run_dr(data, "status", "--format=json")
         self.assertEqual(status.returncode, 0, status.stderr)
         self.assertIn("drupal-version", status.stdout)
-        mcp_tools = self.run_dr(data, "mcp-tools:client-config")
-        self.assertEqual(mcp_tools.returncode, 0, mcp_tools.stderr)
-        self.assertIn("mcp", mcp_tools.stdout.lower())
         # Deterministic check: the Seed site never enables these modules, regardless of timing.
         enabled = self.run_dr(data, "pm:list", "--status=enabled", "--format=json")
         self.assertEqual(enabled.returncode, 0, enabled.stderr)

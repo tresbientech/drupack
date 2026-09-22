@@ -13,17 +13,23 @@ ARG GNU_BUILDER=drupack-builder-gnu:local
 # the published image.
 ARG APP_BUILDER=dunglas/frankenphp:static-builder-musl@sha256:a78af5ef3b46b5f382a702ee7aed22b367a6dc1bce382de0aebac7f4d73dade1
 
+# The site a build packages: a composer project with a drupack.yml beside it.
+ARG SITE_DIR=examples/mercury-demo
+
 # The application is PHP source, vendor, translations and a seeded database.
 # None of it depends on the libc a runtime links against, so one builder image
 # installs it once and both runtimes carry the same payload.
 FROM ${APP_BUILDER} AS app
+ARG SITE_DIR
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN curl -fsSL https://getcomposer.org/download/2.8.12/composer.phar -o /usr/local/bin/composer.phar \
     && echo 'f446ea719708bb85fcbf4ef18def5d0515f1f9b4d703f6d820c9c1656e10a2f2  /usr/local/bin/composer.phar' | sha256sum -c -
 
+COPY launcher /src/launcher
 WORKDIR /app
-COPY application/composer.json application/composer.lock ./
+COPY ${SITE_DIR}/ ./
+RUN cd /src/launcher && CGO_ENABLED=0 go run ./cmd/siteconfig /app /app
 RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /usr/local/bin/composer.phar install --no-dev --prefer-dist --no-interaction --optimize-autoloader
 COPY build/install-translations.php /build/
 # The translation fetch reaches ftp.drupal.org over TLS on the bundle pinned below.
@@ -31,15 +37,17 @@ COPY application/cacert.pem /build/cacert.pem
 RUN CURL_CA_BUNDLE=/build/cacert.pem /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /build/install-translations.php
 COPY application/ ./
 COPY build/site-templates.php web/sites/default/site-templates.php
-RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /usr/local/bin/composer.phar dump-autoload --optimize
-RUN mkdir -p /app/seed/private /app/seed/tmp /app/seed/config /app/web/sites/default/files \
+# Drupal CMS recipes enable automatic_updates and package_manager. The first stalls a
+# cron request and the second cannot write into the read-only application, so the seed
+# drops whichever of the two the site's recipe enabled.
+RUN drush() { DRUPACK_RUNTIME_DATA_DIR=/app/seed DRUPACK_RUNTIME_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php "$@"; } \
+    && mkdir -p /app/seed/private /app/seed/tmp /app/seed/config /app/web/sites/default/files \
     && printf 'drupack-seed-hash-salt' > /app/seed/hash_salt \
     && cp /app/settings.php /app/web/sites/default/settings.php \
     && sed -i "s|__DRUPACK_DATABASE_CONFIGURATION__|['driver' => 'sqlite', 'database' => '/app/seed/site.sqlite', 'namespace' => 'Drupal\\\\sqlite\\\\Driver\\\\Database\\\\sqlite', 'autoload' => 'core/modules/sqlite/src/Driver/Database/sqlite/']|" /app/web/sites/default/settings.php \
-    && DRUPACK_RUNTIME_DATA_DIR=/app/seed DRUPACK_RUNTIME_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php site:install /app/recipes/mercury_demo --yes --db-url=sqlite://seed/site.sqlite --account-name=drupack-admin --account-pass=drupack-seed-password \
-    && DRUPACK_RUNTIME_DATA_DIR=/app/seed DRUPACK_RUNTIME_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php pm:enable mcp_tools --yes \
-    # automatic_updates and package_manager: add any other module here that a future Mercury Demo release enables and that also depends on package_manager.
-    && DRUPACK_RUNTIME_DATA_DIR=/app/seed DRUPACK_RUNTIME_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php pm:uninstall automatic_updates package_manager --yes \
+    && drush site:install "/app/$(jq -r .recipe /app/site.json)" --yes --db-url=sqlite://seed/site.sqlite --account-name=drupack-admin --account-pass=drupack-seed-password \
+    && unrunnable=$(drush pm:list --status=enabled --format=json | jq -r 'keys[] | select(. == "automatic_updates" or . == "package_manager")') \
+    && if [ -n "$unrunnable" ]; then drush pm:uninstall $unrunnable --yes; fi \
     && mv /app/web/sites/default/files /app/seed/files \
     && printf '%s\n%s\n' '<?php' "require getenv('DRUPACK_RUNTIME_DATA_DIR') . DIRECTORY_SEPARATOR . 'settings.php';" > /app/web/sites/default/settings.php
 COPY build/app-payload.sh /usr/local/bin/app-payload.sh

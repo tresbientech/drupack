@@ -14,16 +14,13 @@ _Avoid_: Portable Drupal, portable-drupal
 A distributable Drupal CMS application with its Site template and a Seed site.
 
 **Site template**:
-The Drupal CMS recipe that gives a new site its starting configuration and content. A Packaged site carries one, Mercury Demo.
+The Drupal CMS recipe that gives a new site its starting configuration and content. A Packaged site carries one, named in its Site contract. The Drupack release carries Mercury Demo.
+
+**Site contract**:
+The `drupack.yml` beside a site's `composer.json`, naming its executable, port, Site template, default site name and translations. A build writes it out as `site.json`, which every other reader takes.
 
 **Seed site**:
 A preconfigured Drupal site state included in a Packaged site, installed from the Site template.
-
-**Local MCP Tools**:
-The Drupal MCP Tools feature that lets local AI agents use a Packaged site.
-
-**MCP Server**:
-The Drupal MCP Server feature included in a Packaged site for later enablement by a site administrator.
 
 ### Site data
 
@@ -86,12 +83,11 @@ A PHP extension that a package in the application's lock file names as a require
 - A **Packaged site** includes one **Site template**, chosen when it is built.
 - A SQLite first start creates **Site data** from the **Seed site**.
 - A MySQL or PostgreSQL first start installs the **Site template** into new **Site data**.
-- First start names the site, `Drupal Mercury Demo` unless the user chooses another name.
+- First start names the site after its **Site contract** unless the user chooses another name.
 - A **Seed site** has one **Database backend**.
 - SQLite is the default **Database backend** for the **Seed site**.
 - First start selects the **Database backend** for a **Packaged site**.
-- First start enables **Local MCP Tools**.
-- First start leaves **MCP Server** disabled.
+- First start uninstalls `automatic_updates` and `package_manager`, which a read-only application cannot run.
 
 ### Site data
 

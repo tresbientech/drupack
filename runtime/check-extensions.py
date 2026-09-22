@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fails when application/composer.lock declares a PHP extension that
+"""Fails when a site's composer.lock declares a PHP extension that
 runtime/php-extensions.txt omits.
 
 static-php-cli reads the lock and reports the extensions its packages require.
@@ -30,7 +30,6 @@ ALWAYS_COMPILED = frozenset({"date"})
 
 ROOT = Path(__file__).resolve().parent.parent
 ALLOWLIST = ROOT / "runtime" / "php-extensions.txt"
-PROJECT = ROOT / "application"
 
 
 def allowlist() -> set[str]:
@@ -61,10 +60,10 @@ def fetch_spc(work: Path) -> Path:
     return binary
 
 
-def declared(spc: Path, work: Path) -> list[str]:
+def declared(spc: Path, work: Path, project: Path) -> list[str]:
     # spc writes a log directory into its working directory.
     result = subprocess.run(
-        [str(spc), "dump-extensions", str(PROJECT), "--no-dev", "--format=json"],
+        [str(spc), "dump-extensions", str(project), "--no-dev", "--format=json"],
         capture_output=True, text=True, cwd=work,
     )
     if result.returncode != 0:
@@ -74,30 +73,31 @@ def declared(spc: Path, work: Path) -> list[str]:
     return json.loads(body)
 
 
-def declaring_packages(extension: str) -> list[str]:
-    lock = json.loads((PROJECT / "composer.lock").read_text())
+def declaring_packages(extension: str, project: Path) -> list[str]:
+    lock = json.loads((project / "composer.lock").read_text())
     key = f"ext-{extension}"
     names = []
     if key in lock.get("platform", {}):
-        names.append("application/composer.json")
+        names.append(str(project / "composer.json"))
     names.extend(p["name"] for p in lock["packages"] if key in p.get("require", {}))
     return names
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("site", type=Path, help="the site's composer project directory")
     parser.add_argument("--spc", type=Path, help="an spc binary to use instead of downloading one")
     arguments = parser.parse_args()
 
     with tempfile.TemporaryDirectory() as directory:
         work = Path(directory)
-        extensions = declared(arguments.spc or fetch_spc(work), work)
+        extensions = declared(arguments.spc or fetch_spc(work), work, arguments.site.resolve())
 
     missing = sorted(set(extensions) - allowlist() - ALWAYS_COMPILED)
     if missing:
         print(f"{ALLOWLIST.relative_to(ROOT)} omits extensions the lock declares:", file=sys.stderr)
         for extension in missing:
-            print(f"  {extension}: {', '.join(declaring_packages(extension))}", file=sys.stderr)
+            print(f"  {extension}: {', '.join(declaring_packages(extension, arguments.site))}", file=sys.stderr)
         return 1
     print(f"{len(extensions)} declared extensions, all in {ALLOWLIST.relative_to(ROOT)}")
     return 0

@@ -1,7 +1,9 @@
-# composer install --working-dir=application writes these three.
+# composer install --working-dir=examples/<site> writes these three, and
+# application/vendor links to one of them for the PHP unit files.
+/examples/*/vendor/
+/examples/*/web/
+/examples/*/recipes/
 /application/vendor
-/application/web/
-/application/recipes/
 /dist/
 /dist-phase1/
 /data/

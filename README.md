@@ -1,6 +1,6 @@
 # Drupack
 
-Drupack runs a Drupal CMS site from a single executable. It carries Drupal CMS with the Mercury Demo site template, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers, Drush and Local MCP Tools. Everything it needs to serve a site travels inside that file.
+Drupack runs a Drupal CMS site from a single executable. It carries Drupal CMS with the Mercury Demo site template, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers and Drush. Everything it needs to serve a site travels inside that file.
 
 ## Install
 
@@ -153,13 +153,7 @@ Ten options read an environment variable when the option is absent: `DRUPACK_DAT
 
 ## Local AI agents
 
-Your site enables Local MCP Tools, so an AI agent on your computer can administer it. This command prints a configuration for Claude Code, Claude Desktop, Cursor or Windsurf:
-
-```sh
-./drupack dr mcp-tools:client-config
-```
-
-Drupack carries MCP Server as well, disabled, with no transport exposed.
+Drupack carries the MCP Tools and MCP Server modules, both disabled, with no transport exposed.
 
 ## Updates
 

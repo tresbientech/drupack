@@ -38,11 +38,12 @@ function fetchTranslation(string $url): ?string
 }
 
 $lock = json_decode(file_get_contents('/app/composer.lock'), true, flags: JSON_THROW_ON_ERROR);
+$languages = json_decode(file_get_contents('/app/site.json'), true, flags: JSON_THROW_ON_ERROR)['languages'];
 mkdir('/app/translations');
 $downloaded = 0;
 $unavailable = 0;
 foreach (translationProjects($lock['packages']) as $project => $version) {
-    foreach (['fr', 'zh-hans', 'es', 'hi', 'ar'] as $language) {
+    foreach ($languages as $language) {
         $name = "$project-$version.$language.po";
         $body = fetchTranslation("https://ftp.drupal.org/files/translations/all/$project/$name");
         if ($body === null) {
