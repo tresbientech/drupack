@@ -153,6 +153,10 @@ Use `--database pgsql` for PostgreSQL. `--db-port` defaults to `3306` for MySQL 
 
 Ten options read an environment variable when the option is absent: `DRUPACK_DATA_DIR`, `DRUPACK_DATABASE`, `DRUPACK_DB_HOST`, `DRUPACK_DB_PORT`, `DRUPACK_DB_NAME`, `DRUPACK_DB_USER`, `DRUPACK_DB_PASSWORD`, `DRUPACK_ADMIN_USER`, `DRUPACK_ADMIN_PASSWORD` and `DRUPACK_SITE_NAME`. `--listen`, `--host` and `--no-browser` have none.
 
+## Hosting
+
+A server with 512 MB of memory runs the demo site. The site uses about 170 MB. Your own modules and content can use more.
+
 ## Local AI agents
 
 Drupack carries the MCP Tools and MCP Server modules, both disabled, with no transport exposed.
