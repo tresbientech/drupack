@@ -23,6 +23,10 @@ on:
         description: On a tag run, release the executables in the calling repository.
         type: boolean
         default: false
+    secrets:
+      COMPOSER_AUTH:
+        description: Composer's auth.json content, for private packages the site requires.
+        required: false
 
 jobs:
   # The github context of a called workflow names the caller. The OIDC token names
@@ -77,6 +81,8 @@ jobs:
           PLATFORMS: ${{ inputs.platforms }}
           LIBC: ${{ inputs.libc }}
           SHA: ${{ github.sha }}
+          # composer install reads it, and an unset secret leaves it empty, which Composer ignores.
+          COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
         run: |
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             version=$GITHUB_REF_NAME
