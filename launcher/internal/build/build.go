@@ -1,0 +1,337 @@
+// Package build turns a site and a set of targets into the ordered steps that
+// produce its executables, and runs them.
+package build
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"slices"
+	"strings"
+
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
+)
+
+// Libcs lists the values Request.Libc takes, and the runtimes each packs in the
+// order the launcher tries them: the one needing a host loader first.
+var Libcs = map[string][]string{
+	"both":  {"glibc", "musl"},
+	"glibc": {"glibc"},
+	"musl":  {"musl"},
+}
+
+// Platforms lists the targets this release builds.
+var Platforms = map[string]string{
+	"linux-amd64": "amd64",
+	"linux-arm64": "arm64",
+}
+
+// Request is one build: the site, what to build it for, and where the tools are.
+type Request struct {
+	SiteDir   string
+	Site      siteconfig.Site
+	Platforms []string
+	Libc      string
+	// Runtimes maps "PLATFORM/LIBC" to a runtime directory.
+	Runtimes map[string]string
+	// RuntimeRoot holds a PLATFORM-LIBC directory per runtime it carries, and
+	// supplies each target Runtimes leaves out. The job image sets it.
+	RuntimeRoot string
+	// Engine is the Drupack checkout or image copy holding application/, build/,
+	// launcher/ and tests/.
+	Engine   string
+	PHP      string
+	Composer string
+	Output   string
+	Work     string
+	// Host is the platform this build runs on, the only one whose executable
+	// the conformance suite can start.
+	Host          string
+	EngineVersion string
+	SiteVersion   string
+	// PayloadOnly stops after the application payload, for a build that packs
+	// the payload elsewhere, such as macOS and Windows.
+	PayloadOnly bool
+}
+
+// Step is one unit of a build: a command to run, or a function for the steps
+// that only copy files.
+type Step struct {
+	Name    string
+	Command []string
+	Dir     string
+	Env     []string
+	Func    func() error
+}
+
+// Plan is what a build runs, and which targets it packs without testing.
+type Plan struct {
+	Steps    []Step
+	Untested []string
+}
+
+// Executable names a site's executable for one platform.
+func Executable(name, platform string) string {
+	return name + "-" + platform
+}
+
+// NewPlan checks a request against what this release builds and orders its steps.
+// The request comes from a site author's command line, so every refusal names
+// the value it refuses.
+func NewPlan(r Request) (Plan, error) {
+	runtimes, ok := Libcs[r.Libc]
+	if !ok {
+		return Plan{}, fmt.Errorf("--libc %q is not one of both, glibc, musl", r.Libc)
+	}
+	resolved := map[string]string{}
+	if len(r.Platforms) == 0 {
+		return Plan{}, fmt.Errorf("--platform names no target")
+	}
+	for _, platform := range r.Platforms {
+		if _, ok := Platforms[platform]; !ok {
+			return Plan{}, fmt.Errorf("--platform %q is not built by this release, which builds linux-amd64 and linux-arm64", platform)
+		}
+		if r.PayloadOnly {
+			continue
+		}
+		for _, libc := range runtimes {
+			target := platform + "/" + libc
+			if r.Runtimes[target] != "" {
+				resolved[target] = r.Runtimes[target]
+				continue
+			}
+			carried := filepath.Join(r.RuntimeRoot, platform+"-"+libc)
+			if info, err := os.Stat(carried); r.RuntimeRoot != "" && err == nil && info.IsDir() {
+				resolved[target] = carried
+				continue
+			}
+			return Plan{}, fmt.Errorf("no runtime for %s: pass --runtime %s=DIRECTORY", target, target)
+		}
+	}
+
+	application := filepath.Join(r.Work, "app")
+	payload := filepath.Join(r.Work, "payload")
+	php := []string{r.PHP, "php-cli"}
+	// The runtime reads php.ini beside itself only through PHPRC.
+	phpEnv := []string{"PHPRC=" + filepath.Dir(r.PHP), "DRUPACK_CA_FILE=" + filepath.Join(r.Engine, "application", "cacert.pem")}
+	plan := Plan{Steps: []Step{
+		{Name: "stage the site", Func: func() error { return stageSite(r.SiteDir, application, r.Output, r.Work) }},
+		{Name: "write site.json", Func: func() error { return siteconfig.Write(r.Site, application) }},
+		{Name: "install the Composer project", Dir: application, Env: phpEnv,
+			Command: append(append([]string{}, php...), r.Composer, "install", "--no-dev", "--prefer-dist", "--no-interaction", "--optimize-autoloader")},
+		{Name: "fetch translations", Env: append(phpEnv, "CURL_CA_BUNDLE="+filepath.Join(r.Engine, "application", "cacert.pem")),
+			Command: append(append([]string{}, php...), filepath.Join(r.Engine, "build", "install-translations.php"), application)},
+		{Name: "lay the engine over the site", Func: func() error { return layEngine(r.Engine, application) }},
+		{Name: "install the seed site", Env: phpEnv,
+			Command: []string{"bash", filepath.Join(r.Engine, "build", "seed.sh"), application, r.PHP, r.Site.Recipe}},
+		{Name: "archive the application", Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload}},
+	}}
+	if r.PayloadOnly {
+		plan.Steps = append(plan.Steps, Step{Name: "export the payload", Func: func() error {
+			return exportPayload(payload, application, filepath.Join(r.Output, "payload"))
+		}})
+		return plan, nil
+	}
+
+	plan.Steps = append(plan.Steps, Step{Name: "write site.json beside the executables", Func: func() error {
+		return siteconfig.Write(r.Site, r.Output)
+	}})
+	for _, platform := range r.Platforms {
+		command := []string{"go", "run", "./cmd/pack"}
+		for _, libc := range runtimes {
+			command = append(command, "-runtime", libc+"="+resolved[platform+"/"+libc])
+		}
+		command = append(command, "-entry", "drupack", "-version", r.EngineVersion,
+			"-source", filepath.Join(r.Engine, "launcher"),
+			"-output", filepath.Join(r.Output, Executable(r.Site.Name, platform)),
+			"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
+			"-site", filepath.Join(application, siteconfig.OutputName), "-site-version", r.SiteVersion)
+		command = append(command, "-goarch", Platforms[platform])
+		plan.Steps = append(plan.Steps, Step{Name: "pack " + platform, Command: command,
+			Dir: filepath.Join(r.Engine, "launcher"), Env: []string{"CGO_ENABLED=0"}})
+	}
+	for _, platform := range r.Platforms {
+		if platform != r.Host {
+			plan.Untested = append(plan.Untested, platform)
+			continue
+		}
+		command := []string{"python3", filepath.Join(r.Engine, "tests", "conformance"),
+			filepath.Join(r.Output, Executable(r.Site.Name, platform)), filepath.Join(r.Work, "test-results")}
+		if info, err := os.Stat(filepath.Join(r.SiteDir, "tests")); err == nil && info.IsDir() {
+			command = append(command, "--site-tests", filepath.Join(r.SiteDir, "tests"))
+		}
+		plan.Steps = append(plan.Steps, Step{Name: "test " + platform, Command: command})
+	}
+	return plan, nil
+}
+
+// Run executes the plan's steps in order, stopping at the first that fails.
+func Run(plan Plan, log io.Writer) error {
+	for _, step := range plan.Steps {
+		fmt.Fprintf(log, "==> %s\n", step.Name)
+		var err error
+		if step.Func != nil {
+			err = step.Func()
+		} else {
+			command := exec.Command(step.Command[0], step.Command[1:]...)
+			command.Dir = step.Dir
+			command.Env = append(os.Environ(), step.Env...)
+			command.Stdout = log
+			command.Stderr = log
+			err = command.Run()
+		}
+		if err != nil {
+			return fmt.Errorf("%s: %w", step.Name, err)
+		}
+	}
+	for _, platform := range plan.Untested {
+		fmt.Fprintf(log, "Not tested: %s, which this host cannot run.\n", platform)
+	}
+	return nil
+}
+
+// stageSite copies the site into the application directory. In a git checkout
+// it copies what git tracks or would track, which leaves out the vendor, web
+// and recipes directories a local composer install writes. It leaves out the
+// build directories too, which may sit inside the site.
+func stageSite(site, application string, builds ...string) error {
+	if err := os.RemoveAll(application); err != nil {
+		return err
+	}
+	files, err := siteFiles(site)
+	if err != nil {
+		return err
+	}
+	for _, relative := range files {
+		path := filepath.Join(site, relative)
+		if slices.ContainsFunc(builds, func(directory string) bool { return within(path, directory) }) {
+			continue
+		}
+		if err := copyFile(path, filepath.Join(application, relative)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func within(path, directory string) bool {
+	relative, err := filepath.Rel(directory, path)
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+}
+
+// siteFiles lists the site's files relative to it. Only a site outside any git
+// checkout is walked: a walk of a checkout would copy .git, whose config can
+// hold the CI's credentials, into the executable.
+func siteFiles(site string) ([]string, error) {
+	listing := exec.Command("git", "ls-files", "--cached", "--others", "--exclude-standard", "-z")
+	listing.Dir = site
+	out, err := listing.Output()
+	if err == nil {
+		var files []string
+		for _, name := range strings.Split(strings.TrimRight(string(out), "\x00"), "\x00") {
+			if name == "" {
+				continue
+			}
+			// A tracked file deleted in the work tree has nothing to copy.
+			if _, err := os.Lstat(filepath.Join(site, name)); err == nil {
+				files = append(files, name)
+			}
+		}
+		return files, nil
+	}
+	if inCheckout(site) {
+		var stderr []byte
+		if exit, ok := err.(*exec.ExitError); ok {
+			stderr = exit.Stderr
+		}
+		return nil, fmt.Errorf("git ls-files in %s: %w: %s", site, err, strings.TrimSpace(string(stderr)))
+	}
+	var files []string
+	err = filepath.WalkDir(site, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		relative, err := filepath.Rel(site, path)
+		files = append(files, relative)
+		return err
+	})
+	return files, err
+}
+
+// inCheckout reports whether directory or one above it holds a .git entry.
+func inCheckout(directory string) bool {
+	for {
+		if _, err := os.Lstat(filepath.Join(directory, ".git")); err == nil {
+			return true
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			return false
+		}
+		directory = parent
+	}
+}
+
+// layEngine copies the engine's application files over the site, which win over
+// any file of the same name, then the installer's recipe catalog.
+func layEngine(engine, application string) error {
+	source := filepath.Join(engine, "application")
+	err := filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		relative, err := filepath.Rel(source, path)
+		if err != nil {
+			return err
+		}
+		// The engine's own unit files and a developer's vendor link stay behind.
+		if strings.HasPrefix(relative, "tests"+string(filepath.Separator)) || relative == "vendor" {
+			return nil
+		}
+		return copyFile(path, filepath.Join(application, relative))
+	})
+	if err != nil {
+		return err
+	}
+	return copyFile(filepath.Join(engine, "build", "site-templates.php"),
+		filepath.Join(application, "web", "sites", "default", "site-templates.php"))
+}
+
+// exportPayload puts the payload and its site.json where a later platform build reads them.
+func exportPayload(payload, application, destination string) error {
+	for _, source := range []string{
+		filepath.Join(payload, "app-payload.tar"),
+		filepath.Join(payload, "app_checksum.txt"),
+		filepath.Join(application, siteconfig.OutputName),
+	} {
+		if err := copyFile(source, filepath.Join(destination, filepath.Base(source))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyFile(source, destination string) error {
+	info, err := os.Lstat(source)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		target, err := os.Readlink(source)
+		if err != nil {
+			return err
+		}
+		os.Remove(destination)
+		return os.Symlink(target, destination)
+	}
+	content, err := os.ReadFile(source)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(destination, content, info.Mode().Perm())
+}

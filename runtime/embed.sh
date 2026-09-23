@@ -38,7 +38,9 @@ case "$SPC_LIBC" in
     glibc) linker_flags="-pie -Wl,-z,now $linker_flags" ;;
     musl)
         CGO_LDFLAGS="-static-pie $CGO_LDFLAGS"
-        linker_flags="-static-pie -Wl,-z,stack-size=0x80000 $linker_flags"
+        # musl sizes every new thread's stack from this header, 128 KB without it.
+        # PHP threads get 8 MB, glibc's default and musl's largest.
+        linker_flags="-static-pie -Wl,-z,stack-size=0x800000 $linker_flags"
         build_tags="static_build,$build_tags"
         ;;
     *) printf 'Unsupported libc: %s\n' "$SPC_LIBC" >&2; exit 1 ;;

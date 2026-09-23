@@ -21,12 +21,12 @@ import harness
 
 # The only line cache.go writes to standard error, once per unpacked version.
 UNPACKING_PATTERN = re.compile(
-    r"^Unpacking Drupack .+\. This happens once for each version\.$", re.MULTILINE
+    r"^Unpacking runtime .+\. This happens once for each version\.$", re.MULTILINE
 )
 
 # The line app.go writes to standard error, once per unpacked release.
 APPLICATION_PATTERN = re.compile(
-    r"^Unpacking the Drupack application\. This happens once for each release\.$", re.MULTILINE
+    r"^Unpacking the application\. This happens once for each release\.$", re.MULTILINE
 )
 
 # One progress report, which names how far the unpacking has read and the whole payload.
@@ -535,3 +535,43 @@ class CacheRootFull(harness.ConformanceCase):
         self.assertFalse(
             (data / "data").exists(), "a Site data directory was written despite the unpacking failure"
         )
+
+
+class SiteNamedCaches(harness.ConformanceCase):
+    """Two sites built on one engine keep their own cache roots, named after each site."""
+
+    PLATFORMS = (harness.LINUX,)
+    TOOLS = ("go",)
+
+    def test_cleaning_one_site_leaves_the_other_unpacked(self):
+        case_dir = harness.RESULTS / type(self).__name__ / self._testMethodName
+        case_dir.mkdir(parents=True, exist_ok=True)
+        # The launcher places each root under the user cache directory, which this names.
+        cache_home = harness.reserved_dir(case_dir / "xdg")
+        env = {key: value for key, value in os.environ.items() if key != "DRUPACK_CACHE_DIR"}
+        env["XDG_CACHE_HOME"] = str(cache_home)
+        sites = {
+            name: harness.pack_fixture(ENTRY, f"test-{name}", case_dir / name, name=name)
+            for name in ("alpha", "beta")
+        }
+        for name, fixture in sites.items():
+            code, out, err = run(case_dir, fixture, f"{name}-first", env=env)
+            self.assertEqual(code, 0, f"a first start of {name} exited non-zero: inspect {err}")
+            self.assertEqual(
+                entry_count(cache_home / name / "runtime" / APPLICATIONS), 1,
+                f"{name} did not unpack its application under its own root",
+            )
+
+        code, out, err = run(case_dir, sites["alpha"], "alpha-clean", "clean", env=env)
+        self.assertEqual(code, 0, f"alpha clean exited non-zero: inspect {err}")
+        self.assertEqual(entry_count(cache_home / "alpha" / "runtime" / APPLICATIONS), 0,
+                         "alpha clean left its application behind")
+        self.assertEqual(entry_count(cache_home / "beta" / "runtime" / APPLICATIONS), 1,
+                         "alpha clean removed beta's application")
+
+        code, out, err = run(case_dir, sites["beta"], "beta-again", "again", env=env)
+        self.assertEqual(code, 0, f"beta exited non-zero after alpha clean: inspect {err}")
+        self.assertTrue(out.read_text(errors="replace").startswith("fixture test-beta "),
+                        f"beta did not run its own runtime: inspect {out}")
+        self.assertEqual(len(APPLICATION_PATTERN.findall(err.read_text(errors="replace"))), 0,
+                         "beta unpacked its application again after alpha clean")

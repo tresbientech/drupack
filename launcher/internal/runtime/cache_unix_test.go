@@ -10,6 +10,7 @@ package runtime_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -33,12 +34,38 @@ func TestRootFallsBackToTempDirWhenTheCacheDirRefusesWrites(t *testing.T) {
 	t.Cleanup(func() { os.Chmod(home, 0700) })
 	t.Setenv("HOME", home)
 
-	root, err := runtimepkg.Root(io.Discard)
+	root, err := runtimepkg.Root("acme", io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(root, os.TempDir()) {
-		t.Fatalf("expected a root under %q, got %q", os.TempDir(), root)
+	want := filepath.Join(os.TempDir(), fmt.Sprintf("acme-%d", os.Getuid()), "runtime")
+	if root != want {
+		t.Fatalf("expected the root %q, got %q", want, root)
+	}
+}
+
+func TestRootIsNamedAfterTheSite(t *testing.T) {
+	t.Setenv("DRUPACK_CACHE_DIR", "")
+	t.Setenv("XDG_CACHE_HOME", "")
+	t.Setenv("HOME", t.TempDir())
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	roots := map[string]string{}
+	for _, name := range []string{"alpha", "beta"} {
+		root, err := runtimepkg.Root(name, io.Discard)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := filepath.Join(cache, name, "runtime"); root != want {
+			t.Fatalf("Root(%q) = %q; want %q", name, root, want)
+		}
+		roots[name] = root
+	}
+	if roots["alpha"] == roots["beta"] {
+		t.Fatalf("two sites share the root %q", roots["alpha"])
 	}
 }
 
@@ -49,7 +76,7 @@ func TestRootRejectsAGroupWritableCacheDir(t *testing.T) {
 	}
 	t.Setenv("DRUPACK_CACHE_DIR", root)
 
-	if _, err := runtimepkg.Root(io.Discard); err == nil {
+	if _, err := runtimepkg.Root("acme", io.Discard); err == nil {
 		t.Fatal("expected a group-writable cache directory to be rejected")
 	}
 }

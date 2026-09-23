@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Packs the application the launcher carries. Its content is PHP source,
-# vendor, translations and a seeded database, none of which depend on the libc
-# a runtime links against, so one builder image packs it for every runtime.
+# Packs the application the launcher carries into OUTPUT: app-payload.tar and
+# app_checksum.txt. Its content is PHP source, vendor, translations and a seeded
+# database, none of which depend on the libc a runtime links against, so one
+# payload serves every runtime.
+usage='Usage: build/app-payload.sh APPLICATION OUTPUT'
+application=${1:?$usage}
+output=${2:?$usage}
 
-cd /go/src/app
+mkdir -p "$output"
+cd "$output"
 archive_options=(--mtime=@0 --owner=0 --group=0 --numeric-owner --mode=u+rw,go+rX)
 # Drupal's cached absolute paths use the full application input identity.
-tar "${archive_options[@]}" -cf - -C /app . \
+tar "${archive_options[@]}" -cf - -C "$application" . \
     | sha256sum | cut -d ' ' -f 1 | tr -d '\n' > app_checksum.txt
 # php.ini and cacert.pem ride beside the entry executable in the packed
 # runtime directory instead, which PHPRC names in every hop; nothing reads
@@ -30,8 +35,8 @@ tar "${archive_options[@]}" \
     --exclude='./web/modules/contrib/project_browser/sveltejs/src' \
     --exclude='./web/modules/contrib/project_browser/sveltejs/scripts' \
     --exclude='./vendor/html2text/html2text/test' \
-    -cf app-payload.tar -C /app .
-tar "${archive_options[@]}" --no-recursion -rf app-payload.tar -C /app \
+    -cf app-payload.tar -C "$application" .
+tar "${archive_options[@]}" --no-recursion -rf app-payload.tar -C "$application" \
     ./web/modules/contrib/canvas/ui/src \
     ./web/modules/contrib/canvas/ui/src/local_packages \
     ./web/modules/contrib/canvas/ui/src/local_packages/hyperscriptify \

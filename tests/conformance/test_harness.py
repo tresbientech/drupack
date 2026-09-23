@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 import harness
@@ -143,6 +144,53 @@ class InstallRecorderTest(unittest.TestCase):
             )
         finally:
             shutil.rmtree(directory, ignore_errors=True)
+
+
+class SiteTest(unittest.TestCase):
+    def test_load_site_reads_the_site_json_beside_the_executable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            (directory / "site.json").write_text('{"name": "acme", "port": 7300}')
+            site = harness.load_site(directory / "acme")
+        self.assertEqual(site, {"name": "acme", "port": 7300})
+
+    def test_the_ready_line_names_the_executable(self):
+        with mock.patch.object(harness, "SITE", {"name": "acme"}):
+            self.assertEqual(harness.ready_line(), "acme is ready.")
+
+
+class SkipReportTest(unittest.TestCase):
+    def test_each_skipped_case_gets_its_own_line(self):
+        report = harness.skip_report([("test_a (cases.One)", "needs docker"), ("test_b (cases.Two)", "not marked")])
+        self.assertEqual(report, ["  test_a (cases.One): needs docker", "  test_b (cases.Two): not marked"])
+
+
+class DatabaseAddressTest(unittest.TestCase):
+    def test_an_unset_variable_names_no_server(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("DRUPACK_TEST_MYSQL", None)
+            self.assertIsNone(harness.database_address("mysql"))
+
+    def test_host_and_port_are_read(self):
+        with mock.patch.dict(os.environ, {"DRUPACK_TEST_PGSQL": "postgres:5432"}):
+            self.assertEqual(harness.database_address("pgsql"), ("postgres", 5432))
+
+    def test_a_malformed_value_names_its_variable(self):
+        for value in ("postgres", ":5432", "postgres:port"):
+            with self.subTest(value=value), mock.patch.dict(os.environ, {"DRUPACK_TEST_PGSQL": value}):
+                with self.assertRaisesRegex(ValueError, "DRUPACK_TEST_PGSQL"):
+                    harness.database_address("pgsql")
+
+
+class DockerGateTest(unittest.TestCase):
+    def test_a_case_marked_docker_skips_when_no_daemon_answers(self):
+        class NeedsDocker(harness.ConformanceCase):
+            PLATFORMS = (harness.current_platform(),)
+            TOOLS = ("docker",)
+
+        with mock.patch.object(harness, "docker_answers", return_value=False):
+            with self.assertRaisesRegex(unittest.SkipTest, "Docker daemon"):
+                NeedsDocker.setUpClass()
 
 
 if __name__ == "__main__":

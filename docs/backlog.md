@@ -49,11 +49,12 @@ Lean: make both shapes fail the run rather than skip it.
 
 ## Container lifecycle in the conformance suite
 
-The suite drives Docker through 28 raw `subprocess.run` calls across five
-modules, and two modules carry the same database lifecycle line for line. A
-maintained package would replace it, at the cost of the first Python dependency
-in a repo that has none. Lean: consolidate the lifecycle into one harness helper
-first, then judge the dependency against what is left.
+`harness.DatabaseServer` now owns the database lifecycle both database modules
+shared. The suite still drives Docker through 14 raw `subprocess.run` calls in
+three modules: the network cases, the offline case and one launcher case. A
+maintained package would replace them, at the cost of the first Python
+dependency in a repo that has none. Lean: judge the dependency against those 14
+calls.
 
 ## A Windows start without a terminal
 
@@ -105,3 +106,25 @@ and `db-password` from the recorded settings, so a start given a corrected
 `--db-port` keeps the stale one. Lean: decide what readiness should mean, and
 whether a recorded connection detail can be corrected from the command line at
 all.
+
+## How long the registry keeps job images
+
+Every `release.yml` run pushes the job image as `drupack-build:sha-<commit>`, so
+a branch or `main` caller of `build.yml` finds the image of its own commit. Each
+image is about 1.4 GB, and nothing deletes one. A tag also adds
+`drupack-build:<version>`. Lean: keep every version tag, and delete `sha-` tags
+older than a few weeks that no version tag points at.
+
+## Whether Mercury still needs its MCP packages
+
+The engine no longer enables `mcp_tools`, but Mercury's `composer.json` still
+requires `drupal/mcp_tools` and `drupal/mcp_server`. They ship in every Mercury
+executable. Lean: drop both from the example unless its recipe enables them,
+which is Mercury's decision rather than the engine's.
+
+## Whether automatic_updates still stalls cron
+
+`build/seed.sh` uninstalls `automatic_updates` because it stalled a cron request,
+and `package_manager` because it cannot write into the read-only application.
+Nobody has checked the stall against the current module release. Lean: keep the
+uninstall, and retest the stall when the recipe's version of the module changes.

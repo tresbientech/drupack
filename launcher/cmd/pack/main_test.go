@@ -89,7 +89,7 @@ func source(t *testing.T) string {
 func TestWriteBuildCopyCarriesOneRuntime(t *testing.T) {
 	build := t.TempDir()
 	built := buildRuntimes(t, "")
-	if err := writeBuildCopy(build, source(t), built); err != nil {
+	if err := writeBuildCopy(build, source(t), built, site{name: "acme", version: "1.4.0"}); err != nil {
 		t.Fatalf("writeBuildCopy: %v", err)
 	}
 	for _, name := range []string{"payload-0.tar.zst", "manifest-0.json", "payload.go"} {
@@ -101,15 +101,21 @@ func TestWriteBuildCopyCarriesOneRuntime(t *testing.T) {
 		t.Fatal("writeBuildCopy wrote a second payload for one runtime")
 	}
 	generated := readFile(t, filepath.Join(build, "payload.go"))
-	if want := "{libc: \"\", payload: payload0, manifest: manifest0},"; !strings.Contains(generated, want) {
-		t.Fatalf("payload.go does not carry %q:\n%s", want, generated)
+	for _, want := range []string{
+		"{libc: \"\", payload: payload0, manifest: manifest0},",
+		"var siteName = \"acme\"",
+		"var siteVersion = \"1.4.0\"",
+	} {
+		if !strings.Contains(generated, want) {
+			t.Fatalf("payload.go does not carry %q:\n%s", want, generated)
+		}
 	}
 }
 
 func TestWriteBuildCopyCarriesEveryRuntimeInOrder(t *testing.T) {
 	build := t.TempDir()
 	built := buildRuntimes(t, "glibc", "musl")
-	if err := writeBuildCopy(build, source(t), built); err != nil {
+	if err := writeBuildCopy(build, source(t), built, site{name: "acme", version: "1.4.0"}); err != nil {
 		t.Fatalf("writeBuildCopy: %v", err)
 	}
 	for index, libc := range []string{"glibc", "musl"} {

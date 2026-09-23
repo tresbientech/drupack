@@ -11,12 +11,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 
 	"github.com/klauspost/compress/zstd"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
+
+// site names the packaged site and the release of it this launcher carries.
+type site struct {
+	name    string
+	version string
+}
 
 // packedRuntime names one runtime the launcher will carry: the libc it was
 // linked against, and the directory holding its files. A value naming no libc
@@ -60,7 +68,7 @@ type builtRuntime struct {
 // embeddedPayloadSource returns the payload.go that replaces
 // launcher's own in the build copy, so the launcher embeds this
 // build's runtimes instead of the zero-value placeholder committed there.
-func embeddedPayloadSource(built []builtRuntime) string {
+func embeddedPayloadSource(built []builtRuntime, packaged site) string {
 	var source strings.Builder
 	source.WriteString("package main\n\nimport _ \"embed\"\n")
 	for index := range built {
@@ -72,6 +80,7 @@ func embeddedPayloadSource(built []builtRuntime) string {
 		fmt.Fprintf(&source, "\t{libc: %q, payload: payload%d, manifest: manifest%d},\n", one.libc, index, index)
 	}
 	source.WriteString("}\n\n//go:embed app.tar.zst\nvar appPayload []byte\n\n//go:embed app_checksum.txt\nvar appChecksum []byte\n")
+	fmt.Fprintf(&source, "\nvar siteName = %q\n\nvar siteVersion = %q\n", packaged.name, packaged.version)
 	return source.String()
 }
 
@@ -85,7 +94,10 @@ func main() {
 func run() error {
 	var carried runtimeList
 	flag.Var(&carried, "runtime", "runtime to pack, as LIBC=DIRECTORY, repeated for a launcher carrying more than one")
-	version := flag.String("version", "", "runtime version")
+	version := flag.String("version", "", "engine version, which names each runtime's cache entry")
+	siteFile := flag.String("site", "", "the site.json of the site the application holds")
+	siteVersion := flag.String("site-version", "", "the site's release")
+	goarch := flag.String("goarch", goruntime.GOARCH, "architecture the launcher is built for")
 	entry := flag.String("entry", "", "entry file, relative to -runtime")
 	source := flag.String("source", "", "launcher source directory")
 	output := flag.String("output", "", "path for the built launcher")
@@ -99,12 +111,24 @@ func run() error {
 		"output":       *output,
 		"app":          *app,
 		"app-checksum": *appChecksum,
+		"site":         *siteFile,
+		"site-version": *siteVersion,
 	}); err != nil {
 		return err
 	}
 	if len(carried) == 0 {
 		return fmt.Errorf("-runtime is required")
 	}
+	// The build wrote site.json from a validated drupack.yml.
+	var described siteconfig.Site
+	content, err := os.ReadFile(*siteFile)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(content, &described); err != nil {
+		return fmt.Errorf("%s: %w", *siteFile, err)
+	}
+	packaged := site{name: described.Name, version: *siteVersion}
 
 	built := make([]builtRuntime, 0, len(carried))
 	for _, one := range carried {
@@ -124,7 +148,7 @@ func run() error {
 	}
 	defer os.RemoveAll(build)
 
-	if err := writeBuildCopy(build, *source, built); err != nil {
+	if err := writeBuildCopy(build, *source, built, packaged); err != nil {
 		return err
 	}
 	if err := writeAppPayload(build, *app, *appChecksum); err != nil {
@@ -135,7 +159,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err := buildLauncher(build, outputPath); err != nil {
+	if err := buildLauncher(build, outputPath, *goarch); err != nil {
 		return err
 	}
 
@@ -162,7 +186,7 @@ func requireFlags(flags map[string]string) error {
 // writeBuildCopy copies source into build, then adds every runtime's payload
 // and manifest plus the embedding source, which together replace source's own
 // payload.go in the copy that go build sees.
-func writeBuildCopy(build, source string, built []builtRuntime) error {
+func writeBuildCopy(build, source string, built []builtRuntime, packaged site) error {
 	if err := copyTree(source, build); err != nil {
 		return err
 	}
@@ -180,7 +204,7 @@ func writeBuildCopy(build, source string, built []builtRuntime) error {
 			return err
 		}
 	}
-	return os.WriteFile(filepath.Join(build, "payload.go"), []byte(embeddedPayloadSource(built)), 0600)
+	return os.WriteFile(filepath.Join(build, "payload.go"), []byte(embeddedPayloadSource(built, packaged)), 0600)
 }
 
 // writeAppPayload compresses the application tar into the build copy, beside
@@ -219,11 +243,13 @@ func writeAppPayload(build, archive, checksumFile string) error {
 	return os.WriteFile(filepath.Join(build, "app_checksum.txt"), bytes.TrimSpace(checksum), 0600)
 }
 
-func buildLauncher(build, output string) error {
+func buildLauncher(build, output, goarch string) error {
 	// go build keeps only the last -ldflags, so both linker flags share one value.
-	command := exec.Command("go", "build", "-trimpath", "-ldflags=-s -w", "-o", output, ".")
+	// The build copy sits in the temporary directory and is no checkout, so a .git
+	// directory above it would only make VCS stamping fail.
+	command := exec.Command("go", "build", "-trimpath", "-buildvcs=false", "-ldflags=-s -w", "-o", output, ".")
 	command.Dir = build
-	command.Env = append(os.Environ(), "CGO_ENABLED=0")
+	command.Env = append(os.Environ(), "CGO_ENABLED=0", "GOARCH="+goarch)
 	out, err := command.CombinedOutput()
 	if err != nil {
 		fmt.Fprint(os.Stderr, string(out))

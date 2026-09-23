@@ -1,7 +1,8 @@
-"""Entry point: python3 tests/conformance EXECUTABLE RESULTS [unittest arguments].
+"""Entry point: python3 tests/conformance EXECUTABLE RESULTS [--site-tests DIR] [unittest arguments].
 
-Discovers every *_cases.py module under this directory and hands the rest of argv to
-unittest, so a caller's own -k, -v or -q still applies on top of this suite's default.
+Discovers every *_cases.py module under this directory, and under DIR when given, and hands
+the rest of argv to unittest, so a caller's own -k, -v or -q still applies on top of this
+suite's default. The site.json beside EXECUTABLE names the site the cases expect.
 """
 
 import os
@@ -13,7 +14,7 @@ from pathlib import Path
 
 import harness
 
-USAGE = "Usage: python3 tests/conformance EXECUTABLE RESULTS [unittest arguments]"
+USAGE = "Usage: python3 tests/conformance EXECUTABLE RESULTS [--site-tests DIR] [unittest arguments]"
 
 # A run writes this into the results directory it creates, so a later run empties
 # only a tree the suite made, never whatever path the command line handed it.
@@ -87,20 +88,43 @@ def warm_cache():
         raise SystemExit(f"Cannot unpack {harness.BINARY} into the run cache: {result.stderr}")
 
 
+class CaseLoader(unittest.TestLoader):
+    """Discovers the site's own cases, when a directory holds them, beside the engine's."""
+
+    def __init__(self, site_tests):
+        super().__init__()
+        self.site_tests = site_tests
+
+    def discover(self, start_dir, pattern="test*.py", top_level_dir=None):
+        suite = super().discover(start_dir, pattern, top_level_dir)
+        if self.site_tests is not None:
+            suite.addTests(super().discover(str(self.site_tests), pattern, str(self.site_tests)))
+        return suite
+
+
 def main(argv):
     if len(argv) < 2:
         print(USAGE, file=sys.stderr)
         return 2
     binary, results, *rest = argv
+    site_tests = None
+    if rest[:1] == ["--site-tests"]:
+        if len(rest) < 2:
+            print(USAGE, file=sys.stderr)
+            return 2
+        site_tests = Path(rest[1]).resolve()
+        rest = rest[2:]
     harness.BINARY = Path(binary).resolve()
     harness.RESULTS = Path(results).resolve()
+    harness.SITE = harness.load_site(harness.BINARY)
+    loader = CaseLoader(site_tests)
     case_dir = Path(__file__).resolve().parent
     discover_argv = ["conformance", "discover", "-s", str(case_dir), "-p", "*_cases.py", "-v", *rest]
     if os.environ.get("DRUPACK_CACHE_DIR"):
         # Set already: this is the offline case's inner run, sharing its outer run's cache
         # mount rather than unpacking a second copy inside the container. Its results
         # directory is the outer run's OfflineRun case, which that run emptied and logs into.
-        program = unittest.main(module=None, argv=discover_argv, exit=False)
+        program = unittest.main(module=None, argv=discover_argv, testLoader=loader, exit=False)
     else:
         lock = suite_lock()  # held until this process exits
         # Emptied under the lock, so no other run is writing into it.
@@ -109,13 +133,15 @@ def main(argv):
         os.environ["DRUPACK_CACHE_DIR"] = cache_dir
         try:
             warm_cache()
-            program = unittest.main(module=None, argv=discover_argv, exit=False)
+            program = unittest.main(module=None, argv=discover_argv, testLoader=loader, exit=False)
         finally:
             # A plain TemporaryDirectory cleanup would raise on a handle Windows has not yet
             # released, turning a green run red; harness.remove_cache_dir retries instead.
             harness.remove_cache_dir(cache_dir, harness.WAITS["cache_cleanup"].seconds)
             if lock is not None:
                 lock.close()
+    if program.result.skipped:
+        print("Skipped:", *harness.skip_report(program.result.skipped), sep="\n", file=sys.stderr)
     return 0 if program.result.wasSuccessful() else 1
 
 

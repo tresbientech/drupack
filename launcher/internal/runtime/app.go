@@ -65,7 +65,7 @@ func PrepareApp(root, checksum string, payload []byte, notice io.Writer) (string
 
 	// Another process may have unpacked this release while this one waited on the lock.
 	if !complete(entry) {
-		fmt.Fprintf(notice, "Unpacking the Drupack application. This happens once for each release.\n")
+		fmt.Fprintf(notice, "Unpacking the application. This happens once for each release.\n")
 		if err := unpackApp(appRoot, entry, name, payload, notice); err != nil {
 			return "", err
 		}
@@ -150,7 +150,7 @@ func sweepApps(appRoot, keep string, now time.Time) {
 // CleanApps reports every unpacked application under root, with the space it
 // holds, and removes it unless dry names a listing alone. The release a reader
 // runs next unpacks again on its first start.
-func CleanApps(root string, dry bool, out io.Writer) error {
+func CleanApps(root, name string, dry bool, out io.Writer) error {
 	appRoot := AppRoot(root)
 	entries, err := os.ReadDir(appRoot)
 	if err != nil {
@@ -189,8 +189,8 @@ func CleanApps(root string, dry bool, out io.Writer) error {
 		freed += size
 	}
 	if dry {
-		fmt.Fprintf(out, "%d MB in %d unpacked %s. Run drupack clean to remove them.\n",
-			freed/megabyte, count, applicationWord(count))
+		fmt.Fprintf(out, "%d MB in %d unpacked %s. Run %s clean to remove them.\n",
+			freed/megabyte, count, applicationWord(count), name)
 		reportHeld(out, held)
 		return nil
 	}

@@ -15,16 +15,16 @@ ADMIN_USER = "drupack-test-admin"
 ADMIN_PASSWORD = "Offline.test.administrator.2026!"
 CREDENTIALS = ("--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
 LINK_PREFIX = "  Login:     "
-READY_LINE = "Drupack is ready."
 
 # The three methods that together cover every assertion tests/windows/site.Tests.ps1 made:
 # a credentialed first start with the settings and private-path codes, dr status
-# --field=bootstrap, and mcp-tools:client-config plus a credential-free restart. Every other
+# --field=bootstrap, and a credential-free restart. Every other
 # method in this class stays Linux and macOS only.
 WINDOWS_METHODS = frozenset({
     "test_protected_files",
     "test_startup_ignores_working_directory_script",
     "test_seeded_sqlite_site_and_drush",
+    "test_smoke_paths_answer",
 })
 
 
@@ -46,7 +46,9 @@ class SeededSite(harness.ConformanceCase):
     def setUp(self):
         # A setUp skip, unlike a setUpClass skip, reports each test method on its own
         # line, so -v marks every site case skipped rather than the class once.
-        if harness.current_platform() == harness.LINUX and not harness.running_offline():
+        # With no daemon the offline case cannot run, so these run on the host instead.
+        if (harness.current_platform() == harness.LINUX and not harness.running_offline()
+                and harness.docker_answers()):
             self.skipTest("Linux runs these cases through the offline case; see -k offline")
         if (harness.current_platform() == harness.WINDOWS
                 and self._testMethodName not in WINDOWS_METHODS):
@@ -78,6 +80,16 @@ class SeededSite(harness.ConformanceCase):
         )
         self.assertTrue({"mysql", "pgsql", "sqlite"} <= set(drivers), drivers)
 
+    def test_smoke_paths_answer(self):
+        data = self.case_dir / "data"
+        self.site.start(data, *CREDENTIALS)
+        for path in harness.SITE["smoke_paths"]:
+            try:
+                status = self.site.fetch(path)[0]
+            except HTTPError as error:
+                status = error.code
+            self.assertEqual(status, 200, f"the smoke path {path} answered {status}")
+
     def test_startup_ignores_working_directory_script(self):
         # exit(42) fails the readiness and bootstrap checks below if this script ever runs;
         # the marker line is the explicit check for the same fact.
@@ -108,9 +120,6 @@ class SeededSite(harness.ConformanceCase):
         status = self.run_dr(data, "status", "--format=json")
         self.assertEqual(status.returncode, 0, status.stderr)
         self.assertIn("drupal-version", status.stdout)
-        mcp_tools = self.run_dr(data, "mcp-tools:client-config")
-        self.assertEqual(mcp_tools.returncode, 0, mcp_tools.stderr)
-        self.assertIn("mcp", mcp_tools.stdout.lower())
         # Deterministic check: the Seed site never enables these modules, regardless of timing.
         enabled = self.run_dr(data, "pm:list", "--status=enabled", "--format=json")
         self.assertEqual(enabled.returncode, 0, enabled.stderr)
@@ -135,7 +144,7 @@ class SeededSite(harness.ConformanceCase):
         self.assertIn("?destination=/admin/dashboard", link)
         # A browser reaches the link only once the site has answered, so follow the
         # product's own order instead of racing the first cold request.
-        harness.wait_for_line(self.site.log_path, 0, READY_LINE, harness.WAITS["start"].seconds)
+        harness.wait_for_line(self.site.log_path, 0, harness.ready_line(), harness.WAITS["start"].seconds)
         opener = build_opener(HTTPCookieProcessor(CookieJar()))
         with opener.open(link, timeout=harness.WAITS["http_request"].seconds) as response:
             landing = response.geturl()
@@ -144,7 +153,7 @@ class SeededSite(harness.ConformanceCase):
         # page's title names the account viewing it.
         with opener.open(f"{origin}/user/1", timeout=harness.WAITS["http_request"].seconds) as response:
             body = response.read().decode(errors="replace")
-        self.assertIn("admin | Drupal Mercury Demo", body)
+        self.assertIn(f"admin | {harness.SITE['site_name']}", body)
         # The same page refuses an anonymous request, so the link supplied the session.
         with self.assertRaises(HTTPError) as error:
             self.site.http("/admin/dashboard")

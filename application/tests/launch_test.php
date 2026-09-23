@@ -26,6 +26,12 @@ const OPTION_VARIABLES = [
     'DRUPACK_SITE_NAME',
 ];
 
+// The site.json a build writes, reduced to what options() reads.
+const FIXTURE_SITE = ['site_name' => 'Fixture Site'];
+// The launcher exports the executable's name to every hop; this file runs outside one.
+const FIXTURE_NAME = 'fixture-site';
+putenv('DRUPACK_RUNTIME_NAME=' . FIXTURE_NAME);
+
 $cases = [];
 $scratches = [];
 
@@ -63,7 +69,7 @@ function parse(array $arguments, bool $drush = false, array $environment = []): 
     foreach (OPTION_VARIABLES as $name) {
         putenv(array_key_exists($name, $environment) ? "$name={$environment[$name]}" : $name);
     }
-    return options($arguments, $drush);
+    return options($arguments, $drush, FIXTURE_SITE);
 }
 
 function scratch(): string
@@ -100,7 +106,7 @@ test('an absent option falls back to its default', function (): void {
     [$options, $command] = parse([]);
     same('./data', $options['data-dir']);
     same('sqlite', $options['database']);
-    same('Drupal Mercury Demo', $options['site-name']);
+    same('Fixture Site', $options['site-name'], 'the site name defaults to the one site.json names');
     same(null, $options['listen'], 'the listener defaults after the recorded one is read');
     same(null, $options['host']);
     same([], $command);
@@ -251,6 +257,17 @@ test('an unreadable listener record refuses', function (): void {
     throws('Cannot read the recorded listener', fn() => recordedListener(['listen' => null, 'host' => null], $data));
 });
 
+test('a refusal names the executable the launcher exported', function (): void {
+    $data = scratch();
+    file_put_contents(listenerPath($data), 'not json');
+    putenv('DRUPACK_RUNTIME_NAME=acme-intranet');
+    try {
+        throws('then start acme-intranet again', fn() => recordedListener(['listen' => null, 'host' => null], $data));
+    } finally {
+        putenv('DRUPACK_RUNTIME_NAME=' . FIXTURE_NAME);
+    }
+});
+
 test('a listener record missing its host refuses', function (): void {
     $data = scratch();
     file_put_contents(listenerPath($data), json_encode(['listen' => '127.0.0.1:8080']));
@@ -345,6 +362,9 @@ test('the deployment identifier hashes the exported application directory direct
 
     $appDir = 'C:/Users/theno/AppData/Local/Drupack/runtime/app/r2e2893a48a83';
     putenv("DRUPACK_RUNTIME_APP_DIR=$appDir");
+    // Settings::initialize() gives settings.php these two, beside the arrays below.
+    $app_root = dirname(__DIR__) . '/web';
+    $class_loader = new \Composer\Autoload\ClassLoader();
     $databases = [];
     $settings = [];
     $config = [];

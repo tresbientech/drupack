@@ -1,6 +1,6 @@
 # Drupack
 
-Drupack runs a Drupal CMS site from a single executable. It carries Drupal CMS with the Mercury Demo site template, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers, Drush and Local MCP Tools. Everything it needs to serve a site travels inside that file.
+Drupack runs a Drupal CMS site from a single executable. It carries Drupal CMS with the Mercury Demo site template, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers and Drush. Everything it needs to serve a site travels inside that file.
 
 ## Install
 
@@ -120,9 +120,11 @@ An interrupted setup resumes where it stopped. Drupack never installs Drupal ove
 
 Your download carries Drupal, PHP and Caddy compressed. The first start of a version unpacks them into a cache directory, which takes about a second. Every later start of that version uses what is already there.
 
-- Linux: `~/.cache/Drupack/runtime`
-- macOS: `~/Library/Caches/Drupack/runtime`
-- Windows: `%LOCALAPPDATA%\Drupack\runtime`
+- Linux: `~/.cache/drupack/runtime`
+- macOS: `~/Library/Caches/drupack/runtime`
+- Windows: `%LOCALAPPDATA%\drupack\runtime`
+
+Releases up to 0.2.0 unpacked into `~/.cache/Drupack/runtime` on Linux. Nothing reads that directory any more, so delete it after upgrading.
 
 One version takes about 400 MB on Linux and macOS, beside your Site data. The space is per version, and a successful start removes the versions it replaces, so upgrading does not stack them up.
 
@@ -151,15 +153,13 @@ Use `--database pgsql` for PostgreSQL. `--db-port` defaults to `3306` for MySQL 
 
 Ten options read an environment variable when the option is absent: `DRUPACK_DATA_DIR`, `DRUPACK_DATABASE`, `DRUPACK_DB_HOST`, `DRUPACK_DB_PORT`, `DRUPACK_DB_NAME`, `DRUPACK_DB_USER`, `DRUPACK_DB_PASSWORD`, `DRUPACK_ADMIN_USER`, `DRUPACK_ADMIN_PASSWORD` and `DRUPACK_SITE_NAME`. `--listen`, `--host` and `--no-browser` have none.
 
+## Hosting
+
+A server with 512 MB of memory runs the demo site. The site uses about 170 MB. Your own modules and content can use more.
+
 ## Local AI agents
 
-Your site enables Local MCP Tools, so an AI agent on your computer can administer it. This command prints a configuration for Claude Code, Claude Desktop, Cursor or Windsurf:
-
-```sh
-./drupack dr mcp-tools:client-config
-```
-
-Drupack carries MCP Server as well, disabled, with no transport exposed.
+Drupack carries the MCP Tools and MCP Server modules, both disabled, with no transport exposed.
 
 ## Updates
 
@@ -192,6 +192,10 @@ gh attestation verify drupack-linux-amd64 --repo tresbientech/drupack
 ```
 
 A release also carries `release.json`, listing every file with its target, URLs, SHA-256 value and size, and `drupack.cdx.json`, a CycloneDX inventory of everything inside the executable.
+
+## Build your own site
+
+Drupack builds a Linux executable of any Drupal site from its Composer project and a recipe, on GitHub, Gitea or any CI that runs a container. [docs/build-your-site.md](docs/build-your-site.md) has the setup for each.
 
 ## Contributing
 

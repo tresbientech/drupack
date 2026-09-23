@@ -23,7 +23,7 @@ standard error and exits 1.
 | Option | Value | Default | Environment | Applies |
 |---|---|---|---|---|
 | `--data-dir` | PATH | `./data` | `DRUPACK_DATA_DIR` | every start, `dr` |
-| `--listen` | IP:PORT | `127.0.0.1:7225` | none | every start |
+| `--listen` | IP:PORT | `127.0.0.1` on the site's port, `7225` for Drupack | none | every start |
 | `--host` | HOST | `localhost` | none | every start |
 | `--database` | `sqlite`, `mysql`, `pgsql` | `sqlite` | `DRUPACK_DATABASE` | first start |
 | `--db-host` | HOST | none | `DRUPACK_DB_HOST` | first start |
@@ -33,7 +33,7 @@ standard error and exits 1.
 | `--db-password` | PASSWORD | none | `DRUPACK_DB_PASSWORD` | first start |
 | `--admin-user` | NAME | `admin` | `DRUPACK_ADMIN_USER` | first start |
 | `--admin-password` | PASSWORD | generated | `DRUPACK_ADMIN_PASSWORD` | first start |
-| `--site-name` | NAME | `Drupal Mercury Demo` | `DRUPACK_SITE_NAME` | first start |
+| `--site-name` | NAME | the site's name, `Drupal Mercury Demo` for Drupack | `DRUPACK_SITE_NAME` | first start |
 | `--no-browser` | none | off | none | every start |
 
 ## Site data

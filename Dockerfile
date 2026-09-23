@@ -8,42 +8,20 @@
 # runtime/build-builder.sh builds one image per libc before this file runs.
 ARG MUSL_BUILDER=drupack-builder-musl:local
 ARG GNU_BUILDER=drupack-builder-gnu:local
-# Composer, the translation fetch, the site install and the packer need a PHP
-# and a Go toolchain rather than the runtime's extension set, so they stay on
-# the published image.
-ARG APP_BUILDER=dunglas/frankenphp:static-builder-musl@sha256:a78af5ef3b46b5f382a702ee7aed22b367a6dc1bce382de0aebac7f4d73dade1
-
-# The application is PHP source, vendor, translations and a seeded database.
-# None of it depends on the libc a runtime links against, so one builder image
-# installs it once and both runtimes carry the same payload.
-FROM ${APP_BUILDER} AS app
-
-ENV COMPOSER_ALLOW_SUPERUSER=1
-RUN curl -fsSL https://getcomposer.org/download/2.8.12/composer.phar -o /usr/local/bin/composer.phar \
-    && echo 'f446ea719708bb85fcbf4ef18def5d0515f1f9b4d703f6d820c9c1656e10a2f2  /usr/local/bin/composer.phar' | sha256sum -c -
-
-WORKDIR /app
-COPY application/composer.json application/composer.lock ./
-RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /usr/local/bin/composer.phar install --no-dev --prefer-dist --no-interaction --optimize-autoloader
-COPY build/install-translations.php /build/
-# The translation fetch reaches ftp.drupal.org over TLS on the bundle pinned below.
-COPY application/cacert.pem /build/cacert.pem
-RUN CURL_CA_BUNDLE=/build/cacert.pem /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /build/install-translations.php
-COPY application/ ./
-COPY build/site-templates.php web/sites/default/site-templates.php
-RUN /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /usr/local/bin/composer.phar dump-autoload --optimize
-RUN mkdir -p /app/seed/private /app/seed/tmp /app/seed/config /app/web/sites/default/files \
-    && printf 'drupack-seed-hash-salt' > /app/seed/hash_salt \
-    && cp /app/settings.php /app/web/sites/default/settings.php \
-    && sed -i "s|__DRUPACK_DATABASE_CONFIGURATION__|['driver' => 'sqlite', 'database' => '/app/seed/site.sqlite', 'namespace' => 'Drupal\\\\sqlite\\\\Driver\\\\Database\\\\sqlite', 'autoload' => 'core/modules/sqlite/src/Driver/Database/sqlite/']|" /app/web/sites/default/settings.php \
-    && DRUPACK_RUNTIME_DATA_DIR=/app/seed DRUPACK_RUNTIME_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php site:install /app/recipes/mercury_demo --yes --db-url=sqlite://seed/site.sqlite --account-name=drupack-admin --account-pass=drupack-seed-password \
-    && DRUPACK_RUNTIME_DATA_DIR=/app/seed DRUPACK_RUNTIME_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php pm:enable mcp_tools --yes \
-    # automatic_updates and package_manager: add any other module here that a future Mercury Demo release enables and that also depends on package_manager.
-    && DRUPACK_RUNTIME_DATA_DIR=/app/seed DRUPACK_RUNTIME_HOST=localhost /go/src/app/dist/static-php-cli/buildroot/bin/frankenphp php-cli /app/vendor/drush/drush/drush.php pm:uninstall automatic_updates package_manager --yes \
-    && mv /app/web/sites/default/files /app/seed/files \
-    && printf '%s\n%s\n' '<?php' "require getenv('DRUPACK_RUNTIME_DATA_DIR') . DIRECTORY_SEPARATOR . 'settings.php';" > /app/web/sites/default/settings.php
-COPY build/app-payload.sh /usr/local/bin/app-payload.sh
-RUN bash /usr/local/bin/app-payload.sh
+# The runtimes the job image carries. A COPY --from names a stage before a build
+# context, so the release sets this to a name no stage has and passes that name
+# as --build-context NAME=DIRECTORY.
+ARG RUNTIMES=local-runtimes
+# The job image runs drupack-build: Go for the packer and the launcher, Python for
+# the conformance suite, and GNU tar for the payload's fixed archive options. It is
+# a glibc host, the only kind that runs both runtimes, so a build of either libc
+# is tested where it was built.
+# docker buildx imagetools inspect golang:1.26-bookworm --format '{{.Manifest.Digest}}'
+ARG JOB_BASE=golang:1.26-bookworm@sha256:a688600ca24f8a4d3ca77f95b0dd40704a9fc787c826660eb7ba0b641b8b175d
+# act_runner, which Gitea and Forgejo run, starts JavaScript actions with the job
+# container's own node.
+# docker buildx imagetools inspect node:24-bookworm-slim --format '{{.Manifest.Digest}}'
+ARG NODE_IMAGE=node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
 
 # php.ini and the trust bundle join the entry executable in each runtime
 # directory, so the launcher's environment function finds both beside it.
@@ -74,29 +52,53 @@ FROM scratch AS uncompressed-gnu
 COPY --from=runtime-gnu /out/drupack /drupack
 
 # One runner builds one runtime, since a builder image per libc and a PHP
-# compile do not share a runner. A later job hands the exported directory back
-# as a build context named for the stage it replaces, and the packed stage
-# reads /out at the same path either way.
+# compile do not share a runner. Each exports its directory, which
+# drupack-build takes as a --runtime.
 FROM scratch AS runtime-musl-files
 COPY --from=runtime-musl /out /out
 
 FROM scratch AS runtime-gnu-files
 COPY --from=runtime-gnu /out /out
 
-# The runtimes are listed with the one needing a host loader first, which is
-# the order the launcher tries them in.
-FROM ${APP_BUILDER} AS packed
-ARG DRUPACK_VERSION
-COPY launcher /src/launcher
-COPY --from=app /go/src/app/app-payload.tar /go/src/app/app_checksum.txt /payload/
-COPY --from=runtime-musl /out /runtime/musl
-COPY --from=runtime-gnu /out /runtime/glibc
-RUN export CGO_ENABLED=0 \
-    && mkdir -p /packed \
-    && cd /src/launcher \
-    && go run ./cmd/pack -runtime glibc=/runtime/glibc -runtime musl=/runtime/musl \
-        -entry drupack -version "${DRUPACK_VERSION:-dev}" -source /src/launcher \
-        -output /packed/drupack -app /payload/app-payload.tar -app-checksum /payload/app_checksum.txt
+# One PLATFORM-LIBC directory per runtime. A local build carries its own
+# architecture's two; the release passes all four.
+FROM scratch AS local-runtimes
+ARG TARGETARCH
+COPY --from=runtime-musl /out /linux-${TARGETARCH}-musl
+COPY --from=runtime-gnu /out /linux-${TARGETARCH}-glibc
 
-FROM scratch AS artifact
-COPY --from=packed /packed/drupack /drupack
+FROM ${RUNTIMES} AS runtimes
+
+# drupack-build runs here on any CI host, with no Docker daemon. The musl runtime
+# is its PHP: a static executable carrying every extension the site runs with.
+FROM ${NODE_IMAGE} AS node
+
+FROM ${JOB_BASE} AS job
+ARG DRUPACK_VERSION
+ARG TARGETARCH
+# The conformance suite reads process arguments with procps' ps.
+RUN apt-get update && apt-get install -y --no-install-recommends procps python3 \
+    && rm -rf /var/lib/apt/lists/*
+RUN wget -q -O /opt/composer.phar https://getcomposer.org/download/2.8.12/composer.phar \
+    && echo 'f446ea719708bb85fcbf4ef18def5d0515f1f9b4d703f6d820c9c1656e10a2f2  /opt/composer.phar' | sha256sum -c -
+COPY --from=runtimes / /opt/drupack/runtimes/
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY application /opt/drupack/engine/application
+COPY build /opt/drupack/engine/build
+COPY launcher /opt/drupack/engine/launcher
+COPY runtime/php-extensions.txt /opt/drupack/engine/runtime/php-extensions.txt
+COPY tests /opt/drupack/engine/tests
+# The packer builds the launcher from this module on every run, so its modules are
+# fetched once here and the build runs as whichever user the CI host picks.
+RUN cd /opt/drupack/engine/launcher \
+    && go mod download \
+    && CGO_ENABLED=0 go build -o /usr/local/bin/drupack-build ./cmd/drupack-build \
+    && chmod -R a+rX /go/pkg/mod
+ENV DRUPACK_ENGINE=/opt/drupack/engine \
+    DRUPACK_ENGINE_VERSION=${DRUPACK_VERSION:-dev} \
+    DRUPACK_PHP=/opt/drupack/runtimes/linux-${TARGETARCH}-musl/drupack \
+    DRUPACK_RUNTIMES=/opt/drupack/runtimes \
+    DRUPACK_COMPOSER=/opt/composer.phar \
+    HOME=/tmp \
+    GOCACHE=/tmp/go-build \
+    GOTOOLCHAIN=local

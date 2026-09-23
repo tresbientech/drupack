@@ -1,5 +1,7 @@
 <?php
 
+// The site's composer project builds the autoloader, so the engine registers its own namespace.
+$class_loader->addPsr4('Drupack\\Support\\', $app_root . '/../support');
 $GLOBALS['conf']['container_service_providers']['drupack'] = 'Drupack\Support\WindowsPathServiceProvider';
 
 $data = getenv('DRUPACK_RUNTIME_DATA_DIR');
@@ -42,7 +44,7 @@ $settings['trusted_host_patterns'] = [
 // automated_cron runs cron at the end of whichever response arrives once its
 // interval has elapsed, which puts a queue or a drupal.org fetch inside a
 // reader's page. Its subscriber returns early on 0. The module stays installed,
-// as the mercury_demo recipe installs it; the server runs cron in a child
+// as Drupal CMS recipes install it; the server runs cron in a child
 // process instead.
 $config['automated_cron.settings']['interval'] = 0;
 $config['locale.settings']['translation']['use_source'] = 'local';

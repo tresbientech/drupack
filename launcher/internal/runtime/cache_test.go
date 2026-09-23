@@ -358,7 +358,7 @@ func TestRootPrefersTheCacheDirOverTheDefaultRoot(t *testing.T) {
 	t.Setenv("DRUPACK_CACHE_DIR", cache)
 	t.Setenv("XDG_CACHE_HOME", xdg)
 
-	root, err := runtimepkg.Root(io.Discard)
+	root, err := runtimepkg.Root("acme", io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,7 +376,7 @@ func TestRootPrefersTheCacheDirOverTheDefaultRoot(t *testing.T) {
 	if !os.SameFile(cacheInfo, rootInfo) {
 		t.Fatalf("expected root %q to be the same directory as %q", root, cache)
 	}
-	if _, err := os.Stat(filepath.Join(xdg, "Drupack")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(xdg, "acme")); !os.IsNotExist(err) {
 		t.Fatalf("the default root under %q gained an entry", xdg)
 	}
 }

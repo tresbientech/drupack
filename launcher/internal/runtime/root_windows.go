@@ -31,12 +31,12 @@ func privateRoot(root string) (string, error) {
 // world-writable temporary directory, which Windows has no counterpart for:
 // its temporary directory lives in the same per-account profile as the cache
 // directory, so a second candidate would name the same account's storage.
-func cacheRoots() []string {
+func cacheRoots(name string) []string {
 	cache, err := os.UserCacheDir()
 	if err != nil {
 		return nil
 	}
-	return []string{filepath.Join(cache, "Drupack", "runtime")}
+	return []string{filepath.Join(cache, name, "runtime")}
 }
 
 // asciiRoot resolves root to the ASCII path PHP startup needs: phase 1 found
@@ -46,8 +46,8 @@ func cacheRoots() []string {
 // per-account profile and carries the same name; its candidate still runs
 // through privateRoot like every other one, since %TEMP% is not the fixed,
 // account-private location cacheRoots' own candidate is.
-func asciiRoot(root string, notice io.Writer) (string, error) {
-	fallback, err := fallbackRoot()
+func asciiRoot(root, name string, notice io.Writer) (string, error) {
+	fallback, err := fallbackRoot(name)
 	if err != nil {
 		return "", err
 	}
@@ -66,12 +66,12 @@ func asciiRoot(root string, notice io.Writer) (string, error) {
 // fixed name here would let another account's start collide with this one's;
 // namespacing it by SID, the way unix namespaces its own temp candidate by
 // uid, keeps every account in its own directory.
-func fallbackRoot() (string, error) {
+func fallbackRoot(name string) (string, error) {
 	current, err := user.Current()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(os.TempDir(), "Drupack-"+current.Uid, "runtime"), nil
+	return filepath.Join(os.TempDir(), name+"-"+current.Uid, "runtime"), nil
 }
 
 // shortPathName wraps GetShortPathNameW, the Windows API that names an

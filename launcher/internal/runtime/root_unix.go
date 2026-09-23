@@ -31,19 +31,19 @@ func privateRoot(root string) (string, error) {
 // asciiRoot returns root unchanged. The ANSI-code-page boundary phase 1 found
 // in PHP startup is Windows-only, so unix keeps its current cache root and
 // takes no branch that would write to notice.
-func asciiRoot(root string, notice io.Writer) (string, error) {
+func asciiRoot(root, name string, notice io.Writer) (string, error) {
 	return root, nil
 }
 
-// cacheRoots lists Root's candidates in trial order.
-func cacheRoots() []string {
+// cacheRoots lists Root's candidates in trial order, each named after the site.
+func cacheRoots(name string) []string {
 	var roots []string
 	if cache, err := os.UserCacheDir(); err == nil {
-		roots = append(roots, filepath.Join(cache, "Drupack", "runtime"))
+		roots = append(roots, filepath.Join(cache, name, "runtime"))
 	}
 	// The temporary directory is world-writable, so another local user could
 	// pre-create a shared path and leave a runtime there for this one to run.
 	// Naming it per uid keeps each user in their own directory.
-	owned := fmt.Sprintf("Drupack-%d", os.Getuid())
+	owned := fmt.Sprintf("%s-%d", name, os.Getuid())
 	return append(roots, filepath.Join(os.TempDir(), owned, "runtime"))
 }

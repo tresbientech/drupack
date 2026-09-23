@@ -19,7 +19,6 @@ SPACE_ADMIN_USER = "space-admin"
 SPACE_ADMIN_PASSWORD = "Network.space.test.2026!"
 # Printed once Drupal's own poller confirms bootstrap; initialization_cases.py and
 # site_cases.py assert the same line from a host-run start's own log.
-READY_LINE = "Drupack is ready."
 
 # debian, pinned the way launcher_cases.py pins its own copy of the same image:
 # docker buildx imagetools inspect debian --format '{{.Manifest.Digest}}'
@@ -30,11 +29,12 @@ DEBIAN_IMAGE = "debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6
 # docker buildx imagetools inspect python:3.13-slim --format '{{.Manifest.Digest}}'
 CLIENT_IMAGE = "python:3.13-slim@sha256:8d9d0b8bcf6506481eae4907c18f5e3e7902e629f5f6d684f9e7c32e85e3ddf0"
 
+# The client probes the site's default port, which the start below serves on.
 LOOPBACK_PROBE = """
-import socket
+import socket, sys
 
 try:
-    connection = socket.create_connection(("site", 7225), timeout=3)
+    connection = socket.create_connection(("site", int(sys.argv[1])), timeout=3)
 except OSError:
     print("PASS: default listener rejects access from another container")
 else:
@@ -71,11 +71,11 @@ print("PASS: a Site data path with a space serves the login page")
 """
 
 
-def _run_client(network, script, log_path):
-    """Run script inside the client image on network; return its exit code, log its output."""
+def _run_client(network, script, log_path, *args):
+    """Run script with args inside the client image on network; return its exit code, log its output."""
     command = [
         "docker", "run", "--rm", "-i", "--network", network,
-        "--entrypoint", "/usr/local/bin/python3", CLIENT_IMAGE, "-",
+        "--entrypoint", "/usr/local/bin/python3", CLIENT_IMAGE, "-", *args,
     ]
     with open(log_path, "w") as handle:
         result = subprocess.run(
@@ -86,7 +86,7 @@ def _run_client(network, script, log_path):
 
 
 def _start_site_container(name, network, alias, data_src, data_dst, args, log_path):
-    """docker run -d the site under name on network, aliased as alias; wait for READY_LINE
+    """docker run -d the site under name on network, aliased as alias; wait for its ready line
     in its own log, since it runs cut off from the host network this suite polls elsewhere.
     """
     subprocess.run(
@@ -106,11 +106,11 @@ def _start_site_container(name, network, alias, data_src, data_dst, args, log_pa
             text=True, timeout=harness.WAITS["docker_admin"].seconds,
         ).stdout
         log_path.write_text(logs)
-        if READY_LINE in logs:
+        if harness.ready_line() in logs:
             return
         time.sleep(1)
     raise AssertionError(
-        f"{name} did not print {READY_LINE!r} within {harness.WAITS['start'].seconds}s: inspect {log_path}"
+        f"{name} did not print {harness.ready_line()!r} within {harness.WAITS['start'].seconds}s: inspect {log_path}"
     )
 
 
@@ -159,7 +159,7 @@ class NetworkListener(harness.ConformanceCase):
         args = ["--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD]
         try:
             _start_site_container(name, self.network, "site", data, "/site/data", args, log_path)
-            code = _run_client(self.network, LOOPBACK_PROBE, self.case_dir / "client.log")
+            code = _run_client(self.network, LOOPBACK_PROBE, self.case_dir / "client.log", str(harness.SITE["port"]))
             self.assertEqual(code, 0, f"inspect {self.case_dir / 'client.log'}")
         finally:
             _remove_site_container(name, log_path)

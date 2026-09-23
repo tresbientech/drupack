@@ -2,7 +2,7 @@
 interrupted installs, the serving lease, site naming, and PostgreSQL recovery.
 
 Every case here is Linux only, matching where the old file ran in CI; the PostgreSQL
-cases are also marked docker, through TOOLS.
+cases take their server from harness.DatabaseServer.
 """
 
 import os
@@ -19,17 +19,9 @@ import harness
 
 PASSWORD = "Initialization.test.2026"
 SITE_NAME = "Drupack initialization check"
-DEFAULT_SITE_NAME = "Drupal Mercury Demo"
-DEFAULT_URL = "http://localhost:7225/"
 LOGIN_LINE = "  Login:     http"
-# Phase 2 leaves this line to the default-port case in site_cases.py and this one; phase 8's
-# network_cases.py asserts it too, each module keeping its own copy.
-READY_LINE = "Drupack is ready."
 # Dockerfile installs the seed under this account; launch.php's seedPassword() carries its password.
 SEED_ADMIN = "drupack-admin"
-# postgres:17.11, pinned the way server_database_cases.py pins its own copy of the same image:
-# docker buildx imagetools inspect postgres:17.11 --format '{{.Manifest.Digest}}'
-POSTGRES_IMAGE = "postgres:17.11@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675"
 
 # A helper process for the serving-lease case: holds an exclusive flock on the path in argv[1],
 # signals argv[2] once it has it, then waits for argv[3] to appear, bounded by the seconds in
@@ -70,7 +62,7 @@ def assert_readiness(case, log_path, caddy_log):
     own log never reaches that output. Returns the log text for further assertions.
     """
     # A case's own readiness wait can return before the serving process prints this.
-    harness.wait_for_line(log_path, 0, READY_LINE, harness.WAITS["start"].seconds)
+    harness.wait_for_line(log_path, 0, harness.ready_line(), harness.WAITS["start"].seconds)
     text = log_path.read_text(errors="replace")
     case.assertIn("  URL:       http", text, f"the start printed no URL label: inspect {log_path}")
     case.assertIn("  Site data:", text, f"the start printed no site data label: inspect {log_path}")
@@ -156,12 +148,12 @@ class FirstStartAndListener(harness.ConformanceCase):
                 "[3/3] Creating the administrator account",
             ):
                 self.assertIn(report, started, "a first start reported no progress")
-            self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), DEFAULT_SITE_NAME)
+            self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), harness.SITE["site_name"])
             assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
             # site.start() already got its own 200 from /user/login; the launcher's separate
             # internal poller writes this line only once its own first request finishes, so
             # the two race under load. Wait for it instead of trusting one read to have it.
-            harness.wait_for_line(site.log_path, 0, READY_LINE, harness.WAITS["start"].seconds)
+            harness.wait_for_line(site.log_path, 0, harness.ready_line(), harness.WAITS["start"].seconds)
 
             bootstrap = harness.run_dr(harness.BINARY, self.case_dir, data, "status", "--field=bootstrap")
             self.assertEqual(bootstrap.returncode, 0, bootstrap.stderr)
@@ -180,7 +172,7 @@ class FirstStartAndListener(harness.ConformanceCase):
             with opener.open(f"http://localhost:{site.port}/user/1",
                               timeout=harness.WAITS["http_request"].seconds) as response:
                 body = response.read().decode(errors="replace")
-            self.assertIn(f"init-admin | {DEFAULT_SITE_NAME}", body)
+            self.assertIn(f"init-admin | {harness.SITE['site_name']}", body)
 
             overridden = harness.run_dr(harness.BINARY, self.case_dir, data,
                                          "--listen", "127.0.0.1:19999", "user:login", "--no-browser")
@@ -192,7 +184,7 @@ class FirstStartAndListener(harness.ConformanceCase):
             listener_path.unlink()
             fallback = harness.run_dr(harness.BINARY, self.case_dir, data, "user:login", "--no-browser")
             self.assertEqual(fallback.returncode, 0, fallback.stderr)
-            self.assertTrue(fallback.stdout.strip().startswith(DEFAULT_URL), fallback.stdout)
+            self.assertTrue(fallback.stdout.strip().startswith(f"http://localhost:{harness.SITE['port']}/"), fallback.stdout)
             listener_path.write_bytes(saved_listener)
         finally:
             site.stop()
@@ -275,7 +267,7 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
         restart = harness.Site(harness.BINARY, self.case_dir / "restart")
         restart.start(data)
         try:
-            harness.wait_for_line(restart.log_path, 0, READY_LINE, harness.WAITS["start"].seconds)
+            harness.wait_for_line(restart.log_path, 0, harness.ready_line(), harness.WAITS["start"].seconds)
             text = restart.log_path.read_text(errors="replace")
             self.assertNotIn(LOGIN_LINE, text, "the readiness block printed a login link despite a failed mint")
             self.assertIn("dr --data-dir", text, "the diagnostic does not name the recovery command")
@@ -397,7 +389,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
             code = loser.wait(timeout=harness.WAITS["stop"].seconds)
             self.assertNotEqual(code, 0, "a simultaneous start exited without a failure")
             loser_log = (race_dir / f"{loser_label}.log").read_text(errors="replace")
-            self.assertIn("Another Drupack start", loser_log, "the losing start names no other start")
+            self.assertIn("Another drupack start", loser_log, "the losing start names no other start")
             self.assertIn(str(data), loser_log, "the losing start does not name the Site data directory")
 
             ready_deadline = time.monotonic() + harness.WAITS["start"].seconds
@@ -475,7 +467,7 @@ class EquivalentPathLock(harness.ConformanceCase):
                     self.fail("a start waited for a lock another process held")
             self.assertNotEqual(result.returncode, 0, "a start took a lock another process held")
             text = log.read_text(errors="replace")
-            self.assertIn("Another Drupack start", text, f"the blocked start names no other start: inspect {log}")
+            self.assertIn("Another drupack start", text, f"the blocked start names no other start: inspect {log}")
             self.assertIn(str(data.resolve()), text, "the blocked start does not name the resolved directory")
         finally:
             release.touch()
@@ -527,70 +519,28 @@ class SiteName(harness.ConformanceCase):
 
 class PostgresqlLifecycle(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX,)
-    TOOLS = ("docker",)
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.class_dir = harness.RESULTS / cls.__name__
         cls.class_dir.mkdir(parents=True, exist_ok=True)
-        cls.container = f"drupack-initialization-postgres-{os.getpid()}"
-        subprocess.run(
-            ["docker", "run", "-d", "--name", cls.container, "-p", "127.0.0.1::5432",
-             "-e", "POSTGRES_DB=drupal", "-e", "POSTGRES_USER=drupal", "-e", f"POSTGRES_PASSWORD={PASSWORD}",
-             POSTGRES_IMAGE],
-            check=True, capture_output=True, timeout=harness.WAITS["database_container"].seconds,
-        )
-        # unittest skips tearDownClass once setUpClass raises, so a failure past this point
-        # removes the container itself before re-raising, the way the old script's EXIT trap did.
-        try:
-            port_output = subprocess.run(
-                ["docker", "port", cls.container, "5432/tcp"], check=True, capture_output=True, text=True,
-                timeout=harness.WAITS["docker_admin"].seconds,
-            ).stdout
-            cls.port = int(port_output.strip().splitlines()[0].rsplit(":", 1)[-1])
-            deadline = time.monotonic() + harness.WAITS["database_ready"].seconds
-            ready = False
-            while time.monotonic() < deadline:
-                probe = subprocess.run(
-                    ["docker", "exec", cls.container, "pg_isready", "-h", "127.0.0.1", "-U", "drupal", "-d", "drupal"],
-                    capture_output=True, timeout=harness.WAITS["docker_admin"].seconds,
-                )
-                if probe.returncode == 0:
-                    ready = True
-                    break
-                time.sleep(2)
-            if not ready:
-                raise AssertionError(
-                    f"the PostgreSQL container did not become ready within "
-                    f"{harness.WAITS['database_ready'].seconds}s"
-                )
-        except Exception:
-            subprocess.run(["docker", "rm", "-f", cls.container], capture_output=True,
-                            timeout=harness.WAITS["docker_admin"].seconds)
-            raise
+        cls.server = harness.DatabaseServer("pgsql", "initialization", cls.class_dir)
+        cls.server.start()
 
     @classmethod
     def tearDownClass(cls):
-        with open(cls.class_dir / "postgres.log", "wb") as handle:
-            subprocess.run(["docker", "logs", cls.container], stdout=handle, stderr=subprocess.STDOUT,
-                            timeout=harness.WAITS["docker_admin"].seconds)
-        subprocess.run(["docker", "rm", "-f", cls.container], capture_output=True,
-                        timeout=harness.WAITS["docker_admin"].seconds)
+        cls.server.stop()
 
     def setUp(self):
         self.case_dir = self.class_dir / self._testMethodName
         self.case_dir.mkdir(parents=True, exist_ok=True)
 
     def _create_database(self, name):
-        subprocess.run(
-            ["docker", "exec", self.container, "psql", "-U", "drupal", "-d", "drupal", "-c", f"CREATE DATABASE {name}"],
-            check=True, capture_output=True, timeout=harness.WAITS["docker_admin"].seconds,
-        )
+        self.server.execute("drupal", f"CREATE DATABASE {name}")
 
     def _connection(self, name):
-        return ["--database", "pgsql", "--db-host", "127.0.0.1", "--db-port", str(self.port),
-                "--db-name", name, "--db-user", "drupal", "--db-password", PASSWORD]
+        return self.server.connection(name)
 
     def test_first_start_then_interrupted_recovery_without_reinstalling(self):
         self._create_database("recovery")
@@ -600,15 +550,13 @@ class PostgresqlLifecycle(harness.ConformanceCase):
         site = harness.Site(harness.BINARY, self.case_dir / "first")
         site.start(data, *connection, "--admin-user", "init-admin", "--admin-password", PASSWORD)
         assert_marker(self, data)
-        self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), DEFAULT_SITE_NAME)
+        self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), harness.SITE["site_name"])
         assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
         site.stop()
 
         renamed = harness.run_dr(harness.BINARY, self.case_dir, data,
                                   "config:set", "system.site", "name", SITE_NAME, "--yes")
         self.assertEqual(renamed.returncode, 0, renamed.stderr)
-        uninstalled = harness.run_dr(harness.BINARY, self.case_dir, data, "pm:uninstall", "mcp_tools", "--yes")
-        self.assertEqual(uninstalled.returncode, 0, uninstalled.stderr)
         (data / "site-installed").unlink()
         (data / "installation-progress").write_text('["install","modules"]')
 
@@ -618,9 +566,6 @@ class PostgresqlLifecycle(harness.ConformanceCase):
         assert_marker(self, data)
         self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), SITE_NAME)
         assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
-        enabled = harness.run_dr(harness.BINARY, self.case_dir, data, "php:eval",
-                                  r'print \Drupal::moduleHandler()->moduleExists("mcp_tools") ? "enabled" : "missing";')
-        self.assertEqual(enabled.stdout.strip(), "enabled", "the recovery left MCP Tools disabled")
         driver = harness.run_dr(harness.BINARY, self.case_dir, data, "status", "--field=db-driver")
         self.assertEqual(driver.stdout.strip(), "pgsql", "the recovery served the wrong driver")
         site.stop()
@@ -651,25 +596,15 @@ class PostgresqlLifecycle(harness.ConformanceCase):
 
     def test_first_start_refuses_a_database_that_holds_other_tables(self):
         self._create_database("occupied")
-        subprocess.run(
-            ["docker", "exec", self.container, "psql", "-U", "drupal", "-d", "occupied", "-c",
-             "CREATE TABLE tenant (id integer)"],
-            check=True, capture_output=True, timeout=harness.WAITS["docker_admin"].seconds,
-        )
+        self.server.execute("occupied", "CREATE TABLE tenant (id integer)")
         data = self.case_dir / "data"
         connection = self._connection("occupied")
         text = refuse(self, self.case_dir, "occupied-database", "--data-dir", str(data), *connection)
         self.assertIn(str(data), text, "the refusal does not name the Site data directory")
 
-        tables = subprocess.run(
-            ["docker", "exec", self.container, "psql", "-U", "drupal", "-d", "occupied", "-t", "-A", "-c",
-             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'"],
-            check=True, capture_output=True, text=True, timeout=harness.WAITS["docker_admin"].seconds,
-        ).stdout.strip()
+        tables = self.server.query(
+            "occupied", "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")
         self.assertEqual(tables, "1", "the refused start left an unexpected number of tables")
-        tenant = subprocess.run(
-            ["docker", "exec", self.container, "psql", "-U", "drupal", "-d", "occupied", "-t", "-A", "-c",
-             "SELECT count(*) FROM information_schema.tables WHERE table_name = 'tenant'"],
-            check=True, capture_output=True, text=True, timeout=harness.WAITS["docker_admin"].seconds,
-        ).stdout.strip()
+        tenant = self.server.query(
+            "occupied", "SELECT count(*) FROM information_schema.tables WHERE table_name = 'tenant'")
         self.assertEqual(tenant, "1", "the refused start dropped the existing tables")

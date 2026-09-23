@@ -95,6 +95,11 @@ jobs:
           # Every platform packs the payload job's output, so any target calls for it.
           build=true
           [ "$linux$macos$windows" != '[][][]' ] || build=false
+          # The payload job runs PHP from the amd64 musl runtime, so any build compiles it.
+          if [ "$build" = true ]; then
+            linux_runtime=$(jq -cn --argjson runtimes "$linux_runtime" \
+              '$runtimes + [{arch: "amd64", libc: "musl"}] | unique')
+          fi
           {
             printf 'version=%s\n' "$version"
             printf 'build=%s\n' "$build"
@@ -108,7 +113,7 @@ jobs:
       # Every builder compiles the extensions runtime/php-extensions.txt names, so
       # a lock that declares one the file omits stops the release here.
       - name: Check the allowlist against the lock
-        run: python3 runtime/check-extensions.py
+        run: python3 runtime/check-extensions.py examples/mercury-demo
 
   # A builder image carries the PHP its own build compiled, so one image serves
   # one libc on one architecture. Its content follows the inputs
@@ -193,39 +198,78 @@ jobs:
 
   # The application is PHP source, vendor, translations and a seeded database.
   # None of it depends on a platform, so every executable packs this one build.
+  # drupack-build makes it in the job image, whose PHP is the amd64 musl runtime.
+  # Every run pushes that image under the commit, where build.yml finds it, and
+  # the publish job names it after the version once every platform passed.
   payload:
     name: payload
-    needs: gate
+    needs: [gate, linux-runtime]
     if: needs.gate.outputs.build == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v7
 
-      # The runner starts with about 14 GB free, the builder image takes 8.6 GB.
-      # Printing the free space tells a later failure apart from a full disk.
-      - name: Free disk space
-        run: |
-          df -h /
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: runtime-linux-*
+          path: runtime-artifacts
 
-      - name: Export the application payload
+      # The runtime jobs' exports stand in for the runtimes stage, so no builder
+      # image is pulled here. A tag run built all four.
+      - name: Build the job image
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
-          docker build --target app --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-build .
-          container=$(docker create drupack-build)
-          mkdir -p dist/payload
-          docker cp "$container:/go/src/app/app-payload.tar" dist/payload/app-payload.tar
-          docker cp "$container:/go/src/app/app_checksum.txt" dist/payload/app_checksum.txt
-          docker rm "$container"
+          mkdir runtimes
+          for artifact in runtime-artifacts/runtime-linux-*; do
+            target=${artifact#runtime-artifacts/runtime-}
+            # The runtime jobs name the glibc build gnu, after its builder image.
+            case "$target" in *-gnu) target=${target%-gnu}-glibc ;; esac
+            mv "$artifact/out" "runtimes/$target"
+          done
+          chmod +x runtimes/*/drupack
+          ls runtimes
+          docker build --target job --build-arg RUNTIMES=release-runtimes --build-context release-runtimes=runtimes \
+            --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-job .
+
+      - name: Export the application payload
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
+            drupack-build --site examples/mercury-demo --payload-only --output dist
+
+      - name: Push the job image under this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker tag drupack-job "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA"
+          docker push "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA"
 
       - uses: actions/upload-artifact@v7
         with:
           name: payload-archive
           path: dist/payload
           if-no-files-found: error
+
+  # Mercury goes through the workflow site repositories call, in the image the
+  # payload job pushed. That image carries the amd64 glibc runtime only when the
+  # run builds Linux amd64.
+  mercury:
+    name: Mercury through build.yml
+    needs: [gate, payload]
+    if: contains(needs.gate.outputs.linux, 'amd64')
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/build.yml
+    with:
+      site: examples/mercury-demo
+      platforms: linux-amd64
+      libc: both
 
   linux:
     name: Linux ${{ matrix.arch }}
@@ -282,14 +326,16 @@ jobs:
           mkdir -p ../dist
           go run ./cmd/pack -runtime glibc=../runtime-gnu/out -runtime musl=../runtime-musl/out \
             -entry drupack -version "$DRUPACK_VERSION" -source . -output ../dist/drupack \
-            -app ../dist/payload/app-payload.tar -app-checksum ../dist/payload/app_checksum.txt
+            -app ../dist/payload/app-payload.tar -app-checksum ../dist/payload/app_checksum.txt \
+            -site ../dist/payload/site.json -site-version "$DRUPACK_VERSION"
+          cp ../dist/payload/site.json ../dist/site.json
 
       - name: Run the harness unit tests
         run: python3 -m unittest discover -s tests/conformance -p 'test_harness.py'
 
       - name: Run the test scripts
         run: |
-          python3 tests/conformance dist/drupack test-results/conformance
+          python3 tests/conformance dist/drupack test-results/conformance --site-tests examples/mercury-demo/tests
 
       # The executable carries a runtime per libc and picks one per host. This
       # runner has glibc, so the step above exercised the glibc runtime. Forcing
@@ -297,15 +343,15 @@ jobs:
       - name: Start a site on the musl runtime
         run: |
           set -eu
-          dist/drupack --version | grep -q 'glibc runtime'
-          DRUPACK_LIBC=musl dist/drupack --version | grep -q 'musl runtime'
+          dist/drupack --version | grep -q ', glibc)'
+          DRUPACK_LIBC=musl dist/drupack --version | grep -q ', musl)'
           if DRUPACK_LIBC=gnu dist/drupack --version; then
             echo 'An unknown DRUPACK_LIBC value was accepted' >&2
             exit 1
           fi
           DRUPACK_LIBC=musl dist/drupack --data-dir "$RUNNER_TEMP/musl-site" \
             --admin-user musl-admin --admin-password Musl.check.password.2026 --no-browser &
-          for attempt in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             if curl -fsS -o /dev/null http://127.0.0.1:7225/user/login; then
               exit 0
             fi
@@ -319,7 +365,7 @@ jobs:
             --mount type=bind,src="$PWD/dist/drupack",dst=/usr/local/bin/drupack,readonly \
             alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d \
             drupack --data-dir /tmp/site --admin-user alpine-admin --admin-password Alpine.check.password.2026
-          for attempt in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             if docker exec alpine-site wget -q -O /dev/null http://127.0.0.1:7225/user/login 2>/dev/null; then
               exit 0
             fi
@@ -384,7 +430,9 @@ jobs:
           ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupack.exe
 
       - name: Run the conformance suite
-        run: python tests/conformance dist\drupack.exe test-results\conformance
+        run: |
+          Copy-Item dist\payload\site.json dist\site.json
+          python tests/conformance dist\drupack.exe test-results\conformance --site-tests examples\mercury-demo\tests
 
       - name: Upload test results
         if: failure()
@@ -441,7 +489,9 @@ jobs:
           # static-php-cli reads library releases from the GitHub API, which rate-limits anonymous requests.
           GITHUB_TOKEN: ${{ github.token }}
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
-        run: bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/drupack
+        run: |
+          bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/drupack
+          cp dist/payload/site.json dist/site.json
 
       # Saved before the tests, so a failed test does not repeat the PHP build.
       - uses: actions/cache/save@v6
@@ -454,7 +504,7 @@ jobs:
 
       - name: Run the test scripts
         run: |
-          python3 tests/conformance dist/drupack test-results/conformance
+          python3 tests/conformance dist/drupack test-results/conformance --site-tests examples/mercury-demo/tests
 
       - name: Check the unsigned launch steps
         run: |
@@ -477,13 +527,14 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [linux, windows, macos]
+    needs: [linux, windows, macos, mercury]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     permissions:
       attestations: write
       contents: write
       id-token: write
+      packages: write
     env:
       GH_TOKEN: ${{ github.token }}
       VERSION: ${{ github.ref_name }}
@@ -533,6 +584,13 @@ jobs:
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: release/*
+
+      # Site builds pull the job image by the engine's version.
+      - name: Name the job image after the version
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx imagetools create --tag "ghcr.io/$GITHUB_REPOSITORY-build:$VERSION" \
+            "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA"
 
       - name: Publish the GitHub Release
         run: |
