@@ -5,8 +5,9 @@
 
 ## Status, 2026-09-23
 
-Branch `build-any-recipe-site`, head `3e5ac04`, is pushed to the Forge and the
-GitHub mirror. It is not merged. The next mirror sync removes the GitHub copy.
+Branch `build-any-recipe-site` merged into `main` after phase 6, a whole-branch
+review, both audits and a green `bash build/qa.sh` on `4f8c73c`. Phase 7 and the
+chores below stay open.
 
 Phases 1 to 6 are done:
 
@@ -30,7 +31,7 @@ The owner added work outside the phases:
 
 Evidence:
 
-- `bash build/qa.sh` passed on `93602fc`.
+- `bash build/qa.sh` passed on `93602fc` and on `4f8c73c`, after the review fixes.
 - GitHub run 35852806747 on `93602fc` passed, with Mercury built through `build.yml`.
 - A private caller repository, `theodoreb/drupack-caller-test`, built through `build.yml@build-any-recipe-site` in run 35845487975.
 - A private Forge repository, `theodore/drupack-site-test`, ran the Gitea job from the doc: run 1114 on `main`, run 1115 on tag `0.0.1` with its release.
@@ -38,9 +39,7 @@ Evidence:
 Next:
 
 1. Phase 7, below, tabled by the owner.
-2. One `code-rules-auditor` and one `design-auditor` run. Delete `.superpowers/code-rules-deferred` afterwards. The whole-branch review ran, and its fixes are in.
-3. `bash build/qa.sh` in full.
-4. The owner approves the merge and the push to the Forge's `main`.
+2. A tag run proves `build.yml` pulls the job image by commit, which no run has shown yet.
 
 Chores:
 
