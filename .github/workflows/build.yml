@@ -51,15 +51,10 @@ jobs:
           claims=$(printf '%s' "$claims" | base64 -d)
           workflow_ref=$(printf '%s' "$claims" | jq -r .job_workflow_ref)
           workflow_sha=$(printf '%s' "$claims" | jq -r .job_workflow_sha)
-          ref=${workflow_ref#*@}
           repository=${workflow_ref%%/.github/*}
-          # An engine tag publishes its job image under the version, and every
-          # engine release run under the commit.
-          case "$ref" in
-            refs/tags/*) tag=${ref#refs/tags/} ;;
-            *) tag=sha-$workflow_sha ;;
-          esac
-          image=ghcr.io/$repository-build:$tag
+          # Every engine release run pushes its job image under the commit, a tag run
+          # before any image carries the version.
+          image=ghcr.io/$repository-build:sha-$workflow_sha
           echo "Engine: $workflow_ref ($workflow_sha), image $image"
           printf 'image=%s\n' "$image" >>"$GITHUB_OUTPUT"
 
@@ -77,7 +72,10 @@ jobs:
       run:
         shell: bash
     steps:
+      # composer install runs the site's plugins and scripts, so the checkout keeps no token.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Build the executables
         env:

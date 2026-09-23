@@ -527,7 +527,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [linux, windows, macos]
+    needs: [linux, windows, macos, mercury]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     permissions:
