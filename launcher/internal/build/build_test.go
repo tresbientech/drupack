@@ -92,13 +92,15 @@ func TestEveryPlatformIsPackedAndOnlyTheHostIsTested(t *testing.T) {
 		t.Fatalf("untested = %v; want [linux-arm64]", plan.Untested)
 	}
 	pack := strings.Join(step(t, plan, "pack linux-arm64").Command, " ")
-	for _, want := range []string{"-goarch arm64", "-output /out/acme-linux-arm64", "-site-version 1.4.0", "-version 0.3.0"} {
+	for _, want := range []string{
+		"-goarch arm64", "-output " + filepath.Join("/out", "acme-linux-arm64"), "-site-version 1.4.0", "-version 0.3.0",
+	} {
 		if !strings.Contains(pack, want) {
 			t.Errorf("the arm64 pack command lacks %q: %s", want, pack)
 		}
 	}
 	test := step(t, plan, "test linux-amd64").Command
-	if test[2] != "/out/acme-linux-amd64" {
+	if test[2] != filepath.Join("/out", "acme-linux-amd64") {
 		t.Errorf("the suite runs %q; want the amd64 executable", test[2])
 	}
 }
