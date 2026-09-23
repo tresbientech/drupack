@@ -8,6 +8,10 @@
 # runtime/build-builder.sh builds one image per libc before this file runs.
 ARG MUSL_BUILDER=drupack-builder-musl:local
 ARG GNU_BUILDER=drupack-builder-gnu:local
+# The runtimes the job image carries. A COPY --from names a stage before a build
+# context, so the release sets this to a name no stage has and passes that name
+# as --build-context NAME=DIRECTORY.
+ARG RUNTIMES=local-runtimes
 # The job image runs drupack-build: Go for the packer and the launcher, Python for
 # the conformance suite, and GNU tar for the payload's fixed archive options. It is
 # a glibc host, the only kind that runs both runtimes, so a build of either libc
@@ -52,13 +56,14 @@ COPY --from=runtime-musl /out /out
 FROM scratch AS runtime-gnu-files
 COPY --from=runtime-gnu /out /out
 
-# The runtimes the job image carries, one PLATFORM-LIBC directory each. A local
-# build carries its own architecture's two. The release passes all four as
-# --build-context runtimes=DIRECTORY.
-FROM scratch AS runtimes
+# One PLATFORM-LIBC directory per runtime. A local build carries its own
+# architecture's two; the release passes all four.
+FROM scratch AS local-runtimes
 ARG TARGETARCH
 COPY --from=runtime-musl /out /linux-${TARGETARCH}-musl
 COPY --from=runtime-gnu /out /linux-${TARGETARCH}-glibc
+
+FROM ${RUNTIMES} AS runtimes
 
 # drupack-build runs here on any CI host, with no Docker daemon. The musl runtime
 # is its PHP: a static executable carrying every extension the site runs with.

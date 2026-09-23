@@ -233,7 +233,7 @@ jobs:
           done
           chmod +x runtimes/*/drupack
           ls runtimes
-          docker build --target job --build-context runtimes=runtimes \
+          docker build --target job --build-arg RUNTIMES=release-runtimes --build-context release-runtimes=runtimes \
             --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-job .
 
       - name: Export the application payload
