@@ -22,22 +22,22 @@ for name in Caddyfile launch.php php.ini settings.php cacert.pem; do
     cp "/dev-application/$name" "/data/runtime/app/$name"
 done
 
-binary=/go/src/app/dist/static-php-cli/buildroot/bin/frankenphp
+binary=/opt/drupack/php/drupack
 export DRUPACK_RUNTIME_BINARY=$binary
 cd /data/runtime/app
 # A release start gets the site's name from its launcher.
-DRUPACK_RUNTIME_NAME=$(jq -r .name site.json)
+DRUPACK_RUNTIME_NAME=$(python3 -c 'import json; print(json.load(open("site.json"))["name"])')
 export DRUPACK_RUNTIME_NAME
 
 # A release start gets these from the launcher's environment function. The
-# development image runs frankenphp directly, so it sets the same two here, and
+# development loop runs the runtime directly, so it sets the same two here, and
 # a caller's own bundle still wins.
 export PHPRC=/data/runtime/app
 export DRUPACK_CA_FILE=${DRUPACK_CA_FILE-/data/runtime/app/cacert.pem}
 
 # launch.php sets up the site, then hands over to a server. Its Drush path runs
-# the same setup and stops, and this image's php-server ignores a Caddyfile, so
-# the server starts separately below.
+# the same setup and stops, and with no application directory named the runtime
+# passes run straight to FrankenPHP, so the server starts separately below.
 DRUPACK_RUNTIME_DRUSH=1 "$binary" php-cli launch.php --data-dir /data --listen "0.0.0.0:$listen" "$@" status --field=bootstrap
 
 mkdir -p /data/logs

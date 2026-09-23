@@ -37,9 +37,11 @@ function fetchTranslation(string $url): ?string
     return $body;
 }
 
-$lock = json_decode(file_get_contents('/app/composer.lock'), true, flags: JSON_THROW_ON_ERROR);
-$languages = json_decode(file_get_contents('/app/site.json'), true, flags: JSON_THROW_ON_ERROR)['languages'];
-mkdir('/app/translations');
+// The build passes the application directory, which holds the lock and site.json.
+$application = $argv[1];
+$lock = json_decode(file_get_contents("$application/composer.lock"), true, flags: JSON_THROW_ON_ERROR);
+$languages = json_decode(file_get_contents("$application/site.json"), true, flags: JSON_THROW_ON_ERROR)['languages'];
+mkdir("$application/translations");
 $downloaded = 0;
 $unavailable = 0;
 foreach (translationProjects($lock['packages']) as $project => $version) {
@@ -53,7 +55,7 @@ foreach (translationProjects($lock['packages']) as $project => $version) {
             $unavailable++;
             continue;
         }
-        if (file_put_contents("/app/translations/$name", $body) === false) {
+        if (file_put_contents("$application/translations/$name", $body) === false) {
             throw new RuntimeException("Cannot write translation: $name");
         }
         $downloaded++;

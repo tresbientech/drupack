@@ -1,18 +1,15 @@
 *
 !application/
 !application/**
-# The image builds these three from composer.lock. A local copy of any of
-# them would enter the build context and collide with the one composer writes.
+# A developer's link to an installed site's vendor, for the PHP unit files.
 application/vendor
-!examples/
-!examples/**
-examples/*/vendor
-examples/*/web
-examples/*/recipes
 !build/
 !build/**
 !runtime/
 !runtime/**
 !launcher/
 !launcher/**
+!tests/
+!tests/**
+**/__pycache__
 !Dockerfile

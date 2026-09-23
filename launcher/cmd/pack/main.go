@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 
 	"github.com/klauspost/compress/zstd"
@@ -96,6 +97,7 @@ func run() error {
 	version := flag.String("version", "", "engine version, which names each runtime's cache entry")
 	siteFile := flag.String("site", "", "the site.json of the site the application holds")
 	siteVersion := flag.String("site-version", "", "the site's release")
+	goarch := flag.String("goarch", goruntime.GOARCH, "architecture the launcher is built for")
 	entry := flag.String("entry", "", "entry file, relative to -runtime")
 	source := flag.String("source", "", "launcher source directory")
 	output := flag.String("output", "", "path for the built launcher")
@@ -157,7 +159,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err := buildLauncher(build, outputPath); err != nil {
+	if err := buildLauncher(build, outputPath, *goarch); err != nil {
 		return err
 	}
 
@@ -241,13 +243,13 @@ func writeAppPayload(build, archive, checksumFile string) error {
 	return os.WriteFile(filepath.Join(build, "app_checksum.txt"), bytes.TrimSpace(checksum), 0600)
 }
 
-func buildLauncher(build, output string) error {
+func buildLauncher(build, output, goarch string) error {
 	// go build keeps only the last -ldflags, so both linker flags share one value.
 	// The build copy sits in the temporary directory and is no checkout, so a .git
 	// directory above it would only make VCS stamping fail.
 	command := exec.Command("go", "build", "-trimpath", "-buildvcs=false", "-ldflags=-s -w", "-o", output, ".")
 	command.Dir = build
-	command.Env = append(os.Environ(), "CGO_ENABLED=0")
+	command.Env = append(os.Environ(), "CGO_ENABLED=0", "GOARCH="+goarch)
 	out, err := command.CombinedOutput()
 	if err != nil {
 		fmt.Fprint(os.Stderr, string(out))

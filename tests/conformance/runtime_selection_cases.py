@@ -15,8 +15,15 @@ from pathlib import Path
 
 import harness
 
-# The line entrypoint.go prints for a build carrying a runtime per libc.
-VERSION_PATTERN = re.compile(r"^drupack \S+ \(drupack \S+, (glibc|musl)\)$", re.MULTILINE)
+# A DRUPACK_LIBC value naming no runtime: a build carrying one runtime runs it anyway, and a
+# build carrying more refuses the value and lists what it carries.
+UNCARRIED = "none-such"
+
+
+def version_pattern():
+    """The line entrypoint.go prints: the site and its release, then the engine and the libc."""
+    return re.compile(rf"^{re.escape(harness.SITE['name'])} \S+ \(drupack \S+, (glibc|musl)\)$", re.MULTILINE)
+
 
 # The interpreter a glibc build records, per architecture. A host holding the file runs
 # the glibc runtime; a host without it falls to the musl one, which needs no loader.
@@ -37,10 +44,12 @@ class RuntimeSelection(harness.ConformanceCase):
         cls.class_dir = harness.RESULTS / cls.__name__
         cls.class_dir.mkdir(parents=True, exist_ok=True)
         cls.cache = harness.reserved_dir(cls.class_dir / "cache")
+        cls.carried = cls.carried_runtimes()
 
-    def version(self, libc=None):
+    @classmethod
+    def version(cls, libc=None):
         """Run --version, returning the completed process. libc names DRUPACK_LIBC."""
-        env = dict(os.environ, DRUPACK_CACHE_DIR=str(self.cache))
+        env = dict(os.environ, DRUPACK_CACHE_DIR=str(cls.cache))
         if libc is not None:
             env["DRUPACK_LIBC"] = libc
         return harness.run(
@@ -49,12 +58,22 @@ class RuntimeSelection(harness.ConformanceCase):
             timeout=harness.WAITS["unpack"].seconds,
         )
 
+    @classmethod
+    def carried_runtimes(cls):
+        """The runtimes the executable carries, read from how it answers UNCARRIED."""
+        result = cls.version(UNCARRIED)
+        if result.returncode == 0:
+            return (version_pattern().search(result.stdout).group(1),)
+        return tuple(libc for libc in ("glibc", "musl") if libc in result.stderr)
+
     def test_version_names_the_runtime_that_ran(self):
         result = self.version()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertRegex(result.stdout, VERSION_PATTERN)
+        self.assertRegex(result.stdout, version_pattern())
 
     def test_the_host_loader_decides_which_runtime_runs(self):
+        if len(self.carried) == 1:
+            self.skipTest(f"the executable carries {self.carried[0]} alone")
         interpreter = GLIBC_INTERPRETERS.get(platform.machine())
         if interpreter is None:
             self.skipTest(f"no recorded glibc interpreter for {platform.machine()}")
@@ -64,21 +83,37 @@ class RuntimeSelection(harness.ConformanceCase):
         self.assertIn(f", {expected})", result.stdout)
 
     def test_the_variable_selects_each_carried_runtime(self):
-        for libc in ("musl", "glibc"):
+        if len(self.carried) == 1:
+            self.skipTest(f"the executable carries {self.carried[0]} alone")
+        for libc in self.carried:
             with self.subTest(libc=libc):
+                # A musl host, such as an Alpine CI image, has no loader for the glibc runtime.
+                if libc == "glibc" and not GLIBC_INTERPRETERS.get(platform.machine(), Path("/none")).exists():
+                    self.skipTest("this host has no glibc loader")
                 result = self.version(libc)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn(f", {libc})", result.stdout)
 
+    def test_a_single_runtime_ignores_the_variable(self):
+        if len(self.carried) != 1:
+            self.skipTest(f"the executable carries {', '.join(self.carried)}")
+        for libc in ("glibc", "musl"):
+            with self.subTest(libc=libc):
+                result = self.version(libc)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f", {self.carried[0]})", result.stdout)
+
     def test_an_unknown_libc_stops_the_start(self):
+        if len(self.carried) == 1:
+            self.skipTest(f"the executable carries {self.carried[0]} alone, which runs whatever the variable says")
         result = self.version("gnu")
         self.assertNotEqual(result.returncode, 0, "an unknown DRUPACK_LIBC value started")
         # The refusal names what the build carries, so a reader can correct the value.
-        for carried in ("glibc", "musl"):
+        for carried in self.carried:
             self.assertIn(carried, result.stderr)
 
     def test_forcing_a_runtime_leaves_one_entry_in_the_cache(self):
-        for libc in ("glibc", "musl"):
+        for libc in self.carried:
             self.version(libc)
         entries = [path.name for path in self.cache.iterdir() if path.is_dir() and path.name != "app"]
         self.assertEqual(len(entries), 1, f"the cache holds {entries}")
@@ -90,7 +125,7 @@ class RuntimeSelection(harness.ConformanceCase):
         site = harness.Site(harness.BINARY, case_dir)
         site.start(data, env=dict(os.environ,
                                   DRUPACK_CACHE_DIR=str(self.cache),
-                                  DRUPACK_LIBC="musl"))
+                                  DRUPACK_LIBC=self.carried[-1]))
         try:
             self.assertNotIn("core/install.php", site.http("/user/login"))
         finally:

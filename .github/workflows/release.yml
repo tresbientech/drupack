@@ -95,6 +95,11 @@ jobs:
           # Every platform packs the payload job's output, so any target calls for it.
           build=true
           [ "$linux$macos$windows" != '[][][]' ] || build=false
+          # The payload job runs PHP from the amd64 musl runtime, so any build compiles it.
+          if [ "$build" = true ]; then
+            linux_runtime=$(jq -cn --argjson runtimes "$linux_runtime" \
+              '$runtimes + [{arch: "amd64", libc: "musl"}] | unique')
+          fi
           {
             printf 'version=%s\n' "$version"
             printf 'build=%s\n' "$build"
@@ -193,34 +198,35 @@ jobs:
 
   # The application is PHP source, vendor, translations and a seeded database.
   # None of it depends on a platform, so every executable packs this one build.
+  # drupack-build makes it in the job image, whose PHP is the amd64 musl runtime.
   payload:
     name: payload
-    needs: gate
+    needs: [gate, linux-runtime]
     if: needs.gate.outputs.build == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
 
-      # The runner starts with about 14 GB free, the builder image takes 8.6 GB.
-      # Printing the free space tells a later failure apart from a full disk.
-      - name: Free disk space
-        run: |
-          df -h /
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
+      - uses: actions/download-artifact@v7
+        with:
+          name: runtime-linux-amd64-musl
+          path: runtime-musl
 
-      - name: Export the application payload
+      # The runtime job's export stands in for the runtime-musl stage, so no
+      # builder image is pulled here.
+      - name: Build the job image
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
-          docker build --target app --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-build .
-          container=$(docker create drupack-build)
-          mkdir -p dist/payload
-          docker cp "$container:/go/src/app/app-payload.tar" dist/payload/app-payload.tar
-          docker cp "$container:/go/src/app/app_checksum.txt" dist/payload/app_checksum.txt
-          docker cp "$container:/app/site.json" dist/payload/site.json
-          docker rm "$container"
+          chmod +x runtime-musl/out/drupack
+          docker build --target job --build-context runtime-musl=runtime-musl \
+            --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-job .
+
+      - name: Export the application payload
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
+            drupack-build --site examples/mercury-demo --payload-only --output dist
 
       - uses: actions/upload-artifact@v7
         with:
@@ -300,8 +306,8 @@ jobs:
       - name: Start a site on the musl runtime
         run: |
           set -eu
-          dist/drupack --version | grep -q 'glibc runtime'
-          DRUPACK_LIBC=musl dist/drupack --version | grep -q 'musl runtime'
+          dist/drupack --version | grep -q ', glibc)'
+          DRUPACK_LIBC=musl dist/drupack --version | grep -q ', musl)'
           if DRUPACK_LIBC=gnu dist/drupack --version; then
             echo 'An unknown DRUPACK_LIBC value was accepted' >&2
             exit 1
