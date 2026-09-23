@@ -15,6 +15,11 @@ The site repository can be private. The examples use a site named `acme`.
 
 [`examples/mercury-demo`](../examples/mercury-demo) is a complete site repository.
 
+The build copies into the executable every file git tracks or would track,
+except its own output and work directories. List credentials such as
+`auth.json` or `.env` in `.gitignore`. A site outside any git checkout is
+copied whole. In a checkout git cannot read, the build stops with git's error.
+
 `drupack.yml` fields:
 
 ```yaml
@@ -64,8 +69,8 @@ jobs:
       COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
 ```
 
-The workflow reads the engine version from the tag after `@`, so an engine
-upgrade changes that one line. It needs `id-token: write` to read that tag.
+The workflow reads the engine commit from the ref after `@`, so an engine
+upgrade changes that one line. It needs `id-token: write` to read that ref.
 
 Inputs:
 

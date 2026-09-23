@@ -37,8 +37,8 @@ Evidence:
 
 Next:
 
-1. Phase 7, below.
-2. A whole-branch review, then one `code-rules-auditor` and one `design-auditor` run. Delete `.superpowers/code-rules-deferred` afterwards.
+1. Phase 7, below, tabled by the owner.
+2. One `code-rules-auditor` and one `design-auditor` run. Delete `.superpowers/code-rules-deferred` afterwards. The whole-branch review ran, and its fixes are in.
 3. `bash build/qa.sh` in full.
 4. The owner approves the merge and the push to the Forge's `main`.
 

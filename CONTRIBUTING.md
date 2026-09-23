@@ -55,7 +55,7 @@ That writes `app-payload.tar`, `app_checksum.txt` and `site.json` to `dist/paylo
 ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version dev -WorkDirectory $env:TEMP\drupack -Output dist\drupack.exe
 ```
 
-The Windows executable is the same launcher as Linux and macOS. It carries the PHP and FrankenPHP tree compressed with zstd, and unpacks under `%LOCALAPPDATA%\Drupack\runtime` on first start. Later starts compare a stored manifest and file sizes. Windows has no `exec`, so the launcher starts a child process instead of replacing itself.
+The Windows executable is the same launcher as Linux and macOS. It carries the PHP and FrankenPHP tree compressed with zstd, and unpacks under `%LOCALAPPDATA%\<name>\runtime` on first start, `<name>` being the site's `name`. Later starts compare a stored manifest and file sizes. Windows has no `exec`, so the launcher starts a child process instead of replacing itself.
 
 ## Tests
 
