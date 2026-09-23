@@ -106,3 +106,25 @@ and `db-password` from the recorded settings, so a start given a corrected
 `--db-port` keeps the stale one. Lean: decide what readiness should mean, and
 whether a recorded connection detail can be corrected from the command line at
 all.
+
+## How long the registry keeps job images
+
+Every `release.yml` run pushes the job image as `drupack-build:sha-<commit>`, so
+a branch or `main` caller of `build.yml` finds the image of its own commit. Each
+image is about 1.4 GB, and nothing deletes one. A tag also adds
+`drupack-build:<version>`. Lean: keep every version tag, and delete `sha-` tags
+older than a few weeks that no version tag points at.
+
+## Whether Mercury still needs its MCP packages
+
+The engine no longer enables `mcp_tools`, but Mercury's `composer.json` still
+requires `drupal/mcp_tools` and `drupal/mcp_server`. They ship in every Mercury
+executable. Lean: drop both from the example unless its recipe enables them,
+which is Mercury's decision rather than the engine's.
+
+## Whether automatic_updates still stalls cron
+
+`build/seed.sh` uninstalls `automatic_updates` because it stalled a cron request,
+and `package_manager` because it cannot write into the read-only application.
+Nobody has checked the stall against the current module release. Lean: keep the
+uninstall, and retest the stall when the recipe's version of the module changes.

@@ -3,6 +3,55 @@
 > Source PRD: `docs/prd/build-any-recipe-site.md`
 > Source RFC: `docs/rfc/0001-build-any-recipe-site.md`
 
+## Status, 2026-09-23
+
+Branch `build-any-recipe-site`, head `3e5ac04`, is pushed to the Forge and the
+GitHub mirror. It is not merged. The next mirror sync removes the GitHub copy.
+
+Phases 1 to 6 are done:
+
+| Phase | Commits |
+|---|---|
+| Plan and PRD | `fe801a6` |
+| 1, site config | `0e2a3c7` |
+| 2, site identity | `7d68294` |
+| 3, site-agnostic suite | `ba74df3` |
+| 4, `drupack-build` | `4945fd4` |
+| 5, job image carries the runtimes | `d77f80a`, fixed by `476e569` |
+| 6, reusable workflow | `f52104d`, fixed by `108a4f7` |
+
+The owner added work outside the phases:
+
+- `docs/build-your-site.md` covers GitHub, Gitea and any other CI (`1244296`).
+- `build.yml` passes a `COMPOSER_AUTH` secret for private packages (`4b2d683`).
+- The job image carries Node 24, which Gitea's runner needs for JavaScript actions (`a21dc2d`).
+- The musl runtime gives PHP threads an 8 MB stack (`93602fc`). At 512 KB, freeing a render array nested past about 10,000 levels crashed the server.
+- The README states the memory a hosting server needs (`3e5ac04`).
+
+Evidence:
+
+- `bash build/qa.sh` passed on `93602fc`.
+- GitHub run 35852806747 on `93602fc` passed, with Mercury built through `build.yml`.
+- A private caller repository, `theodoreb/drupack-caller-test`, built through `build.yml@build-any-recipe-site` in run 35845487975.
+- A private Forge repository, `theodore/drupack-site-test`, ran the Gitea job from the doc: run 1114 on `main`, run 1115 on tag `0.0.1` with its release.
+
+Next:
+
+1. Phase 7, below.
+2. A whole-branch review, then one `code-rules-auditor` and one `design-auditor` run. Delete `.superpowers/code-rules-deferred` afterwards.
+3. `bash build/qa.sh` in full.
+4. The owner approves the merge and the push to the Forge's `main`.
+
+Chores:
+
+- Delete the two scratch repositories named above once no test needs them.
+- Delete the stray `/tmp/.git`.
+- `drupack-build` leaves an empty temporary work directory when `NewPlan` refuses a request.
+- The development loop in `build/dev/` has not run since phase 5 changed the runtime paths.
+
+The run log with every ruling is `.superpowers/sdd/build-any-recipe-site-ledger.md`,
+which is local to this checkout and not committed.
+
 ## Architectural decisions
 
 These hold across all phases:
