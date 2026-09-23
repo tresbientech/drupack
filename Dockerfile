@@ -18,6 +18,10 @@ ARG RUNTIMES=local-runtimes
 # is tested where it was built.
 # docker buildx imagetools inspect golang:1.26-bookworm --format '{{.Manifest.Digest}}'
 ARG JOB_BASE=golang:1.26-bookworm@sha256:a688600ca24f8a4d3ca77f95b0dd40704a9fc787c826660eb7ba0b641b8b175d
+# act_runner, which Gitea and Forgejo run, starts JavaScript actions with the job
+# container's own node.
+# docker buildx imagetools inspect node:24-bookworm-slim --format '{{.Manifest.Digest}}'
+ARG NODE_IMAGE=node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
 
 # php.ini and the trust bundle join the entry executable in each runtime
 # directory, so the launcher's environment function finds both beside it.
@@ -67,6 +71,8 @@ FROM ${RUNTIMES} AS runtimes
 
 # drupack-build runs here on any CI host, with no Docker daemon. The musl runtime
 # is its PHP: a static executable carrying every extension the site runs with.
+FROM ${NODE_IMAGE} AS node
+
 FROM ${JOB_BASE} AS job
 ARG DRUPACK_VERSION
 ARG TARGETARCH
@@ -76,6 +82,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends procps python3 
 RUN wget -q -O /opt/composer.phar https://getcomposer.org/download/2.8.12/composer.phar \
     && echo 'f446ea719708bb85fcbf4ef18def5d0515f1f9b4d703f6d820c9c1656e10a2f2  /opt/composer.phar' | sha256sum -c -
 COPY --from=runtimes / /opt/drupack/runtimes/
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY application /opt/drupack/engine/application
 COPY build /opt/drupack/engine/build
 COPY launcher /opt/drupack/engine/launcher
