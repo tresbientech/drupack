@@ -1,0 +1,147 @@
+name: Build a site
+
+# A site repository calls this workflow at an engine tag. It builds the site's
+# executables in the engine's job image and uploads them, and with `publish` a tag
+# run releases them in the caller's repository. The jobs declare no permissions
+# and run with the ones the calling job grants.
+on:
+  workflow_call:
+    inputs:
+      site:
+        description: The site's directory, holding composer.json and drupack.yml.
+        type: string
+        default: .
+      platforms:
+        description: 'Comma-separated targets: linux-amd64, linux-arm64.'
+        type: string
+        default: linux-amd64
+      libc:
+        description: 'The C library of each Linux runtime: both, glibc or musl.'
+        type: string
+        default: both
+      publish:
+        description: On a tag run, release the executables in the calling repository.
+        type: boolean
+        default: false
+
+jobs:
+  # The github context of a called workflow names the caller. The OIDC token names
+  # this file at the ref the caller pinned, so the calling job grants id-token: write.
+  engine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - id: image
+        run: |
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo 'The calling job must grant id-token: write, which names the engine ref.' >&2
+            exit 1
+          fi
+          token=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=drupack" | jq -r .value)
+          claims=$(printf '%s' "$token" | cut -d . -f 2 | tr '_-' '/+')
+          # base64 needs the padding a JWT drops.
+          while [ $(( ${#claims} % 4 )) -ne 0 ]; do claims="$claims="; done
+          claims=$(printf '%s' "$claims" | base64 -d)
+          workflow_ref=$(printf '%s' "$claims" | jq -r .job_workflow_ref)
+          workflow_sha=$(printf '%s' "$claims" | jq -r .job_workflow_sha)
+          ref=${workflow_ref#*@}
+          repository=${workflow_ref%%/.github/*}
+          # An engine tag publishes its job image under the version, and every
+          # engine release run under the commit.
+          case "$ref" in
+            refs/tags/*) tag=${ref#refs/tags/} ;;
+            *) tag=sha-$workflow_sha ;;
+          esac
+          image=ghcr.io/$repository-build:$tag
+          echo "Engine: $workflow_ref ($workflow_sha), image $image"
+          printf 'image=%s\n' "$image" >>"$GITHUB_OUTPUT"
+
+  # The job image carries the engine, its runtimes and drupack-build. No Docker
+  # daemon answers inside it, so the suite skips the cases that need one. The
+  # build writes under /tmp: runner.temp names the host's path, not the container's.
+  build:
+    needs: engine
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    container:
+      image: ${{ needs.engine.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the executables
+        env:
+          SITE: ${{ inputs.site }}
+          PLATFORMS: ${{ inputs.platforms }}
+          LIBC: ${{ inputs.libc }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            version=$GITHUB_REF_NAME
+          else
+            version=dev-${SHA:0:12}
+          fi
+          # The checkout belongs to the runner's user, and git refuses to list its files
+          # for another one. drupack-build stages a site from that listing.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          drupack-build --site "$SITE" --platform "$PLATFORMS" --libc "$LIBC" \
+            --site-version "$version" --output /tmp/drupack/dist --work /tmp/drupack/work
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: /tmp/drupack/work/test-results
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: executables
+          path: /tmp/drupack/dist
+          if-no-files-found: error
+
+  # The calling job grants contents: write, id-token: write and attestations: write.
+  publish:
+    needs: build
+    if: inputs.publish && github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: executables
+          path: release
+
+      - name: Write checksums.txt
+        working-directory: release
+        run: |
+          chmod 0755 -- *-linux-*
+          sha256sum -- *-linux-* >checksums.txt
+          cat checksums.txt
+
+      - name: Generate the SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: ${{ inputs.site }}
+          format: cyclonedx-json
+          output-file: release/sbom.cdx.json
+
+      - name: Attest the release files
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release/*
+
+      - name: Publish the GitHub Release
+        run: |
+          gh release create "$VERSION" release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "$VERSION" \
+            --generate-notes

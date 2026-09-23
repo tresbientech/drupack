@@ -189,6 +189,28 @@ gh attestation verify drupack-linux-amd64 --repo tresbientech/drupack
 
 A release also carries `release.json`, listing every file with its target, URLs, SHA-256 value and size, and `drupack.cdx.json`, a CycloneDX inventory of everything inside the executable.
 
+## Build your own site
+
+A site repository holds a Composer project and a `drupack.yml`. On GitHub, one job builds its Linux executables at an engine tag:
+
+```yaml
+jobs:
+  build:
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: tresbientech/drupack/.github/workflows/build.yml@0.3.0
+    with:
+      platforms: linux-amd64,linux-arm64
+      libc: both
+      publish: true
+```
+
+The workflow reads the engine version from the tag after `@`. Every run uploads the executables as the `executables` artifact. With `publish`, a tag run also creates a release holding them, `checksums.txt`, an SBOM and build provenance. A build without `publish` needs `contents: read` and `id-token: write` only.
+
+`site` names the site's directory, `.` by default. `platforms` takes `linux-amd64` and `linux-arm64`. `libc` takes `both`, `glibc` or `musl`.
+
 ## Contributing
 
 [CONTRIBUTING.md](CONTRIBUTING.md) covers building Drupack, running its test suites and the development loop.

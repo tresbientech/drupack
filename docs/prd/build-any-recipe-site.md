@@ -152,6 +152,6 @@ Prior art:
 ## Further Notes
 
 - Infrastructure issue #3265860 reports no Docker-in-Docker on drupal.org runners, and its page shows no resolution. The design assumes none.
-- How the GitHub workflow finds its own engine ref stays open. The `github` context in a called workflow names the caller.
+- The GitHub workflow finds its own engine ref in the OIDC token's `job_workflow_ref` claim, since the `github` context in a called workflow names the caller. A tag ref pulls the job image under that version, any other ref the image under `sha-<commit>`. Callers grant `id-token: write`.
 - The Mercury example may drop `drupal/mcp_tools` and `drupal/mcp_server` once nothing enables them. That is Mercury's decision, not the engine's.
 - Engine tags become a public contract. A breaking change to `drupack.yml`, the CI inputs or `site.json` needs a major version.

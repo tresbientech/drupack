@@ -143,8 +143,9 @@ runs in the image. That leaves no download, cache or checksum code.
 `build.yml` is a `workflow_call` workflow taking `platforms`, `libc` and
 `publish`. It runs `drupack-build` in the job image and uploads the executables.
 With `publish`, it creates a release in the caller's repository with checksums, an
-SBOM and provenance. `release.yml` builds Mercury by calling it with local
-runtimes. How `build.yml` finds its own engine ref is settled here.
+SBOM and provenance. `release.yml` builds Mercury by calling it in the job image
+its payload job pushed. `build.yml` reads its own engine ref from the OIDC `job_workflow_ref` claim
+and runs in the job image under that tag, or under `sha-<commit>` for a branch.
 
 ### Acceptance criteria
 

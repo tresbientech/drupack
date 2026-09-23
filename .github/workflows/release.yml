@@ -199,8 +199,8 @@ jobs:
   # The application is PHP source, vendor, translations and a seeded database.
   # None of it depends on a platform, so every executable packs this one build.
   # drupack-build makes it in the job image, whose PHP is the amd64 musl runtime.
-  # A tag run pushes that image under the commit, and the publish job names it
-  # after the version once every platform passed.
+  # Every run pushes that image under the commit, where build.yml finds it, and
+  # the publish job names it after the version once every platform passed.
   payload:
     name: payload
     needs: [gate, linux-runtime]
@@ -242,7 +242,6 @@ jobs:
             drupack-build --site examples/mercury-demo --payload-only --output dist
 
       - name: Push the job image under this commit
-        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -255,6 +254,22 @@ jobs:
           name: payload-archive
           path: dist/payload
           if-no-files-found: error
+
+  # Mercury goes through the workflow site repositories call, in the image the
+  # payload job pushed. That image carries the amd64 glibc runtime only when the
+  # run builds Linux amd64.
+  mercury:
+    name: Mercury through build.yml
+    needs: [gate, payload]
+    if: contains(needs.gate.outputs.linux, 'amd64')
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/build.yml
+    with:
+      site: examples/mercury-demo
+      platforms: linux-amd64
+      libc: both
 
   linux:
     name: Linux ${{ matrix.arch }}
