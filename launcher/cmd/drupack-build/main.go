@@ -65,7 +65,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if *work == "" {
+	temporary := *work == ""
+	if temporary {
 		if *work, err = os.MkdirTemp("", "drupack-build-"); err != nil {
 			return err
 		}
@@ -94,6 +95,10 @@ func run() error {
 	}
 	plan, err := build.NewPlan(request)
 	if err != nil {
+		// The steps name the work directory, so it exists before the plan; nothing is in it yet.
+		if temporary {
+			os.Remove(request.Work)
+		}
 		return err
 	}
 	if err := os.MkdirAll(request.Output, 0o755); err != nil {
