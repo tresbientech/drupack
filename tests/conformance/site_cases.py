@@ -18,7 +18,7 @@ LINK_PREFIX = "  Login:     "
 
 # The three methods that together cover every assertion tests/windows/site.Tests.ps1 made:
 # a credentialed first start with the settings and private-path codes, dr status
-# --field=bootstrap, and mcp-tools:client-config plus a credential-free restart. Every other
+# --field=bootstrap, and a credential-free restart. Every other
 # method in this class stays Linux and macOS only.
 WINDOWS_METHODS = frozenset({
     "test_protected_files",
