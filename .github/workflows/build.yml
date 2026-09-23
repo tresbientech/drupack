@@ -72,6 +72,10 @@ jobs:
     timeout-minutes: 90
     container:
       image: ${{ needs.engine.outputs.image }}
+    # A container job runs steps with sh unless told otherwise.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
 
