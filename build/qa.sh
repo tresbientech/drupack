@@ -1,20 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# The full QA a release tag waits on. It compiles both runtimes from this checkout,
-# builds Mercury Demo with drupack-build inside the job image, where no Docker daemon
-# answers, then runs the cases that need a daemon on this host.
+# The full QA a release tag waits on. It builds the job image, which compiles both
+# runtimes from this checkout. It builds Mercury Demo with drupack-build inside
+# that image, where no Docker daemon answers, then runs the cases that need a
+# daemon on this host.
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 platform=linux-$(go env GOARCH)
 executable=dist/drupack-$platform
 
-rm -rf dist/runtimes
-docker build --target runtime-musl-files --output type=local,dest=dist/runtimes/musl .
-docker build --target runtime-gnu-files --output type=local,dest=dist/runtimes/glibc .
+# The job image carries both of this architecture's runtimes, so the build names none.
 docker build --target job -t drupack-job .
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
     drupack-build --site examples/mercury-demo --platform "$platform" --libc both \
-    --runtime "$platform/glibc=dist/runtimes/glibc/out" --runtime "$platform/musl=dist/runtimes/musl/out" \
     --output dist --work dist/work
 
 # The PHP unit files read the vendor directory of the site just built.

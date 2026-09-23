@@ -150,6 +150,29 @@ func TestAPayloadOnlyBuildNeedsNoRuntimeAndPacksNothing(t *testing.T) {
 	}
 }
 
+func TestTheRuntimeRootSuppliesTheTargetsNoRuntimeNames(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "linux-amd64-musl"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r := request([]string{"linux-amd64"}, "both")
+	r.RuntimeRoot = root
+	delete(r.Runtimes, "linux-amd64/musl")
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"glibc=/rt/amd64-glibc", "musl=" + filepath.Join(root, "linux-amd64-musl")}
+	if got := runtimeFlags(step(t, plan, "pack linux-amd64").Command); !reflect.DeepEqual(got, want) {
+		t.Errorf("packs %v; want --runtime for glibc and the root for musl: %v", got, want)
+	}
+
+	delete(r.Runtimes, "linux-amd64/glibc")
+	if _, err := build.NewPlan(r); err == nil || !strings.Contains(err.Error(), "--runtime linux-amd64/glibc=DIRECTORY") {
+		t.Errorf("a root without linux-amd64-glibc: NewPlan error = %v; want one naming the missing runtime", err)
+	}
+}
+
 func TestRefusalsNameTheValueTheyRefuse(t *testing.T) {
 	cases := map[string]struct {
 		request build.Request

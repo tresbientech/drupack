@@ -35,6 +35,9 @@ type Request struct {
 	Libc      string
 	// Runtimes maps "PLATFORM/LIBC" to a runtime directory.
 	Runtimes map[string]string
+	// RuntimeRoot holds a PLATFORM-LIBC directory per runtime it carries, and
+	// supplies each target Runtimes leaves out. The job image sets it.
+	RuntimeRoot string
 	// Engine is the Drupack checkout or image copy holding application/, build/,
 	// launcher/ and tests/.
 	Engine   string
@@ -81,6 +84,7 @@ func NewPlan(r Request) (Plan, error) {
 	if !ok {
 		return Plan{}, fmt.Errorf("--libc %q is not one of both, glibc, musl", r.Libc)
 	}
+	resolved := map[string]string{}
 	if len(r.Platforms) == 0 {
 		return Plan{}, fmt.Errorf("--platform names no target")
 	}
@@ -92,9 +96,17 @@ func NewPlan(r Request) (Plan, error) {
 			continue
 		}
 		for _, libc := range runtimes {
-			if r.Runtimes[platform+"/"+libc] == "" {
-				return Plan{}, fmt.Errorf("no runtime for %s/%s: pass --runtime %s/%s=DIRECTORY", platform, libc, platform, libc)
+			target := platform + "/" + libc
+			if r.Runtimes[target] != "" {
+				resolved[target] = r.Runtimes[target]
+				continue
 			}
+			carried := filepath.Join(r.RuntimeRoot, platform+"-"+libc)
+			if info, err := os.Stat(carried); r.RuntimeRoot != "" && err == nil && info.IsDir() {
+				resolved[target] = carried
+				continue
+			}
+			return Plan{}, fmt.Errorf("no runtime for %s: pass --runtime %s=DIRECTORY", target, target)
 		}
 	}
 
@@ -128,7 +140,7 @@ func NewPlan(r Request) (Plan, error) {
 	for _, platform := range r.Platforms {
 		command := []string{"go", "run", "./cmd/pack"}
 		for _, libc := range runtimes {
-			command = append(command, "-runtime", libc+"="+r.Runtimes[platform+"/"+libc])
+			command = append(command, "-runtime", libc+"="+resolved[platform+"/"+libc])
 		}
 		command = append(command, "-entry", "drupack", "-version", r.EngineVersion,
 			"-source", filepath.Join(r.Engine, "launcher"),

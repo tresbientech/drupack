@@ -61,7 +61,7 @@ and runs the engine's conformance suite.
 26. As an end user, I want both install paths to leave `automatic_updates` and `package_manager` uninstalled, so that cron never stalls and nothing writes into the read-only application.
 27. As the Drupack maintainer, I want Mercury Demo to build through the same public entry points, so that every engine run exercises the contract callers use.
 28. As the Drupack maintainer, I want the engine's own CI to build runtimes from source and hand them to `drupack-build`, so that an unreleased engine commit is tested before its runtimes are published.
-29. As the Drupack maintainer, I want each engine release to publish the job image and one runtime archive per platform and libc, so that callers download instead of compile.
+29. As the Drupack maintainer, I want each engine release to publish the job image with every Linux runtime inside, so that callers pull instead of compile.
 30. As the Drupack maintainer, I want one parser for `drupack.yml`, so that the contract has one definition.
 31. As the Drupack maintainer, I want the build steps to exist once, in `drupack-build`, so that the Dockerfile and the CI wrappers never drift from it.
 32. As the Drupack maintainer, I want the `mcp_tools` enable removed, so that the engine carries no site choice.
@@ -81,15 +81,15 @@ Build command:
 
 - `drupack-build` is a Go command in the launcher module. It takes the site directory, platforms, libc, output directory and the site version.
 - A pure planning function turns those inputs and the engine version into an ordered step list. A runner executes the steps as subprocesses.
-- The steps are Composer install, the translation fetch, the seed install, the payload archive, the runtime fetch, the pack and the suite.
-- The runtime fetch downloads one archive per platform and libc from the engine release and verifies it against the release checksums.
-- An override takes a local runtime directory per libc. The engine's own CI uses it for commits that have no published runtimes.
+- The steps are Composer install, the translation fetch, the seed install, the payload archive, the pack and the suite.
+- The runtimes come from the job image, one directory per platform and libc.
+- An override takes a local runtime directory per platform and libc.
 - In this release only Linux platforms are accepted. A macOS or Windows platform fails with a message naming slice 2.
 
 Job image and engine release:
 
 - An engine tag publishes a job image holding the static PHP, Composer, Go, Python and `drupack-build`, pinned by digest.
-- An engine tag publishes each runtime directory as an archive, plus a checksum file.
+- The job image carries all four Linux runtimes. A tag publishes it after every platform passed.
 - The Dockerfile keeps only the runtime compile stages. The `app`, `packed` and `artifact` stages leave, with their CONTRIBUTING instructions.
 
 Launcher and runtime identity:
@@ -128,7 +128,7 @@ Tested modules:
 
 - siteconfig: Go table tests over every field's valid and invalid values and the `site.json` output.
 - build plan: Go table tests of the step list per platforms and libc combination, including refused platforms.
-- runtime fetch: Go tests against an `httptest` server for a checksum mismatch, a missing archive and a reused cached copy.
+- runtime directory: Go tests where the directory supplies one target and refuses a missing one.
 - packer and launcher identity: the cache root follows `name`, two names keep two caches, and `--version` prints both versions.
 - `launch.php` site settings: the defaults come from `site.json`, and messages name the executable.
 - conformance suite: its site-specific cases read `site.json`, and a run without a Docker daemon reports its skipped cases.

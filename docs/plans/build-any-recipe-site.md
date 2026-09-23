@@ -13,8 +13,7 @@ These hold across all phases:
 - Identity variables: `DRUPACK_RUNTIME_NAME` and `DRUPACK_RUNTIME_SITE_VERSION`, exported by the launcher. The runtime's own version is the engine version.
 - Cache root: `<user cache>/<name>/runtime`, with `<tmp>/<name>-<uid>/runtime` as the fallback.
 - Executable assets: `<name>-linux-<arch>`, as today's `drupack-linux-<arch>`.
-- Runtime archives: `drupack-runtime-<engine version>-linux-<arch>-<libc>.tar.zst`, listed in the engine release's `checksums.txt`.
-- Job image: `ghcr.io/tresbientech/drupack-build:<engine version>`.
+- Job image: `ghcr.io/tresbientech/drupack-build:<engine version>`, carrying the four Linux runtimes under `/opt/drupack/runtimes/<platform>-<libc>`.
 - CI inputs: `platforms`, `libc`, `publish`, with the same names on GitHub and GitLab.
 - Mercury Demo builds at the end of every phase.
 
@@ -113,21 +112,24 @@ documents the local build as one `docker run` of the job image.
 
 ---
 
-## Phase 5: Published runtimes and job image
+## Phase 5: Published job image with its runtimes
 
 **User stories**: 21, 29
 
 ### What to build
 
-A tag run of `release.yml` publishes the job image and one runtime archive per
-Linux architecture and libc, listed in `checksums.txt`. `drupack-build` downloads
-the archives for its engine version when no local runtime is given, and verifies
-each against the checksums. The real publication waits for the owner's tag.
+The job image carries the Linux runtimes, one `PLATFORM-LIBC` directory each.
+`drupack-build` takes each target `--runtime` leaves out from that directory. A
+tag run of `release.yml` builds the image with all four runtimes and publishes it
+once every platform passed. The real publication waits for the owner's tag.
+
+The runtimes ship inside the image, not as separate archives, because every build
+runs in the image. That leaves no download, cache or checksum code.
 
 ### Acceptance criteria
 
-- [ ] `cd launcher && go test ./...` passes, with `httptest` cases for a checksum mismatch, a missing archive and a reused download.
-- [ ] Runtime archives made by the release step's script, served with `python3 -m http.server`, let `drupack-build` build Mercury with no local runtime, and the suite passes.
+- [ ] `cd launcher && go test ./...` passes, with a case where the runtime directory supplies one target and refuses a missing one.
+- [ ] `bash build/qa.sh` builds Mercury in the job image with no `--runtime`, and the suite passes.
 - [ ] `actionlint .github/workflows/release.yml` reports nothing.
 
 ---

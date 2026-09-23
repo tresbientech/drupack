@@ -22,7 +22,7 @@ for name in Caddyfile launch.php php.ini settings.php cacert.pem; do
     cp "/dev-application/$name" "/data/runtime/app/$name"
 done
 
-binary=/opt/drupack/php/drupack
+binary=$DRUPACK_PHP
 export DRUPACK_RUNTIME_BINARY=$binary
 cd /data/runtime/app
 # A release start gets the site's name from its launcher.

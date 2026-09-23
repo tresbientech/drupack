@@ -52,16 +52,25 @@ COPY --from=runtime-musl /out /out
 FROM scratch AS runtime-gnu-files
 COPY --from=runtime-gnu /out /out
 
+# The runtimes the job image carries, one PLATFORM-LIBC directory each. A local
+# build carries its own architecture's two. The release passes all four as
+# --build-context runtimes=DIRECTORY.
+FROM scratch AS runtimes
+ARG TARGETARCH
+COPY --from=runtime-musl /out /linux-${TARGETARCH}-musl
+COPY --from=runtime-gnu /out /linux-${TARGETARCH}-glibc
+
 # drupack-build runs here on any CI host, with no Docker daemon. The musl runtime
 # is its PHP: a static executable carrying every extension the site runs with.
 FROM ${JOB_BASE} AS job
 ARG DRUPACK_VERSION
+ARG TARGETARCH
 # The conformance suite reads process arguments with procps' ps.
 RUN apt-get update && apt-get install -y --no-install-recommends procps python3 \
     && rm -rf /var/lib/apt/lists/*
 RUN wget -q -O /opt/composer.phar https://getcomposer.org/download/2.8.12/composer.phar \
     && echo 'f446ea719708bb85fcbf4ef18def5d0515f1f9b4d703f6d820c9c1656e10a2f2  /opt/composer.phar' | sha256sum -c -
-COPY --from=runtime-musl /out /opt/drupack/php
+COPY --from=runtimes / /opt/drupack/runtimes/
 COPY application /opt/drupack/engine/application
 COPY build /opt/drupack/engine/build
 COPY launcher /opt/drupack/engine/launcher
@@ -75,7 +84,8 @@ RUN cd /opt/drupack/engine/launcher \
     && chmod -R a+rX /go/pkg/mod
 ENV DRUPACK_ENGINE=/opt/drupack/engine \
     DRUPACK_ENGINE_VERSION=${DRUPACK_VERSION:-dev} \
-    DRUPACK_PHP=/opt/drupack/php/drupack \
+    DRUPACK_PHP=/opt/drupack/runtimes/linux-${TARGETARCH}-musl/drupack \
+    DRUPACK_RUNTIMES=/opt/drupack/runtimes \
     DRUPACK_COMPOSER=/opt/composer.phar \
     HOME=/tmp \
     GOCACHE=/tmp/go-build \

@@ -51,6 +51,7 @@ func run() error {
 	engineVersion := flag.String("engine-version", os.Getenv("DRUPACK_ENGINE_VERSION"), "the engine's release")
 	php := flag.String("php", os.Getenv("DRUPACK_PHP"), "the runtime executable the build runs PHP with")
 	composer := flag.String("composer", os.Getenv("DRUPACK_COMPOSER"), "the composer.phar the build installs with")
+	runtimeRoot := flag.String("runtimes", os.Getenv("DRUPACK_RUNTIMES"), "a directory of PLATFORM-LIBC runtime directories, used for each target --runtime leaves out")
 	flag.Parse()
 	for name, value := range map[string]string{
 		"site": *site, "engine": *engine, "engine-version": *engineVersion, "php": *php, "composer": *composer,
@@ -76,8 +77,12 @@ func run() error {
 	// Every step runs in its own directory, so each path is made absolute once here.
 	for target, path := range map[*string]string{
 		&request.SiteDir: *site, &request.Engine: *engine, &request.PHP: *php, &request.Composer: *composer,
-		&request.Output: *output, &request.Work: *work,
+		&request.Output: *output, &request.Work: *work, &request.RuntimeRoot: *runtimeRoot,
 	} {
+		// An unset --runtimes stays unset rather than naming the working directory.
+		if path == "" {
+			continue
+		}
 		if *target, err = filepath.Abs(path); err != nil {
 			return err
 		}

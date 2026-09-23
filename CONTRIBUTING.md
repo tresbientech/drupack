@@ -14,16 +14,17 @@ bash runtime/build-builder.sh gnu drupack-builder-gnu:local
 bash build/qa.sh
 ```
 
-`build/qa.sh` exports both runtimes to `dist/runtimes`, builds the `job` image, runs `drupack-build` inside it, then runs the tests. Run by hand, the build step reads:
+`build/qa.sh` builds the `job` image, runs `drupack-build` inside it, then runs the tests. The image carries this architecture's two runtimes under `/opt/drupack/runtimes`, one `PLATFORM-LIBC` directory each, so the build names none. Run by hand, the build step reads:
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
     drupack-build --site examples/mercury-demo --platform linux-amd64 --libc both \
-    --runtime linux-amd64/glibc=dist/runtimes/glibc/out --runtime linux-amd64/musl=dist/runtimes/musl/out \
     --output dist --work dist/work
 ```
 
-`--libc glibc` or `--libc musl` packs one runtime instead of both. `drupack-build -help` lists every option.
+`--libc glibc` or `--libc musl` packs one runtime instead of both. `--runtime PLATFORM/LIBC=DIRECTORY` replaces one carried runtime with a local one. `drupack-build -help` lists every option.
+
+A release tag publishes the image as `ghcr.io/tresbientech/drupack-build:VERSION`, carrying all four Linux runtimes. The image itself runs on amd64 only.
 
 The release workflow names the same image after its inputs. `runtime/builder-tag.sh` digests the FrankenPHP commit, the PHP version, both extension list files, the C library and the machine type, and the workflow pulls `ghcr.io/tresbientech/drupack-builder` under that tag. A run whose inputs are unchanged pulls the published image; a run that changes one builds the image and publishes it under the new tag. `runtime/builder-inputs.sh` holds the version pins both scripts read.
 

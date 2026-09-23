@@ -199,34 +199,56 @@ jobs:
   # The application is PHP source, vendor, translations and a seeded database.
   # None of it depends on a platform, so every executable packs this one build.
   # drupack-build makes it in the job image, whose PHP is the amd64 musl runtime.
+  # A tag run pushes that image under the commit, and the publish job names it
+  # after the version once every platform passed.
   payload:
     name: payload
     needs: [gate, linux-runtime]
     if: needs.gate.outputs.build == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/download-artifact@v7
         with:
-          name: runtime-linux-amd64-musl
-          path: runtime-musl
+          pattern: runtime-linux-*
+          path: runtime-artifacts
 
-      # The runtime job's export stands in for the runtime-musl stage, so no
-      # builder image is pulled here.
+      # The runtime jobs' exports stand in for the runtimes stage, so no builder
+      # image is pulled here. A tag run built all four.
       - name: Build the job image
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
-          chmod +x runtime-musl/out/drupack
-          docker build --target job --build-context runtime-musl=runtime-musl \
+          mkdir runtimes
+          for artifact in runtime-artifacts/runtime-linux-*; do
+            target=${artifact#runtime-artifacts/runtime-}
+            # The runtime jobs name the glibc build gnu, after its builder image.
+            case "$target" in *-gnu) target=${target%-gnu}-glibc ;; esac
+            mv "$artifact/out" "runtimes/$target"
+          done
+          chmod +x runtimes/*/drupack
+          ls runtimes
+          docker build --target job --build-context runtimes=runtimes \
             --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-job .
 
       - name: Export the application payload
         run: |
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
             drupack-build --site examples/mercury-demo --payload-only --output dist
+
+      - name: Push the job image under this commit
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker tag drupack-job "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA"
+          docker push "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -314,7 +336,7 @@ jobs:
           fi
           DRUPACK_LIBC=musl dist/drupack --data-dir "$RUNNER_TEMP/musl-site" \
             --admin-user musl-admin --admin-password Musl.check.password.2026 --no-browser &
-          for attempt in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             if curl -fsS -o /dev/null http://127.0.0.1:7225/user/login; then
               exit 0
             fi
@@ -328,7 +350,7 @@ jobs:
             --mount type=bind,src="$PWD/dist/drupack",dst=/usr/local/bin/drupack,readonly \
             alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d \
             drupack --data-dir /tmp/site --admin-user alpine-admin --admin-password Alpine.check.password.2026
-          for attempt in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             if docker exec alpine-site wget -q -O /dev/null http://127.0.0.1:7225/user/login 2>/dev/null; then
               exit 0
             fi
@@ -497,6 +519,7 @@ jobs:
       attestations: write
       contents: write
       id-token: write
+      packages: write
     env:
       GH_TOKEN: ${{ github.token }}
       VERSION: ${{ github.ref_name }}
@@ -546,6 +569,13 @@ jobs:
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: release/*
+
+      # Site builds pull the job image by the engine's version.
+      - name: Name the job image after the version
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx imagetools create --tag "ghcr.io/$GITHUB_REPOSITORY-build:$VERSION" \
+            "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA"
 
       - name: Publish the GitHub Release
         run: |
