@@ -46,7 +46,6 @@ Chores:
 
 - Delete the two scratch repositories named above once no test needs them.
 - Delete the stray `/tmp/.git`.
-- The development loop in `build/dev/` has not run since phase 5 changed the runtime paths.
 
 The run log with every ruling is `.superpowers/sdd/build-any-recipe-site-ledger.md`,
 which is local to this checkout and not committed.
