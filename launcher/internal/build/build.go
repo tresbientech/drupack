@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
@@ -116,7 +117,7 @@ func NewPlan(r Request) (Plan, error) {
 	// The runtime reads php.ini beside itself only through PHPRC.
 	phpEnv := []string{"PHPRC=" + filepath.Dir(r.PHP), "DRUPACK_CA_FILE=" + filepath.Join(r.Engine, "application", "cacert.pem")}
 	plan := Plan{Steps: []Step{
-		{Name: "stage the site", Func: func() error { return stageSite(r.SiteDir, application) }},
+		{Name: "stage the site", Func: func() error { return stageSite(r.SiteDir, application, r.Output, r.Work) }},
 		{Name: "write site.json", Func: func() error { return siteconfig.Write(r.Site, application) }},
 		{Name: "install the Composer project", Dir: application, Env: phpEnv,
 			Command: append(append([]string{}, php...), r.Composer, "install", "--no-dev", "--prefer-dist", "--no-interaction", "--optimize-autoloader")},
@@ -193,8 +194,9 @@ func Run(plan Plan, log io.Writer) error {
 
 // stageSite copies the site into the application directory. In a git checkout
 // it copies what git tracks or would track, which leaves out the vendor, web
-// and recipes directories a local composer install writes.
-func stageSite(site, application string) error {
+// and recipes directories a local composer install writes. It leaves out the
+// build directories too, which may sit inside the site.
+func stageSite(site, application string, builds ...string) error {
 	if err := os.RemoveAll(application); err != nil {
 		return err
 	}
@@ -203,17 +205,30 @@ func stageSite(site, application string) error {
 		return err
 	}
 	for _, relative := range files {
-		if err := copyFile(filepath.Join(site, relative), filepath.Join(application, relative)); err != nil {
+		path := filepath.Join(site, relative)
+		if slices.ContainsFunc(builds, func(directory string) bool { return within(path, directory) }) {
+			continue
+		}
+		if err := copyFile(path, filepath.Join(application, relative)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+func within(path, directory string) bool {
+	relative, err := filepath.Rel(directory, path)
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+}
+
+// siteFiles lists the site's files relative to it. Only a site outside any git
+// checkout is walked: a walk of a checkout would copy .git, whose config can
+// hold the CI's credentials, into the executable.
 func siteFiles(site string) ([]string, error) {
 	listing := exec.Command("git", "ls-files", "--cached", "--others", "--exclude-standard", "-z")
 	listing.Dir = site
-	if out, err := listing.Output(); err == nil {
+	out, err := listing.Output()
+	if err == nil {
 		var files []string
 		for _, name := range strings.Split(strings.TrimRight(string(out), "\x00"), "\x00") {
 			if name == "" {
@@ -226,8 +241,15 @@ func siteFiles(site string) ([]string, error) {
 		}
 		return files, nil
 	}
+	if inCheckout(site) {
+		var stderr []byte
+		if exit, ok := err.(*exec.ExitError); ok {
+			stderr = exit.Stderr
+		}
+		return nil, fmt.Errorf("git ls-files in %s: %w: %s", site, err, strings.TrimSpace(string(stderr)))
+	}
 	var files []string
-	err := filepath.WalkDir(site, func(path string, entry os.DirEntry, err error) error {
+	err = filepath.WalkDir(site, func(path string, entry os.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
 			return err
 		}
@@ -236,6 +258,20 @@ func siteFiles(site string) ([]string, error) {
 		return err
 	})
 	return files, err
+}
+
+// inCheckout reports whether directory or one above it holds a .git entry.
+func inCheckout(directory string) bool {
+	for {
+		if _, err := os.Lstat(filepath.Join(directory, ".git")); err == nil {
+			return true
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			return false
+		}
+		directory = parent
+	}
 }
 
 // layEngine copies the engine's application files over the site, which win over

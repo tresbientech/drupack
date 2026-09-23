@@ -232,6 +232,64 @@ func TestStagingAGitSiteLeavesOutWhatGitIgnores(t *testing.T) {
 	}
 }
 
+func TestStagingLeavesOutTheBuildsOwnDirectories(t *testing.T) {
+	site := t.TempDir()
+	for name, content := range map[string]string{
+		"composer.json": "{}", "dist/acme-linux-amd64": "an earlier build", "work/app/composer.json": "{}",
+	} {
+		path := filepath.Join(site, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out, err := gitInit(site); err != nil {
+		t.Skipf("git is unavailable: %v %s", err, out)
+	}
+	r := request([]string{"linux-amd64"}, "both")
+	r.SiteDir = site
+	r.Output = filepath.Join(site, "dist")
+	r.Work = filepath.Join(t.TempDir(), "work")
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := step(t, plan, "stage the site").Func(); err != nil {
+		t.Fatal(err)
+	}
+	application := filepath.Join(r.Work, "app")
+	if _, err := os.Stat(filepath.Join(application, "composer.json")); err != nil {
+		t.Errorf("the site's composer.json was not staged: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(application, "dist")); !os.IsNotExist(err) {
+		t.Errorf("the output directory of an earlier build was staged")
+	}
+}
+
+func TestStagingACheckoutGitCannotListFails(t *testing.T) {
+	site := t.TempDir()
+	if err := os.WriteFile(filepath.Join(site, "composer.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A .git file that names no repository makes every git command in site fail.
+	if err := os.WriteFile(filepath.Join(site, ".git"), []byte("not a gitdir\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := request([]string{"linux-amd64"}, "both")
+	r.SiteDir = site
+	r.Work = t.TempDir()
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = step(t, plan, "stage the site").Func()
+	if err == nil || !strings.Contains(err.Error(), "git ls-files") {
+		t.Fatalf("staging a checkout git cannot list returned %v", err)
+	}
+}
+
 func gitInit(directory string) ([]byte, error) {
 	command := exec.Command("git", "init", "-q")
 	command.Dir = directory
