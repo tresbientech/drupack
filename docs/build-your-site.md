@@ -115,7 +115,7 @@ then takes the runtimes directory:
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/site" -v "$PWD/../runtimes:/runtimes" \
-    -w /site ghcr.io/tresbientech/drupack-build:0.3.0 \
+    -w /site ghcr.io/tresbientech/drupack-build:0.4.0 \
     drupack-build --site . --runtimes /runtimes --output dist
 ```
 
@@ -149,7 +149,7 @@ jobs:
       contents: write
       id-token: write
       attestations: write
-    uses: tresbientech/drupack/.github/workflows/build.yml@0.3.0
+    uses: tresbientech/drupack/.github/workflows/build.yml@0.4.0
     with:
       publish: true
     secrets:
@@ -190,7 +190,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/tresbientech/drupack-build:0.3.0
+      image: ghcr.io/tresbientech/drupack-build:0.4.0
     defaults:
       run:
         shell: bash
@@ -279,7 +279,7 @@ The build is one command in the job image, from the site repository's root:
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/site" -w /site -e COMPOSER_AUTH \
-    ghcr.io/tresbientech/drupack-build:0.3.0 \
+    ghcr.io/tresbientech/drupack-build:0.4.0 \
     drupack-build --site . --output dist
 ```
 
