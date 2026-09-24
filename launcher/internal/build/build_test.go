@@ -156,6 +156,54 @@ func TestTheSiteScriptsTakeTheSiteDocroot(t *testing.T) {
 	}
 }
 
+func TestASiteWithoutARecipeHasNoSeedStep(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Site.Recipe = ""
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"stage the site", "write site.json", "install the Composer project", "fetch translations",
+		"lay the engine over the site", "archive the application",
+		"write site.json beside the executables", "pack linux-amd64", "test linux-amd64",
+	}
+	if got := names(plan); !reflect.DeepEqual(got, want) {
+		t.Fatalf("steps = %v; want %v", got, want)
+	}
+}
+
+func TestTheEngineLaysTheSettingsStubInTheDocroot(t *testing.T) {
+	engine := t.TempDir()
+	for name, content := range map[string]string{
+		"application/launch.php": "<?php", "build/site-settings.php": "<?php // stub",
+		"build/site-templates.php": "<?php // templates",
+	} {
+		path := filepath.Join(engine, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := request([]string{"linux-amd64"}, "both")
+	r.Engine, r.Work = engine, t.TempDir()
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := step(t, plan, "lay the engine over the site").Func(); err != nil {
+		t.Fatal(err)
+	}
+	sites := filepath.Join(r.Work, "app", "docroot", "sites", "default")
+	for name, want := range map[string]string{"settings.php": "<?php // stub", "site-templates.php": "<?php // templates"} {
+		if content, err := os.ReadFile(filepath.Join(sites, name)); err != nil || string(content) != want {
+			t.Errorf("%s = %q, %v; want %q", name, content, err, want)
+		}
+	}
+}
+
 func TestTheSuiteTakesTheSiteTestsWhenTheSiteHasThem(t *testing.T) {
 	site := t.TempDir()
 	if err := os.Mkdir(filepath.Join(site, "tests"), 0o755); err != nil {

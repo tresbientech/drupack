@@ -4,7 +4,7 @@
 
 ## Status, 2026-09-24
 
-Branch `package-an-existing-site`, from `main` at `707fbb1`. Phases 1 and 2
+Branch `package-an-existing-site`, from `main` at `707fbb1`. Phases 1 to 3
 are done, each with `bash build/qa.sh` passing.
 
 ## Architectural decisions
@@ -76,11 +76,11 @@ recipe".
 
 ### Acceptance criteria
 
-- [ ] `cd launcher && go test ./...` passes, with a plan case that has no seed step.
-- [ ] `launch_test.php` passes, with a case for the SQLite refusal text.
-- [ ] A fixture site without a recipe builds, and the suite lists its skipped seed cases by name and exits 0.
-- [ ] A conformance case starts the fixture against a MySQL server holding an installed site and gets a 200 on `/`.
-- [ ] `bash build/qa.sh` passes.
+- [x] `cd launcher && go test ./...` passes, with a plan case that has no seed step.
+- [x] `launch_test.php` passes, with a case for the SQLite refusal text.
+- [x] A fixture site without a recipe builds, and the suite lists its skipped seed cases by name and exits 0.
+- [x] A conformance case starts the fixture against a MySQL server holding an installed site and gets a 200 on `/`.
+- [x] `bash build/qa.sh` passes.
 
 ---
 

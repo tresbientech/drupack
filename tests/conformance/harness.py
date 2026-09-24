@@ -98,6 +98,7 @@ def skip_report(skipped):
 
 
 DOCKER_SKIP = "needs a Docker daemon, which does not answer"
+RECIPE_SKIP = "the site has no recipe"
 _docker_answers = None
 
 
@@ -170,6 +171,8 @@ WAIT_TABLE = [
     # No product deadline: a first start installing into a live MySQL or PostgreSQL server,
     # slower than a local sqlite start; budget carried over from tests/server-database.sh.
     Wait("database_start", 600, None, "a start serving /user/login against a MySQL or PostgreSQL server"),
+    # No product deadline: Drush installing a core profile into a live MySQL server.
+    Wait("database_install", 600, None, "Drush installing a site into a MySQL or PostgreSQL server"),
     # No product deadline: budget for a network case's site container, including a debian
     # image pull, mirroring database_container's role for the server-database cases.
     Wait("network_container", 300, None, "starting a network case's site container, including a debian image pull"),
@@ -544,17 +547,45 @@ class Site:
             self._pty_thread.join(WAITS["stop"].seconds)
 
 
+def refuse(case, case_dir, name, *args):
+    """Run a start that bootstraps Drupal against a real database before refusing; return
+    its combined output. Every caller reaches that far, so this waits on the
+    bootstrap_refusal budget, not the shorter argument-refusal one.
+
+    A start asks who owns its address before it refuses anything, so each one gets a port of
+    its own here; the machine-global default would answer for whatever else holds it.
+    """
+    log = case_dir / f"{name}.log"
+    with open(log, "wb") as handle:
+        try:
+            result = run(
+                [str(BINARY), *args, "--listen", f"127.0.0.1:{pick_port()}"],
+                cwd=case_dir, stdout=handle, stderr=subprocess.STDOUT,
+                timeout=WAITS["bootstrap_refusal"].seconds,
+            )
+        except subprocess.TimeoutExpired:
+            case.fail(f"{name}: the start kept running instead of refusing within "
+                      f"{WAITS['bootstrap_refusal'].seconds}s: inspect {log}")
+    case.assertNotEqual(result.returncode, 0, f"{name}: the start succeeded instead of refusing: inspect {log}")
+    return log.read_text(errors="replace")
+
+
 class ConformanceCase(unittest.TestCase):
-    """Base for every case module: gates the class on its declared platforms and tools."""
+    """Base for every case module: gates the class on its declared platforms, tools and
+    whether it installs a site, which needs the site's recipe.
+    """
 
     PLATFORMS = ()
     TOOLS = ()
+    RECIPE = True
 
     @classmethod
     def setUpClass(cls):
         current = current_platform()
         if current not in cls.PLATFORMS:
             raise unittest.SkipTest(f"not marked for {current}")
+        if cls.RECIPE and not SITE["recipe"]:
+            raise unittest.SkipTest(RECIPE_SKIP)
         for tool in cls.TOOLS:
             # A CI runner without a daemon still runs every case that needs none.
             if tool == "docker" and not docker_answers():

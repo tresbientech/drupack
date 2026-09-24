@@ -93,7 +93,7 @@ func validate(site Site) error {
 	if site.Port < 1 || site.Port > 65535 {
 		return fieldError("port", "%d is outside 1 to 65535", site.Port)
 	}
-	if !relativePathRe.MatchString(site.Recipe) || hasParentSegment(site.Recipe) {
+	if site.Recipe != "" && (!relativePathRe.MatchString(site.Recipe) || hasParentSegment(site.Recipe)) {
 		return fieldError("recipe", "%q must be a relative path inside the project", site.Recipe)
 	}
 	if strings.TrimSpace(site.SiteName) == "" || strings.ContainsFunc(site.SiteName, isControl) {

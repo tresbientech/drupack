@@ -448,6 +448,15 @@ function requireDatabaseOptions(array $options, array $steps): void
     }
 }
 
+// A site built without a recipe ships no seed, so a SQLite first start has nothing to copy.
+function requireSeed(array $steps, array $site): void
+{
+    if (in_array('seed', $steps, true) && $site['recipe'] === '') {
+        throw new RuntimeException(executableName() . ' has no recipe to seed a SQLite site. '
+            . 'Start it with --database mysql or --database pgsql and the connection details of the database that holds its site.');
+    }
+}
+
 // One start at a time initializes a Site data directory. The resolved path gives equivalent paths one lock.
 function databasePort(array $options): string
 {
@@ -713,6 +722,10 @@ function installSite(string $data, array $options, string $binary, bool $firstEv
         fwrite(STDOUT, "This database already holds a site. " . executableName() . " enabled nothing on it, and keeps its own administrator account.\n");
         return true;
     }
+    if (siteSettings()['recipe'] === '') {
+        throw new RuntimeException("The database for $data holds no installed site, and " . executableName()
+            . " has no recipe to install one. Name the database that holds its site, then start " . executableName() . " again.");
+    }
     if (databaseHoldsTables($options)) {
         throw new RuntimeException("The database for $data holds tables without an installed site. Empty it or name another database, then start " . executableName() . " again.");
     }
@@ -901,6 +914,7 @@ try {
         $options = recordedListener($options, $options['data-dir']);
     } else {
         $steps = remainingSteps($options['data-dir'], $options['database']);
+        requireSeed($steps, siteSettings());
         $options = administratorCredentials($options, $steps);
     }
     $options['listen'] ??= '127.0.0.1:' . siteSettings()['port'];

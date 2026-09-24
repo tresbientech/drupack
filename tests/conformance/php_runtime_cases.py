@@ -71,6 +71,7 @@ class RuntimeConfiguration(harness.ConformanceCase):
     """The shipped php.ini and trust bundle, probed with no site started."""
 
     PLATFORMS = (harness.LINUX, harness.WINDOWS, harness.MACOS)
+    RECIPE = False
 
     @classmethod
     def setUpClass(cls):
@@ -139,6 +140,7 @@ class RuntimeTrustOnline(harness.ConformanceCase):
     """
 
     PLATFORMS = (harness.LINUX, harness.WINDOWS, harness.MACOS)
+    RECIPE = False
 
     @classmethod
     def setUpClass(cls):

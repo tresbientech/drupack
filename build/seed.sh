@@ -35,5 +35,4 @@ if [ -n "$unrunnable" ]; then
     drush pm:uninstall $unrunnable --yes
 fi
 mv "$docroot/sites/default/files" "$application/seed/files"
-printf '%s\n%s\n' '<?php' "require getenv('DRUPACK_RUNTIME_DATA_DIR') . DIRECTORY_SEPARATOR . 'settings.php';" \
-    > "$docroot/sites/default/settings.php"
+cp "$(dirname -- "${BASH_SOURCE[0]}")/site-settings.php" "$docroot/sites/default/settings.php"

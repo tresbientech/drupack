@@ -26,7 +26,7 @@ copied whole. In a checkout git cannot read, the build stops with git's error.
 
 ```yaml
 name: acme                 # executable name and cache directory, required
-recipe: recipes/acme_site  # the recipe the first start installs, required
+recipe: recipes/acme_site  # the recipe the build seeds and a first start installs
 site_name: Acme            # the site name the install sets, required
 port: 7225                 # the port the site listens on
 languages: [fr, de]        # translations the build fetches
@@ -41,6 +41,21 @@ runtimes in one file, and the executable picks one per host. The
 the GitHub workflow's inputs.
 
 A build writes `acme-linux-amd64` and `site.json` to its output directory.
+
+## A site without a recipe
+
+A site that leaves `recipe` out builds no seed. Its executable serves a MySQL
+or PostgreSQL database that already holds the site:
+
+```sh
+./acme-linux-amd64 --database mysql --db-host 127.0.0.1 --db-port 3306 \
+    --db-name acme --db-user acme --db-password PASSWORD
+```
+
+The first start keeps that site, enables nothing and keeps its administrator
+account. A SQLite start refuses, and so does a start on a database that holds
+no site. The build's conformance suite reports each case that needs a seed as
+skipped, with the reason "the site has no recipe".
 
 ## Private Composer packages
 

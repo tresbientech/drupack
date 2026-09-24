@@ -42,6 +42,16 @@ func TestParseKeepsEveryField(t *testing.T) {
 	}
 }
 
+func TestParseAcceptsASiteWithoutARecipe(t *testing.T) {
+	site, err := siteconfig.Parse([]byte("name: mysite\nsite_name: My Site\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if site.Recipe != "" {
+		t.Fatalf("recipe = %q; want none", site.Recipe)
+	}
+}
+
 func TestParseNamesTheRejectedField(t *testing.T) {
 	cases := map[string]struct {
 		content string
@@ -52,7 +62,6 @@ func TestParseNamesTheRejectedField(t *testing.T) {
 		"name with slash":     {"name: my/site\nrecipe: r\nsite_name: S\n", "name:"},
 		"port too high":       {minimal + "port: 70000\n", "port:"},
 		"negative port":       {minimal + "port: -1\n", "port:"},
-		"missing recipe":      {"name: mysite\nsite_name: S\n", "recipe:"},
 		"absolute recipe":     {"name: mysite\nrecipe: /etc\nsite_name: S\n", "recipe:"},
 		"escaping recipe":     {"name: mysite\nrecipe: recipes/../..\nsite_name: S\n", "recipe:"},
 		"recipe with space":   {"name: mysite\nrecipe: 'my recipe'\nsite_name: S\n", "recipe:"},

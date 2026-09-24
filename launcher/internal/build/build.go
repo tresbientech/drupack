@@ -115,10 +115,14 @@ func NewPlan(r Request) (Plan, error) {
 		{Name: "fetch translations", Env: append(phpEnv, "CURL_CA_BUNDLE="+filepath.Join(r.Engine, "application", "cacert.pem")),
 			Command: append(append([]string{}, php...), filepath.Join(r.Engine, "build", "install-translations.php"), application)},
 		{Name: "lay the engine over the site", Func: func() error { return layEngine(r.Engine, application, r.Site.Docroot) }},
-		{Name: "install the seed site", Env: phpEnv,
-			Command: []string{"bash", filepath.Join(r.Engine, "build", "seed.sh"), application, r.PHP, r.Site.Docroot, r.Site.Recipe}},
-		{Name: "archive the application", Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload, r.Site.Docroot}},
 	}}
+	// A site without a recipe ships no seed, and serves only a database that holds it.
+	if r.Site.Recipe != "" {
+		plan.Steps = append(plan.Steps, Step{Name: "install the seed site", Env: phpEnv,
+			Command: []string{"bash", filepath.Join(r.Engine, "build", "seed.sh"), application, r.PHP, r.Site.Docroot, r.Site.Recipe}})
+	}
+	plan.Steps = append(plan.Steps, Step{Name: "archive the application",
+		Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload, r.Site.Docroot}})
 	if r.PayloadOnly {
 		plan.Steps = append(plan.Steps, Step{Name: "export the payload", Func: func() error {
 			return exportPayload(payload, application, filepath.Join(r.Output, "payload"))
@@ -266,7 +270,8 @@ func inCheckout(directory string) bool {
 }
 
 // layEngine copies the engine's application files over the site, which win over
-// any file of the same name, then the installer's recipe catalog.
+// any file of the same name, then the site directory's settings and the
+// installer's recipe catalog.
 func layEngine(engine, application, docroot string) error {
 	source := filepath.Join(engine, "application")
 	err := filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
@@ -286,8 +291,16 @@ func layEngine(engine, application, docroot string) error {
 	if err != nil {
 		return err
 	}
-	return copyFile(filepath.Join(engine, "build", "site-templates.php"),
-		filepath.Join(application, docroot, "sites", "default", "site-templates.php"))
+	sites := filepath.Join(application, docroot, "sites", "default")
+	for source, destination := range map[string]string{
+		"site-settings.php":  "settings.php",
+		"site-templates.php": "site-templates.php",
+	} {
+		if err := copyFile(filepath.Join(engine, "build", source), filepath.Join(sites, destination)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // exportPayload puts the payload and its site.json where a later platform build reads them.

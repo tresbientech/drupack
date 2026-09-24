@@ -70,6 +70,7 @@ class ColdWarmStart(harness.ConformanceCase):
     """Case 1 (cold start) and case 2 (warm start), against one private cache."""
 
     PLATFORMS = (harness.LINUX, harness.WINDOWS)
+    RECIPE = False
 
     @classmethod
     def setUpClass(cls):
@@ -304,6 +305,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
     """
 
     PLATFORMS = (harness.WINDOWS,)
+    RECIPE = False
     TOOLS = ("go",)
 
     @classmethod
@@ -484,6 +486,7 @@ class CacheRootFull(harness.ConformanceCase):
     """Case 9: a cache root with no room for the runtime, run as a 4 MB tmpfs in a container."""
 
     PLATFORMS = (harness.LINUX,)
+    RECIPE = False
     TOOLS = ("docker",)
 
     @classmethod
@@ -541,6 +544,7 @@ class SiteNamedCaches(harness.ConformanceCase):
     """Two sites built on one engine keep their own cache roots, named after each site."""
 
     PLATFORMS = (harness.LINUX,)
+    RECIPE = False
     TOOLS = ("go",)
 
     def test_cleaning_one_site_leaves_the_other_unpacked(self):

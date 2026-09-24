@@ -209,6 +209,21 @@ test('an empty site data directory installs on a database server', function (): 
     same(true, file_exists(firstEverPath($data)), 'a fresh database is recorded before the install step');
 });
 
+test('a site without a recipe refuses a sqlite first start, naming both servers', function (): void {
+    foreach (['has no recipe to seed a SQLite site', '--database mysql', '--database pgsql'] as $needle) {
+        throws($needle, fn() => requireSeed(['seed', 'settings', 'administrator'], ['recipe' => '']));
+    }
+});
+
+test('a site without a recipe starts on a database server', function (): void {
+    requireSeed(['settings', 'install', 'modules'], ['recipe' => '']);
+    requireSeed(['adopt'], ['recipe' => '']);
+});
+
+test('a site with a recipe seeds sqlite', function (): void {
+    requireSeed(['seed', 'settings', 'administrator'], ['recipe' => 'recipes/fixture']);
+});
+
 test('sqlite needs no connection details', function (): void {
     $options = connection(['database' => 'sqlite', 'db-host' => null, 'db-name' => null,
         'db-user' => null, 'db-password' => null]);
