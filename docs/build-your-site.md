@@ -31,7 +31,14 @@ site_name: Acme            # the site name the install sets, required
 port: 7225                 # the port the site listens on
 languages: [fr, de]        # translations the build fetches
 smoke_paths: [/, /about]   # paths the suite expects a 200 from, / by default
+platforms: [linux-amd64]   # targets: linux-amd64, linux-arm64
+libc: both                 # C library of each runtime: both, glibc or musl
 ```
+
+`platforms` defaults to `[linux-amd64]` and `libc` to `both`. `both` packs two
+runtimes in one file, and the executable picks one per host. The
+`drupack-build` flags `--platform` and `--libc` override the file, and so do
+the GitHub workflow's inputs.
 
 A build writes `acme-linux-amd64` and `site.json` to its output directory.
 
@@ -64,8 +71,6 @@ jobs:
       attestations: write
     uses: tresbientech/drupack/.github/workflows/build.yml@0.3.0
     with:
-      platforms: linux-amd64,linux-arm64
-      libc: both
       publish: true
     secrets:
       COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
@@ -77,9 +82,8 @@ upgrade changes that one line. It needs `id-token: write` to read that ref.
 Inputs:
 
 - `site`: the site's directory, `.` by default.
-- `platforms`: `linux-amd64`, `linux-arm64`, or both comma-separated.
-- `libc`: `both`, `glibc` or `musl`. `both` packs two runtimes in one file,
-  and the executable picks one per host.
+- `platforms`: comma-separated targets, `drupack.yml`'s `platforms` when unset.
+- `libc`: `both`, `glibc` or `musl`, `drupack.yml`'s `libc` when unset.
 - `publish`: on a tag run, create a release.
 
 Every run uploads the executables as the `executables` artifact. With `publish`,
@@ -120,7 +124,7 @@ jobs:
           version=dev-${GITHUB_SHA:0:12}
           if [ "$GITHUB_REF_TYPE" = tag ]; then version=$GITHUB_REF_NAME; fi
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          drupack-build --site . --platform linux-amd64 --libc both --site-version "$version" \
+          drupack-build --site . --site-version "$version" \
             --output /tmp/drupack/dist --work /tmp/drupack/work
 
       - uses: actions/upload-artifact@v3
@@ -166,7 +170,7 @@ The build is one command in the job image, from the site repository's root:
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/site" -w /site -e COMPOSER_AUTH \
     ghcr.io/tresbientech/drupack-build:0.3.0 \
-    drupack-build --site . --platform linux-amd64 --libc both --output dist
+    drupack-build --site . --output dist
 ```
 
 A CI that runs jobs in a container image uses the image and runs the

@@ -14,24 +14,11 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
-// Libcs lists the values Request.Libc takes, and the runtimes each packs in the
-// order the launcher tries them: the one needing a host loader first.
-var Libcs = map[string][]string{
-	"both":  {"glibc", "musl"},
-	"glibc": {"glibc"},
-	"musl":  {"musl"},
-}
-
-// Platforms lists the targets this release builds.
-var Platforms = map[string]string{
-	"linux-amd64": "amd64",
-	"linux-arm64": "arm64",
-}
-
 // Request is one build: the site, what to build it for, and where the tools are.
 type Request struct {
-	SiteDir   string
-	Site      siteconfig.Site
+	SiteDir string
+	Site    siteconfig.Site
+	// Platforms and Libc override the site's own, each when set.
 	Platforms []string
 	Libc      string
 	// Runtimes maps "PLATFORM/LIBC" to a runtime directory.
@@ -81,16 +68,20 @@ func Executable(name, platform string) string {
 // The request comes from a site author's command line, so every refusal names
 // the value it refuses.
 func NewPlan(r Request) (Plan, error) {
-	runtimes, ok := Libcs[r.Libc]
+	// The site's values passed its parser, so only a flag's can be refused below.
+	if len(r.Platforms) == 0 {
+		r.Platforms = r.Site.Platforms
+	}
+	if r.Libc == "" {
+		r.Libc = r.Site.Libc
+	}
+	runtimes, ok := siteconfig.Libcs[r.Libc]
 	if !ok {
 		return Plan{}, fmt.Errorf("--libc %q is not one of both, glibc, musl", r.Libc)
 	}
 	resolved := map[string]string{}
-	if len(r.Platforms) == 0 {
-		return Plan{}, fmt.Errorf("--platform names no target")
-	}
 	for _, platform := range r.Platforms {
-		if _, ok := Platforms[platform]; !ok {
+		if _, ok := siteconfig.Platforms[platform]; !ok {
 			return Plan{}, fmt.Errorf("--platform %q is not built by this release, which builds linux-amd64 and linux-arm64", platform)
 		}
 		if r.PayloadOnly {
@@ -148,7 +139,7 @@ func NewPlan(r Request) (Plan, error) {
 			"-output", filepath.Join(r.Output, Executable(r.Site.Name, platform)),
 			"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
 			"-site", filepath.Join(application, siteconfig.OutputName), "-site-version", r.SiteVersion)
-		command = append(command, "-goarch", Platforms[platform])
+		command = append(command, "-goarch", siteconfig.Platforms[platform])
 		plan.Steps = append(plan.Steps, Step{Name: "pack " + platform, Command: command,
 			Dir: filepath.Join(r.Engine, "launcher"), Env: []string{"CGO_ENABLED=0"}})
 	}

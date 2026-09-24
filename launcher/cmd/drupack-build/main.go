@@ -39,8 +39,8 @@ func run() error {
 	runtimes := runtimeFlags{}
 	host := "linux-" + goruntime.GOARCH
 	site := flag.String("site", "", "the site's directory, holding composer.json and drupack.yml")
-	platforms := flag.String("platform", host, "comma-separated targets: linux-amd64, linux-arm64")
-	libc := flag.String("libc", "both", "the C library of each Linux runtime: both, glibc or musl")
+	platforms := flag.String("platform", "", "comma-separated targets: linux-amd64, linux-arm64, overriding drupack.yml's platforms")
+	libc := flag.String("libc", "", "the C library of each Linux runtime: both, glibc or musl, overriding drupack.yml's libc")
 	flag.Var(runtimes, "runtime", "a runtime directory, as PLATFORM/LIBC=DIRECTORY, repeated")
 	output := flag.String("output", "dist", "where the executables and site.json land")
 	work := flag.String("work", "", "where the application is built, a new temporary directory when unset")
@@ -72,8 +72,11 @@ func run() error {
 		}
 	}
 	request := build.Request{
-		Site: described, Platforms: strings.Split(*platforms, ","), Libc: *libc, Runtimes: runtimes,
+		Site: described, Libc: *libc, Runtimes: runtimes,
 		Host: host, EngineVersion: *engineVersion, SiteVersion: *siteVersion, PayloadOnly: *payloadOnly,
+	}
+	if *platforms != "" {
+		request.Platforms = strings.Split(*platforms, ",")
 	}
 	// Every step runs in its own directory, so each path is made absolute once here.
 	for target, path := range map[*string]string{

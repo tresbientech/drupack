@@ -5,10 +5,12 @@ package siteconfig
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
@@ -21,6 +23,20 @@ const FileName = "drupack.yml"
 // OutputName is the normalized form every other reader takes.
 const OutputName = "site.json"
 
+// Libcs lists the values libc takes, and the runtimes each packs in the order
+// the launcher tries them: the one needing a host loader first.
+var Libcs = map[string][]string{
+	"both":  {"glibc", "musl"},
+	"glibc": {"glibc"},
+	"musl":  {"musl"},
+}
+
+// Platforms lists the targets this release builds, and each one's GOARCH.
+var Platforms = map[string]string{
+	"linux-amd64": "amd64",
+	"linux-arm64": "arm64",
+}
+
 // Site is one site's contract. Its JSON tags are the site.json shape.
 type Site struct {
 	Name       string   `json:"name"`
@@ -30,14 +46,16 @@ type Site struct {
 	Languages  []string `json:"languages"`
 	SmokePaths []string `json:"smoke_paths"`
 	Extensions []string `json:"extensions"`
+	Platforms  []string `json:"platforms"`
+	Libc       string   `json:"libc"`
 	// Docroot comes from composer.json, not drupack.yml, so Parse leaves it empty.
 	Docroot string `json:"docroot"`
 }
 
 var (
-	languageRe = regexp.MustCompile(`^[a-z]{2,3}(-[a-z]+)?$`)
-	relativePathRe   = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_./-]*$`)
-	pathRe     = regexp.MustCompile(`^/[A-Za-z0-9_./~-]*$`)
+	languageRe     = regexp.MustCompile(`^[a-z]{2,3}(-[a-z]+)?$`)
+	relativePathRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_./-]*$`)
+	pathRe         = regexp.MustCompile(`^/[A-Za-z0-9_./~-]*$`)
 )
 
 // Parse reads drupack.yml content. The site author writes that file, so every
@@ -58,6 +76,12 @@ func Parse(content []byte) (Site, error) {
 	}
 	if site.Extensions == nil {
 		site.Extensions = []string{}
+	}
+	if site.Platforms == nil {
+		site.Platforms = []string{"linux-amd64"}
+	}
+	if site.Libc == "" {
+		site.Libc = "both"
 	}
 	return site, validate(site)
 }
@@ -88,6 +112,17 @@ func validate(site Site) error {
 	}
 	if len(site.Extensions) > 0 {
 		return fieldError("extensions", "site additions to the PHP extension list are not supported yet")
+	}
+	if len(site.Platforms) == 0 {
+		return fieldError("platforms", "names no target")
+	}
+	for _, platform := range site.Platforms {
+		if _, ok := Platforms[platform]; !ok {
+			return fieldError("platforms", "%q is not one of %s", platform, strings.Join(slices.Sorted(maps.Keys(Platforms)), ", "))
+		}
+	}
+	if _, ok := Libcs[site.Libc]; !ok {
+		return fieldError("libc", "%q is not one of %s", site.Libc, strings.Join(slices.Sorted(maps.Keys(Libcs)), ", "))
 	}
 	return nil
 }

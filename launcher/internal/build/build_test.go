@@ -15,8 +15,9 @@ import (
 
 func request(platforms []string, libc string) build.Request {
 	return build.Request{
-		SiteDir:   "/site",
-		Site:      siteconfig.Site{Name: "acme", Recipe: "recipes/acme", Docroot: "docroot"},
+		SiteDir: "/site",
+		Site: siteconfig.Site{Name: "acme", Recipe: "recipes/acme", Docroot: "docroot",
+			Platforms: []string{"linux-arm64"}, Libc: "musl"},
 		Platforms: platforms,
 		Libc:      libc,
 		Runtimes: map[string]string{
@@ -103,6 +104,32 @@ func TestEveryPlatformIsPackedAndOnlyTheHostIsTested(t *testing.T) {
 	test := step(t, plan, "test linux-amd64").Command
 	if test[2] != filepath.Join("/out", "acme-linux-amd64") {
 		t.Errorf("the suite runs %q; want the amd64 executable", test[2])
+	}
+}
+
+func TestTheSiteTargetsApplyWhereNoFlagIsSet(t *testing.T) {
+	plan, err := build.NewPlan(request(nil, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := runtimeFlags(step(t, plan, "pack linux-arm64").Command), []string{"musl=/rt/arm64-musl"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("packs %v; want the site's musl runtime: %v", got, want)
+	}
+	if slices.Contains(names(plan), "pack linux-amd64") {
+		t.Errorf("steps = %v; want the site's linux-arm64 alone", names(plan))
+	}
+}
+
+func TestFlagsBeatTheSiteTargets(t *testing.T) {
+	plan, err := build.NewPlan(request([]string{"linux-amd64"}, "glibc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := runtimeFlags(step(t, plan, "pack linux-amd64").Command), []string{"glibc=/rt/amd64-glibc"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("packs %v; want the flags' glibc runtime: %v", got, want)
+	}
+	if slices.Contains(names(plan), "pack linux-arm64") {
+		t.Errorf("steps = %v; want the flag's linux-amd64 alone", names(plan))
 	}
 }
 
@@ -196,7 +223,6 @@ func TestRefusalsNameTheValueTheyRefuse(t *testing.T) {
 		"macOS":        {request([]string{"macos-arm64"}, "both"), `"macos-arm64"`},
 		"Windows":      {request([]string{"linux-amd64", "windows-amd64"}, "both"), `"windows-amd64"`},
 		"unknown libc": {request([]string{"linux-amd64"}, "gnu"), `"gnu"`},
-		"no platform":  {request(nil, "both"), "--platform"},
 		"missing runtime": {func() build.Request {
 			r := request([]string{"linux-arm64"}, "glibc")
 			delete(r.Runtimes, "linux-arm64/glibc")

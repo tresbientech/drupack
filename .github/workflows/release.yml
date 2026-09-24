@@ -268,8 +268,6 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       site: examples/mercury-demo
-      platforms: linux-amd64
-      libc: both
 
   linux:
     name: Linux ${{ matrix.arch }}

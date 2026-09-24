@@ -4,9 +4,8 @@
 
 ## Status, 2026-09-24
 
-Branch `package-an-existing-site`, from `main` at `707fbb1`. Phase 1 is done:
-`bash build/qa.sh` passed, and a `docroot/` fixture built and passed its suite
-in the job image.
+Branch `package-an-existing-site`, from `main` at `707fbb1`. Phases 1 and 2
+are done, each with `bash build/qa.sh` passing.
 
 ## Architectural decisions
 
@@ -57,11 +56,11 @@ their defaults, and an empty input means the file's value.
 
 ### Acceptance criteria
 
-- [ ] `cd launcher && go test ./...` passes, with parser cases for each field's valid and refused values and plan cases showing a flag beats the file.
-- [ ] `drupack-build --site examples/mercury-demo` with no target flag builds what Mercury's `drupack.yml` names.
-- [ ] `actionlint .github/workflows/*.yml` reports nothing.
-- [ ] `docs/build-your-site.md` lists both fields and the override order.
-- [ ] `bash build/qa.sh` passes.
+- [x] `cd launcher && go test ./...` passes, with parser cases for each field's valid and refused values and plan cases showing a flag beats the file.
+- [x] `drupack-build --site examples/mercury-demo` with no target flag builds what Mercury's `drupack.yml` names.
+- [x] `actionlint .github/workflows/*.yml` reports nothing.
+- [x] `docs/build-your-site.md` lists both fields and the override order.
+- [x] `bash build/qa.sh` passes.
 
 ---
 

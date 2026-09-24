@@ -21,6 +21,7 @@ func TestParseFillsDefaults(t *testing.T) {
 	want := siteconfig.Site{
 		Name: "mysite", Port: 7225, Recipe: "recipes/my_site", SiteName: "My Site",
 		Languages: []string{}, SmokePaths: []string{"/"}, Extensions: []string{},
+		Platforms: []string{"linux-amd64"}, Libc: "both",
 	}
 	if !reflect.DeepEqual(site, want) {
 		t.Fatalf("Parse(minimal) = %+v; want %+v", site, want)
@@ -28,13 +29,15 @@ func TestParseFillsDefaults(t *testing.T) {
 }
 
 func TestParseKeepsEveryField(t *testing.T) {
-	content := minimal + "port: 7300\nlanguages: [fr, zh-hans]\nsmoke_paths: [/, /about]\n"
+	content := minimal + "port: 7300\nlanguages: [fr, zh-hans]\nsmoke_paths: [/, /about]\n" +
+		"platforms: [linux-amd64, linux-arm64]\nlibc: musl\n"
 	site, err := siteconfig.Parse([]byte(content))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if site.Port != 7300 || !reflect.DeepEqual(site.Languages, []string{"fr", "zh-hans"}) ||
-		!reflect.DeepEqual(site.SmokePaths, []string{"/", "/about"}) {
+		!reflect.DeepEqual(site.SmokePaths, []string{"/", "/about"}) ||
+		!reflect.DeepEqual(site.Platforms, []string{"linux-amd64", "linux-arm64"}) || site.Libc != "musl" {
 		t.Fatalf("Parse kept %+v", site)
 	}
 }
@@ -61,6 +64,10 @@ func TestParseNamesTheRejectedField(t *testing.T) {
 		"relative smoke path": {minimal + "smoke_paths: [about]\n", "smoke_paths:"},
 		"escaping smoke path": {minimal + "smoke_paths: [/a/../../b]\n", "smoke_paths:"},
 		"extension additions": {minimal + "extensions: [gmp]\n", "extensions:"},
+		"no platform":         {minimal + "platforms: []\n", "platforms:"},
+		"macOS platform":      {minimal + "platforms: [linux-amd64, macos-arm64]\n", "platforms:"},
+		"comma platforms":     {minimal + "platforms: linux-amd64,linux-arm64\n", "platforms"},
+		"unknown libc":        {minimal + "libc: gnu\n", "libc:"},
 		"unknown field":       {minimal + "colour: blue\n", "colour"},
 	}
 	for label, c := range cases {
@@ -139,6 +146,7 @@ func TestWriteProducesTheSiteJSONShape(t *testing.T) {
 	want := map[string]any{
 		"name": "mysite", "port": float64(7225), "recipe": "recipes/my_site", "site_name": "My Site",
 		"languages": []any{"fr"}, "smoke_paths": []any{"/"}, "extensions": []any{}, "docroot": "docroot",
+		"platforms": []any{"linux-amd64"}, "libc": "both",
 	}
 	if !reflect.DeepEqual(written, want) {
 		t.Fatalf("site.json = %v; want %v", written, want)
