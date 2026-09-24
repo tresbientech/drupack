@@ -4,8 +4,8 @@
 
 ## Status, 2026-09-24
 
-Branch `package-an-existing-site`, from `main` at `707fbb1`. All six phases
-are done, each with `bash build/qa.sh` passing. Phase 6 ran on the client's
+Merged into `main` on 2026-09-24, from branch `package-an-existing-site`. All
+six phases are done, each with `bash build/qa.sh` passing. Phase 6 ran on the client's
 prod release tag and a daily prod database backup imported into DDEV. The
 code-rules and design audits ran on the branch, and their must-fix items are
 fixed.
