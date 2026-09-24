@@ -12,6 +12,9 @@ ARG GNU_BUILDER=drupack-builder-gnu:local
 # context, so the release sets this to a name no stage has and passes that name
 # as --build-context NAME=DIRECTORY.
 ARG RUNTIMES=local-runtimes
+# The extension list a runtime links. build/site-runtimes.sh sets this to a build
+# context holding the engine list merged with a site's additions, as RUNTIMES does.
+ARG EXTENSIONS=engine-extensions
 # The job image runs drupack-build: Go for the packer and the launcher, Python for
 # the conformance suite, and GNU tar for the payload's fixed archive options. It is
 # a glibc host, the only kind that runs both runtimes, so a build of either libc
@@ -29,10 +32,16 @@ ARG NODE_IMAGE=node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419
 # f66dff1bdf8f96060b8177976f8b7d9254bc89bc4db933d769f7384d28480bc9, 121
 # certificates. A refresh replaces the file and that checksum in one commit;
 # no build fetches it.
+FROM scratch AS engine-extensions
+COPY runtime/php-extensions.txt /php-extensions.txt
+
+FROM ${EXTENSIONS} AS extensions
+
 FROM ${MUSL_BUILDER} AS runtime-musl
 ARG DRUPACK_VERSION
 COPY runtime/embed.sh /usr/local/bin/embed.sh
-COPY runtime/php-extensions.txt runtime/php-extension-libs.txt runtime/extensions-list.sh /build/
+COPY runtime/php-extension-libs.txt runtime/extensions-list.sh /build/
+COPY --from=extensions /php-extensions.txt /build/php-extensions.txt
 COPY runtime/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
 RUN bash /usr/local/bin/embed.sh
 COPY application/php.ini application/cacert.pem /out/
@@ -40,7 +49,8 @@ COPY application/php.ini application/cacert.pem /out/
 FROM ${GNU_BUILDER} AS runtime-gnu
 ARG DRUPACK_VERSION
 COPY runtime/embed.sh /usr/local/bin/embed.sh
-COPY runtime/php-extensions.txt runtime/php-extension-libs.txt runtime/extensions-list.sh /build/
+COPY runtime/php-extension-libs.txt runtime/extensions-list.sh /build/
+COPY --from=extensions /php-extensions.txt /build/php-extensions.txt
 COPY runtime/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
 RUN bash /usr/local/bin/embed.sh
 COPY application/php.ini application/cacert.pem /out/
@@ -86,7 +96,7 @@ COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY application /opt/drupack/engine/application
 COPY build /opt/drupack/engine/build
 COPY launcher /opt/drupack/engine/launcher
-COPY runtime/php-extensions.txt /opt/drupack/engine/runtime/php-extensions.txt
+COPY runtime/php-extensions.txt runtime/check-extensions.py /opt/drupack/engine/runtime/
 COPY tests /opt/drupack/engine/tests
 # The packer builds the launcher from this module on every run, so its modules are
 # fetched once here and the build runs as whichever user the CI host picks.

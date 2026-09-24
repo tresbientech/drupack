@@ -30,14 +30,15 @@ func TestParseFillsDefaults(t *testing.T) {
 
 func TestParseKeepsEveryField(t *testing.T) {
 	content := minimal + "port: 7300\nlanguages: [fr, zh-hans]\nsmoke_paths: [/, /about]\n" +
-		"platforms: [linux-amd64, linux-arm64]\nlibc: musl\n"
+		"platforms: [linux-amd64, linux-arm64]\nlibc: musl\nextensions: [xmlwriter, pdo_sqlsrv]\n"
 	site, err := siteconfig.Parse([]byte(content))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if site.Port != 7300 || !reflect.DeepEqual(site.Languages, []string{"fr", "zh-hans"}) ||
 		!reflect.DeepEqual(site.SmokePaths, []string{"/", "/about"}) ||
-		!reflect.DeepEqual(site.Platforms, []string{"linux-amd64", "linux-arm64"}) || site.Libc != "musl" {
+		!reflect.DeepEqual(site.Platforms, []string{"linux-amd64", "linux-arm64"}) || site.Libc != "musl" ||
+		!reflect.DeepEqual(site.Extensions, []string{"xmlwriter", "pdo_sqlsrv"}) {
 		t.Fatalf("Parse kept %+v", site)
 	}
 }
@@ -72,7 +73,9 @@ func TestParseNamesTheRejectedField(t *testing.T) {
 		"language path":       {minimal + "languages: ['../fr']\n", "languages:"},
 		"relative smoke path": {minimal + "smoke_paths: [about]\n", "smoke_paths:"},
 		"escaping smoke path": {minimal + "smoke_paths: [/a/../../b]\n", "smoke_paths:"},
-		"extension additions": {minimal + "extensions: [gmp]\n", "extensions:"},
+		"extension path":      {minimal + "extensions: [../gmp]\n", "extensions:"},
+		"extension list":      {minimal + "extensions: ['gmp,intl']\n", "extensions:"},
+		"uppercase extension": {minimal + "extensions: [GMP]\n", "extensions:"},
 		"absolute settings":   {minimal + "settings: /etc/acme.php\n", "settings:"},
 		"escaping settings":   {minimal + "settings: ../acme.php\n", "settings:"},
 		"no platform":         {minimal + "platforms: []\n", "platforms:"},

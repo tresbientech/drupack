@@ -83,7 +83,7 @@ func TestEveryPlatformIsPackedAndOnlyTheHostIsTested(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		"stage the site", "write site.json", "install the Composer project", "fetch translations",
+		"check the PHP extensions", "stage the site", "write site.json", "install the Composer project", "fetch translations",
 		"lay the engine over the site", "install the seed site", "archive the application",
 		"write site.json beside the executables", "pack linux-amd64", "pack linux-arm64", "test linux-amd64",
 	}
@@ -164,7 +164,7 @@ func TestASiteWithoutARecipeHasNoSeedStep(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		"stage the site", "write site.json", "install the Composer project", "fetch translations",
+		"check the PHP extensions", "stage the site", "write site.json", "install the Composer project", "fetch translations",
 		"lay the engine over the site", "archive the application",
 		"write site.json beside the executables", "pack linux-amd64", "test linux-amd64",
 	}
@@ -341,6 +341,25 @@ func TestStagingRefusesASettingsFileGitIgnores(t *testing.T) {
 	}
 	if err := step(t, plan, "stage the site").Func(); err == nil || !strings.Contains(err.Error(), `"acme.settings.php"`) {
 		t.Fatalf("staging error = %v; want one naming the ignored settings file", err)
+	}
+}
+
+func TestTheExtensionCheckTakesTheSiteAdditions(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Site.Extensions = []string{"xmlwriter", "gmp"}
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	install := step(t, plan, "install the Composer project").Command
+	for _, extension := range r.Site.Extensions {
+		if !slices.Contains(install, "--ignore-platform-req=ext-"+extension) {
+			t.Errorf("composer install %v does not skip the build PHP's check of %s", install, extension)
+		}
+	}
+	check := step(t, plan, "check the PHP extensions").Command
+	if got := strings.Join(check[len(check)-2:], " "); got != "/site --extensions=xmlwriter,gmp" {
+		t.Fatalf("the check command ends %q", got)
 	}
 }
 

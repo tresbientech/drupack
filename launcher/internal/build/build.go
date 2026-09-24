@@ -107,7 +107,15 @@ func NewPlan(r Request) (Plan, error) {
 	php := []string{r.PHP, "php-cli"}
 	// The runtime reads php.ini beside itself only through PHPRC.
 	phpEnv := []string{"PHPRC=" + filepath.Dir(r.PHP), "DRUPACK_CA_FILE=" + filepath.Join(r.Engine, "application", "cacert.pem")}
+	install := append(append([]string{}, php...), r.Composer, "install", "--no-dev", "--prefer-dist", "--no-interaction", "--optimize-autoloader")
+	// The build's PHP carries the engine list alone. The extension check and the
+	// runtimes the site's executables carry answer for the site's additions.
+	for _, extension := range r.Site.Extensions {
+		install = append(install, "--ignore-platform-req=ext-"+extension)
+	}
 	plan := Plan{Steps: []Step{
+		{Name: "check the PHP extensions", Command: []string{"python3", filepath.Join(r.Engine, "runtime", "check-extensions.py"),
+			r.SiteDir, "--extensions=" + strings.Join(r.Site.Extensions, ",")}},
 		{Name: "stage the site", Func: func() error {
 			if err := stageSite(r.SiteDir, application, r.Output, r.Work); err != nil {
 				return err
@@ -119,8 +127,7 @@ func NewPlan(r Request) (Plan, error) {
 			return nil
 		}},
 		{Name: "write site.json", Func: func() error { return siteconfig.Write(r.Site, application) }},
-		{Name: "install the Composer project", Dir: application, Env: phpEnv,
-			Command: append(append([]string{}, php...), r.Composer, "install", "--no-dev", "--prefer-dist", "--no-interaction", "--optimize-autoloader")},
+		{Name: "install the Composer project", Dir: application, Env: phpEnv, Command: install},
 		{Name: "fetch translations", Env: append(phpEnv, "CURL_CA_BUNDLE="+filepath.Join(r.Engine, "application", "cacert.pem")),
 			Command: append(append([]string{}, php...), filepath.Join(r.Engine, "build", "install-translations.php"), application)},
 		{Name: "lay the engine over the site", Func: func() error { return layEngine(r.Engine, application, r.Site.Docroot) }},

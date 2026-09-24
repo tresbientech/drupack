@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Fails when a site's composer.lock declares a PHP extension that
-runtime/php-extensions.txt omits.
+"""Fails when a site's composer.lock declares a PHP extension that neither
+runtime/php-extensions.txt nor the site's drupack.yml extensions name.
 
 static-php-cli reads the lock and reports the extensions its packages require.
-This compares that set against the allowlist and names the packages behind
-every extension the allowlist misses.
+This compares that set against the merged list and names the packages behind
+every extension it misses.
 """
 
 import argparse
@@ -53,9 +53,11 @@ def fetch_spc(work: Path) -> Path:
     found = hashlib.sha256(archive.read_bytes()).hexdigest()
     if found != digest:
         sys.exit(f"{archive_name} has checksum {found}, expected {digest}")
-    with tarfile.open(archive) as tar:
-        tar.extract("spc", work, filter="data")
+    # The archive's member names never become paths: the one binary is read out
+    # by name and written where this script chooses.
     binary = work / "spc"
+    with tarfile.open(archive) as tar:
+        binary.write_bytes(tar.extractfile("spc").read())
     binary.chmod(0o755)
     return binary
 
@@ -87,19 +89,22 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("site", type=Path, help="the site's composer project directory")
     parser.add_argument("--spc", type=Path, help="an spc binary to use instead of downloading one")
+    parser.add_argument("--extensions", default="", help="the site's additions, comma-separated")
     arguments = parser.parse_args()
 
     with tempfile.TemporaryDirectory() as directory:
         work = Path(directory)
         extensions = declared(arguments.spc or fetch_spc(work), work, arguments.site.resolve())
 
-    missing = sorted(set(extensions) - allowlist() - ALWAYS_COMPILED)
+    additions = {name for name in arguments.extensions.split(",") if name}
+    missing = sorted(set(extensions) - allowlist() - additions - ALWAYS_COMPILED)
     if missing:
-        print(f"{ALLOWLIST.relative_to(ROOT)} omits extensions the lock declares:", file=sys.stderr)
+        print(f"{ALLOWLIST.relative_to(ROOT)} and drupack.yml's extensions omit extensions the lock declares:",
+              file=sys.stderr)
         for extension in missing:
             print(f"  {extension}: {', '.join(declaring_packages(extension, arguments.site))}", file=sys.stderr)
         return 1
-    print(f"{len(extensions)} declared extensions, all in {ALLOWLIST.relative_to(ROOT)}")
+    print(f"{len(extensions)} declared extensions, all in {ALLOWLIST.relative_to(ROOT)} or drupack.yml's extensions")
     return 0
 
 

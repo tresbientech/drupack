@@ -55,6 +55,7 @@ type Site struct {
 }
 
 var (
+	extensionRe    = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 	languageRe     = regexp.MustCompile(`^[a-z]{2,3}(-[a-z]+)?$`)
 	relativePathRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_./-]*$`)
 	pathRe         = regexp.MustCompile(`^/[A-Za-z0-9_./~-]*$`)
@@ -115,8 +116,10 @@ func validate(site Site) error {
 			return fieldError("smoke_paths", "%q must be an absolute site path", path)
 		}
 	}
-	if len(site.Extensions) > 0 {
-		return fieldError("extensions", "site additions to the PHP extension list are not supported yet")
+	for _, extension := range site.Extensions {
+		if !extensionRe.MatchString(extension) {
+			return fieldError("extensions", "%q is not a PHP extension name", extension)
+		}
 	}
 	if len(site.Platforms) == 0 {
 		return fieldError("platforms", "names no target")

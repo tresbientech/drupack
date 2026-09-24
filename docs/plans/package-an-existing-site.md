@@ -4,7 +4,7 @@
 
 ## Status, 2026-09-24
 
-Branch `package-an-existing-site`, from `main` at `707fbb1`. Phases 1 to 4
+Branch `package-an-existing-site`, from `main` at `707fbb1`. Phases 1 to 5
 are done, each with `bash build/qa.sh` passing.
 
 ## Architectural decisions
@@ -113,13 +113,22 @@ The parser accepts `extensions`, each name checked against a pattern.
 builder image and writes the runtime directories. `builder-tag.sh` and
 `check-extensions.py` take the merged list.
 
+As built:
+
+- `site-runtimes.sh` compiles for the host's architecture only, and refuses
+  another target.
+- `drupack-build` runs `check-extensions.py` as its first step.
+- `composer install` skips the build PHP's check of each site extension.
+- The seed installs on the build PHP, so a recipe whose install needs a site
+  extension fails.
+
 ### Acceptance criteria
 
-- [ ] `cd launcher && go test ./...` passes, with parser cases for valid and refused extension names.
-- [ ] A fixture site with `extensions: [xmlwriter]` and `libc: glibc` compiles through `site-runtimes.sh`, and a rerun reuses the builder image.
-- [ ] `drupack-build --runtimes OUTPUT` on that fixture builds, and a conformance case asserts the executable loads `xmlwriter`.
-- [ ] A lock declaring an extension neither list names fails the build, naming it.
-- [ ] `bash build/qa.sh` passes.
+- [x] `cd launcher && go test ./...` passes, with parser cases for valid and refused extension names.
+- [x] A fixture site with `extensions: [xmlwriter]` and `libc: glibc` compiles through `site-runtimes.sh`, and a rerun reuses the builder image.
+- [x] `drupack-build --runtimes OUTPUT` on that fixture builds, and a conformance case asserts the executable loads `xmlwriter`.
+- [x] A lock declaring an extension neither list names fails the build, naming it.
+- [x] `bash build/qa.sh` passes.
 
 ---
 

@@ -64,10 +64,11 @@ ALWAYS_COMPILED = frozenset({
 
 
 def expected_extensions():
-    """The allowlist, under the names this platform's PHP reports them by."""
+    """The allowlist and the site's additions, under the names this platform's PHP
+    reports them by."""
+    listed = [line.split("#", 1)[0].strip() for line in ALLOWLIST.read_text().splitlines()]
     names = set()
-    for line in ALLOWLIST.read_text().splitlines():
-        name = line.split("#", 1)[0].strip()
+    for name in [*listed, *SITE["extensions"]]:
         if name and name not in _UNLOADABLE[current_platform()]:
             names.add(_REPORTED_AS.get(name, name))
     return frozenset(names)

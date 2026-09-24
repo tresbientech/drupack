@@ -34,6 +34,7 @@ languages: [fr, de]        # translations the build fetches
 smoke_paths: [/, /about]   # paths the suite expects a 200 from, / by default
 platforms: [linux-amd64]   # targets: linux-amd64, linux-arm64
 libc: both                 # C library of each runtime: both, glibc or musl
+extensions: [xmlwriter]    # PHP extensions the site adds to the engine's
 ```
 
 `settings` names a PHP file in the site. The build stops when the file is
@@ -60,6 +61,34 @@ The first start keeps that site, enables nothing and keeps its administrator
 account. A SQLite start refuses, and so does a start on a database that holds
 no site. The build's conformance suite reports each case that needs a seed as
 skipped, with the reason "the site has no recipe".
+
+## PHP extensions a site adds
+
+`runtime/php-extensions.txt` names the extensions every runtime carries. A site
+that needs another one lists it in `extensions`. The build stops when the lock
+declares an extension that neither list names, and names the packages behind
+it.
+
+The published runtimes carry the engine list alone, so a site with additions
+compiles its own on a Docker host, from an engine checkout:
+
+```sh
+bash build/site-runtimes.sh ../acme runtimes
+```
+
+The script compiles the targets `drupack.yml` names, for this host's
+architecture only. The first run builds one builder image per C library, which
+takes 20 to 25 minutes each, and a rerun with the same list reuses it. The build
+then takes the runtimes directory:
+
+```sh
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/site" -v "$PWD/../runtimes:/runtimes" \
+    -w /site ghcr.io/tresbientech/drupack-build:0.3.0 \
+    drupack-build --site . --runtimes /runtimes --output dist
+```
+
+A CI host with no Docker daemon, such as a drupal.org GitLab runner, cannot
+compile these runtimes.
 
 ## Private Composer packages
 
