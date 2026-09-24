@@ -20,7 +20,9 @@ The site repository can be private. The examples use a site named `acme`.
 The build copies into the executable every file git tracks or would track,
 except its own output and work directories. List credentials such as
 `auth.json` or `.env` in `.gitignore`. A site outside any git checkout is
-copied whole. In a checkout git cannot read, the build stops with git's error.
+copied whole. In a checkout git cannot read, the build stops with git's error. A link is copied as the
+file or directory it names when that lies inside the site. A link that points
+elsewhere is left out, and the build log names it.
 
 `drupack.yml` fields:
 

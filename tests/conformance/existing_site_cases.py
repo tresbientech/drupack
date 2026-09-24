@@ -73,6 +73,9 @@ class ExistingSiteAdoption(harness.ConformanceCase):
         installed = self.drush(installer, "site:install", "minimal", "--yes", f"--site-name={SITE_NAME}",
                                f"--account-name={ADMIN_USER}", f"--account-pass={harness.DATABASE_PASSWORD}")
         self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
+        # Hosted sites often block uid 1, which leaves a start no one-time link to mint.
+        blocked = self.drush(installer, "user:block", ADMIN_USER)
+        self.assertEqual(blocked.returncode, 0, blocked.stdout + blocked.stderr)
         enabled = self.drush(installer, "pm:list", "--status=enabled", "--format=json")
         self.assertEqual(enabled.returncode, 0, enabled.stderr)
         return sorted(json.loads(enabled.stdout))
@@ -93,7 +96,9 @@ class ExistingSiteAdoption(harness.ConformanceCase):
             self.assertEqual(site.fetch("/")[0], 200)
         finally:
             site.stop()
-        self.assertIn("This database already holds a site", site.log_path.read_text(errors="replace"))
+        log = site.log_path.read_text(errors="replace")
+        self.assertIn("This database already holds a site", log)
+        self.assertIn("Cannot mint a one-time login link", log)
 
         name = harness.run_dr(harness.BINARY, self.case_dir, data, "config:get", "system.site", "name",
                               "--format=string")

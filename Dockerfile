@@ -86,8 +86,9 @@ FROM ${NODE_IMAGE} AS node
 FROM ${JOB_BASE} AS job
 ARG DRUPACK_VERSION
 ARG TARGETARCH
-# The conformance suite reads process arguments with procps' ps.
-RUN apt-get update && apt-get install -y --no-install-recommends procps python3 \
+# The conformance suite reads process arguments with procps' ps. cweagans/composer-patches
+# 1.x applies a patch to a dist install with GNU patch alone.
+RUN apt-get update && apt-get install -y --no-install-recommends patch procps python3 \
     && rm -rf /var/lib/apt/lists/*
 RUN wget -q -O /opt/composer.phar https://getcomposer.org/download/2.8.12/composer.phar \
     && echo 'f446ea719708bb85fcbf4ef18def5d0515f1f9b4d703f6d820c9c1656e10a2f2  /opt/composer.phar' | sha256sum -c -

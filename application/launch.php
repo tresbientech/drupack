@@ -886,10 +886,11 @@ function runStep(string $step, string $data, array $options, string $binary): vo
 
 // Runs under the serving lease. The remaining steps reach the disk before the first one changes anything,
 // and the completion marker follows the last one.
-function initialize(string $data, array $steps, array $options, string $binary): void
+// Returns whether the start adopted a database that already held a site.
+function initialize(string $data, array $steps, array $options, string $binary): bool
 {
     if ($steps === []) {
-        return;
+        return false;
     }
     writeProgress($data, $steps);
     $total = count($steps);
@@ -902,12 +903,14 @@ function initialize(string $data, array $steps, array $options, string $binary):
         throw new RuntimeException('Cannot record the finished installation');
     }
     unlink(progressPath($data));
-    if (file_exists(adoptedPath($data))) {
+    $adopted = file_exists(adoptedPath($data));
+    if ($adopted) {
         unlink(adoptedPath($data));
     }
     if (file_exists(firstEverPath($data))) {
         unlink(firstEverPath($data));
     }
+    return $adopted;
 }
 
 // application/tests/launch_test.php defines this to load the functions above without starting a site.
@@ -1065,7 +1068,7 @@ try {
             writeSettings("$data/settings.php", __DIR__ . '/settings.php', databaseConfiguration($options, $data), siteSettings()['settings']);
         }
     }
-    initialize($data, $steps, $options, $binary);
+    $adopted = initialize($data, $steps, $options, $binary);
     foreach (glob(__DIR__ . '/translations/*.po') as $translation) {
         $destination = "$files/translations/" . basename($translation);
         if (!file_exists($destination) && !copy($translation, $destination)) {
@@ -1077,12 +1080,13 @@ try {
     }
     // Every start hands its reader a one-time way in, signed in as the administrator account,
     // uid 1, landing on the dashboard. A start that generated the password has no other way
-    // in, so it still fails when the mint fails; every other start serves without the link.
+    // in, so it still fails when the mint fails. An adopted site keeps its own accounts, and
+    // it and every other start serve without the link.
     fwrite(STDOUT, "Creating a one-time login link.\n");
     try {
         $link = loginLink($binary, $url, '/admin/dashboard');
     } catch (LoginLinkFailure $failure) {
-        if (credentialsRequired($steps)) {
+        if (credentialsRequired($steps) && !$adopted) {
             throw $failure;
         }
         $link = null;

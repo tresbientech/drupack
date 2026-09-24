@@ -1,6 +1,7 @@
 package build_test
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -193,7 +194,7 @@ func TestTheEngineLaysTheSettingsStubInTheDocroot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := step(t, plan, "lay the engine over the site").Func(); err != nil {
+	if err := step(t, plan, "lay the engine over the site").Func(io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	sites := filepath.Join(r.Work, "app", "docroot", "sites", "default")
@@ -309,7 +310,7 @@ func TestStagingAGitSiteLeavesOutWhatGitIgnores(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := step(t, plan, "stage the site").Func(); err != nil {
+	if err := step(t, plan, "stage the site").Func(io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	application := filepath.Join(r.Work, "app")
@@ -339,7 +340,7 @@ func TestStagingRefusesASettingsFileGitIgnores(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := step(t, plan, "stage the site").Func(); err == nil || !strings.Contains(err.Error(), `"acme.settings.php"`) {
+	if err := step(t, plan, "stage the site").Func(io.Discard); err == nil || !strings.Contains(err.Error(), `"acme.settings.php"`) {
 		t.Fatalf("staging error = %v; want one naming the ignored settings file", err)
 	}
 }
@@ -375,6 +376,75 @@ func TestTheSeedTakesTheSiteSettings(t *testing.T) {
 	}
 }
 
+// linkedSite writes a site outside any git checkout holding the links a test names.
+func linkedSite(t *testing.T, links map[string]string) string {
+	t.Helper()
+	site := t.TempDir()
+	for name, content := range map[string]string{"composer.json": "{}", "shared/theme.css": "body {}"} {
+		path := filepath.Join(site, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, target := range links {
+		if err := os.Symlink(target, filepath.Join(site, name)); err != nil {
+			t.Skipf("symlinks are unavailable: %v", err)
+		}
+	}
+	return site
+}
+
+func TestStagingCopiesLinksInsideTheSiteAndLeavesOutTheRest(t *testing.T) {
+	outside := filepath.Join(t.TempDir(), "secret.txt")
+	if err := os.WriteFile(outside, []byte("host file"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := request([]string{"linux-amd64"}, "both")
+	r.SiteDir = linkedSite(t, map[string]string{
+		"theme.css": "shared/theme.css", "assets": "shared", "secret.txt": outside, "gone.json": "/nowhere/gone.json",
+	})
+	r.Work = t.TempDir()
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var log strings.Builder
+	if err := step(t, plan, "stage the site").Func(&log); err != nil {
+		t.Fatal(err)
+	}
+	application := filepath.Join(r.Work, "app")
+	for _, name := range []string{"theme.css", filepath.Join("assets", "theme.css")} {
+		info, err := os.Lstat(filepath.Join(application, name))
+		if err != nil || !info.Mode().IsRegular() {
+			t.Errorf("%s: %v, %v; want the linked file's content", name, info, err)
+		}
+	}
+	for _, name := range []string{"secret.txt", "gone.json"} {
+		if _, err := os.Lstat(filepath.Join(application, name)); !os.IsNotExist(err) {
+			t.Errorf("%s was staged", name)
+		}
+		if !strings.Contains(log.String(), "Left out "+name) {
+			t.Errorf("the log does not name %s: %q", name, log.String())
+		}
+	}
+}
+
+func TestStagingRefusesALinkToItsOwnDirectory(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.SiteDir = linkedSite(t, map[string]string{"loop": "."})
+	r.Work = t.TempDir()
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := step(t, plan, "stage the site").Func(io.Discard); err == nil || !strings.Contains(err.Error(), "loop") {
+		t.Fatalf("staging error = %v; want one naming the loop", err)
+	}
+}
+
 func TestStagingLeavesOutTheBuildsOwnDirectories(t *testing.T) {
 	site := t.TempDir()
 	for name, content := range map[string]string{
@@ -399,7 +469,7 @@ func TestStagingLeavesOutTheBuildsOwnDirectories(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := step(t, plan, "stage the site").Func(); err != nil {
+	if err := step(t, plan, "stage the site").Func(io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	application := filepath.Join(r.Work, "app")
@@ -427,7 +497,7 @@ func TestStagingACheckoutGitCannotListFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = step(t, plan, "stage the site").Func()
+	err = step(t, plan, "stage the site").Func(io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "git ls-files") {
 		t.Fatalf("staging a checkout git cannot list returned %v", err)
 	}

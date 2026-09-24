@@ -166,7 +166,7 @@ class ColdWarmStart(harness.ConformanceCase):
         code, out, err = run(self.case_dir, harness.BINARY, "dry", "clean", "--dry-run", env=self.env)
         self.assertEqual(code, 0, f"a dry run exited non-zero: inspect {err}")
         self.assertIn(
-            "Run drupack clean", out.read_text(errors="replace"),
+            f"Run {harness.SITE['name']} clean", out.read_text(errors="replace"),
             f"a dry run did not say how to remove what it listed: inspect {out}",
         )
         self.assertEqual(entry_count(applications), 1, "a dry run removed an application")
