@@ -110,10 +110,10 @@ func scaffold(webRoot string) string {
 
 func TestReadTakesTheDocrootFromComposer(t *testing.T) {
 	cases := map[string]struct{ composer, want string }{
-		"acquia layout": {scaffold("docroot/"), "docroot"},
-		"no slash":      {scaffold("web"), "web"},
-		"nested":        {scaffold("app/public/"), "app/public"},
-		"leading dot":   {scaffold("./docroot/"), "docroot"},
+		"docroot layout": {scaffold("docroot/"), "docroot"},
+		"no slash":       {scaffold("web"), "web"},
+		"nested":         {scaffold("app/public/"), "app/public"},
+		"leading dot":    {scaffold("./docroot/"), "docroot"},
 	}
 	for label, c := range cases {
 		read, err := siteconfig.Read(site(t, minimal, c.composer))

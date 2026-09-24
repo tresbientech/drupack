@@ -11,13 +11,13 @@ The name of this project and of its Packaged site.
 _Avoid_: Portable Drupal, portable-drupal
 
 **Packaged site**:
-A distributable Drupal CMS application with its Site template and a Seed site.
+A distributable Drupal application. One built from a Site template carries a Seed site. One built without serves a database that already holds its site.
 
 **Site template**:
-The Drupal CMS recipe that gives a new site its starting configuration and content. A Packaged site carries one, named in its Site contract. The Drupack release carries Mercury Demo.
+The Drupal CMS recipe that gives a new site its starting configuration and content. A Packaged site carries at most one, named in its Site contract. The Drupack release carries Mercury Demo.
 
 **Site contract**:
-The `drupack.yml` beside a site's `composer.json`, naming its executable, port, Site template, default site name and translations. A build writes it out as `site.json`, which every other reader takes.
+The `drupack.yml` beside a site's `composer.json`, naming its executable, port, Site template, default site name, translations, settings file, build targets and added PHP extensions. A build writes it out as `site.json`, with the docroot `composer.json` names, and every other reader takes that file.
 
 **Seed site**:
 A preconfigured Drupal site state included in a Packaged site, installed from the Site template.
@@ -25,7 +25,10 @@ A preconfigured Drupal site state included in a Packaged site, installed from th
 ### Site data
 
 **Site data**:
-The persistent information of one installed site, including its content and uploaded files.
+The persistent information of one installed site, including its content and, unless a start names a Files directory, its uploaded files.
+
+**Files directory**:
+The directory holding a site's public files, addressed as `sites/default/files`. It is `files` in Site data unless `--files-dir` names another, which the Listener record keeps.
 
 **First start**:
 The start that turns an empty Site data directory into an installed site.
@@ -43,7 +46,7 @@ An environment variable that selects the default Site data directory for a Packa
 The Drupack and Drupal versions that last served a Site data directory.
 
 **Listener record**:
-The listen address and permitted host the last start served on, held in Site data.
+The listen address and permitted host the last start served on, and the Files directory it named, held in Site data.
 
 **Database backend**:
 SQLite, MySQL, or PostgreSQL, selected when a Packaged site first starts. It stores the structured part of Site data.
@@ -80,7 +83,8 @@ A PHP extension that a package in the application's lock file names as a require
 
 ### First start
 
-- A **Packaged site** includes one **Site template**, chosen when it is built.
+- A **Packaged site** includes at most one **Site template**, chosen when it is built.
+- A **Packaged site** without a **Site template** refuses a SQLite first start and adopts a database that holds its site.
 - A SQLite first start creates **Site data** from the **Seed site**.
 - A MySQL or PostgreSQL first start installs the **Site template** into new **Site data**.
 - First start names the site after its **Site contract** unless the user chooses another name.

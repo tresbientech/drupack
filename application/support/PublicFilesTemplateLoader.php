@@ -16,7 +16,7 @@ use Twig\Loader\FilesystemLoader;
  * this loader resolves those names there. Twig's own name validation keeps a
  * name inside that directory.
  */
-final class SiteDataTemplateLoader extends FilesystemLoader {
+final class PublicFilesTemplateLoader extends FilesystemLoader {
 
   /**
    * The address public files carry, as SiteDataPublicStream serves them.

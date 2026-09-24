@@ -47,3 +47,10 @@ Port 8080 also collides with most of what a developer already runs.
   the range Linux draws ephemeral ports from.
 - `dr --help`, `dr -h` and `dr list` exec before the data directory resolves and
   inherit no URI. They print command lists and generate no site URLs.
+
+## Amendment, 2026-09-24
+
+The record also holds the files directory `--files-dir` names, which
+`docs/adr/0019-package-an-existing-site.md` adds. Every start and `dr` read that
+field, since the site's files live there. A start still reads neither `listen`
+nor `host`.

@@ -6,8 +6,25 @@
 
 Branch `package-an-existing-site`, from `main` at `707fbb1`. All six phases
 are done, each with `bash build/qa.sh` passing. Phase 6 ran on the client's
-prod release tag and a daily prod database backup imported into DDEV. Before
-merge: one code-rules audit and one design audit.
+prod release tag and a daily prod database backup imported into DDEV. The
+code-rules and design audits ran on the branch, and their must-fix items are
+fixed.
+
+Notes from the audits:
+
+- The `docroot/` fixture, the site without a recipe and the `xmlwriter`
+  fixtures ran by hand in the scratchpad. None is committed.
+- The branch added `drupack-build --describe`, kept the query string on the
+  Caddyfile's derivative fallback, reads the `spc` binary out of its archive by
+  name, and re-adds the Canvas licence only where it exists.
+- Every build downloads `spc` from GitHub for the extension check, and a
+  release runs that check twice. Caching `spc` in the job image is open.
+- `SiteDataPublicStream` keeps its name, although the files directory can sit
+  outside Site data.
+- `docs/build-your-site.md` pins `drupack-build:0.3.0`, which refuses
+  `extensions`. The pin moves at the next release.
+- `build/site-runtimes.sh` restates the libc-to-builder mapping and the
+  `uname` case the builder scripts hold.
 
 ## Architectural decisions
 

@@ -70,10 +70,10 @@ rejected.
 becomes an exact Drupal trusted-host pattern. A request carrying any other Host
 header gets 400.
 
-Every start writes both values into the Listener record in Site data. A start
-never reads that record, so `--listen` does not become sticky. `dr` reads it,
-which is how `drupack dr user:login` prints a working link whatever port the
-site runs on.
+Every start writes both values into the Listener record in Site data, beside the
+files directory. A start reads only the files directory back, so `--listen` does
+not become sticky. `dr` reads all three, which is how `drupack dr user:login`
+prints a working link whatever port the site runs on.
 
 ## A first start
 

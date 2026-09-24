@@ -28,7 +28,7 @@ case "$(uname -m)" in
     *) printf 'Unsupported architecture: %s\n' "$(uname -m)" >&2; exit 1 ;;
 esac
 
-extensions=$(bash "$repository/runtime/extensions-list.sh" "${EXTENSIONS_FILE:-$repository/runtime/php-extensions.txt}")
+extensions=$(bash "$repository/runtime/extensions-list.sh" "$extensions_file")
 
 source=$work/frankenphp
 rm -rf "$source"

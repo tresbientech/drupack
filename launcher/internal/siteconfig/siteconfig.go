@@ -50,7 +50,7 @@ type Site struct {
 	Extensions []string `json:"extensions"`
 	Platforms  []string `json:"platforms"`
 	Libc       string   `json:"libc"`
-	// Docroot comes from composer.json, not drupack.yml, so Parse leaves it empty.
+	// Read sets Docroot from composer.json. Parse leaves it empty.
 	Docroot string `json:"docroot"`
 }
 

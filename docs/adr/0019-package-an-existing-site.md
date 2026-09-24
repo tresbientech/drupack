@@ -9,8 +9,8 @@ package, a client Site Studio site, breaks five assumptions of that model:
 
 - Its docroot is `docroot/`. The Caddyfile, `launch.php` and `build/seed.sh`
   hardcode `web/`.
-- It has no recipe. A Site Studio site installs from 772 files of config sync,
-  and its asset build needs an API key and the network.
+- It has no recipe. A Site Studio site installs from its config sync
+  directory, and its asset build needs an API key and the network.
 - Its content lives in a MySQL database that DDEV runs. The executable serves
   the code and reads that database.
 - Its pages need the Site Studio templates and styles that DDEV compiled into
@@ -47,7 +47,7 @@ keeps it, enables nothing and keeps its administrator account.
   can drift.
 - Seeding from config sync with `site:install --existing-config`. SQLite first
   starts would work, but Site Studio's install needs its key and the network.
-- Loading the site's own `settings.php`. It runs Acquia includes,
+- Loading the site's own `settings.php`. It runs the host's includes,
   `$databases = []` and each developer's `settings.local.php`.
 - Copying DDEV's files into Site data. The copy goes stale on the next Site
   Studio rebuild, and pages then render against templates the database no
@@ -65,3 +65,12 @@ keeps it, enables nothing and keeps its administrator account.
   cache clear on one side empties the other's caches.
 - A site's extra PHP extensions are decided in
   `docs/adr/0020-site-extensions.md`.
+
+## Amendment, 2026-09-24
+
+The files directory reaches the public stream wrapper, the Caddyfile and a Twig
+loader for templates stored as public files, through
+`DRUPACK_RUNTIME_FILES_DIR`. The generated settings keep `file_public_path` at
+the address `sites/default/files`. The Listener record keeps the directory, so
+later starts and `dr` need no option, as the amended
+`docs/adr/0004-listener-record-and-default-port.md` records.

@@ -49,3 +49,10 @@ Docker in 18 to 25 minutes per libc.
   `ghcr.io/<caller>/drupack-builder`, comes in a later slice.
 - drupal.org GitLab runners have no Docker daemon. A site with additions cannot
   build there.
+
+## Amendment, 2026-09-24
+
+`build/site-runtimes.sh` compiles for the host's architecture only and refuses
+another target. `build-builder.sh` builds for `uname -m`, and a QEMU compile
+takes hours. A site that ships `linux-arm64` compiles its runtimes on an arm64
+host.

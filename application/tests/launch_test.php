@@ -438,13 +438,13 @@ test("the site's settings file loads after the engine's settings", function (): 
 });
 
 test('the public files template loader resolves the files address in the files directory', function (): void {
-    require_once __DIR__ . '/../support/SiteDataTemplateLoader.php';
+    require_once __DIR__ . '/../support/PublicFilesTemplateLoader.php';
     $files = scratch();
     $outside = scratch();
     file_put_contents("$files/component.html.twig", 'compiled');
     file_put_contents("$outside/outside.html.twig", 'outside');
     putenv("DRUPACK_RUNTIME_FILES_DIR=$files");
-    $loader = new \Drupack\Support\SiteDataTemplateLoader();
+    $loader = new \Drupack\Support\PublicFilesTemplateLoader();
     putenv('DRUPACK_RUNTIME_FILES_DIR');
     same(true, $loader->exists('sites/default/files/component.html.twig'));
     same('compiled', $loader->getSourceContext('sites/default/files/component.html.twig')->getCode());

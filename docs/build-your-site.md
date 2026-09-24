@@ -110,7 +110,7 @@ bash build/site-runtimes.sh ../acme runtimes
 
 The script compiles the targets `drupack.yml` names, for this host's
 architecture only. The first run builds one builder image per C library, which
-takes 20 to 25 minutes each, and a rerun with the same list reuses it. The build
+takes 18 to 25 minutes each, and a rerun with the same list reuses it. The build
 then takes the runtimes directory:
 
 ```sh
