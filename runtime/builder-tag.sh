@@ -6,6 +6,7 @@ set -euo pipefail
 # published and skips the PHP compile.
 #
 # Usage: builder-tag.sh musl|gnu
+# EXTENSIONS_FILE names the extension list, runtime/php-extensions.txt by default.
 
 usage='Usage: builder-tag.sh musl|gnu'
 libc=${1:?$usage}
@@ -13,7 +14,7 @@ directory=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 . "$directory/builder-inputs.sh"
 
 # extensions-list.sh drops the comments, so a comment edit keeps the tag.
-extensions=$(bash "$directory/extensions-list.sh" "$directory/php-extensions.txt")
+extensions=$(bash "$directory/extensions-list.sh" "$extensions_file")
 extension_libs=$(bash "$directory/extensions-list.sh" "$directory/php-extension-libs.txt")
 # An image is built for the architecture it runs on, and both share this tag
 # namespace, so the machine type belongs in the digest.

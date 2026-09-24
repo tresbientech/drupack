@@ -87,5 +87,5 @@ class ReplacementCases(harness.ConformanceCase):
             glob.glob(str(self.data / "runtime" / "frankenphp_*")), [],
             "an executable left a copy of the application inside Site data",
         )
-        self.assertFalse((self.data / "web").exists(),
+        self.assertFalse((self.data / harness.SITE["docroot"]).exists(),
                          "an executable left the site tree inside Site data")

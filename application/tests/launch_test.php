@@ -209,6 +209,21 @@ test('an empty site data directory installs on a database server', function (): 
     same(true, file_exists(firstEverPath($data)), 'a fresh database is recorded before the install step');
 });
 
+test('a site without a recipe refuses a sqlite first start, naming both servers', function (): void {
+    foreach (['has no recipe to seed a SQLite site', '--database mysql', '--database pgsql'] as $needle) {
+        throws($needle, fn() => requireSeed(['seed', 'settings', 'administrator'], ['recipe' => '']));
+    }
+});
+
+test('a site without a recipe starts on a database server', function (): void {
+    requireSeed(['settings', 'install', 'modules'], ['recipe' => '']);
+    requireSeed(['adopt'], ['recipe' => '']);
+});
+
+test('a site with a recipe seeds sqlite', function (): void {
+    requireSeed(['seed', 'settings', 'administrator'], ['recipe' => 'recipes/fixture']);
+});
+
 test('sqlite needs no connection details', function (): void {
     $options = connection(['database' => 'sqlite', 'db-host' => null, 'db-name' => null,
         'db-user' => null, 'db-password' => null]);
@@ -237,15 +252,34 @@ test('site data with no listener record changes nothing', function (): void {
 
 test('a listener record fills an absent address and host', function (): void {
     $data = scratch();
-    writeListener($data, ['listen' => '127.0.0.1:8080', 'host' => 'example.test']);
+    writeListener($data, ['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => null]);
     $filled = recordedListener(['listen' => null, 'host' => null], $data);
     same('127.0.0.1:8080', $filled['listen']);
     same('example.test', $filled['host']);
 });
 
+test('a listener record fills an absent files directory', function (): void {
+    $data = scratch();
+    writeListener($data, ['listen' => '127.0.0.1:8080', 'host' => 'localhost', 'files-dir' => '/srv/files']);
+    same('/srv/files', recordedFilesDirectory(['files-dir' => null], $data)['files-dir']);
+});
+
+test('an explicit files directory beats the listener record', function (): void {
+    $data = scratch();
+    writeListener($data, ['listen' => '127.0.0.1:8080', 'host' => 'localhost', 'files-dir' => '/srv/files']);
+    same('/srv/other', recordedFilesDirectory(['files-dir' => '/srv/other'], $data)['files-dir']);
+});
+
+test('a record without a files directory leaves the default to Site data', function (): void {
+    $data = scratch();
+    file_put_contents(listenerPath($data), json_encode(['listen' => '127.0.0.1:8080', 'host' => 'localhost']));
+    same(null, recordedFilesDirectory(['files-dir' => null], $data)['files-dir']);
+    same(null, recordedFilesDirectory(['files-dir' => null], scratch())['files-dir']);
+});
+
 test('an explicit option beats the listener record', function (): void {
     $data = scratch();
-    writeListener($data, ['listen' => '127.0.0.1:8080', 'host' => 'example.test']);
+    writeListener($data, ['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => null]);
     $given = recordedListener(['listen' => '127.0.0.1:9000', 'host' => null], $data);
     same('127.0.0.1:9000', $given['listen']);
     same('example.test', $given['host']);
@@ -353,7 +387,7 @@ test('the deployment identifier hashes the exported application directory direct
         'database' => "$data/site.sqlite",
         'namespace' => 'Drupal\\sqlite\\Driver\\Database\\sqlite',
         'autoload' => 'core/modules/sqlite/src/Driver/Database/sqlite/',
-    ]);
+    ], '');
     $path = "$data/settings-under-test.php";
     file_put_contents($path, $content);
 
@@ -363,7 +397,7 @@ test('the deployment identifier hashes the exported application directory direct
     $appDir = 'C:/Users/theno/AppData/Local/Drupack/runtime/app/r2e2893a48a83';
     putenv("DRUPACK_RUNTIME_APP_DIR=$appDir");
     // Settings::initialize() gives settings.php these two, beside the arrays below.
-    $app_root = dirname(__DIR__) . '/web';
+    $app_root = dirname(__DIR__);
     $class_loader = new \Composer\Autoload\ClassLoader();
     $databases = [];
     $settings = [];
@@ -376,6 +410,47 @@ test('the deployment identifier hashes the exported application directory direct
 
     same(substr(hash('sha256', $appDir), 0, 16), $settings['deployment_identifier'],
         'the identifier hashes the exported value with no normalising step of its own');
+});
+
+test("the site's settings file loads after the engine's settings", function (): void {
+    $data = scratch();
+    $app = scratch();
+    file_put_contents("$data/hash_salt", 'test-hash-salt');
+    file_put_contents("$app/acme.settings.php", "<?php\n\$settings['update_free_access'] = TRUE;\n");
+    $database = ['driver' => 'sqlite', 'database' => "$data/site.sqlite"];
+    putenv("DRUPACK_RUNTIME_DATA_DIR=$data");
+    putenv('DRUPACK_RUNTIME_HOST=localhost');
+    putenv("DRUPACK_RUNTIME_APP_DIR=$app");
+    foreach (['acme.settings.php' => true, '' => false] as $siteSettings => $expected) {
+        $path = "$data/settings-under-test.php";
+        file_put_contents($path, settings(__DIR__ . '/../settings.php', $database, (string) $siteSettings));
+        $app_root = dirname(__DIR__);
+        $class_loader = new \Composer\Autoload\ClassLoader();
+        $databases = [];
+        $settings = [];
+        $config = [];
+        require $path;
+        same($expected, $settings['update_free_access'], "site settings '$siteSettings'");
+    }
+    putenv('DRUPACK_RUNTIME_APP_DIR');
+    putenv('DRUPACK_RUNTIME_HOST');
+    putenv('DRUPACK_RUNTIME_DATA_DIR');
+});
+
+test('the public files template loader resolves the files address in the files directory', function (): void {
+    require_once __DIR__ . '/../support/PublicFilesTemplateLoader.php';
+    $files = scratch();
+    $outside = scratch();
+    file_put_contents("$files/component.html.twig", 'compiled');
+    file_put_contents("$outside/outside.html.twig", 'outside');
+    putenv("DRUPACK_RUNTIME_FILES_DIR=$files");
+    $loader = new \Drupack\Support\PublicFilesTemplateLoader();
+    putenv('DRUPACK_RUNTIME_FILES_DIR');
+    same(true, $loader->exists('sites/default/files/component.html.twig'));
+    same('compiled', $loader->getSourceContext('sites/default/files/component.html.twig')->getCode());
+    same(false, $loader->exists('component.html.twig'), 'a name outside the address');
+    same(false, $loader->exists('sites/default/files/../' . basename($outside) . '/outside.html.twig'),
+        'a name climbing out of the files directory');
 });
 
 // The command line is described in four places. options() is the contract, and the

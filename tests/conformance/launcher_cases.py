@@ -70,6 +70,7 @@ class ColdWarmStart(harness.ConformanceCase):
     """Case 1 (cold start) and case 2 (warm start), against one private cache."""
 
     PLATFORMS = (harness.LINUX, harness.WINDOWS)
+    RECIPE = False
 
     @classmethod
     def setUpClass(cls):
@@ -165,7 +166,7 @@ class ColdWarmStart(harness.ConformanceCase):
         code, out, err = run(self.case_dir, harness.BINARY, "dry", "clean", "--dry-run", env=self.env)
         self.assertEqual(code, 0, f"a dry run exited non-zero: inspect {err}")
         self.assertIn(
-            "Run drupack clean", out.read_text(errors="replace"),
+            f"Run {harness.SITE['name']} clean", out.read_text(errors="replace"),
             f"a dry run did not say how to remove what it listed: inspect {out}",
         )
         self.assertEqual(entry_count(applications), 1, "a dry run removed an application")
@@ -304,6 +305,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
     """
 
     PLATFORMS = (harness.WINDOWS,)
+    RECIPE = False
     TOOLS = ("go",)
 
     @classmethod
@@ -484,6 +486,7 @@ class CacheRootFull(harness.ConformanceCase):
     """Case 9: a cache root with no room for the runtime, run as a 4 MB tmpfs in a container."""
 
     PLATFORMS = (harness.LINUX,)
+    RECIPE = False
     TOOLS = ("docker",)
 
     @classmethod
@@ -541,6 +544,7 @@ class SiteNamedCaches(harness.ConformanceCase):
     """Two sites built on one engine keep their own cache roots, named after each site."""
 
     PLATFORMS = (harness.LINUX,)
+    RECIPE = False
     TOOLS = ("go",)
 
     def test_cleaning_one_site_leaves_the_other_unpacked(self):

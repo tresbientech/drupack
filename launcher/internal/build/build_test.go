@@ -1,10 +1,12 @@
 package build_test
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -14,8 +16,9 @@ import (
 
 func request(platforms []string, libc string) build.Request {
 	return build.Request{
-		SiteDir:   "/site",
-		Site:      siteconfig.Site{Name: "acme", Recipe: "recipes/acme"},
+		SiteDir: "/site",
+		Site: siteconfig.Site{Name: "acme", Recipe: "recipes/acme", Docroot: "docroot",
+			Platforms: []string{"linux-arm64"}, Libc: "musl"},
 		Platforms: platforms,
 		Libc:      libc,
 		Runtimes: map[string]string{
@@ -81,7 +84,7 @@ func TestEveryPlatformIsPackedAndOnlyTheHostIsTested(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		"stage the site", "write site.json", "install the Composer project", "fetch translations",
+		"check the PHP extensions", "stage the site", "write site.json", "install the Composer project", "fetch translations",
 		"lay the engine over the site", "install the seed site", "archive the application",
 		"write site.json beside the executables", "pack linux-amd64", "pack linux-arm64", "test linux-amd64",
 	}
@@ -105,14 +108,100 @@ func TestEveryPlatformIsPackedAndOnlyTheHostIsTested(t *testing.T) {
 	}
 }
 
+func TestTheSiteTargetsApplyWhereNoFlagIsSet(t *testing.T) {
+	plan, err := build.NewPlan(request(nil, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := runtimeFlags(step(t, plan, "pack linux-arm64").Command), []string{"musl=/rt/arm64-musl"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("packs %v; want the site's musl runtime: %v", got, want)
+	}
+	if slices.Contains(names(plan), "pack linux-amd64") {
+		t.Errorf("steps = %v; want the site's linux-arm64 alone", names(plan))
+	}
+}
+
+func TestFlagsBeatTheSiteTargets(t *testing.T) {
+	plan, err := build.NewPlan(request([]string{"linux-amd64"}, "glibc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := runtimeFlags(step(t, plan, "pack linux-amd64").Command), []string{"glibc=/rt/amd64-glibc"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("packs %v; want the flags' glibc runtime: %v", got, want)
+	}
+	if slices.Contains(names(plan), "pack linux-arm64") {
+		t.Errorf("steps = %v; want the flag's linux-amd64 alone", names(plan))
+	}
+}
+
 func TestTheSeedInstallsTheSiteRecipe(t *testing.T) {
 	plan, err := build.NewPlan(request([]string{"linux-amd64"}, "both"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	seed := step(t, plan, "install the seed site").Command
-	if seed[len(seed)-1] != "recipes/acme" {
-		t.Fatalf("the seed installs %q; want the site's recipe", seed[len(seed)-1])
+	if !slices.Contains(seed, "recipes/acme") {
+		t.Fatalf("the seed command %v does not name the site's recipe", seed)
+	}
+}
+
+func TestTheSiteScriptsTakeTheSiteDocroot(t *testing.T) {
+	plan, err := build.NewPlan(request([]string{"linux-amd64"}, "both"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"install the seed site", "archive the application"} {
+		if command := step(t, plan, name).Command; !slices.Contains(command, "docroot") {
+			t.Errorf("%s does not name the docroot: %v", name, command)
+		}
+	}
+}
+
+func TestASiteWithoutARecipeHasNoSeedStep(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Site.Recipe = ""
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"check the PHP extensions", "stage the site", "write site.json", "install the Composer project", "fetch translations",
+		"lay the engine over the site", "archive the application",
+		"write site.json beside the executables", "pack linux-amd64", "test linux-amd64",
+	}
+	if got := names(plan); !reflect.DeepEqual(got, want) {
+		t.Fatalf("steps = %v; want %v", got, want)
+	}
+}
+
+func TestTheEngineLaysTheSettingsStubInTheDocroot(t *testing.T) {
+	engine := t.TempDir()
+	for name, content := range map[string]string{
+		"application/launch.php": "<?php", "build/site-settings.php": "<?php // stub",
+		"build/site-templates.php": "<?php // templates",
+	} {
+		path := filepath.Join(engine, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := request([]string{"linux-amd64"}, "both")
+	r.Engine, r.Work = engine, t.TempDir()
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := step(t, plan, "lay the engine over the site").Func(io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	sites := filepath.Join(r.Work, "app", "docroot", "sites", "default")
+	for name, want := range map[string]string{"settings.php": "<?php // stub", "site-templates.php": "<?php // templates"} {
+		if content, err := os.ReadFile(filepath.Join(sites, name)); err != nil || string(content) != want {
+			t.Errorf("%s = %q, %v; want %q", name, content, err, want)
+		}
 	}
 }
 
@@ -183,7 +272,6 @@ func TestRefusalsNameTheValueTheyRefuse(t *testing.T) {
 		"macOS":        {request([]string{"macos-arm64"}, "both"), `"macos-arm64"`},
 		"Windows":      {request([]string{"linux-amd64", "windows-amd64"}, "both"), `"windows-amd64"`},
 		"unknown libc": {request([]string{"linux-amd64"}, "gnu"), `"gnu"`},
-		"no platform":  {request(nil, "both"), "--platform"},
 		"missing runtime": {func() build.Request {
 			r := request([]string{"linux-arm64"}, "glibc")
 			delete(r.Runtimes, "linux-arm64/glibc")
@@ -222,7 +310,7 @@ func TestStagingAGitSiteLeavesOutWhatGitIgnores(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := step(t, plan, "stage the site").Func(); err != nil {
+	if err := step(t, plan, "stage the site").Func(io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	application := filepath.Join(r.Work, "app")
@@ -231,6 +319,129 @@ func TestStagingAGitSiteLeavesOutWhatGitIgnores(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(application, "vendor")); !os.IsNotExist(err) {
 		t.Errorf("an ignored vendor directory was staged")
+	}
+}
+
+func TestStagingRefusesASettingsFileGitIgnores(t *testing.T) {
+	site := t.TempDir()
+	for name, content := range map[string]string{
+		"composer.json": "{}", ".gitignore": "/acme.settings.php\n", "acme.settings.php": "<?php",
+	} {
+		if err := os.WriteFile(filepath.Join(site, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out, err := gitInit(site); err != nil {
+		t.Skipf("git is unavailable: %v %s", err, out)
+	}
+	r := request([]string{"linux-amd64"}, "both")
+	r.SiteDir, r.Work, r.Site.Settings = site, t.TempDir(), "acme.settings.php"
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := step(t, plan, "stage the site").Func(io.Discard); err == nil || !strings.Contains(err.Error(), `"acme.settings.php"`) {
+		t.Fatalf("staging error = %v; want one naming the ignored settings file", err)
+	}
+}
+
+func TestTheExtensionCheckTakesTheSiteAdditions(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Site.Extensions = []string{"xmlwriter", "gmp"}
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	install := step(t, plan, "install the Composer project").Command
+	for _, extension := range r.Site.Extensions {
+		if !slices.Contains(install, "--ignore-platform-req=ext-"+extension) {
+			t.Errorf("composer install %v does not skip the build PHP's check of %s", install, extension)
+		}
+	}
+	check := step(t, plan, "check the PHP extensions").Command
+	if got := strings.Join(check[len(check)-2:], " "); got != "/site --extensions=xmlwriter,gmp" {
+		t.Fatalf("the check command ends %q", got)
+	}
+}
+
+func TestTheSeedTakesTheSiteSettings(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Site.Settings = "acme.settings.php"
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seed := step(t, plan, "install the seed site").Command; seed[len(seed)-1] != "acme.settings.php" {
+		t.Fatalf("the seed command ends %q; want the site's settings file", seed[len(seed)-1])
+	}
+}
+
+// linkedSite writes a site outside any git checkout holding the links a test names.
+func linkedSite(t *testing.T, links map[string]string) string {
+	t.Helper()
+	site := t.TempDir()
+	for name, content := range map[string]string{"composer.json": "{}", "shared/theme.css": "body {}"} {
+		path := filepath.Join(site, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, target := range links {
+		if err := os.Symlink(target, filepath.Join(site, name)); err != nil {
+			t.Skipf("symlinks are unavailable: %v", err)
+		}
+	}
+	return site
+}
+
+func TestStagingCopiesLinksInsideTheSiteAndLeavesOutTheRest(t *testing.T) {
+	outside := filepath.Join(t.TempDir(), "secret.txt")
+	if err := os.WriteFile(outside, []byte("host file"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := request([]string{"linux-amd64"}, "both")
+	r.SiteDir = linkedSite(t, map[string]string{
+		"theme.css": "shared/theme.css", "assets": "shared", "secret.txt": outside, "gone.json": "/nowhere/gone.json",
+	})
+	r.Work = t.TempDir()
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var log strings.Builder
+	if err := step(t, plan, "stage the site").Func(&log); err != nil {
+		t.Fatal(err)
+	}
+	application := filepath.Join(r.Work, "app")
+	for _, name := range []string{"theme.css", filepath.Join("assets", "theme.css")} {
+		info, err := os.Lstat(filepath.Join(application, name))
+		if err != nil || !info.Mode().IsRegular() {
+			t.Errorf("%s: %v, %v; want the linked file's content", name, info, err)
+		}
+	}
+	for _, name := range []string{"secret.txt", "gone.json"} {
+		if _, err := os.Lstat(filepath.Join(application, name)); !os.IsNotExist(err) {
+			t.Errorf("%s was staged", name)
+		}
+		if !strings.Contains(log.String(), "Left out "+name) {
+			t.Errorf("the log does not name %s: %q", name, log.String())
+		}
+	}
+}
+
+func TestStagingRefusesALinkToItsOwnDirectory(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.SiteDir = linkedSite(t, map[string]string{"loop": "."})
+	r.Work = t.TempDir()
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := step(t, plan, "stage the site").Func(io.Discard); err == nil || !strings.Contains(err.Error(), "loop") {
+		t.Fatalf("staging error = %v; want one naming the loop", err)
 	}
 }
 
@@ -258,7 +469,7 @@ func TestStagingLeavesOutTheBuildsOwnDirectories(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := step(t, plan, "stage the site").Func(); err != nil {
+	if err := step(t, plan, "stage the site").Func(io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	application := filepath.Join(r.Work, "app")
@@ -286,7 +497,7 @@ func TestStagingACheckoutGitCannotListFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = step(t, plan, "stage the site").Func()
+	err = step(t, plan, "stage the site").Func(io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "git ls-files") {
 		t.Fatalf("staging a checkout git cannot list returned %v", err)
 	}

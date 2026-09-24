@@ -21,4 +21,5 @@ ln -sfn ../dist/work/app/vendor application/vendor
 (cd launcher && go test ./...)
 python3 -m unittest discover -s tests/conformance -p test_harness.py
 python3 tests/conformance "$executable" test-results/conformance --site-tests examples/mercury-demo/tests \
-    -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull
+    -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \
+    -k ExistingSiteAdoption

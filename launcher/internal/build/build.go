@@ -14,24 +14,11 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
-// Libcs lists the values Request.Libc takes, and the runtimes each packs in the
-// order the launcher tries them: the one needing a host loader first.
-var Libcs = map[string][]string{
-	"both":  {"glibc", "musl"},
-	"glibc": {"glibc"},
-	"musl":  {"musl"},
-}
-
-// Platforms lists the targets this release builds.
-var Platforms = map[string]string{
-	"linux-amd64": "amd64",
-	"linux-arm64": "arm64",
-}
-
 // Request is one build: the site, what to build it for, and where the tools are.
 type Request struct {
-	SiteDir   string
-	Site      siteconfig.Site
+	SiteDir string
+	Site    siteconfig.Site
+	// Platforms and Libc override the site's own, each when set.
 	Platforms []string
 	Libc      string
 	// Runtimes maps "PLATFORM/LIBC" to a runtime directory.
@@ -57,13 +44,13 @@ type Request struct {
 }
 
 // Step is one unit of a build: a command to run, or a function for the steps
-// that only copy files.
+// that only copy files, which writes what it reports to the build log.
 type Step struct {
 	Name    string
 	Command []string
 	Dir     string
 	Env     []string
-	Func    func() error
+	Func    func(log io.Writer) error
 }
 
 // Plan is what a build runs, and which targets it packs without testing.
@@ -81,16 +68,20 @@ func Executable(name, platform string) string {
 // The request comes from a site author's command line, so every refusal names
 // the value it refuses.
 func NewPlan(r Request) (Plan, error) {
-	runtimes, ok := Libcs[r.Libc]
+	// The site's values passed its parser, so only a flag's can be refused below.
+	if len(r.Platforms) == 0 {
+		r.Platforms = r.Site.Platforms
+	}
+	if r.Libc == "" {
+		r.Libc = r.Site.Libc
+	}
+	runtimes, ok := siteconfig.Libcs[r.Libc]
 	if !ok {
 		return Plan{}, fmt.Errorf("--libc %q is not one of both, glibc, musl", r.Libc)
 	}
 	resolved := map[string]string{}
-	if len(r.Platforms) == 0 {
-		return Plan{}, fmt.Errorf("--platform names no target")
-	}
 	for _, platform := range r.Platforms {
-		if _, ok := Platforms[platform]; !ok {
+		if _, ok := siteconfig.Platforms[platform]; !ok {
 			return Plan{}, fmt.Errorf("--platform %q is not built by this release, which builds linux-amd64 and linux-arm64", platform)
 		}
 		if r.PayloadOnly {
@@ -116,26 +107,46 @@ func NewPlan(r Request) (Plan, error) {
 	php := []string{r.PHP, "php-cli"}
 	// The runtime reads php.ini beside itself only through PHPRC.
 	phpEnv := []string{"PHPRC=" + filepath.Dir(r.PHP), "DRUPACK_CA_FILE=" + filepath.Join(r.Engine, "application", "cacert.pem")}
+	install := append(append([]string{}, php...), r.Composer, "install", "--no-dev", "--prefer-dist", "--no-interaction", "--optimize-autoloader")
+	// The build's PHP carries the engine list alone. The extension check and the
+	// runtimes the site's executables carry answer for the site's additions.
+	for _, extension := range r.Site.Extensions {
+		install = append(install, "--ignore-platform-req=ext-"+extension)
+	}
 	plan := Plan{Steps: []Step{
-		{Name: "stage the site", Func: func() error { return stageSite(r.SiteDir, application, r.Output, r.Work) }},
-		{Name: "write site.json", Func: func() error { return siteconfig.Write(r.Site, application) }},
-		{Name: "install the Composer project", Dir: application, Env: phpEnv,
-			Command: append(append([]string{}, php...), r.Composer, "install", "--no-dev", "--prefer-dist", "--no-interaction", "--optimize-autoloader")},
+		{Name: "check the PHP extensions", Command: []string{"python3", filepath.Join(r.Engine, "runtime", "check-extensions.py"),
+			r.SiteDir, "--extensions=" + strings.Join(r.Site.Extensions, ",")}},
+		{Name: "stage the site", Func: func(log io.Writer) error {
+			if err := stageSite(log, r.SiteDir, application, r.Output, r.Work); err != nil {
+				return err
+			}
+			// Staging copies what git tracks or would track, so an ignored settings file stays behind.
+			if _, err := os.Stat(filepath.Join(application, r.Site.Settings)); r.Site.Settings != "" && err != nil {
+				return fmt.Errorf("%s names settings %q, which the build did not copy: git ignores it", siteconfig.FileName, r.Site.Settings)
+			}
+			return nil
+		}},
+		{Name: "write site.json", Func: func(io.Writer) error { return siteconfig.Write(r.Site, application) }},
+		{Name: "install the Composer project", Dir: application, Env: phpEnv, Command: install},
 		{Name: "fetch translations", Env: append(phpEnv, "CURL_CA_BUNDLE="+filepath.Join(r.Engine, "application", "cacert.pem")),
 			Command: append(append([]string{}, php...), filepath.Join(r.Engine, "build", "install-translations.php"), application)},
-		{Name: "lay the engine over the site", Func: func() error { return layEngine(r.Engine, application) }},
-		{Name: "install the seed site", Env: phpEnv,
-			Command: []string{"bash", filepath.Join(r.Engine, "build", "seed.sh"), application, r.PHP, r.Site.Recipe}},
-		{Name: "archive the application", Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload}},
+		{Name: "lay the engine over the site", Func: func(io.Writer) error { return layEngine(r.Engine, application, r.Site.Docroot) }},
 	}}
+	// A site without a recipe ships no seed, and serves only a database that holds it.
+	if r.Site.Recipe != "" {
+		plan.Steps = append(plan.Steps, Step{Name: "install the seed site", Env: phpEnv,
+			Command: []string{"bash", filepath.Join(r.Engine, "build", "seed.sh"), application, r.PHP, r.Site.Docroot, r.Site.Recipe, r.Site.Settings}})
+	}
+	plan.Steps = append(plan.Steps, Step{Name: "archive the application",
+		Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload, r.Site.Docroot}})
 	if r.PayloadOnly {
-		plan.Steps = append(plan.Steps, Step{Name: "export the payload", Func: func() error {
+		plan.Steps = append(plan.Steps, Step{Name: "export the payload", Func: func(io.Writer) error {
 			return exportPayload(payload, application, filepath.Join(r.Output, "payload"))
 		}})
 		return plan, nil
 	}
 
-	plan.Steps = append(plan.Steps, Step{Name: "write site.json beside the executables", Func: func() error {
+	plan.Steps = append(plan.Steps, Step{Name: "write site.json beside the executables", Func: func(io.Writer) error {
 		return siteconfig.Write(r.Site, r.Output)
 	}})
 	for _, platform := range r.Platforms {
@@ -148,7 +159,7 @@ func NewPlan(r Request) (Plan, error) {
 			"-output", filepath.Join(r.Output, Executable(r.Site.Name, platform)),
 			"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
 			"-site", filepath.Join(application, siteconfig.OutputName), "-site-version", r.SiteVersion)
-		command = append(command, "-goarch", Platforms[platform])
+		command = append(command, "-goarch", siteconfig.Platforms[platform])
 		plan.Steps = append(plan.Steps, Step{Name: "pack " + platform, Command: command,
 			Dir: filepath.Join(r.Engine, "launcher"), Env: []string{"CGO_ENABLED=0"}})
 	}
@@ -173,7 +184,7 @@ func Run(plan Plan, log io.Writer) error {
 		fmt.Fprintf(log, "==> %s\n", step.Name)
 		var err error
 		if step.Func != nil {
-			err = step.Func()
+			err = step.Func(log)
 		} else {
 			command := exec.Command(step.Command[0], step.Command[1:]...)
 			command.Dir = step.Dir
@@ -196,11 +207,15 @@ func Run(plan Plan, log io.Writer) error {
 // it copies what git tracks or would track, which leaves out the vendor, web
 // and recipes directories a local composer install writes. It leaves out the
 // build directories too, which may sit inside the site.
-func stageSite(site, application string, builds ...string) error {
+func stageSite(log io.Writer, site, application string, builds ...string) error {
 	if err := os.RemoveAll(application); err != nil {
 		return err
 	}
 	files, err := siteFiles(site)
+	if err != nil {
+		return err
+	}
+	root, err := filepath.EvalSymlinks(site)
 	if err != nil {
 		return err
 	}
@@ -209,7 +224,47 @@ func stageSite(site, application string, builds ...string) error {
 		if slices.ContainsFunc(builds, func(directory string) bool { return within(path, directory) }) {
 			continue
 		}
-		if err := copyFile(path, filepath.Join(application, relative)); err != nil {
+		if err := stageEntry(log, root, path, filepath.Join(application, relative), relative); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// stageEntry copies one entry of the site. The executable's unpacker takes
+// files and directories alone, so a link is copied as what it names when that
+// lies inside the site, and is left out, named in the log, when it points out
+// of the site or at nothing: its target could hold the build host's files.
+func stageEntry(log io.Writer, root, path, destination, relative string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		target, err := filepath.EvalSymlinks(path)
+		if err != nil || !within(target, root) {
+			link, _ := os.Readlink(path)
+			fmt.Fprintf(log, "Left out %s, a link to %s, which is not in the site\n", relative, link)
+			return nil
+		}
+		if within(path, target) {
+			return fmt.Errorf("%s links to %s, a directory holding the link itself", relative, target)
+		}
+		path = target
+		if info, err = os.Stat(path); err != nil {
+			return err
+		}
+	}
+	if !info.IsDir() {
+		return copyFile(path, destination)
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if err := stageEntry(log, root, filepath.Join(path, name), filepath.Join(destination, name), filepath.Join(relative, name)); err != nil {
 			return err
 		}
 	}
@@ -275,8 +330,9 @@ func inCheckout(directory string) bool {
 }
 
 // layEngine copies the engine's application files over the site, which win over
-// any file of the same name, then the installer's recipe catalog.
-func layEngine(engine, application string) error {
+// any file of the same name, then the site directory's settings and the
+// installer's recipe catalog.
+func layEngine(engine, application, docroot string) error {
 	source := filepath.Join(engine, "application")
 	err := filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
@@ -295,8 +351,16 @@ func layEngine(engine, application string) error {
 	if err != nil {
 		return err
 	}
-	return copyFile(filepath.Join(engine, "build", "site-templates.php"),
-		filepath.Join(application, "web", "sites", "default", "site-templates.php"))
+	sites := filepath.Join(application, docroot, "sites", "default")
+	for source, destination := range map[string]string{
+		"site-settings.php":  "settings.php",
+		"site-templates.php": "site-templates.php",
+	} {
+		if err := copyFile(filepath.Join(engine, "build", source), filepath.Join(sites, destination)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // exportPayload puts the payload and its site.json where a later platform build reads them.
@@ -314,20 +378,12 @@ func exportPayload(payload, application, destination string) error {
 }
 
 func copyFile(source, destination string) error {
-	info, err := os.Lstat(source)
+	info, err := os.Stat(source)
 	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
 		return err
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		target, err := os.Readlink(source)
-		if err != nil {
-			return err
-		}
-		os.Remove(destination)
-		return os.Symlink(target, destination)
 	}
 	content, err := os.ReadFile(source)
 	if err != nil {

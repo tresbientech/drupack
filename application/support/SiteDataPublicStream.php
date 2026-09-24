@@ -32,10 +32,10 @@ final class SiteDataPublicStream extends PublicStream {
   }
 
   /**
-   * The directory on disk, inside Site data.
+   * The directory on disk, which the start names.
    */
   private function storageRoot(): string {
-    return getenv('DRUPACK_RUNTIME_DATA_DIR') . '/files';
+    return getenv('DRUPACK_RUNTIME_FILES_DIR');
   }
 
   /**

@@ -2,26 +2,30 @@
 set -euo pipefail
 
 # Installs the Seed site into APPLICATION/seed from the site's recipe, with the PHP
-# the build runs. A SQLite first start copies this seed instead of installing.
-usage='Usage: build/seed.sh APPLICATION PHP RECIPE'
+# the build runs and the site's own settings file when it names one. A SQLite first
+# start copies this seed instead of installing.
+usage='Usage: build/seed.sh APPLICATION PHP DOCROOT RECIPE [SETTINGS]'
 application=${1:?$usage}
 php=${2:?$usage}
-recipe=${3:?$usage}
+docroot=$application/${3:?$usage}
+recipe=${4:?$usage}
+settings=${5:-}
 
 # Drush parses a relative SQLite URL only; settings.php names the file by absolute path.
 cd "$application"
 
 drush() {
-    DRUPACK_RUNTIME_DATA_DIR="$application/seed" DRUPACK_RUNTIME_HOST=localhost \
-        "$php" php-cli "$application/vendor/drush/drush/drush.php" --root="$application/web" "$@"
+    DRUPACK_RUNTIME_DATA_DIR="$application/seed" DRUPACK_RUNTIME_FILES_DIR="$application/seed/files" \
+        DRUPACK_RUNTIME_APP_DIR="$application" DRUPACK_RUNTIME_HOST=localhost \
+        "$php" php-cli "$application/vendor/drush/drush/drush.php" --root="$docroot" "$@"
 }
 
 mkdir -p "$application/seed/private" "$application/seed/tmp" "$application/seed/config" \
-    "$application/web/sites/default/files"
+    "$docroot/sites/default/files"
 printf 'drupack-seed-hash-salt' > "$application/seed/hash_salt"
-cp "$application/settings.php" "$application/web/sites/default/settings.php"
-sed -i "s|__DRUPACK_DATABASE_CONFIGURATION__|['driver' => 'sqlite', 'database' => '$application/seed/site.sqlite', 'namespace' => 'Drupal\\\\sqlite\\\\Driver\\\\Database\\\\sqlite', 'autoload' => 'core/modules/sqlite/src/Driver/Database/sqlite/']|" \
-    "$application/web/sites/default/settings.php"
+cp "$application/settings.php" "$docroot/sites/default/settings.php"
+sed -i -e "s|__DRUPACK_SITE_SETTINGS__|'$settings'|" -e "s|__DRUPACK_DATABASE_CONFIGURATION__|['driver' => 'sqlite', 'database' => '$application/seed/site.sqlite', 'namespace' => 'Drupal\\\\sqlite\\\\Driver\\\\Database\\\\sqlite', 'autoload' => 'core/modules/sqlite/src/Driver/Database/sqlite/']|" \
+    "$docroot/sites/default/settings.php"
 # launch.php's seedPassword() carries this password, and the first start replaces it.
 drush site:install "$application/$recipe" --yes --db-url=sqlite://seed/site.sqlite \
     --account-name=drupack-admin --account-pass=drupack-seed-password
@@ -33,6 +37,5 @@ if [ -n "$unrunnable" ]; then
     # shellcheck disable=SC2086 # one module name per word
     drush pm:uninstall $unrunnable --yes
 fi
-mv "$application/web/sites/default/files" "$application/seed/files"
-printf '%s\n%s\n' '<?php' "require getenv('DRUPACK_RUNTIME_DATA_DIR') . DIRECTORY_SEPARATOR . 'settings.php';" \
-    > "$application/web/sites/default/settings.php"
+mv "$docroot/sites/default/files" "$application/seed/files"
+cp "$(dirname -- "${BASH_SOURCE[0]}")/site-settings.php" "$docroot/sites/default/settings.php"

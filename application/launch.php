@@ -18,6 +18,7 @@ Options:
   --data-dir PATH            Site data directory, ./data by default
   --listen IP:PORT           Listener address, 127.0.0.1 on the site's port by default
   --host HOST                Permitted request host, localhost by default
+  --files-dir PATH           Public files directory, files in Site data by default
   --database sqlite|mysql|pgsql
                              Database backend for a first start, sqlite by default
   --db-host HOST             Database server, for mysql and pgsql
@@ -201,6 +202,8 @@ function options(array $arguments, bool $drush, array $site): array
         // The listener defaults after the recorded one is read, so an absent option is still visible here.
         'listen' => null,
         'host' => null,
+        // The files directory falls back to the recorded one, then to Site data, once the Site data is known.
+        'files-dir' => null,
         'database' => environment('DRUPACK_DATABASE') ?? 'sqlite',
         'db-host' => environment('DRUPACK_DB_HOST'),
         'db-port' => environment('DRUPACK_DB_PORT'),
@@ -366,24 +369,41 @@ function listenerPath(string $directory): string
     return "$directory/listener";
 }
 
-function recordedListener(array $options, string $directory): array
+function listenerRecord(string $directory): ?array
 {
     if (!file_exists(listenerPath($directory))) {
-        return $options;
+        return null;
     }
     $record = json_decode((string) file_get_contents(listenerPath($directory)), true);
     if (!is_array($record)) {
         throw new RuntimeException('Cannot read the recorded listener: ' . listenerPath($directory)
             . ". Remove that file, then start " . executableName() . " again to record it.");
     }
+    return $record;
+}
+
+function recordedListener(array $options, string $directory): array
+{
+    $record = listenerRecord($directory);
+    if ($record === null) {
+        return $options;
+    }
     $options['listen'] ??= $record['listen'] ?? throw new RuntimeException('Recorded listener has no listen address');
     $options['host'] ??= $record['host'] ?? throw new RuntimeException('Recorded listener has no host');
     return $options;
 }
 
+// Every start and `dr` keep the files directory the last start named, since the
+// site's files live there. A record written before the option names none.
+function recordedFilesDirectory(array $options, string $directory): array
+{
+    $options['files-dir'] ??= listenerRecord($directory)['files-dir'] ?? null;
+    return $options;
+}
+
 function writeListener(string $directory, array $options): void
 {
-    $record = json_encode(['listen' => $options['listen'], 'host' => $options['host']]);
+    $record = json_encode(['listen' => $options['listen'], 'host' => $options['host'], 'files-dir' => $options['files-dir']]);
     if (file_put_contents(listenerPath($directory), $record, LOCK_EX) === false) {
         throw new RuntimeException('Cannot record the listener');
     }
@@ -448,6 +468,15 @@ function requireDatabaseOptions(array $options, array $steps): void
     }
 }
 
+// A site built without a recipe ships no seed, so a SQLite first start has nothing to copy.
+function requireSeed(array $steps, array $site): void
+{
+    if (in_array('seed', $steps, true) && $site['recipe'] === '') {
+        throw new RuntimeException(executableName() . ' has no recipe to seed a SQLite site. '
+            . 'Start it with --database mysql or --database pgsql and the connection details of the database that holds its site.');
+    }
+}
+
 // One start at a time initializes a Site data directory. The resolved path gives equivalent paths one lock.
 function databasePort(array $options): string
 {
@@ -479,22 +508,26 @@ function databaseConfiguration(array $options, string $data): array
     ];
 }
 
-function settings(string $template, array $database): string
+function settings(string $template, array $database, string $siteSettings): string
 {
     $content = file_get_contents($template);
     if ($content === false) {
         throw new RuntimeException('Cannot read Drupal settings template');
     }
-    return str_replace('__DRUPACK_DATABASE_CONFIGURATION__', var_export($database, true), $content);
+    return str_replace(
+        ['__DRUPACK_DATABASE_CONFIGURATION__', '__DRUPACK_SITE_SETTINGS__'],
+        [var_export($database, true), var_export($siteSettings, true)],
+        $content,
+    );
 }
 
 // A serving site requires this file on every request, and a `dr` command runs while it
 // serves. The replacement is written beside it and renamed over it, so a request reads
 // the old file or the new one; a truncating write would let one read half of it.
-function writeSettings(string $path, string $template, array $database): void
+function writeSettings(string $path, string $template, array $database, string $siteSettings): void
 {
     $staging = "$path.new";
-    if (file_put_contents($staging, settings($template, $database)) === false || !rename($staging, $path)) {
+    if (file_put_contents($staging, settings($template, $database, $siteSettings)) === false || !rename($staging, $path)) {
         throw new RuntimeException('Cannot initialize Drupal settings');
     }
 }
@@ -504,7 +537,7 @@ function recordedOptions(array $options, string $directory): array
 {
     // settings.php expects the two variables Settings::initialize() gives it. This read
     // wants $databases alone, so the loader it registers on goes unused.
-    $app_root = __DIR__ . '/web';
+    $app_root = __DIR__ . '/' . siteSettings()['docroot'];
     $class_loader = new \Composer\Autoload\ClassLoader();
     $databases = [];
     require "$directory/settings.php";
@@ -713,6 +746,10 @@ function installSite(string $data, array $options, string $binary, bool $firstEv
         fwrite(STDOUT, "This database already holds a site. " . executableName() . " enabled nothing on it, and keeps its own administrator account.\n");
         return true;
     }
+    if (siteSettings()['recipe'] === '') {
+        throw new RuntimeException("The database for $data holds no installed site, and " . executableName()
+            . " has no recipe to install one. Name the database that holds its site, then start " . executableName() . " again.");
+    }
     if (databaseHoldsTables($options)) {
         throw new RuntimeException("The database for $data holds tables without an installed site. Empty it or name another database, then start " . executableName() . " again.");
     }
@@ -754,7 +791,7 @@ function copySeed(string $data): void
     }
     $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator("$seed/files", FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
     foreach ($files as $file) {
-        $destination = "$data/files/" . $files->getSubPathName();
+        $destination = getenv('DRUPACK_RUNTIME_FILES_DIR') . '/' . $files->getSubPathName();
         if ($file->isDir()) {
             directory($destination);
         } elseif (!copy($file->getPathname(), $destination)) {
@@ -821,7 +858,7 @@ function runStep(string $step, string $data, array $options, string $binary): vo
                 && file_put_contents("$data/hash_salt", bin2hex(random_bytes(32)), LOCK_EX) === false) {
                 throw new RuntimeException('Cannot initialize the site secret');
             }
-            writeSettings("$data/settings.php", __DIR__ . '/settings.php', databaseConfiguration($options, $data));
+            writeSettings("$data/settings.php", __DIR__ . '/settings.php', databaseConfiguration($options, $data), siteSettings()['settings']);
             return;
         case 'administrator':
             configureSeedAdministrator($binary);
@@ -849,10 +886,11 @@ function runStep(string $step, string $data, array $options, string $binary): vo
 
 // Runs under the serving lease. The remaining steps reach the disk before the first one changes anything,
 // and the completion marker follows the last one.
-function initialize(string $data, array $steps, array $options, string $binary): void
+// Returns whether the start adopted a database that already held a site.
+function initialize(string $data, array $steps, array $options, string $binary): bool
 {
     if ($steps === []) {
-        return;
+        return false;
     }
     writeProgress($data, $steps);
     $total = count($steps);
@@ -865,12 +903,14 @@ function initialize(string $data, array $steps, array $options, string $binary):
         throw new RuntimeException('Cannot record the finished installation');
     }
     unlink(progressPath($data));
-    if (file_exists(adoptedPath($data))) {
+    $adopted = file_exists(adoptedPath($data));
+    if ($adopted) {
         unlink(adoptedPath($data));
     }
     if (file_exists(firstEverPath($data))) {
         unlink(firstEverPath($data));
     }
+    return $adopted;
 }
 
 // application/tests/launch_test.php defines this to load the functions above without starting a site.
@@ -882,6 +922,9 @@ try {
     $drush = environment('DRUPACK_RUNTIME_DRUSH') === '1';
     [$options, $command] = options(array_slice($argv, 1), $drush, siteSettings());
     $options['data-dir'] = fromStartDirectory($options['data-dir']);
+    if ($options['files-dir'] !== null) {
+        $options['files-dir'] = fromStartDirectory($options['files-dir']);
+    }
     // PHP_BINARY is empty in embedded FrankenPHP; the Go entrypoint exports its own path.
     $binary = getenv('DRUPACK_RUNTIME_BINARY');
     if ($drush && in_array($command[0] ?? '', ['--help', '-h', 'list'], true)) {
@@ -901,6 +944,7 @@ try {
         $options = recordedListener($options, $options['data-dir']);
     } else {
         $steps = remainingSteps($options['data-dir'], $options['database']);
+        requireSeed($steps, siteSettings());
         $options = administratorCredentials($options, $steps);
     }
     $options['listen'] ??= '127.0.0.1:' . siteSettings()['port'];
@@ -924,18 +968,32 @@ try {
     if (str_contains($options['data-dir'], '"')) {
         throw new InvalidArgumentException('--data-dir must not contain a double quote');
     }
+    // The files directory reaches the Caddyfile the same way.
+    if (str_contains((string) $options['files-dir'], '"')) {
+        throw new InvalidArgumentException('--files-dir must not contain a double quote');
+    }
 
     umask(0077);
     directory($options['data-dir']);
     // realpath() resolves in the native form, so the result is re-canonicalised
     // before it travels into every export, hash and printed line that follows.
     $data = canonical(realpath($options['data-dir']));
-    foreach (['runtime', 'files', 'files/translations', 'private', 'tmp', 'config', 'logs'] as $name) {
+    foreach (['runtime', 'private', 'tmp', 'config', 'logs'] as $name) {
         directory("$data/$name");
     }
+    $options = recordedFilesDirectory($options, $data);
+    $files = $options['files-dir'] ?? "$data/files";
+    directory("$files/translations");
+    $files = canonical(realpath($files));
+    // A named directory is recorded resolved. The default stays unrecorded, so it moves with Site data.
+    if ($options['files-dir'] !== null) {
+        $options['files-dir'] = $files;
+    }
     putenv("DRUPACK_RUNTIME_DATA_DIR=$data");
+    putenv("DRUPACK_RUNTIME_FILES_DIR=$files");
     putenv("DRUPACK_RUNTIME_BIND=$bind");
     putenv("DRUPACK_RUNTIME_PORT=$port");
+    putenv('DRUPACK_RUNTIME_DOCROOT=' . siteSettings()['docroot']);
     putenv('DRUPACK_RUNTIME_ID=' . siteToken($data));
     putenv('DRUPACK_RUNTIME_HOST=' . $options['host']);
     // The address a reader types, never the bind address. Drush builds absolute URLs from this
@@ -1007,12 +1065,12 @@ try {
         // A pending settings step writes the file itself, so its contents are read once they are final.
         if (!in_array('settings', $steps, true)) {
             $options = recordedOptions($options, $data);
-            writeSettings("$data/settings.php", __DIR__ . '/settings.php', databaseConfiguration($options, $data));
+            writeSettings("$data/settings.php", __DIR__ . '/settings.php', databaseConfiguration($options, $data), siteSettings()['settings']);
         }
     }
-    initialize($data, $steps, $options, $binary);
+    $adopted = initialize($data, $steps, $options, $binary);
     foreach (glob(__DIR__ . '/translations/*.po') as $translation) {
-        $destination = "$data/files/translations/" . basename($translation);
+        $destination = "$files/translations/" . basename($translation);
         if (!file_exists($destination) && !copy($translation, $destination)) {
             throw new RuntimeException("Cannot install translation resource: $destination");
         }
@@ -1022,12 +1080,13 @@ try {
     }
     // Every start hands its reader a one-time way in, signed in as the administrator account,
     // uid 1, landing on the dashboard. A start that generated the password has no other way
-    // in, so it still fails when the mint fails; every other start serves without the link.
+    // in, so it still fails when the mint fails. An adopted site keeps its own accounts, and
+    // it and every other start serve without the link.
     fwrite(STDOUT, "Creating a one-time login link.\n");
     try {
         $link = loginLink($binary, $url, '/admin/dashboard');
     } catch (LoginLinkFailure $failure) {
-        if (credentialsRequired($steps)) {
+        if (credentialsRequired($steps) && !$adopted) {
             throw $failure;
         }
         $link = null;

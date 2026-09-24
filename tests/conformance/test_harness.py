@@ -187,11 +187,29 @@ class DockerGateTest(unittest.TestCase):
         class NeedsDocker(harness.ConformanceCase):
             PLATFORMS = (harness.current_platform(),)
             TOOLS = ("docker",)
+            RECIPE = False
 
         with mock.patch.object(harness, "docker_answers", return_value=False):
             with self.assertRaisesRegex(unittest.SkipTest, "Docker daemon"):
                 NeedsDocker.setUpClass()
 
+
+
+class RecipeGateTest(unittest.TestCase):
+    def test_a_case_that_installs_skips_when_the_site_has_no_recipe(self):
+        class Installs(harness.ConformanceCase):
+            PLATFORMS = (harness.current_platform(),)
+
+        with mock.patch.object(harness, "SITE", {"recipe": ""}):
+            with self.assertRaisesRegex(unittest.SkipTest, "the site has no recipe"):
+                Installs.setUpClass()
+
+    def test_a_case_that_installs_runs_when_the_site_has_a_recipe(self):
+        class Installs(harness.ConformanceCase):
+            PLATFORMS = (harness.current_platform(),)
+
+        with mock.patch.object(harness, "SITE", {"recipe": "recipes/acme"}):
+            Installs.setUpClass()
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

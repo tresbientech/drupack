@@ -12,13 +12,11 @@ on:
         type: string
         default: .
       platforms:
-        description: 'Comma-separated targets: linux-amd64, linux-arm64.'
+        description: "Comma-separated targets: linux-amd64, linux-arm64. Unset, drupack.yml's platforms."
         type: string
-        default: linux-amd64
       libc:
-        description: 'The C library of each Linux runtime: both, glibc or musl.'
+        description: "The C library of each Linux runtime: both, glibc or musl. Unset, drupack.yml's libc."
         type: string
-        default: both
       publish:
         description: On a tag run, release the executables in the calling repository.
         type: boolean
@@ -94,7 +92,10 @@ jobs:
           # The checkout belongs to the runner's user, and git refuses to list its files
           # for another one. drupack-build stages a site from that listing.
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          drupack-build --site "$SITE" --platform "$PLATFORMS" --libc "$LIBC" \
+          targets=()
+          if [ -n "$PLATFORMS" ]; then targets+=(--platform "$PLATFORMS"); fi
+          if [ -n "$LIBC" ]; then targets+=(--libc "$LIBC"); fi
+          drupack-build --site "$SITE" "${targets[@]}" \
             --site-version "$version" --output /tmp/drupack/dist --work /tmp/drupack/work
 
       - name: Upload test results

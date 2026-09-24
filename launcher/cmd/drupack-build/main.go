@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -39,13 +40,14 @@ func run() error {
 	runtimes := runtimeFlags{}
 	host := "linux-" + goruntime.GOARCH
 	site := flag.String("site", "", "the site's directory, holding composer.json and drupack.yml")
-	platforms := flag.String("platform", host, "comma-separated targets: linux-amd64, linux-arm64")
-	libc := flag.String("libc", "both", "the C library of each Linux runtime: both, glibc or musl")
+	platforms := flag.String("platform", "", "comma-separated targets: linux-amd64, linux-arm64, overriding drupack.yml's platforms")
+	libc := flag.String("libc", "", "the C library of each Linux runtime: both, glibc or musl, overriding drupack.yml's libc")
 	flag.Var(runtimes, "runtime", "a runtime directory, as PLATFORM/LIBC=DIRECTORY, repeated")
 	output := flag.String("output", "dist", "where the executables and site.json land")
 	work := flag.String("work", "", "where the application is built, a new temporary directory when unset")
 	siteVersion := flag.String("site-version", "dev", "the site's release, which --version prints")
 	payloadOnly := flag.Bool("payload-only", false, "stop after the application payload, written to OUTPUT/payload")
+	describe := flag.Bool("describe", false, "print the site's site.json and build nothing")
 	// The job image names its own copies of these in the environment.
 	engine := flag.String("engine", os.Getenv("DRUPACK_ENGINE"), "the Drupack engine directory")
 	engineVersion := flag.String("engine-version", os.Getenv("DRUPACK_ENGINE_VERSION"), "the engine's release")
@@ -53,18 +55,24 @@ func run() error {
 	composer := flag.String("composer", os.Getenv("DRUPACK_COMPOSER"), "the composer.phar the build installs with")
 	runtimeRoot := flag.String("runtimes", os.Getenv("DRUPACK_RUNTIMES"), "a directory of PLATFORM-LIBC runtime directories, used for each target --runtime leaves out")
 	flag.Parse()
+	if *site == "" {
+		return fmt.Errorf("--site is required")
+	}
+	described, err := siteconfig.Read(*site)
+	if err != nil {
+		return err
+	}
+	if *describe {
+		return json.NewEncoder(os.Stdout).Encode(described)
+	}
 	for name, value := range map[string]string{
-		"site": *site, "engine": *engine, "engine-version": *engineVersion, "php": *php, "composer": *composer,
+		"engine": *engine, "engine-version": *engineVersion, "php": *php, "composer": *composer,
 	} {
 		if value == "" {
 			return fmt.Errorf("--%s is required", name)
 		}
 	}
 
-	described, err := siteconfig.Read(*site)
-	if err != nil {
-		return err
-	}
 	temporary := *work == ""
 	if temporary {
 		if *work, err = os.MkdirTemp("", "drupack-build-"); err != nil {
@@ -72,8 +80,11 @@ func run() error {
 		}
 	}
 	request := build.Request{
-		Site: described, Platforms: strings.Split(*platforms, ","), Libc: *libc, Runtimes: runtimes,
+		Site: described, Libc: *libc, Runtimes: runtimes,
 		Host: host, EngineVersion: *engineVersion, SiteVersion: *siteVersion, PayloadOnly: *payloadOnly,
+	}
+	if *platforms != "" {
+		request.Platforms = strings.Split(*platforms, ",")
 	}
 	// Every step runs in its own directory, so each path is made absolute once here.
 	for target, path := range map[*string]string{

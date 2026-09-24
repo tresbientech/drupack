@@ -18,11 +18,11 @@ bash build/qa.sh
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
-    drupack-build --site examples/mercury-demo --platform linux-amd64 --libc both \
+    drupack-build --site examples/mercury-demo \
     --output dist --work dist/work
 ```
 
-`--libc glibc` or `--libc musl` packs one runtime instead of both. `--runtime PLATFORM/LIBC=DIRECTORY` replaces one carried runtime with a local one. `drupack-build -help` lists every option.
+The build packs the targets Mercury's `drupack.yml` names. `--libc glibc` or `--libc musl` packs one runtime instead of both, and `--platform` overrides the file's platforms. `--runtime PLATFORM/LIBC=DIRECTORY` replaces one carried runtime with a local one. `drupack-build -help` lists every option.
 
 A release tag publishes the image as `ghcr.io/tresbientech/drupack-build:VERSION`, carrying all four Linux runtimes. The image itself runs on amd64 only.
 

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Builds one FrankenPHP static-builder image carrying the extensions
-# runtime/php-extensions.txt names. PHP_EXTENSIONS takes effect while the
+# Builds one FrankenPHP static-builder image carrying the extensions its
+# extension list names. PHP_EXTENSIONS takes effect while the
 # image is built, so a published image cannot carry a narrowed PHP.
 # builder-tag.sh names the image a build of these inputs belongs under.
 #
 # Usage: build-builder.sh musl|gnu TAG [WORK_DIRECTORY]
+# EXTENSIONS_FILE names the extension list, runtime/php-extensions.txt by default.
 
 usage='Usage: build-builder.sh musl|gnu TAG [WORK_DIRECTORY]'
 libc=${1:?$usage}
@@ -27,7 +28,7 @@ case "$(uname -m)" in
     *) printf 'Unsupported architecture: %s\n' "$(uname -m)" >&2; exit 1 ;;
 esac
 
-extensions=$(bash "$repository/runtime/extensions-list.sh" "$repository/runtime/php-extensions.txt")
+extensions=$(bash "$repository/runtime/extensions-list.sh" "$extensions_file")
 
 source=$work/frankenphp
 rm -rf "$source"

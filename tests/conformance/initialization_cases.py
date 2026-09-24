@@ -84,28 +84,6 @@ def assert_marker(case, data):
     case.assertFalse((data / "installation-progress").exists(), "Site data still holds initialization progress")
 
 
-def refuse(case, case_dir, name, *args):
-    """Run a start that bootstraps Drupal against a real database before refusing; return
-    its combined output. Every caller in this module reaches that far, so this waits on the
-    bootstrap_refusal budget, not the shorter argument-refusal one.
-
-    A start asks who owns its address before it refuses anything, so each one gets a port of
-    its own here; the machine-global default would answer for whatever else holds it.
-    """
-    log = case_dir / f"{name}.log"
-    with open(log, "wb") as handle:
-        try:
-            result = harness.run(
-                [str(harness.BINARY), *args, "--listen", f"127.0.0.1:{harness.pick_port()}"],
-                cwd=case_dir, stdout=handle, stderr=subprocess.STDOUT,
-                timeout=harness.WAITS["bootstrap_refusal"].seconds,
-            )
-        except subprocess.TimeoutExpired:
-            case.fail(f"{name}: the start kept running instead of refusing within "
-                      f"{harness.WAITS['bootstrap_refusal'].seconds}s: inspect {log}")
-    case.assertNotEqual(result.returncode, 0, f"{name}: the start succeeded instead of refusing: inspect {log}")
-    return log.read_text(errors="replace")
-
 
 def reset_installation_state(data):
     """Clear an installed site while keeping its extracted runtime, so a later start in the
@@ -240,14 +218,14 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
 
         (data / "site-installed").unlink()
         (data / "site.sqlite").write_text("not a database")
-        text = refuse(self, self.case_dir, "unbootstrappable", "--data-dir", str(data))
+        text = harness.refuse(self, self.case_dir, "unbootstrappable", "--data-dir", str(data))
         self.assertIn("dr --data-dir", text, "the refusal does not name the recovery command")
         self.assertIn(str(data), text, "the refusal does not name the Site data directory")
         (data / "site.sqlite").write_bytes(sqlite_backup)
 
         (data / "settings.php").unlink()
         (data / "installation-progress").unlink(missing_ok=True)
-        text = refuse(self, self.case_dir, "orphan-database", "--data-dir", str(data))
+        text = harness.refuse(self, self.case_dir, "orphan-database", "--data-dir", str(data))
         self.assertIn(str(data), text, "the refusal does not name the Site data directory")
         self.assertEqual((data / "site.sqlite").read_bytes(), sqlite_backup,
                           "the refused start changed the existing database")
@@ -333,7 +311,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
         # An interrupted first start that lost its progress record is not adopted with the seed password.
         progress_backup = progress.read_bytes()
         progress.unlink()
-        text = refuse(self, self.case_dir, "seed-administrator", "--data-dir", str(data))
+        text = harness.refuse(self, self.case_dir, "seed-administrator", "--data-dir", str(data))
         self.assertIn("packaged seed password", text)
         self.assertIn("dr --data-dir", text, "the refusal does not name the recovery command")
         self.assertIn(str(data), text, "the refusal does not name the Site data directory")
@@ -599,7 +577,7 @@ class PostgresqlLifecycle(harness.ConformanceCase):
         self.server.execute("occupied", "CREATE TABLE tenant (id integer)")
         data = self.case_dir / "data"
         connection = self._connection("occupied")
-        text = refuse(self, self.case_dir, "occupied-database", "--data-dir", str(data), *connection)
+        text = harness.refuse(self, self.case_dir, "occupied-database", "--data-dir", str(data), *connection)
         self.assertIn(str(data), text, "the refusal does not name the Site data directory")
 
         tables = self.server.query(
