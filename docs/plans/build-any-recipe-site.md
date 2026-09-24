@@ -36,15 +36,13 @@ Evidence:
 - A private caller repository, `theodoreb/drupack-caller-test`, built through `build.yml@build-any-recipe-site` in run 35845487975.
 - A private Forge repository, `theodore/drupack-site-test`, ran the Gitea job from the doc: run 1114 on `main`, run 1115 on tag `0.0.1` with its release.
 
+The 0.3.0 tag run on `707fbb1` pulled the job image by commit and published the
+release. Phase 7's template runs under `gitlab-ci-local`.
+
 Next:
 
-1. Phase 7, below, tabled by the owner.
-2. A tag run proves `build.yml` pulls the job image by commit, which no run has shown yet.
-
-Chores:
-
-- Delete the two scratch repositories named above once no test needs them.
-- Delete the stray `/tmp/.git`.
+1. Phase 7's drupal.org pipeline, after the next engine tag.
+2. Delete the two scratch repositories named above once no test needs them.
 
 The run log with every ruling is `.superpowers/sdd/build-any-recipe-site-ledger.md`,
 which is local to this checkout and not committed.
@@ -207,13 +205,15 @@ and runs in the job image under that tag, or under `sha-<commit>` for a branch.
 
 ### What to build
 
-A GitLab CI template in the engine repository takes `platforms`, `libc` and
-`publish`. Callers include it from the `project/drupack` mirror at an engine tag.
+A GitLab CI template in the engine repository, `ci/drupack.gitlab-ci.yml`,
+takes `version`, `site`, `platforms`, `libc` and `publish`. `version` repeats
+the engine tag the include names, since GitLab does not tell an included file
+its ref. Callers include it from the `project/drupack` mirror at an engine tag.
 Its job runs in the job image with MySQL and PostgreSQL services for the suite.
 With `publish`, it creates a GitLab release carrying the executables and checksums.
 
 ### Acceptance criteria
 
-- [ ] `gitlab-ci-local` runs a fixture caller project that includes the template by local path, and its build job exits 0 with the executable written.
-- [ ] The fixture run lists the Docker-only cases as skipped and passes the server-database cases against its services.
+- [x] `gitlab-ci-local` runs a fixture caller project that includes the template by local path, and its build job exits 0 with the executable written.
+- [x] The fixture run lists the Docker-only cases as skipped and passes the server-database cases against its services.
 - [ ] After the owner's engine tag, a pipeline in a drupal.org sandbox project including the template passes. `glab ci status` against git.drupalcode.org shows it green.

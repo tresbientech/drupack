@@ -10,6 +10,8 @@ every extension it misses.
 import argparse
 import hashlib
 import json
+import os
+import shutil
 import platform
 import subprocess
 import sys
@@ -87,10 +89,20 @@ def declaring_packages(extension: str, project: Path) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("site", type=Path, help="the site's composer project directory")
-    parser.add_argument("--spc", type=Path, help="an spc binary to use instead of downloading one")
+    parser.add_argument("site", type=Path, nargs="?", help="the site's composer project directory")
+    # The job image fetches spc once and names it here, so a build needs no download.
+    parser.add_argument("--spc", type=Path, default=os.environ.get("DRUPACK_SPC"),
+                        help="an spc binary to use instead of downloading one, DRUPACK_SPC by default")
+    parser.add_argument("--fetch-spc", type=Path, metavar="PATH",
+                        help="download the pinned spc binary to PATH, verify it, and exit")
     parser.add_argument("--extensions", default="", help="the site's additions, comma-separated")
     arguments = parser.parse_args()
+    if arguments.fetch_spc:
+        with tempfile.TemporaryDirectory() as directory:
+            shutil.move(fetch_spc(Path(directory)), arguments.fetch_spc)
+        return 0
+    if arguments.site is None:
+        parser.error("the site directory is required")
 
     with tempfile.TemporaryDirectory() as directory:
         work = Path(directory)

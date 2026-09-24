@@ -1,0 +1,98 @@
+# A site project on GitLab, such as a drupal.org project, includes this file
+# from the engine's mirror at an engine tag. It builds the site's executables in
+# the engine's job image and keeps them as job artifacts. With `publish`, a tag
+# pipeline uploads them to the project's package registry and creates a release.
+#
+# GitLab does not tell an included file which ref it came from, so `version`
+# repeats the tag the include names.
+spec:
+  inputs:
+    version:
+      description: The engine tag this file is included at.
+    site:
+      description: The site's directory, holding composer.json and drupack.yml.
+      default: .
+    platforms:
+      description: "Comma-separated targets: linux-amd64, linux-arm64. Empty, drupack.yml's platforms."
+      default: ""
+    libc:
+      description: "The C library of each Linux runtime: both, glibc or musl. Empty, drupack.yml's libc."
+      default: ""
+    publish:
+      description: On a tag pipeline, upload the executables and create a release.
+      type: boolean
+      default: false
+---
+# A top-level image would become the default of every job in the caller's pipeline.
+.drupack:
+  image: ghcr.io/tresbientech/drupack-build:$[[ inputs.version ]]
+
+drupack-build:
+  extends: .drupack
+  stage: build
+  # The server-database cases run against these, pinned as the conformance
+  # harness pins its own containers, with the account it connects as.
+  services:
+    - name: mysql:8.4.11@sha256:85b9bf2e29cf836ecb8c2a15a935d4ba0c606631dff1dd79531a11983c638f2a
+      alias: mysql
+      variables:
+        MYSQL_DATABASE: &database drupal
+        MYSQL_USER: *database
+        MYSQL_PASSWORD: &password Server.database.test.2026
+        MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    - name: postgres:17.11@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675
+      alias: postgres
+      variables:
+        POSTGRES_DB: *database
+        POSTGRES_USER: *database
+        POSTGRES_PASSWORD: *password
+  variables:
+    SITE: $[[ inputs.site ]]
+    PLATFORMS: $[[ inputs.platforms ]]
+    LIBC: $[[ inputs.libc ]]
+    DRUPACK_TEST_MYSQL: mysql:3306
+    DRUPACK_TEST_PGSQL: postgres:5432
+  script:
+    - version=dev-$CI_COMMIT_SHORT_SHA
+    - if [ -n "$CI_COMMIT_TAG" ]; then version=$CI_COMMIT_TAG; fi
+    # The checkout belongs to another user than the job's, and git refuses to
+    # list its files for them. drupack-build stages a site from that listing.
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - set -- --site "$SITE" --site-version "$version" --output .drupack/dist --work .drupack/work
+    - if [ -n "$PLATFORMS" ]; then set -- "$@" --platform "$PLATFORMS"; fi
+    - if [ -n "$LIBC" ]; then set -- "$@" --libc "$LIBC"; fi
+    - drupack-build "$@"
+  artifacts:
+    when: always
+    paths:
+      - .drupack/dist/
+      - .drupack/work/test-results/
+
+drupack-release:
+  extends: .drupack
+  stage: deploy
+  needs: [drupack-build]
+  rules:
+    - if: $CI_COMMIT_TAG && "$[[ inputs.publish ]]" == "true"
+  script:
+    - cd .drupack/dist
+    - sha256sum -- $(ls | grep -v '^site\.json$') > checksums.txt
+    - name=$(python3 -c 'import json; print(json.load(open("site.json"))["name"])')
+    - packages="$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/$name/$CI_COMMIT_TAG"
+    - |
+      for file in $(ls | grep -v '^site\.json$'); do
+        curl --fail-with-body --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file "$file" "$packages/$file"
+      done
+    - |
+      python3 - "$packages" > release.json <<'EOF'
+      import json, os, sys
+      files = sorted(name for name in os.listdir(".") if name not in ("site.json", "release.json"))
+      print(json.dumps({
+          "name": os.environ["CI_COMMIT_TAG"],
+          "tag_name": os.environ["CI_COMMIT_TAG"],
+          "assets": {"links": [{"name": name, "url": f"{sys.argv[1]}/{name}", "link_type": "package"} for name in files]},
+      }))
+      EOF
+    - |
+      curl --fail-with-body --header "JOB-TOKEN: $CI_JOB_TOKEN" --header "Content-Type: application/json" \
+        --data @release.json "$CI_API_V4_URL/projects/$CI_PROJECT_ID/releases"

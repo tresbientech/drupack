@@ -243,6 +243,36 @@ Notes on the job:
 
 Tested on Gitea 1.27.
 
+## drupal.org GitLab
+
+A project on git.drupalcode.org, or any GitLab project, includes the engine's
+template from the `project/drupack` mirror at an engine tag. `version` repeats
+that tag, since GitLab does not tell an included file its ref.
+
+`.gitlab-ci.yml`:
+
+```yaml
+include:
+  - project: project/drupack
+    ref: 0.4.0
+    file: ci/drupack.gitlab-ci.yml
+    inputs:
+      version: 0.4.0
+      publish: true
+```
+
+Inputs:
+
+- `version`: the engine tag, required.
+- `site`: the site's directory, `.` by default.
+- `platforms` and `libc`: override `drupack.yml`'s values when set.
+- `publish`: on a tag pipeline, upload the executables and `checksums.txt` to
+  the project's package registry, and create a release linking them.
+
+The `drupack-build` job runs the build in the job image, with MySQL and
+PostgreSQL services for the server-database cases. It keeps `.drupack/dist/`
+and the suite's results as job artifacts.
+
 ## Any other CI
 
 The build is one command in the job image, from the site repository's root:
