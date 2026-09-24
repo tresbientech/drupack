@@ -4,13 +4,10 @@
 
 ## Status, 2026-09-24
 
-Branch `package-an-existing-site`, from `main` at `707fbb1`. Phases 1 to 5
-are done, each with `bash build/qa.sh` passing.
-
-Phase 6 is blocked on the client's data. The client site builds, and its first
-start adopts the DDEV database and serves. Every page answers 500 in DDEV and in
-the executable alike: the checkout's branch runs code 111 updates ahead of the
-prod database, and `drush updatedb` stops in a contributed module's update.
+Branch `package-an-existing-site`, from `main` at `707fbb1`. All six phases
+are done, each with `bash build/qa.sh` passing. Phase 6 ran on the client's
+prod release tag and a daily prod database backup imported into DDEV. Before
+merge: one code-rules audit and one design audit.
 
 ## Architectural decisions
 
@@ -147,7 +144,7 @@ The executable starts against DDEV's MySQL with `--files-dir` on
 `docroot/sites/default/files`. `docs/build-your-site.md` gains the existing-site
 walkthrough, with no client names.
 
-The run found four engine defects, fixed on this branch:
+The run found five engine defects, fixed on this branch:
 
 - The job image lacked GNU `patch`, which `cweagans/composer-patches` 1.x needs.
 - A tracked symlink reached the payload, which the unpacker refuses. Staging
@@ -156,6 +153,9 @@ The run found four engine defects, fixed on this branch:
 - A failed login link stopped the first start on an adopted site whose uid 1
   is blocked.
 - A conformance case expected the executable to be named `drupack`.
+- Site Studio names its compiled templates by their public files address,
+  which the application does not hold. A Twig loader resolves those names in
+  the files directory.
 
 The runtimes, the executable and the Site data go to directories outside both
 repositories. The executable carries the client's code, so no build output of
@@ -164,6 +164,6 @@ the client site goes to any remote: no forge, artifact store or registry.
 ### Acceptance criteria
 
 - [x] `site-runtimes.sh` and `drupack-build` build the client site with no target flag.
-- [ ] A first start against DDEV's database reports the adopted site and enables nothing.
-- [ ] `/` and three Site Studio pages answer 200 with their styles, compared against DDEV's pages.
-- [ ] `ddev drush pm:list --status=enabled` prints the same list before and after the first start.
+- [x] A first start against DDEV's database reports the adopted site and enables nothing.
+- [x] `/` and three Site Studio pages answer 200 with their styles, compared against DDEV's pages.
+- [x] `ddev drush pm:list --status=enabled` prints the same list before and after the first start.

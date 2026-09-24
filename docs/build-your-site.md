@@ -64,6 +64,36 @@ account. A SQLite start refuses, and so does a start on a database that holds
 no site. The build's conformance suite reports each case that needs a seed as
 skipped, with the reason "the site has no recipe".
 
+## An existing site on DDEV
+
+A site that runs on DDEV can serve its DDEV database and files from an
+executable. The two share the database as peers: both run cron, and a cache
+clear on one side empties the other's caches.
+
+1. Pin the port DDEV publishes the database on, in `.ddev/config.local.yaml`,
+   then run `ddev restart`:
+
+   ```yaml
+   host_db_port: "33306"
+   ```
+
+2. Write a `drupack.yml` with no `recipe`. List the extensions the build
+   reports as missing in `extensions`. Keep the file out of commits with
+   `.git/info/exclude` when the site's repository should not hold it.
+3. Compile the runtimes when the site adds extensions, then build, as the
+   section on PHP extensions shows.
+4. Start the executable on DDEV's database and files directory:
+
+   ```sh
+   ./acme-linux-amd64 --data-dir data --database mysql --db-host 127.0.0.1 \
+       --db-port 33306 --db-name db --db-user db --db-password db \
+       --files-dir ../acme/docroot/sites/default/files
+   ```
+
+The files directory holds what the database names, such as Site Studio's
+compiled templates and styles, so both sides serve the same pages. Later
+starts need only `--data-dir`.
+
 ## PHP extensions a site adds
 
 `runtime/php-extensions.txt` names the extensions every runtime carries. A site

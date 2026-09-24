@@ -11,7 +11,7 @@ use Drupal\Core\Theme\Icon\IconFinder;
 
 /**
  * Swaps core service classes for Drupack's own, keeping core's own
- * constructor arguments.
+ * constructor arguments, and adds the loader for templates in public files.
  */
 class WindowsPathServiceProvider implements ServiceModifierInterface {
 
@@ -21,6 +21,10 @@ class WindowsPathServiceProvider implements ServiceModifierInterface {
   public function alter(ContainerBuilder $container) {
     $container->getDefinition(IconFinder::class)->setClass(DriveLetterIconFinder::class);
     $container->getDefinition('stream_wrapper.public')->setClass(SiteDataPublicStream::class);
+    // Core's filesystem loader resolves a template name against the
+    // application, which holds no public files.
+    $container->register('drupack.twig.loader.public_files', SiteDataTemplateLoader::class)
+      ->addTag('twig.loader', ['priority' => 90]);
     // This provider runs on every compile, including the ones before
     // site:install has made Canvas active, when Drupal has not yet
     // registered its namespace and RootRelativeComponentPluginManager's

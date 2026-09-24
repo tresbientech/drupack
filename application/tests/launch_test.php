@@ -437,6 +437,22 @@ test("the site's settings file loads after the engine's settings", function (): 
     putenv('DRUPACK_RUNTIME_DATA_DIR');
 });
 
+test('the public files template loader resolves the files address in the files directory', function (): void {
+    require_once __DIR__ . '/../support/SiteDataTemplateLoader.php';
+    $files = scratch();
+    $outside = scratch();
+    file_put_contents("$files/component.html.twig", 'compiled');
+    file_put_contents("$outside/outside.html.twig", 'outside');
+    putenv("DRUPACK_RUNTIME_FILES_DIR=$files");
+    $loader = new \Drupack\Support\SiteDataTemplateLoader();
+    putenv('DRUPACK_RUNTIME_FILES_DIR');
+    same(true, $loader->exists('sites/default/files/component.html.twig'));
+    same('compiled', $loader->getSourceContext('sites/default/files/component.html.twig')->getCode());
+    same(false, $loader->exists('component.html.twig'), 'a name outside the address');
+    same(false, $loader->exists('sites/default/files/../' . basename($outside) . '/outside.html.twig'),
+        'a name climbing out of the files directory');
+});
+
 // The command line is described in four places. options() is the contract, and the
 // other three are asserted against it here. docs/adr/0014 records the decision.
 const REPOSITORY = __DIR__ . '/../..';
