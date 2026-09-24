@@ -4,15 +4,16 @@
 
 ## Status, 2026-09-24
 
-Branch `package-an-existing-site`, from `main` at `707fbb1`. The ADRs and this
-plan are written. No phase has started.
+Branch `package-an-existing-site`, from `main` at `707fbb1`. Phase 1 is done:
+`bash build/qa.sh` passed, and a `docroot/` fixture built and passed its suite
+in the job image.
 
 ## Architectural decisions
 
 These hold across all phases:
 
-- The docroot comes from composer.json's `web-root`, `web/` when absent. It
-  travels in `site.json`.
+- The docroot comes from composer.json's `web-root`, and a project without it
+  fails the build. It travels in `site.json`.
 - New `drupack.yml` fields: `settings`, `platforms`, `libc`. `recipe` becomes
   optional. `extensions` stops being refused.
 - The parser holds every default. `drupack-build` flags and CI inputs override
@@ -38,10 +39,10 @@ The parser reads `extra.drupal-scaffold.locations.web-root` and writes
 
 ### Acceptance criteria
 
-- [ ] `cd launcher && go test ./...` passes, with cases for a `docroot/` layout, a trailing slash and an absent key.
-- [ ] `grep -rnE "'/web|root \* web|/web/" application build/seed.sh` prints nothing.
-- [ ] A fixture site with `web-root: docroot/` builds in the job image, and the suite passes on it.
-- [ ] `bash build/qa.sh` passes.
+- [x] `cd launcher && go test ./...` passes, with cases for a `docroot/` layout, a trailing slash and a refused absent key.
+- [x] `grep -rnE "'/web|root \* web|/web/" application build/seed.sh` prints nothing.
+- [x] A fixture site with `web-root: docroot/` builds in the job image, and the suite passes on it.
+- [x] `bash build/qa.sh` passes.
 
 ---
 

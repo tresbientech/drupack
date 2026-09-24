@@ -21,7 +21,7 @@
 
 http://:{$DRUPACK_RUNTIME_PORT} {
 	bind {$DRUPACK_RUNTIME_BIND}
-	root * web
+	root * {$DRUPACK_RUNTIME_DOCROOT}
 	encode zstd br gzip
 
 	# Caddy sorts directives by kind, which puts a file route ahead of every
@@ -108,7 +108,7 @@ http://:{$DRUPACK_RUNTIME_PORT} {
 			uri @absent replace /files /sites/default/files 1
 		}
 		php_server {
-			root web
+			root {$DRUPACK_RUNTIME_DOCROOT}
 		}
 	}
 }

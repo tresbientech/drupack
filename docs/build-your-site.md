@@ -9,7 +9,9 @@ The site repository can be private. The examples use a site named `acme`.
 
 ## What the site repository holds
 
-- `composer.json` and `composer.lock`, the site's Composer project.
+- `composer.json` and `composer.lock`, the site's Composer project. Its
+  `extra.drupal-scaffold.locations.web-root` names the docroot, such as `web/`
+  or `docroot/`, and the build refuses a project that leaves it unset.
 - `drupack.yml`, the site contract.
 - `tests/`, optional conformance cases the suite runs after the engine's own.
 

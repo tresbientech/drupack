@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -15,7 +16,7 @@ import (
 func request(platforms []string, libc string) build.Request {
 	return build.Request{
 		SiteDir:   "/site",
-		Site:      siteconfig.Site{Name: "acme", Recipe: "recipes/acme"},
+		Site:      siteconfig.Site{Name: "acme", Recipe: "recipes/acme", Docroot: "docroot"},
 		Platforms: platforms,
 		Libc:      libc,
 		Runtimes: map[string]string{
@@ -113,6 +114,18 @@ func TestTheSeedInstallsTheSiteRecipe(t *testing.T) {
 	seed := step(t, plan, "install the seed site").Command
 	if seed[len(seed)-1] != "recipes/acme" {
 		t.Fatalf("the seed installs %q; want the site's recipe", seed[len(seed)-1])
+	}
+}
+
+func TestTheSiteScriptsTakeTheSiteDocroot(t *testing.T) {
+	plan, err := build.NewPlan(request([]string{"linux-amd64"}, "both"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"install the seed site", "archive the application"} {
+		if command := step(t, plan, name).Command; !slices.Contains(command, "docroot") {
+			t.Errorf("%s does not name the docroot: %v", name, command)
+		}
 	}
 }
 

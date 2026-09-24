@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -29,11 +30,13 @@ type Site struct {
 	Languages  []string `json:"languages"`
 	SmokePaths []string `json:"smoke_paths"`
 	Extensions []string `json:"extensions"`
+	// Docroot comes from composer.json, not drupack.yml, so Parse leaves it empty.
+	Docroot string `json:"docroot"`
 }
 
 var (
 	languageRe = regexp.MustCompile(`^[a-z]{2,3}(-[a-z]+)?$`)
-	recipeRe   = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_./-]*$`)
+	relativePathRe   = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_./-]*$`)
 	pathRe     = regexp.MustCompile(`^/[A-Za-z0-9_./~-]*$`)
 )
 
@@ -66,7 +69,7 @@ func validate(site Site) error {
 	if site.Port < 1 || site.Port > 65535 {
 		return fieldError("port", "%d is outside 1 to 65535", site.Port)
 	}
-	if !recipeRe.MatchString(site.Recipe) || hasParentSegment(site.Recipe) {
+	if !relativePathRe.MatchString(site.Recipe) || hasParentSegment(site.Recipe) {
 		return fieldError("recipe", "%q must be a relative path inside the project", site.Recipe)
 	}
 	if strings.TrimSpace(site.SiteName) == "" || strings.ContainsFunc(site.SiteName, isControl) {
@@ -106,13 +109,45 @@ func isControl(r rune) bool {
 	return r < 0x20 || r == 0x7f
 }
 
-// Read parses the drupack.yml in directory.
+// Read parses the drupack.yml in directory and takes the docroot from its composer.json.
 func Read(directory string) (Site, error) {
 	content, err := os.ReadFile(filepath.Join(directory, FileName))
 	if err != nil {
 		return Site{}, err
 	}
-	return Parse(content)
+	site, err := Parse(content)
+	if err != nil {
+		return Site{}, err
+	}
+	site.Docroot, err = docroot(directory)
+	return site, err
+}
+
+// docroot reads the web root drupal/core-composer-scaffold writes to. The site
+// author sets it, so it is checked like a drupack.yml field.
+func docroot(directory string) (string, error) {
+	content, err := os.ReadFile(filepath.Join(directory, "composer.json"))
+	if err != nil {
+		return "", err
+	}
+	var composer struct {
+		Extra struct {
+			Scaffold struct {
+				Locations struct {
+					WebRoot string `json:"web-root"`
+				} `json:"locations"`
+			} `json:"drupal-scaffold"`
+		} `json:"extra"`
+	}
+	if err := json.Unmarshal(content, &composer); err != nil {
+		return "", fmt.Errorf("composer.json: %w", err)
+	}
+	webRoot := composer.Extra.Scaffold.Locations.WebRoot
+	cleaned := path.Clean(webRoot)
+	if webRoot == "" || cleaned == "." || !relativePathRe.MatchString(cleaned) || hasParentSegment(cleaned) {
+		return "", fmt.Errorf("composer.json: extra.drupal-scaffold.locations.web-root: %q must name a directory inside the project", webRoot)
+	}
+	return cleaned, nil
 }
 
 // Write stores site as site.json in directory.

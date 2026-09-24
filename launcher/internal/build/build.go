@@ -123,10 +123,10 @@ func NewPlan(r Request) (Plan, error) {
 			Command: append(append([]string{}, php...), r.Composer, "install", "--no-dev", "--prefer-dist", "--no-interaction", "--optimize-autoloader")},
 		{Name: "fetch translations", Env: append(phpEnv, "CURL_CA_BUNDLE="+filepath.Join(r.Engine, "application", "cacert.pem")),
 			Command: append(append([]string{}, php...), filepath.Join(r.Engine, "build", "install-translations.php"), application)},
-		{Name: "lay the engine over the site", Func: func() error { return layEngine(r.Engine, application) }},
+		{Name: "lay the engine over the site", Func: func() error { return layEngine(r.Engine, application, r.Site.Docroot) }},
 		{Name: "install the seed site", Env: phpEnv,
-			Command: []string{"bash", filepath.Join(r.Engine, "build", "seed.sh"), application, r.PHP, r.Site.Recipe}},
-		{Name: "archive the application", Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload}},
+			Command: []string{"bash", filepath.Join(r.Engine, "build", "seed.sh"), application, r.PHP, r.Site.Docroot, r.Site.Recipe}},
+		{Name: "archive the application", Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload, r.Site.Docroot}},
 	}}
 	if r.PayloadOnly {
 		plan.Steps = append(plan.Steps, Step{Name: "export the payload", Func: func() error {
@@ -276,7 +276,7 @@ func inCheckout(directory string) bool {
 
 // layEngine copies the engine's application files over the site, which win over
 // any file of the same name, then the installer's recipe catalog.
-func layEngine(engine, application string) error {
+func layEngine(engine, application, docroot string) error {
 	source := filepath.Join(engine, "application")
 	err := filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
@@ -296,7 +296,7 @@ func layEngine(engine, application string) error {
 		return err
 	}
 	return copyFile(filepath.Join(engine, "build", "site-templates.php"),
-		filepath.Join(application, "web", "sites", "default", "site-templates.php"))
+		filepath.Join(application, docroot, "sites", "default", "site-templates.php"))
 }
 
 // exportPayload puts the payload and its site.json where a later platform build reads them.

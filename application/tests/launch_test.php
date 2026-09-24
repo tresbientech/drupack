@@ -363,7 +363,7 @@ test('the deployment identifier hashes the exported application directory direct
     $appDir = 'C:/Users/theno/AppData/Local/Drupack/runtime/app/r2e2893a48a83';
     putenv("DRUPACK_RUNTIME_APP_DIR=$appDir");
     // Settings::initialize() gives settings.php these two, beside the arrays below.
-    $app_root = dirname(__DIR__) . '/web';
+    $app_root = dirname(__DIR__);
     $class_loader = new \Composer\Autoload\ClassLoader();
     $databases = [];
     $settings = [];

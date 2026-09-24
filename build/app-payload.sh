@@ -5,9 +5,10 @@ set -euo pipefail
 # app_checksum.txt. Its content is PHP source, vendor, translations and a seeded
 # database, none of which depend on the libc a runtime links against, so one
 # payload serves every runtime.
-usage='Usage: build/app-payload.sh APPLICATION OUTPUT'
+usage='Usage: build/app-payload.sh APPLICATION OUTPUT DOCROOT'
 application=${1:?$usage}
 output=${2:?$usage}
+contrib=./${3:?$usage}/modules/contrib
 
 mkdir -p "$output"
 cd "$output"
@@ -25,19 +26,21 @@ tar "${archive_options[@]}" \
     --exclude='package-lock.json' --exclude='yarn.lock' \
     --exclude='pnpm-lock.yaml' --exclude='npm-shrinkwrap.json' \
     --exclude='.github' --exclude='.gitlab' \
-    --exclude='./web/modules/contrib/canvas/ui/src' \
-    --exclude='./web/modules/contrib/canvas/ui/lib' \
-    --exclude='./web/modules/contrib/canvas/ui/assets/videos' \
-    --exclude='./web/modules/contrib/canvas/packages/cli/src' \
-    --exclude='./web/modules/contrib/canvas/packages/workbench/src' \
-    --exclude='./web/modules/contrib/canvas/packages/eslint-config/src' \
-    --exclude='./web/modules/contrib/modeler_api/ui/src' \
-    --exclude='./web/modules/contrib/project_browser/sveltejs/src' \
-    --exclude='./web/modules/contrib/project_browser/sveltejs/scripts' \
+    --exclude="$contrib/canvas/ui/src" \
+    --exclude="$contrib/canvas/ui/lib" \
+    --exclude="$contrib/canvas/ui/assets/videos" \
+    --exclude="$contrib/canvas/packages/cli/src" \
+    --exclude="$contrib/canvas/packages/workbench/src" \
+    --exclude="$contrib/canvas/packages/eslint-config/src" \
+    --exclude="$contrib/modeler_api/ui/src" \
+    --exclude="$contrib/project_browser/sveltejs/src" \
+    --exclude="$contrib/project_browser/sveltejs/scripts" \
     --exclude='./vendor/html2text/html2text/test' \
     -cf app-payload.tar -C "$application" .
-tar "${archive_options[@]}" --no-recursion -rf app-payload.tar -C "$application" \
-    ./web/modules/contrib/canvas/ui/src \
-    ./web/modules/contrib/canvas/ui/src/local_packages \
-    ./web/modules/contrib/canvas/ui/src/local_packages/hyperscriptify \
-    ./web/modules/contrib/canvas/ui/src/local_packages/hyperscriptify/LICENSE
+# Canvas's ui/src holds one file its licence requires to ship, which the exclude above drops.
+hyperscriptify=$contrib/canvas/ui/src/local_packages/hyperscriptify
+if [ -e "$application/$hyperscriptify/LICENSE" ]; then
+    tar "${archive_options[@]}" --no-recursion -rf app-payload.tar -C "$application" \
+        "$contrib/canvas/ui/src" "$contrib/canvas/ui/src/local_packages" \
+        "$hyperscriptify" "$hyperscriptify/LICENSE"
+fi

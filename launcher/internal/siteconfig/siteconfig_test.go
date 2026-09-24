@@ -71,13 +71,61 @@ func TestParseNamesTheRejectedField(t *testing.T) {
 	}
 }
 
+// site writes a site directory holding drupack.yml and composer.json.
+func site(t *testing.T, drupack, composer string) string {
+	t.Helper()
+	directory := t.TempDir()
+	for name, content := range map[string]string{siteconfig.FileName: drupack, "composer.json": composer} {
+		if err := os.WriteFile(filepath.Join(directory, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return directory
+}
+
+func scaffold(webRoot string) string {
+	return `{"extra": {"drupal-scaffold": {"locations": {"web-root": "` + webRoot + `"}}}}`
+}
+
+func TestReadTakesTheDocrootFromComposer(t *testing.T) {
+	cases := map[string]struct{ composer, want string }{
+		"acquia layout": {scaffold("docroot/"), "docroot"},
+		"no slash":      {scaffold("web"), "web"},
+		"nested":        {scaffold("app/public/"), "app/public"},
+		"leading dot":   {scaffold("./docroot/"), "docroot"},
+	}
+	for label, c := range cases {
+		read, err := siteconfig.Read(site(t, minimal, c.composer))
+		if err != nil {
+			t.Errorf("%s: %v", label, err)
+			continue
+		}
+		if read.Docroot != c.want {
+			t.Errorf("%s: docroot = %q; want %q", label, read.Docroot, c.want)
+		}
+	}
+}
+
+func TestReadRefusesADocrootOutsideTheSite(t *testing.T) {
+	composers := []string{`{"name": "acme/site"}`}
+	for _, webRoot := range []string{"/var/www/html", "../shared/web", "web/../..", "."} {
+		composers = append(composers, scaffold(webRoot))
+	}
+	for _, composer := range composers {
+		_, err := siteconfig.Read(site(t, minimal, composer))
+		if err == nil || !strings.Contains(err.Error(), "web-root") {
+			t.Errorf("%s: Read error = %v; want one naming web-root", composer, err)
+		}
+	}
+}
+
 func TestWriteProducesTheSiteJSONShape(t *testing.T) {
-	site, err := siteconfig.Parse([]byte(minimal + "languages: [fr]\n"))
+	read, err := siteconfig.Read(site(t, minimal+"languages: [fr]\n", scaffold("docroot/")))
 	if err != nil {
 		t.Fatal(err)
 	}
 	directory := t.TempDir()
-	if err := siteconfig.Write(site, directory); err != nil {
+	if err := siteconfig.Write(read, directory); err != nil {
 		t.Fatal(err)
 	}
 	content, err := os.ReadFile(filepath.Join(directory, siteconfig.OutputName))
@@ -90,7 +138,7 @@ func TestWriteProducesTheSiteJSONShape(t *testing.T) {
 	}
 	want := map[string]any{
 		"name": "mysite", "port": float64(7225), "recipe": "recipes/my_site", "site_name": "My Site",
-		"languages": []any{"fr"}, "smoke_paths": []any{"/"}, "extensions": []any{},
+		"languages": []any{"fr"}, "smoke_paths": []any{"/"}, "extensions": []any{}, "docroot": "docroot",
 	}
 	if !reflect.DeepEqual(written, want) {
 		t.Fatalf("site.json = %v; want %v", written, want)

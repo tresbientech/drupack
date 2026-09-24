@@ -504,7 +504,7 @@ function recordedOptions(array $options, string $directory): array
 {
     // settings.php expects the two variables Settings::initialize() gives it. This read
     // wants $databases alone, so the loader it registers on goes unused.
-    $app_root = __DIR__ . '/web';
+    $app_root = __DIR__ . '/' . siteSettings()['docroot'];
     $class_loader = new \Composer\Autoload\ClassLoader();
     $databases = [];
     require "$directory/settings.php";
@@ -936,6 +936,7 @@ try {
     putenv("DRUPACK_RUNTIME_DATA_DIR=$data");
     putenv("DRUPACK_RUNTIME_BIND=$bind");
     putenv("DRUPACK_RUNTIME_PORT=$port");
+    putenv('DRUPACK_RUNTIME_DOCROOT=' . siteSettings()['docroot']);
     putenv('DRUPACK_RUNTIME_ID=' . siteToken($data));
     putenv('DRUPACK_RUNTIME_HOST=' . $options['host']);
     // The address a reader types, never the bind address. Drush builds absolute URLs from this

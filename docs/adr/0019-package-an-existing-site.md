@@ -23,8 +23,9 @@ keeps it, enables nothing and keeps its administrator account.
 ## Decision
 
 - The parser reads the docroot from composer.json's
-  `extra.drupal-scaffold.locations.web-root`, `web/` when absent, and writes it
-  into `site.json`. The Caddyfile, `launch.php` and the seed step read it there.
+  `extra.drupal-scaffold.locations.web-root` and writes it into `site.json`. A
+  project without the key fails the build: the scaffold then writes to the
+  project root, which no default can guess. The Caddyfile, `launch.php` and the seed step read it there.
 - `recipe` is optional. Without one, the build installs no seed. A first start
   then needs `--database mysql` or `pgsql`, and a SQLite start refuses in a
   sentence naming both.
