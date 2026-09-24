@@ -1,0 +1,8 @@
+# A caller of the template, run with gitlab-ci-local from the repository root.
+# The version names the job image build/qa.sh builds, tagged under the name the
+# template pulls.
+include:
+  - local: /ci/drupack.gitlab-ci.yml
+    inputs:
+      version: local
+      site: examples/mercury-demo

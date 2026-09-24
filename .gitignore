@@ -14,3 +14,6 @@
 .idea
 __pycache__/
 /test-results/
+# gitlab-ci-local runs of ci/test/caller.gitlab-ci.yml
+/.drupack/
+/.gitlab-ci-local/
