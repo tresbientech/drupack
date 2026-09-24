@@ -17,8 +17,9 @@ Notes from the audits:
 - The branch added `drupack-build --describe`, kept the query string on the
   Caddyfile's derivative fallback, reads the `spc` binary out of its archive by
   name, and re-adds the Canvas licence only where it exists.
-- Every build downloads `spc` from GitHub for the extension check, and a
-  release runs that check twice. Caching `spc` in the job image is open.
+- The job image carries `spc`, which `DRUPACK_SPC` names, so a build's
+  extension check needs no download. A release runs the check twice: once as
+  its early gate, once inside Mercury's build.
 - `SiteDataPublicStream` keeps its name, although the files directory can sit
   outside Site data.
 - `docs/build-your-site.md` pins `drupack-build:0.3.0`, which refuses

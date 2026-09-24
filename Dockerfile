@@ -98,6 +98,7 @@ COPY application /opt/drupack/engine/application
 COPY build /opt/drupack/engine/build
 COPY launcher /opt/drupack/engine/launcher
 COPY runtime/php-extensions.txt runtime/check-extensions.py /opt/drupack/engine/runtime/
+RUN python3 /opt/drupack/engine/runtime/check-extensions.py --fetch-spc /opt/drupack/spc
 COPY tests /opt/drupack/engine/tests
 # The packer builds the launcher from this module on every run, so its modules are
 # fetched once here and the build runs as whichever user the CI host picks.
@@ -109,6 +110,7 @@ ENV DRUPACK_ENGINE=/opt/drupack/engine \
     DRUPACK_ENGINE_VERSION=${DRUPACK_VERSION:-dev} \
     DRUPACK_PHP=/opt/drupack/runtimes/linux-${TARGETARCH}-musl/drupack \
     DRUPACK_RUNTIMES=/opt/drupack/runtimes \
+    DRUPACK_SPC=/opt/drupack/spc \
     DRUPACK_COMPOSER=/opt/composer.phar \
     HOME=/tmp \
     GOCACHE=/tmp/go-build \
