@@ -4,7 +4,7 @@
 
 ## Status, 2026-09-24
 
-Branch `package-an-existing-site`, from `main` at `707fbb1`. Phases 1 to 3
+Branch `package-an-existing-site`, from `main` at `707fbb1`. Phases 1 to 4
 are done, each with `bash build/qa.sh` passing.
 
 ## Architectural decisions
@@ -90,16 +90,17 @@ recipe".
 
 `settings` names a PHP file in the site. The build stages it into the
 application, and the generated `settings.php` requires it last. `--files-dir`
-sets the public files directory for the settings, the Caddyfile and the
-listener record.
+sets the public files directory for the public stream wrapper and the
+Caddyfile, through `DRUPACK_RUNTIME_FILES_DIR`, and the listener record keeps
+it for later starts and `dr`.
 
 ### Acceptance criteria
 
-- [ ] `cd launcher && go test ./...` passes, with a parser case refusing a `settings` path outside the site.
-- [ ] `launch_test.php` passes, with cases for the require line and for `--files-dir` reaching the settings.
-- [ ] A conformance case serves a file placed in a `--files-dir` directory outside Site data.
-- [ ] `docs/cli.md` names `--files-dir`, and its parser case passes.
-- [ ] `bash build/qa.sh` passes.
+- [x] `cd launcher && go test ./...` passes, with a parser case refusing a `settings` path outside the site.
+- [x] `launch_test.php` passes, with cases for the require line and for the recorded `--files-dir`.
+- [x] A conformance case serves a file placed in a `--files-dir` directory outside Site data.
+- [x] `docs/cli.md` names `--files-dir`, and its parser case passes.
+- [x] `bash build/qa.sh` passes.
 
 ---
 

@@ -25,6 +25,7 @@ standard error and exits 1.
 | `--data-dir` | PATH | `./data` | `DRUPACK_DATA_DIR` | every start, `dr` |
 | `--listen` | IP:PORT | `127.0.0.1` on the site's port, `7225` for Drupack | none | every start |
 | `--host` | HOST | `localhost` | none | every start |
+| `--files-dir` | PATH | `files` in Site data | none | every start, `dr` |
 | `--database` | `sqlite`, `mysql`, `pgsql` | `sqlite` | `DRUPACK_DATABASE` | first start |
 | `--db-host` | HOST | none | `DRUPACK_DB_HOST` | first start |
 | `--db-port` | PORT | `3306` or `5432` | `DRUPACK_DB_PORT` | first start |
@@ -44,6 +45,20 @@ the directory you started Drupack in, never against the unpacked application.
 
 The value must not contain a double quote. The log path reaches the Caddyfile
 as raw text, before Caddy tokenizes it.
+
+## Public files
+
+`--files-dir` names the directory that holds the site's public files. The site
+addresses them as `/sites/default/files`. By default they live in `files` in
+Site data.
+
+A relative path resolves against the directory you started Drupack in. The
+value must not contain a double quote, for the same reason as `--data-dir`.
+
+The Listener record keeps the directory a start names. Later starts and `dr`
+use it without the option, and a new `--files-dir` replaces it. A start copies
+the bundled translations into its `translations` directory, keeping any file
+already there.
 
 ## The listener
 

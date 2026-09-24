@@ -215,6 +215,18 @@ class SeededSite(harness.ConformanceCase):
                     self.fail(f"expected {path} to be blocked, got {status}: {body!r}")
         self.assertEqual(self.site.http("/sites/default/files/ordinary.txt"), "not executable")
 
+    def test_files_dir_outside_site_data(self):
+        data = self.case_dir / "data"
+        public = self.case_dir / "public"
+        self.site.start(data, *CREDENTIALS, "--files-dir", str(public))
+        (public / "probe.txt").write_text("served from the files directory")
+        self.assertEqual(self.site.http("/sites/default/files/probe.txt"), "served from the files directory")
+        self.assertFalse((data / "files").exists(), "Site data holds a files directory")
+        self.site.stop()
+        # The recorded directory holds for a start that names none.
+        self.site.start(data)
+        self.assertEqual(self.site.http("/sites/default/files/probe.txt"), "served from the files directory")
+
     def test_public_storage_cache_headers(self):
         # An upload can be replaced at the same URL, so it must revalidate
         # rather than serve a year-old cached copy. A versioned application

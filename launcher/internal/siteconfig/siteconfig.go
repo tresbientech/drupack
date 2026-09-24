@@ -39,9 +39,11 @@ var Platforms = map[string]string{
 
 // Site is one site's contract. Its JSON tags are the site.json shape.
 type Site struct {
-	Name       string   `json:"name"`
-	Port       int      `json:"port"`
-	Recipe     string   `json:"recipe"`
+	Name   string `json:"name"`
+	Port   int    `json:"port"`
+	Recipe string `json:"recipe"`
+	// Settings names a PHP file in the site that the generated settings.php requires last.
+	Settings   string   `json:"settings"`
 	SiteName   string   `json:"site_name"`
 	Languages  []string `json:"languages"`
 	SmokePaths []string `json:"smoke_paths"`
@@ -95,6 +97,9 @@ func validate(site Site) error {
 	}
 	if site.Recipe != "" && (!relativePathRe.MatchString(site.Recipe) || hasParentSegment(site.Recipe)) {
 		return fieldError("recipe", "%q must be a relative path inside the project", site.Recipe)
+	}
+	if site.Settings != "" && (!relativePathRe.MatchString(site.Settings) || hasParentSegment(site.Settings)) {
+		return fieldError("settings", "%q must be a relative path inside the project", site.Settings)
 	}
 	if strings.TrimSpace(site.SiteName) == "" || strings.ContainsFunc(site.SiteName, isControl) {
 		return fieldError("site_name", "%q must be a non-empty single line", site.SiteName)
@@ -153,6 +158,11 @@ func Read(directory string) (Site, error) {
 	site, err := Parse(content)
 	if err != nil {
 		return Site{}, err
+	}
+	if site.Settings != "" {
+		if info, err := os.Stat(filepath.Join(directory, site.Settings)); err != nil || !info.Mode().IsRegular() {
+			return Site{}, fieldError("settings", "%q is not a file in the site", site.Settings)
+		}
 	}
 	site.Docroot, err = docroot(directory)
 	return site, err

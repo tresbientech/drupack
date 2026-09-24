@@ -28,12 +28,16 @@ copied whole. In a checkout git cannot read, the build stops with git's error.
 name: acme                 # executable name and cache directory, required
 recipe: recipes/acme_site  # the recipe the build seeds and a first start installs
 site_name: Acme            # the site name the install sets, required
+settings: acme.php         # PHP the generated settings.php requires last
 port: 7225                 # the port the site listens on
 languages: [fr, de]        # translations the build fetches
 smoke_paths: [/, /about]   # paths the suite expects a 200 from, / by default
 platforms: [linux-amd64]   # targets: linux-amd64, linux-arm64
 libc: both                 # C library of each runtime: both, glibc or musl
 ```
+
+`settings` names a PHP file in the site. The build stops when the file is
+absent or git ignores it.
 
 `platforms` defaults to `[linux-amd64]` and `libc` to `both`. `both` packs two
 runtimes in one file, and the executable picks one per host. The

@@ -51,6 +51,7 @@ Options:
   --data-dir PATH            Site data directory, ./data by default
   --listen IP:PORT           Listener address, 127.0.0.1 on the site's port by default
   --host HOST                Permitted request host, localhost by default
+  --files-dir PATH           Public files directory, files in Site data by default
   --database sqlite|mysql|pgsql
                              Database backend for a first start, sqlite by default
   --db-host, --db-port, --db-name, --db-user, --db-password

@@ -139,8 +139,8 @@ func TestTheSeedInstallsTheSiteRecipe(t *testing.T) {
 		t.Fatal(err)
 	}
 	seed := step(t, plan, "install the seed site").Command
-	if seed[len(seed)-1] != "recipes/acme" {
-		t.Fatalf("the seed installs %q; want the site's recipe", seed[len(seed)-1])
+	if !slices.Contains(seed, "recipes/acme") {
+		t.Fatalf("the seed command %v does not name the site's recipe", seed)
 	}
 }
 
@@ -318,6 +318,41 @@ func TestStagingAGitSiteLeavesOutWhatGitIgnores(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(application, "vendor")); !os.IsNotExist(err) {
 		t.Errorf("an ignored vendor directory was staged")
+	}
+}
+
+func TestStagingRefusesASettingsFileGitIgnores(t *testing.T) {
+	site := t.TempDir()
+	for name, content := range map[string]string{
+		"composer.json": "{}", ".gitignore": "/acme.settings.php\n", "acme.settings.php": "<?php",
+	} {
+		if err := os.WriteFile(filepath.Join(site, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out, err := gitInit(site); err != nil {
+		t.Skipf("git is unavailable: %v %s", err, out)
+	}
+	r := request([]string{"linux-amd64"}, "both")
+	r.SiteDir, r.Work, r.Site.Settings = site, t.TempDir(), "acme.settings.php"
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := step(t, plan, "stage the site").Func(); err == nil || !strings.Contains(err.Error(), `"acme.settings.php"`) {
+		t.Fatalf("staging error = %v; want one naming the ignored settings file", err)
+	}
+}
+
+func TestTheSeedTakesTheSiteSettings(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Site.Settings = "acme.settings.php"
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seed := step(t, plan, "install the seed site").Command; seed[len(seed)-1] != "acme.settings.php" {
+		t.Fatalf("the seed command ends %q; want the site's settings file", seed[len(seed)-1])
 	}
 }
 

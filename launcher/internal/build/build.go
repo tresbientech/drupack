@@ -108,7 +108,16 @@ func NewPlan(r Request) (Plan, error) {
 	// The runtime reads php.ini beside itself only through PHPRC.
 	phpEnv := []string{"PHPRC=" + filepath.Dir(r.PHP), "DRUPACK_CA_FILE=" + filepath.Join(r.Engine, "application", "cacert.pem")}
 	plan := Plan{Steps: []Step{
-		{Name: "stage the site", Func: func() error { return stageSite(r.SiteDir, application, r.Output, r.Work) }},
+		{Name: "stage the site", Func: func() error {
+			if err := stageSite(r.SiteDir, application, r.Output, r.Work); err != nil {
+				return err
+			}
+			// Staging copies what git tracks or would track, so an ignored settings file stays behind.
+			if _, err := os.Stat(filepath.Join(application, r.Site.Settings)); r.Site.Settings != "" && err != nil {
+				return fmt.Errorf("%s names settings %q, which the build did not copy: git ignores it", siteconfig.FileName, r.Site.Settings)
+			}
+			return nil
+		}},
 		{Name: "write site.json", Func: func() error { return siteconfig.Write(r.Site, application) }},
 		{Name: "install the Composer project", Dir: application, Env: phpEnv,
 			Command: append(append([]string{}, php...), r.Composer, "install", "--no-dev", "--prefer-dist", "--no-interaction", "--optimize-autoloader")},
@@ -119,7 +128,7 @@ func NewPlan(r Request) (Plan, error) {
 	// A site without a recipe ships no seed, and serves only a database that holds it.
 	if r.Site.Recipe != "" {
 		plan.Steps = append(plan.Steps, Step{Name: "install the seed site", Env: phpEnv,
-			Command: []string{"bash", filepath.Join(r.Engine, "build", "seed.sh"), application, r.PHP, r.Site.Docroot, r.Site.Recipe}})
+			Command: []string{"bash", filepath.Join(r.Engine, "build", "seed.sh"), application, r.PHP, r.Site.Docroot, r.Site.Recipe, r.Site.Settings}})
 	}
 	plan.Steps = append(plan.Steps, Step{Name: "archive the application",
 		Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload, r.Site.Docroot}})

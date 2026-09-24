@@ -33,7 +33,8 @@ class ExistingSiteAdoption(harness.ConformanceCase):
     def drush(self, installer, *command):
         """Runs the application's Drush on the installer's Site data, as build/seed.sh does."""
         app = self.application()
-        env = dict(os.environ, DRUPACK_RUNTIME_DATA_DIR=str(installer), DRUPACK_RUNTIME_HOST="localhost")
+        env = dict(os.environ, DRUPACK_RUNTIME_DATA_DIR=str(installer), DRUPACK_RUNTIME_FILES_DIR=str(installer / "files"),
+                   DRUPACK_RUNTIME_HOST="localhost")
         return harness.run(
             [str(harness.BINARY), "php-cli", str(app / "vendor" / "drush" / "drush" / "drush.php"),
              f"--root={app / harness.SITE['docroot']}", *command],
@@ -67,7 +68,8 @@ class ExistingSiteAdoption(harness.ConformanceCase):
             "'autoload' => 'core/modules/mysql/src/Driver/Database/mysql/']"
         )
         template = (self.application() / "settings.php").read_text()
-        (installer / "settings.php").write_text(template.replace("__DRUPACK_DATABASE_CONFIGURATION__", database))
+        (installer / "settings.php").write_text(
+            template.replace("__DRUPACK_DATABASE_CONFIGURATION__", database).replace("__DRUPACK_SITE_SETTINGS__", "''"))
         installed = self.drush(installer, "site:install", "minimal", "--yes", f"--site-name={SITE_NAME}",
                                f"--account-name={ADMIN_USER}", f"--account-pass={harness.DATABASE_PASSWORD}")
         self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)

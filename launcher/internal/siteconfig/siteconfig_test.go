@@ -73,6 +73,8 @@ func TestParseNamesTheRejectedField(t *testing.T) {
 		"relative smoke path": {minimal + "smoke_paths: [about]\n", "smoke_paths:"},
 		"escaping smoke path": {minimal + "smoke_paths: [/a/../../b]\n", "smoke_paths:"},
 		"extension additions": {minimal + "extensions: [gmp]\n", "extensions:"},
+		"absolute settings":   {minimal + "settings: /etc/acme.php\n", "settings:"},
+		"escaping settings":   {minimal + "settings: ../acme.php\n", "settings:"},
 		"no platform":         {minimal + "platforms: []\n", "platforms:"},
 		"macOS platform":      {minimal + "platforms: [linux-amd64, macos-arm64]\n", "platforms:"},
 		"comma platforms":     {minimal + "platforms: linux-amd64,linux-arm64\n", "platforms"},
@@ -135,6 +137,23 @@ func TestReadRefusesADocrootOutsideTheSite(t *testing.T) {
 	}
 }
 
+func TestReadTakesASettingsFileTheSiteHolds(t *testing.T) {
+	directory := site(t, minimal+"settings: acme.settings.php\n", scaffold("web"))
+	if _, err := siteconfig.Read(directory); err == nil || !strings.Contains(err.Error(), "settings:") {
+		t.Fatalf("Read error = %v; want one naming the absent settings file", err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "acme.settings.php"), []byte("<?php"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	read, err := siteconfig.Read(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read.Settings != "acme.settings.php" {
+		t.Fatalf("settings = %q; want acme.settings.php", read.Settings)
+	}
+}
+
 func TestWriteProducesTheSiteJSONShape(t *testing.T) {
 	read, err := siteconfig.Read(site(t, minimal+"languages: [fr]\n", scaffold("docroot/")))
 	if err != nil {
@@ -154,7 +173,7 @@ func TestWriteProducesTheSiteJSONShape(t *testing.T) {
 	}
 	want := map[string]any{
 		"name": "mysite", "port": float64(7225), "recipe": "recipes/my_site", "site_name": "My Site",
-		"languages": []any{"fr"}, "smoke_paths": []any{"/"}, "extensions": []any{}, "docroot": "docroot",
+		"languages": []any{"fr"}, "smoke_paths": []any{"/"}, "extensions": []any{}, "docroot": "docroot", "settings": "",
 		"platforms": []any{"linux-amd64"}, "libc": "both",
 	}
 	if !reflect.DeepEqual(written, want) {

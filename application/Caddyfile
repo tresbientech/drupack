@@ -91,21 +91,19 @@ http://:{$DRUPACK_RUNTIME_PORT} {
 		header @publicUpload Cache-Control "max-age=0,must-revalidate"
 		header @versionedAssetPath Cache-Control "max-age=31536000,public,immutable"
 		header @versionedAssetQuery Cache-Control "max-age=31536000,public,immutable"
-		# Public files live in Site data, never under the application, which one release
-		# shares across sites. The address stays root-relative, so it survives a restart
-		# on another port.
+		# Public files live in the files directory, Site data's "files" unless a start
+		# names another, never under the application, which one release shares across
+		# sites. The address stays root-relative, so it survives a restart on another port.
 		route /sites/default/files/* {
-			root * "{$DRUPACK_RUNTIME_DATA_DIR}"
-			# Site data holds public files under "files", which the site addresses
-			# as "sites/default/files".
-			uri strip_prefix /sites/default
+			root * "{$DRUPACK_RUNTIME_FILES_DIR}"
+			uri strip_prefix /sites/default/files
 			@stored file
 			file_server @stored
 			# An image style derivative exists only once the site has generated
 			# it. A request finding no file carries on to the site, under the
-			# address the reader asked for.
+			# address the reader asked for, with its query.
 			@absent not file
-			uri @absent replace /files /sites/default/files 1
+			rewrite @absent /sites/default/files{path}
 		}
 		php_server {
 			root {$DRUPACK_RUNTIME_DOCROOT}
