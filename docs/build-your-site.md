@@ -49,7 +49,7 @@ runtimes in one file, and the executable picks one per host. The
 the GitHub workflow's inputs.
 
 `writable` lists directories relative to the project root, such as
-`web/themes/custom`. Each is a clean path with no `..` segment, and no two
+`web/themes/custom`. Each is a clean relative path with no `..` segment, and no two
 overlap. The section on directories a site writes gives what a start does
 with them.
 

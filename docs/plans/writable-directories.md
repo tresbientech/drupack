@@ -18,8 +18,14 @@ Notes:
 - The case fakes an upgrade by rewriting the laid copy's release marker, since
   the suite cannot rebuild the executable it tests.
 - `launch.php` exports the docroot as an absolute path. ADR 0021 records why.
-- Windows and macOS ran none of this. The layer's link copy and the lay's
-  progress on Windows are unproven.
+- Windows and macOS ran none of this. User story 15 stays open: the layer
+  copies a link as a link, which Windows allows only with a privilege.
+- The two-Site-data criterion became a check of the shared release copy, which
+  user story 8 now rests on.
+- The case writes the probe theme with its own file writes, not through
+  `php-cli`.
+- The deployment identifier hashes the laid copy's release marker, so an
+  upgrade that changes only the site's code builds a new container.
 
 ## Architectural decisions
 
@@ -87,7 +93,7 @@ it skips by name.
 ### Acceptance criteria
 
 - [x] Layer unit tests cover the first lay, reuse on the same marker, an interrupted lay leaving no marker, and a writable directory created when absent
-- [x] `clean` leaves Site data alone, and the shared entry stays in the cache
+- [x] `clean` leaves Site data alone
 - [x] The probe theme case passes on a scratch build of Mercury with `writable: [web/themes/custom]`
 - [x] The case is reported as skipped by name in engine QA
 - [x] The shared release copy never holds the site's write. The case checks that copy, since a second Site data lays its own from the same payload

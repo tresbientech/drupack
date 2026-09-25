@@ -44,8 +44,9 @@ that none writes to.
 - A converter site pays ADR 0002's extraction once per Site data: about
   200 MB, and 20 s on Windows.
 - Two Site data directories of such a site share no application files.
-- `deployment_identifier` stays keyed by the application path, which is now
-  stable across starts of one Site data and changes on upgrade.
+- `deployment_identifier` hashes the application path and, for a site's own
+  copy, its release marker. The path stays the same across releases, and the
+  marker changes on upgrade.
 - `launch.php` exports the docroot as an absolute path. FrankenPHP 1.12.7
   resolves a relative one against the working directory its process started
   in, which on Unix is the shared application. PHP's `chdir` in its

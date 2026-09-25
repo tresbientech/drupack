@@ -19,8 +19,11 @@ $settings['file_temp_path'] = $data . '/tmp';
 // the directory it left. Each application directory gets its own key. The
 // launcher that ships with this settings file always exports
 // DRUPACK_RUNTIME_APP_DIR in its canonical, forward-slash form, so hashing the
-// exported value directly is enough to key it.
-$settings['deployment_identifier'] = substr(hash('sha256', (string) getenv('DRUPACK_RUNTIME_APP_DIR')), 0, 16);
+// exported value directly is enough to key it. A site's own application in Site
+// data keeps its path across releases, so the release marker it holds joins the key.
+$drupack_application = (string) getenv('DRUPACK_RUNTIME_APP_DIR');
+$drupack_release = is_file("$drupack_application/.release") ? file_get_contents("$drupack_application/.release") : '';
+$settings['deployment_identifier'] = substr(hash('sha256', $drupack_application . $drupack_release), 0, 16);
 $settings['update_free_access'] = FALSE;
 // A site fetches announcements and release data from drupal.org. On an offline or
 // filtered host those calls reach a connection that never answers, so each one gets

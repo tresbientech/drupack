@@ -47,9 +47,9 @@ The value must not contain a double quote. The log path reaches the Caddyfile
 as raw text, before Caddy tokenizes it.
 
 A site whose `drupack.yml` lists `writable` directories keeps its own
-application in `app` in Site data. A start lays it there once per release, and
-`dr` refuses one another release laid until a start lays this one. `clean`
-never removes it.
+application in `app` in Site data. A start lays it there once per release.
+`dr` refuses an `app` another release laid, until a start lays this one.
+`clean` never removes it.
 
 ## Public files
 
@@ -143,7 +143,8 @@ runtime and ignore the variable.
 
 ## Other words
 
-`lay-app` is internal: a start runs it to lay a site's own application.
+`lay-app` is internal: a start or `dr` runs it to lay or check a site's own
+application.
 
 Any first word Drupack does not handle reaches the embedded server's own
 command line. Nothing there carries a compatibility promise.

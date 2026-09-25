@@ -85,6 +85,19 @@ Launcher and parser:
   refuses and names a start, since laying belongs to a start under the lease.
 - The deployment identifier keeps its rule, hashed from the application path.
 
+What shipped differs in five points, recorded on 2026-09-25 with the plan's
+Status section:
+
+- The lay extracts the executable's own payload rather than copying the
+  shared entry.
+- An upgrade copies entries out of the old copy, which stays whole until the
+  swap.
+- `lay-app` prints nothing on standard output. `launch.php` names the
+  directory itself.
+- The conformance case writes the probe theme with the test's own file writes,
+  and fakes an upgrade by rewriting the release marker.
+- The deployment identifier also hashes the release marker.
+
 ## Testing Decisions
 
 A good test drives a public surface and asserts what a user observes: a
