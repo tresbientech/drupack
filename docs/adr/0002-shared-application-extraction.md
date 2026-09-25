@@ -1,6 +1,8 @@
 # Drupack extracts its application once per release
 
-Proposed on 2026-09-17. Revised on 2026-09-21. Not implemented.
+Proposed on 2026-09-17. Revised on 2026-09-21. Not implemented. Amended on 2026-09-25: a site whose
+contract names a writable directory keeps its own application in Site data,
+as `0021-writable-directories.md` records.
 
 ## Context
 

@@ -17,7 +17,7 @@ A distributable Drupal application. One built from a Site template carries a See
 The Drupal CMS recipe that gives a new site its starting configuration and content. A Packaged site carries at most one, named in its Site contract. The Drupack release carries Mercury Demo.
 
 **Site contract**:
-The `drupack.yml` beside a site's `composer.json`, naming its executable, port, Site template, default site name, translations, settings file, build targets and added PHP extensions. A build writes it out as `site.json`, with the docroot `composer.json` names, and every other reader takes that file.
+The `drupack.yml` beside a site's `composer.json`, naming its executable, port, Site template, default site name, translations, settings file, build targets, added PHP extensions and Writable directories. A build writes it out as `site.json`, with the docroot `composer.json` names, and every other reader takes that file.
 
 **Seed site**:
 A preconfigured Drupal site state included in a Packaged site, installed from the Site template.
@@ -69,7 +69,11 @@ The PHP interpreter and web server a Packaged site runs on, built against one C 
 _Avoid_: naming the Application root or the `runtime` directory in Site data a Runtime.
 
 **Application root**:
-The directory holding one release's unpacked application, which every site of that release reads and none writes to.
+The directory holding a site's unpacked application: one shared read-only copy per release, or the site's own copy in Site data when its Site contract names a Writable directory.
+
+**Writable directory**:
+A directory of the application, named in the Site contract, that the site writes into at runtime.
+_Avoid_: owned directory, site directory
 
 ### Extensions
 
@@ -108,6 +112,8 @@ A PHP extension that a package in the application's lock file names as a require
 - A macOS or Windows **Packaged site** carries one **Runtime**.
 - `--version` names the **Runtime** that ran.
 - A **Runtime** and an **Application root** each unpack to their own cache. The **`clean` command** removes entries from both.
+- A **Packaged site** whose **Site contract** names a **Writable directory** keeps its **Application root** in **Site data**, which the **`clean` command** never touches.
+- An upgrade of such a **Packaged site** lays the new release into **Site data** and carries over each entry of a **Writable directory** that the release does not ship.
 
 ### Extensions
 
