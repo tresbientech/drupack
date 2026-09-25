@@ -21,7 +21,7 @@ func TestParseFillsDefaults(t *testing.T) {
 	want := siteconfig.Site{
 		Name: "mysite", Port: 7225, Recipe: "recipes/my_site", SiteName: "My Site",
 		Languages: []string{}, SmokePaths: []string{"/"}, Extensions: []string{},
-		Platforms: []string{"linux-amd64"}, Libc: "both",
+		Platforms: []string{"linux-amd64"}, Libc: "both", Writable: []string{},
 	}
 	if !reflect.DeepEqual(site, want) {
 		t.Fatalf("Parse(minimal) = %+v; want %+v", site, want)
@@ -30,7 +30,8 @@ func TestParseFillsDefaults(t *testing.T) {
 
 func TestParseKeepsEveryField(t *testing.T) {
 	content := minimal + "port: 7300\nlanguages: [fr, zh-hans]\nsmoke_paths: [/, /about]\n" +
-		"platforms: [linux-amd64, linux-arm64]\nlibc: musl\nextensions: [xmlwriter, pdo_sqlsrv]\n"
+		"platforms: [linux-amd64, linux-arm64]\nlibc: musl\nextensions: [xmlwriter, pdo_sqlsrv]\n" +
+		"writable: [web/themes/custom, recipes]\n"
 	site, err := siteconfig.Parse([]byte(content))
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +39,8 @@ func TestParseKeepsEveryField(t *testing.T) {
 	if site.Port != 7300 || !reflect.DeepEqual(site.Languages, []string{"fr", "zh-hans"}) ||
 		!reflect.DeepEqual(site.SmokePaths, []string{"/", "/about"}) ||
 		!reflect.DeepEqual(site.Platforms, []string{"linux-amd64", "linux-arm64"}) || site.Libc != "musl" ||
-		!reflect.DeepEqual(site.Extensions, []string{"xmlwriter", "pdo_sqlsrv"}) {
+		!reflect.DeepEqual(site.Extensions, []string{"xmlwriter", "pdo_sqlsrv"}) ||
+		!reflect.DeepEqual(site.Writable, []string{"web/themes/custom", "recipes"}) {
 		t.Fatalf("Parse kept %+v", site)
 	}
 }
@@ -83,6 +85,13 @@ func TestParseNamesTheRejectedField(t *testing.T) {
 		"comma platforms":     {minimal + "platforms: linux-amd64,linux-arm64\n", "platforms"},
 		"unknown libc":        {minimal + "libc: gnu\n", "libc:"},
 		"unknown field":       {minimal + "colour: blue\n", "colour"},
+		"absolute writable":   {minimal + "writable: [/var/www]\n", "writable:"},
+		"escaping writable":   {minimal + "writable: [web/../..]\n", "writable:"},
+		"unclean writable":    {minimal + "writable: [web/themes/]\n", "writable:"},
+		"dot writable":        {minimal + "writable: [web/./themes]\n", "writable:"},
+		"backslash writable":  {minimal + "writable: ['web\\\\themes']\n", "writable:"},
+		"duplicate writable":  {minimal + "writable: [recipes, recipes]\n", "writable:"},
+		"nested writable":     {minimal + "writable: [web/themes, web/themes/custom]\n", "writable:"},
 	}
 	for label, c := range cases {
 		_, err := siteconfig.Parse([]byte(c.content))
@@ -177,7 +186,7 @@ func TestWriteProducesTheSiteJSONShape(t *testing.T) {
 	want := map[string]any{
 		"name": "mysite", "port": float64(7225), "recipe": "recipes/my_site", "site_name": "My Site",
 		"languages": []any{"fr"}, "smoke_paths": []any{"/"}, "extensions": []any{}, "docroot": "docroot", "settings": "",
-		"platforms": []any{"linux-amd64"}, "libc": "both",
+		"platforms": []any{"linux-amd64"}, "libc": "both", "writable": []any{},
 	}
 	if !reflect.DeepEqual(written, want) {
 		t.Fatalf("site.json = %v; want %v", written, want)

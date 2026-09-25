@@ -40,10 +40,10 @@ beside the other contract fields.
 
 ### Acceptance criteria
 
-- [ ] Parser unit tests cover the accepted list, each rejection and the empty default
-- [ ] `drupack-build --describe` on a site with `writable` prints the list
-- [ ] A build of Mercury Demo is byte-for-byte what it was, apart from `site.json`
-- [ ] `docs/build-your-site.md` names `writable` with its rule
+- [x] Parser unit tests cover the accepted list, each rejection and the empty default
+- [x] `drupack-build --describe` on a site with `writable` prints the list
+- [x] A build of Mercury Demo is byte-for-byte what it was, apart from `site.json`
+- [x] `docs/build-your-site.md` names `writable` with its rule
 
 ---
 

@@ -37,6 +37,7 @@ smoke_paths: [/, /about]   # paths the suite expects a 200 from, / by default
 platforms: [linux-amd64]   # targets: linux-amd64, linux-arm64
 libc: both                 # C library of each runtime: both, glibc or musl
 extensions: [xmlwriter]    # PHP extensions the site adds to the engine's
+writable: [recipes]        # directories the site writes at runtime
 ```
 
 `settings` names a PHP file in the site. The build stops when the file is
@@ -46,6 +47,11 @@ absent or git ignores it.
 runtimes in one file, and the executable picks one per host. The
 `drupack-build` flags `--platform` and `--libc` override the file, and so do
 the GitHub workflow's inputs.
+
+`writable` lists directories relative to the project root, such as
+`web/themes/custom`. Each is a clean path with no `..` segment, and no two
+overlap. The section on writable directories below gives what a start does
+with them.
 
 A build writes `acme-linux-amd64` and `site.json` to its output directory.
 
