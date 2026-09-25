@@ -128,3 +128,15 @@ which is Mercury's decision rather than the engine's.
 and `package_manager` because it cannot write into the read-only application.
 Nobody has checked the stall against the current module release. Lean: keep the
 uninstall, and retest the stall when the recipe's version of the module changes.
+
+## An install script that picks the download for the host
+
+A person trying a Drupack-built site has to choose among five executables by
+platform, architecture and C library. The owner wants one command that detects
+the host and fetches the right one, for a release of Drupack and of any site
+built on it. Open points: a shell script for Linux and macOS plus a PowerShell
+one for Windows, where each lives and how it is versioned, whether it checks
+the release's `checksums.txt`, and where it puts the executable. Lean: one
+`install.sh` and one `install.ps1` published as release assets, taking the
+site's release URL, verifying the checksum, and writing to the current
+directory.

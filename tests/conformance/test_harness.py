@@ -211,5 +211,24 @@ class RecipeGateTest(unittest.TestCase):
         with mock.patch.object(harness, "SITE", {"recipe": "recipes/acme"}):
             Installs.setUpClass()
 
+
+class WritableGateTest(unittest.TestCase):
+    def test_a_case_that_writes_skips_when_the_site_lists_no_writable_directory(self):
+        class Writes(harness.ConformanceCase):
+            PLATFORMS = (harness.current_platform(),)
+            WRITABLE = True
+
+        with mock.patch.object(harness, "SITE", {"recipe": "recipes/acme", "writable": []}):
+            with self.assertRaisesRegex(unittest.SkipTest, "the site lists no writable directory"):
+                Writes.setUpClass()
+
+    def test_a_case_that_writes_runs_when_the_site_lists_one(self):
+        class Writes(harness.ConformanceCase):
+            PLATFORMS = (harness.current_platform(),)
+            WRITABLE = True
+
+        with mock.patch.object(harness, "SITE", {"recipe": "recipes/acme", "writable": ["web/themes/custom"]}):
+            Writes.setUpClass()
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

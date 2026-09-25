@@ -46,5 +46,9 @@ that none writes to.
 - Two Site data directories of such a site share no application files.
 - `deployment_identifier` stays keyed by the application path, which is now
   stable across starts of one Site data and changes on upgrade.
+- `launch.php` exports the docroot as an absolute path. FrankenPHP 1.12.7
+  resolves a relative one against the working directory its process started
+  in, which on Unix is the shared application. PHP's `chdir` in its
+  thread-safe build moves only PHP's own view of the directory.
 - Node on PATH is the converter site's requirement. `dr` passes the
   environment through and checks nothing.

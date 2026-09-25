@@ -188,6 +188,31 @@ function executableName(): string
     return getenv('DRUPACK_RUNTIME_NAME');
 }
 
+// The application the site runs: the release's shared copy, or once a start or `dr` has
+// checked it, the site's own copy in Site data. The launcher exports the shared copy.
+function application(): string
+{
+    return getenv('DRUPACK_RUNTIME_APP_DIR');
+}
+
+// A site whose contract names writable directories runs its own application, laid in
+// Site data. A start lays it under the Serving lease. `dr` takes no lease, so it only
+// checks that the last start laid this release.
+function useSiteApplication(string $data, bool $drush): void
+{
+    $launcher = getenv('DRUPACK_RUNTIME_LAUNCHER');
+    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => STDOUT, 2 => STDERR];
+    if ($drush) {
+        if (process($launcher, ['lay-app', '--check', $data], $descriptors, $data, 'Cannot run ' . executableName()) !== 0) {
+            throw new RuntimeException("This Site data holds another release's application. Start "
+                . executableName() . " once to lay this release's: $data");
+        }
+    } elseif (process($launcher, array_merge(['lay-app', $data], siteSettings()['writable']), $descriptors, $data, 'Cannot run ' . executableName()) !== 0) {
+        throw new RuntimeException("Cannot lay the application in Site data: $data");
+    }
+    putenv("DRUPACK_RUNTIME_APP_DIR=$data/app");
+}
+
 // The packaged site's defaults, written from its drupack.yml when the application was built.
 function siteSettings(): array
 {
@@ -537,7 +562,7 @@ function recordedOptions(array $options, string $directory): array
 {
     // settings.php expects the two variables Settings::initialize() gives it. This read
     // wants $databases alone, so the loader it registers on goes unused.
-    $app_root = __DIR__ . '/' . siteSettings()['docroot'];
+    $app_root = application() . '/' . siteSettings()['docroot'];
     $class_loader = new \Composer\Autoload\ClassLoader();
     $databases = [];
     require "$directory/settings.php";
@@ -592,7 +617,7 @@ function runDrush(string $binary, array $command, string $failure): void
         // stderr is a file, not a pipe, for the reason loginLink() states: nothing here
         // drains a pipe while the child runs, so a full one would deadlock.
         $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['file', nullDevice(), 'w'], 2 => ['file', $errors, 'w']];
-        $exitCode = process($binary, array_merge(['php-cli'], $command), $descriptors, __DIR__, $failure);
+        $exitCode = process($binary, array_merge(['php-cli'], $command), $descriptors, application(), $failure);
         $reason = $exitCode === 0 ? '' : diagnostic($errors);
     } finally {
         unlink($errors);
@@ -604,14 +629,14 @@ function runDrush(string $binary, array $command, string $failure): void
 
 function drushPath(): string
 {
-    return __DIR__ . '/vendor/drush/drush/drush.php';
+    return application() . '/vendor/drush/drush/drush.php';
 }
 
 // Reads one Drush field. An unusable site answers with anything but the expected value.
 function drushField(string $binary, array $command): string
 {
     $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => ['file', nullDevice(), 'w']];
-    $child = proc_open(array_merge([$binary, 'php-cli', drushPath()], $command), $descriptors, $pipes, __DIR__);
+    $child = proc_open(array_merge([$binary, 'php-cli', drushPath()], $command), $descriptors, $pipes, application());
     if (!is_resource($child)) {
         throw new RuntimeException('Cannot run Drush');
     }
@@ -652,7 +677,7 @@ function loginLink(string $binary, string $url, string $destination): string
         // instead of hard-wrapping mid-word.
         $environment = getenv();
         $environment['COLUMNS'] = '1000';
-        $child = proc_open(array_merge([$binary, 'php-cli', drushPath(), 'user:login', '--no-browser', $destination]), $descriptors, $pipes, __DIR__, $environment);
+        $child = proc_open(array_merge([$binary, 'php-cli', drushPath(), 'user:login', '--no-browser', $destination]), $descriptors, $pipes, application(), $environment);
         if (!is_resource($child)) {
             throw new RuntimeException('Cannot run Drush');
         }
@@ -699,7 +724,7 @@ function handOver(string $binary, string $url, string $data, array $options): ne
     // which only this user can read, rather than through a command line every local
     // account can list.
     putenv("DRUPACK_RUNTIME_OPEN=$link");
-    replaceProcess($binary, ['browser-open'], __DIR__, 'Cannot open the browser');
+    replaceProcess($binary, ['browser-open'], application(), 'Cannot open the browser');
 }
 
 function databaseHoldsTables(array $options): bool
@@ -719,7 +744,7 @@ function databaseHoldsTables(array $options): bool
 function installDrupal(array $options, string $binary): void
 {
     $drush = drushPath();
-    $recipe = __DIR__ . '/' . siteSettings()['recipe'];
+    $recipe = application() . '/' . siteSettings()['recipe'];
     if (!is_file($drush) || !is_dir($recipe)) {
         throw new RuntimeException('Bundled Drupal installation files are unavailable');
     }
@@ -785,7 +810,7 @@ function adoptSite(string $data, string $binary): void
 
 function copySeed(string $data): void
 {
-    $seed = __DIR__ . '/seed';
+    $seed = application() . '/seed';
     if (!copy("$seed/site.sqlite", "$data/site.sqlite")) {
         throw new RuntimeException('Cannot initialize the Seed site database');
     }
@@ -858,7 +883,7 @@ function runStep(string $step, string $data, array $options, string $binary): vo
                 && file_put_contents("$data/hash_salt", bin2hex(random_bytes(32)), LOCK_EX) === false) {
                 throw new RuntimeException('Cannot initialize the site secret');
             }
-            writeSettings("$data/settings.php", __DIR__ . '/settings.php', databaseConfiguration($options, $data), siteSettings()['settings']);
+            writeSettings("$data/settings.php", application() . '/settings.php', databaseConfiguration($options, $data), siteSettings()['settings']);
             return;
         case 'administrator':
             configureSeedAdministrator($binary);
@@ -928,7 +953,7 @@ try {
     // PHP_BINARY is empty in embedded FrankenPHP; the Go entrypoint exports its own path.
     $binary = getenv('DRUPACK_RUNTIME_BINARY');
     if ($drush && in_array($command[0] ?? '', ['--help', '-h', 'list'], true)) {
-        replaceProcess($binary, array_merge(['php-cli', drushPath()], $command), __DIR__, 'Cannot run Drush');
+        replaceProcess($binary, array_merge(['php-cli', drushPath()], $command), application(), 'Cannot run Drush');
     }
     // Launch arguments are user input, so the backend must name a supported driver.
     if (!in_array($options['database'], ['sqlite', 'mysql', 'pgsql'], true)) {
@@ -993,7 +1018,6 @@ try {
     putenv("DRUPACK_RUNTIME_FILES_DIR=$files");
     putenv("DRUPACK_RUNTIME_BIND=$bind");
     putenv("DRUPACK_RUNTIME_PORT=$port");
-    putenv('DRUPACK_RUNTIME_DOCROOT=' . siteSettings()['docroot']);
     putenv('DRUPACK_RUNTIME_ID=' . siteToken($data));
     putenv('DRUPACK_RUNTIME_HOST=' . $options['host']);
     // The address a reader types, never the bind address. Drush builds absolute URLs from this
@@ -1051,6 +1075,13 @@ try {
         }
         writeListener($data, $options);
     }
+    if (siteSettings()['writable'] !== []) {
+        useSiteApplication($data, $drush);
+    }
+    // Absolute, because FrankenPHP resolves a relative docroot against the directory its
+    // process started in, which on Unix is the shared application whatever the entry point
+    // changes to.
+    putenv('DRUPACK_RUNTIME_DOCROOT=' . application() . '/' . siteSettings()['docroot']);
     if ($steps !== []) {
         // Read again under the lease: another start may have finished initializing between
         // the first read and the moment this one claimed the Site data.
@@ -1065,18 +1096,18 @@ try {
         // A pending settings step writes the file itself, so its contents are read once they are final.
         if (!in_array('settings', $steps, true)) {
             $options = recordedOptions($options, $data);
-            writeSettings("$data/settings.php", __DIR__ . '/settings.php', databaseConfiguration($options, $data), siteSettings()['settings']);
+            writeSettings("$data/settings.php", application() . '/settings.php', databaseConfiguration($options, $data), siteSettings()['settings']);
         }
     }
     $adopted = initialize($data, $steps, $options, $binary);
-    foreach (glob(__DIR__ . '/translations/*.po') as $translation) {
+    foreach (glob(application() . '/translations/*.po') as $translation) {
         $destination = "$files/translations/" . basename($translation);
         if (!file_exists($destination) && !copy($translation, $destination)) {
             throw new RuntimeException("Cannot install translation resource: $destination");
         }
     }
     if ($drush) {
-        exit(process($binary, array_merge(['php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], __DIR__, 'Cannot run Drush'));
+        exit(process($binary, array_merge(['php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], application(), 'Cannot run Drush'));
     }
     // Every start hands its reader a one-time way in, signed in as the administrator account,
     // uid 1, landing on the dashboard. A start that generated the password has no other way
@@ -1107,7 +1138,7 @@ try {
     // site runs, so the credential stops here.
     putenv('DRUPACK_ADMIN_PASSWORD');
     fwrite(STDOUT, "Starting the web server.\n");
-    replaceProcess($binary, ['php-server'], __DIR__, 'Cannot start FrankenPHP');
+    replaceProcess($binary, ['php-server'], application(), 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
     exit(1);
