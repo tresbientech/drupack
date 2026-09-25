@@ -4,7 +4,7 @@
 
 ## Status, 2026-09-25
 
-On branch `writable-directories`. All three phases are done, and phases 2 and
+Merged into `main` on 2026-09-25, from branch `writable-directories`. All three phases are done, and phases 2 and
 3 landed in one commit. `bash build/qa.sh` passes, with the writable case
 skipped by name on Mercury Demo. The case passes on a scratch build of Mercury
 Demo with `writable: [web/themes/custom]`, run by hand in the scratchpad.
