@@ -28,6 +28,10 @@ type embeddedRuntime struct {
 }
 
 func run() error {
+	// launch.php runs this word under the Serving lease, once it has resolved Site data.
+	if len(os.Args) > 1 && os.Args[1] == "lay-app" {
+		return layApp(os.Args[2:])
+	}
 	root, err := runtime.Root(siteName, os.Stderr)
 	if err != nil {
 		return err
@@ -65,6 +69,14 @@ func run() error {
 	}
 	// The runtime and launch.php are shared by every site built on this engine, so
 	// the site's name and release reach them from here.
+	// launch.php runs this executable again to lay a site's own application.
+	launcher, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	if err := os.Setenv("DRUPACK_RUNTIME_LAUNCHER", runtime.Canonical(launcher)); err != nil {
+		return err
+	}
 	if err := os.Setenv("DRUPACK_RUNTIME_NAME", siteName); err != nil {
 		return err
 	}
@@ -105,4 +117,20 @@ func cleanArguments(arguments []string) (bool, error) {
 		return true, nil
 	}
 	return false, fmt.Errorf("clean takes --dry-run alone")
+}
+
+// layApp lays the site's own application in Site data, or with --check exits 1
+// when the application there belongs to another release.
+func layApp(arguments []string) error {
+	data, writable, check, err := runtime.LayArguments(arguments)
+	if err != nil {
+		return err
+	}
+	if check {
+		if !runtime.SiteAppCurrent(data, string(appChecksum)) {
+			os.Exit(1)
+		}
+		return nil
+	}
+	return runtime.LaySiteApp(data, string(appChecksum), appPayload, writable, os.Stderr)
 }

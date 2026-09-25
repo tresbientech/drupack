@@ -100,6 +100,7 @@ def skip_report(skipped):
 
 DOCKER_SKIP = "needs a Docker daemon, which does not answer"
 RECIPE_SKIP = "the site has no recipe"
+WRITABLE_SKIP = "the site lists no writable directory"
 _docker_answers = None
 
 
@@ -572,13 +573,15 @@ def refuse(case, case_dir, name, *args):
 
 
 class ConformanceCase(unittest.TestCase):
-    """Base for every case module: gates the class on its declared platforms, tools and
-    whether it installs a site, which needs the site's recipe.
+    """Base for every case module: gates the class on its declared platforms, tools,
+    whether it installs a site, which needs the site's recipe, and whether it writes
+    into the application, which needs a writable directory.
     """
 
     PLATFORMS = ()
     TOOLS = ()
     RECIPE = True
+    WRITABLE = False
 
     @classmethod
     def setUpClass(cls):
@@ -587,6 +590,8 @@ class ConformanceCase(unittest.TestCase):
             raise unittest.SkipTest(f"not marked for {current}")
         if cls.RECIPE and not SITE["recipe"]:
             raise unittest.SkipTest(RECIPE_SKIP)
+        if cls.WRITABLE and not SITE["writable"]:
+            raise unittest.SkipTest(WRITABLE_SKIP)
         for tool in cls.TOOLS:
             # A CI runner without a daemon still runs every case that needs none.
             if tool == "docker" and not docker_answers():

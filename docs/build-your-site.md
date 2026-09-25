@@ -37,6 +37,7 @@ smoke_paths: [/, /about]   # paths the suite expects a 200 from, / by default
 platforms: [linux-amd64]   # targets: linux-amd64, linux-arm64
 libc: both                 # C library of each runtime: both, glibc or musl
 extensions: [xmlwriter]    # PHP extensions the site adds to the engine's
+writable: [recipes]        # directories the site writes at runtime
 ```
 
 `settings` names a PHP file in the site. The build stops when the file is
@@ -46,6 +47,11 @@ absent or git ignores it.
 runtimes in one file, and the executable picks one per host. The
 `drupack-build` flags `--platform` and `--libc` override the file, and so do
 the GitHub workflow's inputs.
+
+`writable` lists directories relative to the project root, such as
+`web/themes/custom`. Each is a clean relative path with no `..` segment, and no two
+overlap. The section on directories a site writes gives what a start does
+with them.
 
 A build writes `acme-linux-amd64` and `site.json` to its output directory.
 
@@ -121,6 +127,28 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/site" -v "$PWD/../runtimes:
 
 A CI host with no Docker daemon, such as a drupal.org GitLab runner, cannot
 compile these runtimes.
+
+## Directories a site writes
+
+A site that writes files at runtime, such as a Drush command that generates a
+theme, lists the directories in `writable`:
+
+```yaml
+writable: [web/themes/custom, recipes]
+```
+
+Each Site data directory then gets its own copy of the application, in `app`.
+The first start lays it, about the size of the unpacked application, and
+creates each listed directory. Drupal, Drush and the web server all read that
+copy, so a theme written there is found and served.
+
+A newer release lays its application beside the old copy. It copies each entry
+of a listed directory that it does not ship itself, then replaces the old
+copy. An entry the release ships takes the release's version. A write outside
+the listed directories is lost.
+
+`dr` runs with the environment it was started in, so a command finds the tools
+on the reader's `PATH`.
 
 ## Private Composer packages
 

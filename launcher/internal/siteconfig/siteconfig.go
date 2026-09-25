@@ -50,6 +50,9 @@ type Site struct {
 	Extensions []string `json:"extensions"`
 	Platforms  []string `json:"platforms"`
 	Libc       string   `json:"libc"`
+	// Writable names the application directories the site writes at runtime,
+	// relative to the project root.
+	Writable []string `json:"writable"`
 	// Read sets Docroot from composer.json. Parse leaves it empty.
 	Docroot string `json:"docroot"`
 }
@@ -85,6 +88,9 @@ func Parse(content []byte) (Site, error) {
 	}
 	if site.Libc == "" {
 		site.Libc = "both"
+	}
+	if site.Writable == nil {
+		site.Writable = []string{}
 	}
 	return site, validate(site)
 }
@@ -131,6 +137,17 @@ func validate(site Site) error {
 	}
 	if _, ok := Libcs[site.Libc]; !ok {
 		return fieldError("libc", "%q is not one of %s", site.Libc, strings.Join(slices.Sorted(maps.Keys(Libcs)), ", "))
+	}
+	for i, directory := range site.Writable {
+		if !relativePathRe.MatchString(directory) || hasParentSegment(directory) || path.Clean(directory) != directory {
+			return fieldError("writable", "%q must be a clean relative path inside the project", directory)
+		}
+		// An upgrade carries each directory's entries over once, so no two may overlap.
+		for _, other := range site.Writable[:i] {
+			if directory == other || strings.HasPrefix(directory, other+"/") || strings.HasPrefix(other, directory+"/") {
+				return fieldError("writable", "%q and %q overlap", other, directory)
+			}
+		}
 	}
 	return nil
 }

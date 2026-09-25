@@ -412,6 +412,33 @@ test('the deployment identifier hashes the exported application directory direct
         'the identifier hashes the exported value with no normalising step of its own');
 });
 
+test("the deployment identifier changes with the release a site's own application holds", function (): void {
+    $data = scratch();
+    $app = scratch();
+    file_put_contents("$data/hash_salt", 'test-hash-salt');
+    $path = "$data/settings-under-test.php";
+    file_put_contents($path, settings(__DIR__ . '/../settings.php', ['driver' => 'sqlite', 'database' => "$data/site.sqlite"], ''));
+    putenv("DRUPACK_RUNTIME_DATA_DIR=$data");
+    putenv('DRUPACK_RUNTIME_HOST=localhost');
+    putenv("DRUPACK_RUNTIME_APP_DIR=$app");
+    $identifiers = [];
+    foreach (['release-one', 'release-two'] as $release) {
+        file_put_contents("$app/.release", $release);
+        $app_root = dirname(__DIR__);
+        $class_loader = new \Composer\Autoload\ClassLoader();
+        $databases = [];
+        $settings = [];
+        $config = [];
+        require $path;
+        $identifiers[] = $settings['deployment_identifier'];
+    }
+    unlink("$app/.release");
+    putenv('DRUPACK_RUNTIME_APP_DIR');
+    putenv('DRUPACK_RUNTIME_HOST');
+    putenv('DRUPACK_RUNTIME_DATA_DIR');
+    same(true, $identifiers[0] !== $identifiers[1], 'two releases in one directory share an identifier');
+});
+
 test("the site's settings file loads after the engine's settings", function (): void {
     $data = scratch();
     $app = scratch();

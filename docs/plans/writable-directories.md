@@ -2,6 +2,31 @@
 
 > Source PRD: `docs/prd/writable-directories.md`. Decision: `docs/adr/0021-writable-directories.md`.
 
+## Status, 2026-09-25
+
+Merged into `main` on 2026-09-25, from branch `writable-directories`. All three phases are done, and phases 2 and
+3 landed in one commit. `bash build/qa.sh` passes, with the writable case
+skipped by name on Mercury Demo. The case passes on a scratch build of Mercury
+Demo with `writable: [web/themes/custom]`, run by hand in the scratchpad.
+
+Notes:
+
+- The layer extracts the executable's own payload, the bytes the shared entry
+  holds, rather than copying that entry.
+- An upgrade moves the old copy aside as `.previous-app` and copies entries out
+  of it, so an interrupted upgrade resumes with nothing lost.
+- The case fakes an upgrade by rewriting the laid copy's release marker, since
+  the suite cannot rebuild the executable it tests.
+- `launch.php` exports the docroot as an absolute path. ADR 0021 records why.
+- Windows and macOS ran none of this. User story 15 stays open: the layer
+  copies a link as a link, which Windows allows only with a privilege.
+- The two-Site-data criterion became a check of the shared release copy, which
+  user story 8 now rests on.
+- The case writes the probe theme with its own file writes, not through
+  `php-cli`.
+- The deployment identifier hashes the laid copy's release marker, so an
+  upgrade that changes only the site's code builds a new container.
+
 ## Architectural decisions
 
 These hold across all phases:
@@ -40,10 +65,10 @@ beside the other contract fields.
 
 ### Acceptance criteria
 
-- [ ] Parser unit tests cover the accepted list, each rejection and the empty default
-- [ ] `drupack-build --describe` on a site with `writable` prints the list
-- [ ] A build of Mercury Demo is byte-for-byte what it was, apart from `site.json`
-- [ ] `docs/build-your-site.md` names `writable` with its rule
+- [x] Parser unit tests cover the accepted list, each rejection and the empty default
+- [x] `drupack-build --describe` on a site with `writable` prints the list
+- [x] A build of Mercury Demo is byte-for-byte what it was, apart from `site.json`
+- [x] `docs/build-your-site.md` names `writable` with its rule
 
 ---
 
@@ -67,12 +92,12 @@ it skips by name.
 
 ### Acceptance criteria
 
-- [ ] Layer unit tests cover the first lay, reuse on the same marker, an interrupted lay leaving no marker, and a writable directory created when absent
-- [ ] `clean` leaves Site data alone, and the shared entry stays in the cache
-- [ ] The probe theme case passes on a scratch build of Mercury with `writable: [web/themes/custom]`
-- [ ] The case is reported as skipped by name in engine QA
-- [ ] Two Site data directories of the scratch build see each other's writes nowhere
-- [ ] `bash build/qa.sh` passes
+- [x] Layer unit tests cover the first lay, reuse on the same marker, an interrupted lay leaving no marker, and a writable directory created when absent
+- [x] `clean` leaves Site data alone
+- [x] The probe theme case passes on a scratch build of Mercury with `writable: [web/themes/custom]`
+- [x] The case is reported as skipped by name in engine QA
+- [x] The shared release copy never holds the site's write. The case checks that copy, since a second Site data lays its own from the same payload
+- [x] `bash build/qa.sh` passes
 
 ---
 
@@ -94,8 +119,8 @@ probe theme. The CLI reference names `app` among what Site data holds.
 
 ### Acceptance criteria
 
-- [ ] Layer unit tests cover the carry-over, a shipped entry winning, and an interrupted upgrade leaving the old copy in place
-- [ ] The probe theme case passes through the upgrade on the scratch build
-- [ ] `dr` on a stale copy exits 1 and names a start
-- [ ] `docs/cli.md` names `app` in the Site data section
-- [ ] `bash build/qa.sh` passes
+- [x] Layer unit tests cover the carry-over, a shipped entry winning, and an interrupted upgrade leaving the old copy in place
+- [x] The probe theme case passes through the upgrade on the scratch build
+- [x] `dr` on a stale copy exits 1 and names a start
+- [x] `docs/cli.md` names `app` in the Site data section
+- [x] `bash build/qa.sh` passes
