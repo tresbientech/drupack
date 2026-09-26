@@ -51,3 +51,11 @@ every release cannot serve a manifest.
 - The GitLab template keeps unversioned names until it runs
   `release-files.py` with its own download URL.
 - A winget manifest can name a versioned URL.
+
+## Amendment, 2026-09-27
+
+`drupack.tresbien.tech` redirects short paths to the latest release's scripts:
+`/install.sh` and `/install.ps1` to `install-drupack`, and `/demo.sh` and
+`/demo.ps1` to `install-mercury-demo`. The README shows these. The redirect
+lives in the fleet's NPM, as INFRA's npm ADR 0004 records, and the release
+workflow does not depend on it.

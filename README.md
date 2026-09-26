@@ -12,7 +12,7 @@ The first section covers `drupack`. Every later section covers the Mercury Demo.
 Install `drupack` on Linux or macOS:
 
 ```sh
-curl -fsSL https://github.com/tresbientech/drupack/releases/latest/download/install-drupack.sh | sh
+curl -fsSL https://drupack.tresbien.tech/install.sh | sh
 mkdir -p ~/.local/bin && mv drupack ~/.local/bin/
 cd path/to/your/project
 drupack
@@ -21,7 +21,7 @@ drupack
 On Windows, in PowerShell:
 
 ```powershell
-irm https://github.com/tresbientech/drupack/releases/latest/download/install-drupack.ps1 | iex
+irm https://drupack.tresbien.tech/install.ps1 | iex
 ```
 
 The script downloads the build for your system into the current directory and checks its SHA-256. It then prints the command that moves it onto your `PATH`.
@@ -42,17 +42,17 @@ On Linux or macOS:
 
 ```sh
 mkdir my-site && cd my-site
-curl -fsSL https://github.com/tresbientech/drupack/releases/latest/download/install-mercury-demo.sh | sh
+curl -fsSL https://drupack.tresbien.tech/demo.sh | sh
 ```
 
 On Windows, in PowerShell:
 
 ```powershell
 mkdir my-site; cd my-site
-irm https://github.com/tresbientech/drupack/releases/latest/download/install-mercury-demo.ps1 | iex
+irm https://drupack.tresbien.tech/demo.ps1 | iex
 ```
 
-The script picks the build for your system and processor, and checks its SHA-256. `releases/download/VERSION/install-mercury-demo.sh` installs one release instead of the latest.
+The script picks the build for your system and processor, and checks its SHA-256. Each short URL redirects to the latest release's `install-mercury-demo.sh` or `install-drupack.sh` on GitHub. `https://github.com/tresbientech/drupack/releases/download/VERSION/install-mercury-demo.sh` installs one release instead.
 
 ### Linux
 
