@@ -19,7 +19,7 @@
         "drupal/mercury_demo": "1.1.0",
         "drupal/tool": "^1.0@dev",
         "drush/drush": "^13.6",
-        "twig/twig": "3.28.0"
+        "twig/twig": "3.29.0"
     },
     "minimum-stability": "stable",
     "prefer-stable": true,
