@@ -351,20 +351,9 @@ func inCheckout(directory string) bool {
 // any file of the same name, then the site directory's settings and the
 // installer's recipe catalog.
 func layEngine(engine, application, docroot string) error {
-	source := filepath.Join(engine, "application")
-	err := filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
-		if err != nil || entry.IsDir() {
-			return err
-		}
-		relative, err := filepath.Rel(source, path)
-		if err != nil {
-			return err
-		}
-		// The engine's own unit files and a developer's vendor link stay behind.
-		if strings.HasPrefix(relative, "tests"+string(filepath.Separator)) || relative == "vendor" {
-			return nil
-		}
-		return copyFile(path, filepath.Join(application, relative))
+	// The engine's own unit files and a developer's vendor link stay behind.
+	err := copyTree(filepath.Join(engine, "application"), application, func(relative string) bool {
+		return strings.HasPrefix(relative, "tests"+string(filepath.Separator)) || relative == "vendor"
 	})
 	if err != nil {
 		return err
@@ -383,16 +372,33 @@ func layEngine(engine, application, docroot string) error {
 
 // exportPayload puts the payload and its site.json where a later platform build reads them.
 func exportPayload(payload, application, destination string) error {
-	for _, source := range []string{
-		filepath.Join(payload, "app-payload.tar"),
-		filepath.Join(payload, "app_checksum.txt"),
-		filepath.Join(application, siteconfig.OutputName),
-	} {
+	return copyInto(destination, filepath.Join(payload, "app-payload.tar"),
+		filepath.Join(payload, "app_checksum.txt"), filepath.Join(application, siteconfig.OutputName))
+}
+
+// copyInto copies each source file into destination under its own name.
+func copyInto(destination string, sources ...string) error {
+	for _, source := range sources {
 		if err := copyFile(source, filepath.Join(destination, filepath.Base(source))); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// copyTree copies every file under source to the same place under destination,
+// following links, and leaves out each file skip names by its relative path.
+func copyTree(source, destination string, skip func(relative string) bool) error {
+	return filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		relative, err := filepath.Rel(source, path)
+		if err != nil || skip(relative) {
+			return err
+		}
+		return copyFile(path, filepath.Join(destination, relative))
+	})
 }
 
 func copyFile(source, destination string) error {

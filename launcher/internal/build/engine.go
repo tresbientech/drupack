@@ -2,7 +2,6 @@ package build
 
 import (
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -36,12 +35,8 @@ func NewEnginePlan(r Request) (Plan, error) {
 	}}
 	if r.PayloadOnly {
 		plan.Steps = append(plan.Steps, Step{Name: "export the engine payload", Func: func(io.Writer) error {
-			for _, name := range []string{"app-payload.tar", "app_checksum.txt"} {
-				if err := copyFile(filepath.Join(payload, name), filepath.Join(r.Output, "payload", name)); err != nil {
-					return err
-				}
-			}
-			return nil
+			return copyInto(filepath.Join(r.Output, "payload"),
+				filepath.Join(payload, "app-payload.tar"), filepath.Join(payload, "app_checksum.txt"))
 		}})
 		return plan, nil
 	}
@@ -59,15 +54,5 @@ func stageEngine(engine, files string) error {
 	if err := os.RemoveAll(files); err != nil {
 		return err
 	}
-	source := filepath.Join(engine, "engine")
-	return filepath.WalkDir(source, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil || entry.IsDir() {
-			return err
-		}
-		relative, err := filepath.Rel(source, path)
-		if err != nil {
-			return err
-		}
-		return copyFile(path, filepath.Join(files, relative))
-	})
+	return copyTree(filepath.Join(engine, "engine"), files, func(string) bool { return false })
 }
