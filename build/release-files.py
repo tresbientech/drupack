@@ -18,8 +18,10 @@ from pathlib import Path
 
 BUILD = re.compile(r"(?P<name>[a-z0-9][a-z0-9-]*)-(?P<target>(?:linux|macos|windows)-(?:amd64|arm64))(?P<extension>\.exe)?")
 # The scripts carry these values inside quoted shell and PowerShell strings, so a
-# value holding a character either language reads there is refused.
-PLAIN = re.compile(r"[A-Za-z0-9._+:/-]+")
+# value holding a character either language reads there is refused. The version
+# also names files, so it holds no path separator.
+VERSION = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]*")
+URL = re.compile(r"[A-Za-z0-9._+:/-]+")
 TEMPLATES = Path(__file__).resolve().parent
 
 
@@ -43,9 +45,9 @@ def main():
     parser.add_argument("--commit", required=True)
     parser.add_argument("files", nargs="+", type=Path)
     args = parser.parse_args()
-    for value in (args.version, args.base_url):
-        if not PLAIN.fullmatch(value):
-            parser.error(f"{value!r} holds a character the install scripts cannot carry")
+    for value, pattern in ((args.version, VERSION), (args.base_url, URL)):
+        if not pattern.fullmatch(value):
+            parser.error(f"{value!r} holds a character the install scripts or file names cannot carry")
     args.output.mkdir(parents=True)
 
     builds = {}

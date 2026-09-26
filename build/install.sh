@@ -38,7 +38,9 @@ if [ -z "$expected" ]; then
 fi
 
 url=$base_url/$name-$version-$target
-download=.$name.download
+# mktemp creates a new file, so a file or link already in this directory cannot
+# stand in for the download.
+download=$(mktemp "./.$name.XXXXXX")
 trap 'rm -f "$download"' EXIT
 echo "Downloading $url"
 if command -v curl >/dev/null; then
@@ -59,7 +61,7 @@ fi
 if [ -e "$name" ]; then
     echo "Replacing ./$name"
 fi
-chmod +x "$download"
+chmod 755 "$download"
 mv -f "$download" "$name"
 echo "Installed $name $version in $PWD/$name. Start it with: ./$name"
 echo "To run it from any directory, move it onto your PATH:"

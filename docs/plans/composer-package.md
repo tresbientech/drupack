@@ -12,8 +12,9 @@ release not yet published. The last criterion waits on 0.5.1.
 
 - The package is this repository's root `composer.json`, named
   `tresbientech/drupack`, with `composer/drupack-install` as its one bin.
-- `drupack-install` runs the documented one-liner for the package's version:
-  `curl -fsSL URL | sh`, or `irm URL | iex` in PowerShell.
+- `drupack-install` fetches the release's install script for the package's
+  version and runs it from a temporary file: `sh FILE`, or
+  `powershell -File FILE` on Windows.
 - The executable lands in the project root as `drupack`, `drupack.exe` on
   Windows.
 
@@ -32,5 +33,5 @@ release not yet published. The last criterion waits on 0.5.1.
 - [x] `git archive` of a tag holds `composer.json`, the bin script, `LICENSE` and `README.md` alone.
 - [x] `drupack-install` refuses a dev version and names the release it needs.
 - [x] It adds `/drupack` to an existing `.gitignore` once, and leaves a missing one absent.
-- [x] It downloads nothing when `./drupack --version` reports the package's version.
+- [x] It downloads nothing when `./drupack` matches the release's SHA-256 for `drupack`, and never runs the file.
 - [ ] After 0.5.1 publishes, a scratch Drupal project installs and serves through the package.

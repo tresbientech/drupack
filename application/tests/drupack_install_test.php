@@ -8,6 +8,7 @@ declare(strict_types=1);
 // shebang line of an included file, so the buffer drops it.
 
 define('DRUPACK_INSTALL_LIBRARY', true);
+require __DIR__ . '/../vendor/autoload.php';
 ob_start();
 require __DIR__ . '/../../composer/drupack-install';
 ob_end_clean();
@@ -55,28 +56,32 @@ test('a release tag is the version to install', function (): void {
 });
 
 test('a branch or an unreadable version is refused', function (): void {
-    foreach (['dev-main', '0.5.x-dev', '0.5.1; rm -rf /', null] as $installed) {
+    foreach (['dev-main', '0.5.x-dev', '0.5.1/../../other', 'not a version', null] as $installed) {
         throws('names no release', fn () => releaseVersion($installed));
     }
 });
 
-test('each system runs the script of its own shell', function (): void {
-    same('https://github.com/tresbientech/drupack/releases/download/0.5.1/install-drupack.sh', scriptUrl(false, '0.5.1'));
-    same(['sh', '-s'], installCommand(false, scriptUrl(false, '0.5.1')));
-    $url = scriptUrl(true, '0.5.1');
-    same('https://github.com/tresbientech/drupack/releases/download/0.5.1/install-drupack.ps1', $url);
-    same(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', "irm $url | iex"], installCommand(true, $url));
+test('the version enters a release URL as one encoded path segment', function (): void {
+    same('https://github.com/tresbientech/drupack/releases/download/0.5.1/install-drupack.sh', releaseUrl('0.5.1', 'install-drupack.sh'));
+    same('https://github.com/tresbientech/drupack/releases/download/0.5.1%0A%2F..%2Fx/checksums.txt', releaseUrl("0.5.1\n/../x", 'checksums.txt'));
+});
+
+test('each system runs the fetched script as a file', function (): void {
+    same(['sh', '/tmp/script.sh'], installCommand(false, '/tmp/script.sh'));
+    same(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'C:/Temp/script.ps1'], installCommand(true, 'C:/Temp/script.ps1'));
     same('drupack.exe', executable(true));
     same('drupack', executable(false));
 });
 
-test('a build reporting the package version is current', function (): void {
+test('a build is current when the release lists its SHA-256 for drupack', function (): void {
     $directory = directory('current');
-    same(false, isCurrent("$directory/drupack", '0.5.1'));
-    file_put_contents("$directory/drupack", "#!/bin/sh\necho 'Unpacking the application.'\necho 'drupack 0.5.1 (drupack 0.5.1, glibc)'\n");
-    chmod("$directory/drupack", 0755);
-    same(true, isCurrent("$directory/drupack", '0.5.1'));
-    same(false, isCurrent("$directory/drupack", '0.5.2'));
+    file_put_contents("$directory/drupack", 'a drupack build');
+    $sha256 = hash('sha256', 'a drupack build');
+    same(true, isRelease("$directory/drupack", "0000  drupack-0.5.1-macos-arm64\n$sha256  drupack-0.5.1-linux-amd64\n", '0.5.1'));
+    same(false, isRelease("$directory/drupack", "$sha256  drupack-0.5.2-linux-amd64\n", '0.5.1'));
+    same(false, isRelease("$directory/drupack", "$sha256  mercury-demo-0.5.1-linux-amd64\n", '0.5.1'));
+    file_put_contents("$directory/drupack", "#!/bin/sh\necho 'drupack 0.5.1 (drupack 0.5.1, glibc)'\n");
+    same(false, isRelease("$directory/drupack", "$sha256  drupack-0.5.1-linux-amd64\n", '0.5.1'));
 });
 
 test('the executable joins an existing .gitignore once', function (): void {

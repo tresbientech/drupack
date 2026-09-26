@@ -15,12 +15,17 @@ the latest build into the project root and adds it to `.gitignore`.
 - `tresbientech/drupack` on Packagist holds a root `composer.json` and one bin
   script, `vendor/bin/drupack-install`. `.gitattributes` keeps every other file
   out of the package.
-- `drupack-install` reads the package's installed version, and runs that
-  release's `install-drupack.sh`, or `install-drupack.ps1` on Windows, in the
-  project root. The download and its SHA-256 check stay in the install scripts.
+- `drupack-install` reads the package's installed version, and
+  `composer/semver` decides whether it names a release. It fetches that
+  release's `install-drupack.sh`, or `install-drupack.ps1` on Windows, and runs
+  it from a temporary file in the project root. The download and its SHA-256
+  check stay in the install scripts.
+- The version enters each URL encoded as one path segment, and reaches no
+  command line.
 - It adds `/drupack` to an existing `.gitignore`, and prints how to start it.
-- A run whose `./drupack` already reports the package's version downloads
-  nothing.
+- A run whose `./drupack` matches a SHA-256 that the release's
+  `checksums.txt` lists for `drupack` downloads nothing. `drupack-install`
+  never runs that file, since a project can hold any file under the name.
 
 ## Considered options
 
