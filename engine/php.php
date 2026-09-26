@@ -52,11 +52,17 @@ function parsePhp(array $arguments): array
     return $parsed;
 }
 
+// A -d setting as name and value. php reads a bare name as 1.
+function setting(string $setting): array
+{
+    return array_pad(explode('=', $setting, 2), 2, '1');
+}
+
 // The directory holding one ini file with these settings, reused by every run
 // that passes the same ones.
 function settingsDirectory(array $settings): string
 {
-    $lines = array_map(static fn (string $setting): string => str_contains($setting, '=') ? $setting : "$setting=1", $settings);
+    $lines = array_map(static fn (string $one): string => implode('=', setting($one)), $settings);
     $directory = sys_get_temp_dir() . '/drupack-php-' . substr(hash('sha256', implode("\n", $lines)), 0, 16);
     if (!is_file("$directory/settings.ini")) {
         if (!is_dir($directory) && !mkdir($directory, 0700) && !is_dir($directory)) {
@@ -73,8 +79,7 @@ function settingsDirectory(array $settings): string
 function applySettings(array $settings): void
 {
     foreach ($settings as $setting) {
-        [$name, $value] = array_pad(explode('=', $setting, 2), 2, '1');
-        ini_set($name, $value);
+        ini_set(...setting($setting));
     }
 }
 
