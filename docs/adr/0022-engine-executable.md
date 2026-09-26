@@ -16,12 +16,16 @@ data.
   It carries the runtimes and the engine's files, and no application.
 - The Mercury Demo executable, which held the name `drupack`, becomes
   `mercury-demo`. The engine executable takes the project's name.
-- `drupack serve [DIR]` serves the project folder DIR, the working directory
-  by default. The docroot comes from `composer.json`'s scaffold web root, or
-  `web` when unset.
+- `drupack [DIR]` serves the project folder DIR, the working directory by
+  default, as a site's executable serves with no command. The docroot comes
+  from `composer.json`'s scaffold web root, or `web` when unset.
+- A start refuses a docroot without Drupal core. The Caddyfile carries
+  Drupal's request guards and front controller.
 - The folder's own settings own the database, the files paths and the hash
   salt. Drupack writes nothing into the folder.
-- `drupack dr` runs the folder's Drush on the runtime's PHP. A `php` on PATH
+- `drupack drush` runs the folder's Drush on the runtime's PHP. The word
+  names Drush itself, since it adds nothing to it. `dr` keeps its one meaning,
+  a site executable's command that selects Site data before a Drush command. A `php` on PATH
   sends Drush's child processes to the same PHP.
 - `drupack php` runs a script, or `-r` code, on the runtime's PHP.
 - A start prints a one-time login link, as a packaged site's does.
@@ -52,7 +56,7 @@ data.
 - The `latest` download links of the demo change name, and its cache moves
   to a `mercury-demo` directory.
 - The runtime changes to no directory of its own for the engine executable,
-  so relative paths in `serve`, `dr` and `php` resolve against the reader's.
+  so relative paths in a start, `drush` and `php` resolve against the reader's.
 - FrankenPHP's `php-cli` takes a script or `-r` code, and no PHP option such
   as `-v` or `-d`.
 - `serve.php` loads no Composer autoloader, since the engine carries no

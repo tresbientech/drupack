@@ -13,14 +13,14 @@ The first section covers `drupack`. Every later section covers the Mercury Demo.
 curl -L -o drupack https://github.com/tresbientech/drupack/releases/latest/download/drupack-linux-amd64
 chmod +x drupack
 cd path/to/your/project
-/path/to/drupack serve
+/path/to/drupack
 ```
 
-`serve` serves the project in the working directory, or in the directory you name after it. It reads the docroot from the scaffold web root in `composer.json`, `web` by default. It prints a one-time login link, then serves on `http://127.0.0.1:8888`. `--listen IP:PORT` picks another address.
+`drupack` serves the project in the working directory, or in the directory you name after it. It serves Drupal alone, and refuses a folder without Drupal core. It reads the docroot from the scaffold web root in `composer.json`, `web` by default. It prints a one-time login link, then serves on `http://127.0.0.1:8888`. `--listen IP:PORT` picks another address.
 
 The project's own `settings.php` names the database, the files paths and the hash salt. Drupack writes nothing into the project, and Drupal writes files where those settings put them. For a ddev project, point `settings.local.php` at the database's published port on `127.0.0.1`. The ddev host name `db` resolves only inside ddev.
 
-`drupack dr COMMAND` runs the project's own Drush on the bundled PHP, from any directory inside the project. Drush's own child processes run on that PHP too. `drupack php SCRIPT` runs a PHP script.
+`drupack drush COMMAND` runs the project's own Drush on the bundled PHP, from any directory inside the project. Drush's own child processes run on that PHP too. `drupack php SCRIPT` runs a PHP script.
 
 A project whose `composer.lock` needs a PHP extension the bundled PHP lacks is refused, with the extension and the packages that need it.
 

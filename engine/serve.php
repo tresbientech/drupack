@@ -3,20 +3,22 @@
 declare(strict_types=1);
 
 // The engine executable's entry script. The launcher runs it for every word but
-// `php` and `clean`, from the directory the reader started in.
+// `php` and `clean`, from the directory the reader started in. A first word that
+// names no command starts the server.
 
 require __DIR__ . '/process.php';
 
 const USAGE = <<<'TEXT'
-Usage: %1$s serve [DIR] [--listen IP:PORT]
-       %1$s dr DRUSH_COMMAND
+Usage: %1$s [DIR] [--listen IP:PORT]
+       %1$s drush DRUSH_COMMAND
        %1$s php SCRIPT|-r CODE [ARGUMENTS]
        %1$s clean [--dry-run]
 
+Serves the Drupal project in DIR, the working directory by default, with its
+own settings. --listen defaults to %2$s.
+
 Commands:
-  serve    Serve the Drupal project in DIR, the working directory by default,
-           with its own settings. --listen defaults to %2$s.
-  dr       Run the Drush of the project holding the working directory
+  drush    Run the Drush of the project holding the working directory
   php      Run a PHP script, or -r CODE, on this executable's PHP
   clean    Remove the unpacked engine files from the cache
 
@@ -26,13 +28,18 @@ TEXT;
 const DEFAULT_LISTEN = '127.0.0.1:8888';
 
 // composer.json is the reader's file, so a docroot it names is checked before use.
+// The Caddyfile's guards and front controller are Drupal's, so a docroot without
+// Drupal core, such as a WordPress site's, is refused.
 function docroot(string $project): string
 {
     $composer = json_decode((string) @file_get_contents("$project/composer.json"), true);
     $root = trim($composer['extra']['drupal-scaffold']['locations']['web-root'] ?? 'web', './');
     $docroot = $root === '' ? $project : "$project/$root";
-    if (!is_file("$docroot/index.php")) {
-        throw new RuntimeException("$project holds no Drupal docroot: $docroot/index.php does not exist");
+    foreach (['index.php', 'core/lib/Drupal.php'] as $file) {
+        if (!is_file("$docroot/$file")) {
+            throw new RuntimeException("$project is not a Drupal project: $docroot/$file does not exist. "
+                . executableName() . ' serves Drupal alone.');
+        }
     }
     return $docroot;
 }
@@ -109,7 +116,7 @@ function serve(string $binary, array $arguments): never
     [, $bind, $port] = $parts;
     $project = realpath($directory ?? '.');
     if ($project === false || !is_dir($project)) {
-        throw new RuntimeException("No such directory: $directory");
+        throw new RuntimeException("No such directory: $directory. Run " . executableName() . ' --help.');
     }
     $project = canonical($project);
     $docroot = canonical(docroot($project));
@@ -128,7 +135,7 @@ function serve(string $binary, array $arguments): never
     if (proc_close($login) !== 0 || $link === '') {
         // The folder's own settings may block uid 1 or name no reachable database yet;
         // the server still starts, and Drupal's own error page says which.
-        fwrite(STDERR, "Cannot mint a one-time login link: $failure\nGet one once the site answers with: " . executableName() . " dr user:login --uri=$url\n");
+        fwrite(STDERR, "Cannot mint a one-time login link: $failure\nGet one once the site answers with: " . executableName() . " drush user:login --uri=$url\n");
         $link = null;
     }
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n") . "  Project: $project\n");
@@ -167,12 +174,10 @@ if (defined('DRUPACK_SERVE_LIBRARY')) {
 
 try {
     $binary = getenv('DRUPACK_RUNTIME_BINARY');
-    $word = $argv[1] ?? '--help';
-    match ($word) {
-        'serve' => serve($binary, array_slice($argv, 2)),
-        'dr' => drush($binary, array_slice($argv, 2)),
-        '--help', '-h', 'help' => fwrite(STDOUT, sprintf(USAGE, executableName(), DEFAULT_LISTEN) . "\n"),
-        default => throw new RuntimeException("Unknown command $word. Run " . executableName() . ' --help.'),
+    match ($argv[1] ?? null) {
+        'drush' => drush($binary, array_slice($argv, 2)),
+        '--help', '-h' => fwrite(STDOUT, sprintf(USAGE, executableName(), DEFAULT_LISTEN) . "\n"),
+        default => serve($binary, array_slice($argv, 1)),
     };
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");

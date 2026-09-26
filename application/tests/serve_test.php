@@ -49,7 +49,7 @@ function project_with(string $name, array $files): string
 }
 
 test('a project naming no web root serves web', function () {
-    $project = project_with('default', ['composer.json' => '{}', 'web/index.php' => '<?php']);
+    $project = project_with('default', ['composer.json' => '{}', 'web/index.php' => '<?php', 'web/core/lib/Drupal.php' => '<?php']);
     same("$project/web", docroot($project));
 });
 
@@ -57,6 +57,7 @@ test('a project serves the web root its scaffold names', function () {
     $project = project_with('named', [
         'composer.json' => '{"extra": {"drupal-scaffold": {"locations": {"web-root": "./docroot/"}}}}',
         'docroot/index.php' => '<?php',
+        'docroot/core/lib/Drupal.php' => '<?php',
     ]);
     same("$project/docroot", docroot($project));
 });
@@ -65,8 +66,18 @@ test('a project whose web root is the project itself serves the project', functi
     $project = project_with('flat', [
         'composer.json' => '{"extra": {"drupal-scaffold": {"locations": {"web-root": "./"}}}}',
         'index.php' => '<?php',
+        'core/lib/Drupal.php' => '<?php',
     ]);
     same($project, docroot($project));
+});
+
+test('a WordPress site is refused', function () {
+    $project = project_with('wordpress', [
+        'composer.json' => '{"extra": {"drupal-scaffold": {"locations": {"web-root": "./"}}}}',
+        'index.php' => '<?php',
+        'wp-includes/version.php' => '<?php',
+    ]);
+    throws("$project is not a Drupal project: $project/core/lib/Drupal.php does not exist", fn () => docroot($project));
 });
 
 test('a web root with no index.php is refused', function () {
@@ -112,7 +123,7 @@ test('docs/cli.md names every engine command the usage names', function () {
             throw new RuntimeException("docs/cli.md's engine section omits $command");
         }
     }
-    same(['serve', 'dr', 'php', 'clean'], $commands[1]);
+    same(['drush', 'php', 'clean'], $commands[1]);
 });
 
 $failed = 0;

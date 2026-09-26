@@ -15,12 +15,12 @@ Notes:
 - The Mercury Demo executable is renamed `mercury-demo`, since the demo held
   the name `drupack`. ADR 0022 records it.
 - The launcher sets no application directory for the engine executable, so
-  the runtime keeps the reader's working directory. `serve` execs Caddy's
+  the runtime keeps the reader's working directory. A start execs Caddy's
   `run` on `engine/Caddyfile`, which skips the packaged site's readiness line
   and cron runner.
 - Composer's own platform check tests the PHP version alone by default. The
   extension check reads `composer.lock`, as the build's check does.
-- `dr` finds the nearest `vendor/autoload.php`, since Drupal core carries a
+- `drush` finds the nearest `vendor/autoload.php`, since Drupal core carries a
   `composer.json` of its own.
 - `php` takes a script or `-r` code. FrankenPHP's `php-cli` accepts no PHP
   option such as `-v`.
@@ -39,7 +39,7 @@ These hold across all phases:
   files and no application. Its name is `drupack`, which also keys its runtime
   cache.
 - A Linux engine executable carries both the glibc and musl runtimes.
-- The words are `serve [DIR]`, `dr ...` and `php ...`. `serve` takes
+- `drupack [DIR]` serves, and the words are `drush ...` and `php ...`. A start takes
   `--listen`, default `127.0.0.1:8888`.
 - The folder mode has its own PHP entry script. Helpers it shares with
   `launch.php` move to one file both load.
@@ -54,7 +54,7 @@ These hold across all phases:
 
 ### What to build
 
-The pack step builds an engine executable with no application. `serve`
+The pack step builds an engine executable with no application. A start
 resolves the folder and reads its docroot. It checks the folder's
 `composer.lock` against the runtime's PHP version and extensions. It then
 starts FrankenPHP on the folder and prints a one-time login link.
@@ -62,8 +62,9 @@ starts FrankenPHP on the folder and prints a one-time login link.
 ### Acceptance criteria
 
 - [x] An engine executable builds for linux-amd64 in the job image.
-- [x] `serve` on a minimal Drupal project with SQLite settings returns 200 on `/`.
-- [x] `serve` with no argument serves the working directory.
+- [x] A start on a minimal Drupal project with SQLite settings returns 200 on `/`.
+- [x] A start with no argument serves the working directory.
+- [x] A start refuses a folder without Drupal core, such as a WordPress site.
 - [x] A scaffold web root other than `web` is resolved, in the unit cases.
 - [x] A folder requiring a missing extension is refused, and the message names it.
 - [x] The start prints a one-time login link that signs in.
@@ -75,13 +76,13 @@ starts FrankenPHP on the folder and prints a one-time login link.
 
 ### What to build
 
-`dr` runs the folder's `vendor/bin/drush` on the runtime's PHP. A `php` on
+`drush` runs the folder's `vendor/bin/drush` on the runtime's PHP. A `php` on
 PATH forwards to the same PHP, so Drush's child processes never reach the
 host's PHP. `php` runs the runtime's PHP with the reader's arguments.
 
 ### Acceptance criteria
 
-- [x] `dr status` reports the folder's database and Drupal version.
+- [x] `drush status` reports the folder's database and Drupal version.
 - [x] A `php` that Drush starts runs the runtime's PHP, with no PHP on the host PATH.
 - [x] `php -r` prints the runtime's version. `php -v` is not accepted.
 - [x] A folder with no Drush gets a message that names the missing path.
@@ -102,4 +103,4 @@ assets beside the site's. The docs gain the engine executable and its words.
 - [ ] The folder case passes on each runner.
 - [ ] A Windows run serves a folder given as a drive letter path.
 - [x] CONTEXT.md defines Engine executable and Project folder.
-- [x] The CLI doc covers `serve`, `dr` and `php` in folder mode.
+- [x] The CLI doc covers the start, `drush` and `php` of the engine executable.

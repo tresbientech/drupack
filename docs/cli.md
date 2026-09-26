@@ -148,8 +148,8 @@ runtime and ignore the variable.
 ## The engine executable
 
 ```
-drupack serve [DIR] [--listen IP:PORT]
-drupack dr DRUSH_COMMAND
+drupack [DIR] [--listen IP:PORT]
+drupack drush DRUSH_COMMAND
 drupack php SCRIPT|-r CODE [ARGUMENTS]
 drupack clean [--dry-run]
 drupack --help
@@ -159,10 +159,13 @@ drupack --version
 `drupack` serves a Drupal project folder under the folder's own settings. It
 has no Site data, and it takes none of the options above.
 
-`serve` serves `DIR`, the working directory by default:
+`drupack` with no command serves `DIR`, the working directory by default. A
+first word naming no command is taken as `DIR`.
 
 - The docroot is the scaffold web root `composer.json` names, `web` when it
   names none.
+- The start refuses a docroot without `core/lib/Drupal.php`. The Caddyfile's
+  guards and front controller are Drupal's, and would not suit a WordPress site.
 - `--listen` defaults to `127.0.0.1:8888`.
 - The start refuses a folder whose PHP version or `composer.lock` extensions
   the bundled PHP does not meet, and names what is missing.
@@ -170,7 +173,7 @@ has no Site data, and it takes none of the options above.
   and still serves when that fails.
 - Caddy's errors go to standard error.
 
-`dr` runs the Drush of the nearest directory at or above the working directory
+`drush` runs the Drush of the nearest directory at or above the working directory
 that holds `vendor/autoload.php`. Drush's child processes find a `php` on
 `PATH` that runs the bundled PHP.
 

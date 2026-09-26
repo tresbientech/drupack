@@ -46,7 +46,7 @@ The directory holding a site's public files, addressed as `sites/default/files`.
 The start that turns an empty Site data directory into an installed site.
 
 **`dr` command**:
-The public command-line interface that exposes the Drush command set for a Packaged site and its Site data. Global options precede the command. It uses `./data` unless the user selects another Site data directory. For an Engine executable, it runs the Project folder's own Drush.
+The public command-line interface that exposes the Drush command set for a Packaged site and its Site data. Global options precede the command. It uses `./data` unless the user selects another Site data directory.
 
 **`clean` command**:
 The public command that removes unpacked releases from the cache.
