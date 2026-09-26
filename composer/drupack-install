@@ -103,10 +103,12 @@ try {
     if (is_file("$root/$name") && isRelease("$root/$name", download(releaseUrl($version, 'checksums.txt')), $version)) {
         echo "$root/$name is drupack $version already.\n";
     } else {
-        $contents = download(releaseUrl($version, 'install-drupack.' . ($windows ? 'ps1' : 'sh')));
-        // PowerShell runs a file only under its .ps1 extension. The random name and
-        // the exclusive open keep a planted file or link from standing in for it.
-        $script = sys_get_temp_dir() . '/drupack-install-' . bin2hex(random_bytes(8)) . ($windows ? '.ps1' : '.sh');
+        // PowerShell runs a file only under its .ps1 extension, so the temporary copy
+        // keeps the release file's. The random name and the exclusive open keep a
+        // planted file or link from standing in for it.
+        $extension = $windows ? 'ps1' : 'sh';
+        $contents = download(releaseUrl($version, "install-drupack.$extension"));
+        $script = sys_get_temp_dir() . '/drupack-install-' . bin2hex(random_bytes(8)) . ".$extension";
         $handle = fopen($script, 'x');
         fwrite($handle, $contents);
         fclose($handle);
