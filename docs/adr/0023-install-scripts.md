@@ -17,7 +17,8 @@ every release cannot serve a manifest.
 - Every executable ships under its versioned name alone: `NAME-VERSION-TARGET`,
   with `.exe` on Windows.
 - A release carries `install-NAME.sh` and `install-NAME.ps1` for each
-  executable. They are its only files without a version in their name.
+  executable. Beside `checksums.txt`, `release.json` and the SBOM, they are its
+  only files without a version in their name.
 - The publish step writes the version, the release's download URL and each
   build's SHA-256 into the scripts. `releases/latest/download/install-NAME.sh`
   installs the latest release, and `releases/download/VERSION/` pins one.
