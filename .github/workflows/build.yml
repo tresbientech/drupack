@@ -111,6 +111,23 @@ jobs:
           path: /tmp/drupack/dist
           if-no-files-found: error
 
+      # The job image carries release-files.py at the engine version the caller pinned.
+      - name: Write the release files
+        if: inputs.publish && github.ref_type == 'tag'
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          python3 "$DRUPACK_ENGINE/build/release-files.py" --output /tmp/drupack/release --version "$VERSION" \
+            --base-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$VERSION" \
+            --commit "$GITHUB_SHA" /tmp/drupack/dist/*-linux-*
+
+      - uses: actions/upload-artifact@v7
+        if: inputs.publish && github.ref_type == 'tag'
+        with:
+          name: release
+          path: /tmp/drupack/release
+          if-no-files-found: error
+
   # The calling job grants contents: write, id-token: write and attestations: write.
   publish:
     needs: build
@@ -125,15 +142,8 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          name: executables
+          name: release
           path: release
-
-      - name: Write checksums.txt
-        working-directory: release
-        run: |
-          chmod 0755 -- *-linux-*
-          sha256sum -- *-linux-* >checksums.txt
-          cat checksums.txt
 
       - name: Generate the SBOM
         uses: anchore/sbom-action@v0
