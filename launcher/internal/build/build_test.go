@@ -525,7 +525,7 @@ func TestTheEnginePlanPacksBothRuntimesPerPlatformAndReadsNoSite(t *testing.T) {
 	if got := runtimeFlags(pack); !reflect.DeepEqual(got, []string{"glibc=/rt/arm64-glibc", "musl=/rt/arm64-musl"}) {
 		t.Fatalf("runtimes %v", got)
 	}
-	if !slices.Contains(pack, "-engine") || !slices.Contains(pack, "/out/drupack-linux-arm64") {
+	if !slices.Contains(pack, "-engine") || !slices.Contains(pack, filepath.Join("/out", "drupack-linux-arm64")) {
 		t.Fatalf("pack command %v", pack)
 	}
 }

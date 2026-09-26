@@ -129,6 +129,13 @@ and `package_manager` because it cannot write into the read-only application.
 Nobody has checked the stall against the current module release. Lean: keep the
 uninstall, and retest the stall when the recipe's version of the module changes.
 
+## When Mercury can leave Twig 3.29
+
+Mercury's `composer.json` pins `twig/twig` to 3.29.0. Under Twig 3.30, cron
+fails with a `TypeError` from `EscaperRuntime::escape()` in easy_email's compiled
+body template, which Drupal CMS 2.2's site template base brings. Lean: retest
+cron on each Drupal core or easy_email release, and drop the pin once it passes.
+
 ## An install script that picks the download for the host
 
 A person trying a Drupack-built site has to choose among five executables by

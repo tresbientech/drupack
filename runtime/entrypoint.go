@@ -196,15 +196,11 @@ func runScheduledWork(stopping context.Context, executable string, application s
 	}
 }
 
-// serveApplication runs the application's own Caddyfile. PHPRC already names
+// serveCaddyfile runs Caddy on the Caddyfile at config. PHPRC already names
 // the runtime directory in every hop, including this one, so php.ini loads
 // from there without a scan path naming the application too.
-func serveApplication(application string) {
-	os.Args = []string{
-		os.Args[0], "run",
-		"--config", filepath.Join(application, "Caddyfile"),
-		"--adapter", "caddyfile",
-	}
+func serveCaddyfile(config string) {
+	os.Args = []string{os.Args[0], "run", "--config", config, "--adapter", "caddyfile"}
 }
 
 // canonical rewrites path in Drupack's canonical form: forward slashes. This
@@ -259,7 +255,15 @@ func init() {
 		go openWhenReady(os.Getenv("DRUPACK_RUNTIME_URL"), os.Getenv("DRUPACK_RUNTIME_ID"),
 			os.Getenv("DRUPACK_RUNTIME_OPEN"), os.Getenv("DRUPACK_RUNTIME_BROWSER") == "1", ready)
 		go runScheduledWork(stopping, executable, application, ready)
-		serveApplication(application)
+		serveCaddyfile(filepath.Join(application, "Caddyfile"))
+		return
+	}
+	// The engine executable's serve.php replaces itself with this command, naming its
+	// Caddyfile. The folder keeps automated_cron, which runs inside a request after
+	// its response, so a stop meets a running PHP request as the site's server does.
+	if len(os.Args) == 3 && os.Args[1] == "folder-server" {
+		forceExitOnStalledShutdown()
+		serveCaddyfile(os.Args[2])
 		return
 	}
 	// launch.php replaces itself with this command when its Site data is already served,

@@ -36,7 +36,7 @@ languages: [fr, de]        # translations the build fetches
 smoke_paths: [/, /about]   # paths the suite expects a 200 from, / by default
 platforms: [linux-amd64]   # targets: linux-amd64, linux-arm64
 libc: both                 # C library of each runtime: both, glibc or musl
-extensions: [xmlwriter]    # PHP extensions the site adds to the engine's
+extensions: [gmp]          # PHP extensions the site adds to the engine's
 writable: [recipes]        # directories the site writes at runtime
 ```
 

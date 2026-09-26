@@ -12,9 +12,8 @@
 # mb_eregi_replace and falls back to preg_replace. calendar, exif,
 # shmop, sockets, sysvmsg, sysvsem, sysvshm, tidy and zstd have no call site at
 # all. amqp, ast, dba, gettext, gmp, igbinary, imagick, ldap, lz4, memcached,
-# mysqli, parallel, protobuf, redis, soap, ssh2, xlswriter, xmlreader,
-# xmlwriter, xsl and yaml serve modules or database drivers Drupack does not
-# ship.
+# mysqli, parallel, protobuf, redis, soap, ssh2, xlswriter, xmlreader, xsl
+# and yaml serve modules or database drivers Drupack does not ship.
 
 apcu             # Drupal file cache and class loader cache
 brotli           # Caddy's brotli module; core AssetDumper writes .br assets
@@ -41,9 +40,10 @@ pgsql            # pdo_pgsql needs it
 phar             # composer.phar runs under this PHP during the build
 session          # Drupal core
 simplexml        # Drupal core, project_browser
-sodium           # friendlycaptcha, symfony/uid
+sodium           # symfony/uid
 sqlite3          # pdo_sqlite needs it
 tokenizer        # Drupal core, nikic/php-parser, psysh
 xml              # Drupal core
+xmlwriter        # simple_sitemap, which Drupal CMS site templates require
 zip              # core Archiver; composer --prefer-dist during the build
 zlib             # Drupal core

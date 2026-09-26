@@ -56,3 +56,11 @@ Docker in 18 to 25 minutes per libc.
 another target. `build-builder.sh` builds for `uname -m`, and a QEMU compile
 takes hours. A site that ships `linux-arm64` compiles its runtimes on an arm64
 host.
+
+## Amendment, 2026-09-26
+
+`xmlwriter` joins the engine file. Drupal CMS 2.2's site template base requires
+`drupal/simple_sitemap`, so every Drupal CMS site from 2.2 on needs it. The
+engine executable serves such folders with no per-site runtime. The site path
+of this record builds Linux runtimes only, so it cannot cover the macOS and
+Windows targets.

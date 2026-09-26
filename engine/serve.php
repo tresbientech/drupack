@@ -154,7 +154,7 @@ function serve(string $binary, array $arguments): never
     }
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n") . "  Project: $project\n");
     fwrite(STDOUT, "Starting the web server. Press Ctrl+C to stop.\n");
-    replaceProcess($binary, ['run', '--config', __DIR__ . '/Caddyfile', '--adapter', 'caddyfile'], $project, 'Cannot start FrankenPHP');
+    replaceProcess($binary, ['folder-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }
 
 // The nearest installed Composer project at or above the working directory. Drupal

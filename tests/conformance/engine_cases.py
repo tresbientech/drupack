@@ -10,6 +10,7 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -128,6 +129,23 @@ class EngineExecutable(harness.ConformanceCase):
     def test_a_start_without_a_directory_serves_the_working_directory(self):
         port, _ = self.start("start-working-directory", cwd=self.project)
         self.assertEqual(self.status(port, "/"), 200)
+
+    def test_a_stop_ends_a_request_that_is_still_running(self):
+        # FrankenPHP waits 30s for a running request before it forces the stop, the
+        # harness's own stop wait, so only the runtime's 10s deadline passes this case.
+        sleeper = self.case_dir / "sleeper"
+        (sleeper / "web" / "core" / "lib").mkdir(parents=True)
+        (sleeper / "web" / "core" / "lib" / "Drupal.php").write_text("<?php")
+        (sleeper / "web" / "index.php").write_text(
+            "<?php if ($_SERVER['REQUEST_URI'] !== '/user/login') { sleep(60); } echo 'ok';")
+        # A start mints its login link with the folder's Drush; this one fails, and the start serves on.
+        (sleeper / "vendor" / "drush" / "drush").mkdir(parents=True)
+        (sleeper / "vendor" / "drush" / "drush" / "drush.php").write_text("<?php exit(1);")
+        port, _ = self.start("start-sleeper", str(sleeper))
+        request = threading.Thread(target=self.status, args=(port, "/"), daemon=True)
+        request.start()
+        time.sleep(1)
+        self.doCleanups()
 
     def test_a_start_refuses_a_lock_declaring_an_extension_the_runtime_lacks(self):
         result = self.engine_run(str(self.lacking))
