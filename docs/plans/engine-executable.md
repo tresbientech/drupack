@@ -35,11 +35,13 @@ These hold across all phases:
 
 - The Mercury Demo executable is renamed `mercury-demo`, and the engine
   executable takes the name `drupack`, as the owner chose during phase 1.
+- A site executable's Drush command is `drush`. `dr` is Drupal core's own
+  command line, which the engine executable runs for a project.
 - The engine executable is the launcher packed with the runtimes, the engine's
   files and no application. Its name is `drupack`, which also keys its runtime
   cache.
 - A Linux engine executable carries both the glibc and musl runtimes.
-- `drupack [DIR]` serves, and the words are `drush ...` and `php ...`. A start takes
+- `drupack [DIR]` serves, and the words are `drush ...`, `dr ...` and `php ...`. A start takes
   `--listen`, default `127.0.0.1:8888`.
 - The folder mode has its own PHP entry script. Helpers it shares with
   `launch.php` move to one file both load.

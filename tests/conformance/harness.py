@@ -133,7 +133,7 @@ WAIT_TABLE = [
     # "drupack is ready.", so the recorder standing in for it sees the URL within a
     # process spawn, not a poll of any kind.
     Wait("browser_open", 10, None, "a start's background browser-open handing its target to the recorder"),
-    Wait("dr", 120, None, "a dr command"),
+    Wait("drush", 120, None, "a drush command"),
     Wait("php_cli", 30, None, "a php-cli probe"),
     Wait("docker_probe", 10, None, "docker info answering, or reporting no daemon"),
     # No product deadline: a start that should refuse an argument is expected to fail
@@ -423,10 +423,10 @@ def run(args, **kwargs):
     return subprocess.run(args, **kwargs)
 
 
-def run_dr(binary, work_dir, data_dir, *command):
+def run_drush(binary, work_dir, data_dir, *command):
     return run(
-        [str(binary), "dr", "--data-dir", str(data_dir), *command],
-        cwd=work_dir, capture_output=True, text=True, timeout=WAITS["dr"].seconds,
+        [str(binary), "drush", "--data-dir", str(data_dir), *command],
+        cwd=work_dir, capture_output=True, text=True, timeout=WAITS["drush"].seconds,
     )
 
 

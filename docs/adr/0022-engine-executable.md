@@ -24,8 +24,11 @@ data.
 - The folder's own settings own the database, the files paths and the hash
   salt. Drupack writes nothing into the folder.
 - `drupack drush` runs the folder's Drush on the runtime's PHP. The word
-  names Drush itself, since it adds nothing to it. `dr` keeps its one meaning,
-  a site executable's command that selects Site data before a Drush command. A `php` on PATH
+  names Drush itself, since it adds nothing to it.
+- `drupack dr` runs Drupal core's own command line, `vendor/bin/dr`, which
+  core ships from Drupal 11.4 on.
+- A site executable's Drush command is renamed from `dr` to `drush`, with no
+  alias. `dr` is core's name, and Drupack's command runs Drush. A `php` on PATH
   sends Drush's child processes to the same PHP.
 - `drupack php` runs a script, or `-r` code, on the runtime's PHP.
 - A start prints a one-time login link, as a packaged site's does.
@@ -53,6 +56,8 @@ data.
 - Reaching a ddev database from the host means the project's own settings
   name its published port on `127.0.0.1`.
 - Drupal writes public files into the folder, where its settings put them.
+- A script calling `SITE dr` breaks, and gets the embedded server's unknown
+  command error.
 - The `latest` download links of the demo change name, and its cache moves
   to a `mercury-demo` directory.
 - The runtime changes to no directory of its own for the engine executable,

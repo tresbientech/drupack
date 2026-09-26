@@ -20,7 +20,7 @@ cd path/to/your/project
 
 The project's own `settings.php` names the database, the files paths and the hash salt. Drupack writes nothing into the project, and Drupal writes files where those settings put them. For a ddev project, point `settings.local.php` at the database's published port on `127.0.0.1`. The ddev host name `db` resolves only inside ddev.
 
-`drupack drush COMMAND` runs the project's own Drush on the bundled PHP, from any directory inside the project. Drush's own child processes run on that PHP too. `drupack php SCRIPT` runs a PHP script.
+`drupack drush COMMAND` runs the project's own Drush on the bundled PHP, from any directory inside the project. Drush's own child processes run on that PHP too. `drupack dr COMMAND` runs Drupal core's own command line the same way, on Drupal 11.4 and later. `drupack php SCRIPT` runs a PHP script.
 
 A project whose `composer.lock` needs a PHP extension the bundled PHP lacks is refused, with the extension and the packages that need it.
 
@@ -90,7 +90,7 @@ Later starts need nothing:
 ./mercury-demo
 ```
 
-Each one prints its own link and opens your dashboard the same way. A link works once, so `./mercury-demo dr user:login /admin/dashboard` prints a fresh one whenever you need it. `--no-browser` starts the site without opening anything, and still prints the link.
+Each one prints its own link and opens your dashboard the same way. A link works once, so `./mercury-demo drush user:login /admin/dashboard` prints a fresh one whenever you need it. `--no-browser` starts the site without opening anything, and still prints the link.
 
 To choose the administrator name and password yourself, for a script or a fresh machine:
 
@@ -107,7 +107,7 @@ The terminal shows the address, where Site data lives, the log file and how to s
 Useful options:
 
 - `--data-dir PATH` puts Site data somewhere else. `DRUPACK_DATA_DIR` sets a default.
-- `--listen IP:PORT` serves on another address, `127.0.0.1:7225` by default. Each start records its address in Site data, so `dr` reaches the site without repeating the option.
+- `--listen IP:PORT` serves on another address, `127.0.0.1:7225` by default. Each start records its address in Site data, so `drush` reaches the site without repeating the option.
 - `--site-name NAME` names the site on a first start, `Drupal Mercury Demo` by default. `DRUPACK_SITE_NAME` sets it too. A later start never renames a site.
 - `--no-browser` starts without opening a browser.
 - `mercury-demo --version` prints the release, `mercury-demo version` names every component it carries, and `mercury-demo --help` lists every option.
@@ -116,12 +116,12 @@ Useful options:
 
 ## Administer with Drush
 
-`dr` runs the bundled Drush commands against your site. Drupack's own options come before the Drush command.
+`drush` runs the bundled Drush commands against your site. Drupack's own options come before the Drush command.
 
 ```sh
-./mercury-demo dr status
-./mercury-demo dr --data-dir ./data user:login
-./mercury-demo dr pm:list --status=enabled
+./mercury-demo drush status
+./mercury-demo drush --data-dir ./data user:login
+./mercury-demo drush pm:list --status=enabled
 ```
 
 ## Site data

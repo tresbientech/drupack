@@ -45,8 +45,9 @@ The directory holding a site's public files, addressed as `sites/default/files`.
 **First start**:
 The start that turns an empty Site data directory into an installed site.
 
-**`dr` command**:
+**`drush` command**:
 The public command-line interface that exposes the Drush command set for a Packaged site and its Site data. Global options precede the command. It uses `./data` unless the user selects another Site data directory.
+_Avoid_: `dr`, the name of Drupal core's own command line.
 
 **`clean` command**:
 The public command that removes unpacked releases from the cache.
@@ -115,7 +116,7 @@ A PHP extension that a package in the application's lock file names as a require
 - **Site data** survives replacement of the **Packaged site** with an updated release.
 - **Site data** holds a **Version record**, which a **Packaged site** rewrites on every start.
 - A **Packaged site** older than the **Version record** refuses to serve.
-- The **`dr` command** manages one **Packaged site** and its selected **Site data**.
+- The **`drush` command** manages one **Packaged site** and its selected **Site data**.
 - **`DRUPACK_DATA_DIR`** selects **Site data** when no `--data-dir` option is present.
 
 ### Runtime
@@ -131,6 +132,7 @@ A PHP extension that a package in the application's lock file names as a require
 
 - An **Engine executable** has no **Site data**. A **Project folder**'s own settings name its database and files.
 - An **Engine executable** refuses a **Project folder** with a **Declared extension** its **Runtime** lacks.
+- An **Engine executable** runs a **Project folder**'s own Drush with `drush`, and Drupal core's command line with `dr`.
 - A Linux **Engine executable** carries one **Runtime** per C library, as a Linux **Packaged site** does.
 
 ### Extensions

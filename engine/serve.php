@@ -11,6 +11,7 @@ require __DIR__ . '/process.php';
 const USAGE = <<<'TEXT'
 Usage: %1$s [DIR] [--listen IP:PORT]
        %1$s drush DRUSH_COMMAND
+       %1$s dr DRUPAL_COMMAND
        %1$s php SCRIPT|-r CODE [ARGUMENTS]
        %1$s clean [--dry-run]
 
@@ -19,6 +20,7 @@ own settings. --listen defaults to %2$s.
 
 Commands:
   drush    Run the Drush of the project holding the working directory
+  dr       Run Drupal core's command line of that project
   php      Run a PHP script, or -r CODE, on this executable's PHP
   clean    Remove the unpacked engine files from the cache
 
@@ -44,13 +46,25 @@ function docroot(string $project): string
     return $docroot;
 }
 
+// The script a project's Composer install put at $path, named for the refusal.
+function projectScript(string $project, string $path, string $name, string $remedy): string
+{
+    $script = "$project/$path";
+    if (!is_file($script)) {
+        throw new RuntimeException("$project has no $name: $script does not exist. $remedy");
+    }
+    return $script;
+}
+
 function drushScript(string $project): string
 {
-    $drush = "$project/vendor/drush/drush/drush.php";
-    if (!is_file($drush)) {
-        throw new RuntimeException("$project has no Drush: $drush does not exist. Run composer require drush/drush in it.");
-    }
-    return $drush;
+    return projectScript($project, 'vendor/drush/drush/drush.php', 'Drush', 'Run composer require drush/drush in it.');
+}
+
+// Drupal core ships its own command line, vendor/bin/dr, from Drupal 11.4 on.
+function coreScript(string $project): string
+{
+    return projectScript($project, 'vendor/bin/dr', "Drupal core command line", 'Drupal 11.4 and later ship it.');
 }
 
 // composer.lock is the reader's file. An extension it declares that this runtime
@@ -158,13 +172,12 @@ function project(): string
     }
 }
 
-function drush(string $binary, array $arguments): never
+function runScript(string $binary, string $script, array $arguments): never
 {
-    $drush = drushScript(project());
-    // Drush starts its own child processes with the php on PATH, which bin/ points
-    // back at this runtime.
+    // Drush and core's command line start their own child processes with the php on
+    // PATH, which bin/ points back at this runtime.
     putenv('PATH=' . __DIR__ . '/bin' . PATH_SEPARATOR . getenv('PATH'));
-    replaceProcess($binary, array_merge(['php-cli', $drush], $arguments), getcwd(), 'Cannot run Drush');
+    replaceProcess($binary, array_merge(['php-cli', $script], $arguments), getcwd(), "Cannot run $script");
 }
 
 // application/tests/serve_test.php loads this file for its functions alone.
@@ -175,7 +188,8 @@ if (defined('DRUPACK_SERVE_LIBRARY')) {
 try {
     $binary = getenv('DRUPACK_RUNTIME_BINARY');
     match ($argv[1] ?? null) {
-        'drush' => drush($binary, array_slice($argv, 2)),
+        'drush' => runScript($binary, drushScript(project()), array_slice($argv, 2)),
+        'dr' => runScript($binary, coreScript(project()), array_slice($argv, 2)),
         '--help', '-h' => fwrite(STDOUT, sprintf(USAGE, executableName(), DEFAULT_LISTEN) . "\n"),
         default => serve($binary, array_slice($argv, 1)),
     };

@@ -97,16 +97,16 @@ class PathCrawlCases(harness.ConformanceCase):
         data = self.case_dir / "data"
         self.site.start(data, *CREDENTIALS)
 
-        dropped = harness.run_dr(harness.BINARY, self.case_dir, data, "config:delete",
+        dropped = harness.run_drush(harness.BINARY, self.case_dir, data, "config:delete",
                                   CANVAS_FULL_TEMPLATE, "--yes")
         self.assertEqual(dropped.returncode, 0, dropped.stderr)
 
-        created = harness.run_dr(harness.BINARY, self.case_dir, data, "php:eval", CREATE_IMAGE_NODE)
+        created = harness.run_drush(harness.BINARY, self.case_dir, data, "php:eval", CREATE_IMAGE_NODE)
         self.assertEqual(created.returncode, 0, created.stderr)
         self.assertNotEqual(created.stdout.strip(), "0",
                              "no seeded image media found to attach to the crawl's own node")
 
-        root = harness.run_dr(harness.BINARY, self.case_dir, data, "php:eval", APP_ROOT_PHP)
+        root = harness.run_drush(harness.BINARY, self.case_dir, data, "php:eval", APP_ROOT_PHP)
         self.assertEqual(root.returncode, 0, root.stderr)
         app_root = root.stdout.strip()
         self.assertTrue(app_root, "Drupal::root() reported no application root")

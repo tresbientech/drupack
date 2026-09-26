@@ -147,7 +147,7 @@ of a listed directory that it does not ship itself, then replaces the old
 copy. An entry the release ships takes the release's version. A write outside
 the listed directories is lost.
 
-`dr` runs with the environment it was started in, so a command finds the tools
+`drush` runs with the environment it was started in, so a command finds the tools
 on the reader's `PATH`.
 
 ## Private Composer packages

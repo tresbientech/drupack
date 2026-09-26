@@ -90,6 +90,11 @@ test('a project without Drush names the missing path', function () {
     throws("$project/vendor/drush/drush/drush.php does not exist", fn () => drushScript($project));
 });
 
+test('a project on a Drupal core without its command line names the missing path', function () {
+    $project = project_with('nocore', ['composer.json' => '{}']);
+    throws("$project has no Drupal core command line: $project/vendor/bin/dr does not exist", fn () => coreScript($project));
+});
+
 test('the project is the nearest installed Composer project above', function () {
     $project = project_with('walk', ['vendor/autoload.php' => '<?php', 'web/core/composer.json' => '{}']);
     chdir("$project/web/core");
@@ -123,7 +128,7 @@ test('docs/cli.md names every engine command the usage names', function () {
             throw new RuntimeException("docs/cli.md's engine section omits $command");
         }
     }
-    same(['drush', 'php', 'clean'], $commands[1]);
+    same(['drush', 'dr', 'php', 'clean'], $commands[1]);
 });
 
 $failed = 0;

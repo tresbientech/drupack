@@ -53,15 +53,15 @@ class _ServerDatabaseBackend:
         finally:
             site.stop()
 
-        driver = harness.run_dr(harness.BINARY, self.case_dir, data, "status", "--field=db-driver")
+        driver = harness.run_drush(harness.BINARY, self.case_dir, data, "status", "--field=db-driver")
         self.assertEqual(driver.stdout.strip(), self.DATABASE, driver.stderr)
-        bootstrap = harness.run_dr(harness.BINARY, self.case_dir, data, "status", "--field=bootstrap")
+        bootstrap = harness.run_drush(harness.BINARY, self.case_dir, data, "status", "--field=bootstrap")
         self.assertEqual(bootstrap.stdout.strip(), "Successful", bootstrap.stderr)
         self.assertFalse((data / "site.sqlite").exists(), "Site data holds a SQLite database")
 
         # Drupal CMS recipes enable these during site:install; a runtime install must
         # remove them, matching the seed build's cleanup, or cron stalls for 240s.
-        enabled = harness.run_dr(harness.BINARY, self.case_dir, data, "pm:list", "--status=enabled", "--format=json")
+        enabled = harness.run_drush(harness.BINARY, self.case_dir, data, "pm:list", "--status=enabled", "--format=json")
         self.assertEqual(enabled.returncode, 0, enabled.stderr)
         modules = json.loads(enabled.stdout)
         self.assertNotIn("automatic_updates", modules)

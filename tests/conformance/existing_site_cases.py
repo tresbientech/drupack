@@ -100,10 +100,10 @@ class ExistingSiteAdoption(harness.ConformanceCase):
         self.assertIn("This database already holds a site", log)
         self.assertIn("Cannot mint a one-time login link", log)
 
-        name = harness.run_dr(harness.BINARY, self.case_dir, data, "config:get", "system.site", "name",
+        name = harness.run_drush(harness.BINARY, self.case_dir, data, "config:get", "system.site", "name",
                               "--format=string")
         self.assertEqual(name.stdout.strip(), SITE_NAME, name.stderr)
-        enabled = harness.run_dr(harness.BINARY, self.case_dir, data, "pm:list", "--status=enabled",
+        enabled = harness.run_drush(harness.BINARY, self.case_dir, data, "pm:list", "--status=enabled",
                                  "--format=json")
         self.assertEqual(enabled.returncode, 0, enabled.stderr)
         self.assertEqual(sorted(json.loads(enabled.stdout)), before, "the first start changed the enabled modules")

@@ -71,7 +71,7 @@ class EngineExecutable(harness.ConformanceCase):
 
     def engine_run(self, *arguments, cwd=None, env=None):
         return harness.run([str(self.engine), *arguments], cwd=cwd or self.case_dir, env=env,
-                           capture_output=True, text=True, timeout=harness.WAITS["dr"].seconds)
+                           capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
 
     def start(self, name, *arguments, cwd=None):
         """Starts the engine executable on a port of its own, waits for /user/login, and returns the port and log."""
@@ -161,6 +161,11 @@ class EngineExecutable(harness.ConformanceCase):
                                  env=dict(os.environ, PATH=str(empty)))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), version.stdout)
+
+    def test_dr_runs_drupal_cores_command_line(self):
+        result = self.engine_run("dr", "list", cwd=self.project)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("cache:rebuild", result.stdout)
 
     def test_drush_names_the_drush_a_project_lacks(self):
         result = self.engine_run("drush", "status", cwd=self.lacking / "web")
