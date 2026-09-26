@@ -367,7 +367,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
             code = loser.wait(timeout=harness.WAITS["stop"].seconds)
             self.assertNotEqual(code, 0, "a simultaneous start exited without a failure")
             loser_log = (race_dir / f"{loser_label}.log").read_text(errors="replace")
-            self.assertIn("Another drupack start", loser_log, "the losing start names no other start")
+            self.assertIn(f"Another {harness.SITE['name']} start", loser_log, "the losing start names no other start")
             self.assertIn(str(data), loser_log, "the losing start does not name the Site data directory")
 
             ready_deadline = time.monotonic() + harness.WAITS["start"].seconds
@@ -445,7 +445,7 @@ class EquivalentPathLock(harness.ConformanceCase):
                     self.fail("a start waited for a lock another process held")
             self.assertNotEqual(result.returncode, 0, "a start took a lock another process held")
             text = log.read_text(errors="replace")
-            self.assertIn("Another drupack start", text, f"the blocked start names no other start: inspect {log}")
+            self.assertIn(f"Another {harness.SITE['name']} start", text, f"the blocked start names no other start: inspect {log}")
             self.assertIn(str(data.resolve()), text, "the blocked start does not name the resolved directory")
         finally:
             release.touch()

@@ -8,7 +8,7 @@ set -euo pipefail
 # executable's cases against the Mercury Demo application.
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 platform=linux-$(go env GOARCH)
-executable=dist/drupack-$platform
+executable=dist/mercury-demo-$platform
 engine=dist/engine/drupack-$platform
 
 # The job image carries both of this architecture's runtimes, so the build names none.

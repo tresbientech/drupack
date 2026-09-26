@@ -561,3 +561,16 @@ func TestStagingTheEngineFollowsItsLinksIntoTheApplication(t *testing.T) {
 		t.Fatalf("process.php holds %q", content)
 	}
 }
+
+func TestAPayloadOnlyEnginePlanExportsTheArchiveAndPacksNothing(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "")
+	r.Runtimes, r.PayloadOnly = nil, true
+	plan, err := build.NewEnginePlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"stage the engine files", "archive the engine files", "export the engine payload"}
+	if got := names(plan); !reflect.DeepEqual(got, want) {
+		t.Fatalf("steps %v, want %v", got, want)
+	}
+}

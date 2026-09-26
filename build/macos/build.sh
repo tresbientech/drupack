@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-usage='Usage: build.sh PAYLOAD_DIRECTORY WORK_DIRECTORY OUTPUT'
+# With ENGINE_PAYLOAD and ENGINE_OUTPUT it also packs the engine executable on
+# the same runtime.
+usage='Usage: build.sh PAYLOAD_DIRECTORY WORK_DIRECTORY OUTPUT [ENGINE_PAYLOAD ENGINE_OUTPUT]'
 payload=$(cd -- "${1:?$usage}" && pwd)
 work=${2:?$usage}
 mkdir -p "$(dirname -- "${3:?$usage}")"
 output="$(cd -- "$(dirname -- "$3")" && pwd)/$(basename -- "$3")"
+engine_payload=
+if [ -n "${4:-}" ]; then
+    engine_payload=$(cd -- "$4" && pwd)
+    mkdir -p "$(dirname -- "${5:?$usage}")"
+    engine_output="$(cd -- "$(dirname -- "$5")" && pwd)/$(basename -- "$5")"
+fi
 repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 
 frankenphp_version=1.12.7
@@ -79,3 +87,11 @@ cp "$repository/application/php.ini" "$repository/application/cacert.pem" "$runt
      -app "$payload/app-payload.tar" -app-checksum "$payload/app_checksum.txt" \
      -site "$payload/site.json" -site-version "$drupack_version")
 "$output" version
+if [ -n "$engine_payload" ]; then
+    (cd "$repository/launcher" \
+      && go run ./cmd/pack -engine -runtime "$runtime" -entry "$entry" \
+         -version "$drupack_version" \
+         -source "$repository/launcher" -output "$engine_output" \
+         -app "$engine_payload/app-payload.tar" -app-checksum "$engine_payload/app_checksum.txt")
+    "$engine_output" --version
+fi

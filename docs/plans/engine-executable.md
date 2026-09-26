@@ -2,6 +2,33 @@
 
 > Decision: `docs/adr/0022-engine-executable.md`.
 
+## Status, 2026-09-26
+
+All three phases are built on branch `engine-executable`, which is not
+merged or pushed. `bash build/qa.sh` passes on linux-amd64, with the engine
+case run against Mercury Demo's application. The release workflow, the macOS
+build and the Windows build are edited and have not run: their criteria wait
+on a CI run.
+
+Notes:
+
+- The Mercury Demo executable is renamed `mercury-demo`, since the demo held
+  the name `drupack`. ADR 0022 records it.
+- The launcher sets no application directory for the engine executable, so
+  the runtime keeps the reader's working directory. `serve` execs Caddy's
+  `run` on `engine/Caddyfile`, which skips the packaged site's readiness line
+  and cron runner.
+- Composer's own platform check tests the PHP version alone by default. The
+  extension check reads `composer.lock`, as the build's check does.
+- `dr` finds the nearest `vendor/autoload.php`, since Drupal core carries a
+  `composer.json` of its own.
+- `php` takes a script or `-r` code. FrankenPHP's `php-cli` accepts no PHP
+  option such as `-v`.
+- The request guards moved to `application/guards.caddy`, which both
+  Caddyfiles import. `engine/` links to it and to `application/process.php`.
+- The engine case skips by name unless `DRUPACK_TEST_ENGINE` names the engine
+  executable. It serves a copy of the site's own application.
+
 ## Architectural decisions
 
 These hold across all phases:
@@ -32,13 +59,13 @@ starts FrankenPHP on the folder and prints a one-time login link.
 
 ### Acceptance criteria
 
-- [ ] An engine executable builds for linux-amd64 in the job image.
-- [ ] `serve` on a minimal Drupal project with SQLite settings returns 200 on `/`.
-- [ ] `serve` with no argument serves the working directory.
-- [ ] A scaffold web root other than `web` is served.
-- [ ] A folder requiring a missing extension is refused, and the message names it.
-- [ ] The start prints a one-time login link that signs in.
-- [ ] After the run the folder changed only under its public files directory.
+- [x] An engine executable builds for linux-amd64 in the job image.
+- [x] `serve` on a minimal Drupal project with SQLite settings returns 200 on `/`.
+- [x] `serve` with no argument serves the working directory.
+- [x] A scaffold web root other than `web` is served.
+- [x] A folder requiring a missing extension is refused, and the message names it.
+- [x] The start prints a one-time login link that signs in.
+- [x] After the run the folder changed only under its public files directory.
 
 ---
 
@@ -52,10 +79,10 @@ host's PHP. `php` runs the runtime's PHP with the reader's arguments.
 
 ### Acceptance criteria
 
-- [ ] `dr status` reports the folder's database and Drupal version.
-- [ ] `dr updatedb` runs its child Drush process on the runtime's PHP, with no PHP on the host PATH.
-- [ ] `php -v` prints the runtime's version.
-- [ ] A folder with no Drush gets a message that names the missing path.
+- [x] `dr status` reports the folder's database and Drupal version.
+- [x] `dr updatedb` runs its child Drush process on the runtime's PHP, with no PHP on the host PATH.
+- [x] `php -r` prints the runtime's version. `php -v` is not accepted.
+- [x] A folder with no Drush gets a message that names the missing path.
 
 ---
 
@@ -72,5 +99,5 @@ assets beside the site's. The docs gain the engine executable and its words.
 - [ ] A tag release lists `drupack-<platform>` for linux-amd64, linux-arm64, macos-arm64, macos-amd64 and windows-amd64.
 - [ ] The folder case passes on each runner.
 - [ ] A Windows run serves a folder given as a drive letter path.
-- [ ] CONTEXT.md defines Engine executable and Project folder.
-- [ ] The CLI doc covers `serve`, `dr` and `php` in folder mode.
+- [x] CONTEXT.md defines Engine executable and Project folder.
+- [x] The CLI doc covers `serve`, `dr` and `php` in folder mode.

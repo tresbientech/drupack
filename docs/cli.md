@@ -1,18 +1,21 @@
 # Drupack command line
 
-Every option Drupack accepts, what it sets, and when it takes effect. The
-parser in `application/launch.php` is the contract this page records. A test in
+Every option a site's executable accepts, what it sets, and when it takes
+effect, then the commands of the engine executable, `drupack`. The parser in
+`application/launch.php` is the contract this page records. A test in
 `application/tests/launch_test.php` fails when the two disagree.
 
 ## Synopsis
 
 ```
-drupack [OPTIONS]
-drupack dr [OPTIONS] DRUSH_COMMAND
-drupack clean [--dry-run]
-drupack --help
-drupack --version
+SITE [OPTIONS]
+SITE dr [OPTIONS] DRUSH_COMMAND
+SITE clean [--dry-run]
+SITE --help
+SITE --version
 ```
+
+`SITE` is the site's executable, `mercury-demo` for the Mercury Demo.
 
 An option takes `--name value` or `--name=value`. `--help` prints the option
 set. `--version` prints the release. A rejected value prints its reason on
@@ -23,7 +26,7 @@ standard error and exits 1.
 | Option | Value | Default | Environment | Applies |
 |---|---|---|---|---|
 | `--data-dir` | PATH | `./data` | `DRUPACK_DATA_DIR` | every start, `dr` |
-| `--listen` | IP:PORT | `127.0.0.1` on the site's port, `7225` for Drupack | none | every start |
+| `--listen` | IP:PORT | `127.0.0.1` on the site's port, `7225` for the Mercury Demo | none | every start |
 | `--host` | HOST | `localhost` | none | every start |
 | `--files-dir` | PATH | `files` in Site data | none | every start, `dr` |
 | `--database` | `sqlite`, `mysql`, `pgsql` | `sqlite` | `DRUPACK_DATABASE` | first start |
@@ -34,7 +37,7 @@ standard error and exits 1.
 | `--db-password` | PASSWORD | none | `DRUPACK_DB_PASSWORD` | first start |
 | `--admin-user` | NAME | `admin` | `DRUPACK_ADMIN_USER` | first start |
 | `--admin-password` | PASSWORD | generated | `DRUPACK_ADMIN_PASSWORD` | first start |
-| `--site-name` | NAME | the site's name, `Drupal Mercury Demo` for Drupack | `DRUPACK_SITE_NAME` | first start |
+| `--site-name` | NAME | the site's name, `Drupal Mercury Demo` for the Mercury Demo | `DRUPACK_SITE_NAME` | first start |
 | `--no-browser` | none | off | none | every start |
 
 ## Site data
@@ -77,7 +80,7 @@ header gets 400.
 
 Every start writes both values into the Listener record in Site data, beside the
 files directory. A start reads only the files directory back, so `--listen` does
-not become sticky. `dr` reads all three, which is how `drupack dr user:login`
+not become sticky. `dr` reads all three, which is how `SITE dr user:login`
 prints a working link whatever port the site runs on.
 
 ## A first start
@@ -140,6 +143,40 @@ A Linux executable carries a runtime per C library and picks one per host, so
 `DRUPACK_LIBC` is for a host where that choice needs overriding. A value naming
 neither runtime stops the start. The macOS and Windows executables carry one
 runtime and ignore the variable.
+
+## The engine executable
+
+```
+drupack serve [DIR] [--listen IP:PORT]
+drupack dr DRUSH_COMMAND
+drupack php SCRIPT|-r CODE [ARGUMENTS]
+drupack clean [--dry-run]
+drupack --help
+drupack --version
+```
+
+`drupack` serves a Drupal project folder under the folder's own settings. It
+has no Site data, and it takes none of the options above.
+
+`serve` serves `DIR`, the working directory by default:
+
+- The docroot is the scaffold web root `composer.json` names, `web` when it
+  names none.
+- `--listen` defaults to `127.0.0.1:8888`.
+- The start refuses a folder whose PHP version or `composer.lock` extensions
+  the bundled PHP does not meet, and names what is missing.
+- The start prints a one-time login link for uid 1, through the folder's Drush,
+  and still serves when that fails.
+- Caddy's warnings and errors go to standard error.
+
+`dr` runs the Drush of the nearest directory at or above the working directory
+that holds `vendor/autoload.php`. Drush's child processes find a `php` on
+`PATH` that runs the bundled PHP.
+
+`php` runs a script, or `-r` code, on the bundled PHP, from the working
+directory. It takes no PHP option such as `-v` or `-d`.
+
+`clean` removes the unpacked engine files from the cache.
 
 ## Other words
 

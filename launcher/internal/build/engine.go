@@ -14,8 +14,9 @@ import (
 const EngineName = "drupack"
 
 // NewEnginePlan orders the steps that pack the engine executable for each of
-// r.Platforms, carrying both libcs' runtimes on each. It reads no site, and
-// the conformance suite tests the result beside a site's executable.
+// r.Platforms, carrying both libcs' runtimes on each. A payload-only plan stops
+// at the archive, in OUTPUT/payload. It reads no site, and the conformance
+// suite tests the result beside a site's executable.
 func NewEnginePlan(r Request) (Plan, error) {
 	libcs := siteconfig.Libcs["both"]
 	resolved, err := resolveRuntimes(r, libcs)
@@ -30,6 +31,17 @@ func NewEnginePlan(r Request) (Plan, error) {
 		// the engine's files have none of.
 		{Name: "archive the engine files", Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), files, payload, "web"}},
 	}}
+	if r.PayloadOnly {
+		plan.Steps = append(plan.Steps, Step{Name: "export the engine payload", Func: func(io.Writer) error {
+			for _, name := range []string{"app-payload.tar", "app_checksum.txt"} {
+				if err := copyFile(filepath.Join(payload, name), filepath.Join(r.Output, "payload", name)); err != nil {
+					return err
+				}
+			}
+			return nil
+		}})
+		return plan, nil
+	}
 	for _, platform := range r.Platforms {
 		command := []string{"go", "run", "./cmd/pack", "-engine"}
 		for _, libc := range libcs {

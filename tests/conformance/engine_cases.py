@@ -30,7 +30,7 @@ $settings['hash_salt'] = 'engine-executable-case';
 
 
 class EngineExecutable(harness.ConformanceCase):
-    PLATFORMS = (harness.LINUX,)
+    PLATFORMS = (harness.LINUX, harness.MACOS, harness.WINDOWS)
     ENGINE = True
 
     @classmethod
@@ -150,7 +150,8 @@ class EngineExecutable(harness.ConformanceCase):
     def test_dr_names_the_drush_a_project_lacks(self):
         result = self.engine_run("dr", "status", cwd=self.lacking / "web")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{self.lacking}/vendor/drush/drush/drush.php does not exist", result.stderr)
+        # serve.php prints paths in Drupack's canonical form, forward slashes on Windows too.
+        self.assertIn(f"{self.lacking.as_posix()}/vendor/drush/drush/drush.php does not exist", result.stderr)
 
     def test_php_runs_a_script_named_from_the_working_directory(self):
         (self.case_dir / "script.php").write_text("<?php echo 'engine-php';")
