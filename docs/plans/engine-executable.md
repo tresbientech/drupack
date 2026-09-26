@@ -4,8 +4,7 @@
 
 ## Status, 2026-09-26
 
-All three phases are built on branch `engine-executable`, which is not
-merged or pushed. `bash build/qa.sh` passes on linux-amd64, with the engine
+Merged into `main` on 2026-09-26, from branch `engine-executable`. `bash build/qa.sh` passes on linux-amd64, with the engine
 case run against Mercury Demo's application. The release workflow, the macOS
 build and the Windows build are edited and have not run: their criteria wait
 on a CI run.
