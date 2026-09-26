@@ -14,9 +14,9 @@ Notes:
 - The Mercury Demo executable is renamed `mercury-demo`, since the demo held
   the name `drupack`. ADR 0022 records it.
 - The launcher sets no application directory for the engine executable, so
-  the runtime keeps the reader's working directory. A start execs Caddy's
-  `run` on `engine/Caddyfile`, which skips the packaged site's readiness line
-  and cron runner.
+  the runtime keeps the reader's working directory. A start execs the
+  runtime's `folder-server` on `engine/Caddyfile`. It keeps the site server's
+  10-second stop deadline and skips its readiness line and cron runner.
 - Composer's own platform check tests the PHP version alone by default. The
   extension check reads `composer.lock`, as the build's check does.
 - `drush` finds the nearest `vendor/autoload.php`, since Drupal core carries a
