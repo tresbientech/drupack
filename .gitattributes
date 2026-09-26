@@ -1,0 +1,7 @@
+# The Composer package tresbientech/drupack is this repository's archive, which
+# holds these files alone.
+/* export-ignore
+/composer.json -export-ignore
+/composer -export-ignore
+/LICENSE -export-ignore
+/README.md -export-ignore

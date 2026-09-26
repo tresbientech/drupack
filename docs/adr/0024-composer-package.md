@@ -1,0 +1,47 @@
+# A Composer package installs the engine executable into a project
+
+Accepted on 2026-09-27.
+
+## Context
+
+A Drupal developer adds tools to a project with Composer, and `composer.lock`
+pins each one per project. The engine executable is 90 MB per platform and
+five platforms exist, so no package can carry the builds. Laravel Octane
+installs FrankenPHP with an explicit `octane:install` command, which downloads
+the latest build into the project root and adds it to `.gitignore`.
+
+## Decision
+
+- `tresbientech/drupack` on Packagist holds a root `composer.json` and one bin
+  script, `vendor/bin/drupack-install`. `.gitattributes` keeps every other file
+  out of the package.
+- `drupack-install` reads the package's installed version, and runs that
+  release's `install-drupack.sh`, or `install-drupack.ps1` on Windows, in the
+  project root. The download and its SHA-256 check stay in the install scripts.
+- It adds `/drupack` to an existing `.gitignore`, and prints how to start it.
+- A run whose `./drupack` already reports the package's version downloads
+  nothing.
+
+## Considered options
+
+- A Composer plugin downloading after every install. Composer asks whether to
+  trust it, and a CI job installing dev dependencies downloads 90 MB.
+- A bin script downloading on the first start. The first start waits on the
+  download.
+- `vendor/bin/drupack` as the target. The owner chose the project root, as
+  Octane does.
+- A PHP download against `checksums.txt`. It would copy the install scripts'
+  host detection a third time.
+- `drupal/drupack` on drupal.org. Its package facade needs release nodes, and
+  serving general projects is unconfirmed.
+
+## Consequences
+
+- A package version installs only a release with the same tag. A `dev-main`
+  install is refused.
+- The first installable version is 0.5.1, since Packagist reads a tag only when
+  its commit holds `composer.json`.
+- After `composer update` changes the package version, `./drupack` stays at
+  the old one until `drupack-install` runs again.
+- On Linux and macOS the install script needs `curl` or `wget`, as the
+  one-liner does.
