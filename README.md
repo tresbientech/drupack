@@ -9,12 +9,22 @@ The first section covers `drupack`. Every later section covers the Mercury Demo.
 
 ## Serve a Drupal project you already have
 
+Install `drupack` on Linux or macOS:
+
 ```sh
-curl -L -o drupack https://github.com/tresbientech/drupack/releases/latest/download/drupack-linux-amd64
-chmod +x drupack
+curl -fsSL https://github.com/tresbientech/drupack/releases/latest/download/install-drupack.sh | sh
+mkdir -p ~/.local/bin && mv drupack ~/.local/bin/
 cd path/to/your/project
-/path/to/drupack
+drupack
 ```
+
+On Windows, in PowerShell:
+
+```powershell
+irm https://github.com/tresbientech/drupack/releases/latest/download/install-drupack.ps1 | iex
+```
+
+The script downloads the build for your system into the current directory and checks its SHA-256. It then prints the command that moves it onto your `PATH`.
 
 `drupack` serves the project in the working directory, or in the directory you name after it. It serves Drupal alone, and refuses a folder without Drupal core. It reads the docroot from the scaffold web root in `composer.json`, `web` by default. It prints a one-time login link, then serves on `http://127.0.0.1:8888`. `--listen IP:PORT` picks another address.
 
@@ -24,21 +34,27 @@ The project's own `settings.php` names the database, the files paths and the has
 
 A project whose `composer.lock` needs a PHP extension the bundled PHP lacks is refused, with the extension and the packages that need it.
 
-The other downloads are `drupack-linux-arm64`, `drupack-macos-arm64`, `drupack-macos-amd64` and `drupack-windows-amd64.exe`. macOS and Windows show the same first-run warnings as the Mercury Demo below.
-
 ## Install the Mercury Demo
 
-Make a folder for your site and download the Mercury Demo into it. Site data lives beside the executable.
+Make a folder for your site and install the Mercury Demo into it. Site data lives in `data` inside the folder you start it from.
 
-### Linux
+On Linux or macOS:
 
 ```sh
 mkdir my-site && cd my-site
-curl -L -o mercury-demo https://github.com/tresbientech/drupack/releases/latest/download/mercury-demo-linux-amd64
-chmod +x mercury-demo
+curl -fsSL https://github.com/tresbientech/drupack/releases/latest/download/install-mercury-demo.sh | sh
 ```
 
-On a 64-bit Raspberry Pi or another ARM machine, use `mercury-demo-linux-arm64`.
+On Windows, in PowerShell:
+
+```powershell
+mkdir my-site; cd my-site
+irm https://github.com/tresbientech/drupack/releases/latest/download/install-mercury-demo.ps1 | iex
+```
+
+The script picks the build for your system and processor, and checks its SHA-256. `releases/download/VERSION/install-mercury-demo.sh` installs one release instead of the latest.
+
+### Linux
 
 One Linux download runs everywhere. It carries a runtime built against each C
 library and picks one when it starts.
@@ -52,29 +68,16 @@ library and picks one when it starts.
 `mercury-demo --version` names the runtime that ran. To run the other one, set
 `DRUPACK_LIBC` to `musl` or `glibc`.
 
-### macOS
+### Downloading by hand
 
-```sh
-mkdir my-site && cd my-site
-curl -L -o mercury-demo https://github.com/tresbientech/drupack/releases/latest/download/mercury-demo-macos-arm64
-chmod +x mercury-demo
-xattr -d com.apple.quarantine mercury-demo
-```
+The [releases page](https://github.com/tresbientech/drupack/releases) lists every build as `NAME-VERSION-TARGET`, such as `mercury-demo-0.5.0-macos-arm64`. A browser marks what it downloads, and the scripts avoid both marks below.
 
-On an Intel Mac, use `mercury-demo-macos-amd64`. Gatekeeper blocks a downloaded executable that carries no Apple signature, and the `xattr` command clears that mark.
-
-### Windows
-
-```powershell
-mkdir my-site; cd my-site
-curl.exe -L -o mercury-demo.exe https://github.com/tresbientech/drupack/releases/latest/download/mercury-demo-windows-amd64.exe
-```
-
-SmartScreen shows "Windows protected your PC" the first time, because the executable carries no code signature. Choose "More info", then "Run anyway".
+- macOS Gatekeeper blocks a marked executable that carries no Apple signature. `xattr -d com.apple.quarantine mercury-demo` clears the mark.
+- Windows SmartScreen shows "Windows protected your PC" the first time. Choose "More info", then "Run anyway".
 
 ### Keeping the Mercury Demo on your PATH
 
-A folder per site keeps each site with its data. To run `mercury-demo` from anywhere instead, move the executable into a directory on your `PATH`, such as `~/.local/bin`. Site data then lands in whichever directory you start it from, so pass `--data-dir` to choose one.
+A folder per site keeps each site with its data. To run `mercury-demo` from anywhere instead, move the executable into a directory on your `PATH`, as the script's last lines show. Site data then lands in whichever directory you start it from, so pass `--data-dir` to choose one.
 
 ## Start your site
 
@@ -189,7 +192,7 @@ Drupack carries the MCP Tools and MCP Server modules, both disabled, with no tra
 
 ## Updates
 
-Drupal core security fixes reach you through a new Drupack release, because a packaged executable cannot update its own Drupal in place. Download the new executable, put it in your site's folder, and start it.
+Drupal core security fixes reach you through a new Drupack release, because a packaged executable cannot update its own Drupal in place. Run the install script again in your site's folder, and start it.
 
 Your site ships without `automatic_updates` and `package_manager` enabled. `drupal/automatic_updates` 4.1.0 stalls a request for four minutes when cron runs, and its development branch carries the same code, so enabling either module brings that stall back.
 
@@ -199,7 +202,7 @@ Drupack runs Drupal's cron itself, in a separate process, a couple of minutes af
 
 ## Verify a download
 
-Each release publishes `checksums.txt`, which covers both the versioned and the unversioned file names.
+The install scripts check each download's SHA-256. For a file downloaded by hand, each release publishes `checksums.txt`:
 
 ```sh
 sha256sum --ignore-missing -c checksums.txt
@@ -208,16 +211,16 @@ sha256sum --ignore-missing -c checksums.txt
 On Windows, compare your file against the entry in `checksums.txt`:
 
 ```powershell
-(Get-FileHash mercury-demo-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
+(Get-FileHash mercury-demo-0.5.0-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
 ```
 
 GitHub records where each file was built. The GitHub CLI checks that record:
 
 ```sh
-gh attestation verify drupack-linux-amd64 --repo tresbientech/drupack
+gh attestation verify drupack-0.5.0-linux-amd64 --repo tresbientech/drupack
 ```
 
-A release also carries `release.json`, listing every file with its target, URLs, SHA-256 value and size, and `drupack.cdx.json`, a CycloneDX inventory of everything inside the executable.
+A release also carries `release.json`, listing every executable with its target, URL, SHA-256 value and size, and `drupack.cdx.json`, a CycloneDX inventory of everything inside the executable.
 
 ## Build your own site
 

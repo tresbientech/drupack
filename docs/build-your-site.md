@@ -195,9 +195,21 @@ Inputs:
 - `publish`: on a tag run, create a release.
 
 Every run uploads the executables as the `executables` artifact. With `publish`,
-a tag run creates a release in the site repository. It holds the executables,
-`checksums.txt`, a CycloneDX SBOM and build provenance. A build without `publish`
-needs `contents: read` and `id-token: write` only.
+a tag run creates a release in the site repository. It holds:
+
+- each executable as `NAME-VERSION-TARGET`
+- `install-NAME.sh` and `install-NAME.ps1`, which install the build for the
+  reader's system into the current directory
+- `checksums.txt` and `release.json`
+- a CycloneDX SBOM and build provenance
+
+A reader installs the latest release with one line:
+
+```sh
+curl -fsSL https://github.com/OWNER/REPO/releases/latest/download/install-NAME.sh | sh
+```
+
+A build without `publish` needs `contents: read` and `id-token: write` only.
 
 ## Gitea
 

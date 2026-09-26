@@ -34,6 +34,15 @@ The `drupack` executable: the Runtime and Drupack's own files, with no applicati
 A Drupal Composer project on disk, with its dependencies installed. An Engine executable serves it unchanged, under its own settings.
 _Avoid_: served folder, codebase
 
+### Release
+
+**Release file**:
+A file a release publishes. An executable's name carries its version and target: `NAME-VERSION-TARGET`.
+
+**Install script**:
+`install-NAME.sh` or `install-NAME.ps1`. Unlike an executable's, its name carries no version. It carries its release's version and checksums, and installs the host's build into the current directory.
+_Avoid_: installer
+
 ### Site data
 
 **Site data**:

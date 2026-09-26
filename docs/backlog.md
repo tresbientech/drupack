@@ -136,14 +136,17 @@ fails with a `TypeError` from `EscaperRuntime::escape()` in easy_email's compile
 body template, which Drupal CMS 2.2's site template base brings. Lean: retest
 cron on each Drupal core or easy_email release, and drop the pin once it passes.
 
-## An install script that picks the download for the host
+## Install scripts for sites on drupal.org's GitLab
 
-A person trying a Drupack-built site has to choose among five executables by
-platform, architecture and C library. The owner wants one command that detects
-the host and fetches the right one, for a release of Drupack and of any site
-built on it. Open points: a shell script for Linux and macOS plus a PowerShell
-one for Windows, where each lives and how it is versioned, whether it checks
-the release's `checksums.txt`, and where it puts the executable. Lean: one
-`install.sh` and one `install.ps1` published as release assets, taking the
-site's release URL, verifying the checksum, and writing to the current
-directory.
+`ci/drupack.gitlab-ci.yml` publishes a site's executables under unversioned
+names in the generic package registry, and no install script. GitLab's latest
+release URL takes the form `/-/releases/permalink/latest/downloads/`. Lean: run
+`build/release-files.py` in the release job with the package registry URL, and
+link each file into the release under its name.
+
+## A winget package
+
+winget installs a bare `.exe` as a `portable` package and puts it on PATH. Its
+manifests live in `microsoft/winget-pkgs`, and a first package waits days for
+review. Lean: submit `drupack` with `wingetcreate new` after a release with
+versioned names, then update it from the release workflow.
