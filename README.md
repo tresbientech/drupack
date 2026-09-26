@@ -1,20 +1,44 @@
 # Drupack
 
-Drupack runs a Drupal CMS site from a single executable. It carries Drupal CMS with the Mercury Demo site template, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers and Drush. Everything it needs to serve a site travels inside that file.
+Drupack runs Drupal from a single executable. Each release publishes two:
 
-## Install
+- `drupack` serves a Drupal project you already have, with its own settings.
+- `mercury-demo` is a Drupal CMS site built from the Mercury Demo template. It carries Drupal CMS, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers and Drush, and needs nothing else to serve a site.
 
-Make a folder for your site and download Drupack into it. Site data lives beside the executable.
+The first section covers `drupack`. Every later section covers the Mercury Demo.
+
+## Serve a Drupal project you already have
+
+```sh
+curl -L -o drupack https://github.com/tresbientech/drupack/releases/latest/download/drupack-linux-amd64
+chmod +x drupack
+cd path/to/your/project
+/path/to/drupack
+```
+
+`drupack` serves the project in the working directory, or in the directory you name after it. It serves Drupal alone, and refuses a folder without Drupal core. It reads the docroot from the scaffold web root in `composer.json`, `web` by default. It prints a one-time login link, then serves on `http://127.0.0.1:8888`. `--listen IP:PORT` picks another address.
+
+The project's own `settings.php` names the database, the files paths and the hash salt. Drupack writes nothing into the project, and Drupal writes files where those settings put them. For a ddev project, point `settings.local.php` at the database's published port on `127.0.0.1`. The ddev host name `db` resolves only inside ddev.
+
+`drupack drush COMMAND` runs the project's own Drush on the bundled PHP, from any directory inside the project. Drush's own child processes run on that PHP too. `drupack dr COMMAND` runs Drupal core's own command line the same way, on Drupal 11.4 and later. `drupack php SCRIPT` runs a PHP script.
+
+A project whose `composer.lock` needs a PHP extension the bundled PHP lacks is refused, with the extension and the packages that need it.
+
+The other downloads are `drupack-linux-arm64`, `drupack-macos-arm64`, `drupack-macos-amd64` and `drupack-windows-amd64.exe`. macOS and Windows show the same first-run warnings as the Mercury Demo below.
+
+## Install the Mercury Demo
+
+Make a folder for your site and download the Mercury Demo into it. Site data lives beside the executable.
 
 ### Linux
 
 ```sh
 mkdir my-site && cd my-site
-curl -L -o drupack https://github.com/tresbientech/drupack/releases/latest/download/drupack-linux-amd64
-chmod +x drupack
+curl -L -o mercury-demo https://github.com/tresbientech/drupack/releases/latest/download/mercury-demo-linux-amd64
+chmod +x mercury-demo
 ```
 
-On a 64-bit Raspberry Pi or another ARM machine, use `drupack-linux-arm64`.
+On a 64-bit Raspberry Pi or another ARM machine, use `mercury-demo-linux-arm64`.
 
 One Linux download runs everywhere. It carries a runtime built against each C
 library and picks one when it starts.
@@ -25,37 +49,37 @@ library and picks one when it starts.
 | musl, which covers Alpine and most slim containers | musl | the only one that runs there |
 | anything the check cannot place | musl | runs on any host |
 
-`drupack --version` names the runtime that ran. To run the other one, set
+`mercury-demo --version` names the runtime that ran. To run the other one, set
 `DRUPACK_LIBC` to `musl` or `glibc`.
 
 ### macOS
 
 ```sh
 mkdir my-site && cd my-site
-curl -L -o drupack https://github.com/tresbientech/drupack/releases/latest/download/drupack-macos-arm64
-chmod +x drupack
-xattr -d com.apple.quarantine drupack
+curl -L -o mercury-demo https://github.com/tresbientech/drupack/releases/latest/download/mercury-demo-macos-arm64
+chmod +x mercury-demo
+xattr -d com.apple.quarantine mercury-demo
 ```
 
-On an Intel Mac, use `drupack-macos-amd64`. Gatekeeper blocks a downloaded executable that carries no Apple signature, and the `xattr` command clears that mark.
+On an Intel Mac, use `mercury-demo-macos-amd64`. Gatekeeper blocks a downloaded executable that carries no Apple signature, and the `xattr` command clears that mark.
 
 ### Windows
 
 ```powershell
 mkdir my-site; cd my-site
-curl.exe -L -o drupack.exe https://github.com/tresbientech/drupack/releases/latest/download/drupack-windows-amd64.exe
+curl.exe -L -o mercury-demo.exe https://github.com/tresbientech/drupack/releases/latest/download/mercury-demo-windows-amd64.exe
 ```
 
 SmartScreen shows "Windows protected your PC" the first time, because the executable carries no code signature. Choose "More info", then "Run anyway".
 
-### Keeping Drupack on your PATH
+### Keeping the Mercury Demo on your PATH
 
-A folder per site keeps each site with its data. To run `drupack` from anywhere instead, move the executable into a directory on your `PATH`, such as `~/.local/bin`. Site data then lands in whichever directory you start it from, so pass `--data-dir` to choose one.
+A folder per site keeps each site with its data. To run `mercury-demo` from anywhere instead, move the executable into a directory on your `PATH`, such as `~/.local/bin`. Site data then lands in whichever directory you start it from, so pass `--data-dir` to choose one.
 
 ## Start your site
 
 ```sh
-./drupack
+./mercury-demo
 ```
 
 Drupack installs your site and serves it on `http://localhost:7225`. It prints a one-time login link and opens your browser on it. The link logs you in as `admin` and lands you on your dashboard. Set your own password from there, under your account. The first start of each version also unpacks its runtime, which adds about a second.
@@ -63,15 +87,15 @@ Drupack installs your site and serves it on `http://localhost:7225`. It prints a
 Later starts need nothing:
 
 ```sh
-./drupack
+./mercury-demo
 ```
 
-Each one prints its own link and opens your dashboard the same way. A link works once, so `./drupack dr user:login /admin/dashboard` prints a fresh one whenever you need it. `--no-browser` starts the site without opening anything, and still prints the link.
+Each one prints its own link and opens your dashboard the same way. A link works once, so `./mercury-demo drush user:login /admin/dashboard` prints a fresh one whenever you need it. `--no-browser` starts the site without opening anything, and still prints the link.
 
 To choose the administrator name and password yourself, for a script or a fresh machine:
 
 ```sh
-./drupack --admin-user admin --admin-password 'choose-a-password'
+./mercury-demo --admin-user admin --admin-password 'choose-a-password'
 ```
 
 Drupack still prints the login link.
@@ -83,21 +107,21 @@ The terminal shows the address, where Site data lives, the log file and how to s
 Useful options:
 
 - `--data-dir PATH` puts Site data somewhere else. `DRUPACK_DATA_DIR` sets a default.
-- `--listen IP:PORT` serves on another address, `127.0.0.1:7225` by default. Each start records its address in Site data, so `dr` reaches the site without repeating the option.
+- `--listen IP:PORT` serves on another address, `127.0.0.1:7225` by default. Each start records its address in Site data, so `drush` reaches the site without repeating the option.
 - `--site-name NAME` names the site on a first start, `Drupal Mercury Demo` by default. `DRUPACK_SITE_NAME` sets it too. A later start never renames a site.
 - `--no-browser` starts without opening a browser.
-- `drupack --version` prints the release, `drupack version` names every component it carries, and `drupack --help` lists every option.
+- `mercury-demo --version` prints the release, `mercury-demo version` names every component it carries, and `mercury-demo --help` lists every option.
 
 [The command line reference](docs/cli.md) covers every option, including the ones this list leaves out.
 
 ## Administer with Drush
 
-`dr` runs the bundled Drush commands against your site. Drupack's own options come before the Drush command.
+`drush` runs the bundled Drush commands against your site. Drupack's own options come before the Drush command.
 
 ```sh
-./drupack dr status
-./drupack dr --data-dir ./data user:login
-./drupack dr pm:list --status=enabled
+./mercury-demo drush status
+./mercury-demo drush --data-dir ./data user:login
+./mercury-demo drush pm:list --status=enabled
 ```
 
 ## Site data
@@ -120,11 +144,13 @@ An interrupted setup resumes where it stopped. Drupack never installs Drupal ove
 
 Your download carries Drupal, PHP and Caddy compressed. The first start of a version unpacks them into a cache directory, which takes about a second. Every later start of that version uses what is already there.
 
-- Linux: `~/.cache/drupack/runtime`
-- macOS: `~/Library/Caches/drupack/runtime`
-- Windows: `%LOCALAPPDATA%\drupack\runtime`
+- Linux: `~/.cache/mercury-demo/runtime`
+- macOS: `~/Library/Caches/mercury-demo/runtime`
+- Windows: `%LOCALAPPDATA%\mercury-demo\runtime`
 
-Releases up to 0.2.0 unpacked into `~/.cache/Drupack/runtime` on Linux. Nothing reads that directory any more, so delete it after upgrading.
+`drupack` unpacks the same way, under `drupack` in place of `mercury-demo`.
+
+Releases up to 0.4.0 named the Mercury Demo executable `drupack`, and unpacked it under `drupack`. `drupack clean` removes the applications those releases unpacked there. Releases up to 0.2.0 unpacked into `~/.cache/Drupack/runtime` on Linux. Nothing reads that directory any more, so delete it after upgrading.
 
 One version takes about 400 MB on Linux and macOS, beside your Site data. The space is per version, and a successful start removes the versions it replaces, so upgrading does not stack them up.
 
@@ -143,7 +169,7 @@ Behind a proxy that re-signs TLS, set it to a bundle holding your proxy's root c
 SQLite runs your site by default, with no setup. To use a database server instead, pass its details on the first start:
 
 ```sh
-./drupack --database mysql \
+./mercury-demo --database mysql \
   --db-host 127.0.0.1 --db-name drupal \
   --db-user drupal --db-password 'database-password' \
   --admin-user admin --admin-password 'choose-a-password'
@@ -182,7 +208,7 @@ sha256sum --ignore-missing -c checksums.txt
 On Windows, compare your file against the entry in `checksums.txt`:
 
 ```powershell
-(Get-FileHash drupack-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
+(Get-FileHash mercury-demo-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
 ```
 
 GitHub records where each file was built. The GitHub CLI checks that record:

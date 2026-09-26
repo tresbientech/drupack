@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // Unit cases for the pure functions in application/launch.php. Run with:
-//   ./dist/drupack php-cli "$PWD/application/tests/launch_test.php"
+//   ./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/launch_test.php"
 // launch.php requires vendor/autoload.php, whose lock targets a PHP the host
 // may not have, so the bundled runtime runs this file. The constant loads
 // launch.php for its functions alone; the guard above its main block answers

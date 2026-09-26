@@ -5,6 +5,8 @@ declare(strict_types=1);
 // The site's composer project builds vendor/, so the engine registers its own namespace.
 (require __DIR__ . '/vendor/autoload.php')->addPsr4('Drupack\\Support\\', __DIR__ . '/support');
 
+require __DIR__ . '/process.php';
+
 use Drupack\Support\PreviousCopies;
 use Symfony\Component\Filesystem\Path;
 
@@ -12,7 +14,7 @@ use Symfony\Component\Filesystem\Path;
 // docs/cli.md. application/tests/launch_test.php asserts all three against options().
 const HELP = <<<'TEXT'
 Usage: %1$s [OPTIONS]
-       %1$s dr [OPTIONS] DRUSH_COMMAND
+       %1$s drush [OPTIONS] DRUSH_COMMAND
 
 Options:
   --data-dir PATH            Site data directory, ./data by default
@@ -113,31 +115,6 @@ function removeTree(string $path): bool
     return @rmdir($path);
 }
 
-function windows(): bool
-{
-    return PHP_OS_FAMILY === 'Windows';
-}
-
-// realpath() returns the native form, backslashes included on Windows. Every path
-// Drupack exports or prints takes the canonical form instead, so a Windows reader's
-// terminal agrees with the forward slashes Drupal's own stack traces already carry.
-function canonical(string $path): string
-{
-    return canonicalSeparator($path, DIRECTORY_SEPARATOR);
-}
-
-// canonicalSeparator takes the separator, the same way canonical.go's internal helper
-// does, so a test on any host can drive the Windows case. A backslash is a legal
-// character in a file name where it is not the separator, so a host whose separator
-// is already '/' gets the path back untouched.
-function canonicalSeparator(string $path, string $separator): string
-{
-    if ($separator === '/') {
-        return $path;
-    }
-    return str_replace($separator, '/', $path);
-}
-
 // The server runs from the application directory, which every site of a release
 // shares, so a path the reader wrote relative to their own directory resolves
 // against the one they started in.
@@ -150,45 +127,7 @@ function fromStartDirectory(string $path): string
     return Path::makeAbsolute($path, $start);
 }
 
-function nullDevice(): string
-{
-    return windows() ? 'NUL' : '/dev/null';
-}
-
-function process(string $binary, array $arguments, array $descriptors, string $directory, string $failure): int
-{
-    $command = array_merge([$binary], $arguments);
-    $child = proc_open($command, $descriptors, $pipes, $directory);
-    if (!is_resource($child)) {
-        throw new RuntimeException($failure);
-    }
-    return proc_close($child);
-}
-
-// On Windows the child starts in $directory. pcntl_exec keeps the current working directory.
-function replaceProcess(string $binary, array $arguments, string $directory, string $failure): never
-{
-    if (!windows()) {
-        pcntl_exec($binary, $arguments);
-        throw new RuntimeException($failure);
-    }
-    exit(process($binary, $arguments, [0 => STDIN, 1 => STDOUT, 2 => STDERR], $directory, $failure));
-}
-
-function environment(string $name): ?string
-{
-    $value = getenv($name);
-    return $value === false || $value === '' ? null : $value;
-}
-
-// The executable the reader ran, which the launcher exports. Every message naming a
-// command names it, since one engine serves every site built on it.
-function executableName(): string
-{
-    return getenv('DRUPACK_RUNTIME_NAME');
-}
-
-// The application the site runs: the release's shared copy, or once a start or `dr` has
+// The application the site runs: the release's shared copy, or once a start or `drush` has
 // checked it, the site's own copy in Site data. The launcher exports the shared copy.
 function application(): string
 {
@@ -196,7 +135,7 @@ function application(): string
 }
 
 // A site whose contract names writable directories runs its own application, laid in
-// Site data. A start lays it under the Serving lease. `dr` takes no lease, so it only
+// Site data. A start lays it under the Serving lease. `drush` takes no lease, so it only
 // checks that the last start laid this release.
 function useSiteApplication(string $data, bool $drush): void
 {
@@ -387,7 +326,7 @@ function personPresent(): bool
     return stream_isatty(STDIN) || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1';
 }
 
-// Every start records where it serves, so a later `dr` addresses the site on the port it
+// Every start records where it serves, so a later `drush` addresses the site on the port it
 // actually uses. Site data written before this record falls back to the listener defaults.
 function listenerPath(string $directory): string
 {
@@ -418,7 +357,7 @@ function recordedListener(array $options, string $directory): array
     return $options;
 }
 
-// Every start and `dr` keep the files directory the last start named, since the
+// Every start and `drush` keep the files directory the last start named, since the
 // site's files live there. A record written before the option names none.
 function recordedFilesDirectory(array $options, string $directory): array
 {
@@ -546,7 +485,7 @@ function settings(string $template, array $database, string $siteSettings): stri
     );
 }
 
-// A serving site requires this file on every request, and a `dr` command runs while it
+// A serving site requires this file on every request, and a `drush` command runs while it
 // serves. The replacement is written beside it and renamed over it, so a request reads
 // the old file or the new one; a truncating write would let one read half of it.
 function writeSettings(string $path, string $template, array $database, string $siteSettings): void
@@ -701,7 +640,7 @@ function explainMintFailure(LoginLinkFailure $failure, string $data): void
 {
     $reason = rtrim($failure->reason, '. ');
     fwrite(STDERR, 'Cannot mint a one-time login link' . ($reason === '' ? '' : ": $reason")
-        . ". Get one with: " . executableName() . " dr --data-dir $data user:login /admin/dashboard\n");
+        . ". Get one with: " . executableName() . " drush --data-dir $data user:login /admin/dashboard\n");
 }
 
 // A start whose address this Site data already serves runs no server of its own: two
@@ -797,13 +736,13 @@ function seedPassword(): string
 function adoptSite(string $data, string $binary): void
 {
     if (drushField($binary, ['status', '--field=bootstrap']) !== 'Successful') {
-        throw new RuntimeException("This Site data holds settings but no installed site: $data. Inspect it with: " . executableName() . " dr --data-dir $data status");
+        throw new RuntimeException("This Site data holds settings but no installed site: $data. Inspect it with: " . executableName() . " drush --data-dir $data status");
     }
     $expression = '$account = \\Drupal\\user\\Entity\\User::load(1); print \\Drupal::service("password")->check('
         . var_export(seedPassword(), true) . ', $account->getPassword()) ? "yes" : "no";';
     if (drushField($binary, ['php:eval', $expression]) === 'yes') {
         throw new RuntimeException("This Site data holds a site whose administrator still accepts the packaged seed password: $data. "
-            . "Set a new password, then start " . executableName() . " again: " . executableName() . " dr --data-dir $data php:eval "
+            . "Set a new password, then start " . executableName() . " again: " . executableName() . " drush --data-dir $data php:eval "
             . '\'$account = \\Drupal\\user\\Entity\\User::load(1); $account->setPassword("new-password"); $account->save();\'');
     }
 }
@@ -961,11 +900,11 @@ try {
     }
     $steps = [];
     if ($drush) {
-        // `dr` initializes nothing and takes no lease, so Drush works while the server runs.
+        // `drush` initializes nothing and takes no lease, so Drush works while the server runs.
         if (!file_exists($options['data-dir'] . '/settings.php')) {
             throw new RuntimeException("This Site data has no site yet: {$options['data-dir']}. Start " . executableName() . " once to create one.");
         }
-        // `dr` serves nothing of its own, so it addresses the site where the last start served.
+        // `drush` serves nothing of its own, so it addresses the site where the last start served.
         $options = recordedListener($options, $options['data-dir']);
     } else {
         $steps = remainingSteps($options['data-dir'], $options['database']);
@@ -1089,7 +1028,7 @@ try {
     }
     // A start refreshes the recorded settings from the template this release ships, so a
     // site installed by an earlier release gains the settings this one added. The
-    // recorded connection details come back unchanged. A `dr` command reads that site
+    // recorded connection details come back unchanged. A `drush` command reads that site
     // and writes nothing to it, since the file it would rewrite is being required by
     // the server answering requests.
     if (!$drush && file_exists("$data/settings.php")) {

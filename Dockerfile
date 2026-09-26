@@ -96,6 +96,7 @@ COPY --from=runtimes / /opt/drupack/runtimes/
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY application /opt/drupack/engine/application
 COPY build /opt/drupack/engine/build
+COPY engine /opt/drupack/engine/engine
 COPY launcher /opt/drupack/engine/launcher
 COPY runtime/php-extensions.txt runtime/check-extensions.py /opt/drupack/engine/runtime/
 RUN python3 /opt/drupack/engine/runtime/check-extensions.py --fetch-spc /opt/drupack/spc

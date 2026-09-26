@@ -46,7 +46,7 @@ class ReplacementCases(harness.ConformanceCase):
         self.old_site.start(self.data, "--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
         self.old_site.stop()
 
-        renamed = harness.run_dr(self.old_binary, self.case_dir, self.data,
+        renamed = harness.run_drush(self.old_binary, self.case_dir, self.data,
                                   "config:set", "system.site", "name", SITE_NAME, "--yes")
         self.assertEqual(renamed.returncode, 0, renamed.stderr)
 
@@ -67,12 +67,12 @@ class ReplacementCases(harness.ConformanceCase):
         self.assertIn(SITE_NAME, self.new_site.http("/"))
         self.new_site.stop()
 
-        name = harness.run_dr(new_binary, self.case_dir, self.data,
+        name = harness.run_drush(new_binary, self.case_dir, self.data,
                                "config:get", "system.site", "name", "--format=string")
         self.assertEqual(name.returncode, 0, name.stderr)
         self.assertEqual(name.stdout.strip(), SITE_NAME)
 
-        admin = harness.run_dr(new_binary, self.case_dir, self.data,
+        admin = harness.run_drush(new_binary, self.case_dir, self.data,
                                 "user:information", ADMIN_USER, "--field=name")
         self.assertEqual(admin.returncode, 0, admin.stderr)
         self.assertEqual(admin.stdout.strip(), ADMIN_USER)

@@ -17,7 +17,7 @@ CREDENTIALS = ("--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
 LINK_PREFIX = "  Login:     "
 
 # The three methods that together cover every assertion tests/windows/site.Tests.ps1 made:
-# a credentialed first start with the settings and private-path codes, dr status
+# a credentialed first start with the settings and private-path codes, drush status
 # --field=bootstrap, and a credential-free restart. Every other
 # method in this class stays Linux and macOS only.
 WINDOWS_METHODS = frozenset({
@@ -60,8 +60,8 @@ class SeededSite(harness.ConformanceCase):
     def tearDown(self):
         self.site.stop()
 
-    def run_dr(self, data, *command):
-        return harness.run_dr(self.binary, self.case_dir, data, *command)
+    def run_drush(self, data, *command):
+        return harness.run_drush(self.binary, self.case_dir, data, *command)
 
     def test_extensions(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".php", dir=self.case_dir) as probe:
@@ -98,7 +98,7 @@ class SeededSite(harness.ConformanceCase):
         data = self.case_dir / "data"
         self.site.start(data, *CREDENTIALS)
         self.assertEqual(self.site.fetch("/user/login")[0], 200)
-        bootstrap = self.run_dr(data, "status", "--field=bootstrap")
+        bootstrap = self.run_drush(data, "status", "--field=bootstrap")
         self.assertEqual(bootstrap.returncode, 0, bootstrap.stderr)
         self.assertEqual(bootstrap.stdout.strip(), "Successful")
         output = self.site.log_path.read_text(errors="replace")
@@ -117,11 +117,11 @@ class SeededSite(harness.ConformanceCase):
         self.assertTrue((data / "site.sqlite").is_file())
         self.assertTrue((data / "settings.php").is_file())
         self.assertTrue((data / "files").is_dir())
-        status = self.run_dr(data, "status", "--format=json")
+        status = self.run_drush(data, "status", "--format=json")
         self.assertEqual(status.returncode, 0, status.stderr)
         self.assertIn("drupal-version", status.stdout)
         # Deterministic check: the Seed site never enables these modules, regardless of timing.
-        enabled = self.run_dr(data, "pm:list", "--status=enabled", "--format=json")
+        enabled = self.run_drush(data, "pm:list", "--status=enabled", "--format=json")
         self.assertEqual(enabled.returncode, 0, enabled.stderr)
         modules = json.loads(enabled.stdout)
         self.assertNotIn("automatic_updates", modules)

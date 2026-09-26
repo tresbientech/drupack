@@ -51,7 +51,7 @@ class ArgumentCases(harness.ConformanceCase):
         diagnostic = self.refuse(data, "--data-dir", str(data))
         self.assertIn("double quote", diagnostic)
 
-    def test_dr_without_a_site_refuses(self):
+    def test_drush_without_a_site_refuses(self):
         data = self.case_dir / "drush"
-        diagnostic = self.refuse(data, "dr", "--data-dir", str(data), "status")
+        diagnostic = self.refuse(data, "drush", "--data-dir", str(data), "status")
         self.assertIn(str(data), diagnostic)

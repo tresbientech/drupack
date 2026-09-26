@@ -111,7 +111,7 @@ class BrowserOpenCases(harness.ConformanceCase):
         # runs under, which would otherwise qualify it to open one, must not matter here.
         env, recorded = _recorder_env(self.case_dir / "recorder")
         self._install(env, recorded)
-        blocked = harness.run_dr(harness.BINARY, self.case_dir, self.data, "php:eval",
+        blocked = harness.run_drush(harness.BINARY, self.case_dir, self.data, "php:eval",
                                   r'\Drupal\user\Entity\User::load(1)->block()->save();')
         self.assertEqual(blocked.returncode, 0, blocked.stderr)
 

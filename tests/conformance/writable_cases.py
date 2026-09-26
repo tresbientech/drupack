@@ -1,7 +1,7 @@
 """A site whose contract names writable directories runs its own application in Site data.
 
 The case writes a theme where a Drush command would, into a writable directory under the
-docroot's themes, enables it with `dr` and fetches a page it renders.
+docroot's themes, enables it with `drush` and fetches a page it renders.
 """
 
 import os
@@ -40,10 +40,10 @@ class WritableDirectories(harness.ConformanceCase):
     def tearDown(self):
         self.site.stop()
 
-    def dr(self, *command):
-        return harness.run([str(harness.BINARY), "dr", "--data-dir", str(self.data), *command],
+    def drush(self, *command):
+        return harness.run([str(harness.BINARY), "drush", "--data-dir", str(self.data), *command],
                            cwd=self.case_dir, env=self.env, capture_output=True, text=True,
-                           timeout=harness.WAITS["dr"].seconds)
+                           timeout=harness.WAITS["drush"].seconds)
 
     def shared_application(self):
         probe = self.case_dir / "application.php"
@@ -72,7 +72,7 @@ class WritableDirectories(harness.ConformanceCase):
         (theme / "probe.info.yml").write_text(INFO)
         (theme / "templates" / "page.html.twig").write_text(PAGE)
         for command in (("theme:install", "probe"), ("config:set", "system.theme", "default", "probe", "--yes")):
-            result = self.dr(*command)
+            result = self.drush(*command)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.serves_the_probe()
 
@@ -82,17 +82,17 @@ class WritableDirectories(harness.ConformanceCase):
                          "the write reached the release's shared application")
 
         cleaned = harness.run([str(harness.BINARY), "clean"], cwd=self.case_dir, env=self.env,
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=harness.WAITS["dr"].seconds)
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=harness.WAITS["drush"].seconds)
         self.assertEqual(cleaned.returncode, 0)
         self.assertTrue((theme / "probe.info.yml").is_file(), "clean removed the site's application")
 
-        # Another release laid this application: `dr` refuses, and a start lays this release
+        # Another release laid this application: `drush` refuses, and a start lays this release
         # over it, keeping the theme the site wrote.
         release = app / ".release"
         current = release.read_text()
         release.write_text("an-earlier-release")
-        refused = self.dr("status")
-        self.assertNotEqual(refused.returncode, 0, "dr ran on another release's application")
+        refused = self.drush("status")
+        self.assertNotEqual(refused.returncode, 0, "drush ran on another release's application")
         self.assertIn("Start", refused.stderr)
         self.serves_the_probe()
         self.assertEqual(release.read_text(), current)

@@ -79,27 +79,9 @@ func NewPlan(r Request) (Plan, error) {
 	if !ok {
 		return Plan{}, fmt.Errorf("--libc %q is not one of both, glibc, musl", r.Libc)
 	}
-	resolved := map[string]string{}
-	for _, platform := range r.Platforms {
-		if _, ok := siteconfig.Platforms[platform]; !ok {
-			return Plan{}, fmt.Errorf("--platform %q is not built by this release, which builds linux-amd64 and linux-arm64", platform)
-		}
-		if r.PayloadOnly {
-			continue
-		}
-		for _, libc := range runtimes {
-			target := platform + "/" + libc
-			if r.Runtimes[target] != "" {
-				resolved[target] = r.Runtimes[target]
-				continue
-			}
-			carried := filepath.Join(r.RuntimeRoot, platform+"-"+libc)
-			if info, err := os.Stat(carried); r.RuntimeRoot != "" && err == nil && info.IsDir() {
-				resolved[target] = carried
-				continue
-			}
-			return Plan{}, fmt.Errorf("no runtime for %s: pass --runtime %s=DIRECTORY", target, target)
-		}
+	resolved, err := resolveRuntimes(r, runtimes)
+	if err != nil {
+		return Plan{}, err
 	}
 
 	application := filepath.Join(r.Work, "app")
@@ -150,16 +132,8 @@ func NewPlan(r Request) (Plan, error) {
 		return siteconfig.Write(r.Site, r.Output)
 	}})
 	for _, platform := range r.Platforms {
-		command := []string{"go", "run", "./cmd/pack"}
-		for _, libc := range runtimes {
-			command = append(command, "-runtime", libc+"="+resolved[platform+"/"+libc])
-		}
-		command = append(command, "-entry", "drupack", "-version", r.EngineVersion,
-			"-source", filepath.Join(r.Engine, "launcher"),
-			"-output", filepath.Join(r.Output, Executable(r.Site.Name, platform)),
-			"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
+		command := packCommand(r, runtimes, resolved, platform, payload, Executable(r.Site.Name, platform),
 			"-site", filepath.Join(application, siteconfig.OutputName), "-site-version", r.SiteVersion)
-		command = append(command, "-goarch", siteconfig.Platforms[platform])
 		plan.Steps = append(plan.Steps, Step{Name: "pack " + platform, Command: command,
 			Dir: filepath.Join(r.Engine, "launcher"), Env: []string{"CGO_ENABLED=0"}})
 	}
@@ -176,6 +150,50 @@ func NewPlan(r Request) (Plan, error) {
 		plan.Steps = append(plan.Steps, Step{Name: "test " + platform, Command: command})
 	}
 	return plan, nil
+}
+
+// packCommand runs cmd/pack for platform, carrying one runtime per libc and the
+// archive in payload, to OUTPUT/executable. extra adds the packer's flags for
+// what the archive holds.
+func packCommand(r Request, libcs []string, resolved map[string]string, platform, payload, executable string, extra ...string) []string {
+	command := []string{"go", "run", "./cmd/pack"}
+	for _, libc := range libcs {
+		command = append(command, "-runtime", libc+"="+resolved[platform+"/"+libc])
+	}
+	command = append(command, "-entry", "drupack", "-version", r.EngineVersion,
+		"-source", filepath.Join(r.Engine, "launcher"),
+		"-output", filepath.Join(r.Output, executable),
+		"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
+		"-goarch", siteconfig.Platforms[platform])
+	return append(command, extra...)
+}
+
+// resolveRuntimes checks each of r.Platforms and maps its "PLATFORM/LIBC" targets
+// to runtime directories. A payload-only build packs nothing and maps none.
+func resolveRuntimes(r Request, libcs []string) (map[string]string, error) {
+	resolved := map[string]string{}
+	for _, platform := range r.Platforms {
+		if _, ok := siteconfig.Platforms[platform]; !ok {
+			return nil, fmt.Errorf("--platform %q is not built by this release, which builds linux-amd64 and linux-arm64", platform)
+		}
+		if r.PayloadOnly {
+			continue
+		}
+		for _, libc := range libcs {
+			target := platform + "/" + libc
+			if r.Runtimes[target] != "" {
+				resolved[target] = r.Runtimes[target]
+				continue
+			}
+			carried := filepath.Join(r.RuntimeRoot, platform+"-"+libc)
+			if info, err := os.Stat(carried); r.RuntimeRoot != "" && err == nil && info.IsDir() {
+				resolved[target] = carried
+				continue
+			}
+			return nil, fmt.Errorf("no runtime for %s: pass --runtime %s=DIRECTORY", target, target)
+		}
+	}
+	return resolved, nil
 }
 
 // Run executes the plan's steps in order, stopping at the first that fails.
@@ -333,20 +351,9 @@ func inCheckout(directory string) bool {
 // any file of the same name, then the site directory's settings and the
 // installer's recipe catalog.
 func layEngine(engine, application, docroot string) error {
-	source := filepath.Join(engine, "application")
-	err := filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
-		if err != nil || entry.IsDir() {
-			return err
-		}
-		relative, err := filepath.Rel(source, path)
-		if err != nil {
-			return err
-		}
-		// The engine's own unit files and a developer's vendor link stay behind.
-		if strings.HasPrefix(relative, "tests"+string(filepath.Separator)) || relative == "vendor" {
-			return nil
-		}
-		return copyFile(path, filepath.Join(application, relative))
+	// The engine's own unit files and a developer's vendor link stay behind.
+	err := copyTree(filepath.Join(engine, "application"), application, func(relative string) bool {
+		return strings.HasPrefix(relative, "tests"+string(filepath.Separator)) || relative == "vendor"
 	})
 	if err != nil {
 		return err
@@ -365,16 +372,33 @@ func layEngine(engine, application, docroot string) error {
 
 // exportPayload puts the payload and its site.json where a later platform build reads them.
 func exportPayload(payload, application, destination string) error {
-	for _, source := range []string{
-		filepath.Join(payload, "app-payload.tar"),
-		filepath.Join(payload, "app_checksum.txt"),
-		filepath.Join(application, siteconfig.OutputName),
-	} {
+	return copyInto(destination, filepath.Join(payload, "app-payload.tar"),
+		filepath.Join(payload, "app_checksum.txt"), filepath.Join(application, siteconfig.OutputName))
+}
+
+// copyInto copies each source file into destination under its own name.
+func copyInto(destination string, sources ...string) error {
+	for _, source := range sources {
 		if err := copyFile(source, filepath.Join(destination, filepath.Base(source))); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// copyTree copies every file under source to the same place under destination,
+// following links, and leaves out each file skip names by its relative path.
+func copyTree(source, destination string, skip func(relative string) bool) error {
+	return filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		relative, err := filepath.Rel(source, path)
+		if err != nil || skip(relative) {
+			return err
+		}
+		return copyFile(path, filepath.Join(destination, relative))
+	})
 }
 
 func copyFile(source, destination string) error {

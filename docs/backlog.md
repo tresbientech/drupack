@@ -15,13 +15,13 @@ Release cadence and the daily watch job belong to the same answer: a security
 release in core, PHP or a bundled module ships within days, and one refresh a
 month picks up the rest.
 
-## The options `dr` accepts and ignores
+## The options `drush` accepts and ignores
 
-`dr` parses all 13 launch options before the Drush command and acts on three:
+`drush` parses all 13 launch options before the Drush command and acts on three:
 `--data-dir`, `--listen` and `--host`. It consumes the other ten and drops
-them, so `dr --admin-password x user:login` spends a secret for nothing and
-`dr --database bogus status` exits 1 over a value it never reads. Lean: give
-`options()` the accepted set per mode, so an option `dr` cannot use raises the
+them, so `drush --admin-password x user:login` spends a secret for nothing and
+`drush --database bogus status` exits 1 over a value it never reads. Lean: give
+`options()` the accepted set per mode, so an option `drush` cannot use raises the
 unknown-argument error it already has for an unknown word. `docs/cli.md`
 records the current behaviour until then.
 

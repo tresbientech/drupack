@@ -1,4 +1,4 @@
-name: drupack
+name: mercury-demo
 recipe: recipes/mercury_demo
 site_name: Drupal Mercury Demo
 languages: [fr, zh-hans, es, hi, ar]

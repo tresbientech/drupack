@@ -44,7 +44,7 @@ func release() string {
 }
 
 const usage = `Usage: %[1]s [OPTIONS]
-       %[1]s dr [OPTIONS] DRUSH_COMMAND
+       %[1]s drush [OPTIONS] DRUSH_COMMAND
        %[1]s clean [--dry-run]
 
 Options:
@@ -65,7 +65,7 @@ Options:
   --version, --help
 
 Commands:
-  dr                         Run a Drush command against the site
+  drush                      Run a Drush command against the site
   clean                      Remove the unpacked applications from the cache.
                              --dry-run lists them and removes nothing.
 
@@ -73,8 +73,8 @@ Examples:
   %[1]s
   %[1]s --data-dir ./site --listen 127.0.0.1:9000
   %[1]s --admin-user admin --admin-password 'choose-a-password'
-  %[1]s dr --data-dir ./site status
-  %[1]s dr --data-dir ./site user:login
+  %[1]s drush --data-dir ./site status
+  %[1]s drush --data-dir ./site user:login
   %[1]s clean --dry-run`
 
 // readinessPath answers 204 for a request carrying this site's own identity token, and 404
@@ -270,7 +270,7 @@ func init() {
 		os.Exit(0)
 	}
 	launchScript := filepath.Join(application, "launch.php")
-	if len(os.Args) > 1 && os.Args[1] == "dr" {
+	if len(os.Args) > 1 && os.Args[1] == "drush" {
 		if err := os.Setenv("DRUPACK_RUNTIME_DRUSH", "1"); err != nil {
 			panic(err)
 		}

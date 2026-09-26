@@ -2,7 +2,10 @@ param(
   [Parameter(Mandatory = $true)] [string] $PayloadDirectory,
   [Parameter(Mandatory = $true)] [string] $Version,
   [Parameter(Mandatory = $true)] [string] $WorkDirectory,
-  [Parameter(Mandatory = $true)] [string] $Output
+  [Parameter(Mandatory = $true)] [string] $Output,
+  # With both, the build also packs the engine executable on the same runtime.
+  [string] $EnginePayloadDirectory,
+  [string] $EngineOutput
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,6 +14,12 @@ $PSNativeCommandUseErrorActionPreference = $true
 # Push-Location changes the working directory further down, and the packer
 # resolves a relative path against its own, so the application resolves here.
 $payload = (Resolve-Path $PayloadDirectory).Path
+if ($EnginePayloadDirectory) {
+  $enginePayload = (Resolve-Path $EnginePayloadDirectory).Path
+  $engineDirectory = Split-Path -Parent $EngineOutput
+  New-Item -ItemType Directory -Force -Path $engineDirectory | Out-Null
+  $engineOutputPath = Join-Path (Resolve-Path $engineDirectory).Path (Split-Path -Leaf $EngineOutput)
+}
 
 $frankenphpVersion = '1.12.7'
 $frankenphpCommit = 'a765b086f5cc56f6b7753117367d56e1b0da948d'
@@ -175,6 +184,9 @@ $env:CGO_ENABLED = '0'
 Push-Location $launcherSource
 try {
   go run ./cmd/pack -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $outputPath -app (Join-Path $payload 'app-payload.tar') -app-checksum (Join-Path $payload 'app_checksum.txt') -site (Join-Path $payload 'site.json') -site-version $Version
+  if ($EnginePayloadDirectory) {
+    go run ./cmd/pack -engine -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $engineOutputPath -app (Join-Path $enginePayload 'app-payload.tar') -app-checksum (Join-Path $enginePayload 'app_checksum.txt')
+  }
 } finally {
   Pop-Location
 }

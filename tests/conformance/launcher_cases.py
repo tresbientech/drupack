@@ -181,7 +181,7 @@ class ColdWarmStart(harness.ConformanceCase):
 
 
 class InstalledSiteLauncherCases(harness.ConformanceCase):
-    """Cases 4-6: dr, the serving process and SIGINT, against one installed site.
+    """Cases 4-6: drush, the serving process and SIGINT, against one installed site.
 
     These share the run cache, like every other suite case, rather than a cache of their own.
     """
@@ -204,9 +204,9 @@ class InstalledSiteLauncherCases(harness.ConformanceCase):
         self.case_dir = self.class_dir / self._testMethodName
         self.case_dir.mkdir(parents=True, exist_ok=True)
 
-    def test_dr_on_an_unknown_command_refuses(self):
-        result = harness.run_dr(harness.BINARY, self.case_dir, self.data, "this-command-does-not-exist")
-        self.assertNotEqual(result.returncode, 0, "dr with an unknown Drush command exited zero")
+    def test_drush_on_an_unknown_command_refuses(self):
+        result = harness.run_drush(harness.BINARY, self.case_dir, self.data, "this-command-does-not-exist")
+        self.assertNotEqual(result.returncode, 0, "drush with an unknown Drush command exited zero")
 
     def test_serving_process_and_sigint(self):
         site = harness.Site(harness.BINARY, self.case_dir)

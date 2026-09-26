@@ -101,6 +101,7 @@ def skip_report(skipped):
 DOCKER_SKIP = "needs a Docker daemon, which does not answer"
 RECIPE_SKIP = "the site has no recipe"
 WRITABLE_SKIP = "the site lists no writable directory"
+ENGINE_SKIP = "DRUPACK_TEST_ENGINE names no engine executable"
 _docker_answers = None
 
 
@@ -132,7 +133,7 @@ WAIT_TABLE = [
     # "drupack is ready.", so the recorder standing in for it sees the URL within a
     # process spawn, not a poll of any kind.
     Wait("browser_open", 10, None, "a start's background browser-open handing its target to the recorder"),
-    Wait("dr", 120, None, "a dr command"),
+    Wait("drush", 120, None, "a drush command"),
     Wait("php_cli", 30, None, "a php-cli probe"),
     Wait("docker_probe", 10, None, "docker info answering, or reporting no daemon"),
     # No product deadline: a start that should refuse an argument is expected to fail
@@ -422,10 +423,10 @@ def run(args, **kwargs):
     return subprocess.run(args, **kwargs)
 
 
-def run_dr(binary, work_dir, data_dir, *command):
+def run_drush(binary, work_dir, data_dir, *command):
     return run(
-        [str(binary), "dr", "--data-dir", str(data_dir), *command],
-        cwd=work_dir, capture_output=True, text=True, timeout=WAITS["dr"].seconds,
+        [str(binary), "drush", "--data-dir", str(data_dir), *command],
+        cwd=work_dir, capture_output=True, text=True, timeout=WAITS["drush"].seconds,
     )
 
 
@@ -572,16 +573,24 @@ def refuse(case, case_dir, name, *args):
     return log.read_text(errors="replace")
 
 
+def engine_executable():
+    """The engine executable DRUPACK_TEST_ENGINE names, or None when it names none."""
+    path = os.environ.get("DRUPACK_TEST_ENGINE")
+    return Path(path).resolve() if path else None
+
+
 class ConformanceCase(unittest.TestCase):
     """Base for every case module: gates the class on its declared platforms, tools,
-    whether it installs a site, which needs the site's recipe, and whether it writes
-    into the application, which needs a writable directory.
+    whether it installs a site, which needs the site's recipe, whether it writes
+    into the application, which needs a writable directory, and whether it runs
+    the engine executable, which DRUPACK_TEST_ENGINE names.
     """
 
     PLATFORMS = ()
     TOOLS = ()
     RECIPE = True
     WRITABLE = False
+    ENGINE = False
 
     @classmethod
     def setUpClass(cls):
@@ -592,6 +601,8 @@ class ConformanceCase(unittest.TestCase):
             raise unittest.SkipTest(RECIPE_SKIP)
         if cls.WRITABLE and not SITE["writable"]:
             raise unittest.SkipTest(WRITABLE_SKIP)
+        if cls.ENGINE and engine_executable() is None:
+            raise unittest.SkipTest(ENGINE_SKIP)
         for tool in cls.TOOLS:
             # A CI runner without a daemon still runs every case that needs none.
             if tool == "docker" and not docker_answers():

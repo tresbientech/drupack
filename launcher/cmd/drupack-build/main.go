@@ -48,6 +48,7 @@ func run() error {
 	siteVersion := flag.String("site-version", "dev", "the site's release, which --version prints")
 	payloadOnly := flag.Bool("payload-only", false, "stop after the application payload, written to OUTPUT/payload")
 	describe := flag.Bool("describe", false, "print the site's site.json and build nothing")
+	engineExecutable := flag.Bool("engine-executable", false, "pack the engine executable, which serves a project folder, and read no site")
 	// The job image names its own copies of these in the environment.
 	engine := flag.String("engine", os.Getenv("DRUPACK_ENGINE"), "the Drupack engine directory")
 	engineVersion := flag.String("engine-version", os.Getenv("DRUPACK_ENGINE_VERSION"), "the engine's release")
@@ -55,19 +56,26 @@ func run() error {
 	composer := flag.String("composer", os.Getenv("DRUPACK_COMPOSER"), "the composer.phar the build installs with")
 	runtimeRoot := flag.String("runtimes", os.Getenv("DRUPACK_RUNTIMES"), "a directory of PLATFORM-LIBC runtime directories, used for each target --runtime leaves out")
 	flag.Parse()
-	if *site == "" {
-		return fmt.Errorf("--site is required")
+	var described siteconfig.Site
+	var err error
+	if !*engineExecutable {
+		if *site == "" {
+			return fmt.Errorf("--site is required")
+		}
+		if described, err = siteconfig.Read(*site); err != nil {
+			return err
+		}
+		if *describe {
+			return json.NewEncoder(os.Stdout).Encode(described)
+		}
 	}
-	described, err := siteconfig.Read(*site)
-	if err != nil {
-		return err
+	required := map[string]string{"engine": *engine, "engine-version": *engineVersion}
+	// The engine executable installs no Composer project.
+	if !*engineExecutable {
+		required["php"] = *php
+		required["composer"] = *composer
 	}
-	if *describe {
-		return json.NewEncoder(os.Stdout).Encode(described)
-	}
-	for name, value := range map[string]string{
-		"engine": *engine, "engine-version": *engineVersion, "php": *php, "composer": *composer,
-	} {
+	for name, value := range required {
 		if value == "" {
 			return fmt.Errorf("--%s is required", name)
 		}
@@ -104,7 +112,11 @@ func run() error {
 			return err
 		}
 	}
-	plan, err := build.NewPlan(request)
+	newPlan := build.NewPlan
+	if *engineExecutable {
+		newPlan = build.NewEnginePlan
+	}
+	plan, err := newPlan(request)
 	if err != nil {
 		// The steps name the work directory, so it exists before the plan; nothing is in it yet.
 		if temporary {

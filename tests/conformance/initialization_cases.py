@@ -39,11 +39,11 @@ while time.monotonic() < deadline and not pathlib.Path(release_path).exists():
 
 
 def current_site_name(work_dir, data):
-    return harness.run_dr(harness.BINARY, work_dir, data, "config:get", "system.site", "name", "--format=string")
+    return harness.run_drush(harness.BINARY, work_dir, data, "config:get", "system.site", "name", "--format=string")
 
 
 def current_administrator(work_dir, data):
-    return harness.run_dr(harness.BINARY, work_dir, data, "php:eval",
+    return harness.run_drush(harness.BINARY, work_dir, data, "php:eval",
                            r"print \Drupal\user\Entity\User::load(1)->getAccountName();")
 
 
@@ -133,11 +133,11 @@ class FirstStartAndListener(harness.ConformanceCase):
             # the two race under load. Wait for it instead of trusting one read to have it.
             harness.wait_for_line(site.log_path, 0, harness.ready_line(), harness.WAITS["start"].seconds)
 
-            bootstrap = harness.run_dr(harness.BINARY, self.case_dir, data, "status", "--field=bootstrap")
+            bootstrap = harness.run_drush(harness.BINARY, self.case_dir, data, "status", "--field=bootstrap")
             self.assertEqual(bootstrap.returncode, 0, bootstrap.stderr)
-            self.assertEqual(bootstrap.stdout.strip(), "Successful", "dr status while the server ran")
+            self.assertEqual(bootstrap.stdout.strip(), "Successful", "drush status while the server ran")
 
-            link_result = harness.run_dr(harness.BINARY, self.case_dir, data, "user:login", "--no-browser",
+            link_result = harness.run_drush(harness.BINARY, self.case_dir, data, "user:login", "--no-browser",
                                           "/admin/dashboard")
             self.assertEqual(link_result.returncode, 0, link_result.stderr)
             link = link_result.stdout.strip()
@@ -152,7 +152,7 @@ class FirstStartAndListener(harness.ConformanceCase):
                 body = response.read().decode(errors="replace")
             self.assertIn(f"init-admin | {harness.SITE['site_name']}", body)
 
-            overridden = harness.run_dr(harness.BINARY, self.case_dir, data,
+            overridden = harness.run_drush(harness.BINARY, self.case_dir, data,
                                          "--listen", "127.0.0.1:19999", "user:login", "--no-browser")
             self.assertEqual(overridden.returncode, 0, overridden.stderr)
             self.assertTrue(overridden.stdout.strip().startswith("http://localhost:19999/"), overridden.stdout)
@@ -160,7 +160,7 @@ class FirstStartAndListener(harness.ConformanceCase):
             listener_path = data / "listener"
             saved_listener = listener_path.read_bytes()
             listener_path.unlink()
-            fallback = harness.run_dr(harness.BINARY, self.case_dir, data, "user:login", "--no-browser")
+            fallback = harness.run_drush(harness.BINARY, self.case_dir, data, "user:login", "--no-browser")
             self.assertEqual(fallback.returncode, 0, fallback.stderr)
             self.assertTrue(fallback.stdout.strip().startswith(f"http://localhost:{harness.SITE['port']}/"), fallback.stdout)
             listener_path.write_bytes(saved_listener)
@@ -185,7 +185,7 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
         site = harness.Site(harness.BINARY, self.case_dir / "install")
         site.start(data, "--admin-user", "init-admin", "--admin-password", PASSWORD)
         site.stop()
-        renamed = harness.run_dr(harness.BINARY, self.case_dir, data,
+        renamed = harness.run_drush(harness.BINARY, self.case_dir, data,
                                   "config:set", "system.site", "name", SITE_NAME, "--yes")
         self.assertEqual(renamed.returncode, 0, renamed.stderr)
 
@@ -197,7 +197,7 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
         site.start(data, "--database", "mysql", "--db-host", "127.0.0.1", "--db-port", "3306",
                    "--db-name", "absent", "--db-user", "absent", "--db-password", "absent")
         try:
-            driver = harness.run_dr(harness.BINARY, self.case_dir, data, "status", "--field=db-driver")
+            driver = harness.run_drush(harness.BINARY, self.case_dir, data, "status", "--field=db-driver")
             self.assertEqual(driver.stdout.strip(), "sqlite", "the start replaced the recorded backend")
             self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), SITE_NAME)
             assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
@@ -219,7 +219,7 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
         (data / "site-installed").unlink()
         (data / "site.sqlite").write_text("not a database")
         text = harness.refuse(self, self.case_dir, "unbootstrappable", "--data-dir", str(data))
-        self.assertIn("dr --data-dir", text, "the refusal does not name the recovery command")
+        self.assertIn("drush --data-dir", text, "the refusal does not name the recovery command")
         self.assertIn(str(data), text, "the refusal does not name the Site data directory")
         (data / "site.sqlite").write_bytes(sqlite_backup)
 
@@ -238,7 +238,7 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
         site.start(data, "--admin-user", "init-admin", "--admin-password", PASSWORD)
         site.stop()
 
-        blocked = harness.run_dr(harness.BINARY, self.case_dir, data, "php:eval",
+        blocked = harness.run_drush(harness.BINARY, self.case_dir, data, "php:eval",
                                   r'\Drupal\user\Entity\User::load(1)->block()->save();')
         self.assertEqual(blocked.returncode, 0, blocked.stderr)
 
@@ -248,7 +248,7 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
             harness.wait_for_line(restart.log_path, 0, harness.ready_line(), harness.WAITS["start"].seconds)
             text = restart.log_path.read_text(errors="replace")
             self.assertNotIn(LOGIN_LINE, text, "the readiness block printed a login link despite a failed mint")
-            self.assertIn("dr --data-dir", text, "the diagnostic does not name the recovery command")
+            self.assertIn("drush --data-dir", text, "the diagnostic does not name the recovery command")
             self.assertIn("user:login /admin/dashboard", text,
                            "the diagnostic does not name the recovery destination")
             self.assertIn("blocked", text, "the diagnostic does not carry the reason Drush gave")
@@ -313,7 +313,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
         progress.unlink()
         text = harness.refuse(self, self.case_dir, "seed-administrator", "--data-dir", str(data))
         self.assertIn("packaged seed password", text)
-        self.assertIn("dr --data-dir", text, "the refusal does not name the recovery command")
+        self.assertIn("drush --data-dir", text, "the refusal does not name the recovery command")
         self.assertIn(str(data), text, "the refusal does not name the Site data directory")
         progress.write_bytes(progress_backup)
 
@@ -367,7 +367,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
             code = loser.wait(timeout=harness.WAITS["stop"].seconds)
             self.assertNotEqual(code, 0, "a simultaneous start exited without a failure")
             loser_log = (race_dir / f"{loser_label}.log").read_text(errors="replace")
-            self.assertIn("Another drupack start", loser_log, "the losing start names no other start")
+            self.assertIn(f"Another {harness.SITE['name']} start", loser_log, "the losing start names no other start")
             self.assertIn(str(data), loser_log, "the losing start does not name the Site data directory")
 
             ready_deadline = time.monotonic() + harness.WAITS["start"].seconds
@@ -445,7 +445,7 @@ class EquivalentPathLock(harness.ConformanceCase):
                     self.fail("a start waited for a lock another process held")
             self.assertNotEqual(result.returncode, 0, "a start took a lock another process held")
             text = log.read_text(errors="replace")
-            self.assertIn("Another drupack start", text, f"the blocked start names no other start: inspect {log}")
+            self.assertIn(f"Another {harness.SITE['name']} start", text, f"the blocked start names no other start: inspect {log}")
             self.assertIn(str(data.resolve()), text, "the blocked start does not name the resolved directory")
         finally:
             release.touch()
@@ -532,7 +532,7 @@ class PostgresqlLifecycle(harness.ConformanceCase):
         assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
         site.stop()
 
-        renamed = harness.run_dr(harness.BINARY, self.case_dir, data,
+        renamed = harness.run_drush(harness.BINARY, self.case_dir, data,
                                   "config:set", "system.site", "name", SITE_NAME, "--yes")
         self.assertEqual(renamed.returncode, 0, renamed.stderr)
         (data / "site-installed").unlink()
@@ -544,7 +544,7 @@ class PostgresqlLifecycle(harness.ConformanceCase):
         assert_marker(self, data)
         self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), SITE_NAME)
         assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
-        driver = harness.run_dr(harness.BINARY, self.case_dir, data, "status", "--field=db-driver")
+        driver = harness.run_drush(harness.BINARY, self.case_dir, data, "status", "--field=db-driver")
         self.assertEqual(driver.stdout.strip(), "pgsql", "the recovery served the wrong driver")
         site.stop()
 
@@ -558,7 +558,7 @@ class PostgresqlLifecycle(harness.ConformanceCase):
 
         site = harness.Site(harness.BINARY, self.case_dir / "first")
         site.start(data, *connection, "--admin-user", "init-admin", "--admin-password", PASSWORD)
-        renamed = harness.run_dr(harness.BINARY, self.case_dir, data,
+        renamed = harness.run_drush(harness.BINARY, self.case_dir, data,
                                   "config:set", "system.site", "name", SITE_NAME, "--yes")
         self.assertEqual(renamed.returncode, 0, renamed.stderr)
         site.stop()

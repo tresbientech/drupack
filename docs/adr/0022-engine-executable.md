@@ -14,14 +14,23 @@ data.
 
 - Each engine release publishes a generic `drupack` executable per platform.
   It carries the runtimes and the engine's files, and no application.
-- `drupack serve [DIR]` serves the project folder DIR, the working directory
-  by default. The docroot comes from `composer.json`'s scaffold web root, or
-  `web` when unset.
+- The Mercury Demo executable, which held the name `drupack`, becomes
+  `mercury-demo`. The engine executable takes the project's name.
+- `drupack [DIR]` serves the project folder DIR, the working directory by
+  default, as a site's executable serves with no command. The docroot comes
+  from `composer.json`'s scaffold web root, or `web` when unset.
+- A start refuses a docroot without Drupal core. The Caddyfile carries
+  Drupal's request guards and front controller.
 - The folder's own settings own the database, the files paths and the hash
   salt. Drupack writes nothing into the folder.
-- `drupack dr` runs the folder's Drush on the runtime's PHP. A `php` on PATH
+- `drupack drush` runs the folder's Drush on the runtime's PHP. The word
+  names Drush itself, since it adds nothing to it.
+- `drupack dr` runs Drupal core's own command line, `vendor/bin/dr`, which
+  core ships from Drupal 11.4 on.
+- A site executable's Drush command is renamed from `dr` to `drush`, with no
+  alias. `dr` is core's name, and Drupack's command runs Drush. A `php` on PATH
   sends Drush's child processes to the same PHP.
-- `drupack php` runs the runtime's PHP.
+- `drupack php` runs a script, or `-r` code, on the runtime's PHP.
 - A start prints a one-time login link, as a packaged site's does.
 - The folder mode has its own PHP entry script. It shares process and path
   helpers with `launch.php`.
@@ -36,6 +45,8 @@ data.
   folder the reader asked to serve as is.
 - A folder mode inside `launch.php`. Most of its Site data lifecycle would
   gain a folder condition.
+- `drupack-serve` for the engine executable, which keeps the demo's download
+  links. The project's name then belongs to its demo rather than its tool.
 
 ## Consequences
 
@@ -45,3 +56,14 @@ data.
 - Reaching a ddev database from the host means the project's own settings
   name its published port on `127.0.0.1`.
 - Drupal writes public files into the folder, where its settings put them.
+- A script calling `SITE dr` breaks, and gets the embedded server's unknown
+  command error.
+- The `latest` download links of the demo change name, and its cache moves
+  to a `mercury-demo` directory.
+- The runtime changes to no directory of its own for the engine executable,
+  so relative paths in a start, `drush` and `php` resolve against the reader's.
+- FrankenPHP's `php-cli` takes a script or `-r` code, and no PHP option such
+  as `-v` or `-d`.
+- `serve.php` loads no Composer autoloader, since the engine carries no
+  `vendor/`. It resolves paths with `realpath` and `dirname`, in place of the
+  `Path` class ADR 0010 names.
