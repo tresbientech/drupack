@@ -20,7 +20,7 @@ cd path/to/your/project
 
 The project's own `settings.php` names the database, the files paths and the hash salt. Drupack writes nothing into the project, and Drupal writes files where those settings put them. For a ddev project, point `settings.local.php` at the database's published port on `127.0.0.1`. The ddev host name `db` resolves only inside ddev.
 
-`drupack drush COMMAND` runs the project's own Drush on the bundled PHP, from any directory inside the project. Drush's own child processes run on that PHP too. `drupack dr COMMAND` runs Drupal core's own command line the same way, on Drupal 11.4 and later. `drupack php SCRIPT` runs a PHP script.
+`drupack drush COMMAND` runs the project's own Drush on the bundled PHP, from any directory inside the project. Drush's own child processes run on that PHP too. `drupack dr COMMAND` runs Drupal core's own command line the same way, on Drupal 11.4 and later. `drupack php` runs PHP as `php` does, with `-v`, `-m`, `-d` and the like.
 
 A project whose `composer.lock` needs a PHP extension the bundled PHP lacks is refused, with the extension and the packages that need it.
 

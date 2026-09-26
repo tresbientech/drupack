@@ -1,3 +1,4 @@
 #!/bin/sh
 # Drush runs its child processes with the php on PATH, which serve.php points here.
-exec "$DRUPACK_RUNTIME_BINARY" php-cli "$@"
+# Parameter expansion finds php.php with no PATH of its own.
+exec "$DRUPACK_RUNTIME_BINARY" php-cli "${0%/*}/../php.php" "$@"

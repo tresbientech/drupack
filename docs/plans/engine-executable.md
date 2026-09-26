@@ -21,8 +21,8 @@ Notes:
   extension check reads `composer.lock`, as the build's check does.
 - `drush` finds the nearest `vendor/autoload.php`, since Drupal core carries a
   `composer.json` of its own.
-- `php` takes a script or `-r` code. FrankenPHP's `php-cli` accepts no PHP
-  option such as `-v`.
+- `php` goes through `engine/php.php`, since FrankenPHP's `php-cli` takes no
+  PHP option. ADR 0022 records how it honours them.
 - The request guards moved to `application/guards.caddy`, which both
   Caddyfiles import. `engine/` links to it and to `application/process.php`.
 - The engine case skips by name unless `DRUPACK_TEST_ENGINE` names the engine
@@ -85,7 +85,7 @@ host's PHP. `php` runs the runtime's PHP with the reader's arguments.
 
 - [x] `drush status` reports the folder's database and Drupal version.
 - [x] A `php` that Drush starts runs the runtime's PHP, with no PHP on the host PATH.
-- [x] `php -r` prints the runtime's version. `php -v` is not accepted.
+- [x] `php -v` prints the runtime's version.
 - [x] A folder with no Drush gets a message that names the missing path.
 
 ---

@@ -173,6 +173,27 @@ class EngineExecutable(harness.ConformanceCase):
         # serve.php prints paths in Drupack's canonical form, forward slashes on Windows too.
         self.assertIn(f"{self.lacking.as_posix()}/vendor/drush/drush/drush.php does not exist", result.stderr)
 
+    def test_php_answers_its_informational_options(self):
+        version = self.engine_run("php", "-v")
+        self.assertEqual(version.returncode, 0, version.stderr)
+        self.assertRegex(version.stdout, r"^PHP 8\.\d+\.\d+ \(cli\)")
+        modules = self.engine_run("php", "-m")
+        self.assertIn("pdo_sqlite", modules.stdout.splitlines())
+
+    def test_php_passes_settings_to_a_script_and_to_code(self):
+        (self.case_dir / "limit.php").write_text("<?php echo ini_get('memory_limit'), ' ', $argv[1];")
+        script = self.engine_run("php", "-d", "memory_limit=321M", "limit.php", "argument")
+        self.assertEqual(script.returncode, 0, script.stderr)
+        self.assertEqual(script.stdout, "321M argument")
+        code = self.engine_run("php", "-dmemory_limit=123M", "-r", "echo ini_get('memory_limit'), ' ', $argv[1];", "--", "x")
+        self.assertEqual(code.returncode, 0, code.stderr)
+        self.assertEqual(code.stdout, "123M x")
+
+    def test_php_refuses_an_option_it_cannot_honour(self):
+        result = self.engine_run("php", "-S", "127.0.0.1:0")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("php option -S is not supported", result.stderr)
+
     def test_php_runs_a_script_named_from_the_working_directory(self):
         (self.case_dir / "script.php").write_text("<?php echo 'engine-php';")
         result = self.engine_run("php", "script.php")

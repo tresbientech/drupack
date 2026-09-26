@@ -151,7 +151,7 @@ runtime and ignore the variable.
 drupack [DIR] [--listen IP:PORT]
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
-drupack php SCRIPT|-r CODE [ARGUMENTS]
+drupack php [PHP_OPTIONS] SCRIPT|-r CODE [ARGUMENTS]
 drupack clean [--dry-run]
 drupack --help
 drupack --version
@@ -182,7 +182,16 @@ that holds `vendor/autoload.php`. Drush's child processes find a `php` on
 project, the same way. Drupal 11.4 and later ship it.
 
 `php` runs a script, or `-r` code, on the bundled PHP, from the working
-directory. It takes no PHP option such as `-v` or `-d`.
+directory. It takes these options of php's own command line:
+
+- `-d SETTING`, repeated, which reaches a script at startup
+- `-v`, `-m`, `-i`, `--ini` and `--ri EXTENSION`
+- `-l FILE`, which checks one file's syntax
+- `-f FILE`, `-h`, and `-q` and `-H`, which change nothing
+
+It refuses any other option by name, such as `-S`, `-n` or `-c`, and reads no
+script from standard input. Drush's child processes reach the same command
+through the `php` on `PATH`.
 
 `clean` removes the unpacked engine files from the cache.
 

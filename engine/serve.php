@@ -6,13 +6,13 @@ declare(strict_types=1);
 // `php` and `clean`, from the directory the reader started in. A first word that
 // names no command starts the server.
 
-require __DIR__ . '/process.php';
+require_once __DIR__ . '/process.php';
 
 const USAGE = <<<'TEXT'
 Usage: %1$s [DIR] [--listen IP:PORT]
        %1$s drush DRUSH_COMMAND
        %1$s dr DRUPAL_COMMAND
-       %1$s php SCRIPT|-r CODE [ARGUMENTS]
+       %1$s php [PHP_OPTIONS] SCRIPT|-r CODE [ARGUMENTS]
        %1$s clean [--dry-run]
 
 Serves the Drupal project in DIR, the working directory by default, with its
@@ -21,7 +21,7 @@ own settings. --listen defaults to %2$s.
 Commands:
   drush    Run the Drush of the project holding the working directory
   dr       Run Drupal core's command line of that project
-  php      Run a PHP script, or -r CODE, on this executable's PHP
+  php      Run PHP as php does: a script, -r CODE, -v, -m, -d and the like
   clean    Remove the unpacked engine files from the cache
 
 docs/cli.md explains every command.
