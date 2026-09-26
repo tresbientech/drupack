@@ -42,7 +42,8 @@ class EngineExecutable(harness.ConformanceCase):
         shutil.copytree(cls.site_application(), cls.project, symlinks=True)
         cls.docroot = cls.project / harness.SITE["docroot"]
         cls.files = cls.docroot / "sites" / "default" / "files"
-        shutil.copytree(cls.project / "seed" / "files", cls.files)
+        # A release build of the application may carry an empty files directory already.
+        shutil.copytree(cls.project / "seed" / "files", cls.files, dirs_exist_ok=True)
         database = cls.case_dir / "database" / "site.sqlite"
         database.parent.mkdir()
         shutil.copyfile(cls.project / "seed" / "site.sqlite", database)
