@@ -508,3 +508,56 @@ func gitInit(directory string) ([]byte, error) {
 	command.Dir = directory
 	return command.CombinedOutput()
 }
+
+func TestTheEnginePlanPacksBothRuntimesPerPlatformAndReadsNoSite(t *testing.T) {
+	r := request([]string{"linux-amd64", "linux-arm64"}, "")
+	r.Site = siteconfig.Site{}
+	plan, err := build.NewEnginePlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"stage the engine files", "archive the engine files",
+		"pack the engine executable for linux-amd64", "pack the engine executable for linux-arm64"}
+	if got := names(plan); !reflect.DeepEqual(got, want) {
+		t.Fatalf("steps %v, want %v", got, want)
+	}
+	pack := step(t, plan, "pack the engine executable for linux-arm64").Command
+	if got := runtimeFlags(pack); !reflect.DeepEqual(got, []string{"glibc=/rt/arm64-glibc", "musl=/rt/arm64-musl"}) {
+		t.Fatalf("runtimes %v", got)
+	}
+	if !slices.Contains(pack, "-engine") || !slices.Contains(pack, "/out/drupack-linux-arm64") {
+		t.Fatalf("pack command %v", pack)
+	}
+}
+
+func TestStagingTheEngineFollowsItsLinksIntoTheApplication(t *testing.T) {
+	engine := t.TempDir()
+	for path, content := range map[string]string{"application/process.php": "<?php // shared", "engine/serve.php": "<?php"} {
+		if err := os.MkdirAll(filepath.Join(engine, filepath.Dir(path)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(engine, path), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink("../application/process.php", filepath.Join(engine, "engine", "process.php")); err != nil {
+		t.Fatal(err)
+	}
+	r := request([]string{"linux-amd64"}, "")
+	r.Engine, r.Work = engine, t.TempDir()
+	plan, err := build.NewEnginePlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := step(t, plan, "stage the engine files").Func(io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	staged := filepath.Join(r.Work, "engine", "process.php")
+	info, err := os.Lstat(staged)
+	if err != nil || info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("process.php staged as %v, %v; want a regular file", info, err)
+	}
+	if content, _ := os.ReadFile(staged); string(content) != "<?php // shared" {
+		t.Fatalf("process.php holds %q", content)
+	}
+}

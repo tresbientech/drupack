@@ -79,27 +79,9 @@ func NewPlan(r Request) (Plan, error) {
 	if !ok {
 		return Plan{}, fmt.Errorf("--libc %q is not one of both, glibc, musl", r.Libc)
 	}
-	resolved := map[string]string{}
-	for _, platform := range r.Platforms {
-		if _, ok := siteconfig.Platforms[platform]; !ok {
-			return Plan{}, fmt.Errorf("--platform %q is not built by this release, which builds linux-amd64 and linux-arm64", platform)
-		}
-		if r.PayloadOnly {
-			continue
-		}
-		for _, libc := range runtimes {
-			target := platform + "/" + libc
-			if r.Runtimes[target] != "" {
-				resolved[target] = r.Runtimes[target]
-				continue
-			}
-			carried := filepath.Join(r.RuntimeRoot, platform+"-"+libc)
-			if info, err := os.Stat(carried); r.RuntimeRoot != "" && err == nil && info.IsDir() {
-				resolved[target] = carried
-				continue
-			}
-			return Plan{}, fmt.Errorf("no runtime for %s: pass --runtime %s=DIRECTORY", target, target)
-		}
+	resolved, err := resolveRuntimes(r, runtimes)
+	if err != nil {
+		return Plan{}, err
 	}
 
 	application := filepath.Join(r.Work, "app")
@@ -176,6 +158,34 @@ func NewPlan(r Request) (Plan, error) {
 		plan.Steps = append(plan.Steps, Step{Name: "test " + platform, Command: command})
 	}
 	return plan, nil
+}
+
+// resolveRuntimes checks each of r.Platforms and maps its "PLATFORM/LIBC" targets
+// to runtime directories. A payload-only build packs nothing and maps none.
+func resolveRuntimes(r Request, libcs []string) (map[string]string, error) {
+	resolved := map[string]string{}
+	for _, platform := range r.Platforms {
+		if _, ok := siteconfig.Platforms[platform]; !ok {
+			return nil, fmt.Errorf("--platform %q is not built by this release, which builds linux-amd64 and linux-arm64", platform)
+		}
+		if r.PayloadOnly {
+			continue
+		}
+		for _, libc := range libcs {
+			target := platform + "/" + libc
+			if r.Runtimes[target] != "" {
+				resolved[target] = r.Runtimes[target]
+				continue
+			}
+			carried := filepath.Join(r.RuntimeRoot, platform+"-"+libc)
+			if info, err := os.Stat(carried); r.RuntimeRoot != "" && err == nil && info.IsDir() {
+				resolved[target] = carried
+				continue
+			}
+			return nil, fmt.Errorf("no runtime for %s: pass --runtime %s=DIRECTORY", target, target)
+		}
+	}
+	return resolved, nil
 }
 
 // Run executes the plan's steps in order, stopping at the first that fails.

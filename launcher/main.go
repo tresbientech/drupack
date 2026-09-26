@@ -60,6 +60,19 @@ func run() error {
 	// and leaves a running site's files alone.
 	runtime.HoldUsage(directory)
 	runtime.HoldUsage(application)
+	// The runtime and launch.php are shared by every site built on this engine, so
+	// the site's name and release reach them from here.
+	if err := os.Setenv("DRUPACK_RUNTIME_NAME", siteName); err != nil {
+		return err
+	}
+	if err := os.Setenv("DRUPACK_RUNTIME_SITE_VERSION", siteVersion); err != nil {
+		return err
+	}
+	// The engine executable serves a folder named from the reader's own directory,
+	// so the runtime gets no application to change into.
+	if engine {
+		return launch(filepath.Join(directory, m.Entry), engineArguments(application))
+	}
 	// The server resolves the site from its working directory, which the entry
 	// point sets from this variable once it starts. PHP, Caddy and the reader's
 	// terminal read the exported value, so it takes Drupack's canonical form;
@@ -67,20 +80,12 @@ func run() error {
 	if err := os.Setenv("DRUPACK_RUNTIME_APP_DIR", runtime.Canonical(application)); err != nil {
 		return err
 	}
-	// The runtime and launch.php are shared by every site built on this engine, so
-	// the site's name and release reach them from here.
 	// launch.php runs this executable again to lay a site's own application.
 	launcher, err := os.Executable()
 	if err != nil {
 		return err
 	}
 	if err := os.Setenv("DRUPACK_RUNTIME_LAUNCHER", runtime.Canonical(launcher)); err != nil {
-		return err
-	}
-	if err := os.Setenv("DRUPACK_RUNTIME_NAME", siteName); err != nil {
-		return err
-	}
-	if err := os.Setenv("DRUPACK_RUNTIME_SITE_VERSION", siteVersion); err != nil {
 		return err
 	}
 	// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.
@@ -106,6 +111,19 @@ func selectRuntime() (embeddedRuntime, runtime.Manifest, error) {
 		return embeddedRuntime{}, runtime.Manifest{}, err
 	}
 	return runtimes[index], manifests[index], nil
+}
+
+// engineArguments turns the reader's words into the runtime's: `php` runs PHP
+// itself, the version flags reach the runtime, and every other word reaches
+// serve.php.
+func engineArguments(application string) []string {
+	if len(os.Args) > 1 && os.Args[1] == "php" {
+		return append([]string{os.Args[0], "php-cli"}, os.Args[2:]...)
+	}
+	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
+		return os.Args
+	}
+	return append([]string{os.Args[0], "php-cli", filepath.Join(application, "serve.php")}, os.Args[1:]...)
 }
 
 // cleanArguments reads what follows the clean command, which a reader types.

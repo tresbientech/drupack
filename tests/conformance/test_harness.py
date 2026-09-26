@@ -230,5 +230,26 @@ class WritableGateTest(unittest.TestCase):
         with mock.patch.object(harness, "SITE", {"recipe": "recipes/acme", "writable": ["web/themes/custom"]}):
             Writes.setUpClass()
 
+class EngineGateTest(unittest.TestCase):
+    def test_an_engine_case_skips_when_no_engine_executable_is_named(self):
+        class Engine(harness.ConformanceCase):
+            PLATFORMS = (harness.current_platform(),)
+            ENGINE = True
+
+        with mock.patch.object(harness, "SITE", {"recipe": "recipes/acme"}), \
+                mock.patch.dict(os.environ, {"DRUPACK_TEST_ENGINE": ""}):
+            with self.assertRaisesRegex(unittest.SkipTest, "DRUPACK_TEST_ENGINE names no engine executable"):
+                Engine.setUpClass()
+
+    def test_an_engine_case_runs_when_an_engine_executable_is_named(self):
+        class Engine(harness.ConformanceCase):
+            PLATFORMS = (harness.current_platform(),)
+            ENGINE = True
+
+        with mock.patch.object(harness, "SITE", {"recipe": "recipes/acme"}), \
+                mock.patch.dict(os.environ, {"DRUPACK_TEST_ENGINE": "dist/drupack-linux-amd64"}):
+            Engine.setUpClass()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

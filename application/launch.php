@@ -5,6 +5,8 @@ declare(strict_types=1);
 // The site's composer project builds vendor/, so the engine registers its own namespace.
 (require __DIR__ . '/vendor/autoload.php')->addPsr4('Drupack\\Support\\', __DIR__ . '/support');
 
+require __DIR__ . '/process.php';
+
 use Drupack\Support\PreviousCopies;
 use Symfony\Component\Filesystem\Path;
 
@@ -113,31 +115,6 @@ function removeTree(string $path): bool
     return @rmdir($path);
 }
 
-function windows(): bool
-{
-    return PHP_OS_FAMILY === 'Windows';
-}
-
-// realpath() returns the native form, backslashes included on Windows. Every path
-// Drupack exports or prints takes the canonical form instead, so a Windows reader's
-// terminal agrees with the forward slashes Drupal's own stack traces already carry.
-function canonical(string $path): string
-{
-    return canonicalSeparator($path, DIRECTORY_SEPARATOR);
-}
-
-// canonicalSeparator takes the separator, the same way canonical.go's internal helper
-// does, so a test on any host can drive the Windows case. A backslash is a legal
-// character in a file name where it is not the separator, so a host whose separator
-// is already '/' gets the path back untouched.
-function canonicalSeparator(string $path, string $separator): string
-{
-    if ($separator === '/') {
-        return $path;
-    }
-    return str_replace($separator, '/', $path);
-}
-
 // The server runs from the application directory, which every site of a release
 // shares, so a path the reader wrote relative to their own directory resolves
 // against the one they started in.
@@ -148,44 +125,6 @@ function fromStartDirectory(string $path): string
         return $path;
     }
     return Path::makeAbsolute($path, $start);
-}
-
-function nullDevice(): string
-{
-    return windows() ? 'NUL' : '/dev/null';
-}
-
-function process(string $binary, array $arguments, array $descriptors, string $directory, string $failure): int
-{
-    $command = array_merge([$binary], $arguments);
-    $child = proc_open($command, $descriptors, $pipes, $directory);
-    if (!is_resource($child)) {
-        throw new RuntimeException($failure);
-    }
-    return proc_close($child);
-}
-
-// On Windows the child starts in $directory. pcntl_exec keeps the current working directory.
-function replaceProcess(string $binary, array $arguments, string $directory, string $failure): never
-{
-    if (!windows()) {
-        pcntl_exec($binary, $arguments);
-        throw new RuntimeException($failure);
-    }
-    exit(process($binary, $arguments, [0 => STDIN, 1 => STDOUT, 2 => STDERR], $directory, $failure));
-}
-
-function environment(string $name): ?string
-{
-    $value = getenv($name);
-    return $value === false || $value === '' ? null : $value;
-}
-
-// The executable the reader ran, which the launcher exports. Every message naming a
-// command names it, since one engine serves every site built on it.
-function executableName(): string
-{
-    return getenv('DRUPACK_RUNTIME_NAME');
 }
 
 // The application the site runs: the release's shared copy, or once a start or `dr` has

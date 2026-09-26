@@ -21,10 +21,15 @@ import (
 )
 
 // site names the packaged site and the release of it this launcher carries.
+// engine marks the engine executable, which carries no site.
 type site struct {
 	name    string
 	version string
+	engine  bool
 }
+
+// engineName names the engine executable and keys its cache.
+const engineName = "drupack"
 
 // packedRuntime names one runtime the launcher will carry: the libc it was
 // linked against, and the directory holding its files. A value naming no libc
@@ -80,7 +85,7 @@ func embeddedPayloadSource(built []builtRuntime, packaged site) string {
 		fmt.Fprintf(&source, "\t{libc: %q, payload: payload%d, manifest: manifest%d},\n", one.libc, index, index)
 	}
 	source.WriteString("}\n\n//go:embed app.tar.zst\nvar appPayload []byte\n\n//go:embed app_checksum.txt\nvar appChecksum []byte\n")
-	fmt.Fprintf(&source, "\nvar siteName = %q\n\nvar siteVersion = %q\n", packaged.name, packaged.version)
+	fmt.Fprintf(&source, "\nvar siteName = %q\n\nvar siteVersion = %q\n\nvar engine = %t\n", packaged.name, packaged.version, packaged.engine)
 	return source.String()
 }
 
@@ -103,32 +108,39 @@ func run() error {
 	output := flag.String("output", "", "path for the built launcher")
 	app := flag.String("app", "", "application tar to carry")
 	appChecksum := flag.String("app-checksum", "", "file holding the application checksum")
+	engine := flag.Bool("engine", false, "pack the engine executable, whose -app holds the engine's files and whose release is -version")
 	flag.Parse()
-	if err := requireFlags(map[string]string{
+	required := map[string]string{
 		"version":      *version,
 		"entry":        *entry,
 		"source":       *source,
 		"output":       *output,
 		"app":          *app,
 		"app-checksum": *appChecksum,
-		"site":         *siteFile,
-		"site-version": *siteVersion,
-	}); err != nil {
+	}
+	if !*engine {
+		required["site"] = *siteFile
+		required["site-version"] = *siteVersion
+	}
+	if err := requireFlags(required); err != nil {
 		return err
 	}
 	if len(carried) == 0 {
 		return fmt.Errorf("-runtime is required")
 	}
-	// The build wrote site.json from a validated drupack.yml.
-	var described siteconfig.Site
-	content, err := os.ReadFile(*siteFile)
-	if err != nil {
-		return err
+	packaged := site{name: engineName, version: *version, engine: true}
+	if !*engine {
+		// The build wrote site.json from a validated drupack.yml.
+		var described siteconfig.Site
+		content, err := os.ReadFile(*siteFile)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(content, &described); err != nil {
+			return fmt.Errorf("%s: %w", *siteFile, err)
+		}
+		packaged = site{name: described.Name, version: *siteVersion}
 	}
-	if err := json.Unmarshal(content, &described); err != nil {
-		return fmt.Errorf("%s: %w", *siteFile, err)
-	}
-	packaged := site{name: described.Name, version: *siteVersion}
 
 	built := make([]builtRuntime, 0, len(carried))
 	for _, one := range carried {

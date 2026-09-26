@@ -101,6 +101,7 @@ def skip_report(skipped):
 DOCKER_SKIP = "needs a Docker daemon, which does not answer"
 RECIPE_SKIP = "the site has no recipe"
 WRITABLE_SKIP = "the site lists no writable directory"
+ENGINE_SKIP = "DRUPACK_TEST_ENGINE names no engine executable"
 _docker_answers = None
 
 
@@ -572,16 +573,24 @@ def refuse(case, case_dir, name, *args):
     return log.read_text(errors="replace")
 
 
+def engine_executable():
+    """The engine executable DRUPACK_TEST_ENGINE names, or None when it names none."""
+    path = os.environ.get("DRUPACK_TEST_ENGINE")
+    return Path(path).resolve() if path else None
+
+
 class ConformanceCase(unittest.TestCase):
     """Base for every case module: gates the class on its declared platforms, tools,
-    whether it installs a site, which needs the site's recipe, and whether it writes
-    into the application, which needs a writable directory.
+    whether it installs a site, which needs the site's recipe, whether it writes
+    into the application, which needs a writable directory, and whether it runs
+    the engine executable, which DRUPACK_TEST_ENGINE names.
     """
 
     PLATFORMS = ()
     TOOLS = ()
     RECIPE = True
     WRITABLE = False
+    ENGINE = False
 
     @classmethod
     def setUpClass(cls):
@@ -592,6 +601,8 @@ class ConformanceCase(unittest.TestCase):
             raise unittest.SkipTest(RECIPE_SKIP)
         if cls.WRITABLE and not SITE["writable"]:
             raise unittest.SkipTest(WRITABLE_SKIP)
+        if cls.ENGINE and engine_executable() is None:
+            raise unittest.SkipTest(ENGINE_SKIP)
         for tool in cls.TOOLS:
             # A CI runner without a daemon still runs every case that needs none.
             if tool == "docker" and not docker_answers():

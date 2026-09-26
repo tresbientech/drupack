@@ -174,3 +174,12 @@ func readFile(t *testing.T, path string) string {
 	}
 	return string(data)
 }
+
+func TestTheEngineExecutableCarriesTheEngineMark(t *testing.T) {
+	generated := embeddedPayloadSource(buildRuntimes(t, "glibc"), site{name: engineName, version: "0.5.0", engine: true})
+	for _, want := range []string{"var siteName = \"drupack\"", "var siteVersion = \"0.5.0\"", "var engine = true"} {
+		if !strings.Contains(generated, want) {
+			t.Fatalf("payload.go does not carry %q:\n%s", want, generated)
+		}
+	}
+}
