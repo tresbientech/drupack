@@ -16,6 +16,7 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/build"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
@@ -27,9 +28,6 @@ type site struct {
 	version string
 	engine  bool
 }
-
-// engineName names the engine executable and keys its cache.
-const engineName = "drupack"
 
 // packedRuntime names one runtime the launcher will carry: the libc it was
 // linked against, and the directory holding its files. A value naming no libc
@@ -128,7 +126,7 @@ func run() error {
 	if len(carried) == 0 {
 		return fmt.Errorf("-runtime is required")
 	}
-	packaged := site{name: engineName, version: *version, engine: true}
+	packaged := site{name: build.EngineName, version: *version, engine: true}
 	if !*engine {
 		// The build wrote site.json from a validated drupack.yml.
 		var described siteconfig.Site

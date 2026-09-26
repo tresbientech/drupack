@@ -15,10 +15,10 @@ Usage: %1$s serve [DIR] [--listen IP:PORT]
 
 Commands:
   serve    Serve the Drupal project in DIR, the working directory by default,
-           with its own settings. --listen defaults to 127.0.0.1:8888.
+           with its own settings. --listen defaults to %2$s.
   dr       Run the Drush of the project holding the working directory
   php      Run a PHP script, or -r CODE, on this executable's PHP
-  clean    Remove the unpacked runtimes from the cache
+  clean    Remove the unpacked engine files from the cache
 
 docs/cli.md explains every command.
 TEXT;
@@ -128,7 +128,7 @@ function serve(string $binary, array $arguments): never
     if (proc_close($login) !== 0 || $link === '') {
         // The folder's own settings may block uid 1 or name no reachable database yet;
         // the server still starts, and Drupal's own error page says which.
-        fwrite(STDERR, "Cannot mint a one-time login link: $failure\n");
+        fwrite(STDERR, "Cannot mint a one-time login link: $failure\nGet one once the site answers with: " . executableName() . " dr user:login --uri=$url\n");
         $link = null;
     }
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n") . "  Project: $project\n");
@@ -171,7 +171,7 @@ try {
     match ($word) {
         'serve' => serve($binary, array_slice($argv, 2)),
         'dr' => drush($binary, array_slice($argv, 2)),
-        '--help', '-h', 'help' => fwrite(STDOUT, sprintf(USAGE, executableName()) . "\n"),
+        '--help', '-h', 'help' => fwrite(STDOUT, sprintf(USAGE, executableName(), DEFAULT_LISTEN) . "\n"),
         default => throw new RuntimeException("Unknown command $word. Run " . executableName() . ' --help.'),
     };
 } catch (Throwable $error) {

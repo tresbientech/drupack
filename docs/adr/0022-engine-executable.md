@@ -55,3 +55,6 @@ data.
   so relative paths in `serve`, `dr` and `php` resolve against the reader's.
 - FrankenPHP's `php-cli` takes a script or `-r` code, and no PHP option such
   as `-v` or `-d`.
+- `serve.php` loads no Composer autoloader, since the engine carries no
+  `vendor/`. It resolves paths with `realpath` and `dirname`, in place of the
+  `Path` class ADR 0010 names.

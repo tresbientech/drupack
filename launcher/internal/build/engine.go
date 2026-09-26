@@ -14,10 +14,13 @@ import (
 const EngineName = "drupack"
 
 // NewEnginePlan orders the steps that pack the engine executable for each of
-// r.Platforms, carrying both libcs' runtimes on each. A payload-only plan stops
+// r.Platforms, the host's when it names none, carrying both libcs' runtimes on each. A payload-only plan stops
 // at the archive, in OUTPUT/payload. It reads no site, and the conformance
 // suite tests the result beside a site's executable.
 func NewEnginePlan(r Request) (Plan, error) {
+	if len(r.Platforms) == 0 {
+		r.Platforms = []string{r.Host}
+	}
 	libcs := siteconfig.Libcs["both"]
 	resolved, err := resolveRuntimes(r, libcs)
 	if err != nil {
@@ -43,15 +46,7 @@ func NewEnginePlan(r Request) (Plan, error) {
 		return plan, nil
 	}
 	for _, platform := range r.Platforms {
-		command := []string{"go", "run", "./cmd/pack", "-engine"}
-		for _, libc := range libcs {
-			command = append(command, "-runtime", libc+"="+resolved[platform+"/"+libc])
-		}
-		command = append(command, "-entry", "drupack", "-version", r.EngineVersion,
-			"-source", filepath.Join(r.Engine, "launcher"),
-			"-output", filepath.Join(r.Output, Executable(EngineName, platform)),
-			"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
-			"-goarch", siteconfig.Platforms[platform])
+		command := packCommand(r, libcs, resolved, platform, payload, Executable(EngineName, platform), "-engine")
 		plan.Steps = append(plan.Steps, Step{Name: "pack the engine executable for " + platform, Command: command,
 			Dir: filepath.Join(r.Engine, "launcher"), Env: []string{"CGO_ENABLED=0"}})
 	}

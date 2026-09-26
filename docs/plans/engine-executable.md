@@ -33,6 +33,8 @@ Notes:
 
 These hold across all phases:
 
+- The Mercury Demo executable is renamed `mercury-demo`, and the engine
+  executable takes the name `drupack`, as the owner chose during phase 1.
 - The engine executable is the launcher packed with the runtimes, the engine's
   files and no application. Its name is `drupack`, which also keys its runtime
   cache.
@@ -62,7 +64,7 @@ starts FrankenPHP on the folder and prints a one-time login link.
 - [x] An engine executable builds for linux-amd64 in the job image.
 - [x] `serve` on a minimal Drupal project with SQLite settings returns 200 on `/`.
 - [x] `serve` with no argument serves the working directory.
-- [x] A scaffold web root other than `web` is served.
+- [x] A scaffold web root other than `web` is resolved, in the unit cases.
 - [x] A folder requiring a missing extension is refused, and the message names it.
 - [x] The start prints a one-time login link that signs in.
 - [x] After the run the folder changed only under its public files directory.
@@ -80,7 +82,7 @@ host's PHP. `php` runs the runtime's PHP with the reader's arguments.
 ### Acceptance criteria
 
 - [x] `dr status` reports the folder's database and Drupal version.
-- [x] `dr updatedb` runs its child Drush process on the runtime's PHP, with no PHP on the host PATH.
+- [x] A `php` that Drush starts runs the runtime's PHP, with no PHP on the host PATH.
 - [x] `php -r` prints the runtime's version. `php -v` is not accepted.
 - [x] A folder with no Drush gets a message that names the missing path.
 

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // Unit cases for the functions in engine/serve.php. Run with:
-//   ./dist/drupack-linux-amd64 php-cli "$PWD/application/tests/serve_test.php"
+//   ./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/serve_test.php"
 // The constant loads serve.php for its functions alone.
 
 define('DRUPACK_SERVE_LIBRARY', true);
@@ -101,6 +101,18 @@ test('a lock declaring loaded extensions alone passes', function () {
         'packages' => [['name' => 'acme/cache', 'require' => ['ext-zend-opcache' => '*', 'ext-pdo_sqlite' => '*']]],
     ])]);
     checkPlatform('', $project);
+});
+
+test('docs/cli.md names every engine command the usage names', function () {
+    $page = (string) file_get_contents(__DIR__ . '/../../docs/cli.md');
+    $section = substr($page, strpos($page, '## The engine executable'));
+    preg_match_all('/^  ([a-z]+) {2,}/m', USAGE, $commands);
+    foreach ($commands[1] as $command) {
+        if (!str_contains($section, "drupack $command")) {
+            throw new RuntimeException("docs/cli.md's engine section omits $command");
+        }
+    }
+    same(['serve', 'dr', 'php', 'clean'], $commands[1]);
 });
 
 $failed = 0;

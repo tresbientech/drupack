@@ -136,6 +136,9 @@ class EngineExecutable(harness.ConformanceCase):
         result = self.engine_run("dr", "status", "--field=db-driver", cwd=self.docroot / "core")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "sqlite")
+        version = self.engine_run("dr", "status", "--field=drupal-version", cwd=self.docroot / "core")
+        self.assertEqual(version.returncode, 0, version.stderr)
+        self.assertRegex(version.stdout.strip(), r"^\d+\.\d+\.\d+")
 
     def test_drush_child_processes_run_on_the_runtime_php_with_no_php_on_path(self):
         version = self.engine_run("php", "-r", "echo PHP_VERSION;")

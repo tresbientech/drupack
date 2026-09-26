@@ -132,16 +132,8 @@ func NewPlan(r Request) (Plan, error) {
 		return siteconfig.Write(r.Site, r.Output)
 	}})
 	for _, platform := range r.Platforms {
-		command := []string{"go", "run", "./cmd/pack"}
-		for _, libc := range runtimes {
-			command = append(command, "-runtime", libc+"="+resolved[platform+"/"+libc])
-		}
-		command = append(command, "-entry", "drupack", "-version", r.EngineVersion,
-			"-source", filepath.Join(r.Engine, "launcher"),
-			"-output", filepath.Join(r.Output, Executable(r.Site.Name, platform)),
-			"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
+		command := packCommand(r, runtimes, resolved, platform, payload, Executable(r.Site.Name, platform),
 			"-site", filepath.Join(application, siteconfig.OutputName), "-site-version", r.SiteVersion)
-		command = append(command, "-goarch", siteconfig.Platforms[platform])
 		plan.Steps = append(plan.Steps, Step{Name: "pack " + platform, Command: command,
 			Dir: filepath.Join(r.Engine, "launcher"), Env: []string{"CGO_ENABLED=0"}})
 	}
@@ -158,6 +150,22 @@ func NewPlan(r Request) (Plan, error) {
 		plan.Steps = append(plan.Steps, Step{Name: "test " + platform, Command: command})
 	}
 	return plan, nil
+}
+
+// packCommand runs cmd/pack for platform, carrying one runtime per libc and the
+// archive in payload, to OUTPUT/executable. extra adds the packer's flags for
+// what the archive holds.
+func packCommand(r Request, libcs []string, resolved map[string]string, platform, payload, executable string, extra ...string) []string {
+	command := []string{"go", "run", "./cmd/pack"}
+	for _, libc := range libcs {
+		command = append(command, "-runtime", libc+"="+resolved[platform+"/"+libc])
+	}
+	command = append(command, "-entry", "drupack", "-version", r.EngineVersion,
+		"-source", filepath.Join(r.Engine, "launcher"),
+		"-output", filepath.Join(r.Output, executable),
+		"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
+		"-goarch", siteconfig.Platforms[platform])
+	return append(command, extra...)
 }
 
 // resolveRuntimes checks each of r.Platforms and maps its "PLATFORM/LIBC" targets

@@ -2,7 +2,8 @@
 
 Every option a site's executable accepts, what it sets, and when it takes
 effect, then the commands of the engine executable, `drupack`. The parser in
-`application/launch.php` is the contract this page records. A test in
+`application/launch.php` is the contract the options record, and the usage
+in `engine/serve.php` the contract the engine commands record. A test in
 `application/tests/launch_test.php` fails when the two disagree.
 
 ## Synopsis
@@ -167,7 +168,7 @@ has no Site data, and it takes none of the options above.
   the bundled PHP does not meet, and names what is missing.
 - The start prints a one-time login link for uid 1, through the folder's Drush,
   and still serves when that fails.
-- Caddy's warnings and errors go to standard error.
+- Caddy's errors go to standard error.
 
 `dr` runs the Drush of the nearest directory at or above the working directory
 that holds `vendor/autoload.php`. Drush's child processes find a `php` on

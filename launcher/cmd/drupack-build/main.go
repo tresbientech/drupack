@@ -93,8 +93,6 @@ func run() error {
 	}
 	if *platforms != "" {
 		request.Platforms = strings.Split(*platforms, ",")
-	} else if *engineExecutable {
-		request.Platforms = []string{host}
 	}
 	// Every step runs in its own directory, so each path is made absolute once here.
 	for target, path := range map[*string]string{
