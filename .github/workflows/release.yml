@@ -247,13 +247,18 @@ jobs:
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
             drupack-build --engine-executable --payload-only --output dist/engine
 
+      # A main push and a tag push of one commit run at once. Each ref type pushes
+      # its own image tag, so a main run never replaces a release's image.
       - name: Push the job image under this commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          prefix=dev
+          if [ "$GITHUB_REF_TYPE" = tag ]; then prefix=sha; fi
+          image=ghcr.io/$GITHUB_REPOSITORY-build:$prefix-$GITHUB_SHA
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          docker tag drupack-job "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA"
-          docker push "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA"
+          docker tag drupack-job "$image"
+          docker push "$image"
 
       - uses: actions/upload-artifact@v7
         with:
