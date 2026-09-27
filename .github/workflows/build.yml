@@ -52,7 +52,9 @@ jobs:
           repository=${workflow_ref%%/.github/*}
           # A caller pinned to an annotated tag gets the tag object's SHA in the token,
           # and an image carries the commit's. The tag must still name the signed SHA.
+          prefix=dev
           if [[ $workflow_ref == *@refs/tags/* ]]; then
+            prefix=sha
             tag=refs/tags/${workflow_ref##*@refs/tags/}
             listing=$(git ls-remote "https://github.com/$repository" "$tag" "$tag^{}")
             object=$(awk -v ref="$tag" '$2 == ref {print $1}' <<<"$listing")
@@ -65,8 +67,9 @@ jobs:
             workflow_sha=$commit
           fi
           # Every engine release run pushes its job image under the commit, a tag run
-          # before any image carries the version.
-          image=ghcr.io/$repository-build:sha-$workflow_sha
+          # before any image carries the version: sha-COMMIT from a tag run,
+          # dev-COMMIT from any other.
+          image=ghcr.io/$repository-build:$prefix-$workflow_sha
           echo "Engine: $workflow_ref ($workflow_sha), image $image"
           printf 'image=%s\n' "$image" >>"$GITHUB_OUTPUT"
 

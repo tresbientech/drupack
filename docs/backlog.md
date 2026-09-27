@@ -109,11 +109,12 @@ all.
 
 ## How long the registry keeps job images
 
-Every `release.yml` run pushes the job image as `drupack-build:sha-<commit>`, so
-a branch or `main` caller of `build.yml` finds the image of its own commit. Each
-image is about 1.4 GB, and nothing deletes one. A tag also adds
-`drupack-build:<version>`. Lean: keep every version tag, and delete `sha-` tags
-older than a few weeks that no version tag points at.
+Every `release.yml` run pushes the job image under its commit, so a caller of
+`build.yml` finds the image of its own commit. A tag run pushes
+`drupack-build:sha-<commit>`, and any other run `drupack-build:dev-<commit>`.
+Each image is about 1.4 GB, and nothing deletes one. A tag also adds
+`drupack-build:<version>`. Lean: keep every version tag, and delete `dev-` tags
+older than a few weeks.
 
 ## Whether Mercury still needs its MCP packages
 
