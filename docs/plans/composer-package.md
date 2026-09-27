@@ -4,9 +4,8 @@
 
 ## Status, 2026-09-27
 
-Built on branch `composer-package`. A scratch project installs the package
-from a path repository, and `drupack-install` refuses its dev version and a
-release not yet published. The last criterion waits on 0.5.1.
+Released in 0.5.1. A `drupal/recommended-project` installs the package from
+Packagist, and `./drupack` serves it.
 
 ## Architectural decisions
 
@@ -32,6 +31,7 @@ release not yet published. The last criterion waits on 0.5.1.
 
 - [x] `git archive` of a tag holds `composer.json`, the bin script, `LICENSE` and `README.md` alone.
 - [x] `drupack-install` refuses a dev version and names the release it needs.
-- [x] It adds `/drupack` to an existing `.gitignore` once, and leaves a missing one absent.
+- [x] It adds `/drupack` to `.gitignore` once, and creates the file only in a git project.
+- [x] Its output names the project root as the executable's place, with no `PATH` advice.
 - [x] It downloads nothing when `./drupack` matches the release's SHA-256 for `drupack`, and never runs the file.
-- [ ] After 0.5.1 publishes, a scratch Drupal project installs and serves through the package.
+- [x] After 0.5.1 publishes, a scratch Drupal project installs and serves through the package.

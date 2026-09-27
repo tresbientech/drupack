@@ -34,7 +34,7 @@ vendor/bin/drupack-install
 ./drupack
 ```
 
-`drupack-install` runs the install script of the release matching the package's version, in the project root. It adds `/drupack` to an existing `.gitignore`. Run it again after `composer update` changes the package's version.
+`drupack-install` runs the install script of the release matching the package's version, in the project root. It adds `/drupack` to the project's `.gitignore`, and creates that file in a git project without one. Run it again after `composer update` changes the package's version.
 
 `drupack` serves the project in the working directory, or in the directory you name after it. It serves Drupal alone, and refuses a folder without Drupal core. It reads the docroot from the scaffold web root in `composer.json`, `web` by default. It prints a one-time login link, then serves on `http://127.0.0.1:8888`. `--listen IP:PORT` picks another address.
 
@@ -80,7 +80,7 @@ library and picks one when it starts.
 
 ### Downloading by hand
 
-The [releases page](https://github.com/tresbientech/drupack/releases) lists every build as `NAME-VERSION-TARGET`, such as `mercury-demo-0.5.0-macos-arm64`. A browser marks what it downloads, and the scripts avoid both marks below.
+The [releases page](https://github.com/tresbientech/drupack/releases) lists every build as `NAME-VERSION-TARGET`, such as `mercury-demo-0.5.1-macos-arm64`. A browser marks what it downloads, and the scripts avoid both marks below.
 
 - macOS Gatekeeper blocks a marked executable that carries no Apple signature. `xattr -d com.apple.quarantine mercury-demo` clears the mark.
 - Windows SmartScreen shows "Windows protected your PC" the first time. Choose "More info", then "Run anyway".
@@ -221,13 +221,13 @@ sha256sum --ignore-missing -c checksums.txt
 On Windows, compare your file against the entry in `checksums.txt`:
 
 ```powershell
-(Get-FileHash mercury-demo-0.5.0-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
+(Get-FileHash mercury-demo-0.5.1-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
 ```
 
 GitHub records where each file was built. The GitHub CLI checks that record:
 
 ```sh
-gh attestation verify drupack-0.5.0-linux-amd64 --repo tresbientech/drupack
+gh attestation verify drupack-0.5.1-linux-amd64 --repo tresbientech/drupack
 ```
 
 A release also carries `release.json`, listing every executable with its target, URL, SHA-256 value and size, and `drupack.cdx.json`, a CycloneDX inventory of everything inside the executable.
