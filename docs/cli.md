@@ -170,8 +170,8 @@ first word naming no command is taken as `DIR`.
 - `--listen` defaults to `127.0.0.1:8888`.
 - The start refuses a folder whose PHP version or `composer.lock` extensions
   the bundled PHP does not meet, and names what is missing.
-- The start prints a one-time login link for uid 1, through the folder's Drush,
-  and still serves when that fails.
+- The start prints a one-time login link for uid 1, through the folder's Drush.
+  It still serves when that fails, or when the folder has no Drush.
 - Caddy's errors go to standard error.
 
 `drush` runs the Drush of the nearest directory at or above the working directory

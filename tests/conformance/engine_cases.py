@@ -147,6 +147,16 @@ class EngineExecutable(harness.ConformanceCase):
         time.sleep(1)
         self.doCleanups()
 
+    def test_a_start_without_drush_serves_with_no_login_link(self):
+        bare = self.case_dir / "bare"
+        (bare / "web" / "core" / "lib").mkdir(parents=True)
+        (bare / "web" / "core" / "lib" / "Drupal.php").write_text("<?php")
+        (bare / "web" / "index.php").write_text("<?php echo 'ok';")
+        _, log = self.start("start-bare", str(bare))
+        output = log.read_text()
+        self.assertIn(f"No login link: {bare.as_posix()} has no Drush.", output)
+        self.assertNotIn("  Login:", output)
+
     def test_a_start_refuses_a_lock_declaring_an_extension_the_runtime_lacks(self):
         result = self.engine_run(str(self.lacking))
         self.assertNotEqual(result.returncode, 0)
