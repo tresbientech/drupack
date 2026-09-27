@@ -56,9 +56,11 @@ function projectScript(string $project, string $path, string $name, string $reme
     return $script;
 }
 
+const DRUSH_SCRIPT = 'vendor/drush/drush/drush.php';
+
 function drushScript(string $project): string
 {
-    return projectScript($project, 'vendor/drush/drush/drush.php', 'Drush', 'Run composer require drush/drush in it.');
+    return projectScript($project, DRUSH_SCRIPT, 'Drush', 'Run composer require drush/drush in it.');
 }
 
 // Drupal core ships its own command line, vendor/bin/dr, from Drupal 11.4 on.
@@ -141,16 +143,22 @@ function serve(string $binary, array $arguments): never
     putenv("DRUPACK_RUNTIME_PORT=$port");
     putenv('DRUPACK_RUNTIME_ID=' . substr(hash('sha256', $project), 0, 16));
     $url = "http://$listen";
-    fwrite(STDOUT, "Creating a one-time login link.\n");
-    $login = proc_open([$binary, 'php-cli', drushScript($project), 'user:login', "--uri=$url"],
-        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $project);
-    $link = trim(stream_get_contents($pipes[1]));
-    $failure = trim(stream_get_contents($pipes[2]));
-    if (proc_close($login) !== 0 || $link === '') {
-        // The folder's own settings may block uid 1 or name no reachable database yet;
-        // the server still starts, and Drupal's own error page says which.
-        fwrite(STDERR, "Cannot mint a one-time login link: $failure\nGet one once the site answers with: " . executableName() . " drush user:login --uri=$url\n");
-        $link = null;
+    $link = null;
+    if (!is_file("$project/" . DRUSH_SCRIPT)) {
+        fwrite(STDERR, "No login link: $project has no Drush. composer require drush/drush adds one.\n");
+    } else {
+        fwrite(STDOUT, "Creating a one-time login link.\n");
+        $login = proc_open([$binary, 'php-cli', "$project/" . DRUSH_SCRIPT, 'user:login', "--uri=$url"],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $project);
+        $output = trim(stream_get_contents($pipes[1]));
+        $failure = trim(stream_get_contents($pipes[2]));
+        if (proc_close($login) !== 0 || $output === '') {
+            // The folder's own settings may block uid 1 or name no reachable database yet;
+            // the server still starts, and Drupal's own error page says which.
+            fwrite(STDERR, "Cannot mint a one-time login link: $failure\nGet one once the site answers with: " . executableName() . " drush user:login --uri=$url\n");
+        } else {
+            $link = $output;
+        }
     }
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n") . "  Project: $project\n");
     fwrite(STDOUT, "Starting the web server. Press Ctrl+C to stop.\n");

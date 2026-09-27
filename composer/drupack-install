@@ -144,7 +144,10 @@ try {
         echo "Added /$name to .gitignore.\n";
     }
     $start = $windows ? ".\\$name" : "./$name";
-    echo "Serve this project with: $start\nRun its Drush on the same PHP with: $start drush status\n";
+    echo "Serve this project with: $start\n";
+    if (is_file("$root/vendor/drush/drush/drush.php")) {
+        echo "Run its Drush on the same PHP with: $start drush status\n";
+    }
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
     exit(1);

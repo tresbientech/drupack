@@ -67,6 +67,7 @@ starts FrankenPHP on the folder and prints a one-time login link.
 - [x] A scaffold web root other than `web` is resolved, in the unit cases.
 - [x] A folder requiring a missing extension is refused, and the message names it.
 - [x] The start prints a one-time login link that signs in.
+- [ ] A folder without Drush serves with no login link, and the start names the remedy.
 - [x] After the run the folder changed only under its public files directory.
 
 ---
