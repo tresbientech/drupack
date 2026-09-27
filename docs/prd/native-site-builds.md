@@ -1,6 +1,6 @@
 # PRD: A site builds for macOS and Windows
 
-Source: the design session of 2026-09-27. ADR 0025, written with the first phase, records the decision.
+Source: the design session of 2026-09-27. Shelved: `docs/backlog.md` holds the open question. An ADR records the decision once work starts.
 
 ## Problem Statement
 
@@ -34,7 +34,7 @@ and local builds keep building Linux only.
 2. As a site owner, I want my GitHub workflow to build those targets with no change beyond `platforms` and the engine tag, so that adding a system costs one line.
 3. As a site owner, I want every target packed from one payload, so that each system serves the same site.
 4. As a site owner, I want a macOS or Windows target refused when my site adds PHP extensions, naming them, so that I never ship a runtime without them.
-5. As a site owner, I want a workflow pinned to a branch or a commit to refuse macOS and Windows targets and ask for an engine tag, so that the runtime it packs is a published one.
+5. As a site owner, I want a workflow pinned to a branch or a commit to refuse macOS and Windows targets unless I name the engine release whose runtimes it packs, so that every runtime it packs is a published one.
 6. As a site owner, I want the runtime's SHA-256 checked before packing, so that a corrupt or altered download stops the build.
 7. As a site owner, I want each macOS and Windows executable to pass the conformance suite on its own system, so that a broken build never reaches my release.
 8. As a site owner, I want a failed native job to upload its test results, so that I can read why it failed.
@@ -91,6 +91,9 @@ Native pack script:
 Site workflow:
 
 - The engine job's peeled commit and tag feed every later job.
+- A `runtime-release` input names the engine release whose runtime files a
+  native job packs. A tag pin uses its own tag. A branch or commit pin needs the
+  input, or its native targets are refused.
 - The build job, in the Linux container, builds the Linux targets and exports
   the payload and the native target list.
 - A native job runs per target on the runner Drupack's release uses for it. It
@@ -128,7 +131,6 @@ sees: files written, exit codes and messages. It never checks a helper.
 - A native test run of `linux-arm64`, which keeps packing in the amd64 image.
 - Windows on arm64.
 - Signing or notarizing macOS and Windows executables.
-- macOS and Windows targets for an engine pinned to a branch or a commit.
 
 ## Further Notes
 

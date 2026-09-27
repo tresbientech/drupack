@@ -151,3 +151,13 @@ winget installs a bare `.exe` as a `portable` package and puts it on PATH. Its
 manifests live in `microsoft/winget-pkgs`, and a first package waits days for
 review. Lean: submit `drupack` with `wingetcreate new` after a release with
 versioned names, then update it from the release workflow.
+
+## Site builds for macOS and Windows
+
+The site workflow builds Linux targets only. Drupack's own release already
+ships Mercury Demo for all five targets, so only a third-party site misses
+macOS and Windows. `docs/prd/native-site-builds.md` holds the design: engine
+releases publish their runtimes, and native jobs pack them with the site's
+payload. It adds code in both workflows, the release step, `drupack-build` and
+a new pack script, and removes none. Lean: wait for a site owner who needs
+those targets.
