@@ -47,11 +47,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	directory, err := runtime.Prepare(root, selected.payload, m, os.Stderr)
-	if err != nil {
-		return err
-	}
-	application, err := runtime.PrepareApp(root, string(appChecksum), appPayload, os.Stderr)
+	directory, application, err := runtime.PrepareRelease(root, runtime.Release{
+		Libc:        selected.libc,
+		Payload:     selected.payload,
+		Manifest:    m,
+		AppChecksum: string(appChecksum),
+		AppPayload:  appPayload,
+	}, os.Stderr)
 	if err != nil {
 		return err
 	}
