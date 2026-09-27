@@ -50,6 +50,20 @@ jobs:
           workflow_ref=$(printf '%s' "$claims" | jq -r .job_workflow_ref)
           workflow_sha=$(printf '%s' "$claims" | jq -r .job_workflow_sha)
           repository=${workflow_ref%%/.github/*}
+          # A caller pinned to an annotated tag gets the tag object's SHA in the token,
+          # and an image carries the commit's. The tag must still name the signed SHA.
+          if [[ $workflow_ref == *@refs/tags/* ]]; then
+            tag=refs/tags/${workflow_ref##*@refs/tags/}
+            listing=$(git ls-remote "https://github.com/$repository" "$tag" "$tag^{}")
+            object=$(awk -v ref="$tag" '$2 == ref {print $1}' <<<"$listing")
+            commit=$(awk -v ref="$tag^{}" '$2 == ref {print $1}' <<<"$listing")
+            commit=${commit:-$object}
+            if [ "$workflow_sha" != "$object" ] && [ "$workflow_sha" != "$commit" ]; then
+              echo "$tag no longer names $workflow_sha." >&2
+              exit 1
+            fi
+            workflow_sha=$commit
+          fi
           # Every engine release run pushes its job image under the commit, a tag run
           # before any image carries the version.
           image=ghcr.io/$repository-build:sha-$workflow_sha
