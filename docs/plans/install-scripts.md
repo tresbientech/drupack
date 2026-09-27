@@ -2,11 +2,10 @@
 
 > Decision: `docs/adr/0023-install-scripts.md`.
 
-## Status, 2026-09-26
+## Status, 2026-09-27
 
-Both phases are built on branch `install-scripts`. The conformance case passes
-on linux-amd64. The macOS and Windows runs of the scripts, and both
-workflows' publish steps, wait on a release run.
+Released in 0.5.1. The install cases pass on every release runner. The
+publish step of a site release through `build.yml` has not run yet.
 
 ## Architectural decisions
 
@@ -32,9 +31,9 @@ test, serves the output over local HTTP and runs the script on each OS.
 ### Acceptance criteria
 
 - [x] The step names each file `NAME-VERSION-TARGET` and refuses a file whose name carries no target.
-- [ ] `install-NAME.sh` installs the Linux and macOS build, and `install-NAME.ps1` the Windows build, into the current directory.
-- [ ] A script refuses a download whose SHA-256 differs, and leaves no file.
-- [ ] A script refuses a host with no build, and names the targets the release has.
+- [x] `install-NAME.sh` installs the Linux and macOS build, and `install-NAME.ps1` the Windows build, into the current directory.
+- [x] A script refuses a download whose SHA-256 differs, and leaves no file.
+- [x] A script refuses a host with no build, and names the targets the release has.
 
 ---
 
@@ -47,6 +46,6 @@ copies go. The README shows the one-liners.
 
 ### Acceptance criteria
 
-- [ ] A Drupack release lists no unversioned executable, and an `install-NAME` pair for `drupack` and `mercury-demo`.
+- [x] A Drupack release lists no unversioned executable, and an `install-NAME` pair for `drupack` and `mercury-demo`.
 - [ ] A site release through `build.yml` lists the same shape for its executable.
-- [ ] The README installs both executables with the one-liners, and `CONTRIBUTING.md` and `docs/build-your-site.md` describe the release files.
+- [x] The README installs both executables with the one-liners, and `CONTRIBUTING.md` and `docs/build-your-site.md` describe the release files.
