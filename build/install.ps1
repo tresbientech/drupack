@@ -21,7 +21,8 @@
 
     $url = "$baseUrl/$name-$version-$target.exe"
     $file = Join-Path (Get-Location) "$name.exe"
-    $download = "$file.download"
+    # A fresh name, so a file or link already in this directory cannot stand in for the download.
+    $download = "$file.$([guid]::NewGuid().ToString('N')).download"
     Write-Host "Downloading $url"
     try {
         Invoke-WebRequest -Uri $url -OutFile $download -UseBasicParsing

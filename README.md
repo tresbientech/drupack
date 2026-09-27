@@ -26,6 +26,16 @@ irm https://drupack.tresbien.tech/install.ps1 | iex
 
 The script downloads the build for your system into the current directory and checks its SHA-256. It then prints the command that moves it onto your `PATH`.
 
+In a Composer project, pin `drupack` to the project instead:
+
+```sh
+composer require --dev tresbientech/drupack
+vendor/bin/drupack-install
+./drupack
+```
+
+`drupack-install` runs the install script of the release matching the package's version, in the project root. It adds `/drupack` to an existing `.gitignore`. Run it again after `composer update` changes the package's version.
+
 `drupack` serves the project in the working directory, or in the directory you name after it. It serves Drupal alone, and refuses a folder without Drupal core. It reads the docroot from the scaffold web root in `composer.json`, `web` by default. It prints a one-time login link, then serves on `http://127.0.0.1:8888`. `--listen IP:PORT` picks another address.
 
 The project's own `settings.php` names the database, the files paths and the hash salt. Drupack writes nothing into the project, and Drupal writes files where those settings put them. For a ddev project, point `settings.local.php` at the database's published port on `127.0.0.1`. The ddev host name `db` resolves only inside ddev.

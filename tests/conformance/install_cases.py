@@ -99,6 +99,28 @@ class InstallScript(harness.ConformanceCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("site.json is not named NAME-TARGET", result.stderr)
 
+    def test_the_step_refuses_a_version_holding_a_path_separator(self):
+        result = harness.run([sys.executable, str(RELEASE_FILES), "--output", str(self.case_dir / "separator"),
+                              "--version", "release/1.0", "--base-url", self.url, "--commit", "install-case",
+                              str(self.host_build())],
+                             capture_output=True, text=True, timeout=harness.WAITS["php_cli"].seconds)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("'release/1.0' holds a character", result.stderr)
+
+    def test_the_script_writes_through_no_link_planted_in_the_working_directory(self):
+        if self.windows:
+            self.skipTest("a Windows link needs a privilege this case does not assume")
+        release = self.release("planted", self.host_build())
+        directory = harness.fresh_dir(self.case_dir / f"install-{release.name}")
+        victim = self.case_dir / "victim"
+        victim.write_text("left alone")
+        (directory / f".{self.name}.download").symlink_to(victim)
+        result = harness.run(["sh", "-c", 'curl -fsSL "$1" | sh', "sh", f"{self.url}/{release.name}/install-{self.name}.sh"],
+                             cwd=directory, capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(victim.read_bytes(), b"left alone")
+        self.assertEqual(sha256(directory / self.name), sha256(harness.BINARY))
+
     def test_the_script_installs_the_host_build_into_the_working_directory(self):
         result, directory = self.install(self.release("installs", self.host_build()))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

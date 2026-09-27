@@ -1,0 +1,131 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// Installs the drupack build for this host into the project root, from the
+// release whose tag matches this package's installed version. The release's own
+// install script downloads the build and checks its SHA-256.
+
+use Composer\InstalledVersions;
+use Composer\Semver\VersionParser;
+
+const RELEASES = 'https://github.com/tresbientech/drupack/releases/download';
+
+// A branch install has no release to download.
+function releaseVersion(?string $installed): string
+{
+    try {
+        (new VersionParser())->normalize((string) $installed);
+        $release = VersionParser::parseStability((string) $installed) !== 'dev';
+    } catch (UnexpectedValueException) {
+        $release = false;
+    }
+    if (!$release) {
+        throw new RuntimeException("tresbientech/drupack is installed at $installed, which names no release. "
+            . 'Require a tagged release: composer require --dev tresbientech/drupack');
+    }
+    return $installed;
+}
+
+function executable(bool $windows): string
+{
+    return $windows ? 'drupack.exe' : 'drupack';
+}
+
+// The version comes from the project's lock, so it enters the URL encoded as
+// one path segment.
+function releaseUrl(string $version, string $file): string
+{
+    return RELEASES . '/' . rawurlencode($version) . "/$file";
+}
+
+function installCommand(bool $windows, string $script): array
+{
+    return $windows
+        ? ['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $script]
+        : ['sh', $script];
+}
+
+// Whether $binary is byte for byte a drupack build of $version, by the release's
+// checksums.txt. The file is never run, since a project can hold any file there.
+function isRelease(string $binary, string $checksums, string $version): bool
+{
+    $actual = hash_file('sha256', $binary);
+    foreach (preg_split('/\R/', trim($checksums)) as $line) {
+        [$sha256, $asset] = preg_split('/\s+/', trim($line), 2) + [1 => ''];
+        if (str_starts_with($asset, "drupack-$version-") && hash_equals($sha256, $actual)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function download(string $url): string
+{
+    // The exception names the URL, which PHP's own warning would repeat.
+    $contents = @file_get_contents($url);
+    if ($contents === false) {
+        throw new RuntimeException("Cannot download $url");
+    }
+    return $contents;
+}
+
+// Returns whether the line was added. A project without .gitignore keeps none.
+function ignore(string $root, string $name): bool
+{
+    $gitignore = "$root/.gitignore";
+    if (!is_file($gitignore)) {
+        return false;
+    }
+    $lines = array_map('trim', file($gitignore));
+    if (in_array("/$name", $lines, true) || in_array($name, $lines, true)) {
+        return false;
+    }
+    $contents = file_get_contents($gitignore);
+    $separator = $contents === '' || str_ends_with($contents, "\n") ? '' : "\n";
+    file_put_contents($gitignore, "$separator/$name\n", FILE_APPEND);
+    return true;
+}
+
+// application/tests/drupack_install_test.php loads this file for its functions alone.
+if (defined('DRUPACK_INSTALL_LIBRARY')) {
+    return;
+}
+
+require $GLOBALS['_composer_autoload_path'];
+
+try {
+    $windows = PHP_OS_FAMILY === 'Windows';
+    $version = releaseVersion(InstalledVersions::getPrettyVersion('tresbientech/drupack'));
+    $root = realpath(InstalledVersions::getRootPackage()['install_path']);
+    $name = executable($windows);
+    if (is_file("$root/$name") && isRelease("$root/$name", download(releaseUrl($version, 'checksums.txt')), $version)) {
+        echo "$root/$name is drupack $version already.\n";
+    } else {
+        // PowerShell runs a file only under its .ps1 extension, so the temporary copy
+        // keeps the release file's. The random name and the exclusive open keep a
+        // planted file or link from standing in for it.
+        $extension = $windows ? 'ps1' : 'sh';
+        $contents = download(releaseUrl($version, "install-drupack.$extension"));
+        $script = sys_get_temp_dir() . '/drupack-install-' . bin2hex(random_bytes(8)) . ".$extension";
+        $handle = fopen($script, 'x');
+        fwrite($handle, $contents);
+        fclose($handle);
+        $pipes = [];
+        $install = proc_open(installCommand($windows, $script), [0 => STDIN, 1 => STDOUT, 2 => STDERR], $pipes, $root);
+        $status = proc_close($install);
+        unlink($script);
+        if ($status !== 0) {
+            throw new RuntimeException("drupack $version was not installed.");
+        }
+    }
+    if (ignore($root, $name)) {
+        echo "Added /$name to .gitignore.\n";
+    }
+    $start = $windows ? ".\\$name" : "./$name";
+    echo "Serve this project with: $start\nRun its Drush on the same PHP with: $start drush status\n";
+} catch (Throwable $error) {
+    fwrite(STDERR, $error->getMessage() . "\n");
+    exit(1);
+}
