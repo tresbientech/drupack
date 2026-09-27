@@ -80,14 +80,14 @@ Previous-release fallback returns only when a need for it appears.
 
 ### Acceptance criteria
 
-- [ ] `cd launcher && go test ./...` exits 0, including a table where
+- [x] `cd launcher && go test ./...` exits 0, including a table where
       both components prepare, where the application fails after a staged
       runtime, and where the runtime itself fails.
-- [ ] A forced application failure leaves the previous release active, and the
+- [x] A forced application failure leaves the previous release active, and the
       start still runs it whole.
-- [ ] A forced runtime staging failure exits non-zero, activates nothing,
+- [x] A forced runtime staging failure exits non-zero, activates nothing,
       unpacks no application, and prints the four diagnosis values.
-- [ ] The release build still produces an executable that prints its version.
+- [x] The release build still produces an executable that prints its version.
 
 ---
 
