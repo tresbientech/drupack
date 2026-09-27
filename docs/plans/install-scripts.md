@@ -4,8 +4,9 @@
 
 ## Status, 2026-09-27
 
-Released in 0.5.1. The install cases pass on every release runner. The
-publish step of a site release through `build.yml` has not run yet.
+Released in 0.5.1. The install cases pass on every release runner. A site
+release through `build.yml` published on engine 0.5.5, from
+`tresbientech/drupack-mercury-example` 0.1.2.
 
 ## Architectural decisions
 
@@ -47,5 +48,5 @@ copies go. The README shows the one-liners.
 ### Acceptance criteria
 
 - [x] A Drupack release lists no unversioned executable, and an `install-NAME` pair for `drupack` and `mercury-demo`.
-- [ ] A site release through `build.yml` lists the same shape for its executable.
+- [x] A site release through `build.yml` lists the same shape for its executable.
 - [x] The README installs both executables with the one-liners, and `CONTRIBUTING.md` and `docs/build-your-site.md` describe the release files.
