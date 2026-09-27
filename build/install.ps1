@@ -13,6 +13,10 @@
 @BUILDS@
     }
 
+    # PowerShell 7 also runs on Linux and macOS, where install-@NAME@.sh installs.
+    if ([Environment]::OSVersion.Platform -ne 'Win32NT') {
+        throw "This script installs on Windows. On Linux or macOS, run install-$name.sh in a shell."
+    }
     # Windows on Arm runs the amd64 build under emulation.
     $target = 'windows-amd64'
     if (-not $builds.Contains($target)) {
@@ -26,7 +30,14 @@
     Write-Host "Downloading $url"
     try {
         Invoke-WebRequest -Uri $url -OutFile $download -UseBasicParsing
-        $actual = (Get-FileHash -Algorithm SHA256 $download).Hash.ToLowerInvariant()
+        # Windows PowerShell finds Get-FileHash in a script module, which it cannot load
+        # when started from PowerShell 7, whose module path it inherits. .NET hashes alike in both.
+        $stream = [IO.File]::OpenRead($download)
+        try {
+            $actual = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($stream)).Replace('-', '').ToLowerInvariant()
+        } finally {
+            $stream.Dispose()
+        }
         if ($actual -ne $builds[$target]) {
             throw "The download's SHA-256 is $actual, and the release lists $($builds[$target]). Nothing was installed."
         }
