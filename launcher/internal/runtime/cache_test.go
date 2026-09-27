@@ -39,12 +39,22 @@ func buildFixture(t *testing.T) ([]byte, runtimepkg.Manifest) {
 	return payload, manifest
 }
 
+// prepareAndActivate runs a start's runtime steps, the way PrepareRelease runs
+// them around a ready application.
+func prepareAndActivate(root string, payload []byte, m runtimepkg.Manifest, notice io.Writer) (string, error) {
+	entry, err := runtimepkg.Prepare(root, payload, m, notice)
+	if err != nil {
+		return "", err
+	}
+	return entry, runtimepkg.Activate(root, entry)
+}
+
 func TestPrepareWarmStartReturnsEntryWithoutNotice(t *testing.T) {
 	payload, manifest := buildFixture(t)
 	root := t.TempDir()
 
 	var first bytes.Buffer
-	entry, err := runtimepkg.Prepare(root, payload, manifest, &first)
+	entry, err := prepareAndActivate(root, payload, manifest, &first)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +63,7 @@ func TestPrepareWarmStartReturnsEntryWithoutNotice(t *testing.T) {
 	}
 
 	var second bytes.Buffer
-	again, err := runtimepkg.Prepare(root, payload, manifest, &second)
+	again, err := prepareAndActivate(root, payload, manifest, &second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +79,7 @@ func TestPrepareRestagesWhenFileSizeChanges(t *testing.T) {
 	payload, manifest := buildFixture(t)
 	root := t.TempDir()
 
-	entry, err := runtimepkg.Prepare(root, payload, manifest, io.Discard)
+	entry, err := prepareAndActivate(root, payload, manifest, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +89,7 @@ func TestPrepareRestagesWhenFileSizeChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	again, err := runtimepkg.Prepare(root, payload, manifest, io.Discard)
+	again, err := prepareAndActivate(root, payload, manifest, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +103,7 @@ func TestPrepareRestagesWhenFileSizeChanges(t *testing.T) {
 	}
 	// The re-stage claims its own name, so the corrupted entry is never written
 	// over, and a third start settles on the entry the second one activated.
-	third, err := runtimepkg.Prepare(root, payload, manifest, io.Discard)
+	third, err := prepareAndActivate(root, payload, manifest, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +126,7 @@ func TestPrepareConcurrentCallsAgreeAndLeaveNoStaging(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			<-start
-			results[i], errs[i] = runtimepkg.Prepare(root, payload, manifest, io.Discard)
+			results[i], errs[i] = prepareAndActivate(root, payload, manifest, io.Discard)
 		}(i)
 	}
 	close(start)
@@ -148,7 +158,7 @@ func TestPrepareChecksumMismatchLeavesTheActiveEntryUntouched(t *testing.T) {
 	payload, manifest := buildFixture(t)
 	root := t.TempDir()
 
-	entry, err := runtimepkg.Prepare(root, payload, manifest, io.Discard)
+	entry, err := prepareAndActivate(root, payload, manifest, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +172,7 @@ func TestPrepareChecksumMismatchLeavesTheActiveEntryUntouched(t *testing.T) {
 	tampered.Files = append([]runtimepkg.File(nil), manifest.Files...)
 	tampered.Files[0].SHA256 = "0000000000000000000000000000000000000000000000000000000000000000"
 
-	if _, err := runtimepkg.Prepare(root, payload, tampered, io.Discard); err == nil {
+	if _, err := prepareAndActivate(root, payload, tampered, io.Discard); err == nil {
 		t.Fatal("a checksum mismatch returned no error")
 	}
 	active, err := os.ReadFile(filepath.Join(root, "active"))
@@ -198,12 +208,12 @@ func TestCleanupKeepsContentTheCacheRootAlreadyHeld(t *testing.T) {
 
 	first := manifest
 	first.Version = "1.0.0"
-	if _, err := runtimepkg.Prepare(root, payload, first, io.Discard); err != nil {
+	if _, err := prepareAndActivate(root, payload, first, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	second := manifest
 	second.Version = "2.0.0"
-	if _, err := runtimepkg.Prepare(root, payload, second, io.Discard); err != nil {
+	if _, err := prepareAndActivate(root, payload, second, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 
@@ -227,7 +237,7 @@ func TestCleanupRemovesAnAbandonedStagingDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := runtimepkg.Prepare(root, payload, manifest, io.Discard); err != nil {
+	if _, err := prepareAndActivate(root, payload, manifest, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(abandoned); !os.IsNotExist(err) {
@@ -262,7 +272,7 @@ func TestPrepareSecondVersionRemovesFirstVersionEntry(t *testing.T) {
 	payload, first := buildFixture(t)
 	root := t.TempDir()
 
-	firstEntry, err := runtimepkg.Prepare(root, payload, first, io.Discard)
+	firstEntry, err := prepareAndActivate(root, payload, first, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +280,7 @@ func TestPrepareSecondVersionRemovesFirstVersionEntry(t *testing.T) {
 	// Same payload, a second version: only the key changes, as a real upgrade would.
 	second := first
 	second.Version = "2.0.0"
-	secondEntry, err := runtimepkg.Prepare(root, payload, second, io.Discard)
+	secondEntry, err := prepareAndActivate(root, payload, second, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,14 +303,14 @@ func TestPrepareRefusesAPayloadThatDoesNotDecodeAndKeepsTheActiveEntry(t *testin
 	payload, installed := buildFixture(t)
 	root := t.TempDir()
 
-	activeEntry, err := runtimepkg.Prepare(root, payload, installed, io.Discard)
+	activeEntry, err := prepareAndActivate(root, payload, installed, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	broken := installed
 	broken.Version = "2.0.0"
-	if _, err := runtimepkg.Prepare(root, []byte("not a zstd frame"), broken, io.Discard); err == nil {
+	if _, err := prepareAndActivate(root, []byte("not a zstd frame"), broken, io.Discard); err == nil {
 		t.Fatal("a payload that does not decode returned no error")
 	}
 	if _, err := os.Stat(filepath.Join(activeEntry, "bin", "app")); err != nil {
@@ -324,7 +334,7 @@ func TestPrepareReportsCacheRootAndByteCountWhenNoActiveEntryExists(t *testing.T
 		total += file.Size
 	}
 
-	if _, err := runtimepkg.Prepare(root, []byte("not a zstd frame"), manifest, io.Discard); err == nil {
+	if _, err := prepareAndActivate(root, []byte("not a zstd frame"), manifest, io.Discard); err == nil {
 		t.Fatal("expected an error when no active entry exists to fall back to")
 	} else if want := fmt.Sprintf("could not unpack the runtime into %s, which needs %d bytes", root, total); !strings.Contains(err.Error(), want) {
 		t.Fatalf("error %q does not contain %q", err.Error(), want)
@@ -338,7 +348,7 @@ func TestPrepareRefusesAnUnsafeActiveFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := runtimepkg.Prepare(root, []byte("not a zstd frame"), manifest, io.Discard)
+	_, err := prepareAndActivate(root, []byte("not a zstd frame"), manifest, io.Discard)
 	if err == nil {
 		t.Fatal("expected the staging error since active names an unsafe entry")
 	}

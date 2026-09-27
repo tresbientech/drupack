@@ -134,9 +134,9 @@ func Key(version string, payload []byte) string {
 
 // Prepare returns the directory holding the runtime m describes, staging
 // payload into root's cache the first time m's version and payload are seen.
-// Activating a newly staged key removes every other version's entry. A start
-// that cannot stage the runtime it carries reports the failure and stops,
-// since the application beside it belongs to this release alone.
+// It activates nothing: Activate does, once the application is ready too. A
+// start that cannot stage the runtime it carries reports the failure and
+// stops, since the application beside it belongs to this release alone.
 func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string, error) {
 	key := Key(m.Version, payload)
 
@@ -161,11 +161,27 @@ func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string,
 	if err != nil {
 		return "", stagingFailure(root, m, err)
 	}
+	return filepath.Join(root, name), nil
+}
+
+// Activate names entry, a directory Prepare returned, as root's active runtime
+// and removes every other version's entry. An entry already active changes
+// nothing, so a warm start takes no lock.
+func Activate(root, entry string) error {
+	name := filepath.Base(entry)
+	if active, err := activeKey(root); err == nil && active == name {
+		return nil
+	}
+	unlock, err := lockRoot(root)
+	if err != nil {
+		return fmt.Errorf("could not lock the runtime cache %s: %w", root, err)
+	}
+	defer unlock()
 	if err := writeActive(root, name); err != nil {
-		return "", err
+		return err
 	}
 	removeOthers(root, name)
-	return filepath.Join(root, name), nil
+	return nil
 }
 
 // warmEntry reports the directory already holding the runtime m describes: the

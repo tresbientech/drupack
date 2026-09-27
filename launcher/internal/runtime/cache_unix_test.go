@@ -119,7 +119,7 @@ func TestPrepareLockFailureStopsAndKeepsTheActiveEntry(t *testing.T) {
 
 	broken := installed
 	broken.Version = "2.0.0"
-	_, err = runtimepkg.Prepare(root, payload, broken, io.Discard)
+	_, err = prepareAndActivate(root, payload, broken, io.Discard)
 	if err == nil {
 		t.Fatal("a cache this start cannot lock returned no error")
 	}
