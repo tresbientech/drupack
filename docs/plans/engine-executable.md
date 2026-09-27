@@ -2,12 +2,10 @@
 
 > Decision: `docs/adr/0022-engine-executable.md`.
 
-## Status, 2026-09-26
+## Status, 2026-09-27
 
-Merged into `main` on 2026-09-26, from branch `engine-executable`. `bash build/qa.sh` passes on linux-amd64, with the engine
-case run against Mercury Demo's application. The release workflow, the macOS
-build and the Windows build are edited and have not run: their criteria wait
-on a CI run.
+Merged into `main` on 2026-09-26, from branch `engine-executable`. Release
+0.5.1 ran the folder case on all five targets and published each build.
 
 Notes:
 
@@ -100,8 +98,8 @@ assets beside the site's. The docs gain the engine executable and its words.
 
 ### Acceptance criteria
 
-- [ ] A tag release lists `drupack-<platform>` for linux-amd64, linux-arm64, macos-arm64, macos-amd64 and windows-amd64.
-- [ ] The folder case passes on each runner.
-- [ ] A Windows run serves a folder given as a drive letter path.
+- [x] A tag release lists `drupack-VERSION-<platform>` for linux-amd64, linux-arm64, macos-arm64, macos-amd64 and windows-amd64.
+- [x] The folder case passes on each runner.
+- [x] A Windows run serves a folder given as a drive letter path.
 - [x] CONTEXT.md defines Engine executable and Project folder.
 - [x] The CLI doc covers the start, `drush` and `php` of the engine executable.

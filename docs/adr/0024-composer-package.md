@@ -22,7 +22,7 @@ the latest build into the project root and adds it to `.gitignore`.
   check stay in the install scripts.
 - The version enters each URL encoded as one path segment, and reaches no
   command line.
-- It adds `/drupack` to an existing `.gitignore`, and prints how to start it.
+- It adds `/drupack` to the project's `.gitignore`, and prints how to start it.
 - A run whose `./drupack` matches a SHA-256 that the release's
   `checksums.txt` lists for `drupack` downloads nothing. `drupack-install`
   never runs that file, since a project can hold any file under the name.
@@ -50,3 +50,12 @@ the latest build into the project root and adds it to `.gitignore`.
   the old one until `drupack-install` runs again.
 - On Linux and macOS the install script needs `curl` or `wget`, as the
   one-liner does.
+
+## Amendment, 2026-09-27
+
+`drupack-install` discards the install script's standard output and prints its
+own lines. The script tells how to move the executable onto `PATH`, and a
+project keeps it in its root. The script's errors still reach the terminal.
+
+A project without `.gitignore` gets one when the project root or a parent
+holds `.git`. Outside git, no `.gitignore` is created.

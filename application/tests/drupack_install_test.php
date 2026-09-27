@@ -99,10 +99,26 @@ test('a .gitignore naming the executable already is left alone', function (): vo
     same("drupack\n", file_get_contents("$directory/.gitignore"));
 });
 
-test('a project without .gitignore gets none', function (): void {
+test('a project outside git without .gitignore gets none', function (): void {
     $directory = directory('absent');
     same(false, ignore($directory, 'drupack'));
     same(false, file_exists("$directory/.gitignore"));
+});
+
+test('a git project without .gitignore gets one', function (): void {
+    $directory = directory('repository');
+    mkdir("$directory/.git");
+    same(true, ignore($directory, 'drupack'));
+    same("/drupack\n", file_get_contents("$directory/.gitignore"));
+});
+
+test('a project inside a parent git repository gets a .gitignore', function (): void {
+    $directory = directory('monorepo');
+    // A worktree or submodule holds .git as a file.
+    file_put_contents("$directory/.git", "gitdir: elsewhere\n");
+    mkdir("$directory/site");
+    same(true, ignore("$directory/site", 'drupack'));
+    same("/drupack\n", file_get_contents("$directory/site/.gitignore"));
 });
 
 $failed = 0;

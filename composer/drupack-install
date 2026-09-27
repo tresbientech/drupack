@@ -71,12 +71,27 @@ function download(string $url): string
     return $contents;
 }
 
-// Returns whether the line was added. A project without .gitignore keeps none.
+// Whether $directory or a parent holds a git repository.
+function inRepository(string $directory): bool
+{
+    while (!file_exists("$directory/.git")) {
+        if (dirname($directory) === $directory) {
+            return false;
+        }
+        $directory = dirname($directory);
+    }
+    return true;
+}
+
+// Returns whether the line was added. A project outside git gets no .gitignore.
 function ignore(string $root, string $name): bool
 {
     $gitignore = "$root/.gitignore";
     if (!is_file($gitignore)) {
-        return false;
+        if (!inRepository($root)) {
+            return false;
+        }
+        touch($gitignore);
     }
     $lines = array_map('trim', file($gitignore));
     if (in_array("/$name", $lines, true) || in_array($name, $lines, true)) {
@@ -112,13 +127,18 @@ try {
         $handle = fopen($script, 'x');
         fwrite($handle, $contents);
         fclose($handle);
+        // The script's own output tells how to move the executable onto PATH, which a
+        // project keeps in its root. Its errors still reach the terminal on stderr.
+        echo "Downloading drupack $version for this system.\n";
         $pipes = [];
-        $install = proc_open(installCommand($windows, $script), [0 => STDIN, 1 => STDOUT, 2 => STDERR], $pipes, $root);
+        $discard = ['file', $windows ? 'NUL' : '/dev/null', 'w'];
+        $install = proc_open(installCommand($windows, $script), [0 => STDIN, 1 => $discard, 2 => STDERR], $pipes, $root);
         $status = proc_close($install);
         unlink($script);
         if ($status !== 0) {
             throw new RuntimeException("drupack $version was not installed.");
         }
+        echo "Installed drupack $version in $root/$name.\n";
     }
     if (ignore($root, $name)) {
         echo "Added /$name to .gitignore.\n";
