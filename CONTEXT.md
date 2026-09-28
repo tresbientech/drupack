@@ -20,10 +20,14 @@ A distributable Drupal application. One built from a Site template carries a See
 The Drupal CMS recipe that gives a new site its starting configuration and content. A Packaged site carries at most one, named in its Site contract. The Drupack release carries Mercury Demo.
 
 **Site contract**:
-The `drupack.yml` beside a site's `composer.json`, naming its executable, port, Site template, default site name, translations, settings file, build targets, added PHP extensions and Writable directories. A build writes it out as `site.json`, with the docroot `composer.json` names, and every other reader takes that file.
+The `drupack.yml` beside a site's `composer.json`, naming its executable, port, Site template, default site name, translations, settings file, build targets, added PHP extensions, Writable directories, and whether it carries Bundled Node. A build writes it out as `site.json`, with the docroot `composer.json` names, and every other reader takes that file.
 
 **Seed site**:
 A preconfigured Drupal site state included in a Packaged site, installed from the Site template.
+
+**Bundled Node**:
+The Node.js release a Packaged site carries when its Site contract asks for one: the version or major line the contract names, otherwise the newest LTS when the site is built. The site's Drush commands find it as `node`, `npm` and `npx`, with no Node installed on the host.
+_Avoid_: embedded Node, Node runtime
 
 ### Engine executable
 
