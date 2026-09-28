@@ -58,5 +58,5 @@
 
 ### Acceptance criteria
 
-- [ ] `grep -c 'F07\|F08\|F11\|F16' docs/backlog.md` prints 0.
-- [ ] `bash build/qa.sh` exits 0.
+- [x] `grep -c 'F07\|F08\|F11\|F16' docs/backlog.md` prints 0.
+- [x] `bash build/qa.sh` exits 0.
