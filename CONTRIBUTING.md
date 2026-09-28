@@ -121,10 +121,11 @@ Then:
 `site_data_public_stream_test.php` covers the check that refuses a public file
 target resolving outside Site data.
 
-The launcher's own unit tests need Go:
+The launcher's and the runtime watcher's unit tests need Go:
 
 ```sh
-cd launcher && go test ./...
+(cd launcher && go test ./...)
+(cd runtime/watch && go test ./...)
 ```
 
 On Windows, `python` runs the suite in place of `python3`, which Windows does not provide:

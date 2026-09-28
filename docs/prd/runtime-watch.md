@@ -44,7 +44,7 @@ A reader sees no change.
 
 - A new Go file in its own directory, in the `main` package, imports only the standard library, and has its own module file for tests alone.
 - Each of the four copy steps that place the entry point into FrankenPHP's module gains a sibling line for the new file.
-- The plan holds the probe URL, the link to open, cron's command line and four durations: poll interval, readiness deadline, first cron delay, cron interval.
+- The plan holds the probe URL, the link to open, cron's command line, the directory cron runs in and four durations: poll interval, readiness deadline, first cron delay, cron interval.
 - `run` takes the stopping context, the site name, the plan, the two output writers and the browser opener. It returns once stopping ends and any cron child has exited.
 - `guard` takes the signal channel, the deadline and the exit function, and returns the stopping context.
 - The entry point builds the signal channel, the plan and the real opener, and passes the constants it holds today.

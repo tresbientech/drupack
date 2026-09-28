@@ -72,7 +72,7 @@ func ready(stopping context.Context, p plan, errs io.Writer) bool {
 	}
 	// The line names the site's address, without the identity token the probe carries.
 	address, _ := url.Parse(p.probe)
-	address.Path, address.RawQuery = "", ""
+	address.Path, address.RawQuery = "/", ""
 	// The site keeps serving, so this names what the wait saw rather than stopping anything.
 	fmt.Fprintf(errs, "Drupal did not answer at %s within %s: %v\n",
 		address, time.Since(started).Round(time.Second), last)

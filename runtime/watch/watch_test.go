@@ -178,7 +178,7 @@ func TestRunNamesTheLastAnswerWhenTheSiteNeverAnswers204(t *testing.T) {
 	w := watch(t, p)
 	w.returns(t, 5*time.Second)
 	errs := w.errs.String()
-	if !strings.Contains(errs, "Drupal did not answer at "+server.URL+" within") ||
+	if !strings.Contains(errs, "Drupal did not answer at "+server.URL+"/ within") ||
 		!strings.Contains(errs, "the server answered 500 Internal Server Error") {
 		t.Fatalf("reported %q, want the address and the 500", errs)
 	}
