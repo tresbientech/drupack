@@ -41,12 +41,12 @@ class InstallScript(harness.ConformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.case_dir = harness.fresh_dir(harness.RESULTS / cls.__name__)
+        harness.fresh_dir(cls.class_dir)
         cls.name = harness.SITE["name"]
         cls.windows = harness.current_platform() == harness.WINDOWS
         cls.extension = ".exe" if cls.windows else ""
         cls.target = f"{harness.current_platform()}-{ARCHITECTURES[platform.machine().lower()]}"
-        cls.releases = harness.fresh_dir(cls.case_dir / "releases")
+        cls.releases = harness.fresh_dir(cls.class_dir / "releases")
         server = http.server.ThreadingHTTPServer(
             ("127.0.0.1", 0), functools.partial(QuietHandler, directory=str(cls.releases)))
         threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -64,14 +64,14 @@ class InstallScript(harness.ConformanceCase):
         return output
 
     def host_build(self):
-        build = harness.fresh_dir(self.case_dir / "host-build") / f"{self.name}-{self.target}{self.extension}"
+        build = harness.fresh_dir(self.class_dir / "host-build") / f"{self.name}-{self.target}{self.extension}"
         shutil.copyfile(harness.BINARY, build)
         return build
 
     def install(self, release):
         """Runs the one-liner for this host against release in an empty directory, and returns
         the result and the directory."""
-        directory = harness.fresh_dir(self.case_dir / f"install-{release.name}")
+        directory = harness.fresh_dir(self.class_dir / f"install-{release.name}")
         if self.windows:
             # Windows PowerShell wraps an uncaught error at the console width, even when redirected.
             command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
@@ -91,16 +91,16 @@ class InstallScript(harness.ConformanceCase):
         self.assertIn(f"{sha256(release / executable)}  {executable}\n", (release / "checksums.txt").read_text())
 
     def test_the_step_refuses_a_file_named_for_no_target(self):
-        stray = self.case_dir / "site.json"
+        stray = self.class_dir / "site.json"
         stray.write_text("{}")
-        result = harness.run([sys.executable, str(RELEASE_FILES), "--output", str(self.case_dir / "stray"),
+        result = harness.run([sys.executable, str(RELEASE_FILES), "--output", str(self.class_dir / "stray"),
                               "--version", VERSION, "--base-url", self.url, "--commit", "install-case", str(stray)],
                              capture_output=True, text=True, timeout=harness.WAITS["php_cli"].seconds)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("site.json is not named NAME-TARGET", result.stderr)
 
     def test_the_step_refuses_a_version_holding_a_path_separator(self):
-        result = harness.run([sys.executable, str(RELEASE_FILES), "--output", str(self.case_dir / "separator"),
+        result = harness.run([sys.executable, str(RELEASE_FILES), "--output", str(self.class_dir / "separator"),
                               "--version", "release/1.0", "--base-url", self.url, "--commit", "install-case",
                               str(self.host_build())],
                              capture_output=True, text=True, timeout=harness.WAITS["php_cli"].seconds)
@@ -111,8 +111,8 @@ class InstallScript(harness.ConformanceCase):
         if self.windows:
             self.skipTest("a Windows link needs a privilege this case does not assume")
         release = self.release("planted", self.host_build())
-        directory = harness.fresh_dir(self.case_dir / f"install-{release.name}")
-        victim = self.case_dir / "victim"
+        directory = harness.fresh_dir(self.class_dir / f"install-{release.name}")
+        victim = self.class_dir / "victim"
         victim.write_text("left alone")
         (directory / f".{self.name}.download").symlink_to(victim)
         result = harness.run(["sh", "-c", 'curl -fsSL "$1" | sh', "sh", f"{self.url}/{release.name}/install-{self.name}.sh"],
@@ -139,7 +139,7 @@ class InstallScript(harness.ConformanceCase):
 
     def test_the_script_names_the_builds_of_a_release_without_one_for_the_host(self):
         other = "linux-amd64" if self.windows else "windows-amd64"
-        build = harness.fresh_dir(self.case_dir / "other-build") / f"{self.name}-{other}"
+        build = harness.fresh_dir(self.class_dir / "other-build") / f"{self.name}-{other}"
         build.write_bytes(b"another platform's build")
         result, directory = self.install(self.release("elsewhere", build))
         self.assertNotEqual(result.returncode, 0)

@@ -73,16 +73,6 @@ class RuntimeConfiguration(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX, harness.WINDOWS, harness.MACOS)
     RECIPE = False
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
-    def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
-
     def php_cli(self, source, env=None):
         result = probe(self.case_dir, source, env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -142,16 +132,6 @@ class RuntimeTrustOnline(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX, harness.WINDOWS, harness.MACOS)
     RECIPE = False
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
-    def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
-
     def test_release_history_returns_200(self):
         if harness.running_offline():
             self.skipTest("no network inside the offline container")
@@ -190,8 +170,6 @@ class RuntimeConfigurationServed(harness.ConformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
         # Same reason SeededSite copies the binary under its own name: BINARY's suffix
         # carries the platform's naming rule, none on Linux, ".exe" on Windows.
         cls.binary = cls.class_dir / f"drupack{harness.BINARY.suffix}"
@@ -199,8 +177,7 @@ class RuntimeConfigurationServed(harness.ConformanceCase):
         cls.binary.chmod(0o700)
 
     def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
+        super().setUp()
         self.site = harness.Site(self.binary, self.case_dir)
 
     def tearDown(self):

@@ -27,15 +27,8 @@ def _recorder_env(directory):
 class BrowserOpenCases(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX, harness.MACOS)
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
     def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
+        super().setUp()
         self.data = self.case_dir / "data"
 
     def _install(self, env, recorded):

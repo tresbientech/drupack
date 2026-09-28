@@ -101,16 +101,6 @@ def reset_installation_state(data):
 class FirstStartAndListener(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX,)
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
-    def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
-
     def test_first_start_creates_the_site_and_serves_through_drush(self):
         data = self.case_dir / "data"
         site = harness.Site(harness.BINARY, self.case_dir / "first-start")
@@ -170,16 +160,6 @@ class FirstStartAndListener(harness.ConformanceCase):
 
 class RecordedBackendAndAdoption(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX,)
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
-    def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
 
     def _install_and_rename(self, data):
         site = harness.Site(harness.BINARY, self.case_dir / "install")
@@ -258,16 +238,6 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
 
 class InterruptedStartAndRace(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX,)
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
-    def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
 
     def test_interrupted_start_then_concurrent_race(self):
         data = self.case_dir / "data"
@@ -396,16 +366,6 @@ class InterruptedStartAndRace(harness.ConformanceCase):
 class EquivalentPathLock(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX,)
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
-    def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
-
     def test_an_equivalent_path_takes_the_same_lock(self):
         data = self.case_dir / "data"
         data.mkdir(exist_ok=True)
@@ -459,16 +419,6 @@ class EquivalentPathLock(harness.ConformanceCase):
 class SiteName(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX,)
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
-    def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
-
     def test_a_chosen_site_name_survives_a_later_start(self):
         data = self.case_dir / "data"
         site = harness.Site(harness.BINARY, self.case_dir / "chosen-name")
@@ -501,18 +451,12 @@ class PostgresqlLifecycle(harness.ConformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
         cls.server = harness.DatabaseServer("pgsql", "initialization", cls.class_dir)
         cls.server.start()
 
     @classmethod
     def tearDownClass(cls):
         cls.server.stop()
-
-    def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
 
     def _create_database(self, name):
         self.server.execute("drupal", f"CREATE DATABASE {name}")

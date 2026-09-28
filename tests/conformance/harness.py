@@ -312,8 +312,7 @@ def pack_corrupted_fixture(entry, version, output):
 
 # The one place stopping branches on platform: POSIX signals the process group, which covers
 # a launcher's own children too. Windows has neither process groups nor a way to signal
-# another process, so it force-kills the whole tree at once instead, the same one step
-# tests/windows/site.Tests.ps1's Stop-Site took with taskkill /T /F.
+# another process, so it force-kills the whole tree at once with taskkill /T /F.
 def stop_process(process, timeout, context=""):
     """Stop process and everything under it; kill and report one that outlives timeout."""
     if process.poll() is not None:
@@ -583,7 +582,8 @@ class ConformanceCase(unittest.TestCase):
     """Base for every case module: gates the class on its declared platforms, tools,
     whether it installs a site, which needs the site's recipe, whether it writes
     into the application, which needs a writable directory, and whether it runs
-    the engine executable, which DRUPACK_TEST_ENGINE names.
+    the engine executable, which DRUPACK_TEST_ENGINE names. Each class writes under
+    class_dir, and each test under case_dir.
     """
 
     PLATFORMS = ()
@@ -609,6 +609,12 @@ class ConformanceCase(unittest.TestCase):
                 raise unittest.SkipTest(DOCKER_SKIP)
             if shutil.which(tool) is None:
                 raise RuntimeError(f"{cls.__name__} needs {tool!r}, which is not on PATH")
+        cls.class_dir = RESULTS / cls.__name__
+        cls.class_dir.mkdir(parents=True, exist_ok=True)
+
+    def setUp(self):
+        self.case_dir = self.class_dir / self._testMethodName
+        self.case_dir.mkdir(parents=True, exist_ok=True)
 
 
 # The account every server-database case connects as. A CI service the variables below

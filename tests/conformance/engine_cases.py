@@ -38,20 +38,20 @@ class EngineExecutable(harness.ConformanceCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.engine = harness.engine_executable()
-        cls.case_dir = harness.fresh_dir(harness.RESULTS / cls.__name__)
-        cls.project = cls.case_dir / "project"
+        harness.fresh_dir(cls.class_dir)
+        cls.project = cls.class_dir / "project"
         shutil.copytree(cls.site_application(), cls.project, symlinks=True)
         cls.docroot = cls.project / harness.SITE["docroot"]
         cls.files = cls.docroot / "sites" / "default" / "files"
         # A release build of the application may carry an empty files directory already.
         shutil.copytree(cls.project / "seed" / "files", cls.files, dirs_exist_ok=True)
-        database = cls.case_dir / "database" / "site.sqlite"
+        database = cls.class_dir / "database" / "site.sqlite"
         database.parent.mkdir()
         shutil.copyfile(cls.project / "seed" / "site.sqlite", database)
         (cls.docroot / "sites" / "default" / "settings.php").write_text(
             SETTINGS.format(database=json.dumps(str(database))))
         # A project whose lock declares an extension no runtime carries, and no Drush.
-        cls.lacking = cls.case_dir / "lacking"
+        cls.lacking = cls.class_dir / "lacking"
         (cls.lacking / "web" / "core" / "lib").mkdir(parents=True)
         (cls.lacking / "web" / "index.php").write_text("<?php")
         (cls.lacking / "web" / "core" / "lib" / "Drupal.php").write_text("<?php")
@@ -63,7 +63,7 @@ class EngineExecutable(harness.ConformanceCase):
     @classmethod
     def site_application(cls):
         """The site executable's own unpacked application, which a php-cli probe names."""
-        probe = cls.case_dir / "application.php"
+        probe = cls.class_dir / "application.php"
         probe.write_text("<?php echo getenv('DRUPACK_RUNTIME_APP_DIR');")
         result = harness.run([str(harness.BINARY), "php-cli", str(probe)], capture_output=True, text=True,
                              timeout=harness.WAITS["php_cli"].seconds)
@@ -72,16 +72,16 @@ class EngineExecutable(harness.ConformanceCase):
         return Path(result.stdout)
 
     def engine_run(self, *arguments, cwd=None, env=None):
-        return harness.run([str(self.engine), *arguments], cwd=cwd or self.case_dir, env=env,
+        return harness.run([str(self.engine), *arguments], cwd=cwd or self.class_dir, env=env,
                            capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
 
     def start(self, name, *arguments, cwd=None):
         """Starts the engine executable on a port of its own, waits for /user/login, and returns the port and log."""
         port = harness.pick_port()
-        log = self.case_dir / f"{name}.log"
+        log = self.class_dir / f"{name}.log"
         with open(log, "wb") as handle:
             process = harness.popen([str(self.engine), *arguments, "--listen", f"127.0.0.1:{port}"],
-                                    cwd=cwd or self.case_dir, stdout=handle, stderr=subprocess.STDOUT,
+                                    cwd=cwd or self.class_dir, stdout=handle, stderr=subprocess.STDOUT,
                                     start_new_session=True)
         self.addCleanup(harness.stop_process, process, harness.WAITS["stop"].seconds, f": inspect {log}")
         deadline = time.monotonic() + harness.WAITS["start"].seconds
@@ -133,7 +133,7 @@ class EngineExecutable(harness.ConformanceCase):
     def test_a_stop_ends_a_request_that_is_still_running(self):
         # FrankenPHP waits 30s for a running request before it forces the stop, the
         # harness's own stop wait, so only the runtime's 10s deadline passes this case.
-        sleeper = self.case_dir / "sleeper"
+        sleeper = self.class_dir / "sleeper"
         (sleeper / "web" / "core" / "lib").mkdir(parents=True)
         (sleeper / "web" / "core" / "lib" / "Drupal.php").write_text("<?php")
         (sleeper / "web" / "index.php").write_text(
@@ -148,7 +148,7 @@ class EngineExecutable(harness.ConformanceCase):
         self.doCleanups()
 
     def test_a_start_without_drush_serves_with_no_login_link(self):
-        bare = self.case_dir / "bare"
+        bare = self.class_dir / "bare"
         (bare / "web" / "core" / "lib").mkdir(parents=True)
         (bare / "web" / "core" / "lib" / "Drupal.php").write_text("<?php")
         (bare / "web" / "index.php").write_text("<?php echo 'ok';")
@@ -163,7 +163,7 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertIn("drupack-absent: acme/absent", result.stderr)
 
     def test_a_start_refuses_a_folder_without_drupal_core(self):
-        wordpress = self.case_dir / "wordpress"
+        wordpress = self.class_dir / "wordpress"
         (wordpress / "wp-includes").mkdir(parents=True)
         (wordpress / "index.php").write_text("<?php")
         (wordpress / "wp-includes" / "version.php").write_text("<?php")
@@ -184,7 +184,7 @@ class EngineExecutable(harness.ConformanceCase):
     def test_drush_child_processes_run_on_the_runtime_php_with_no_php_on_path(self):
         version = self.engine_run("php", "-r", "echo PHP_VERSION;")
         self.assertEqual(version.returncode, 0, version.stderr)
-        empty = harness.fresh_dir(self.case_dir / "empty-path")
+        empty = harness.fresh_dir(self.class_dir / "empty-path")
         child = "passthru('php -r \"echo PHP_VERSION;\"');"
         result = self.engine_run("drush", "php:eval", child, cwd=self.project,
                                  env=dict(os.environ, PATH=str(empty)))
@@ -210,7 +210,7 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertIn("pdo_sqlite", modules.stdout.splitlines())
 
     def test_php_passes_settings_to_a_script_and_to_code(self):
-        (self.case_dir / "limit.php").write_text("<?php echo ini_get('memory_limit'), ' ', $argv[1];")
+        (self.class_dir / "limit.php").write_text("<?php echo ini_get('memory_limit'), ' ', $argv[1];")
         script = self.engine_run("php", "-d", "memory_limit=321M", "limit.php", "argument")
         self.assertEqual(script.returncode, 0, script.stderr)
         self.assertEqual(script.stdout, "321M argument")
@@ -224,7 +224,7 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertIn("php option -S is not supported", result.stderr)
 
     def test_php_runs_a_script_named_from_the_working_directory(self):
-        (self.case_dir / "script.php").write_text("<?php echo 'engine-php';")
+        (self.class_dir / "script.php").write_text("<?php echo 'engine-php';")
         result = self.engine_run("php", "script.php")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "engine-php")

@@ -1,4 +1,4 @@
-"""Unit tests for the harness itself. No product binary, no results directory."""
+"""Unit tests for the harness itself. No product binary, and a temporary results directory."""
 
 import os
 import shutil
@@ -12,6 +12,13 @@ from pathlib import Path
 from unittest import mock
 
 import harness
+
+
+def setUpModule():
+    # A case class that passes its gates creates its results directory.
+    results = tempfile.TemporaryDirectory()
+    unittest.addModuleCleanup(results.cleanup)
+    harness.RESULTS = Path(results.name)
 
 
 class WaitTableTest(unittest.TestCase):

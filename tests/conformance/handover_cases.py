@@ -42,15 +42,8 @@ class _AnswersEverything(http.server.BaseHTTPRequestHandler):
 class HandoverCases(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX, harness.MACOS)
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
     def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
+        super().setUp()
         self.data = self.case_dir / "data"
 
     def test_a_start_whose_site_already_serves_opens_the_browser(self):
@@ -113,15 +106,8 @@ class ServingLeaseCases(harness.ConformanceCase):
 
     PLATFORMS = (harness.LINUX, harness.MACOS, harness.WINDOWS)
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
     def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
+        super().setUp()
         self.data = self.case_dir / "data"
 
     def test_a_second_start_on_another_port_refuses(self):
@@ -146,15 +132,8 @@ class ServingLeaseCases(harness.ConformanceCase):
 class TakenPortCases(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX, harness.MACOS, harness.WINDOWS)
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
     def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
+        super().setUp()
         self.data = self.case_dir / "data"
 
     def test_a_port_another_program_holds_stops_the_start(self):

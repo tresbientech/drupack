@@ -72,15 +72,8 @@ class ColdWarmStart(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX, harness.WINDOWS)
     RECIPE = False
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
     def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
+        super().setUp()
         self.cache = harness.reserved_dir(self.case_dir / "cache")
         self.env = dict(os.environ, DRUPACK_CACHE_DIR=str(self.cache))
 
@@ -191,18 +184,12 @@ class InstalledSiteLauncherCases(harness.ConformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
         cls.data = cls.class_dir / "data"
         install_dir = cls.class_dir / "install"
         install_dir.mkdir(exist_ok=True)
         site = harness.Site(harness.BINARY, install_dir)
         site.start(cls.data, "--admin-user", "launcher-admin", "--admin-password", "Launcher.test.password.2026")
         site.stop()
-
-    def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
 
     def test_drush_on_an_unknown_command_refuses(self):
         result = harness.run_drush(harness.BINARY, self.case_dir, self.data, "this-command-does-not-exist")
@@ -307,16 +294,6 @@ class WindowsLauncherCases(harness.ConformanceCase):
     PLATFORMS = (harness.WINDOWS,)
     RECIPE = False
     TOOLS = ("go",)
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
-    def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
 
     def test_forwards_arguments_environment_and_phprc_then_restages_past_locked_handles(self):
         cache = harness.reserved_dir(self.case_dir / "cache")
@@ -488,12 +465,6 @@ class CacheRootFull(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX,)
     RECIPE = False
     TOOLS = ("docker",)
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
 
     def test_a_cache_root_with_no_room_refuses(self):
         data = harness.fresh_dir(self.class_dir / "data")

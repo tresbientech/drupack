@@ -16,10 +16,9 @@ ADMIN_PASSWORD = "Offline.test.administrator.2026!"
 CREDENTIALS = ("--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
 LINK_PREFIX = "  Login:     "
 
-# The three methods that together cover every assertion tests/windows/site.Tests.ps1 made:
-# a credentialed first start with the settings and private-path codes, drush status
-# --field=bootstrap, and a credential-free restart. Every other
-# method in this class stays Linux and macOS only.
+# Windows runs three methods: a credentialed first start with the settings and
+# private-path codes, drush status --field=bootstrap, and a credential-free restart.
+# Every other method in this class stays Linux and macOS only.
 WINDOWS_METHODS = frozenset({
     "test_protected_files",
     "test_startup_ignores_working_directory_script",
@@ -34,8 +33,6 @@ class SeededSite(harness.ConformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
         # BINARY's own suffix carries the platform's naming rule: none on Linux and macOS,
         # ".exe" on Windows, where launching a copy named plainly "drupack" would look for
         # "drupack.exe" and never find it.
@@ -44,6 +41,7 @@ class SeededSite(harness.ConformanceCase):
         cls.binary.chmod(0o700)
 
     def setUp(self):
+        super().setUp()
         # A setUp skip, unlike a setUpClass skip, reports each test method on its own
         # line, so -v marks every site case skipped rather than the class once.
         # With no daemon the offline case cannot run, so these run on the host instead.
@@ -53,8 +51,6 @@ class SeededSite(harness.ConformanceCase):
         if (harness.current_platform() == harness.WINDOWS
                 and self._testMethodName not in WINDOWS_METHODS):
             self.skipTest("not marked for windows")
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
         self.site = harness.Site(self.binary, self.case_dir)
 
     def tearDown(self):
@@ -127,8 +123,7 @@ class SeededSite(harness.ConformanceCase):
         self.assertNotIn("automatic_updates", modules)
         self.assertNotIn("package_manager", modules)
         self.site.stop()
-        # tests/windows/site.Tests.ps1's restart passed no options: an already-installed
-        # site must serve again without being asked for credentials a second time.
+        # An already-installed site serves again without credentials.
         self.site.start(data)
         self.assertNotIn("core/install.php", self.site.http("/"))
 
@@ -162,9 +157,9 @@ class SeededSite(harness.ConformanceCase):
     def test_protected_files(self):
         data = self.case_dir / "protected"
         self.site.start(data, *CREDENTIALS)
-        # tests/windows/site.Tests.ps1 asserted the settings and sites-scoped private codes
-        # exactly; site.sqlite and the top-level private alias keep the looser check, since
-        # they are not both named Caddyfile matchers guaranteeing one specific code.
+        # The settings and sites-scoped private paths answer one exact code. site.sqlite
+        # and the top-level private alias keep the looser check, since they are not both
+        # named Caddyfile matchers guaranteeing one specific code.
         checks = {
             "/site.sqlite": (403, 404),
             "/private/probe.txt": (403, 404),
