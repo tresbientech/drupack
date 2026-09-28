@@ -26,13 +26,15 @@ fi
 
 # A release executable carries its application, so only a build changes those
 # files there. This serves the application drupack-build left in dist/work
-# instead, with the files application/ holds copied over it on every start.
+# instead, with the engine files application/ and build/ hold copied over it on
+# every start.
 # -e DRUPACK_CA_FILE with no value forwards the caller's own, unset or not, the
 # same way a release start's environment reaches dev-entry.sh's export.
 exec docker run --rm "${terminal[@]}" --user "$(id -u):$(id -g)" -p "127.0.0.1:$port:$port" \
     -e DRUPACK_CA_FILE \
     --mount "type=bind,src=$application,dst=/app,readonly" \
     --mount "type=bind,src=$repository/application,dst=/dev-application,readonly" \
+    --mount "type=bind,src=$repository/build,dst=/dev-build,readonly" \
     --mount "type=bind,src=$repository/build/dev/dev-entry.sh,dst=/dev-entry.sh,readonly" \
     --mount "type=bind,src=$data,dst=/data" \
     "$image" sh /dev-entry.sh "$port" "$@"

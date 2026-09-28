@@ -488,22 +488,37 @@ function installDrupal(array $options, string $binary): void
 }
 
 // The database is the user's only copy: an installed site is kept, and other tables stop the start.
-// A resumed installation already owns this database, so only a first-ever run treats it as adopted.
-function installSite(string $data, array $options, string $binary, bool $firstEver): bool
+// A database this initialization began installing into held no tables then, so a site that
+// boots there now may have been cut off mid-recipe, and it is never adopted. Its tables stay
+// until a person empties the database: nothing here proves they are still the install's own.
+function installSite(SiteData $site, array $options, string $binary): bool
 {
-    if (drushField($binary, ['status', '--field=bootstrap']) === 'Successful') {
-        if (!$firstEver) {
-            return false;
-        }
+    $started = $site->installStarted();
+    // Without the recorded settings the options come from the command line, which may name
+    // any database, so a resume names none of them to empty.
+    if ($started && !file_exists($site->settings())) {
+        throw new RuntimeException("This Site data holds an interrupted installation but no settings.php: $site->directory. "
+            . "Restore its settings.php, or start " . executableName() . " with an empty Site data directory.");
+    }
+    if (!$started && drushField($binary, ['status', '--field=bootstrap']) === 'Successful') {
         fwrite(STDOUT, "This database already holds a site. " . executableName() . " enabled nothing on it, and keeps its own administrator account.\n");
         return true;
     }
     if (siteSettings()['recipe'] === '') {
-        throw new RuntimeException("The database for $data holds no installed site, and " . executableName()
+        throw new RuntimeException("The database for $site->directory holds no installed site, and " . executableName()
             . " has no recipe to install one. Name the database that holds its site, then start " . executableName() . " again.");
     }
     if (databaseHoldsTables($options)) {
-        throw new RuntimeException("The database for $data holds tables without an installed site. Empty it or name another database, then start " . executableName() . " again.");
+        if ($started) {
+            throw new RuntimeException("This Site data began installing into the {$options['database']} database {$options['db-name']} on "
+                . urlHost($options['db-host']) . ':' . databasePort($options) . ", which now holds tables: $site->directory. "
+                . "If they are that installation's, empty the database, then start " . executableName() . " again. "
+                . "If it holds a site of yours, start " . executableName() . " with an empty Site data directory.");
+        }
+        throw new RuntimeException("The database for $site->directory holds tables without an installed site. Empty it or name another database, then start " . executableName() . " again.");
+    }
+    if (!$started) {
+        $site->startInstall();
     }
     installDrupal($options, $binary);
     return false;
@@ -598,7 +613,7 @@ const STEP_REPORTS = [
 ];
 
 // Returns whether the step found a site already installed in the database.
-function runStep(string $step, SiteData $site, array $options, string $binary, bool $firstEver, bool $adopted): bool
+function runStep(string $step, SiteData $site, array $options, string $binary, bool $adopted): bool
 {
     switch ($step) {
         case 'seed':
@@ -618,7 +633,7 @@ function runStep(string $step, SiteData $site, array $options, string $binary, b
             configureSeedSiteName($binary, $options['site-name']);
             return false;
         case 'install':
-            return installSite($site->directory, $options, $binary, $firstEver);
+            return installSite($site, $options, $binary);
         case 'modules':
             if (!$adopted) {
                 removeRecipeModules($binary);
@@ -786,9 +801,9 @@ try {
     // The remaining steps reach the disk before the first one changes anything, and the
     // completion marker follows the last one.
     $number = 0;
-    $adopted = $site->initialize($steps, function (string $step, bool $firstEver, bool $adopted) use (&$number, $steps, $site, $options, $binary): bool {
+    $adopted = $site->initialize($steps, function (string $step, bool $adopted) use (&$number, $steps, $site, $options, $binary): bool {
         fwrite(STDOUT, sprintf("[%d/%d] %s\n", ++$number, count($steps), STEP_REPORTS[$step]));
-        return runStep($step, $site, $options, $binary, $firstEver, $adopted);
+        return runStep($step, $site, $options, $binary, $adopted);
     });
     foreach (glob(application() . '/translations/*.po') as $translation) {
         $destination = "$files/translations/" . basename($translation);

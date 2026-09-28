@@ -91,7 +91,7 @@ def reset_installation_state(data):
     """
     directories = ("files", "private", "config", "tmp")
     files = ("settings.php", "site-installed", "installation-progress", "hash_salt", "site.sqlite",
-              "site.sqlite-shm", "site.sqlite-wal", "site-adopted", "first-install", "listener")
+              "site.sqlite-shm", "site.sqlite-wal", "site-adopted", "install-started", "listener")
     for name in directories:
         shutil.rmtree(data / name, ignore_errors=True)
     for name in files:

@@ -147,21 +147,21 @@ payload. It adds code in both workflows, the release step, `drupack-build` and
 a new pack script, and removes none. Lean: wait for a site owner who needs
 those targets.
 
-## Application review findings still open
+## A dispatch that builds one Linux runtime
 
-The [application review](reviews/2026-09-21-application-review.md) leaves four
-findings open:
+A `release.yml` dispatch for `windows-amd64` builds the amd64 musl runtime
+alone. `download-artifact@v7` extracts a lone artifact straight into
+`runtime-artifacts/`, without the per-artifact directory the payload step globs.
+The payload job then fails before the chosen platform runs, as run 36434231873
+did. Lean: give each runtime artifact its own directory whatever the count.
 
-- F07, the packaged MCP flow. A build must first confirm which module provides
-  `mcp-tools:serve`.
-- F08, adoption versus interrupted installation. It needs a decision on what
-  recovery does.
-- F11, Windows cache ownership and ACL checks. The exposure needs a hostile
-  local account and a custom cache root.
-- F16, the development entrypoint cannot install a fresh site.
+## The development server and sites with writable directories
 
-Lean: take F08 first, since it decides what a start does with half-installed
-Site data.
+`build/dev/dev-server.sh` exports no `DRUPACK_RUNTIME_LAUNCHER`. A site whose
+`drupack.yml` names writable directories runs that launcher's `lay-app` on every
+start, so it cannot start through the development server. This comes from
+reading `useSiteApplication()`; no such site has been tried. Lean: decide whether
+the development loop supports those sites before building anything.
 
 ## Output that names the wrong thing
 
@@ -176,10 +176,10 @@ Site data.
 
 Lean: fix the last two, and leave `--help` as it is.
 
-## JPEG and WebP in the runtime's GD
+## JPEG, WebP and FreeType in the runtime's GD
 
-The Linux runtime's `gd_info()` reports no JPEG and no WebP support.
+The Linux runtime's `gd_info()` reports no JPEG, WebP or FreeType support.
 `runtime/php-extension-libs.txt` names `libavif` alone for gd. Drupal's GD
 toolkit refuses to process `Hero.jpg` from Mercury's seed, so a style cannot
-rotate or scale an uploaded JPEG. Lean: add `libjpeg` and `libwebp` to the list,
-and assert both formats in the extension case.
+rotate or scale an uploaded JPEG. Lean: add `libjpeg`, `libwebp` and
+`freetype` to the list, and assert all three in the extension case.

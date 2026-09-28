@@ -28,6 +28,11 @@ func privateRoot(root string) (string, error) {
 	return root, nil
 }
 
+// makeRoot creates dir and any missing parent at rootMode.
+func makeRoot(dir string) error {
+	return os.MkdirAll(dir, rootMode)
+}
+
 // asciiRoot returns root unchanged. The ANSI-code-page boundary phase 1 found
 // in PHP startup is Windows-only, so unix keeps its current cache root and
 // takes no branch that would write to notice.

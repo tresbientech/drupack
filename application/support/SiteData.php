@@ -17,10 +17,8 @@ final class SiteData
     private const PROGRESS = 'installation-progress';
     // The install step found a site already in the database, so the modules step changes nothing.
     private const ADOPTED = 'site-adopted';
-    // Recorded the moment a database is first seen fresh, so a crash between that
-    // moment and the install step's own bootstrap check still tells a resume the
-    // difference between a foreign database and one Drupack is still installing.
-    private const FIRST_EVER = 'first-install';
+    // The install step found the database empty and began installing into it.
+    private const INSTALL_STARTED = 'install-started';
     // Every start records where it serves, so a later `drush` addresses the site on the
     // port it actually uses, and keeps the files directory the last start named.
     private const LISTENER = 'listener';
@@ -150,23 +148,22 @@ final class SiteData
         if ($backend === 'sqlite') {
             return ['seed', 'settings', 'administrator'];
         }
-        // The directory may not exist yet on the check that runs before it is created;
-        // the authoritative check that runs under the serving lease always finds it.
-        if (is_dir($this->directory)) {
-            $this->write(self::FIRST_EVER, '', 'Cannot record that this database is new to ' . \executableName());
+        // A record with no progress beside it belongs to an initialization nobody resumes,
+        // so it says nothing about what the database holds now.
+        if (file_exists($this->path(self::INSTALL_STARTED))) {
+            unlink($this->path(self::INSTALL_STARTED));
         }
         return ['settings', 'install', 'modules'];
     }
 
     /**
      * Runs $run once per step, in order, and records the remaining steps after each call
-     * returns, so a crash resumes at the step that failed. $run gets the step, whether
-     * this database was new to Drupack when first seen, and whether an earlier step found
-     * a site already installed there. It returns true when this step found one. After
-     * the last step, writes the finished marker and removes every other state file.
-     * Returns whether the start adopted an existing site.
+     * returns, so a crash resumes at the step that failed. $run gets the step and whether
+     * an earlier step found a site already installed there. It returns true when this
+     * step found one. After the last step, writes the finished marker and removes every
+     * other state file. Returns whether the start adopted an existing site.
      *
-     * @param callable(string, bool, bool): bool $run
+     * @param callable(string, bool): bool $run
      */
     public function initialize(array $steps, callable $run): bool
     {
@@ -174,9 +171,8 @@ final class SiteData
             return false;
         }
         $this->recordProgress($steps);
-        $firstEver = file_exists($this->path(self::FIRST_EVER));
         foreach ($steps as $index => $step) {
-            if ($run($step, $firstEver, file_exists($this->path(self::ADOPTED)))) {
+            if ($run($step, file_exists($this->path(self::ADOPTED)))) {
                 $this->write(self::ADOPTED, '', 'Cannot record that this database already held a site');
             }
             $this->recordProgress(array_slice($steps, $index + 1));
@@ -187,10 +183,22 @@ final class SiteData
         if ($adopted) {
             unlink($this->path(self::ADOPTED));
         }
-        if ($firstEver) {
-            unlink($this->path(self::FIRST_EVER));
+        if (file_exists($this->path(self::INSTALL_STARTED))) {
+            unlink($this->path(self::INSTALL_STARTED));
         }
         return $adopted;
+    }
+
+    // Records that the install step found the database empty, before it writes to it.
+    public function startInstall(): void
+    {
+        $this->write(self::INSTALL_STARTED, '', 'Cannot record that the installation began');
+    }
+
+    // Whether an install step of this initialization found the database empty and began.
+    public function installStarted(): bool
+    {
+        return file_exists($this->path(self::INSTALL_STARTED));
     }
 
     private function recordProgress(array $steps): void
