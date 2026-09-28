@@ -41,6 +41,13 @@ class ArgumentCases(harness.ConformanceCase):
         diagnostic = self.refuse(data, "--data-dir", str(data))
         self.assertIn("double quote", diagnostic)
 
+    def test_an_unknown_command_prints_the_usage(self):
+        data = self.case_dir / "data"
+        diagnostic = self.refuse(data, "frobnicate")
+        self.assertIn("Unknown command: frobnicate", diagnostic)
+        self.assertIn(f"Usage: {harness.SITE['name']}", diagnostic)
+        self.assertNotIn("caddy", diagnostic)
+
     def test_drush_without_a_site_refuses(self):
         data = self.case_dir / "drush"
         diagnostic = self.refuse(data, "drush", "--data-dir", str(data), "status")

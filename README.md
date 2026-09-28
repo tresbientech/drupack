@@ -124,7 +124,7 @@ Useful options:
 - `--host HOST` names the address readers type, `localhost` by default. An IPv6 address works too, such as `--host ::1`.
 - `--site-name NAME` names the site on a first start, `Drupal Mercury Demo` by default. `DRUPACK_SITE_NAME` sets it too. A later start never renames a site.
 - `--no-browser` starts without opening a browser.
-- `mercury-demo --version` prints the release, `mercury-demo version` names every component it carries, and `mercury-demo --help` lists every option.
+- `mercury-demo --version` prints the release, `mercury-demo version` names the FrankenPHP, PHP and Caddy it carries, and `mercury-demo --help` lists every option.
 
 [The command line reference](docs/cli.md) covers every option, including the ones this list leaves out.
 
