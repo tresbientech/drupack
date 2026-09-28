@@ -8,6 +8,7 @@ curl piped to sh on Linux and macOS, irm piped to iex in PowerShell on Windows.
 import functools
 import hashlib
 import http.server
+import json
 import platform
 import shutil
 import sys
@@ -84,11 +85,17 @@ class InstallScript(harness.ConformanceCase):
         return result, directory
 
     def test_the_release_names_each_build_with_its_version(self):
-        release = self.release("names", self.host_build())
-        executable = f"{self.name}-{VERSION}-{self.target}{self.extension}"
+        musl = harness.fresh_dir(self.class_dir / "musl-build") / f"{self.name}-linux-amd64-musl"
+        musl.write_bytes(b"a musl build")
+        release = self.release("names", self.host_build(), musl)
+        executables = [f"{self.name}-{VERSION}-{self.target}{self.extension}", f"{self.name}-{VERSION}-linux-amd64-musl"]
         self.assertEqual(sorted(path.name for path in release.iterdir()), sorted(
-            [executable, "checksums.txt", "release.json", f"install-{self.name}.ps1", f"install-{self.name}.sh"]))
-        self.assertIn(f"{sha256(release / executable)}  {executable}\n", (release / "checksums.txt").read_text())
+            [*executables, "checksums.txt", "release.json", f"install-{self.name}.ps1", f"install-{self.name}.sh"]))
+        checksums = (release / "checksums.txt").read_text()
+        assets = {asset["asset"]: asset for asset in json.loads((release / "release.json").read_text())["assets"]}
+        for executable in executables:
+            self.assertIn(f"{sha256(release / executable)}  {executable}\n", checksums)
+        self.assertEqual(assets[executables[1]]["target"], "linux-amd64-musl")
 
     def test_the_step_refuses_a_file_named_for_no_target(self):
         stray = self.class_dir / "site.json"

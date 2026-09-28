@@ -50,35 +50,57 @@ func step(t *testing.T, plan build.Plan, name string) build.Step {
 	return build.Step{}
 }
 
-// runtimeFlags returns the -runtime values a pack command carries, in order.
-func runtimeFlags(command []string) []string {
-	var values []string
-	for index, argument := range command {
-		if argument == "-runtime" {
-			values = append(values, command[index+1])
-		}
-	}
-	return values
+// packed returns the runtime and the output of the pack step named name.
+func packed(t *testing.T, plan build.Plan, name string) (string, string) {
+	t.Helper()
+	command := step(t, plan, name).Command
+	return command[slices.Index(command, "-runtime")+1], command[slices.Index(command, "-output")+1]
 }
 
-func TestEachLibcPacksItsRuntimesInLauncherOrder(t *testing.T) {
+// packSteps returns the names of the plan's pack steps, in order.
+func packSteps(plan build.Plan) []string {
+	var packs []string
+	for _, name := range names(plan) {
+		if strings.HasPrefix(name, "pack ") {
+			packs = append(packs, name)
+		}
+	}
+	return packs
+}
+
+func TestEachLibcPacksOneFilePerPlatform(t *testing.T) {
 	cases := map[string][]string{
-		"both":  {"glibc=/rt/amd64-glibc", "musl=/rt/amd64-musl"},
-		"glibc": {"glibc=/rt/amd64-glibc"},
-		"musl":  {"musl=/rt/amd64-musl"},
+		"both":  {"pack linux-amd64", "pack linux-amd64-musl", "pack linux-arm64", "pack linux-arm64-musl"},
+		"glibc": {"pack linux-amd64", "pack linux-arm64"},
+		"musl":  {"pack linux-amd64-musl", "pack linux-arm64-musl"},
 	}
 	for libc, want := range cases {
-		plan, err := build.NewPlan(request([]string{"linux-amd64"}, libc))
+		plan, err := build.NewPlan(request([]string{"linux-amd64", "linux-arm64"}, libc))
 		if err != nil {
 			t.Fatalf("%s: %v", libc, err)
 		}
-		if got := runtimeFlags(step(t, plan, "pack linux-amd64").Command); !reflect.DeepEqual(got, want) {
+		if got := packSteps(plan); !reflect.DeepEqual(got, want) {
 			t.Errorf("--libc %s packs %v; want %v", libc, got, want)
 		}
 	}
 }
 
-func TestEveryPlatformIsPackedAndOnlyTheHostIsTested(t *testing.T) {
+func TestEachFileCarriesTheRuntimeOfItsLibc(t *testing.T) {
+	plan, err := build.NewPlan(request([]string{"linux-arm64"}, "both"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string][2]string{
+		"pack linux-arm64":      {"/rt/arm64-glibc", filepath.Join("/out", "acme-linux-arm64")},
+		"pack linux-arm64-musl": {"/rt/arm64-musl", filepath.Join("/out", "acme-linux-arm64-musl")},
+	} {
+		if runtime, output := packed(t, plan, name); runtime != want[0] || output != want[1] {
+			t.Errorf("%s packs %s to %s; want %s to %s", name, runtime, output, want[0], want[1])
+		}
+	}
+}
+
+func TestEveryFileIsPackedAndOnlyTheHostGlibcFileIsTested(t *testing.T) {
 	plan, err := build.NewPlan(request([]string{"linux-amd64", "linux-arm64"}, "both"))
 	if err != nil {
 		t.Fatal(err)
@@ -86,13 +108,14 @@ func TestEveryPlatformIsPackedAndOnlyTheHostIsTested(t *testing.T) {
 	want := []string{
 		"check the PHP extensions", "stage the site", "write site.json", "install the Composer project", "fetch translations",
 		"lay the engine over the site", "install the seed site", "archive the application",
-		"write site.json beside the executables", "pack linux-amd64", "pack linux-arm64", "test linux-amd64",
+		"write site.json beside the executables", "pack linux-amd64", "pack linux-amd64-musl",
+		"pack linux-arm64", "pack linux-arm64-musl", "test linux-amd64",
 	}
 	if got := names(plan); !reflect.DeepEqual(got, want) {
 		t.Fatalf("steps = %v; want %v", got, want)
 	}
-	if !reflect.DeepEqual(plan.Untested, []string{"linux-arm64"}) {
-		t.Fatalf("untested = %v; want [linux-arm64]", plan.Untested)
+	if want := []string{"linux-amd64-musl", "linux-arm64", "linux-arm64-musl"}; !reflect.DeepEqual(plan.Untested, want) {
+		t.Fatalf("untested = %v; want %v", plan.Untested, want)
 	}
 	pack := strings.Join(step(t, plan, "pack linux-arm64").Command, " ")
 	for _, want := range []string{
@@ -104,7 +127,21 @@ func TestEveryPlatformIsPackedAndOnlyTheHostIsTested(t *testing.T) {
 	}
 	test := step(t, plan, "test linux-amd64").Command
 	if test[2] != filepath.Join("/out", "acme-linux-amd64") {
-		t.Errorf("the suite runs %q; want the amd64 executable", test[2])
+		t.Errorf("the suite runs %q; want the amd64 glibc executable", test[2])
+	}
+}
+
+func TestAMuslBuildTestsTheHostMuslFile(t *testing.T) {
+	plan, err := build.NewPlan(request([]string{"linux-amd64"}, "musl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	test := step(t, plan, "test linux-amd64-musl").Command
+	if test[2] != filepath.Join("/out", "acme-linux-amd64-musl") {
+		t.Errorf("the suite runs %q; want the amd64 musl executable", test[2])
+	}
+	if len(plan.Untested) != 0 {
+		t.Errorf("untested = %v; want none", plan.Untested)
 	}
 }
 
@@ -113,11 +150,8 @@ func TestTheSiteTargetsApplyWhereNoFlagIsSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := runtimeFlags(step(t, plan, "pack linux-arm64").Command), []string{"musl=/rt/arm64-musl"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("packs %v; want the site's musl runtime: %v", got, want)
-	}
-	if slices.Contains(names(plan), "pack linux-amd64") {
-		t.Errorf("steps = %v; want the site's linux-arm64 alone", names(plan))
+	if got, want := packSteps(plan), []string{"pack linux-arm64-musl"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("packs %v; want the site's linux-arm64 musl file alone: %v", got, want)
 	}
 }
 
@@ -126,11 +160,8 @@ func TestFlagsBeatTheSiteTargets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := runtimeFlags(step(t, plan, "pack linux-amd64").Command), []string{"glibc=/rt/amd64-glibc"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("packs %v; want the flags' glibc runtime: %v", got, want)
-	}
-	if slices.Contains(names(plan), "pack linux-arm64") {
-		t.Errorf("steps = %v; want the flag's linux-amd64 alone", names(plan))
+	if got, want := packSteps(plan), []string{"pack linux-amd64"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("packs %v; want the flags' linux-amd64 glibc file alone: %v", got, want)
 	}
 }
 
@@ -167,7 +198,7 @@ func TestASiteWithoutARecipeHasNoSeedStep(t *testing.T) {
 	want := []string{
 		"check the PHP extensions", "stage the site", "write site.json", "install the Composer project", "fetch translations",
 		"lay the engine over the site", "archive the application",
-		"write site.json beside the executables", "pack linux-amd64", "test linux-amd64",
+		"write site.json beside the executables", "pack linux-amd64", "pack linux-amd64-musl", "test linux-amd64",
 	}
 	if got := names(plan); !reflect.DeepEqual(got, want) {
 		t.Fatalf("steps = %v; want %v", got, want)
@@ -253,9 +284,11 @@ func TestTheRuntimeRootSuppliesTheTargetsNoRuntimeNames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"glibc=/rt/amd64-glibc", "musl=" + filepath.Join(root, "linux-amd64-musl")}
-	if got := runtimeFlags(step(t, plan, "pack linux-amd64").Command); !reflect.DeepEqual(got, want) {
-		t.Errorf("packs %v; want --runtime for glibc and the root for musl: %v", got, want)
+	if got, _ := packed(t, plan, "pack linux-amd64"); got != "/rt/amd64-glibc" {
+		t.Errorf("the glibc file packs %s; want the --runtime directory", got)
+	}
+	if got, _ := packed(t, plan, "pack linux-amd64-musl"); got != filepath.Join(root, "linux-amd64-musl") {
+		t.Errorf("the musl file packs %s; want the root's directory", got)
 	}
 
 	delete(r.Runtimes, "linux-amd64/glibc")
@@ -509,7 +542,7 @@ func gitInit(directory string) ([]byte, error) {
 	return command.CombinedOutput()
 }
 
-func TestTheEnginePlanPacksBothRuntimesPerPlatformAndReadsNoSite(t *testing.T) {
+func TestTheEnginePlanPacksAFilePerLibcAndPlatformAndReadsNoSite(t *testing.T) {
 	r := request([]string{"linux-amd64", "linux-arm64"}, "")
 	r.Site = siteconfig.Site{}
 	plan, err := build.NewEnginePlan(r)
@@ -517,16 +550,27 @@ func TestTheEnginePlanPacksBothRuntimesPerPlatformAndReadsNoSite(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{"stage the engine files", "archive the engine files",
-		"pack the engine executable for linux-amd64", "pack the engine executable for linux-arm64"}
+		"pack the engine executable for linux-amd64", "pack the engine executable for linux-amd64-musl",
+		"pack the engine executable for linux-arm64", "pack the engine executable for linux-arm64-musl"}
 	if got := names(plan); !reflect.DeepEqual(got, want) {
 		t.Fatalf("steps %v, want %v", got, want)
 	}
-	pack := step(t, plan, "pack the engine executable for linux-arm64").Command
-	if got := runtimeFlags(pack); !reflect.DeepEqual(got, []string{"glibc=/rt/arm64-glibc", "musl=/rt/arm64-musl"}) {
-		t.Fatalf("runtimes %v", got)
+	name := "pack the engine executable for linux-arm64-musl"
+	if runtime, output := packed(t, plan, name); runtime != "/rt/arm64-musl" || output != filepath.Join("/out", "drupack-linux-arm64-musl") {
+		t.Fatalf("%s packs %s to %s", name, runtime, output)
 	}
-	if !slices.Contains(pack, "-engine") || !slices.Contains(pack, filepath.Join("/out", "drupack-linux-arm64")) {
-		t.Fatalf("pack command %v", pack)
+	if !slices.Contains(step(t, plan, name).Command, "-engine") {
+		t.Fatalf("pack command %v", step(t, plan, name).Command)
+	}
+}
+
+func TestTheEnginePlanTakesTheLibcFlag(t *testing.T) {
+	plan, err := build.NewEnginePlan(request([]string{"linux-amd64"}, "glibc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := packSteps(plan), []string{"pack the engine executable for linux-amd64"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("packs %v; want %v", got, want)
 	}
 }
 

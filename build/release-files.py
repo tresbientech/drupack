@@ -16,7 +16,9 @@ import re
 import shutil
 from pathlib import Path
 
-BUILD = re.compile(r"(?P<name>[a-z0-9][a-z0-9-]*)-(?P<target>(?:linux|macos|windows)-(?:amd64|arm64))(?P<extension>\.exe)?")
+# A Linux target names a musl build with a -musl suffix, and a glibc build with none.
+BUILD = re.compile(r"(?P<name>[a-z0-9][a-z0-9-]*)"
+                   r"-(?P<target>linux-(?:amd64|arm64)(?:-musl)?|(?:macos|windows)-(?:amd64|arm64))(?P<extension>\.exe)?")
 # The scripts carry these values inside quoted shell and PowerShell strings, so a
 # value holding a character either language reads there is refused. The version
 # also names files, so it holds no path separator.

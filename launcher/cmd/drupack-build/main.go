@@ -41,7 +41,7 @@ func run() error {
 	host := "linux-" + goruntime.GOARCH
 	site := flag.String("site", "", "the site's directory, holding composer.json and drupack.yml")
 	platforms := flag.String("platform", "", "comma-separated targets: linux-amd64, linux-arm64, overriding drupack.yml's platforms")
-	libc := flag.String("libc", "", "the C library of each Linux runtime: both, glibc or musl, overriding drupack.yml's libc")
+	libc := flag.String("libc", "", "the Linux files to pack, one per C library: both, glibc or musl, overriding drupack.yml's libc")
 	flag.Var(runtimes, "runtime", "a runtime directory, as PLATFORM/LIBC=DIRECTORY, repeated")
 	output := flag.String("output", "dist", "where the executables and site.json land")
 	work := flag.String("work", "", "where the application is built, a new temporary directory when unset")

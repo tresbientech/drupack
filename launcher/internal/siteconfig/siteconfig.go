@@ -23,8 +23,8 @@ const FileName = "drupack.yml"
 // OutputName is the normalized form every other reader takes.
 const OutputName = "site.json"
 
-// Libcs lists the values libc takes, and the runtimes each packs in the order
-// the launcher tries them: the one needing a host loader first.
+// Libcs lists the values libc takes, and the C library of each Linux file each
+// one packs. glibc comes first, so a build that packs both tests its glibc file.
 var Libcs = map[string][]string{
 	"both":  {"glibc", "musl"},
 	"glibc": {"glibc"},

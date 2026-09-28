@@ -61,7 +61,7 @@ func TestPrepareReleaseActivatesOnlyAWholeRelease(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			release := runtimepkg.Release{Libc: "glibc", Payload: c.payload, Manifest: upgrade,
+			release := runtimepkg.Release{Payload: c.payload, Manifest: upgrade,
 				AppChecksum: releaseAppChecksum, AppPayload: c.appPayload}
 			runtimeDir, _, err := runtimepkg.PrepareRelease(root, release, io.Discard)
 
@@ -81,7 +81,7 @@ func TestPrepareReleaseActivatesOnlyAWholeRelease(t *testing.T) {
 			if err == nil {
 				t.Fatal("a failed step returned no error")
 			}
-			for _, want := range []string{runtimepkg.Key("2.0.0", c.payload), "glibc build",
+			for _, want := range []string{runtimepkg.Key("2.0.0", c.payload),
 				releaseAppChecksum, "at the " + c.step + " step"} {
 				if !strings.Contains(err.Error(), want) {
 					t.Errorf("error %q does not name %q", err.Error(), want)

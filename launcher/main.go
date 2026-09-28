@@ -18,15 +18,6 @@ func main() {
 	}
 }
 
-// embeddedRuntime is one runtime build this launcher carries: the libc it was
-// linked against, its compressed payload, and the manifest describing what the
-// payload holds. payload.go declares the builds a packed launcher holds.
-type embeddedRuntime struct {
-	libc     string
-	payload  []byte
-	manifest []byte
-}
-
 func run() error {
 	// launch.php runs this word under the Serving lease, once it has resolved Site data.
 	if len(os.Args) > 1 && os.Args[1] == "lay-app" {
@@ -43,13 +34,12 @@ func run() error {
 		}
 		return runtime.CleanApps(root, siteName, dry, os.Stdout)
 	}
-	selected, m, err := selectRuntime()
+	m, err := runtime.ParseManifest(runtimeManifest)
 	if err != nil {
 		return err
 	}
 	directory, application, err := runtime.PrepareRelease(root, runtime.Release{
-		Libc:        selected.libc,
-		Payload:     selected.payload,
+		Payload:     runtimePayload,
 		Manifest:    m,
 		AppChecksum: string(appChecksum),
 		AppPayload:  appPayload,
@@ -92,27 +82,6 @@ func run() error {
 	}
 	// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.
 	return launch(filepath.Join(directory, m.Entry), os.Args)
-}
-
-// selectRuntime returns the runtime build to unpack and its parsed manifest.
-// Every carried manifest is parsed first, since the interpreter each one
-// records decides which builds this host can run.
-func selectRuntime() (embeddedRuntime, runtime.Manifest, error) {
-	choices := make([]runtime.Choice, len(runtimes))
-	manifests := make([]runtime.Manifest, len(runtimes))
-	for index, carried := range runtimes {
-		m, err := runtime.ParseManifest(carried.manifest)
-		if err != nil {
-			return embeddedRuntime{}, runtime.Manifest{}, err
-		}
-		manifests[index] = m
-		choices[index] = runtime.Choice{Libc: carried.libc, Interpreter: m.Interpreter}
-	}
-	index, err := runtime.Select(choices, os.Getenv(runtime.LibcVariable))
-	if err != nil {
-		return embeddedRuntime{}, runtime.Manifest{}, err
-	}
-	return runtimes[index], manifests[index], nil
 }
 
 // engineArguments turns the reader's words into the runtime's: `php` reaches
