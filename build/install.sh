@@ -31,6 +31,23 @@ if [ "$os" = macos ] && [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = 1 
     arch=arm64
 fi
 target=$os-$arch
+# A Linux release publishes a glibc build and a musl build. A host holding the
+# glibc program interpreter of its architecture runs the faster glibc one.
+if [ "$os" = linux ]; then
+    case $arch in
+        amd64) interpreter=/lib64/ld-linux-x86-64.so.2 ;;
+        arm64) interpreter=/lib/ld-linux-aarch64.so.1 ;;
+    esac
+    # DRUPACK_LIBC comes from the reader's environment, so a value naming no build stops here.
+    case ${DRUPACK_LIBC:-} in
+        glibc | musl) libc=$DRUPACK_LIBC ;;
+        '') if [ -e "$interpreter" ]; then libc=glibc; else libc=musl; fi ;;
+        *) fail "DRUPACK_LIBC=$DRUPACK_LIBC names no build. Set it to glibc or musl, or leave it unset." ;;
+    esac
+    if [ "$libc" = musl ]; then
+        target=$target-musl
+    fi
+fi
 
 expected=$(echo "$builds" | awk -v target="$target" '$1 == target { print $2 }')
 if [ -z "$expected" ]; then

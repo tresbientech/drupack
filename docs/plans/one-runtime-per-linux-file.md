@@ -64,14 +64,14 @@ Scripts of earlier releases stay unchanged.
 
 ### Acceptance criteria
 
-- [ ] The install cases, with the interpreter path pointed at a fixture, show
+- [x] The install cases, with the interpreter path pointed at a fixture, show
       the glibc pick, the musl pick, and both overrides.
-- [ ] An install case shows `DRUPACK_LIBC=gnu` stops before any download and
+- [x] An install case shows `DRUPACK_LIBC=gnu` stops before any download and
       names `glibc` and `musl`.
-- [ ] An install case shows a release without the chosen file stops and lists
+- [x] An install case shows a release without the chosen file stops and lists
       the builds it has.
-- [ ] An install case shows a musl download whose SHA-256 differs is refused.
-- [ ] `drupack_install_test.php` passes, and shows `DRUPACK_LIBC` reaches the
+- [x] An install case shows a musl download whose SHA-256 differs is refused.
+- [x] `drupack_install_test.php` passes, and shows `DRUPACK_LIBC` reaches the
       script `drupack-install` runs.
 
 ---
