@@ -228,8 +228,16 @@ jobs:
       - name: Build the job image
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+          LINUX_RUNTIME: ${{ needs.gate.outputs.linux_runtime }}
         run: |
           mkdir runtimes
+          # download-artifact extracts a lone match straight into its path, with no
+          # directory named after it, so the gate's one runtime names that directory.
+          if [ -d runtime-artifacts/out ]; then
+            lone=$(jq -r '.[0] | "runtime-linux-\(.arch)-\(.libc)"' <<<"$LINUX_RUNTIME")
+            mkdir "runtime-artifacts/$lone"
+            mv runtime-artifacts/out "runtime-artifacts/$lone/out"
+          fi
           for artifact in runtime-artifacts/runtime-linux-*; do
             target=${artifact#runtime-artifacts/runtime-}
             # The runtime jobs name the glibc build gnu, after its builder image.
