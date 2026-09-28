@@ -202,6 +202,50 @@ class DockerGateTest(unittest.TestCase):
 
 
 
+class PlatformMarkTest(unittest.TestCase):
+    def test_a_class_marked_for_no_platform_fails_where_it_is_defined(self):
+        with self.assertRaisesRegex(TypeError, "Unmarked marks no known platform"):
+            class Unmarked(harness.ConformanceCase):
+                pass
+
+    def test_a_misspelled_platform_fails_where_it_is_defined(self):
+        with self.assertRaisesRegex(TypeError, "Misspelled marks no known platform"):
+            class Misspelled(harness.ConformanceCase):
+                PLATFORMS = ("linx",)
+
+    def test_a_set_up_that_forgets_super_still_skips_another_platform(self):
+        other = next(platform for platform in (harness.LINUX, harness.MACOS, harness.WINDOWS)
+                     if platform != harness.current_platform())
+        ran = []
+
+        class ForgetsSuper(harness.ConformanceCase):
+            PLATFORMS = (other,)
+
+            @classmethod
+            def setUpClass(cls):
+                ran.append(cls)
+
+        with self.assertRaisesRegex(unittest.SkipTest, "not marked for"):
+            ForgetsSuper.setUpClass()
+        self.assertEqual(ran, [], "the class's own setUpClass ran before the platform gate")
+
+    def test_a_set_up_that_calls_super_runs_once_after_the_gates(self):
+        ran = []
+
+        class CallsSuper(harness.ConformanceCase):
+            PLATFORMS = (harness.current_platform(),)
+            RECIPE = False
+
+            @classmethod
+            def setUpClass(cls):
+                super().setUpClass()
+                ran.append(cls.class_dir)
+
+        with tempfile.TemporaryDirectory() as results, mock.patch.object(harness, "RESULTS", Path(results)):
+            CallsSuper.setUpClass()
+        self.assertEqual(ran, [Path(results) / "CallsSuper"])
+
+
 class RecipeGateTest(unittest.TestCase):
     def test_a_case_that_installs_skips_when_the_site_has_no_recipe(self):
         class Installs(harness.ConformanceCase):

@@ -592,8 +592,27 @@ class ConformanceCase(unittest.TestCase):
     WRITABLE = False
     ENGINE = False
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # A class marked for no known platform would skip on every one while the suite stays green.
+        unknown = set(cls.PLATFORMS) - {LINUX, MACOS, WINDOWS}
+        if not cls.PLATFORMS or unknown:
+            raise TypeError(f"{cls.__name__} marks no known platform: {cls.PLATFORMS!r}")
+        # A setUpClass of its own, or a mixin's, that forgets super() would skip the gates,
+        # so they run before it whatever its body calls.
+        own = cls.setUpClass.__func__
+        if own is not ConformanceCase.setUpClass.__func__ and not getattr(own, "gates", False):
+            def gated(klass):
+                ConformanceCase.setUpClass.__func__(klass)
+                own(klass)
+            gated.gates = True
+            cls.setUpClass = classmethod(gated)
+
     @classmethod
     def setUpClass(cls):
+        # A gated setUpClass that also calls super() reaches this a second time.
+        if "class_dir" in cls.__dict__:
+            return
         current = current_platform()
         if current not in cls.PLATFORMS:
             raise unittest.SkipTest(f"not marked for {current}")

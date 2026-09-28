@@ -2,7 +2,6 @@
 
 import os
 import subprocess
-import unittest
 from pathlib import Path
 
 import harness
@@ -15,19 +14,12 @@ TESTS_DIR = Path(__file__).resolve().parent.parent
 
 
 class OfflineRun(harness.ConformanceCase):
-    """Marked linux and docker: -k offline selects it; with no daemon it skips by name, and the
-    site cases it would carry run on the host instead."""
+    """Marked linux and docker: -k offline selects it. With no daemon it skips by name, and the
+    site cases it would carry run on the host instead. Inside its own container no daemon
+    answers either, so the inner run skips it the same way."""
 
     PLATFORMS = (harness.LINUX,)
     TOOLS = ("docker",)
-
-    @classmethod
-    def setUpClass(cls):
-        # Checked before the tool mark below: the container has no docker, and that is
-        # expected, not a missing tool to report.
-        if harness.running_offline():
-            raise unittest.SkipTest("already running inside the offline container")
-        super().setUpClass()
 
     def test_offline_site_cases(self):
         log_path = self.class_dir / "run.log"

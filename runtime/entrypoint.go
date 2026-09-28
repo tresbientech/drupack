@@ -219,5 +219,13 @@ func init() {
 	}
 	if len(os.Args) == 1 || strings.HasPrefix(os.Args[1], "-") {
 		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[1:]...)
+		return
+	}
+	// FrankenPHP's own command line takes every remaining word. Drupack and its builds
+	// use php-cli and version there, and any other word would answer with Caddy's usage.
+	if os.Args[1] != "php-cli" && os.Args[1] != "version" {
+		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", os.Args[1])
+		fmt.Fprintf(os.Stderr, usage+"\n", siteName())
+		os.Exit(1)
 	}
 }

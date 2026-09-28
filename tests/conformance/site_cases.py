@@ -17,19 +17,20 @@ CREDENTIALS = ("--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
 LINK_PREFIX = "  Login:     "
 
 
-def draw_png(uri, colour):
-    """PHP for php:eval that writes a 64x64 PNG of one RGB colour at a stream URI."""
+def draw_image(uri, colour, writer="imagepng"):
+    """PHP for php:eval that writes a 64x64 image of one RGB colour at a stream URI, through
+    the GD writer function that picks its format."""
     return (f"$image = imagecreatetruecolor(64, 64); imagefill($image, 0, 0, imagecolorallocate($image, {colour}));"
-            f" imagepng($image, \\Drupal::service('file_system')->realpath('{uri}'));")
+            f" {writer}($image, \\Drupal::service('file_system')->realpath('{uri}'));")
 
-# Windows runs three methods: a credentialed first start with the settings and
-# private-path codes, drush status --field=bootstrap, and a credential-free restart.
-# Every other method in this class stays Linux and macOS only.
+# Windows runs the methods named here, and every other method in this class stays
+# Linux and macOS only.
 WINDOWS_METHODS = frozenset({
     "test_protected_files",
     "test_startup_ignores_working_directory_script",
     "test_seeded_sqlite_site_and_drush",
     "test_smoke_paths_answer",
+    "test_image_styles_read_the_formats_readers_upload",
 })
 
 
@@ -91,6 +92,34 @@ class SeededSite(harness.ConformanceCase):
             sorted(harness.expected_extensions() | harness.ALWAYS_COMPILED), sorted(loaded),
         )
         self.assertTrue({"mysql", "pgsql", "sqlite"} <= set(drivers), drivers)
+
+    def test_image_styles_read_the_formats_readers_upload(self):
+        # Drupal's GD toolkit refuses a source whose format gd_info() does not report, so
+        # an uploaded JPEG or WebP would get no derivative. FreeType draws text on images.
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".php", dir=self.case_dir) as probe:
+            probe.write("<?php echo json_encode(gd_info());")
+            probe.flush()
+            result = harness.run([str(self.binary), "php-cli", probe.name], cwd=self.case_dir,
+                                 capture_output=True, text=True, timeout=harness.WAITS["php_cli"].seconds)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        info = json.loads(result.stdout)
+        for support in ("PNG Support", "JPEG Support", "WebP Support", "AVIF Support", "FreeType Support"):
+            with self.subTest(support=support):
+                self.assertTrue(info[support], f"gd_info() reports no {support}")
+
+        data = self.case_dir / "data"
+        self.site.start(data, *CREDENTIALS)
+        for extension, writer in (("jpg", "imagejpeg"), ("webp", "imagewebp")):
+            with self.subTest(format=extension):
+                source = f"public://gd-source.{extension}"
+                drawn = self.run_drush(data, "php:eval", draw_image(source, "0, 128, 0", writer)
+                                       + f" echo \\Drupal\\image\\Entity\\ImageStyle::load('thumbnail')->buildUrl('{source}');")
+                self.assertEqual(drawn.returncode, 0, drawn.stderr)
+                address = urlsplit(drawn.stdout.strip())
+                # The style picks the derivative's own format, AVIF in Drupal CMS's thumbnail.
+                status, headers, _ = self.site.fetch(f"{address.path}?{address.query}")
+                self.assertEqual(status, 200)
+                self.assertTrue(headers.get("Content-Type", "").startswith("image/"), headers.get("Content-Type"))
 
     def test_smoke_paths_answer(self):
         data = self.case_dir / "data"
@@ -251,10 +280,10 @@ class SeededSite(harness.ConformanceCase):
         self.assertEqual(headers.get("Cache-Control"), "max-age=0,must-revalidate")
         _, headers, _ = self.site.fetch("/core/misc/drupal.js")
         self.assertEqual(headers.get("Cache-Control"), "max-age=31536000,public,immutable")
-        # The runtime's GD reads PNG and no JPEG, so the case draws its own source and
-        # takes the thumbnail's address, token included, from Drupal.
+        # The case draws its own source and takes the thumbnail's address, token
+        # included, from Drupal.
         source = "public://derivative-source.png"
-        drawn = self.run_drush(data, "php:eval", draw_png(source, "255, 0, 0")
+        drawn = self.run_drush(data, "php:eval", draw_image(source, "255, 0, 0")
                                + f" echo \\Drupal\\image\\Entity\\ImageStyle::load('thumbnail')->buildUrl('{source}');")
         self.assertEqual(drawn.returncode, 0, drawn.stderr)
         address = urlsplit(drawn.stdout.strip())
@@ -272,7 +301,7 @@ class SeededSite(harness.ConformanceCase):
         # The source is replaced at the same path and its derivatives flushed, as a file
         # update in Drupal does. The token in the URL stays the same, so only revalidation
         # hands the browser holding the old derivative the new one.
-        replaced = self.run_drush(data, "php:eval", draw_png(source, "0, 0, 255") + f" image_path_flush('{source}');")
+        replaced = self.run_drush(data, "php:eval", draw_image(source, "0, 0, 255") + f" image_path_flush('{source}');")
         self.assertEqual(replaced.returncode, 0, replaced.stderr)
         for request in ("generated", "served"):
             with self.subTest(request=request):
