@@ -54,10 +54,10 @@ entry point stops exporting `BIND`, `PORT`, `DOCROOT` and `ID`.
 
 ### Acceptance criteria
 
-- [ ] `grep -nE 'DRUPACK_RUNTIME_(BIND|PORT|DOCROOT|ID)' engine/ -r` prints nothing.
-- [ ] `grep -n '{\$' engine/Caddyfile` prints nothing.
-- [ ] `./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/serve_test.php"` passes.
-- [ ] The `EngineExecutable` conformance cases pass, run by `bash build/qa.sh`.
+- [x] `grep -nE 'DRUPACK_RUNTIME_(BIND|PORT|DOCROOT|ID)' engine/ -r` prints nothing.
+- [x] `grep -n '{\$' engine/Caddyfile` prints nothing.
+- [x] `./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/serve_test.php"` passes.
+- [x] The `EngineExecutable` conformance cases pass, run by `bash build/qa.sh`.
 
 ---
 

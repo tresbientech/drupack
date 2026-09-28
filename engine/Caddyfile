@@ -5,7 +5,7 @@
 	# Windows PHP keys its opcache segment per user account. The cache id gives each
 	# served folder its own segment, as application/Caddyfile does per Site data.
 	frankenphp {
-		php_ini "opcache.cache_id" "{$DRUPACK_RUNTIME_ID}"
+		php_ini "opcache.cache_id" "__DRUPACK_ID__"
 	}
 	order php_server before file_server
 	log {
@@ -15,18 +15,18 @@
 	}
 }
 
-http://:{$DRUPACK_RUNTIME_PORT} {
-	bind {$DRUPACK_RUNTIME_BIND}
-	root * {$DRUPACK_RUNTIME_DOCROOT}
+http://:__DRUPACK_PORT__ {
+	bind __DRUPACK_BIND__
+	root * __DRUPACK_DOCROOT__
 	encode zstd br gzip
 
 	# One route block keeps the written order, so every guard runs before Drupal.
 	# Public files sit under the docroot, where the folder's settings put them, and
 	# php_server serves them as static files.
 	route {
-		import guards.caddy
+		import "__DRUPACK_GUARDS__"
 		php_server {
-			root {$DRUPACK_RUNTIME_DOCROOT}
+			root __DRUPACK_DOCROOT__
 		}
 	}
 }
