@@ -25,13 +25,6 @@ them, so `drush --admin-password x user:login` spends a secret for nothing and
 unknown-argument error it already has for an unknown word. `docs/cli.md`
 records the current behaviour until then.
 
-## A case class that runs nowhere
-
-`PLATFORMS` defaults to empty, so a case class that declares none, or misspells
-a constant, skips on every platform while the suite stays green. A class that
-forgets to call the base `setUpClass` skips its platform and tool gate as well.
-Lean: make both shapes fail the run rather than skip it.
-
 ## Container lifecycle in the conformance suite
 
 `harness.DatabaseServer` now owns the database lifecycle both database modules

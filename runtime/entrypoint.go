@@ -226,6 +226,6 @@ func init() {
 	if os.Args[1] != "php-cli" && os.Args[1] != "version" {
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", os.Args[1])
 		fmt.Fprintf(os.Stderr, usage+"\n", siteName())
-		os.Exit(2)
+		os.Exit(1)
 	}
 }

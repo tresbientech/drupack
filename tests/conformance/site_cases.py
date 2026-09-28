@@ -23,14 +23,14 @@ def draw_image(uri, colour, writer="imagepng"):
     return (f"$image = imagecreatetruecolor(64, 64); imagefill($image, 0, 0, imagecolorallocate($image, {colour}));"
             f" {writer}($image, \\Drupal::service('file_system')->realpath('{uri}'));")
 
-# Windows runs three methods: a credentialed first start with the settings and
-# private-path codes, drush status --field=bootstrap, and a credential-free restart.
-# Every other method in this class stays Linux and macOS only.
+# Windows runs the methods named here, and every other method in this class stays
+# Linux and macOS only.
 WINDOWS_METHODS = frozenset({
     "test_protected_files",
     "test_startup_ignores_working_directory_script",
     "test_seeded_sqlite_site_and_drush",
     "test_smoke_paths_answer",
+    "test_image_styles_read_the_formats_readers_upload",
 })
 
 
