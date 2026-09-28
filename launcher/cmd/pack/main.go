@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -193,16 +192,16 @@ func requireFlags(flags map[string]string) error {
 	return nil
 }
 
-// writeBuildCopy copies source into build, then adds every runtime's payload
+// writeBuildCopy copies source into directory, then adds every runtime's payload
 // and manifest plus the embedding source, which together replace source's own
 // payload.go in the copy that go build sees.
-func writeBuildCopy(build, source string, built []builtRuntime, packaged site) error {
-	if err := copyTree(source, build); err != nil {
+func writeBuildCopy(directory, source string, built []builtRuntime, packaged site) error {
+	if err := build.CopyTree(source, directory, func(string) bool { return false }); err != nil {
 		return err
 	}
 	for index, one := range built {
 		payloadName := fmt.Sprintf("payload-%d.tar.zst", index)
-		if err := os.WriteFile(filepath.Join(build, payloadName), one.payload, 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(directory, payloadName), one.payload, 0600); err != nil {
 			return err
 		}
 		manifestData, err := json.Marshal(one.manifest)
@@ -210,11 +209,11 @@ func writeBuildCopy(build, source string, built []builtRuntime, packaged site) e
 			return err
 		}
 		manifestName := fmt.Sprintf("manifest-%d.json", index)
-		if err := os.WriteFile(filepath.Join(build, manifestName), manifestData, 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(directory, manifestName), manifestData, 0600); err != nil {
 			return err
 		}
 	}
-	return os.WriteFile(filepath.Join(build, "payload.go"), []byte(embeddedPayloadSource(built, packaged)), 0600)
+	return os.WriteFile(filepath.Join(directory, "payload.go"), []byte(embeddedPayloadSource(built, packaged)), 0600)
 }
 
 // writeAppPayload compresses the application tar into the build copy, beside
@@ -266,43 +265,4 @@ func buildLauncher(build, output, goarch string) error {
 		return err
 	}
 	return nil
-}
-
-func copyTree(source, destination string) error {
-	return filepath.WalkDir(source, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		relative, err := filepath.Rel(source, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(destination, relative)
-		if entry.IsDir() {
-			return os.MkdirAll(target, 0700)
-		}
-		return copyFile(path, target)
-	})
-}
-
-func copyFile(source, destination string) error {
-	input, err := os.Open(source)
-	if err != nil {
-		return err
-	}
-	defer input.Close()
-	info, err := input.Stat()
-	if err != nil {
-		return err
-	}
-	output, err := os.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(output, input)
-	closeErr := output.Close()
-	if err == nil {
-		err = closeErr
-	}
-	return err
 }

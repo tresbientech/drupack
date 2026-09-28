@@ -54,5 +54,5 @@ func stageEngine(engine, files string) error {
 	if err := os.RemoveAll(files); err != nil {
 		return err
 	}
-	return copyTree(filepath.Join(engine, "engine"), files, func(string) bool { return false })
+	return CopyTree(filepath.Join(engine, "engine"), files, func(string) bool { return false })
 }
