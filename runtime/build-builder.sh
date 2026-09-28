@@ -43,9 +43,11 @@ fi
 
 target=static-builder-$libc
 # bake reads GITHUB_TOKEN for the secret its build-static.sh run expects, and
-# builds both architectures unless one is named.
+# builds both architectures unless one is named. It would also read the
+# workflow's GO_VERSION, a patch release the gnu Dockerfile cannot find once
+# go.dev stops listing it, so the pinned FrankenPHP's own Go version applies.
 cd "$source"
-VERSION=$frankenphp_version docker buildx bake --load \
+env -u GO_VERSION VERSION=$frankenphp_version docker buildx bake --load \
     --set "$target.platform=$platform" \
     --set "$target.tags=$tag" \
     --set "$target.args.PHP_VERSION=$php_version" \
