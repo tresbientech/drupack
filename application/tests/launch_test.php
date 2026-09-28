@@ -281,6 +281,32 @@ test('a listener record missing its host refuses', function (): void {
     throws('Recorded listener has no host', fn() => recordedListener(['listen' => null, 'host' => null], $data));
 });
 
+test('a served listener brackets an IPv6 host in its URL', function (): void {
+    $data = scratch();
+    writeListener($data, ['listen' => '[::]:8080', 'host' => '::1', 'files-dir' => null]);
+    same(['::', 'http://[::1]:8080/'], servedListener($data, ['listen' => '127.0.0.1:7000', 'host' => 'localhost']));
+});
+
+test('a served listener without a record is the one this start asked for', function (): void {
+    same(['127.0.0.1', 'http://localhost:7000/'], servedListener(scratch(), ['listen' => '127.0.0.1:7000', 'host' => 'localhost']));
+});
+
+test('only a loopback address opens a browser', function (): void {
+    foreach (['127.0.0.1' => true, '127.0.0.2' => true, '::1' => true, '0.0.0.0' => false, '::' => false, '192.168.1.5' => false] as $bind => $expected) {
+        same($expected, loopback($bind), $bind);
+    }
+});
+
+test('an IPv6 wildcard is probed on IPv6 loopback', function (): void {
+    $server = stream_socket_server('tcp://[::1]:0');
+    $port = (int) substr(strrchr(stream_socket_get_name($server, false), ':'), 1);
+    try {
+        same(true, portTaken('::', $port));
+    } finally {
+        fclose($server);
+    }
+});
+
 test('the install and administrator steps require credentials', function (): void {
     same(true, credentialsRequired(['settings', 'install', 'modules']));
     same(true, credentialsRequired(['seed', 'settings', 'administrator']));

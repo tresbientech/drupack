@@ -223,13 +223,41 @@ function servingLease(string $data)
     return $handle;
 }
 
+// An IPv6 address takes brackets inside a URL authority.
+function urlHost(string $host): string
+{
+    return str_contains($host, ':') ? "[$host]" : $host;
+}
+
+// Splits IP:PORT, an IPv6 address in brackets, into the bare address and the port.
+function listenerParts(string $listen): array
+{
+    // Listener values enter Caddy configuration and must contain only an IP address and port.
+    if (!preg_match('/^(\[[0-9a-fA-F:]+\]|[0-9.]+):([0-9]+)$/D', $listen, $listener)) {
+        throw new InvalidArgumentException('--listen requires IP:PORT, with IPv6 enclosed in brackets');
+    }
+    return [trim($listener[1], '[]'), (int) $listener[2]];
+}
+
+// A login link and the session it opens cross any other network in clear text, so only
+// a loopback listener opens a browser. 0.0.0.0 and :: accept other computers too.
+function loopback(string $bind): bool
+{
+    return $bind === '::1' || str_starts_with($bind, '127.');
+}
+
 // Reports whether anything holds $bind:$port. A connect answers this on every platform,
-// where a trial bind would report a taken port as free under Windows SO_REUSEADDR.
+// where a trial bind would report a taken port as free under Windows SO_REUSEADDR. A
+// wildcard is probed on its own family's loopback, since an IPv6-only listener never
+// answers on 127.0.0.1.
 function portTaken(string $bind, int $port): bool
 {
-    $host = in_array($bind, ['0.0.0.0', '::'], true) ? '127.0.0.1' : $bind;
-    $address = str_contains($host, ':') ? "[$host]" : $host;
-    $probe = @stream_socket_client("tcp://$address:$port", $code, $error, 1);
+    $host = match ($bind) {
+        '0.0.0.0' => '127.0.0.1',
+        '::' => '::1',
+        default => $bind,
+    };
+    $probe = @stream_socket_client('tcp://' . urlHost($host) . ":$port", $code, $error, 1);
     if ($probe === false) {
         return false;
     }
@@ -238,14 +266,13 @@ function portTaken(string $bind, int $port): bool
 }
 
 // Where the running server serves, read from the record that start wrote, so a handover
-// names the port that server took rather than the one this start asked for.
-function servedAddress(string $data, string $fallback): string
+// names the address that server took rather than the one this start asked for. Returns
+// its bind address and its URL.
+function servedListener(string $data, array $options): array
 {
-    $record = recordedListener(['listen' => null, 'host' => null], $data);
-    if ($record['listen'] === null) {
-        return $fallback;
-    }
-    return 'http://' . $record['host'] . ':' . (int) substr(strrchr($record['listen'], ':'), 1) . '/';
+    $record = listenerRecord($data) ?? $options;
+    [$bind, $port] = listenerParts($record['listen']);
+    return [$bind, 'http://' . urlHost($record['host']) . ":$port/"];
 }
 
 // A person is present when a terminal started this, or a file manager's console did.
@@ -515,7 +542,7 @@ function explainMintFailure(LoginLinkFailure $failure, string $data): void
 
 // A start whose address this Site data already serves runs no server of its own: two
 // FrankenPHP processes over one database and one runtime directory would corrupt both.
-function handOver(string $binary, string $url, string $data, array $options): never
+function handOver(string $binary, string $url, string $data, bool $browser): never
 {
     fwrite(STDOUT, "Creating a one-time login link.\n");
     try {
@@ -526,7 +553,7 @@ function handOver(string $binary, string $url, string $data, array $options): ne
     }
     fwrite(STDOUT, executableName() . " is already serving this Site data.\n\n  URL:    $url\n"
         . ($link === null ? '' : "  Login:  $link\n"));
-    if ($link === null || $options['no-browser'] !== null) {
+    if ($link === null || !$browser) {
         exit(0);
     }
     // The link is a working credential, so it reaches the opener through the environment,
@@ -785,12 +812,7 @@ try {
     $options['listen'] ??= '127.0.0.1:' . siteSettings()['port'];
     $options['host'] ??= 'localhost';
     requireDatabaseOptions($options, $steps);
-    // Listener values enter Caddy configuration and must contain only an IP address and port.
-    if (!preg_match('/^(\[[0-9a-fA-F:]+\]|[0-9.]+):([0-9]+)$/D', $options['listen'], $listener)) {
-        throw new InvalidArgumentException('--listen requires IP:PORT, with IPv6 enclosed in brackets');
-    }
-    $bind = trim($listener[1], '[]');
-    $port = (int) $listener[2];
+    [$bind, $port] = listenerParts($options['listen']);
     if (!filter_var($bind, FILTER_VALIDATE_IP) || $port < 1 || $port > 65535) {
         throw new InvalidArgumentException('Invalid listener address or port');
     }
@@ -829,11 +851,13 @@ try {
     putenv("DRUPACK_RUNTIME_BIND=$bind");
     putenv("DRUPACK_RUNTIME_PORT=$port");
     putenv('DRUPACK_RUNTIME_ID=' . siteToken($data));
-    putenv('DRUPACK_RUNTIME_HOST=' . $options['host']);
+    // Drupal matches its trusted host patterns against the request's host, which keeps an
+    // IPv6 address's brackets.
+    putenv('DRUPACK_RUNTIME_HOST=' . urlHost($options['host']));
     // The address a reader types, never the bind address. Drush builds absolute URLs from this
     // variable. Without it Drupal falls back to http://default, and every printed or mailed
     // link names an unreachable host.
-    $url = "http://{$options['host']}:$port/";
+    $url = 'http://' . urlHost($options['host']) . ":$port/";
     putenv("DRUSH_OPTIONS_URI=$url");
     $logPath = "$data/logs/caddy.log";
     putenv("DRUPACK_RUNTIME_LOG_PATH=$logPath");
@@ -872,9 +896,9 @@ try {
             if (!file_exists(markerPath($data))) {
                 throw new RuntimeException("Another " . executableName() . " start is preparing this Site data: $data");
             }
-            $served = servedAddress($data, $url);
+            [$servedBind, $served] = servedListener($data, $options);
             if (personPresent()) {
-                handOver($binary, $served, $data, $options);
+                handOver($binary, $served, $data, $options['no-browser'] === null && loopback($servedBind));
             }
             throw new RuntimeException(executableName() . " already serves this Site data at $served: $data");
         }
@@ -940,7 +964,11 @@ try {
     // it, first start or later. A script, a container and a test have none, so they get
     // none. A file manager on Windows has no other way to reach its reader. A start with
     // no link has nothing to open.
-    $browser = $link !== null && $options['no-browser'] === null && personPresent();
+    $browser = $link !== null && $options['no-browser'] === null && personPresent() && loopback($bind);
+    if ($link !== null && !loopback($bind)) {
+        fwrite(STDOUT, "No browser opens: {$options['listen']} accepts other computers over plain HTTP."
+            . " Sign in from another computer only through a TLS proxy.\n");
+    }
     openWhenServing($url, $link, $browser);
     // Every step that needed the administrator password has run. The server inherits
     // this environment and passes it to every process it starts, including PHP code a
