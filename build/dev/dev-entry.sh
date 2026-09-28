@@ -16,13 +16,26 @@ if [ ! -d /data/runtime/app ]; then
     mv /data/runtime/app.partial /data/runtime/app
 fi
 # The copied files keep the image user's mode, so replace each by name: the
-# directory permits the unlink, the file mode does not permit a write.
-for name in Caddyfile launch.php php.ini settings.php cacert.pem; do
-    rm -f "/data/runtime/app/$name"
-    cp "/dev-application/$name" "/data/runtime/app/$name"
+# directory permits the unlink, the file mode does not permit a write. Drupal's
+# status report takes the write bit off sites/default, so the directory gets it back.
+replace() {
+    mkdir -p "$(dirname "$2")"
+    chmod u+w "$(dirname "$2")"
+    rm -f "$2"
+    cp "$1" "$2"
+}
+# The layer drupack-build's layEngine lays over the site: the engine's application
+# tree without its unit files, then the site files build/ holds for sites/default.
+# find lists no file under the vendor link a developer's checkout may hold.
+cd /dev-application
+find . -type f ! -path './tests/*' | while read -r name; do
+    replace "$name" "/data/runtime/app/$name"
 done
-
 cd /data/runtime/app
+docroot=$(python3 -c 'import json; print(json.load(open("site.json"))["docroot"])')
+replace /dev-build/site-settings.php "$docroot/sites/default/settings.php"
+replace /dev-build/site-templates.php "$docroot/sites/default/site-templates.php"
+
 # A release start gets these from its launcher, which names the application it
 # unpacked, the site's name, php.ini's directory and the packed trust bundle. A
 # caller's own bundle still wins.

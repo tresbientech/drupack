@@ -37,9 +37,9 @@
 
 ### Acceptance criteria
 
-- [ ] `build/dev/dev-server.sh` starts a site from an empty data directory, and it answers 200 on `/`.
-- [ ] After that start, `cmp` finds `application/process.php`, `application/guards.caddy` and `application/support/SiteData.php` identical to their copies under `DATA/runtime/app`.
-- [ ] `cmp` finds `build/site-settings.php` identical to `DATA/runtime/app/web/sites/default/settings.php`.
+- [x] `build/dev/dev-server.sh` starts a site from an empty data directory, and it answers 200 on `/`.
+- [x] After that start, `cmp` finds `application/process.php`, `application/guards.caddy` and `application/support/SiteData.php` identical to their copies under `DATA/runtime/app`.
+- [x] `cmp` finds `build/site-settings.php` identical to `DATA/runtime/app/web/sites/default/settings.php`.
 
 ---
 
