@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 require __DIR__ . '/process.php';
 
-use Drupack\Support\PreviousCopies;
 use Symfony\Component\Filesystem\Path;
 
 // The option set also reaches a reader through runtime/entrypoint.go's usage and
@@ -42,77 +41,6 @@ function directory(string $path): void
     if (!is_dir($path) && !mkdir($path, 0700, true) && !is_dir($path)) {
         throw new RuntimeException("Cannot create directory: $path");
     }
-}
-
-// The previous layout unpacked the application into each site's runtime
-// directory, one copy per site. This release unpacks once per release into the
-// user cache, so those copies hold space no start reads.
-function removePreviousCopies(string $runtime): void
-{
-    $removed = 0;
-    $freed = 0;
-    foreach (PreviousCopies::under($runtime) as $copy) {
-        $size = treeSize($copy);
-        if (!removeTree($copy)) {
-            continue;
-        }
-        $freed += $size;
-        $removed++;
-    }
-    if ($removed === 0) {
-        return;
-    }
-    fwrite(STDOUT, sprintf(
-        "Removed %d application %s an earlier release left, freeing %d MB\n",
-        $removed,
-        $removed === 1 ? 'copy' : 'copies',
-        intdiv($freed, 1000000)
-    ));
-}
-
-// The previous layout linked Site data into its copies, on Windows through a
-// junction, which PHP reports as neither a file nor a directory. Nothing here
-// follows one, so the Site data behind it stays.
-function linkedEntry(string $path): bool
-{
-    return is_link($path) || @readlink($path) !== false;
-}
-
-function treeSize(string $path): int
-{
-    if (linkedEntry($path)) {
-        return 0;
-    }
-    if (!is_dir($path)) {
-        return (int) @filesize($path);
-    }
-    $total = 0;
-    foreach (scandir($path) ?: [] as $name) {
-        if ($name !== '.' && $name !== '..') {
-            $total += treeSize($path . DIRECTORY_SEPARATOR . $name);
-        }
-    }
-    return $total;
-}
-
-// Reports whether the path is gone. Drupal hardens a site directory to
-// read-only, so the mode comes back before the entries go. A junction goes with
-// rmdir, which Windows refuses to unlink.
-function removeTree(string $path): bool
-{
-    if (linkedEntry($path)) {
-        return @unlink($path) || @rmdir($path);
-    }
-    if (!is_dir($path)) {
-        return @unlink($path);
-    }
-    @chmod($path, 0700);
-    foreach (scandir($path) ?: [] as $name) {
-        if ($name !== '.' && $name !== '..') {
-            removeTree($path . DIRECTORY_SEPARATOR . $name);
-        }
-    }
-    return @rmdir($path);
 }
 
 // The server runs from the application directory, which every site of a release
@@ -953,7 +881,6 @@ try {
     $logPath = "$data/logs/caddy.log";
     putenv("DRUPACK_RUNTIME_LOG_PATH=$logPath");
     $runtime = canonical(realpath("$data/runtime"));
-    removePreviousCopies($runtime);
     // Caddy state and every temporary file stay beside the site they belong to.
     putenv("TMPDIR=$runtime");
     putenv("TEMP=$runtime");
