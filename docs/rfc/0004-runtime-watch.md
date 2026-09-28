@@ -41,11 +41,12 @@ next to `drupack.go` as `drupack_watch.go`. The builds never read its `go.mod`.
 
 ```go
 // plan is what run watches: where readiness answers, what to open once ready,
-// and cron's command line. A nil cron runs no scheduled work.
+// and how and when cron runs.
 type plan struct {
 	probe     string   // the identity route's URL, token included
 	open      string   // the login link to open once ready, "" for none
 	cron      []string // one cron run's argv
+	dir       string   // the directory cron runs in
 	poll      time.Duration
 	readyWithin time.Duration
 	firstCron time.Duration

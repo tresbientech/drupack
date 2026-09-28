@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -78,47 +77,9 @@ Examples:
   %[1]s clean --dry-run`
 
 // readinessPath answers 204 for a request carrying this site's own identity token, and 404
-// for anything else. The Caddyfile serves it without reaching Drupal, so the poll below
-// costs no page render and no session.
+// for anything else. The Caddyfile serves it without reaching Drupal, so it
+// costs the readiness poll in watch.go no page render and no session.
 const readinessPath = "/.drupack-id?id="
-
-// openWhenReady waits for the site to answer at address, then reports readiness, closes
-// ready and opens the browser on target when launch.php set one. The terminal keeps one readiness
-// line even when no browser opens. The target is a one-time login link, which a request spends, so the poll
-// asks for the readiness path instead. launch.php passes both through the environment.
-//
-// Only 204 from that path counts. A 500 from a failed bootstrap and a 400 from a rejected
-// host both reach a client that connects, so a poll accepting any answer would announce a
-// site nobody can use.
-func openWhenReady(address string, token string, target string, ready chan<- struct{}) {
-	// A cold start answers its first request slowly, and a request that never returns would
-	// otherwise hold the poll past the deadline.
-	client := http.Client{Timeout: 30 * time.Second}
-	probe := strings.TrimSuffix(address, "/") + readinessPath + url.QueryEscape(token)
-	started := time.Now()
-	deadline := started.Add(2 * time.Minute)
-	var last error
-	for time.Now().Before(deadline) {
-		response, err := client.Get(probe)
-		if err == nil {
-			response.Body.Close()
-			if response.StatusCode == http.StatusNoContent {
-				fmt.Printf("\n%s is ready. Press Ctrl+C to stop.\n", siteName())
-				close(ready)
-				if target != "" {
-					openBrowser(target)
-				}
-				return
-			}
-			err = fmt.Errorf("the server answered %s", response.Status)
-		}
-		last = err
-		time.Sleep(500 * time.Millisecond)
-	}
-	// The site keeps serving, so this names what the wait saw rather than stopping anything.
-	fmt.Fprintf(os.Stderr, "Drupal did not answer at %s within %s: %v\n",
-		address, time.Since(started).Round(time.Second), last)
-}
 
 func openBrowser(address string) {
 	var command *exec.Cmd
@@ -154,38 +115,6 @@ func stopGuard() context.Context {
 // not share the database with it.
 const cronInterval = 3 * time.Hour
 const cronFirstDelay = 2 * time.Minute
-
-// runScheduledWork runs Drupal's cron in a child process for as long as this
-// server serves. automated_cron runs the same work inside whichever request
-// arrives after its interval elapses, where a fetch that cannot reach
-// drupal.org, or a queue that takes a minute, holds that request's PHP thread
-// and the database rows behind it. The context ends the child at the first
-// shutdown signal, so a run in flight cannot hold the process open.
-func runScheduledWork(stopping context.Context, executable string, application string, ready <-chan struct{}) {
-	select {
-	case <-ready:
-	case <-stopping.Done():
-		return
-	}
-	timer := time.NewTimer(cronFirstDelay)
-	defer timer.Stop()
-	for {
-		select {
-		case <-timer.C:
-		case <-stopping.Done():
-			return
-		}
-		cron := exec.CommandContext(stopping, executable, "php-cli",
-			filepath.Join(application, "vendor", "drush", "drush", "drush.php"), "cron")
-		cron.Dir = application
-		// A failed run is reported and the next one still runs: cron carries
-		// search indexing and queue work, which a later run picks up.
-		if output, err := cron.CombinedOutput(); err != nil && stopping.Err() == nil {
-			fmt.Fprintf(os.Stderr, "Scheduled work did not finish: %v\n%s", err, output)
-		}
-		timer.Reset(cronInterval)
-	}
-}
 
 // serveCaddyfile runs Caddy on the Caddyfile at config. PHPRC already names
 // the runtime directory in every hop, including this one, so php.ini loads
@@ -240,13 +169,20 @@ func init() {
 	// launch.php replaces itself with this command to serve the site, naming the
 	// Caddyfile it wrote into Site data.
 	if len(os.Args) == 3 && os.Args[1] == "php-server" {
-		stopping := stopGuard()
-		ready := make(chan struct{})
 		// The server waits for itself. A separate process would first extract its own copy
 		// of the embedded application, which takes longer than the wait on a slow disk.
-		go openWhenReady(os.Getenv("DRUPACK_RUNTIME_URL"), os.Getenv("DRUPACK_RUNTIME_ID"),
-			os.Getenv("DRUPACK_RUNTIME_OPEN"), ready)
-		go runScheduledWork(stopping, executable, application, ready)
+		go run(stopGuard(), siteName(), plan{
+			probe: strings.TrimSuffix(os.Getenv("DRUPACK_RUNTIME_URL"), "/") +
+				readinessPath + url.QueryEscape(os.Getenv("DRUPACK_RUNTIME_ID")),
+			open: os.Getenv("DRUPACK_RUNTIME_OPEN"),
+			cron: []string{executable, "php-cli",
+				filepath.Join(application, "vendor", "drush", "drush", "drush.php"), "cron"},
+			dir:         application,
+			poll:        500 * time.Millisecond,
+			readyWithin: 2 * time.Minute,
+			firstCron:   cronFirstDelay,
+			cronEvery:   cronInterval,
+		}, os.Stdout, os.Stderr, openBrowser)
 		serveCaddyfile(os.Args[2])
 		return
 	}

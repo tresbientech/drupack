@@ -45,6 +45,6 @@ and the site server command building the plan from the environment.
 
 ### Acceptance criteria
 
-- [ ] `(cd runtime/watch && go test ./...)` passes, with the readiness, browser and cron cases the PRD lists.
-- [ ] `grep -nE 'openWhenReady|runScheduledWork' runtime/entrypoint.go` prints nothing.
-- [ ] `bash build/qa.sh` exits 0.
+- [x] `(cd runtime/watch && go test ./...)` passes, with the readiness, browser and cron cases the PRD lists.
+- [x] `grep -nE 'openWhenReady|runScheduledWork' runtime/entrypoint.go` prints nothing.
+- [x] `bash build/qa.sh` exits 0.
