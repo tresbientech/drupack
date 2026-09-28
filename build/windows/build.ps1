@@ -130,6 +130,7 @@ $vcpkgRoot = Join-Path $vcpkgInstalled 'x64-windows'
 Set-Content -Path (Join-Path $frankenphp 'app.tar') -Value $null -NoNewline
 Copy-Item (Join-Path $payload 'app_checksum.txt') (Join-Path $frankenphp 'app_checksum.txt')
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\entrypoint.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack.go')
+Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\watch\watch.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_watch.go')
 
 $env:PATH = @("$buildTools\VC\Tools\Llvm\x64\bin", "$vcpkgRoot\bin", $watcherRoot, $php, $env:PATH) -join ';'
 $env:CC = 'clang'

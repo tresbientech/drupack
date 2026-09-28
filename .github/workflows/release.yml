@@ -316,6 +316,10 @@ jobs:
         working-directory: launcher
         run: go test ./...
 
+      - name: Run the runtime watcher unit tests
+        working-directory: runtime/watch
+        run: go test ./...
+
       - uses: actions/download-artifact@v7
         with:
           name: runtime-linux-${{ matrix.arch }}-musl
@@ -442,6 +446,10 @@ jobs:
         working-directory: launcher
         run: go test ./...
 
+      - name: Run the runtime watcher unit tests
+        working-directory: runtime/watch
+        run: go test ./...
+
       - uses: actions/download-artifact@v8
         with:
           name: payload-archive
@@ -514,6 +522,10 @@ jobs:
 
       - name: Run the launcher unit tests
         working-directory: launcher
+        run: go test ./...
+
+      - name: Run the runtime watcher unit tests
+        working-directory: runtime/watch
         run: go test ./...
 
       - uses: actions/download-artifact@v8

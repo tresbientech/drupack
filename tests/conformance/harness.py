@@ -123,11 +123,11 @@ def docker_answers():
 Wait = namedtuple("Wait", ["name", "seconds", "deadline", "covers"])
 
 WAIT_TABLE = [
-    # runtime/entrypoint.go polls 2 minutes with a 30s per-request timeout: a request
+    # runtime/watch/watch.go polls 2 minutes with a 30s per-request timeout: a request
     # already in flight when the poll gives up can still take 30s more, so the deadline
     # this row covers is 150s.
     Wait("start", 180, 150, "readiness of a start"),
-    # entrypoint.go forces its own exit 10s after the first stop signal.
+    # guard in runtime/watch/watch.go forces the exit 10s after the first stop signal.
     Wait("stop", 30, 10, "stop after the first signal"),
     # No product deadline: openBrowser runs in the same goroutine that already printed
     # "drupack is ready.", so the recorder standing in for it sees the URL within a
@@ -161,7 +161,7 @@ WAIT_TABLE = [
     Wait("cache_full_kill", 30, None, "removing a hung cache-full container after its budget expires"),
     Wait("probe", 10, None, "a local process-table lookup (ps, pgrep) against a running start"),
     Wait("port_closed", 2, None, "confirming a stopped server's port refuses a connection"),
-    # runtime/entrypoint.go's readiness poller uses an http.Client{Timeout: 30 * time.Second}
+    # runtime/watch/watch.go's readiness poller uses an http.Client{Timeout: 30 * time.Second}
     # for each request; every case's own HTTP call against a running site or a login link
     # carries the same per-request deadline.
     Wait("http_request", 60, 30, "an HTTP request against a running site or a login link"),

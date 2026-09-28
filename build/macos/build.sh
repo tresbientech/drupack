@@ -59,6 +59,7 @@ fi
 : > frankenphp/app.tar
 cp "$payload/app_checksum.txt" frankenphp/
 cp "$repository/runtime/entrypoint.go" frankenphp/caddy/frankenphp/drupack.go
+cp "$repository/runtime/watch/watch.go" frankenphp/caddy/frankenphp/drupack_watch.go
 
 runtime="$work/runtime"
 entry=drupack
