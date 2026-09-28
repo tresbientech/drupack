@@ -111,8 +111,12 @@ class _ServerDatabaseBackend:
         (data / "install-started").write_text("")
         text = harness.refuse(self, self.case_dir, "interrupted-install", "--data-dir", str(data),
                               "--admin-user", "resume-admin", "--admin-password", harness.DATABASE_PASSWORD)
-        self.assertIn(f"An interrupted installation left tables in the {self.DATABASE} database drupal on "
-                      f"{self.server.host}:{self.server.port}", text)
+        self.assertIn(f"began installing into the {self.DATABASE} database drupal on "
+                      f"{self.server.host}:{self.server.port}, which now holds tables", text)
+        self.assertTrue((data / "install-started").exists(), "the refusal dropped the installation start")
+        self.assertEqual((data / "installation-progress").read_text(), '["install","modules"]',
+                         "the refusal changed the remaining steps")
+        self.assertFalse((data / "site-adopted").exists(), "the refusal adopted the interrupted install")
         name = harness.run_drush(harness.BINARY, self.case_dir, data,
                                  "config:get", "system.site", "name", "--format=string")
         self.assertEqual(name.stdout.strip(), "Interrupted install", "the refused resume changed the database")

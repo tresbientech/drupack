@@ -91,7 +91,7 @@ prints a working link whatever port the site runs on.
 
 A first start turns an empty Site data directory into an installed site. It
 consumes the nine options marked `first start`, and no later start reads them.
-An interrupted first start resumes at the step it stopped on.
+An interrupted first start resumes at the step it stopped on. On MySQL or PostgreSQL, a first start cut off after it began installing leaves the next start refusing while the database holds tables, and installing once it is empty.
 
 `--database` selects the backend. SQLite needs nothing further. MySQL and
 PostgreSQL require `--db-host`, `--db-name`, `--db-user` and `--db-password`.

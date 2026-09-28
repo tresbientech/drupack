@@ -150,13 +150,14 @@ A newer Drupack keeps working with existing Site data, which every release is te
 
 One start at a time prepares a site, and one server at a time serves it, whatever port a second start asks for. A second start of a site that already serves opens your browser on it, then stops, so a double-click always lands you on your dashboard. A second start with no terminal, and a start whose port another program holds, stop with a message naming the port. Drush keeps working while a site serves.
 
-Drupack refuses to serve in three cases, each naming the directory and the command to run:
+Drupack refuses to serve in four cases, each naming the directory and the command to run:
 
 - an interrupted setup left the administrator account unset, so the site would still accept the published seed password
 - a site exists that Drupal cannot start
 - the database already holds a site that Drupack did not install
+- a setup cut off after it began installing into an empty database finds tables there now
 
-An interrupted setup resumes where it stopped. Drupack never installs Drupal over a database that already holds a site, and never copies its starting site over an existing one. A setup cut off after it began installing into a database it found empty never counts as a site: the next start stops and names that database, and installs once you have emptied it.
+An interrupted setup resumes where it stopped. Drupack never installs Drupal over a database that already holds a site, and never copies its starting site over an existing one. A setup cut off after it began installing into a database it found empty never counts as a site: the next start names that database and installs once it is empty again.
 
 ## The unpacked runtime
 

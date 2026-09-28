@@ -494,6 +494,12 @@ function installDrupal(array $options, string $binary): void
 function installSite(SiteData $site, array $options, string $binary): bool
 {
     $started = $site->installStarted();
+    // Without the recorded settings the options come from the command line, which may name
+    // any database, so a resume names none of them to empty.
+    if ($started && !file_exists($site->settings())) {
+        throw new RuntimeException("This Site data holds an interrupted installation but no settings.php: $site->directory. "
+            . "Restore its settings.php, or start " . executableName() . " with an empty Site data directory.");
+    }
     if (!$started && drushField($binary, ['status', '--field=bootstrap']) === 'Successful') {
         fwrite(STDOUT, "This database already holds a site. " . executableName() . " enabled nothing on it, and keeps its own administrator account.\n");
         return true;
@@ -504,8 +510,10 @@ function installSite(SiteData $site, array $options, string $binary): bool
     }
     if (databaseHoldsTables($options)) {
         if ($started) {
-            throw new RuntimeException("An interrupted installation left tables in the {$options['database']} database {$options['db-name']} on "
-                . "{$options['db-host']}:" . databasePort($options) . ". Empty that database, then start " . executableName() . " again.");
+            throw new RuntimeException("This Site data began installing into the {$options['database']} database {$options['db-name']} on "
+                . urlHost($options['db-host']) . ':' . databasePort($options) . ", which now holds tables: $site->directory. "
+                . "If they are that installation's, empty the database, then start " . executableName() . " again. "
+                . "If it holds a site of yours, start " . executableName() . " with an empty Site data directory.");
         }
         throw new RuntimeException("The database for $site->directory holds tables without an installed site. Empty it or name another database, then start " . executableName() . " again.");
     }
