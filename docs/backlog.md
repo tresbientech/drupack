@@ -25,14 +25,6 @@ them, so `drush --admin-password x user:login` spends a secret for nothing and
 unknown-argument error it already has for an unknown word. `docs/cli.md`
 records the current behaviour until then.
 
-## The variables a start passes between its own processes
-
-A start is four processes: launcher, runtime, `launch.php`, then the server.
-Thirteen `DRUPACK_RUNTIME_*` variables carry state across those hops, written
-and read in five languages, declared nowhere. Lean: one table in `CONTEXT.md`
-naming each variable, its writer and its readers, checked by a test that greps
-both sides.
-
 ## A case class that runs nowhere
 
 `PLATFORMS` defaults to empty, so a case class that declares none, or misspells
