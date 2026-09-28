@@ -8,11 +8,6 @@ today. Merged on 2026-09-20 as `46c36c7`.
 
 ## Worth doing
 
-- An unmarked case class skips on every platform in silence. `PLATFORMS` defaults
-  to empty, and a class that declares none, or misspells a constant, runs nowhere
-  while the suite stays green. A class that forgets to call the base
-  `setUpClass` skips its platform and tool gate entirely. Make either shape
-  impossible.
 - `Site.start` opens its log with `wb`, so a second start on one `Site` throws
   away the first start's output. The site cases restart one `Site` on purpose, so
   a failure there loses the installing start's log.
