@@ -1,0 +1,20 @@
+# One line per DRUPACK_RUNTIME_* variable a start passes between its processes: the
+# files that write it and the files that read it, comma-separated. A value that
+# names a path takes Drupack's canonical form, with forward slashes. A flag is 1
+# or absent. tests/conformance/test_environment.py checks every line against the
+# sources.
+
+APP_DIR        writers=launcher/main.go,application/launch.php,build/seed.sh,build/dev/dev-entry.sh  readers=runtime/entrypoint.go,application/launch.php,application/settings.php
+BINARY         writers=runtime/entrypoint.go  readers=application/launch.php,engine/serve.php,engine/php.php
+CONSOLE_OWNED  writers=launcher/launch_windows.go  readers=application/launch.php
+CWD            writers=runtime/entrypoint.go  readers=application/launch.php
+DATA_DIR       writers=application/launch.php,build/seed.sh  readers=application/settings.php,build/site-settings.php
+DRUSH          writers=runtime/entrypoint.go  readers=application/launch.php
+FILES_DIR      writers=application/launch.php  readers=application/launch.php,application/support/PublicFilesTemplateLoader.php,application/support/SiteDataPublicStream.php
+HOST           writers=application/launch.php  readers=application/settings.php
+ID             writers=application/launch.php  readers=runtime/entrypoint.go
+LAUNCHER       writers=launcher/main.go  readers=application/launch.php
+NAME           writers=launcher/main.go,build/dev/dev-entry.sh  readers=runtime/entrypoint.go,application/process.php
+OPEN           writers=application/launch.php  readers=runtime/entrypoint.go
+SITE_VERSION   writers=launcher/main.go  readers=runtime/entrypoint.go
+URL            writers=application/launch.php  readers=runtime/entrypoint.go

@@ -30,6 +30,7 @@ ln -sfn ../dist/work/app/vendor application/vendor
 "$executable" php-cli "$PWD/application/tests/site_data_public_stream_test.php"
 (cd launcher && go test ./...)
 python3 -m unittest discover -s tests/conformance -p test_harness.py
+python3 -m unittest discover -s tests/conformance -p test_environment.py
 DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" test-results/conformance --site-tests examples/mercury-demo/tests \
     -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \
     -k ExistingSiteAdoption -k EngineExecutable

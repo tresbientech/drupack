@@ -72,10 +72,10 @@ test in the QA chain, with failures that name the variable, file and line.
 
 ### Acceptance criteria
 
-- [ ] `python3 -m unittest discover -s tests/conformance -p test_environment.py` passes.
-- [ ] The same command fails, naming the variable and the file, after one
+- [x] `python3 -m unittest discover -s tests/conformance -p test_environment.py` passes.
+- [x] The same command fails, naming the variable and the file, after one
       `putenv` line is removed from a copy of the checkout; the phase report shows that run.
-- [ ] `grep -c '^[A-Z_]' runtime/environment.txt` prints 14.
-- [ ] `grep -n test_environment build/qa.sh` prints one line.
-- [ ] `grep -c "The variables a start passes between its own processes" docs/backlog.md` prints 0.
-- [ ] `bash build/qa.sh` exits 0.
+- [x] `grep -c '^[A-Z_]' runtime/environment.txt` prints 14.
+- [x] `grep -n test_environment build/qa.sh` prints one line.
+- [x] `grep -c "The variables a start passes between its own processes" docs/backlog.md` prints 0.
+- [x] `bash build/qa.sh` exits 0.
