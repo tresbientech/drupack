@@ -110,7 +110,7 @@ inside the child, which is the pattern to follow.
       start passes no secret in arguments.
 - [x] A first start still installs on sqlite, mysql and pgsql, and its printed
       login link still works.
-- [ ] The Linux and Windows conformance runs pass whole.
+- [x] The Linux and Windows conformance runs pass whole.
 
 ---
 
