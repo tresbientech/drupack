@@ -161,3 +161,40 @@ releases publish their runtimes, and native jobs pack them with the site's
 payload. It adds code in both workflows, the release step, `drupack-build` and
 a new pack script, and removes none. Lean: wait for a site owner who needs
 those targets.
+
+## Application review findings still open
+
+The [application review](reviews/2026-09-21-application-review.md) leaves four
+findings open:
+
+- F07, the packaged MCP flow. A build must first confirm which module provides
+  `mcp-tools:serve`.
+- F08, adoption versus interrupted installation. It needs a decision on what
+  recovery does.
+- F11, Windows cache ownership and ACL checks. The exposure needs a hostile
+  local account and a custom cache root.
+- F16, the development entrypoint cannot install a fresh site.
+
+Lean: take F08 first, since it decides what a start does with half-installed
+Site data.
+
+## Output that names the wrong thing
+
+- A cold `drupack --help` unpacks the whole release before it prints usage.
+  argv reaches the entry point only after preparation, and moving the decision
+  into the launcher puts the option contract in a fourth place, against
+  [ADR 0014](adr/0014-the-parser-owns-the-command-line.md).
+- An unknown first word prints `unknown command "X" for "caddy"`.
+  `runtime/entrypoint.go` forwards any word it does not handle to Caddy's CLI.
+- `README.md` says `drupack version` names every component Drupack carries. It
+  prints FrankenPHP, PHP and Caddy, and names neither Drupal nor Drush.
+
+Lean: fix the last two, and leave `--help` as it is.
+
+## JPEG and WebP in the runtime's GD
+
+The Linux runtime's `gd_info()` reports no JPEG and no WebP support.
+`runtime/php-extension-libs.txt` names `libavif` alone for gd. Drupal's GD
+toolkit refuses to process `Hero.jpg` from Mercury's seed, so a style cannot
+rotate or scale an uploaded JPEG. Lean: add `libjpeg` and `libwebp` to the list,
+and assert both formats in the extension case.
