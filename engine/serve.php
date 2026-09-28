@@ -148,16 +148,12 @@ function serve(string $binary, array $arguments): never
         fwrite(STDERR, "No login link: $project has no Drush. composer require drush/drush adds one.\n");
     } else {
         fwrite(STDOUT, "Creating a one-time login link.\n");
-        $login = proc_open([$binary, 'php-cli', "$project/" . DRUSH_SCRIPT, 'user:login', "--uri=$url"],
-            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $project);
-        $output = trim(stream_get_contents($pipes[1]));
-        $failure = trim(stream_get_contents($pipes[2]));
-        if (proc_close($login) !== 0 || $output === '') {
+        try {
+            $link = drushLoginLink($binary, "$project/" . DRUSH_SCRIPT, $project, ["--uri=$url"], $url);
+        } catch (LoginLinkFailure $failure) {
             // The folder's own settings may block uid 1 or name no reachable database yet;
             // the server still starts, and Drupal's own error page says which.
-            fwrite(STDERR, "Cannot mint a one-time login link: $failure\nGet one once the site answers with: " . executableName() . " drush user:login --uri=$url\n");
-        } else {
-            $link = $output;
+            fwrite(STDERR, "Cannot mint a one-time login link: {$failure->reason}\nGet one once the site answers with: " . executableName() . " drush user:login --uri=$url\n");
         }
     }
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n") . "  Project: $project\n");
