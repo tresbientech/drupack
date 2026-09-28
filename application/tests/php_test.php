@@ -10,32 +10,7 @@ define('DRUPACK_PHP_LIBRARY', true);
 require __DIR__ . '/../../engine/php.php';
 putenv('DRUPACK_RUNTIME_NAME=drupack');
 
-$cases = [];
-
-function test(string $name, callable $case): void
-{
-    $GLOBALS['cases'][$name] = $case;
-}
-
-function same(mixed $expected, mixed $actual): void
-{
-    if ($expected !== $actual) {
-        throw new RuntimeException('expected ' . var_export($expected, true) . ', got ' . var_export($actual, true));
-    }
-}
-
-function throws(string $needle, callable $case): void
-{
-    try {
-        $case();
-    } catch (Throwable $error) {
-        if (!str_contains($error->getMessage(), $needle)) {
-            throw new RuntimeException("expected a message holding \"$needle\", got \"{$error->getMessage()}\"");
-        }
-        return;
-    }
-    throw new RuntimeException("expected a throw holding \"$needle\", nothing was thrown");
-}
+require __DIR__ . '/cases.php';
 
 test('a script takes the arguments after it, options included', function () {
     same(['mode' => 'script', 'value' => 'vendor/bin/drush', 'settings' => ['memory_limit=-1'], 'rest' => ['status', '-v']],
@@ -85,16 +60,5 @@ test('lint names a parse error and passes valid code', function () {
     unlink($file);
 });
 
-$failed = 0;
-foreach ($cases as $name => $case) {
-    try {
-        $case();
-        fwrite(STDOUT, "ok   $name\n");
-    } catch (Throwable $error) {
-        $failed++;
-        fwrite(STDOUT, "FAIL $name\n       {$error->getMessage()}\n");
-    }
-}
-$total = count($cases);
-fwrite(STDOUT, $failed === 0 ? "\n$total cases passed\n" : "\n$failed of $total cases failed\n");
-exit($failed === 0 ? 0 : 1);
+$status = runCases();
+exit($status);
