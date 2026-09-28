@@ -133,28 +133,19 @@ func openBrowser(address string) {
 	_ = command.Start()
 }
 
-// Caddy finishes an in-flight PHP request before it exits, and a request has no
-// upper bound, so one that never returns holds the process open and Ctrl+C never
-// lands. The deadline starts at the first signal and fires only when the ordinary
-// shutdown has not finished by then; a healthy one takes about three seconds.
+// A healthy stop takes about three seconds.
 const shutdownDeadline = 10 * time.Second
 
-// forceExitOnStalledShutdown runs only for the server. Notifying on these signals
-// suppresses Go's own termination, which a command that handles neither still needs.
-// The returned context ends at the first signal, so work this process started
-// outside a request stops before the deadline below fires.
-func forceExitOnStalledShutdown() context.Context {
+// stopGuard runs only for a server. Notifying on these signals suppresses Go's own
+// termination, which a command that handles neither still needs, and guard in
+// watch.go forces the exit instead once the deadline passes.
+func stopGuard() context.Context {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
-	stopping, stop := context.WithCancel(context.Background())
-	go func() {
-		<-signals
-		stop()
-		time.Sleep(shutdownDeadline)
+	return guard(signals, shutdownDeadline, func(code int) {
 		fmt.Fprintf(os.Stderr, "%s did not stop within %s. Forcing exit.\n", siteName(), shutdownDeadline)
-		os.Exit(1)
-	}()
-	return stopping
+		os.Exit(code)
+	})
 }
 
 // cronInterval is the period automated_cron ships with, whose in-request run the
@@ -249,7 +240,7 @@ func init() {
 	// launch.php replaces itself with this command to serve the site, naming the
 	// Caddyfile it wrote into Site data.
 	if len(os.Args) == 3 && os.Args[1] == "php-server" {
-		stopping := forceExitOnStalledShutdown()
+		stopping := stopGuard()
 		ready := make(chan struct{})
 		// The server waits for itself. A separate process would first extract its own copy
 		// of the embedded application, which takes longer than the wait on a slow disk.
@@ -263,7 +254,7 @@ func init() {
 	// Caddyfile. The folder keeps automated_cron, which runs inside a request after
 	// its response, so a stop meets a running PHP request as the site's server does.
 	if len(os.Args) == 3 && os.Args[1] == "folder-server" {
-		forceExitOnStalledShutdown()
+		stopGuard()
 		serveCaddyfile(os.Args[2])
 		return
 	}

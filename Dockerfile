@@ -43,6 +43,7 @@ COPY runtime/embed.sh /usr/local/bin/embed.sh
 COPY runtime/php-extension-libs.txt runtime/extensions-list.sh /build/
 COPY --from=extensions /php-extensions.txt /build/php-extensions.txt
 COPY runtime/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
+COPY runtime/watch/watch.go /go/src/app/caddy/frankenphp/drupack_watch.go
 RUN bash /usr/local/bin/embed.sh
 COPY application/php.ini application/cacert.pem /out/
 
@@ -52,6 +53,7 @@ COPY runtime/embed.sh /usr/local/bin/embed.sh
 COPY runtime/php-extension-libs.txt runtime/extensions-list.sh /build/
 COPY --from=extensions /php-extensions.txt /build/php-extensions.txt
 COPY runtime/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
+COPY runtime/watch/watch.go /go/src/app/caddy/frankenphp/drupack_watch.go
 RUN bash /usr/local/bin/embed.sh
 COPY application/php.ini application/cacert.pem /out/
 

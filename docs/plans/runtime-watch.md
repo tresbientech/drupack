@@ -26,11 +26,11 @@ four copy steps, and the test step in the QA chain and the three release jobs.
 
 ### Acceptance criteria
 
-- [ ] `(cd runtime/watch && go test ./...)` passes, with cases for exit after the deadline and none before the first signal.
-- [ ] `grep -c 'runtime/watch/watch.go' Dockerfile build/macos/build.sh build/windows/build.ps1` prints 2, 1 and 1.
-- [ ] `grep -c 'runtime/watch' build/qa.sh` prints 1, and `grep -c 'working-directory: runtime/watch' .github/workflows/release.yml` prints 3.
-- [ ] `grep -n forceExitOnStalledShutdown runtime/entrypoint.go` prints nothing.
-- [ ] `bash build/qa.sh` exits 0.
+- [x] `(cd runtime/watch && go test ./...)` passes, with cases for exit after the deadline and none before the first signal.
+- [x] `grep -c 'runtime/watch/watch.go' Dockerfile build/macos/build.sh build/windows/build.ps1` prints 2, 1 and 1.
+- [x] `grep -c 'runtime/watch' build/qa.sh` prints 1, and `grep -c 'working-directory: runtime/watch' .github/workflows/release.yml` prints 3.
+- [x] `grep -n forceExitOnStalledShutdown runtime/entrypoint.go` prints nothing.
+- [x] `bash build/qa.sh` exits 0.
 
 ---
 
