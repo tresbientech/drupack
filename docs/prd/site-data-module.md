@@ -60,6 +60,7 @@ start prints. A reader sees no change in behavior or output.
   - a method that writes the listener record;
   - a connection method that returns the recorded database block.
 - Its write side:
+  - an installed method, true once an initialization finished;
   - a steps method, with the rules the current resume function has, including the first-install record for a new server database;
   - an initialize method taking the steps and a callback. The callback receives the step, the first-install fact and the adoption fact, and returns whether the step found an existing site.
 - The initialize method records the remaining steps after each callback returns. After the last step it writes the finished marker and removes the progress, adoption and first-install files. It returns the adoption fact.
@@ -74,12 +75,13 @@ start prints. A reader sees no change in behavior or output.
 
 - A good test builds a Site data directory on disk, calls the module, and checks a return value, a file, or the calls a recording callback received. It never reads a private name except through the module's own methods.
 - A new unit file covers the module and joins the full QA chain.
-- Thirteen existing entry-point cases move to the module under their current names. The case on state file names is deleted, since those names become private.
+- Twelve existing entry-point cases move to the module under their current names. The case on state file names is deleted, since those names become private.
 - New cases cover the loop:
   - a finished loop leaves no progress, adoption or first-install file;
   - adoption passes to every later step;
   - a callback that throws leaves progress naming the failed step onward;
   - first-install passes true only for a database the steps method recorded as new.
+  - the connection method returns the database block of a recorded settings file.
 - The listener and files-directory merge cases stay in the entry-point unit file.
 - Prior art: the entry-point unit file already builds temporary Site data directories. The shared PHP case runner provides the assertions.
 - The conformance suite runs unchanged and must pass whole.

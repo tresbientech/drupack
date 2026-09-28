@@ -68,6 +68,14 @@ function executableName(): string
     return getenv('DRUPACK_RUNTIME_NAME');
 }
 
+function directory(string $path): void
+{
+    // Another start can create the same directory between the check and the call.
+    if (!is_dir($path) && !mkdir($path, 0700, true) && !is_dir($path)) {
+        throw new RuntimeException("Cannot create directory: $path");
+    }
+}
+
 // Carries the reason Drush gave for a failed mint, since a start that can still serve
 // without the link reports that reason; getMessage() stays the fixed text a start that
 // cannot serve without the link exits with.

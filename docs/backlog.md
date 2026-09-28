@@ -33,13 +33,6 @@ and read in five languages, declared nowhere. Lean: one table in `CONTEXT.md`
 naming each variable, its writer and its readers, checked by a test that greps
 both sides.
 
-## An owner for the Site data layout
-
-Ten file names describe a Site data directory. `launch.php` spells them inline
-at 18 places and the conformance suite spells them again 33 times. Four have a
-helper, six are interpolated. Lean: give the remaining six helpers and keep the
-list in one place, without building a Site data class around it.
-
 ## A case class that runs nowhere
 
 `PLATFORMS` defaults to empty, so a case class that declares none, or misspells

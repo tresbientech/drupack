@@ -30,13 +30,13 @@ current names, and the full QA chain runs that file.
 
 ### Acceptance criteria
 
-- [ ] `./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/site_data_test.php"`
-      passes, and holds the thirteen moved cases under their current names plus
-      the four loop cases the PRD lists.
-- [ ] `./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/launch_test.php"`
+- [x] `./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/site_data_test.php"`
+      passes, and holds the twelve moved cases under their current names plus
+      the loop and connection cases the PRD lists.
+- [x] `./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/launch_test.php"`
       passes, and `grep -c` of each moved case name in that file prints 0.
-- [ ] `grep -nE '\$data/|site-installed|installation-progress|site-adopted|first-install|serving\.lock|hash_salt' application/launch.php`
+- [x] `grep -nE '\$data/|site-installed|installation-progress|site-adopted|first-install|serving\.lock|hash_salt' application/launch.php`
       prints nothing.
-- [ ] `grep -n site_data_test build/qa.sh` prints one line.
-- [ ] `grep -c "An owner for the Site data layout" docs/backlog.md` prints 0.
-- [ ] `bash build/qa.sh` exits 0.
+- [x] `grep -n site_data_test build/qa.sh` prints one line.
+- [x] `grep -c "An owner for the Site data layout" docs/backlog.md` prints 0.
+- [x] `bash build/qa.sh` exits 0.
