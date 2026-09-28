@@ -517,28 +517,13 @@ function recordedOptions(array $options, string $directory): array
     return $options;
 }
 
-function databaseUrl(array $options): string
-{
-    $host = str_contains($options['db-host'], ':') ? "[{$options['db-host']}]" : $options['db-host'];
-    $port = databasePort($options);
-    return sprintf(
-        '%s://%s:%s@%s:%s/%s',
-        $options['database'],
-        rawurlencode($options['db-user']),
-        rawurlencode($options['db-password']),
-        $host,
-        $port,
-        rawurlencode($options['db-name']),
-    );
-}
-
 // DIAGNOSTIC_LIMIT bounds how much of a failed step's explanation reaches the terminal.
 // Drush prints its reason first and its backtrace after, so the head is the useful end.
 const DIAGNOSTIC_LIMIT = 400;
 
-// Reads what Drush wrote to stderr, as one line a reader can act on. The database URL
-// carries the connection password, and a failing step often echoes it back, so the
-// credentials go before anything prints.
+// Reads what Drush wrote to stderr, as one line a reader can act on. A failing step can
+// print the connection as a URL carrying its password, so the credentials go before
+// anything prints.
 function diagnostic(string $path): string
 {
     $text = preg_replace('#(?<=://)[^:@/\s]+:[^@/\s]+(?=@)#', 'USER:PASSWORD', (string) file_get_contents($path));
@@ -687,16 +672,17 @@ function installDrupal(array $options, string $binary): void
     if (!is_file($drush) || !is_dir($recipe)) {
         throw new RuntimeException('Bundled Drupal installation files are unavailable');
     }
+    // Every local account can list a process's arguments, so the database credentials
+    // come from the settings step's settings.php and the password from the environment.
     runDrush($binary, [
         $drush,
         'site:install',
         $recipe,
         '--yes',
-        '--db-url=' . databaseUrl($options),
         '--account-name=' . $options['admin-user'],
-        '--account-pass=' . $options['admin-password'],
         '--site-name=' . $options['site-name'],
     ], 'Drupal installation failed');
+    configureAdministrator($binary);
 }
 
 // The database is the user's only copy: an installed site is kept, and other tables stop the start.
@@ -773,7 +759,7 @@ function clearSeedCaches(string $data): void
     }
 }
 
-function configureSeedAdministrator(string $binary): void
+function configureAdministrator(string $binary): void
 {
     runDrush($binary, [drushPath(), 'php:eval', '$account = \\Drupal\\user\\Entity\\User::load(1); $account->set("name", getenv("DRUPACK_ADMIN_USER")); $account->setPassword(getenv("DRUPACK_ADMIN_PASSWORD")); $account->save();'], 'Cannot configure Drupal administrator');
 }
@@ -825,7 +811,7 @@ function runStep(string $step, string $data, array $options, string $binary): vo
             writeSettings("$data/settings.php", application() . '/settings.php', databaseConfiguration($options, $data), siteSettings()['settings']);
             return;
         case 'administrator':
-            configureSeedAdministrator($binary);
+            configureAdministrator($binary);
             configureSeedSiteName($binary, $options['site-name']);
             return;
         case 'install':

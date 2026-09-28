@@ -7,11 +7,27 @@ unittest never collects it on its own with no DATABASE set.
 """
 
 import json
+import re
+import threading
+from pathlib import Path
 from urllib.error import HTTPError
 
 import harness
 
 ADMIN_USER = "server-admin"
+
+
+def collect_drush_arguments(seen, stop):
+    """Adds the arguments of every Drush process /proc lists to seen until stop is set."""
+    while not stop.is_set():
+        for cmdline in Path("/proc").glob("[0-9]*/cmdline"):
+            try:
+                arguments = cmdline.read_bytes().split(b"\0")
+            except OSError:
+                continue
+            if any(b"drush.php" in argument for argument in arguments):
+                seen.add(tuple(argument.decode(errors="replace") for argument in arguments if argument))
+        stop.wait(0.02)
 
 
 class _ServerDatabaseBackend:
@@ -40,8 +56,24 @@ class _ServerDatabaseBackend:
     def test_first_start_then_restart(self):
         data = self.case_dir / "data"
         site = harness.Site(harness.BINARY, self.case_dir / "first-start")
-        site.start(data, *self.server.connection(), "--admin-user", ADMIN_USER,
-                   "--admin-password", harness.DATABASE_PASSWORD, ready_wait="database_start")
+        # Every local account can read a process's arguments, so no Drush child the
+        # install runs may carry a password or a database URL there.
+        seen = set()
+        stop = threading.Event()
+        watcher = threading.Thread(target=collect_drush_arguments, args=(seen, stop), daemon=True)
+        watcher.start()
+        try:
+            site.start(data, *self.server.connection(), "--admin-user", ADMIN_USER,
+                       "--admin-password", harness.DATABASE_PASSWORD, ready_wait="database_start")
+        finally:
+            stop.set()
+            watcher.join()
+        self.assertTrue([arguments for arguments in seen if "site:install" in arguments],
+                        f"no Drush child ran site:install among {len(seen)} seen")
+        for arguments in seen:
+            line = " ".join(arguments)
+            self.assertNotIn(harness.DATABASE_PASSWORD, line)
+            self.assertIsNone(re.search(r"://[^/\s]*@", line), f"a Drush child named a database URL: {line}")
         try:
             self.assertEqual(site.fetch("/")[0], 200)
             with self.assertRaises(HTTPError) as error:
