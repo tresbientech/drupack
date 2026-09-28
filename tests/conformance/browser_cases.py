@@ -6,13 +6,14 @@ receive instead of trusting only the printed line.
 import os
 import time
 from http.cookiejar import CookieJar
-from urllib.request import HTTPCookieProcessor, build_opener
+from urllib.request import HTTPCookieProcessor, build_opener, urlopen
 
 import harness
 
 ADMIN_USER = "browser-admin"
 ADMIN_PASSWORD = "Browser.test.password.2026"
 LINK_PREFIX = "  Login:     "
+URL_PREFIX = "  URL:       "
 
 
 def _recorder_env(directory):
@@ -131,3 +132,39 @@ class BrowserOpenCases(harness.ConformanceCase):
                                   "although the mint failed")
         finally:
             restart.stop()
+
+    def test_a_start_on_every_interface_prints_the_link_and_opens_nothing(self):
+        # 0.0.0.0 accepts other computers over plain HTTP, so the link reaches the terminal
+        # alone, even with a person at it.
+        env, recorded = _recorder_env(self.case_dir / "recorder")
+        self._install(env, recorded)
+
+        restart = harness.Site(harness.BINARY, self.case_dir / "restart")
+        restart.start(self.data, bind="0.0.0.0", attach_pty=True, env=env)
+        try:
+            link = harness.wait_for_line(restart.log_path, 0, LINK_PREFIX, harness.WAITS["start"].seconds)
+            self.assertIn("?destination=/admin/dashboard", link)
+            self.assertIn("No browser opens:", restart.log_path.read_text(errors="replace"))
+            time.sleep(harness.WAITS["browser_open"].seconds)
+            self.assertFalse(recorded.exists(),
+                             f"the recorder was called for a listener on every interface: inspect {recorded}")
+        finally:
+            restart.stop()
+
+    def test_an_ipv6_host_prints_an_address_that_answers(self):
+        # The wildcard listener also answers on 127.0.0.1, where the harness waits for it.
+        site = harness.Site(harness.BINARY, self.case_dir / "ipv6")
+        site.start(self.data, "--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD,
+                   "--host", "::1", bind="[::]")
+        try:
+            url = harness.wait_for_line(site.log_path, 0, URL_PREFIX, harness.WAITS["start"].seconds)
+            self.assertEqual(url, f"http://[::1]:{site.port}/")
+            with urlopen(url + "user/login", timeout=harness.WAITS["http_request"].seconds) as response:
+                self.assertEqual(response.status, 200)
+            link = harness.wait_for_line(site.log_path, 0, LINK_PREFIX, harness.WAITS["start"].seconds)
+            self.assertTrue(link.startswith(url), link)
+            opener = build_opener(HTTPCookieProcessor(CookieJar()))
+            with opener.open(link, timeout=harness.WAITS["http_request"].seconds) as response:
+                self.assertIn("/admin/dashboard", response.geturl())
+        finally:
+            site.stop()

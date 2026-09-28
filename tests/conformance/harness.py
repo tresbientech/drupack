@@ -444,11 +444,11 @@ class Site:
         self.port = None
         self._pty_thread = None
 
-    def start(self, data_dir, *options, listen=True, ready_wait="start", attach_pty=False, env=None):
+    def start(self, data_dir, *options, listen=True, bind="127.0.0.1", ready_wait="start", attach_pty=False, env=None):
         self.port = pick_port() if listen else SITE["port"]
         args = [str(self.binary), "--data-dir", str(data_dir)]
         if listen:
-            args += ["--listen", f"127.0.0.1:{self.port}"]
+            args += ["--listen", f"{bind}:{self.port}"]
         args += list(options)
         # A caller's own subdirectory names one Site process among several sharing a case,
         # like every other case directory in this suite: created on first use, not in advance.

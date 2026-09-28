@@ -27,26 +27,13 @@ respond @protectedFilesRegexp 403
 	path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
 	path_regexp ^/(core|modules|themes|libraries)/
 }
-# An image style derivative carries an "itok" token. Aggregated CSS/JS carries
-# delta/language/theme/include instead, never a "v" token. Every asset this
-# product serves with "v=" is a core, module, theme or library file.
-# @versionedAssetPath already matches those by path, so there is no "v" matcher here.
-# No file matcher: a derivative lives in Site data, which this root does
-# not cover, and a header on a missing file costs nothing.
-@versionedAssetQuery {
-	path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
-	query itok=*
-	not path_regexp ^/(core|modules|themes|libraries)/
-}
-# An upload can be replaced at the same URL in public storage. It must
-# revalidate rather than let a browser trust a year-old cached copy. A
-# generated derivative under the same prefix still carries its own itok
-# token, so it is excluded here, not layered by directive order.
-@publicUpload {
+# Public storage can change at the same URL: an upload is replaced, and an image
+# style derivative is regenerated from a replaced source under the same "itok"
+# token, which names the style and the path, never the contents. A browser
+# revalidates both rather than trust a year-old copy.
+@publicStorage {
 	path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
 	path_regexp ^/(sites/[^/]+/files/|files/)
-	not query itok=*
 }
-header @publicUpload Cache-Control "max-age=0,must-revalidate"
+header @publicStorage Cache-Control "max-age=0,must-revalidate"
 header @versionedAssetPath Cache-Control "max-age=31536000,public,immutable"
-header @versionedAssetQuery Cache-Control "max-age=31536000,public,immutable"

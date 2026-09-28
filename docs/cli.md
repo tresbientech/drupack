@@ -77,7 +77,10 @@ rejected.
 
 `--host` names the permitted request host, as a hostname or an IP address. It
 becomes an exact Drupal trusted-host pattern. A request carrying any other Host
-header gets 400.
+header gets 400. Printed URLs put an IPv6 host in brackets.
+
+A browser opens only on a loopback listener, 127.0.0.0/8 or `::1`. Any other
+listener, `0.0.0.0` included, prints the login link and opens nothing.
 
 Every start writes both values into the Listener record in Site data, beside the
 files directory. A start reads only the files directory back, so `--listen` does

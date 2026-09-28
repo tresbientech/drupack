@@ -121,11 +121,16 @@ Useful options:
 
 - `--data-dir PATH` puts Site data somewhere else. `DRUPACK_DATA_DIR` sets a default.
 - `--listen IP:PORT` serves on another address, `127.0.0.1:7225` by default. Each start records its address in Site data, so `drush` reaches the site without repeating the option.
+- `--host HOST` names the address readers type, `localhost` by default. An IPv6 address works too, such as `--host ::1`.
 - `--site-name NAME` names the site on a first start, `Drupal Mercury Demo` by default. `DRUPACK_SITE_NAME` sets it too. A later start never renames a site.
 - `--no-browser` starts without opening a browser.
 - `mercury-demo --version` prints the release, `mercury-demo version` names every component it carries, and `mercury-demo --help` lists every option.
 
 [The command line reference](docs/cli.md) covers every option, including the ones this list leaves out.
+
+### Serving other computers
+
+The site speaks plain HTTP. A listener beyond loopback, such as `--listen 0.0.0.0:7225`, sends the login link, the password and the session cookie over the network unencrypted. Put a TLS proxy in front of the site before anyone signs in from another computer. On such a listener a start prints the login link and opens no browser.
 
 ## Administer with Drush
 

@@ -1,13 +1,13 @@
 """Exercise a seeded embedded Drupal site without network access."""
 
 import json
-import re
 import shutil
 import tempfile
 import time
 from http.cookiejar import CookieJar
 from urllib.error import HTTPError
-from urllib.request import HTTPCookieProcessor, build_opener
+from urllib.parse import urlsplit
+from urllib.request import HTTPCookieProcessor, Request, build_opener, urlopen
 
 import harness
 
@@ -15,6 +15,12 @@ ADMIN_USER = "drupack-test-admin"
 ADMIN_PASSWORD = "Offline.test.administrator.2026!"
 CREDENTIALS = ("--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
 LINK_PREFIX = "  Login:     "
+
+
+def draw_png(uri, colour):
+    """PHP for php:eval that writes a 64x64 PNG of one RGB colour at a stream URI."""
+    return (f"$image = imagecreatetruecolor(64, 64); imagefill($image, 0, 0, imagecolorallocate($image, {colour}));"
+            f" imagepng($image, \\Drupal::service('file_system')->realpath('{uri}'));")
 
 # Windows runs three methods: a credentialed first start with the settings and
 # private-path codes, drush status --field=bootstrap, and a credential-free restart.
@@ -58,6 +64,16 @@ class SeededSite(harness.ConformanceCase):
 
     def run_drush(self, data, *command):
         return harness.run_drush(self.binary, self.case_dir, data, *command)
+
+    def revalidate(self, path, etag=None):
+        """Asks for path the way a browser holding the response tagged etag asks again."""
+        request = Request(f"http://localhost:{self.site.port}{path}",
+                          headers={} if etag is None else {"If-None-Match": etag})
+        try:
+            with urlopen(request, timeout=harness.WAITS["http_request"].seconds) as response:
+                return response.status, response.headers, response.read()
+        except HTTPError as error:
+            return error.code, error.headers, b""
 
     def test_extensions(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".php", dir=self.case_dir) as probe:
@@ -223,9 +239,9 @@ class SeededSite(harness.ConformanceCase):
         self.assertEqual(self.site.http("/sites/default/files/probe.txt"), "served from the files directory")
 
     def test_public_storage_cache_headers(self):
-        # An upload can be replaced at the same URL, so it must revalidate
-        # rather than serve a year-old cached copy. A versioned application
-        # asset's URL changes with its content, so it can cache immutably.
+        # An upload and an image style derivative can change at the same URL, so
+        # both revalidate rather than serve a year-old cached copy. A versioned
+        # application asset's URL changes with its content, so it caches immutably.
         data = self.case_dir / "cache-headers"
         self.site.start(data, *CREDENTIALS)
         (data / "files" / "upload.png").write_bytes(b"not-a-real-png")
@@ -233,17 +249,31 @@ class SeededSite(harness.ConformanceCase):
         self.assertEqual(headers.get("Cache-Control"), "max-age=0,must-revalidate")
         _, headers, _ = self.site.fetch("/core/misc/drupal.js")
         self.assertEqual(headers.get("Cache-Control"), "max-age=31536000,public,immutable")
-        homepage = self.site.http("/")
-        candidates = re.findall(r'/sites/default/files/styles/[^"\'\s]+', homepage)
-        # A responsive-image srcset also carries an unresolved "{width}"
-        # template entry; skip it in favor of a concrete derivative URL.
-        derivative = next((url for url in candidates if "%7B" not in url), None)
-        self.assertIsNotNone(derivative, "expected an image style derivative on the homepage")
+        # The runtime's GD reads PNG and no JPEG, so the case draws its own source and
+        # takes the thumbnail's address, token included, from Drupal.
+        source = "public://derivative-source.png"
+        drawn = self.run_drush(data, "php:eval", draw_png(source, "255, 0, 0")
+                               + f" echo \\Drupal\\image\\Entity\\ImageStyle::load('thumbnail')->buildUrl('{source}');")
+        self.assertEqual(drawn.returncode, 0, drawn.stderr)
+        address = urlsplit(drawn.stdout.strip())
+        derivative = f"{address.path}?{address.query}"
         # The first request generates the derivative; Drupal serves that response
         # itself. The file exists on disk from the second request onward. Caddy's
         # own cache headers apply only to that second request.
         status, _, _ = self.site.fetch(derivative)
         self.assertEqual(status, 200)
-        status, headers, _ = self.site.fetch(derivative)
+        status, headers, previous = self.revalidate(derivative)
         self.assertEqual(status, 200)
-        self.assertEqual(headers.get("Cache-Control"), "max-age=31536000,public,immutable")
+        self.assertEqual(headers.get("Cache-Control"), "max-age=0,must-revalidate")
+        etag = headers["ETag"]
+        self.assertEqual(self.revalidate(derivative, etag)[0], 304)
+        # The source is replaced at the same path and its derivatives flushed, as a file
+        # update in Drupal does. The token in the URL stays the same, so only revalidation
+        # hands the browser holding the old derivative the new one.
+        replaced = self.run_drush(data, "php:eval", draw_png(source, "0, 0, 255") + f" image_path_flush('{source}');")
+        self.assertEqual(replaced.returncode, 0, replaced.stderr)
+        for request in ("generated", "served"):
+            with self.subTest(request=request):
+                status, headers, body = self.revalidate(derivative, etag)
+                self.assertEqual(status, 200, "the browser kept the derivative of the replaced source")
+                self.assertNotEqual(body, previous)
