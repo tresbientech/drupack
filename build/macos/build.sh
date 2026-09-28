@@ -16,10 +16,9 @@ if [ -n "${4:-}" ]; then
 fi
 repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 
-frankenphp_version=1.12.7
+# The FrankenPHP and PHP pins every Linux builder image compiles.
+. "$repository/runtime/builder-inputs.sh"
 drupack_version=${DRUPACK_VERSION:-dev}
-frankenphp_commit=a765b086f5cc56f6b7753117367d56e1b0da948d
-php_version=8.5.10
 spc_version=2.8.5
 # The allowlist every builder compiles. spc resolves the libraries each name needs.
 extensions=$(bash "$repository/runtime/extensions-list.sh" "$repository/runtime/php-extensions.txt")
