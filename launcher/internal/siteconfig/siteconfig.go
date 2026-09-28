@@ -55,6 +55,62 @@ type Site struct {
 	Writable []string `json:"writable"`
 	// Read sets Docroot from composer.json. Parse leaves it empty.
 	Docroot string `json:"docroot"`
+	Node    Node   `json:"node,omitempty"`
+}
+
+// NodeLTS is the Node value `node: true` parses to.
+const NodeLTS Node = "lts"
+
+// Node is the Node.js release a site carries: empty for none, NodeLTS for the
+// newest LTS, a major line such as "24", or an exact version such as "24.21.0".
+// The build replaces it with the exact version it resolves.
+type Node string
+
+var (
+	nodeMajorRe   = regexp.MustCompile(`^[1-9][0-9]*$`)
+	nodeVersionRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
+)
+
+// UnmarshalJSON reads node from drupack.yml, which the site author writes, or
+// from a site.json the build wrote.
+func (n *Node) UnmarshalJSON(content []byte) error {
+	var value any
+	if err := json.Unmarshal(content, &value); err != nil {
+		return err
+	}
+	switch value := value.(type) {
+	case nil:
+		*n = ""
+		return nil
+	case bool:
+		*n = ""
+		if value {
+			*n = NodeLTS
+		}
+		return nil
+	case float64:
+		if nodeMajorRe.Match(content) {
+			*n = Node(content)
+			return nil
+		}
+	case string:
+		if nodeVersionRe.MatchString(value) {
+			*n = Node(value)
+			return nil
+		}
+	}
+	return fmt.Errorf("node: %s is not true, false, a major version such as 24, or a version such as 24.21.0", content)
+}
+
+// MarshalJSON writes the form drupack.yml takes, so the parsed contract reads back as written.
+func (n Node) MarshalJSON() ([]byte, error) {
+	if n == NodeLTS {
+		return []byte("true"), nil
+	}
+	if nodeMajorRe.MatchString(string(n)) {
+		return []byte(n), nil
+	}
+	return json.Marshal(string(n))
 }
 
 var (

@@ -101,6 +101,40 @@ func TestParseNamesTheRejectedField(t *testing.T) {
 	}
 }
 
+func TestParseReadsEachNodeForm(t *testing.T) {
+	cases := map[string]siteconfig.Node{
+		"":                  "",
+		"node: false\n":     "",
+		"node: true\n":      siteconfig.NodeLTS,
+		"node: 24\n":        "24",
+		"node: 24.21.0\n":   "24.21.0",
+		"node: '24.21.0'\n": "24.21.0",
+	}
+	for field, want := range cases {
+		site, err := siteconfig.Parse([]byte(minimal + field))
+		if err != nil {
+			t.Errorf("%q: %v", field, err)
+			continue
+		}
+		if site.Node != want {
+			t.Errorf("%q: node = %q; want %q", field, site.Node, want)
+		}
+	}
+}
+
+func TestParseRefusesAMalformedNodeWithTheAcceptedForms(t *testing.T) {
+	for _, field := range []string{
+		"node: 24.21\n", "node: '24'\n", "node: 0\n", "node: -24\n", "node: v24.21.0\n", "node: lts\n",
+		"node: 24.x\n", "node: '>=24'\n", "node: [24]\n", "node: {version: 24}\n",
+	} {
+		_, err := siteconfig.Parse([]byte(minimal + field))
+		if err == nil || !strings.Contains(err.Error(), "node:") ||
+			!strings.Contains(err.Error(), "true, false, a major version such as 24, or a version such as 24.21.0") {
+			t.Errorf("%q: Parse error = %v; want one naming node and its forms", field, err)
+		}
+	}
+}
+
 // site writes a site directory holding drupack.yml and composer.json.
 func site(t *testing.T, drupack, composer string) string {
 	t.Helper()
@@ -190,5 +224,31 @@ func TestWriteProducesTheSiteJSONShape(t *testing.T) {
 	}
 	if !reflect.DeepEqual(written, want) {
 		t.Fatalf("site.json = %v; want %v", written, want)
+	}
+}
+
+func TestSiteJSONCarriesNodeInTheFormItWasGiven(t *testing.T) {
+	for field, want := range map[string]any{
+		"node: true\n": true, "node: 24\n": float64(24), "node: 24.21.0\n": "24.21.0",
+	} {
+		site, err := siteconfig.Parse([]byte(minimal + field))
+		if err != nil {
+			t.Fatal(err)
+		}
+		content, err := json.Marshal(site)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var written map[string]any
+		if err := json.Unmarshal(content, &written); err != nil {
+			t.Fatal(err)
+		}
+		if written["node"] != want {
+			t.Errorf("%q: site.json node = %v; want %v", field, written["node"], want)
+		}
+		var read siteconfig.Site
+		if err := json.Unmarshal(content, &read); err != nil || read.Node != site.Node {
+			t.Errorf("%q: site.json reads back as %q, %v; want %q", field, read.Node, err, site.Node)
+		}
 	}
 }

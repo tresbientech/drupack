@@ -1,6 +1,7 @@
 package build_test
 
 import (
+	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
@@ -616,5 +617,47 @@ func TestAPayloadOnlyEnginePlanExportsTheArchiveAndPacksNothing(t *testing.T) {
 	want := []string{"stage the engine files", "archive the engine files", "export the engine payload"}
 	if got := names(plan); !reflect.DeepEqual(got, want) {
 		t.Fatalf("steps %v, want %v", got, want)
+	}
+}
+
+func TestASiteWithoutNodeWritesNoNodeEntry(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Work = t.TempDir()
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(names(plan), "resolve Node") {
+		t.Fatalf("steps = %v; want no Node step", names(plan))
+	}
+	// Staging makes the application directory.
+	if err := os.Mkdir(filepath.Join(r.Work, "app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := step(t, plan, "write site.json").Func(io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(filepath.Join(r.Work, "app", siteconfig.OutputName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var written map[string]any
+	if err := json.Unmarshal(content, &written); err != nil {
+		t.Fatal(err)
+	}
+	if node, ok := written["node"]; ok {
+		t.Fatalf("site.json carries node %v", node)
+	}
+}
+
+func TestASiteWithNodeResolvesItFirst(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Site.Node = siteconfig.NodeLTS
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := names(plan)[0]; got != "resolve Node" {
+		t.Fatalf("the first step is %q; want resolve Node", got)
 	}
 }

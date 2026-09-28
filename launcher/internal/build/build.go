@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/node"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
@@ -123,6 +124,9 @@ func NewPlan(r Request) (Plan, error) {
 			Command: append(append([]string{}, php...), filepath.Join(r.Engine, "build", "install-translations.php"), application)},
 		{Name: "lay the engine over the site", Func: func(io.Writer) error { return layEngine(r.Engine, application, r.Site.Docroot) }},
 	}}
+	if r.Site.Node != "" {
+		plan.Steps = slices.Insert(plan.Steps, 0, resolveNode(&r.Site, r.Platforms, libcs, r.Work))
+	}
 	// A site without a recipe ships no seed, and serves only a database that holds it.
 	if r.Site.Recipe != "" {
 		plan.Steps = append(plan.Steps, Step{Name: "install the seed site", Env: phpEnv,
@@ -163,6 +167,27 @@ func NewPlan(r Request) (Plan, error) {
 		plan.Steps = append(plan.Steps, Step{Name: "test " + tested, Command: command})
 	}
 	return plan, nil
+}
+
+// resolveNode fetches the verified Node archive of each target into the work
+// directory. It sets site.Node to the exact version, which the site.json steps
+// after it write.
+func resolveNode(site *siteconfig.Site, platforms, libcs []string, work string) Step {
+	return Step{Name: "resolve Node", Func: func(log io.Writer) error {
+		var targets []string
+		for _, platform := range platforms {
+			for _, libc := range libcs {
+				targets = append(targets, platform+"/"+libc)
+			}
+		}
+		resolved, err := node.Resolve(node.Request{Value: site.Node, Targets: targets, Dir: filepath.Join(work, "node")})
+		if err != nil {
+			return err
+		}
+		site.Node = siteconfig.Node(resolved.Version)
+		fmt.Fprintf(log, "Node %s\n", resolved.Version)
+		return nil
+	}}
 }
 
 // packSteps packs one file per platform and libc, each carrying its one runtime
