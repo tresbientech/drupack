@@ -30,8 +30,8 @@ function scratch(): SiteData
 // A $run that records each call and answers from $found, keyed by step.
 function recorder(array &$calls, array $found = []): callable
 {
-    return function (string $step, bool $firstEver, bool $adopted) use (&$calls, $found): bool {
-        $calls[] = [$step, $firstEver, $adopted];
+    return function (string $step, bool $adopted) use (&$calls, $found): bool {
+        $calls[] = [$step, $adopted];
         return $found[$step] ?? false;
     };
 }
@@ -40,7 +40,7 @@ function recorder(array &$calls, array $found = []): callable
 function stateFiles(SiteData $site): array
 {
     return array_values(array_intersect(
-        ['site-installed', 'installation-progress', 'site-adopted', 'first-install'],
+        ['site-installed', 'installation-progress', 'site-adopted', 'database-claimed'],
         array_map('basename', glob("$site->directory/*") ?: []),
     ));
 }
@@ -96,7 +96,7 @@ test('an empty site data directory seeds sqlite', function (): void {
 test('an empty site data directory installs on a database server', function (): void {
     $site = scratch();
     same(['settings', 'install', 'modules'], $site->steps('pgsql'));
-    same(true, file_exists("$site->directory/first-install"), 'a fresh database is recorded before the install step');
+    same([], stateFiles($site), 'reading the steps claimed the database');
 });
 
 test('an unreadable listener record refuses', function (): void {
@@ -138,12 +138,18 @@ test('the recorded connection is the database block of the recorded settings', f
     same($database, $site->connection());
 });
 
-test('a finished initialization leaves no progress, adoption or first-install file behind', function (): void {
+test('a finished initialization leaves no progress, adoption or claim file behind', function (): void {
     $site = scratch();
     $steps = $site->steps('pgsql');
-    $calls = [];
-    same(true, $site->initialize($steps, recorder($calls, ['install' => true])));
+    same(true, $site->initialize($steps, function (string $step) use ($site): bool {
+        if ($step === 'install') {
+            $site->claim();
+            return true;
+        }
+        return false;
+    }));
     same(['site-installed'], stateFiles($site));
+    same(false, $site->claimed());
     same(true, $site->installed());
     same([], $site->steps('pgsql'));
 });
@@ -152,7 +158,7 @@ test('adoption passes to every step after the one that found a site', function (
     $site = scratch();
     $calls = [];
     $site->initialize(['settings', 'install', 'modules'], recorder($calls, ['install' => true]));
-    same([['settings', false, false], ['install', false, false], ['modules', false, true]], $calls);
+    same([['settings', false], ['install', false], ['modules', true]], $calls);
 });
 
 test('a step that throws leaves progress naming it onward', function (): void {
@@ -168,16 +174,22 @@ test('a step that throws leaves progress naming it onward', function (): void {
     same(false, $site->installed());
 });
 
-test('first-install passes true only for a database the steps recorded as new', function (): void {
-    $fresh = scratch();
+test('a claim outlives a crash in the install step and goes with the finished marker', function (): void {
+    $site = scratch();
+    throws('install cut off', fn() => $site->initialize($site->steps('pgsql'), function (string $step) use ($site): bool {
+        if ($step === 'install') {
+            $site->claim();
+            throw new RuntimeException('install cut off');
+        }
+        return false;
+    }));
+    same(true, $site->claimed());
+    same(['install', 'modules'], $site->steps('pgsql'));
     $calls = [];
-    $fresh->initialize($fresh->steps('pgsql'), recorder($calls));
-    same([true, true, true], array_column($calls, 1));
-    $resumed = scratch();
-    file_put_contents("$resumed->directory/installation-progress", json_encode(['install', 'modules']));
-    $calls = [];
-    $resumed->initialize($resumed->steps('pgsql'), recorder($calls));
-    same([false, false], array_column($calls, 1));
+    $site->initialize($site->steps('pgsql'), recorder($calls));
+    same([['install', false], ['modules', false]], $calls);
+    same(false, $site->claimed());
+    same(['site-installed'], stateFiles($site));
 });
 
 test('no steps runs nothing and adopts nothing', function (): void {

@@ -453,18 +453,46 @@ function handOver(string $binary, string $url, string $data, bool $browser): nev
     replaceProcess($binary, ['browser-open'], application(), 'Cannot open the browser');
 }
 
-function databaseHoldsTables(array $options): bool
+function serverDatabase(array $options): PDO
 {
-    $connection = new PDO(
+    return new PDO(
         sprintf('%s:host=%s;port=%s;dbname=%s', $options['database'], $options['db-host'], databasePort($options), $options['db-name']),
         $options['db-user'],
         $options['db-password'],
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
     );
+}
+
+// The tables and views the site's database holds, as [schema, name, type] rows.
+function databaseTables(PDO $connection, string $backend): array
+{
     // PostgreSQL resolves its own schemas from the search path, which need not name public first.
-    $schema = $options['database'] === 'mysql' ? '= DATABASE()' : '= ANY(current_schemas(false))';
-    $statement = $connection->query("SELECT count(*) FROM information_schema.tables WHERE table_schema $schema");
-    return (int) $statement->fetchColumn() > 0;
+    $schema = $backend === 'mysql' ? '= DATABASE()' : '= ANY(current_schemas(false))';
+    return $connection->query("SELECT table_schema, table_name, table_type FROM information_schema.tables WHERE table_schema $schema")
+        ->fetchAll(PDO::FETCH_NUM);
+}
+
+function databaseHoldsTables(array $options): bool
+{
+    return databaseTables(serverDatabase($options), $options['database']) !== [];
+}
+
+// Drops every table and view of a database this initialization claimed. site:install empties
+// a database through the psql or mysql client, which the runtime does not carry. A PostgreSQL
+// drop cascades to what depends on it, so a later row may name something already gone.
+function emptyClaimedDatabase(array $options): void
+{
+    $connection = serverDatabase($options);
+    $mysql = $options['database'] === 'mysql';
+    $quote = $mysql ? '`' : '"';
+    $identifier = fn(string $name): string => $quote . str_replace($quote, $quote . $quote, $name) . $quote;
+    if ($mysql) {
+        $connection->exec('SET FOREIGN_KEY_CHECKS = 0');
+    }
+    foreach (databaseTables($connection, $options['database']) as [$schema, $name, $type]) {
+        $connection->exec(($type === 'VIEW' ? 'DROP VIEW IF EXISTS ' : 'DROP TABLE IF EXISTS ')
+            . $identifier($schema) . '.' . $identifier($name) . ($mysql ? '' : ' CASCADE'));
+    }
 }
 
 function installDrupal(array $options, string $binary): void
@@ -488,23 +516,28 @@ function installDrupal(array $options, string $binary): void
 }
 
 // The database is the user's only copy: an installed site is kept, and other tables stop the start.
-// A resumed installation already owns this database, so only a first-ever run treats it as adopted.
-function installSite(string $data, array $options, string $binary, bool $firstEver): bool
+// A claimed database held no tables when this initialization claimed it, so what it holds now
+// came from an interrupted install, which is dropped and installed again. A site that boots
+// there may have been cut off mid-recipe, so it is never taken as finished.
+function installSite(SiteData $site, array $options, string $binary): bool
 {
+    if ($site->claimed()) {
+        emptyClaimedDatabase($options);
+        installDrupal($options, $binary);
+        return false;
+    }
     if (drushField($binary, ['status', '--field=bootstrap']) === 'Successful') {
-        if (!$firstEver) {
-            return false;
-        }
         fwrite(STDOUT, "This database already holds a site. " . executableName() . " enabled nothing on it, and keeps its own administrator account.\n");
         return true;
     }
     if (siteSettings()['recipe'] === '') {
-        throw new RuntimeException("The database for $data holds no installed site, and " . executableName()
+        throw new RuntimeException("The database for $site->directory holds no installed site, and " . executableName()
             . " has no recipe to install one. Name the database that holds its site, then start " . executableName() . " again.");
     }
     if (databaseHoldsTables($options)) {
-        throw new RuntimeException("The database for $data holds tables without an installed site. Empty it or name another database, then start " . executableName() . " again.");
+        throw new RuntimeException("The database for $site->directory holds tables without an installed site. Empty it or name another database, then start " . executableName() . " again.");
     }
+    $site->claim();
     installDrupal($options, $binary);
     return false;
 }
@@ -598,7 +631,7 @@ const STEP_REPORTS = [
 ];
 
 // Returns whether the step found a site already installed in the database.
-function runStep(string $step, SiteData $site, array $options, string $binary, bool $firstEver, bool $adopted): bool
+function runStep(string $step, SiteData $site, array $options, string $binary, bool $adopted): bool
 {
     switch ($step) {
         case 'seed':
@@ -618,7 +651,7 @@ function runStep(string $step, SiteData $site, array $options, string $binary, b
             configureSeedSiteName($binary, $options['site-name']);
             return false;
         case 'install':
-            return installSite($site->directory, $options, $binary, $firstEver);
+            return installSite($site, $options, $binary);
         case 'modules':
             if (!$adopted) {
                 removeRecipeModules($binary);
@@ -786,9 +819,9 @@ try {
     // The remaining steps reach the disk before the first one changes anything, and the
     // completion marker follows the last one.
     $number = 0;
-    $adopted = $site->initialize($steps, function (string $step, bool $firstEver, bool $adopted) use (&$number, $steps, $site, $options, $binary): bool {
+    $adopted = $site->initialize($steps, function (string $step, bool $adopted) use (&$number, $steps, $site, $options, $binary): bool {
         fwrite(STDOUT, sprintf("[%d/%d] %s\n", ++$number, count($steps), STEP_REPORTS[$step]));
-        return runStep($step, $site, $options, $binary, $firstEver, $adopted);
+        return runStep($step, $site, $options, $binary, $adopted);
     });
     foreach (glob(application() . '/translations/*.po') as $translation) {
         $destination = "$files/translations/" . basename($translation);

@@ -100,6 +100,33 @@ class _ServerDatabaseBackend:
         finally:
             site.stop()
 
+        # A first start cut off after its install step claimed the database leaves tables that
+        # may boot as a half-installed site. The resume drops them and installs again.
+        renamed = harness.run_drush(harness.BINARY, self.case_dir, data,
+                                    "config:set", "system.site", "name", "Interrupted install", "--yes")
+        self.assertEqual(renamed.returncode, 0, renamed.stderr)
+        (data / "site-installed").unlink()
+        (data / "installation-progress").write_text('["install","modules"]')
+        (data / "database-claimed").write_text("")
+        site = harness.Site(harness.BINARY, self.case_dir / "claimed-resume")
+        site.start(data, "--admin-user", "resume-admin", "--admin-password", harness.DATABASE_PASSWORD,
+                   ready_wait="database_start")
+        site.stop()
+        self.assertTrue((data / "site-installed").exists(), "the resume left no completion marker")
+        self.assertFalse((data / "database-claimed").exists(), "the resume left its database claim")
+        name = harness.run_drush(harness.BINARY, self.case_dir, data,
+                                 "config:get", "system.site", "name", "--format=string")
+        self.assertEqual(name.stdout.strip(), harness.SITE["site_name"],
+                         "the resume kept the interrupted site instead of installing again")
+        administrator = harness.run_drush(harness.BINARY, self.case_dir, data, "php:eval",
+                                          r"print \Drupal\user\Entity\User::load(1)->getAccountName();")
+        self.assertEqual(administrator.stdout.strip(), "resume-admin", administrator.stderr)
+        enabled = harness.run_drush(harness.BINARY, self.case_dir, data, "pm:list", "--status=enabled", "--format=json")
+        self.assertEqual(enabled.returncode, 0, enabled.stderr)
+        modules = json.loads(enabled.stdout)
+        self.assertNotIn("automatic_updates", modules, "the resume skipped the modules step")
+        self.assertNotIn("package_manager", modules, "the resume skipped the modules step")
+
 
 class MysqlServerDatabase(_ServerDatabaseBackend, harness.ConformanceCase):
     DATABASE = "mysql"

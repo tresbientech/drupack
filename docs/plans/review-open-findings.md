@@ -6,8 +6,9 @@
 ## Decisions
 
 - F08: the install step claims a database it found empty, before `site:install`
-  writes to it. A resumed install step on a claimed database runs
-  `site:install` again, which drops what the interrupted run left. A database
+  writes to it. A resumed install step on a claimed database drops what the
+  interrupted run left, over PDO, then runs `site:install` again. Drush
+  empties a database through the psql or mysql client, which the runtime lacks. A database
   never claimed and able to bootstrap is adopted. The `first-install` record goes.
 - F16: the development entrypoint copies what `layEngine` copies: the engine's
   `application/` tree without `tests/` and `vendor`, then the two site files
@@ -26,10 +27,10 @@
 
 ### Acceptance criteria
 
-- [ ] `grep -rn 'first-install\|FIRST_EVER\|firstEver' application tests` prints nothing.
-- [ ] `site_data_test.php` passes, with cases for the claim record and its removal at the end.
-- [ ] A `PostgresqlLifecycle` case passes: a start resumed at the install step over a claimed database reinstalls it and removes the recipe modules.
-- [ ] The existing unclaimed-resume and existing-site cases pass unchanged.
+- [x] `grep -rn 'first-install\|FIRST_EVER\|firstEver' application tests` prints nothing.
+- [x] `site_data_test.php` passes, with cases for the claim record and its removal at the end.
+- [x] `MysqlServerDatabase` and `PostgresqlServerDatabase` pass: a start resumed at the install step over a claimed database empties it, reinstalls it and removes the recipe modules.
+- [x] The existing unclaimed-resume and existing-site cases pass unchanged.
 
 ---
 
