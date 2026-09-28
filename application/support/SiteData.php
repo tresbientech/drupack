@@ -150,7 +150,7 @@ final class SiteData
         }
         // A record with no progress beside it belongs to an initialization nobody resumes,
         // so it says nothing about what the database holds now.
-        if (file_exists($this->path(self::INSTALL_STARTED))) {
+        if ($this->installStarted()) {
             unlink($this->path(self::INSTALL_STARTED));
         }
         return ['settings', 'install', 'modules'];
@@ -183,7 +183,7 @@ final class SiteData
         if ($adopted) {
             unlink($this->path(self::ADOPTED));
         }
-        if (file_exists($this->path(self::INSTALL_STARTED))) {
+        if ($this->installStarted()) {
             unlink($this->path(self::INSTALL_STARTED));
         }
         return $adopted;

@@ -66,7 +66,7 @@ func privateRoot(root string) (string, error) {
 
 // otherWriter names the first account outside trusted that sd's DACL lets
 // write, or "" when there is none. A missing or NULL DACL grants every account
-// full access. An allow entry of a kind this does not read counts as a writer.
+// full access. An allow entry of a kind this does not read is a writer.
 func otherWriter(sd *windows.SECURITY_DESCRIPTOR, trusted []*windows.SID) (string, error) {
 	dacl, _, err := sd.DACL()
 	if errors.Is(err, windows.ERROR_OBJECT_NOT_FOUND) || (err == nil && dacl == nil) {
@@ -104,8 +104,8 @@ const (
 
 // trustedAccounts lists who may own or write a cache root: the current user,
 // SYSTEM and Administrators, which can already act as any account, CREATOR
-// OWNER, which stands for whoever creates each entry, and OWNER RIGHTS, which
-// stands for the owner privateRoot has already checked. Python's mkdtemp grants
+// OWNER, which is whoever creates each entry, and OWNER RIGHTS, which is the
+// owner privateRoot has already checked. Python's mkdtemp grants
 // OWNER RIGHTS on the directory it makes.
 func trustedAccounts() ([]*windows.SID, error) {
 	current, err := windows.GetCurrentProcessToken().GetTokenUser()
