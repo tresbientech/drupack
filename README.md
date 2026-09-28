@@ -174,6 +174,8 @@ One version takes about 400 MB on Linux and macOS, beside your Site data. The sp
 
 `DRUPACK_CACHE_DIR` moves the cache, for a disk with more room. On Linux and macOS a home directory that refuses writes sends the runtime to the temporary directory instead. On Windows, a cache root PHP's startup cannot read sends the runtime to the temporary directory too, printing why.
 
+The cache holds code the executable runs, so only your account may write to it. A cache directory the executable creates is made private. An existing one that another account can write to stops the start.
+
 ## TLS trust
 
 Drupack carries its own trust anchors. A copy of curl's `cacert.pem` sits beside the runtime, and PHP verifies HTTPS against it. Update checks and the project browser therefore work on a machine whose own trust store is missing, empty or out of reach.

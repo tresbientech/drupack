@@ -1,9 +1,10 @@
 module git.tresbien.tech/tresbientech/drupack/launcher
 
-go 1.25
+go 1.25.0
 
 require (
 	github.com/klauspost/compress v1.20.0
+	golang.org/x/sys v0.47.0
 	sigs.k8s.io/yaml v1.6.0
 )
 

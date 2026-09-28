@@ -39,7 +39,7 @@ const usageName = ".inuse"
 // the start instead.
 func Root(name string, notice io.Writer) (string, error) {
 	if dir := os.Getenv("DRUPACK_CACHE_DIR"); dir != "" {
-		if err := os.MkdirAll(dir, rootMode); err != nil {
+		if err := makeRoot(dir); err != nil {
 			return "", err
 		}
 		root, err := privateRoot(dir)
@@ -51,7 +51,7 @@ func Root(name string, notice io.Writer) (string, error) {
 
 	var lastErr error
 	for _, root := range cacheRoots(name) {
-		if err := os.MkdirAll(root, rootMode); err != nil {
+		if err := makeRoot(root); err != nil {
 			lastErr = err
 			continue
 		}
