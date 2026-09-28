@@ -25,6 +25,8 @@ ln -sfn ../dist/work/app/vendor application/vendor
 "$executable" php-cli "$PWD/application/tests/serve_test.php"
 "$executable" php-cli "$PWD/application/tests/php_test.php"
 "$executable" php-cli "$PWD/application/tests/drupack_install_test.php"
+"$executable" php-cli "$PWD/application/tests/windows_paths_test.php"
+"$executable" php-cli "$PWD/application/tests/site_data_public_stream_test.php"
 (cd launcher && go test ./...)
 python3 -m unittest discover -s tests/conformance -p test_harness.py
 DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" test-results/conformance --site-tests examples/mercury-demo/tests \
