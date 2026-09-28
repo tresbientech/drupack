@@ -70,10 +70,9 @@ func Root(name string, notice io.Writer) (string, error) {
 // mkdir runs first because Windows allocates a short name only for a path that
 // exists. A candidate already in ASCII is returned untouched, since resolve
 // also rewrites a long ASCII segment, which no reader asked for. Falling from
-// root to fallback writes one line to notice, the shape fallbackOrFail uses
-// for its own swap, naming why root was passed over; two exhausted candidates
-// stop the start instead, since a site missing its extensions is worse than a
-// start that refuses.
+// root to fallback writes one line to notice naming why root was passed over.
+// Two exhausted candidates stop the start instead, since a site missing its
+// extensions is worse than a start that refuses.
 func resolveASCIIRoot(root, fallback string, mkdir func(string) error, resolve func(string) (string, error), notice io.Writer) (string, error) {
 	ascii, rootErr := asciiForm(root, mkdir, resolve)
 	if rootErr == nil {

@@ -22,16 +22,6 @@ ADMIN_PASSWORD = "Concurrent.test.password.2026"
 class ConcurrentSites(harness.ConformanceCase):
     PLATFORMS = (harness.WINDOWS,)
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
-    def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
-
     def test_two_sites_of_one_release_serve_at_once(self):
         first = harness.Site(harness.BINARY, self.case_dir / "first")
         second = harness.Site(harness.BINARY, self.case_dir / "second")

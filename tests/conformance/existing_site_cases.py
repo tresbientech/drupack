@@ -21,9 +21,7 @@ class ExistingSiteAdoption(harness.ConformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.case_dir = harness.RESULTS / cls.__name__
-        cls.case_dir.mkdir(parents=True, exist_ok=True)
-        cls.server = harness.DatabaseServer("mysql", "existing-site", cls.case_dir)
+        cls.server = harness.DatabaseServer("mysql", "existing-site", cls.class_dir)
         cls.server.start()
 
     @classmethod
@@ -38,12 +36,12 @@ class ExistingSiteAdoption(harness.ConformanceCase):
         return harness.run(
             [str(harness.BINARY), "php-cli", str(app / "vendor" / "drush" / "drush" / "drush.php"),
              f"--root={app / harness.SITE['docroot']}", *command],
-            cwd=self.case_dir, env=env, capture_output=True, text=True,
+            cwd=self.class_dir, env=env, capture_output=True, text=True,
             timeout=harness.WAITS["database_install"].seconds,
         )
 
     def application(self):
-        probe = self.case_dir / "application.php"
+        probe = self.class_dir / "application.php"
         probe.write_text("<?php echo getenv('DRUPACK_RUNTIME_APP_DIR');")
         result = harness.run([str(harness.BINARY), "php-cli", str(probe)], capture_output=True, text=True,
                              timeout=harness.WAITS["php_cli"].seconds)
@@ -56,7 +54,7 @@ class ExistingSiteAdoption(harness.ConformanceCase):
         The engine's settings template keeps public files in the installer's own Site data,
         away from the application every start of this release shares.
         """
-        installer = self.case_dir / "installer"
+        installer = self.class_dir / "installer"
         for directory in ("config", "private", "tmp", "files"):
             (installer / directory).mkdir(parents=True, exist_ok=True)
         (installer / "hash_salt").write_text("existing-site-hash-salt")
@@ -84,13 +82,13 @@ class ExistingSiteAdoption(harness.ConformanceCase):
         connection = self.server.connection()
         if not harness.SITE["recipe"]:
             # The database holds no site yet, and this site has no recipe to install one.
-            text = harness.refuse(self, self.case_dir, "empty-database",
-                                  "--data-dir", str(self.case_dir / "refused"), *connection)
+            text = harness.refuse(self, self.class_dir, "empty-database",
+                                  "--data-dir", str(self.class_dir / "refused"), *connection)
             self.assertIn("has no recipe to install one", text)
         before = self.install()
 
-        data = self.case_dir / "data"
-        site = harness.Site(harness.BINARY, self.case_dir / "first-start")
+        data = self.class_dir / "data"
+        site = harness.Site(harness.BINARY, self.class_dir / "first-start")
         site.start(data, *connection, ready_wait="database_start")
         try:
             self.assertEqual(site.fetch("/")[0], 200)
@@ -100,10 +98,10 @@ class ExistingSiteAdoption(harness.ConformanceCase):
         self.assertIn("This database already holds a site", log)
         self.assertIn("Cannot mint a one-time login link", log)
 
-        name = harness.run_drush(harness.BINARY, self.case_dir, data, "config:get", "system.site", "name",
+        name = harness.run_drush(harness.BINARY, self.class_dir, data, "config:get", "system.site", "name",
                               "--format=string")
         self.assertEqual(name.stdout.strip(), SITE_NAME, name.stderr)
-        enabled = harness.run_drush(harness.BINARY, self.case_dir, data, "pm:list", "--status=enabled",
+        enabled = harness.run_drush(harness.BINARY, self.class_dir, data, "pm:list", "--status=enabled",
                                  "--format=json")
         self.assertEqual(enabled.returncode, 0, enabled.stderr)
         self.assertEqual(sorted(json.loads(enabled.stdout)), before, "the first start changed the enabled modules")

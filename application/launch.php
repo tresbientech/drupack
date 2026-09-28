@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 require __DIR__ . '/process.php';
 
-use Drupack\Support\PreviousCopies;
 use Symfony\Component\Filesystem\Path;
 
 // The option set also reaches a reader through runtime/entrypoint.go's usage and
@@ -42,77 +41,6 @@ function directory(string $path): void
     if (!is_dir($path) && !mkdir($path, 0700, true) && !is_dir($path)) {
         throw new RuntimeException("Cannot create directory: $path");
     }
-}
-
-// The previous layout unpacked the application into each site's runtime
-// directory, one copy per site. This release unpacks once per release into the
-// user cache, so those copies hold space no start reads.
-function removePreviousCopies(string $runtime): void
-{
-    $removed = 0;
-    $freed = 0;
-    foreach (PreviousCopies::under($runtime) as $copy) {
-        $size = treeSize($copy);
-        if (!removeTree($copy)) {
-            continue;
-        }
-        $freed += $size;
-        $removed++;
-    }
-    if ($removed === 0) {
-        return;
-    }
-    fwrite(STDOUT, sprintf(
-        "Removed %d application %s an earlier release left, freeing %d MB\n",
-        $removed,
-        $removed === 1 ? 'copy' : 'copies',
-        intdiv($freed, 1000000)
-    ));
-}
-
-// The previous layout linked Site data into its copies, on Windows through a
-// junction, which PHP reports as neither a file nor a directory. Nothing here
-// follows one, so the Site data behind it stays.
-function linkedEntry(string $path): bool
-{
-    return is_link($path) || @readlink($path) !== false;
-}
-
-function treeSize(string $path): int
-{
-    if (linkedEntry($path)) {
-        return 0;
-    }
-    if (!is_dir($path)) {
-        return (int) @filesize($path);
-    }
-    $total = 0;
-    foreach (scandir($path) ?: [] as $name) {
-        if ($name !== '.' && $name !== '..') {
-            $total += treeSize($path . DIRECTORY_SEPARATOR . $name);
-        }
-    }
-    return $total;
-}
-
-// Reports whether the path is gone. Drupal hardens a site directory to
-// read-only, so the mode comes back before the entries go. A junction goes with
-// rmdir, which Windows refuses to unlink.
-function removeTree(string $path): bool
-{
-    if (linkedEntry($path)) {
-        return @unlink($path) || @rmdir($path);
-    }
-    if (!is_dir($path)) {
-        return @unlink($path);
-    }
-    @chmod($path, 0700);
-    foreach (scandir($path) ?: [] as $name) {
-        if ($name !== '.' && $name !== '..') {
-            removeTree($path . DIRECTORY_SEPARATOR . $name);
-        }
-    }
-    return @rmdir($path);
 }
 
 // The server runs from the application directory, which every site of a release
@@ -538,7 +466,7 @@ function runDrush(string $binary, array $command, string $failure): void
         throw new RuntimeException('Cannot create a temporary file for the step diagnostic');
     }
     try {
-        // stderr is a file, not a pipe, for the reason loginLink() states: nothing here
+        // stderr is a file, not a pipe, for the reason drushLoginLink() states: nothing here
         // drains a pipe while the child runs, so a full one would deadlock.
         $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['file', nullDevice(), 'w'], 2 => ['file', $errors, 'w']];
         $exitCode = process($binary, array_merge(['php-cli'], $command), $descriptors, application(), $failure);
@@ -570,54 +498,11 @@ function drushField(string $binary, array $command): string
     return trim((string) $output);
 }
 
-// Carries the reason Drush gave for a failed mint, since a start that can still serve
-// without the link reports that reason; getMessage() stays the fixed text a start that
-// cannot serve without the link exits with.
-final class LoginLinkFailure extends RuntimeException
-{
-    public function __construct(public readonly string $reason)
-    {
-        parent::__construct('Cannot obtain a one-time login link for the administrator account');
-    }
-}
-
-// Drush prints the link and nothing else, addressing the site through DRUSH_OPTIONS_URI. It
-// must open no browser of its own: the site is not serving yet, and the Go entrypoint opens one
-// once it answers. The link is a working credential arriving from a subprocess and heading for
-// a browser command, so its origin is checked before anything uses it.
+// Drush addresses the site through DRUSH_OPTIONS_URI. The site is not serving yet, and the
+// Go entrypoint opens a browser once it answers.
 function loginLink(string $binary, string $url, string $destination): string
 {
-    $errors = tempnam(sys_get_temp_dir(), 'drupack-mint-');
-    if ($errors === false) {
-        throw new RuntimeException('Cannot create a temporary file for the mint diagnostic');
-    }
-    try {
-        // stderr is a file, not a pipe: two pipes deadlock if Drush fills one's kernel
-        // buffer while this drains only the other to exhaustion first, and nothing here
-        // reads both at once.
-        $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => ['file', $errors, 'w']];
-        // Drush wraps its boxed error text to a column count it reads from COLUMNS, defaulting
-        // to 80 with no terminal attached; a wide one keeps a failed mint's reason on one line
-        // instead of hard-wrapping mid-word.
-        $environment = getenv();
-        $environment['COLUMNS'] = '1000';
-        $child = proc_open(array_merge([$binary, 'php-cli', drushPath(), 'user:login', '--no-browser', $destination]), $descriptors, $pipes, application(), $environment);
-        if (!is_resource($child)) {
-            throw new RuntimeException('Cannot run Drush');
-        }
-        $link = trim((string) stream_get_contents($pipes[1]));
-        fclose($pipes[1]);
-        proc_close($child);
-        // Read only for a failed mint's diagnostic: drushField()'s null device is right for
-        // every other caller, which has no diagnostic to put Drush's own reason into.
-        $reason = preg_replace('/\s+/', ' ', trim((string) file_get_contents($errors)));
-    } finally {
-        unlink($errors);
-    }
-    if (!str_starts_with($link, $url)) {
-        throw new LoginLinkFailure($reason);
-    }
-    return $link;
+    return drushLoginLink($binary, drushPath(), application(), [$destination], $url);
 }
 
 // Names the reason Drush gave for a failed mint, and the command that mints one by hand.
@@ -953,7 +838,6 @@ try {
     $logPath = "$data/logs/caddy.log";
     putenv("DRUPACK_RUNTIME_LOG_PATH=$logPath");
     $runtime = canonical(realpath("$data/runtime"));
-    removePreviousCopies($runtime);
     // Caddy state and every temporary file stay beside the site they belong to.
     putenv("TMPDIR=$runtime");
     putenv("TEMP=$runtime");

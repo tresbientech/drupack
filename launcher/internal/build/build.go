@@ -352,7 +352,7 @@ func inCheckout(directory string) bool {
 // installer's recipe catalog.
 func layEngine(engine, application, docroot string) error {
 	// The engine's own unit files and a developer's vendor link stay behind.
-	err := copyTree(filepath.Join(engine, "application"), application, func(relative string) bool {
+	err := CopyTree(filepath.Join(engine, "application"), application, func(relative string) bool {
 		return strings.HasPrefix(relative, "tests"+string(filepath.Separator)) || relative == "vendor"
 	})
 	if err != nil {
@@ -386,9 +386,9 @@ func copyInto(destination string, sources ...string) error {
 	return nil
 }
 
-// copyTree copies every file under source to the same place under destination,
+// CopyTree copies every file under source to the same place under destination,
 // following links, and leaves out each file skip names by its relative path.
-func copyTree(source, destination string, skip func(relative string) bool) error {
+func CopyTree(source, destination string, skip func(relative string) bool) error {
 	return filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
 			return err

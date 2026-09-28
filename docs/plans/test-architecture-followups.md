@@ -22,8 +22,6 @@ today. Merged on 2026-09-20 as `46c36c7`.
 - Nothing keeps the four platform lists in the release workflow's job conditions
   consistent. The `application` job must stay the union of the Windows and macOS
   lists, and only a reader enforces that today.
-- Comments across the suite cite `tests/windows/*.Tests.ps1` by name as the
-  provenance of a case. Those files no longer exist.
 
 ## Small
 

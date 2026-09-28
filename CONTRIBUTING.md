@@ -115,7 +115,6 @@ Then:
 ./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/launch_test.php"
 ./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/serve_test.php"
 ./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/windows_paths_test.php"
-./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/previous_copies_test.php"
 ./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/site_data_public_stream_test.php"
 ```
 

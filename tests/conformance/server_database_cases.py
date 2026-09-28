@@ -40,18 +40,12 @@ class _ServerDatabaseBackend:
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
         cls.server = harness.DatabaseServer(cls.DATABASE, "server-database", cls.class_dir)
         cls.server.start()
 
     @classmethod
     def tearDownClass(cls):
         cls.server.stop()
-
-    def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
 
     def test_first_start_then_restart(self):
         data = self.case_dir / "data"

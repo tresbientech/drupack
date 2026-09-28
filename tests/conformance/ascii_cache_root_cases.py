@@ -35,15 +35,8 @@ LOAD_FAILURE = "Unable to load dynamic library"
 class AsciiCacheRootCases(harness.ConformanceCase):
     PLATFORMS = (harness.WINDOWS,)
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
     def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
+        super().setUp()
         self.site = harness.Site(harness.BINARY, self.case_dir)
 
     def tearDown(self):

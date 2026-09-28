@@ -135,8 +135,6 @@ class NetworkListener(harness.ConformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
         cls.network = f"drupack-network-{os.getpid()}"
         # The only setUpClass step: a failure here creates nothing to remove, unlike
         # server_database_cases.py's readiness probe after its container already exists.
@@ -147,10 +145,6 @@ class NetworkListener(harness.ConformanceCase):
     def tearDownClass(cls):
         subprocess.run(["docker", "network", "rm", cls.network], capture_output=True,
                         timeout=harness.WAITS["docker_admin"].seconds)
-
-    def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
 
     def test_default_listener_refuses_another_container(self):
         data = harness.fresh_dir(self.case_dir / "data")

@@ -32,35 +32,8 @@ const FIXTURE_SITE = ['site_name' => 'Fixture Site'];
 const FIXTURE_NAME = 'fixture-site';
 putenv('DRUPACK_RUNTIME_NAME=' . FIXTURE_NAME);
 
-$cases = [];
+require __DIR__ . '/cases.php';
 $scratches = [];
-
-function test(string $name, callable $case): void
-{
-    $GLOBALS['cases'][$name] = $case;
-}
-
-function same(mixed $expected, mixed $actual, string $note = ''): void
-{
-    if ($expected === $actual) {
-        return;
-    }
-    throw new RuntimeException(($note === '' ? '' : "$note: ")
-        . 'expected ' . var_export($expected, true) . ', got ' . var_export($actual, true));
-}
-
-function throws(string $needle, callable $case): void
-{
-    try {
-        $case();
-    } catch (Throwable $error) {
-        if (!str_contains($error->getMessage(), $needle)) {
-            throw new RuntimeException("expected a message holding \"$needle\", got \"{$error->getMessage()}\"");
-        }
-        return;
-    }
-    throw new RuntimeException("expected a throw holding \"$needle\", nothing was thrown");
-}
 
 // Clears every option variable, then sets the named ones, so a case reads the same
 // defaults whatever the shell holds.
@@ -532,16 +505,7 @@ test('docs/cli.md names every option the parser accepts', function () {
     same(parserOptions(), referenceOptions());
 });
 
-$failed = 0;
-foreach ($cases as $name => $case) {
-    try {
-        $case();
-        fwrite(STDOUT, "ok   $name\n");
-    } catch (Throwable $error) {
-        $failed++;
-        fwrite(STDOUT, "FAIL $name\n       {$error->getMessage()}\n");
-    }
-}
+$status = runCases();
 
 foreach ($scratches as $path) {
     foreach (glob("$path/*") ?: [] as $file) {
@@ -550,6 +514,4 @@ foreach ($scratches as $path) {
     rmdir($path);
 }
 
-$total = count($cases);
-fwrite(STDOUT, $failed === 0 ? "\n$total cases passed\n" : "\n$failed of $total cases failed\n");
-exit($failed === 0 ? 0 : 1);
+exit($status);

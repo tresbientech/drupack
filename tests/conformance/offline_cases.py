@@ -28,11 +28,9 @@ class OfflineRun(harness.ConformanceCase):
         if harness.running_offline():
             raise unittest.SkipTest("already running inside the offline container")
         super().setUpClass()
-        cls.case_dir = harness.RESULTS / cls.__name__
-        cls.case_dir.mkdir(parents=True, exist_ok=True)
 
     def test_offline_site_cases(self):
-        log_path = self.case_dir / "run.log"
+        log_path = self.class_dir / "run.log"
         container_name = f"drupack-offline-{os.getpid()}"
         command = [
             "docker", "run", "--rm", "--network", "none",
@@ -47,7 +45,7 @@ class OfflineRun(harness.ConformanceCase):
             # The harness finds the allowlist three directories above itself, which
             # lands here once the suite runs from /tests.
             "--mount", f"type=bind,src={harness.ALLOWLIST},dst=/runtime/php-extensions.txt,readonly",
-            "--mount", f"type=bind,src={self.case_dir},dst=/results",
+            "--mount", f"type=bind,src={self.class_dir},dst=/results",
             "--mount", f"type=bind,src={os.environ['DRUPACK_CACHE_DIR']},dst=/cache",
             "--entrypoint", "/usr/local/bin/python3",
             OFFLINE_IMAGE,

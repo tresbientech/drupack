@@ -23,6 +23,11 @@ on:
 permissions:
   contents: read
 
+env:
+  # setup-go sets GOTOOLCHAIN=local from v6 on, so go fetches no newer toolchain of
+  # its own: this version must stay at or above the go line in launcher/go.mod.
+  GO_VERSION: '1.27.0'
+
 jobs:
   # What a run covers. A tag and a dispatch cover every platform, and a dispatch
   # can name one. A main push covers Linux amd64, and only when it touched
@@ -302,11 +307,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # setup-go sets GOTOOLCHAIN=local from v6 on, so go fetches no newer toolchain of
-      # its own: this version must stay at or above the go line in launcher/go.mod.
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.27.0'
+          go-version: ${{ env.GO_VERSION }}
           cache: false
 
       - name: Run the launcher unit tests
@@ -432,7 +435,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.27.0'
+          go-version: ${{ env.GO_VERSION }}
           cache: false
 
       - name: Run the launcher unit tests
@@ -506,7 +509,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.27.0'
+          go-version: ${{ env.GO_VERSION }}
           cache: false
 
       - name: Run the launcher unit tests
@@ -531,7 +534,7 @@ jobs:
             ${{ runner.temp }}/drupack/downloads
             ${{ runner.temp }}/drupack/buildroot
             ${{ runner.temp }}/drupack/pkgroot
-          key: macos-${{ matrix.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/php-extensions.txt', 'runtime/php-extension-libs.txt') }}
+          key: macos-${{ matrix.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder-inputs.sh', 'runtime/php-extensions.txt', 'runtime/php-extension-libs.txt') }}
 
       - name: Build the executables
         env:
@@ -549,7 +552,7 @@ jobs:
             ${{ runner.temp }}/drupack/downloads
             ${{ runner.temp }}/drupack/buildroot
             ${{ runner.temp }}/drupack/pkgroot
-          key: macos-${{ matrix.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/php-extensions.txt', 'runtime/php-extension-libs.txt') }}
+          key: macos-${{ matrix.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder-inputs.sh', 'runtime/php-extensions.txt', 'runtime/php-extension-libs.txt') }}
 
       - name: Run the test scripts
         env:

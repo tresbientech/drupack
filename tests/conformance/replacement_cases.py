@@ -13,15 +13,8 @@ SITE_NAME = "Drupack replacement check"
 class ReplacementCases(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX, harness.MACOS)
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
-
     def setUp(self):
-        self.case_dir = self.class_dir / self._testMethodName
-        self.case_dir.mkdir(parents=True, exist_ok=True)
+        super().setUp()
         self.data = self.case_dir / "data"
         self.old_binary = self._copy_binary("old")
         self.old_site = harness.Site(self.old_binary, self.case_dir / "old")

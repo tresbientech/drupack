@@ -12,22 +12,7 @@ require __DIR__ . '/../support/SiteDataPublicStream.php';
 
 use Drupack\Support\SiteDataPublicStream;
 
-$total = 0;
-$failures = 0;
-
-function check(string $description, bool $expected, bool $actual): void {
-  global $total, $failures;
-  $total++;
-  if ($expected !== $actual) {
-    $failures++;
-    fwrite(STDERR, sprintf(
-      "FAIL: %s (expected %s, got %s)\n",
-      $description,
-      $expected ? 'true' : 'false',
-      $actual ? 'true' : 'false'
-    ));
-  }
-}
+require __DIR__ . '/cases.php';
 
 $root = sys_get_temp_dir() . '/drupack-site-data-public-stream-' . bin2hex(random_bytes(6));
 mkdir("$root/files", 0700, true);
@@ -39,33 +24,29 @@ file_put_contents("$root/files/inside.txt", 'inside');
 file_put_contents("$root/outside/secret.txt", 'secret');
 file_put_contents("$root/files-evil/x.txt", 'evil');
 
-putenv("DRUPACK_RUNTIME_DATA_DIR=$root");
+putenv("DRUPACK_RUNTIME_FILES_DIR=$root/files");
 
 $stream = new SiteDataPublicStream();
 $getLocalPath = new ReflectionMethod($stream, 'getLocalPath');
 
-check(
-  'a target inside Site data resolves to its real path',
-  true,
-  $getLocalPath->invoke($stream, 'public://inside.txt') === realpath("$root/files/inside.txt")
-);
+test('a target inside Site data resolves to its real path', function () use ($stream, $getLocalPath, $root) {
+  same(realpath("$root/files/inside.txt"), $getLocalPath->invoke($stream, 'public://inside.txt'));
+});
 
 // Core's own DIRECTORY_SEPARATOR-joined suffixes and a crafted stream URI both
 // reach getTarget() without ever passing through a "../" collapse, so a target
 // that walks out of Site data must still be refused after realpath() resolves it.
-check(
-  'a target that resolves outside Site data is refused',
-  false,
-  $getLocalPath->invoke($stream, 'public://../outside/secret.txt') !== false
-);
+test('a target that resolves outside Site data is refused', function () use ($stream, $getLocalPath) {
+  same(false, $getLocalPath->invoke($stream, 'public://../outside/secret.txt'));
+});
 
-check(
-  'a sibling directory whose name only starts with the storage root is not treated as inside it',
-  false,
-  $getLocalPath->invoke($stream, 'public://../files-evil/x.txt') !== false
-);
+test('a sibling directory whose name only starts with the storage root is not treated as inside it', function () use ($stream, $getLocalPath) {
+  same(false, $getLocalPath->invoke($stream, 'public://../files-evil/x.txt'));
+});
 
-putenv('DRUPACK_RUNTIME_DATA_DIR');
+$status = runCases();
+
+putenv('DRUPACK_RUNTIME_FILES_DIR');
 unlink("$root/files/inside.txt");
 unlink("$root/outside/secret.txt");
 unlink("$root/files-evil/x.txt");
@@ -74,10 +55,4 @@ rmdir("$root/outside");
 rmdir("$root/files-evil");
 rmdir($root);
 
-if ($failures > 0) {
-  fwrite(STDERR, "$failures of $total checks failed\n");
-  exit(1);
-}
-
-fwrite(STDOUT, "$total checks passed\n");
-exit(0);
+exit($status);

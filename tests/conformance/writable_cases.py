@@ -26,27 +26,25 @@ class WritableDirectories(harness.ConformanceCase):
         themes = f"{harness.SITE['docroot']}/themes"
         cls.themes = next((directory for directory in harness.SITE["writable"]
                            if directory == themes or directory.startswith(themes + "/")), None)
-        cls.case_dir = harness.RESULTS / cls.__name__
-        cls.case_dir.mkdir(parents=True, exist_ok=True)
         # clean empties the cache this case names, and no other case reads it.
-        cls.env = dict(os.environ, DRUPACK_CACHE_DIR=str(cls.case_dir / "cache"))
+        cls.env = dict(os.environ, DRUPACK_CACHE_DIR=str(cls.class_dir / "cache"))
 
     def setUp(self):
         if self.themes is None:
             self.skipTest("the site lists no writable directory under its themes")
-        self.data = self.case_dir / "data"
-        self.site = harness.Site(harness.BINARY, self.case_dir / "site")
+        self.data = self.class_dir / "data"
+        self.site = harness.Site(harness.BINARY, self.class_dir / "site")
 
     def tearDown(self):
         self.site.stop()
 
     def drush(self, *command):
         return harness.run([str(harness.BINARY), "drush", "--data-dir", str(self.data), *command],
-                           cwd=self.case_dir, env=self.env, capture_output=True, text=True,
+                           cwd=self.class_dir, env=self.env, capture_output=True, text=True,
                            timeout=harness.WAITS["drush"].seconds)
 
     def shared_application(self):
-        probe = self.case_dir / "application.php"
+        probe = self.class_dir / "application.php"
         probe.write_text("<?php echo getenv('DRUPACK_RUNTIME_APP_DIR');")
         result = harness.run([str(harness.BINARY), "php-cli", str(probe)], env=self.env,
                              capture_output=True, text=True, timeout=harness.WAITS["php_cli"].seconds)
@@ -81,7 +79,7 @@ class WritableDirectories(harness.ConformanceCase):
         self.assertFalse(os.path.exists(os.path.join(shared, self.themes, "probe")),
                          "the write reached the release's shared application")
 
-        cleaned = harness.run([str(harness.BINARY), "clean"], cwd=self.case_dir, env=self.env,
+        cleaned = harness.run([str(harness.BINARY), "clean"], cwd=self.class_dir, env=self.env,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=harness.WAITS["drush"].seconds)
         self.assertEqual(cleaned.returncode, 0)
         self.assertTrue((theme / "probe.info.yml").is_file(), "clean removed the site's application")

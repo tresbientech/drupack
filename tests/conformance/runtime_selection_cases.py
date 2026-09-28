@@ -41,8 +41,6 @@ class RuntimeSelection(harness.ConformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.class_dir = harness.RESULTS / cls.__name__
-        cls.class_dir.mkdir(parents=True, exist_ok=True)
         cls.cache = harness.reserved_dir(cls.class_dir / "cache")
         cls.carried = cls.carried_runtimes()
 
