@@ -147,14 +147,6 @@ payload. It adds code in both workflows, the release step, `drupack-build` and
 a new pack script, and removes none. Lean: wait for a site owner who needs
 those targets.
 
-## A dispatch that builds one Linux runtime
-
-A `release.yml` dispatch for `windows-amd64` builds the amd64 musl runtime
-alone. `download-artifact@v7` extracts a lone artifact straight into
-`runtime-artifacts/`, without the per-artifact directory the payload step globs.
-The payload job then fails before the chosen platform runs, as run 36434231873
-did. Lean: give each runtime artifact its own directory whatever the count.
-
 ## The development server and sites with writable directories
 
 `build/dev/dev-server.sh` exports no `DRUPACK_RUNTIME_LAUNCHER`. A site whose
@@ -163,23 +155,10 @@ start, so it cannot start through the development server. This comes from
 reading `useSiteApplication()`; no such site has been tried. Lean: decide whether
 the development loop supports those sites before building anything.
 
-## Output that names the wrong thing
+## A cold `--help` unpacks the release
 
-- A cold `drupack --help` unpacks the whole release before it prints usage.
-  argv reaches the entry point only after preparation, and moving the decision
-  into the launcher puts the option contract in a fourth place, against
-  [ADR 0014](adr/0014-the-parser-owns-the-command-line.md).
-- An unknown first word prints `unknown command "X" for "caddy"`.
-  `runtime/entrypoint.go` forwards any word it does not handle to Caddy's CLI.
-- `README.md` says `drupack version` names every component Drupack carries. It
-  prints FrankenPHP, PHP and Caddy, and names neither Drupal nor Drush.
-
-Lean: fix the last two, and leave `--help` as it is.
-
-## JPEG, WebP and FreeType in the runtime's GD
-
-The Linux runtime's `gd_info()` reports no JPEG, WebP or FreeType support.
-`runtime/php-extension-libs.txt` names `libavif` alone for gd. Drupal's GD
-toolkit refuses to process `Hero.jpg` from Mercury's seed, so a style cannot
-rotate or scale an uploaded JPEG. Lean: add `libjpeg`, `libwebp` and
-`freetype` to the list, and assert all three in the extension case.
+A cold `drupack --help` unpacks the whole release before it prints usage.
+argv reaches the entry point only after preparation, and moving the decision
+into the launcher puts the option contract in a fourth place, against
+[ADR 0014](adr/0014-the-parser-owns-the-command-line.md). Lean: leave it as it
+is.
