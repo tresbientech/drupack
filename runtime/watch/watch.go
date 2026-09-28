@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// plan is what run watches: where readiness answers, what to open once ready,
+// plan holds what run watches: where readiness answers, what to open once ready,
 // and how and when cron runs.
 type plan struct {
 	probe       string   // the identity route's URL, token included
