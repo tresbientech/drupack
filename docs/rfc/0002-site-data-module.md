@@ -59,6 +59,7 @@ final class SiteData
     public function connection(): array;      // the database block of the recorded settings.php
 
     // Write side: the steps a start owes, and the loop that runs them.
+    public function installed(): bool;       // an initialization finished here
     public function steps(string $backend): array;
 
     /**
@@ -129,7 +130,6 @@ own spellings, since it tests the executable from outside.
 | settings beat a database when neither marker exists | same name, on `steps()` |
 | an empty site data directory seeds sqlite | same name, on `steps()` |
 | an empty site data directory installs on a database server | same name, on `steps()` |
-| a resumed start reads its connection from recorded settings | same name, on `connection()` |
 | an unreadable listener record refuses | same name, on `listener()` |
 | a listener record missing its host refuses | same name, on `listener()` |
 | a refusal names the executable the launcher exported | same name, on `listener()` |
@@ -141,6 +141,7 @@ New cases with no predecessor:
 - `initialize()` passes `$adopted` true to every step after one that returned true.
 - a `$run` that throws on the second step leaves progress naming the second step onward, and `steps()` returns it.
 - `initialize()` passes `$firstEver` true only when `steps()` recorded a new database.
+- `connection()` returns the database block of a recorded `settings.php`.
 
 These cases stay in `launch_test.php` on `recordedListener()` and
 `recordedFilesDirectory()`, which now take the array `listener()` returns:
@@ -152,6 +153,7 @@ These cases stay in `launch_test.php` on `recordedListener()` and
 - a record without a files directory leaves the default to Site data
 - an explicit option beats the listener record
 - both `servedListener()` cases
+- a resumed start reads its connection from recorded settings, which checks `requireDatabaseOptions()`
 
 Each replacement lands in the commit that deletes the case it replaces.
 
@@ -187,8 +189,8 @@ design and its loop from the minimal one.
 ## Consequences
 
 - `launch.php` loses the six `…Path()` helpers, `remainingSteps()`,
-  `writeProgress()`, `initialize()`, `listenerRecord()`, `writeListener()` and
-  `recordedOptions()`.
+  `writeProgress()`, `initialize()`, `listenerRecord()` and `writeListener()`.
+  `recordedOptions()` stays: it maps the recorded connection onto option names.
 - `runStep()` returns a bool and takes `$firstEver` and `$adopted`.
 - The start body passes one `SiteData` where it passes `$data` today.
 - The backlog entry "An owner for the Site data layout" closes.

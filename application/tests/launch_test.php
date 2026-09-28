@@ -12,6 +12,8 @@ declare(strict_types=1);
 define('DRUPACK_LAUNCH_LIBRARY', true);
 require __DIR__ . '/../launch.php';
 
+use Drupack\Support\SiteData;
+
 // Every variable options() reads for a default.
 const OPTION_VARIABLES = [
     'DRUPACK_DATA_DIR',
@@ -128,60 +130,6 @@ test('under drush an option after the command stays in the command', function ()
     same(['status', '--data-dir', '/x'], $command);
 });
 
-test('a finished site has no remaining steps', function (): void {
-    $data = scratch();
-    file_put_contents(markerPath($data), '');
-    same([], remainingSteps($data, 'sqlite'));
-});
-
-test('recorded progress names the remaining steps', function (): void {
-    $data = scratch();
-    file_put_contents(progressPath($data), json_encode(['modules']));
-    same(['modules'], remainingSteps($data, 'pgsql'));
-});
-
-test('the finished marker beats recorded progress', function (): void {
-    $data = scratch();
-    file_put_contents(markerPath($data), '');
-    file_put_contents(progressPath($data), json_encode(['modules']));
-    same([], remainingSteps($data, 'pgsql'));
-});
-
-test('unreadable progress refuses', function (): void {
-    $data = scratch();
-    file_put_contents(progressPath($data), 'not json');
-    throws('Cannot read the recorded initialization progress', fn() => remainingSteps($data, 'sqlite'));
-});
-
-test('settings without a marker adopt the site', function (): void {
-    $data = scratch();
-    file_put_contents("$data/settings.php", '');
-    same(['adopt'], remainingSteps($data, 'sqlite'));
-});
-
-test('a database without settings refuses', function (): void {
-    $data = scratch();
-    file_put_contents("$data/site.sqlite", '');
-    throws('holds a database without settings', fn() => remainingSteps($data, 'sqlite'));
-});
-
-test('settings beat a database when neither marker exists', function (): void {
-    $data = scratch();
-    file_put_contents("$data/settings.php", '');
-    file_put_contents("$data/site.sqlite", '');
-    same(['adopt'], remainingSteps($data, 'sqlite'));
-});
-
-test('an empty site data directory seeds sqlite', function (): void {
-    same(['seed', 'settings', 'administrator'], remainingSteps(scratch(), 'sqlite'));
-});
-
-test('an empty site data directory installs on a database server', function (): void {
-    $data = scratch();
-    same(['settings', 'install', 'modules'], remainingSteps($data, 'pgsql'));
-    same(true, file_exists(firstEverPath($data)), 'a fresh database is recorded before the install step');
-});
-
 test('a site without a recipe refuses a sqlite first start, naming both servers', function (): void {
     foreach (['has no recipe to seed a SQLite site', '--database mysql', '--database pgsql'] as $needle) {
         throws($needle, fn() => requireSeed(['seed', 'settings', 'administrator'], ['recipe' => '']));
@@ -220,75 +168,46 @@ test('a first start on a database server needs every connection detail', functio
 
 test('site data with no listener record changes nothing', function (): void {
     $options = ['listen' => null, 'host' => null];
-    same($options, recordedListener($options, scratch()));
+    same($options, recordedListener($options, null));
 });
 
 test('a listener record fills an absent address and host', function (): void {
-    $data = scratch();
-    writeListener($data, ['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => null]);
-    $filled = recordedListener(['listen' => null, 'host' => null], $data);
+    $record = ['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => null];
+    $filled = recordedListener(['listen' => null, 'host' => null], $record);
     same('127.0.0.1:8080', $filled['listen']);
     same('example.test', $filled['host']);
 });
 
 test('a listener record fills an absent files directory', function (): void {
-    $data = scratch();
-    writeListener($data, ['listen' => '127.0.0.1:8080', 'host' => 'localhost', 'files-dir' => '/srv/files']);
-    same('/srv/files', recordedFilesDirectory(['files-dir' => null], $data)['files-dir']);
+    $record = ['listen' => '127.0.0.1:8080', 'host' => 'localhost', 'files-dir' => '/srv/files'];
+    same('/srv/files', recordedFilesDirectory(['files-dir' => null], $record)['files-dir']);
 });
 
 test('an explicit files directory beats the listener record', function (): void {
-    $data = scratch();
-    writeListener($data, ['listen' => '127.0.0.1:8080', 'host' => 'localhost', 'files-dir' => '/srv/files']);
-    same('/srv/other', recordedFilesDirectory(['files-dir' => '/srv/other'], $data)['files-dir']);
+    $record = ['listen' => '127.0.0.1:8080', 'host' => 'localhost', 'files-dir' => '/srv/files'];
+    same('/srv/other', recordedFilesDirectory(['files-dir' => '/srv/other'], $record)['files-dir']);
 });
 
 test('a record without a files directory leaves the default to Site data', function (): void {
-    $data = scratch();
-    file_put_contents(listenerPath($data), json_encode(['listen' => '127.0.0.1:8080', 'host' => 'localhost']));
-    same(null, recordedFilesDirectory(['files-dir' => null], $data)['files-dir']);
-    same(null, recordedFilesDirectory(['files-dir' => null], scratch())['files-dir']);
+    same(null, recordedFilesDirectory(['files-dir' => null], ['listen' => '127.0.0.1:8080', 'host' => 'localhost', 'files-dir' => null])['files-dir']);
+    same(null, recordedFilesDirectory(['files-dir' => null], null)['files-dir']);
 });
 
 test('an explicit option beats the listener record', function (): void {
-    $data = scratch();
-    writeListener($data, ['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => null]);
-    $given = recordedListener(['listen' => '127.0.0.1:9000', 'host' => null], $data);
+    $record = ['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => null];
+    $given = recordedListener(['listen' => '127.0.0.1:9000', 'host' => null], $record);
     same('127.0.0.1:9000', $given['listen']);
     same('example.test', $given['host']);
 });
 
-test('an unreadable listener record refuses', function (): void {
-    $data = scratch();
-    file_put_contents(listenerPath($data), 'not json');
-    throws('Cannot read the recorded listener', fn() => recordedListener(['listen' => null, 'host' => null], $data));
-});
-
-test('a refusal names the executable the launcher exported', function (): void {
-    $data = scratch();
-    file_put_contents(listenerPath($data), 'not json');
-    putenv('DRUPACK_RUNTIME_NAME=acme-intranet');
-    try {
-        throws('then start acme-intranet again', fn() => recordedListener(['listen' => null, 'host' => null], $data));
-    } finally {
-        putenv('DRUPACK_RUNTIME_NAME=' . FIXTURE_NAME);
-    }
-});
-
-test('a listener record missing its host refuses', function (): void {
-    $data = scratch();
-    file_put_contents(listenerPath($data), json_encode(['listen' => '127.0.0.1:8080']));
-    throws('Recorded listener has no host', fn() => recordedListener(['listen' => null, 'host' => null], $data));
-});
-
 test('a served listener brackets an IPv6 host in its URL', function (): void {
-    $data = scratch();
-    writeListener($data, ['listen' => '[::]:8080', 'host' => '::1', 'files-dir' => null]);
-    same(['::', 'http://[::1]:8080/'], servedListener($data, ['listen' => '127.0.0.1:7000', 'host' => 'localhost']));
+    $site = new SiteData(scratch());
+    $site->recordListener('[::]:8080', '::1', null);
+    same(['::', 'http://[::1]:8080/'], servedListener($site, ['listen' => '127.0.0.1:7000', 'host' => 'localhost']));
 });
 
 test('a served listener without a record is the one this start asked for', function (): void {
-    same(['127.0.0.1', 'http://localhost:7000/'], servedListener(scratch(), ['listen' => '127.0.0.1:7000', 'host' => 'localhost']));
+    same(['127.0.0.1', 'http://localhost:7000/'], servedListener(new SiteData(scratch()), ['listen' => '127.0.0.1:7000', 'host' => 'localhost']));
 });
 
 test('only a loopback address opens a browser', function (): void {
@@ -364,14 +283,6 @@ test('a database port defaults per backend', function (): void {
     same('3306', databasePort(['database' => 'mysql', 'db-port' => null]));
     same('5432', databasePort(['database' => 'pgsql', 'db-port' => null]));
     same('15432', databasePort(['database' => 'pgsql', 'db-port' => '15432']));
-});
-
-test('site data file names hang off the directory', function (): void {
-    same('/x/site-installed', markerPath('/x'));
-    same('/x/installation-progress', progressPath('/x'));
-    same('/x/site-adopted', adoptedPath('/x'));
-    same('/x/first-install', firstEverPath('/x'));
-    same('/x/listener', listenerPath('/x'));
 });
 
 // The launcher that ships with this settings file always exports

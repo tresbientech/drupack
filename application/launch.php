@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/process.php';
 
+use Drupack\Support\SiteData;
 use Symfony\Component\Filesystem\Path;
 
 // The option set also reaches a reader through runtime/entrypoint.go's usage and
@@ -35,14 +36,6 @@ Options:
 docs/cli.md explains every option.
 TEXT;
 
-function directory(string $path): void
-{
-    // Another start can create the same directory between the check and the call.
-    if (!is_dir($path) && !mkdir($path, 0700, true) && !is_dir($path)) {
-        throw new RuntimeException("Cannot create directory: $path");
-    }
-}
-
 // The server runs from the application directory, which every site of a release
 // shares, so a path the reader wrote relative to their own directory resolves
 // against the one they started in.
@@ -65,8 +58,9 @@ function application(): string
 // A site whose contract names writable directories runs its own application, laid in
 // Site data. A start lays it under the Serving lease. `drush` takes no lease, so it only
 // checks that the last start laid this release.
-function useSiteApplication(string $data, bool $drush): void
+function useSiteApplication(SiteData $site, bool $drush): void
 {
+    $data = $site->directory;
     $launcher = getenv('DRUPACK_RUNTIME_LAUNCHER');
     $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => STDOUT, 2 => STDERR];
     if ($drush) {
@@ -77,7 +71,7 @@ function useSiteApplication(string $data, bool $drush): void
     } elseif (process($launcher, array_merge(['lay-app', $data], siteSettings()['writable']), $descriptors, $data, 'Cannot run ' . executableName()) !== 0) {
         throw new RuntimeException("Cannot lay the application in Site data: $data");
     }
-    putenv("DRUPACK_RUNTIME_APP_DIR=$data/app");
+    putenv('DRUPACK_RUNTIME_APP_DIR=' . $site->application());
 }
 
 // The packaged site's defaults, written from its drupack.yml when the application was built.
@@ -164,41 +158,11 @@ function openWhenServing(string $url, ?string $target, bool $browser): void
     putenv('DRUPACK_RUNTIME_BROWSER=' . ($browser ? '1' : '0'));
 }
 
-function markerPath(string $directory): string
-{
-    return "$directory/site-installed";
-}
-
-function progressPath(string $directory): string
-{
-    return "$directory/installation-progress";
-}
-
-// Marks a database the install step found already occupied, so a later or resumed
-// modules step changes nothing on it.
-function adoptedPath(string $directory): string
-{
-    return "$directory/site-adopted";
-}
-
-// Recorded the moment a database is first seen fresh, so a crash between that
-// moment and the install step's own bootstrap check still tells a resume the
-// difference between a foreign database and one Drupack is still installing.
-function firstEverPath(string $directory): string
-{
-    return "$directory/first-install";
-}
-
 // The token names this Site data over HTTP without disclosing its path. Windows spells one
 // path in several casings, so the hash reads a single one.
 function siteToken(string $data): string
 {
     return hash('sha256', windows() ? strtolower($data) : $data);
-}
-
-function leasePath(string $directory): string
-{
-    return "$directory/serving.lock";
 }
 
 // The lease one server holds over its Site data, for as long as it serves. Two servers
@@ -210,11 +174,11 @@ function leasePath(string $directory): string
 // included. On Windows this process waits for the server it starts, so the handle lives
 // exactly as long. The caller keeps the returned handle: closing it drops the lease.
 // A null return means another start serves this Site data.
-function servingLease(string $data)
+function servingLease(SiteData $site)
 {
-    $handle = fopen(leasePath($data), 'c');
+    $handle = fopen($site->lease(), 'c');
     if ($handle === false) {
-        throw new RuntimeException('Cannot open the serving lease: ' . leasePath($data));
+        throw new RuntimeException('Cannot open the serving lease: ' . $site->lease());
     }
     if (!flock($handle, LOCK_EX | LOCK_NB)) {
         fclose($handle);
@@ -268,9 +232,9 @@ function portTaken(string $bind, int $port): bool
 // Where the running server serves, read from the record that start wrote, so a handover
 // names the address that server took rather than the one this start asked for. Returns
 // its bind address and its URL.
-function servedListener(string $data, array $options): array
+function servedListener(SiteData $site, array $options): array
 {
-    $record = listenerRecord($data) ?? $options;
+    $record = $site->listener() ?? $options;
     [$bind, $port] = listenerParts($record['listen']);
     return [$bind, 'http://' . urlHost($record['host']) . ":$port/"];
 }
@@ -281,96 +245,29 @@ function personPresent(): bool
     return stream_isatty(STDIN) || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1';
 }
 
-// Every start records where it serves, so a later `drush` addresses the site on the port it
-// actually uses. Site data written before this record falls back to the listener defaults.
-function listenerPath(string $directory): string
+// An option the reader gave beats the recorded listener. Site data written before the
+// record exists falls back to the listener defaults.
+function recordedListener(array $options, ?array $record): array
 {
-    return "$directory/listener";
-}
-
-function listenerRecord(string $directory): ?array
-{
-    if (!file_exists(listenerPath($directory))) {
-        return null;
-    }
-    $record = json_decode((string) file_get_contents(listenerPath($directory)), true);
-    if (!is_array($record)) {
-        throw new RuntimeException('Cannot read the recorded listener: ' . listenerPath($directory)
-            . ". Remove that file, then start " . executableName() . " again to record it.");
-    }
-    return $record;
-}
-
-function recordedListener(array $options, string $directory): array
-{
-    $record = listenerRecord($directory);
     if ($record === null) {
         return $options;
     }
-    $options['listen'] ??= $record['listen'] ?? throw new RuntimeException('Recorded listener has no listen address');
-    $options['host'] ??= $record['host'] ?? throw new RuntimeException('Recorded listener has no host');
+    $options['listen'] ??= $record['listen'];
+    $options['host'] ??= $record['host'];
     return $options;
 }
 
 // Every start and `drush` keep the files directory the last start named, since the
-// site's files live there. A record written before the option names none.
-function recordedFilesDirectory(array $options, string $directory): array
+// site's files live there.
+function recordedFilesDirectory(array $options, ?array $record): array
 {
-    $options['files-dir'] ??= listenerRecord($directory)['files-dir'] ?? null;
+    $options['files-dir'] ??= $record['files-dir'] ?? null;
     return $options;
-}
-
-function writeListener(string $directory, array $options): void
-{
-    $record = json_encode(['listen' => $options['listen'], 'host' => $options['host'], 'files-dir' => $options['files-dir']]);
-    if (file_put_contents(listenerPath($directory), $record, LOCK_EX) === false) {
-        throw new RuntimeException('Cannot record the listener');
-    }
 }
 
 function credentialsRequired(array $steps): bool
 {
     return array_intersect(['administrator', 'install'], $steps) !== [];
-}
-
-// Progress lives beside the recorded settings, so a start tells a finished site from an interrupted
-// one and repeats no step that already wrote to a database.
-function remainingSteps(string $directory, string $backend): array
-{
-    if (file_exists(markerPath($directory))) {
-        return [];
-    }
-    if (file_exists(progressPath($directory))) {
-        $steps = json_decode((string) file_get_contents(progressPath($directory)), true);
-        if (!is_array($steps)) {
-            throw new RuntimeException('Cannot read the recorded initialization progress: ' . progressPath($directory)
-                . ". Remove that file, then start " . executableName() . " again to check the site.");
-        }
-        return $steps;
-    }
-    if (file_exists("$directory/settings.php")) {
-        return ['adopt'];
-    }
-    // The database is the user's only copy, so a start without recorded settings never seeds over one.
-    if (file_exists("$directory/site.sqlite")) {
-        throw new RuntimeException("This Site data holds a database without settings: $directory. Restore its settings.php, or start " . executableName() . " with an empty Site data directory.");
-    }
-    if ($backend === 'sqlite') {
-        return ['seed', 'settings', 'administrator'];
-    }
-    // The directory may not exist yet on the check that runs before it is created;
-    // the authoritative check that runs under the serving lease always finds it.
-    if (is_dir($directory) && file_put_contents(firstEverPath($directory), '', LOCK_EX) === false) {
-        throw new RuntimeException('Cannot record that this database is new to ' . executableName());
-    }
-    return ['settings', 'install', 'modules'];
-}
-
-function writeProgress(string $data, array $steps): void
-{
-    if (file_put_contents(progressPath($data), json_encode($steps), LOCK_EX) === false) {
-        throw new RuntimeException('Cannot record the initialization progress');
-    }
 }
 
 // A first start on a database server takes its connection from the command line. SQLite needs
@@ -402,12 +299,12 @@ function databasePort(array $options): string
     return $options['db-port'] ?? ($options['database'] === 'mysql' ? '3306' : '5432');
 }
 
-function databaseConfiguration(array $options, string $data): array
+function databaseConfiguration(array $options, SiteData $site): array
 {
     if ($options['database'] === 'sqlite') {
         return [
             'driver' => 'sqlite',
-            'database' => "$data/site.sqlite",
+            'database' => $site->database(),
             'namespace' => 'Drupal\\sqlite\\Driver\\Database\\sqlite',
             'autoload' => 'core/modules/sqlite/src/Driver/Database/sqlite/',
         ];
@@ -452,15 +349,9 @@ function writeSettings(string $path, string $template, array $database, string $
 }
 
 // The recorded settings decide the backend once they exist, so later starts need no database options.
-function recordedOptions(array $options, string $directory): array
+function recordedOptions(array $options, SiteData $site): array
 {
-    // settings.php expects the two variables Settings::initialize() gives it. This read
-    // wants $databases alone, so the loader it registers on goes unused.
-    $app_root = application() . '/' . siteSettings()['docroot'];
-    $class_loader = new \Composer\Autoload\ClassLoader();
-    $databases = [];
-    require "$directory/settings.php";
-    $recorded = $databases['default']['default'];
+    $recorded = $site->connection();
     $options['database'] = $recorded['driver'];
     if ($recorded['driver'] !== 'sqlite') {
         $options['db-host'] = $recorded['host'];
@@ -645,10 +536,10 @@ function adoptSite(string $data, string $binary): void
     }
 }
 
-function copySeed(string $data): void
+function copySeed(SiteData $site): void
 {
     $seed = application() . '/seed';
-    if (!copy("$seed/site.sqlite", "$data/site.sqlite")) {
+    if (!copy("$seed/site.sqlite", $site->database())) {
         throw new RuntimeException('Cannot initialize the Seed site database');
     }
     $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator("$seed/files", FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
@@ -662,9 +553,9 @@ function copySeed(string $data): void
     }
 }
 
-function clearSeedCaches(string $data): void
+function clearSeedCaches(SiteData $site): void
 {
-    $database = new PDO("sqlite:$data/site.sqlite");
+    $database = new PDO('sqlite:' . $site->database());
     $tables = $database->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name GLOB 'cache_*'");
     foreach ($tables as $table) {
         $database->exec('DELETE FROM "' . str_replace('"', '""', $table['name']) . '"');
@@ -707,72 +598,39 @@ const STEP_REPORTS = [
     'adopt' => 'Adopting the site already in Site data',
 ];
 
-function runStep(string $step, string $data, array $options, string $binary): void
+// Returns whether the step found a site already installed in the database.
+function runStep(string $step, SiteData $site, array $options, string $binary, bool $firstEver, bool $adopted): bool
 {
     switch ($step) {
         case 'seed':
-            copySeed($data);
-            clearSeedCaches($data);
-            return;
+            copySeed($site);
+            clearSeedCaches($site);
+            return false;
         case 'settings':
             // A repeated step keeps the existing secret, so the site's sessions and tokens survive it.
-            if (!file_exists("$data/hash_salt")
-                && file_put_contents("$data/hash_salt", bin2hex(random_bytes(32)), LOCK_EX) === false) {
+            if (!file_exists($site->secret())
+                && file_put_contents($site->secret(), bin2hex(random_bytes(32)), LOCK_EX) === false) {
                 throw new RuntimeException('Cannot initialize the site secret');
             }
-            writeSettings("$data/settings.php", application() . '/settings.php', databaseConfiguration($options, $data), siteSettings()['settings']);
-            return;
+            writeSettings($site->settings(), application() . '/settings.php', databaseConfiguration($options, $site), siteSettings()['settings']);
+            return false;
         case 'administrator':
             configureAdministrator($binary);
             configureSeedSiteName($binary, $options['site-name']);
-            return;
+            return false;
         case 'install':
-            if (installSite($data, $options, $binary, file_exists(firstEverPath($data)))
-                && file_put_contents(adoptedPath($data), '', LOCK_EX) === false) {
-                throw new RuntimeException('Cannot record that this database already held a site');
-            }
-            return;
+            return installSite($site->directory, $options, $binary, $firstEver);
         case 'modules':
-            if (file_exists(adoptedPath($data))) {
-                return;
+            if (!$adopted) {
+                removeRecipeModules($binary);
             }
-            removeRecipeModules($binary);
-            return;
+            return false;
         case 'adopt':
-            adoptSite($data, $binary);
-            return;
+            adoptSite($site->directory, $binary);
+            return false;
         default:
             throw new RuntimeException("Unknown initialization step: $step");
     }
-}
-
-// Runs under the serving lease. The remaining steps reach the disk before the first one changes anything,
-// and the completion marker follows the last one.
-// Returns whether the start adopted a database that already held a site.
-function initialize(string $data, array $steps, array $options, string $binary): bool
-{
-    if ($steps === []) {
-        return false;
-    }
-    writeProgress($data, $steps);
-    $total = count($steps);
-    foreach ($steps as $index => $step) {
-        fwrite(STDOUT, sprintf("[%d/%d] %s\n", $index + 1, $total, STEP_REPORTS[$step]));
-        runStep($step, $data, $options, $binary);
-        writeProgress($data, array_slice($steps, $index + 1));
-    }
-    if (file_put_contents(markerPath($data), '', LOCK_EX) === false) {
-        throw new RuntimeException('Cannot record the finished installation');
-    }
-    unlink(progressPath($data));
-    $adopted = file_exists(adoptedPath($data));
-    if ($adopted) {
-        unlink(adoptedPath($data));
-    }
-    if (file_exists(firstEverPath($data))) {
-        unlink(firstEverPath($data));
-    }
-    return $adopted;
 }
 
 // application/tests/launch_test.php defines this to load the functions above without starting a site.
@@ -797,15 +655,17 @@ try {
         throw new InvalidArgumentException('--database requires sqlite, mysql, or pgsql');
     }
     $steps = [];
+    // The directory as named, before it exists and resolves.
+    $named = new SiteData($options['data-dir']);
     if ($drush) {
         // `drush` initializes nothing and takes no lease, so Drush works while the server runs.
-        if (!file_exists($options['data-dir'] . '/settings.php')) {
+        if (!file_exists($named->settings())) {
             throw new RuntimeException("This Site data has no site yet: {$options['data-dir']}. Start " . executableName() . " once to create one.");
         }
         // `drush` serves nothing of its own, so it addresses the site where the last start served.
-        $options = recordedListener($options, $options['data-dir']);
+        $options = recordedListener($options, $named->listener());
     } else {
-        $steps = remainingSteps($options['data-dir'], $options['database']);
+        $steps = $named->steps($options['database']);
         requireSeed($steps, siteSettings());
         $options = administratorCredentials($options, $steps);
     }
@@ -835,11 +695,10 @@ try {
     // realpath() resolves in the native form, so the result is re-canonicalised
     // before it travels into every export, hash and printed line that follows.
     $data = canonical(realpath($options['data-dir']));
-    foreach (['runtime', 'private', 'tmp', 'config', 'logs'] as $name) {
-        directory("$data/$name");
-    }
-    $options = recordedFilesDirectory($options, $data);
-    $files = $options['files-dir'] ?? "$data/files";
+    $site = new SiteData($data);
+    $site->prepare();
+    $options = recordedFilesDirectory($options, $site->listener());
+    $files = $options['files-dir'] ?? $site->files();
     directory("$files/translations");
     $files = canonical(realpath($files));
     // A named directory is recorded resolved. The default stays unrecorded, so it moves with Site data.
@@ -859,9 +718,9 @@ try {
     // link names an unreachable host.
     $url = 'http://' . urlHost($options['host']) . ":$port/";
     putenv("DRUSH_OPTIONS_URI=$url");
-    $logPath = "$data/logs/caddy.log";
+    $logPath = $site->logs() . '/caddy.log';
     putenv("DRUPACK_RUNTIME_LOG_PATH=$logPath");
-    $runtime = canonical(realpath("$data/runtime"));
+    $runtime = canonical(realpath($site->runtime()));
     // Caddy state and every temporary file stay beside the site they belong to.
     putenv("TMPDIR=$runtime");
     putenv("TEMP=$runtime");
@@ -888,15 +747,15 @@ try {
     // a bind error or a corrupted database.
     $lease = null;
     if (!$drush) {
-        $lease = servingLease($data);
+        $lease = servingLease($site);
         if ($lease === null) {
             // The holder is still installing while no completion marker exists, and
             // serving once it does. A handover addresses a site that answers requests,
             // so an installation in progress refuses instead.
-            if (!file_exists(markerPath($data))) {
+            if (!$site->installed()) {
                 throw new RuntimeException("Another " . executableName() . " start is preparing this Site data: $data");
             }
-            [$servedBind, $served] = servedListener($data, $options);
+            [$servedBind, $served] = servedListener($site, $options);
             if (personPresent()) {
                 handOver($binary, $served, $data, $options['no-browser'] === null && loopback($servedBind));
             }
@@ -906,10 +765,10 @@ try {
             throw new RuntimeException("Another program is listening on {$options['listen']}. Stop it, or start on"
                 . " a free port: " . executableName() . " --listen $bind:" . ($port + 1));
         }
-        writeListener($data, $options);
+        $site->recordListener($options['listen'], $options['host'], $options['files-dir']);
     }
     if (siteSettings()['writable'] !== []) {
-        useSiteApplication($data, $drush);
+        useSiteApplication($site, $drush);
     }
     // Absolute, because FrankenPHP resolves a relative docroot against the directory its
     // process started in, which on Unix is the shared application whatever the entry point
@@ -918,21 +777,27 @@ try {
     if ($steps !== []) {
         // Read again under the lease: another start may have finished initializing between
         // the first read and the moment this one claimed the Site data.
-        $steps = remainingSteps($data, $options['database']);
+        $steps = $site->steps($options['database']);
     }
     // A start refreshes the recorded settings from the template this release ships, so a
     // site installed by an earlier release gains the settings this one added. The
     // recorded connection details come back unchanged. A `drush` command reads that site
     // and writes nothing to it, since the file it would rewrite is being required by
     // the server answering requests.
-    if (!$drush && file_exists("$data/settings.php")) {
+    if (!$drush && file_exists($site->settings())) {
         // A pending settings step writes the file itself, so its contents are read once they are final.
         if (!in_array('settings', $steps, true)) {
-            $options = recordedOptions($options, $data);
-            writeSettings("$data/settings.php", application() . '/settings.php', databaseConfiguration($options, $data), siteSettings()['settings']);
+            $options = recordedOptions($options, $site);
+            writeSettings($site->settings(), application() . '/settings.php', databaseConfiguration($options, $site), siteSettings()['settings']);
         }
     }
-    $adopted = initialize($data, $steps, $options, $binary);
+    // The remaining steps reach the disk before the first one changes anything, and the
+    // completion marker follows the last one.
+    $number = 0;
+    $adopted = $site->initialize($steps, function (string $step, bool $firstEver, bool $adopted) use (&$number, $steps, $site, $options, $binary): bool {
+        fwrite(STDOUT, sprintf("[%d/%d] %s\n", ++$number, count($steps), STEP_REPORTS[$step]));
+        return runStep($step, $site, $options, $binary, $firstEver, $adopted);
+    });
     foreach (glob(application() . '/translations/*.po') as $translation) {
         $destination = "$files/translations/" . basename($translation);
         if (!file_exists($destination) && !copy($translation, $destination)) {
