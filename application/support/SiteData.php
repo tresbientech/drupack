@@ -17,9 +17,9 @@ final class SiteData
     private const PROGRESS = 'installation-progress';
     // The install step found a site already in the database, so the modules step changes nothing.
     private const ADOPTED = 'site-adopted';
-    // The install step found the database empty and began installing into it. Every
-    // table it holds from then on is this initialization's own.
-    private const CLAIMED = 'database-claimed';
+    // The database the install step found empty and began installing into, as JSON.
+    // Every table that database holds from then on is this initialization's own.
+    private const INSTALL_STARTED = 'install-started';
     // Every start records where it serves, so a later `drush` addresses the site on the
     // port it actually uses, and keeps the files directory the last start named.
     private const LISTENER = 'listener';
@@ -149,6 +149,11 @@ final class SiteData
         if ($backend === 'sqlite') {
             return ['seed', 'settings', 'administrator'];
         }
+        // A record with no progress beside it belongs to an initialization nobody resumes,
+        // so it no longer vouches for what that database holds.
+        if (file_exists($this->path(self::INSTALL_STARTED))) {
+            unlink($this->path(self::INSTALL_STARTED));
+        }
         return ['settings', 'install', 'modules'];
     }
 
@@ -179,22 +184,31 @@ final class SiteData
         if ($adopted) {
             unlink($this->path(self::ADOPTED));
         }
-        if ($this->claimed()) {
-            unlink($this->path(self::CLAIMED));
+        if (file_exists($this->path(self::INSTALL_STARTED))) {
+            unlink($this->path(self::INSTALL_STARTED));
         }
         return $adopted;
     }
 
-    // Records that the install step found the database empty, before it writes to it.
-    public function claim(): void
+    // Records the database the install step found empty, before it writes to it.
+    public function startInstall(array $database): void
     {
-        $this->write(self::CLAIMED, '', 'Cannot record that this initialization owns its database');
+        $this->write(self::INSTALL_STARTED, json_encode($database), 'Cannot record the database the installation began in');
     }
 
-    // Whether an install step of this initialization found the database empty.
-    public function claimed(): bool
+    // The database an install step of this initialization found empty, or null.
+    public function installStarted(): ?array
     {
-        return file_exists($this->path(self::CLAIMED));
+        $record = $this->path(self::INSTALL_STARTED);
+        if (!file_exists($record)) {
+            return null;
+        }
+        $database = json_decode((string) file_get_contents($record), true);
+        if (!is_array($database)) {
+            throw new RuntimeException("Cannot read the recorded installation start: $record. Remove that file, then start "
+                . \executableName() . ' again to check the site.');
+        }
+        return $database;
     }
 
     private function recordProgress(array $steps): void

@@ -136,7 +136,7 @@ python tests/conformance dist\mercury-demo.exe test-results\conformance --site-t
 
 ## Development loop
 
-A change to `application/` reaches the executable only through a build, which takes minutes. `build/dev/dev-server.sh` serves the application `drupack-build` left in `dist/work` instead, from the job image, with `application/` copied over it on each start, so a change to `launch.php` or the Caddyfile applies in about a second.
+A change to `application/` reaches the executable only through a build, which takes minutes. `build/dev/dev-server.sh` serves the application `drupack-build` left in `dist/work` instead, from the job image, with `application/` and the two site files in `build/` copied over it on each start, so a change to `launch.php` or the Caddyfile applies in about a second.
 
 ```sh
 bash build/qa.sh

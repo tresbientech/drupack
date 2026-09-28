@@ -92,6 +92,14 @@ func TestPrivateRootAcceptsReadAndDenyEntries(t *testing.T) {
 	}
 }
 
+func TestPrivateRootAcceptsTheDACLPythonsMkdtempSets(t *testing.T) {
+	dir := createdRoot(t)
+	withDACL(t, dir, "D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FA;;;OW)")
+	if _, err := privateRoot(dir); err != nil {
+		t.Fatalf("a root granting SYSTEM, Administrators and OWNER RIGHTS was refused: %v", err)
+	}
+}
+
 func TestPrivateRootRefusesANullDACL(t *testing.T) {
 	dir := createdRoot(t)
 	err := windows.SetNamedSecurityInfo(dir, windows.SE_FILE_OBJECT,

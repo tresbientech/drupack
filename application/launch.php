@@ -477,10 +477,23 @@ function databaseHoldsTables(array $options): bool
     return databaseTables(serverDatabase($options), $options['database']) !== [];
 }
 
-// Drops every table and view of a database this initialization claimed. site:install empties
-// a database through the psql or mysql client, which the runtime does not carry. A PostgreSQL
-// drop cascades to what depends on it, so a later row may name something already gone.
-function emptyClaimedDatabase(array $options): void
+// Which database the options name, as the installation start records it.
+function databaseIdentity(array $options): array
+{
+    return [
+        'driver' => $options['database'],
+        'host' => $options['db-host'],
+        'port' => databasePort($options),
+        'name' => $options['db-name'],
+        'user' => $options['db-user'],
+    ];
+}
+
+// Drops every table and view of a database an interrupted install began in. site:install
+// empties a database through the psql or mysql client, which the runtime does not carry.
+// The database held nothing when the install began, so a PostgreSQL cascade reaches only
+// what came after, and a later row may name something the cascade already dropped.
+function dropInterruptedInstall(array $options): void
 {
     $connection = serverDatabase($options);
     $mysql = $options['database'] === 'mysql';
@@ -516,13 +529,19 @@ function installDrupal(array $options, string $binary): void
 }
 
 // The database is the user's only copy: an installed site is kept, and other tables stop the start.
-// A claimed database held no tables when this initialization claimed it, so what it holds now
-// came from an interrupted install, which is dropped and installed again. A site that boots
-// there may have been cut off mid-recipe, so it is never taken as finished.
+// A database this initialization began installing into held no tables then, so what it holds
+// now came from the interrupted install, which is dropped and installed again. A site that
+// boots there may have been cut off mid-recipe, so it is never taken as finished. The drop
+// runs only on the database the record names, reached through the recorded settings.
 function installSite(SiteData $site, array $options, string $binary): bool
 {
-    if ($site->claimed()) {
-        emptyClaimedDatabase($options);
+    $started = $site->installStarted();
+    if ($started !== null) {
+        if (!file_exists($site->settings()) || $started !== databaseIdentity($options)) {
+            throw new RuntimeException("This Site data holds an installation interrupted in another database than its settings name now: $site->directory. "
+                . "Restore the settings.php it was installing with, or start " . executableName() . " with an empty Site data directory.");
+        }
+        dropInterruptedInstall($options);
         installDrupal($options, $binary);
         return false;
     }
@@ -537,7 +556,7 @@ function installSite(SiteData $site, array $options, string $binary): bool
     if (databaseHoldsTables($options)) {
         throw new RuntimeException("The database for $site->directory holds tables without an installed site. Empty it or name another database, then start " . executableName() . " again.");
     }
-    $site->claim();
+    $site->startInstall(databaseIdentity($options));
     installDrupal($options, $binary);
     return false;
 }

@@ -40,7 +40,7 @@ function recorder(array &$calls, array $found = []): callable
 function stateFiles(SiteData $site): array
 {
     return array_values(array_intersect(
-        ['site-installed', 'installation-progress', 'site-adopted', 'database-claimed'],
+        ['site-installed', 'installation-progress', 'site-adopted', 'install-started'],
         array_map('basename', glob("$site->directory/*") ?: []),
     ));
 }
@@ -96,7 +96,20 @@ test('an empty site data directory seeds sqlite', function (): void {
 test('an empty site data directory installs on a database server', function (): void {
     $site = scratch();
     same(['settings', 'install', 'modules'], $site->steps('pgsql'));
-    same([], stateFiles($site), 'reading the steps claimed the database');
+    same([], stateFiles($site), 'reading the steps recorded an installation start');
+});
+
+test('a fresh start drops an installation start no progress resumes', function (): void {
+    $site = scratch();
+    $site->startInstall(['name' => 'site']);
+    same(['settings', 'install', 'modules'], $site->steps('pgsql'));
+    same(null, $site->installStarted());
+});
+
+test('an unreadable installation start refuses', function (): void {
+    $site = scratch();
+    file_put_contents("$site->directory/install-started", 'not json');
+    throws('Cannot read the recorded installation start', fn() => $site->installStarted());
 });
 
 test('an unreadable listener record refuses', function (): void {
@@ -138,18 +151,18 @@ test('the recorded connection is the database block of the recorded settings', f
     same($database, $site->connection());
 });
 
-test('a finished initialization leaves no progress, adoption or claim file behind', function (): void {
+test('a finished initialization leaves no progress, adoption or installation start behind', function (): void {
     $site = scratch();
     $steps = $site->steps('pgsql');
     same(true, $site->initialize($steps, function (string $step) use ($site): bool {
         if ($step === 'install') {
-            $site->claim();
+            $site->startInstall(['name' => 'site']);
             return true;
         }
         return false;
     }));
     same(['site-installed'], stateFiles($site));
-    same(false, $site->claimed());
+    same(null, $site->installStarted());
     same(true, $site->installed());
     same([], $site->steps('pgsql'));
 });
@@ -174,21 +187,23 @@ test('a step that throws leaves progress naming it onward', function (): void {
     same(false, $site->installed());
 });
 
-test('a claim outlives a crash in the install step and goes with the finished marker', function (): void {
+test('an installation start outlives a crash in the install step and goes with the finished marker', function (): void {
     $site = scratch();
-    throws('install cut off', fn() => $site->initialize($site->steps('pgsql'), function (string $step) use ($site): bool {
+    $database = ['driver' => 'pgsql', 'host' => 'db', 'port' => '5432', 'name' => 'site', 'user' => 'u'];
+    throws('install cut off', fn() => $site->initialize($site->steps('pgsql'), function (string $step) use ($site, $database): bool {
         if ($step === 'install') {
-            $site->claim();
+            $site->startInstall($database);
             throw new RuntimeException('install cut off');
         }
         return false;
     }));
-    same(true, $site->claimed());
+    same($database, $site->installStarted());
     same(['install', 'modules'], $site->steps('pgsql'));
+    same($database, $site->installStarted(), 'reading resumed steps dropped the installation start');
     $calls = [];
     $site->initialize($site->steps('pgsql'), recorder($calls));
     same([['install', false], ['modules', false]], $calls);
-    same(false, $site->claimed());
+    same(null, $site->installStarted());
     same(['site-installed'], stateFiles($site));
 });
 

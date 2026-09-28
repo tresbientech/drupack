@@ -103,8 +103,10 @@ const (
 )
 
 // trustedAccounts lists who may own or write a cache root: the current user,
-// SYSTEM and Administrators, which can already act as any account, and CREATOR
-// OWNER, which stands for whoever creates each entry.
+// SYSTEM and Administrators, which can already act as any account, CREATOR
+// OWNER, which stands for whoever creates each entry, and OWNER RIGHTS, which
+// stands for the owner privateRoot has already checked. Python's mkdtemp grants
+// OWNER RIGHTS on the directory it makes.
 func trustedAccounts() ([]*windows.SID, error) {
 	current, err := windows.GetCurrentProcessToken().GetTokenUser()
 	if err != nil {
@@ -113,6 +115,7 @@ func trustedAccounts() ([]*windows.SID, error) {
 	trusted := []*windows.SID{current.User.Sid}
 	for _, known := range []windows.WELL_KNOWN_SID_TYPE{
 		windows.WinLocalSystemSid, windows.WinBuiltinAdministratorsSid, windows.WinCreatorOwnerSid,
+		windows.WinCreatorOwnerRightsSid,
 	} {
 		sid, err := windows.CreateWellKnownSid(known)
 		if err != nil {
@@ -132,11 +135,15 @@ func trusts(trusted []*windows.SID, sid *windows.SID) bool {
 	return false
 }
 
-// accountName names sid as DOMAIN\name, or as its string form when no account resolves.
+// accountName names sid as DOMAIN\name, as name alone for an account with no
+// domain, or as its string form when no account resolves.
 func accountName(sid *windows.SID) string {
 	account, domain, _, err := sid.LookupAccount("")
 	if err != nil {
 		return sid.String()
+	}
+	if domain == "" {
+		return account
 	}
 	return domain + `\` + account
 }

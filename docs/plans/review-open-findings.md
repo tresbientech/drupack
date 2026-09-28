@@ -5,19 +5,25 @@
 
 ## Decisions
 
-- F08: the install step claims a database it found empty, before `site:install`
-  writes to it. A resumed install step on a claimed database drops what the
-  interrupted run left, over PDO, then runs `site:install` again. Drush
-  empties a database through the psql or mysql client, which the runtime lacks. A database
-  never claimed and able to bootstrap is adopted. The `first-install` record goes.
+- F08: the install step records the database it found empty, in
+  `install-started`, before `site:install` writes to it. A resumed install step
+  drops what the interrupted run left, over PDO, then installs again. Drush
+  empties a database through the psql or mysql client, which the runtime lacks.
+  The drop runs only when the record names the database the recorded settings
+  name. A start with no progress deletes a leftover record. A database with no
+  record that bootstraps is adopted. The `first-install` record goes.
+- F08, accepted gap: Site data interrupted under an earlier release holds
+  `first-install` and no record, so it resumes as before this change. That
+  record was written before any emptiness check, so it cannot license a drop.
 - F16: the development entrypoint copies what `layEngine` copies: the engine's
   `application/` tree without `tests/` and `vendor`, then the two site files
   from `build/` into the docroot's `sites/default`.
 - F11: on Windows, a cache root passes when a trusted account owns it and no
   allow entry grants write access to any other account. Trusted accounts are the
-  current user, SYSTEM and Administrators. A root the launcher creates gets a
-  protected DACL naming those three. `golang.org/x/sys/windows` supplies the
-  security calls.
+  current user, SYSTEM and Administrators, plus CREATOR OWNER and OWNER RIGHTS,
+  which stand for the creator and the checked owner. A root the launcher
+  creates gets a protected DACL naming the current user, SYSTEM and
+  Administrators. `golang.org/x/sys/windows` supplies the security calls.
 - F07: the engine enables no MCP module since RFC 0001, so the finding has no
   code left to change. The backlog records it as superseded.
 

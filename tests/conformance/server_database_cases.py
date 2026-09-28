@@ -100,20 +100,31 @@ class _ServerDatabaseBackend:
         finally:
             site.stop()
 
-        # A first start cut off after its install step claimed the database leaves tables that
-        # may boot as a half-installed site. The resume drops them and installs again.
+        # A first start cut off after its install step began in the empty database leaves
+        # tables that may boot as a half-installed site. The resume drops them and installs
+        # again, and only in the database the record names.
         renamed = harness.run_drush(harness.BINARY, self.case_dir, data,
                                     "config:set", "system.site", "name", "Interrupted install", "--yes")
         self.assertEqual(renamed.returncode, 0, renamed.stderr)
         (data / "site-installed").unlink()
         (data / "installation-progress").write_text('["install","modules"]')
-        (data / "database-claimed").write_text("")
-        site = harness.Site(harness.BINARY, self.case_dir / "claimed-resume")
+        record = {"driver": self.DATABASE, "host": self.server.host, "port": str(self.server.port),
+                  "name": "another", "user": harness.DATABASE_USER}
+        (data / "install-started").write_text(json.dumps(record))
+        text = harness.refuse(self, self.case_dir, "another-database", "--data-dir", str(data),
+                              "--admin-user", "resume-admin", "--admin-password", harness.DATABASE_PASSWORD)
+        self.assertIn("interrupted in another database", text)
+        name = harness.run_drush(harness.BINARY, self.case_dir, data,
+                                 "config:get", "system.site", "name", "--format=string")
+        self.assertEqual(name.stdout.strip(), "Interrupted install", "the refused resume changed the database")
+
+        (data / "install-started").write_text(json.dumps(dict(record, name="drupal")))
+        site = harness.Site(harness.BINARY, self.case_dir / "interrupted-resume")
         site.start(data, "--admin-user", "resume-admin", "--admin-password", harness.DATABASE_PASSWORD,
                    ready_wait="database_start")
         site.stop()
         self.assertTrue((data / "site-installed").exists(), "the resume left no completion marker")
-        self.assertFalse((data / "database-claimed").exists(), "the resume left its database claim")
+        self.assertFalse((data / "install-started").exists(), "the resume left its installation start")
         name = harness.run_drush(harness.BINARY, self.case_dir, data,
                                  "config:get", "system.site", "name", "--format=string")
         self.assertEqual(name.stdout.strip(), harness.SITE["site_name"],

@@ -156,7 +156,7 @@ Drupack refuses to serve in three cases, each naming the directory and the comma
 - a site exists that Drupal cannot start
 - the database already holds a site that Drupack did not install
 
-An interrupted setup resumes where it stopped. Drupack never installs Drupal over a database that already holds a site, and never copies its starting site over an existing one.
+An interrupted setup resumes where it stopped. Drupack never installs Drupal over a database that already holds a site, and never copies its starting site over an existing one. The one exception is its own setup: when a setup is cut off after it began installing into a database it found empty, the next start empties that database and installs again.
 
 ## The unpacked runtime
 
@@ -174,7 +174,7 @@ One version takes about 400 MB on Linux and macOS, beside your Site data. The sp
 
 `DRUPACK_CACHE_DIR` moves the cache, for a disk with more room. On Linux and macOS a home directory that refuses writes sends the runtime to the temporary directory instead. On Windows, a cache root PHP's startup cannot read sends the runtime to the temporary directory too, printing why.
 
-The cache holds code the executable runs, so only your account may write to it. A cache directory the executable creates is made private. An existing one that another account can write to stops the start.
+The cache holds code the executable runs, so no other account may write to it, apart from administrators and the system. A cache directory the executable creates is made private. An existing one that another account can write to stops the start.
 
 ## TLS trust
 
