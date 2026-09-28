@@ -80,6 +80,8 @@ DRUPACK_TEST_ENGINE=dist/engine/drupack-linux-amd64 python3 tests/conformance di
 
 `DRUPACK_TEST_ENGINE` names the engine executable. Its cases serve a copy of the site's own application, and skip when the variable is unset.
 
+`DRUPACK_TEST_PREVIOUS` names the executable of the site's previous release. Its case installs a site with it, then starts that Site data with the executable under test. It skips when the variable is unset.
+
 `drupack-build` runs the same suite as its last step, inside the job image. `build/qa.sh` then runs the cases that need a Docker daemon on the host.
 
 `tests/conformance` takes a results directory as its second argument, and empties it before any case runs. It refuses a non-empty directory that no earlier run created. It reads the site from the `site.json` beside the executable. `--site-tests DIR` adds a site's own `*_cases.py` modules to the run; Mercury Demo's live in `examples/mercury-demo/tests`.

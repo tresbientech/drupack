@@ -4,3 +4,4 @@ site_name: Drupal Mercury Demo
 languages: [fr, zh-hans, es, hi, ar]
 platforms: [linux-amd64]
 libc: both
+writable: [web/themes/custom, recipes]

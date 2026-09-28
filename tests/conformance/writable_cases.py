@@ -1,11 +1,14 @@
 """A site whose contract names writable directories runs its own application in Site data.
 
-The case writes a theme where a Drush command would, into a writable directory under the
-docroot's themes, enables it with `drush` and fetches a page it renders.
+The first case writes a theme where a Drush command would, into a writable directory under the
+docroot's themes, enables it with `drush` and fetches a page it renders. The second starts a
+Site data directory an earlier release installed.
 """
 
 import os
 import subprocess
+import unittest
+from pathlib import Path
 
 import harness
 
@@ -95,3 +98,39 @@ class WritableDirectories(harness.ConformanceCase):
         self.serves_the_probe()
         self.assertEqual(release.read_text(), current)
         self.assertFalse((self.data / ".previous-app").exists(), "the upgrade left the old application")
+
+
+class PreviousRelease(harness.ConformanceCase):
+    """DRUPACK_TEST_PREVIOUS names the executable of the site's previous release."""
+
+    PLATFORMS = (harness.LINUX, harness.MACOS)
+    WRITABLE = True
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        previous = os.environ.get("DRUPACK_TEST_PREVIOUS")
+        if not previous:
+            raise unittest.SkipTest("DRUPACK_TEST_PREVIOUS names no previous release")
+        cls.previous = Path(previous).resolve()
+
+    def setUp(self):
+        super().setUp()
+        self.earlier = harness.Site(self.previous, self.case_dir / "previous")
+        self.site = harness.Site(harness.BINARY, self.case_dir / "site")
+
+    def tearDown(self):
+        self.earlier.stop()
+        self.site.stop()
+
+    def test_the_next_start_lays_the_application(self):
+        data = self.case_dir / "data"
+        self.earlier.start(data, "--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
+        self.earlier.stop()
+
+        self.site.start(data)
+        status, _, _ = self.site.fetch("/")
+        self.assertEqual(200, status)
+        root = harness.run_drush(harness.BINARY, self.case_dir, data, "php:eval", r"print \Drupal::root();")
+        self.assertEqual(root.returncode, 0, root.stderr)
+        self.assertEqual(Path(root.stdout.strip()).resolve(), (data / "app" / harness.SITE["docroot"]).resolve())
