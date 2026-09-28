@@ -48,7 +48,7 @@ function installCommand(bool $windows, string $script): array
 }
 
 // Runs the fetched script in $root and returns its exit status. The script
-// inherits this process's environment, so DRUPACK_LIBC reaches it. Its output
+// inherits this process's environment, so a libc override reaches it. Its output
 // tells how to move the executable onto PATH, which a project keeps in its root,
 // so only its errors reach the terminal.
 function runScript(bool $windows, string $script, string $root): int

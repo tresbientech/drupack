@@ -15,7 +15,7 @@ on:
         description: "Comma-separated targets: linux-amd64, linux-arm64. Unset, drupack.yml's platforms."
         type: string
       libc:
-        description: "The C library of each Linux runtime: both, glibc or musl. Unset, drupack.yml's libc."
+        description: "The Linux files to build, one per C library: both, glibc or musl. Unset, drupack.yml's libc."
         type: string
       publish:
         description: On a tag run, release the executables in the calling repository.

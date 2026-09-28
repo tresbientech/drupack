@@ -34,7 +34,7 @@ vendor/bin/drupack-install
 ./drupack
 ```
 
-`drupack-install` runs the install script of the release matching the package's version, in the project root. It adds `/drupack` to the project's `.gitignore`, and creates that file in a git project without one. Run it again after `composer update` changes the package's version.
+`drupack-install` runs the install script of the release matching the package's version, in the project root. `DRUPACK_LIBC` reaches that script, as the Linux section below describes. It adds `/drupack` to the project's `.gitignore`, and creates that file in a git project without one. Run it again after `composer update` changes the package's version.
 
 `drupack` serves the project in the working directory, or in the directory you name after it. It serves Drupal alone, and refuses a folder without Drupal core. It reads the docroot from the scaffold web root in `composer.json`, `web` by default. It prints a one-time login link through the project's Drush, then serves on `http://127.0.0.1:8888`. A project without Drush serves with no link. `--listen IP:PORT` picks another address.
 
@@ -66,21 +66,29 @@ The script picks the build for your system and processor, and checks its SHA-256
 
 ### Linux
 
-One Linux download runs everywhere. It carries a runtime built against each C
-library and picks one when it starts.
+A Linux release publishes two builds per processor. `linux-amd64` carries a
+runtime built against glibc, and `linux-amd64-musl` one built against musl. The
+script checks the host for the glibc loader and installs the matching build.
 
-| Your host | Runtime it runs | Why |
+| Your host | Build it installs | Why |
 |---|---|---|
 | glibc, which covers Debian, Ubuntu, Fedora, RHEL and Arch | glibc | serves a rendered page faster |
 | musl, which covers Alpine and most slim containers | musl | the only one that runs there |
-| anything the check cannot place | musl | runs on any host |
+| anything without the glibc loader | musl | runs on any host |
 
-`mercury-demo --version` names the runtime that ran. To run the other one, set
-`DRUPACK_LIBC` to `musl` or `glibc`.
+An Alpine image made on a glibc host needs the musl build. `DRUPACK_LIBC` set
+to `musl` or `glibc` overrides the script's pick:
+
+```sh
+curl -fsSL https://drupack.tresbien.tech/demo.sh | DRUPACK_LIBC=musl sh
+```
+
+The script refuses any other value. `mercury-demo --version` names the C
+library of the build you run.
 
 ### Downloading by hand
 
-The [releases page](https://github.com/tresbientech/drupack/releases) lists every build as `NAME-VERSION-TARGET`, such as `mercury-demo-0.5.1-macos-arm64`. A browser marks what it downloads, and the scripts avoid both marks below.
+The [releases page](https://github.com/tresbientech/drupack/releases) lists every build as `NAME-VERSION-TARGET`, such as `mercury-demo-0.5.1-macos-arm64`. A Linux target without a suffix names the glibc build, and `-musl` the musl one. A browser marks what it downloads, and the scripts avoid both marks below.
 
 - macOS Gatekeeper blocks a marked executable that carries no Apple signature. `xattr -d com.apple.quarantine mercury-demo` clears the mark.
 - Windows SmartScreen shows "Windows protected your PC" the first time. Choose "More info", then "Run anyway".

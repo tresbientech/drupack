@@ -134,8 +134,8 @@ A PHP extension that a package in the application's lock file names as a require
 
 ### Runtime
 
-- A Linux **Packaged site** carries one **Runtime** per C library and picks one per host.
-- A macOS or Windows **Packaged site** carries one **Runtime**.
+- An executable of a **Packaged site** carries one **Runtime**.
+- A Linux release of a **Packaged site** holds an executable per C library, and its **Install script** installs the one for the host.
 - `--version` names the **Runtime** that ran.
 - A **Runtime** and an **Application root** each unpack to their own cache. The **`clean` command** removes entries from both.
 - A **Packaged site** whose **Site contract** names a **Writable directory** keeps its **Application root** in **Site data**, which the **`clean` command** never touches.
@@ -146,7 +146,7 @@ A PHP extension that a package in the application's lock file names as a require
 - An **Engine executable** has no **Site data**. A **Project folder**'s own settings name its database and files.
 - An **Engine executable** refuses a **Project folder** with a **Declared extension** its **Runtime** lacks.
 - An **Engine executable** runs a **Project folder**'s own Drush with `drush`, and Drupal core's command line with `dr`.
-- A Linux **Engine executable** carries one **Runtime** per C library, as a Linux **Packaged site** does.
+- A Linux release holds an **Engine executable** per C library, as it does for a **Packaged site**.
 
 ### Extensions
 

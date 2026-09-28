@@ -120,8 +120,7 @@ Every run uploads the executables as workflow artifacts. A publishing run adds
 what Drupack's own release carries: versioned and unversioned asset names,
 `checksums.txt`, `release.json`, a CycloneDX SBOM and provenance attestations.
 
-A Linux executable with one libc carries one runtime. ADR 0015 already runs it
-without reading `DRUPACK_LIBC`.
+A Linux executable carries one runtime, as ADR 0026 records.
 
 ### Identity and versions
 

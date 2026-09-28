@@ -92,9 +92,11 @@ superseded by it.
 
 ### Acceptance criteria
 
-- [ ] `git grep -n -e LibcVariable -e elfInterpreter -e 'runtime glibc=' -e
-      runtime_selection -e 'carries both runtimes'` finds only ADR 0015.
-- [ ] `git grep -n DRUPACK_LIBC` finds only the install script, its cases, the
-      install docs, ADR 0015 and ADR 0026.
-- [ ] ADR 0015's status names ADR 0026.
+- [x] `git grep -n -e LibcVariable -e elfInterpreter -e 'runtime glibc=' -e
+      runtime_selection -e 'carries both runtimes'` finds only ADR 0015,
+      besides this plan.
+- [x] `git grep -n DRUPACK_LIBC` finds only the install script, its cases, the
+      install docs, ADR 0015 and ADR 0026, besides this plan and its PRD.
+      `drupack_install_test.php` counts among the cases.
+- [x] ADR 0015's status names ADR 0026.
 - [ ] `bash build/qa.sh` passes, and `.git/qa-green` records it.

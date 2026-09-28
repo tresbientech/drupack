@@ -136,7 +136,7 @@ Tested modules:
 Prior art:
 
 - `launcher/internal/runtime/*_test.go` for Go unit tests
-- `tests/conformance/launcher_cases.py` and `runtime_selection_cases.py` for packed fixture launchers
+- `tests/conformance/launcher_cases.py` for packed fixture launchers
 - `application/tests/launch_test.php` for `launch.php` units
 - `tests/conformance/test_harness.py` for harness units
 

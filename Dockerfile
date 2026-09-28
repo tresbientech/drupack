@@ -1,7 +1,7 @@
 # The builder images carry the static PHP toolchain and name their libc in
-# SPC_LIBC, which embed.sh reads to pick its link mode. A Linux executable
-# carries both runtimes: the glibc one serves a rendered page several times
-# faster, and the musl one is the single file that runs on any host.
+# SPC_LIBC, which embed.sh reads to pick its link mode. A Linux release
+# publishes a file per runtime: the glibc one serves a rendered page several
+# times faster, and the musl one runs on any host.
 #
 # A runtime links the PHP that runtime/php-extensions.txt names, and
 # PHP_EXTENSIONS takes effect while a builder image is built, so
@@ -17,7 +17,7 @@ ARG RUNTIMES=local-runtimes
 ARG EXTENSIONS=engine-extensions
 # The job image runs drupack-build: Go for the packer and the launcher, Python for
 # the conformance suite, and GNU tar for the payload's fixed archive options. It is
-# a glibc host, the only kind that runs both runtimes, so a build of either libc
+# a glibc host, the only kind that runs both runtimes, so a file of either libc
 # is tested where it was built.
 # docker buildx imagetools inspect golang:1.26-bookworm --format '{{.Manifest.Digest}}'
 ARG JOB_BASE=golang:1.26-bookworm@sha256:a688600ca24f8a4d3ca77f95b0dd40704a9fc787c826660eb7ba0b641b8b175d

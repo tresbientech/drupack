@@ -1,6 +1,7 @@
 # A Linux executable carries a runtime per C library
 
-Accepted on 2026-09-22.
+Accepted on 2026-09-22. Superseded on 2026-09-29 by
+[ADR 0026](0026-one-runtime-per-linux-file.md).
 
 ## Context
 

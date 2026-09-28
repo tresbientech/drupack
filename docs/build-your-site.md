@@ -35,7 +35,7 @@ port: 7225                 # the port the site listens on
 languages: [fr, de]        # translations the build fetches
 smoke_paths: [/, /about]   # paths the suite expects a 200 from, / by default
 platforms: [linux-amd64]   # targets: linux-amd64, linux-arm64
-libc: both                 # C library of each runtime: both, glibc or musl
+libc: both                 # Linux files, one per C library: both, glibc or musl
 extensions: [gmp]          # PHP extensions the site adds to the engine's
 writable: [recipes]        # directories the site writes at runtime
 ```
@@ -44,7 +44,9 @@ writable: [recipes]        # directories the site writes at runtime
 absent or git ignores it.
 
 `platforms` defaults to `[linux-amd64]` and `libc` to `both`. `both` packs two
-runtimes in one file, and the executable picks one per host. The
+files per platform: `acme-linux-amd64` with a glibc runtime and
+`acme-linux-amd64-musl` with a musl one. The release's install script picks
+the one for the host. The
 `drupack-build` flags `--platform` and `--libc` override the file, and so do
 the GitHub workflow's inputs.
 
@@ -53,7 +55,8 @@ the GitHub workflow's inputs.
 overlap. The section on directories a site writes gives what a start does
 with them.
 
-A build writes `acme-linux-amd64` and `site.json` to its output directory.
+A build writes `acme-linux-amd64`, `acme-linux-amd64-musl` and `site.json` to
+its output directory. The conformance suite runs on the glibc file.
 
 ## A site without a recipe
 
