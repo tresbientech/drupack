@@ -30,15 +30,15 @@ entry point, and the runtime opens a browser when `OPEN` is set, with `BROWSER` 
 
 ### Acceptance criteria
 
-- [ ] `./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/launch_test.php"`
+- [x] `./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/launch_test.php"`
       passes, with renderer cases for every token replaced, an unknown token
       refused and a quoted value refused.
-- [ ] `grep -nE 'DRUPACK_RUNTIME_(BIND|PORT|DOCROOT|LOG_PATH|BROWSER)' application/ runtime/ -r`
+- [x] `grep -nE 'DRUPACK_RUNTIME_(BIND|PORT|DOCROOT|LOG_PATH|BROWSER)' application/ runtime/ -r`
       prints nothing.
-- [ ] `grep -n '{\$' application/Caddyfile` prints nothing.
-- [ ] The conformance case asserting the Caddyfile in Site data's runtime
+- [x] `grep -n '{\$' application/Caddyfile` prints nothing.
+- [x] The conformance case asserting the Caddyfile in Site data's runtime
       directory, holding the served port, passes in the in-image run of `bash build/qa.sh`.
-- [ ] The in-image conformance run of `bash build/qa.sh` passes whole.
+- [x] The in-image conformance run of `bash build/qa.sh` passes whole.
 
 ---
 

@@ -152,10 +152,9 @@ function administratorCredentials(array $options, array $steps): array
 function openWhenServing(string $url, ?string $target, bool $browser): void
 {
     putenv("DRUPACK_RUNTIME_URL=$url");
-    if ($browser) {
-        putenv("DRUPACK_RUNTIME_OPEN=$target");
-    }
-    putenv('DRUPACK_RUNTIME_BROWSER=' . ($browser ? '1' : '0'));
+    // The server opens a browser when this variable is set, so a start that opens none
+    // clears whatever the environment it inherited held.
+    putenv($browser ? "DRUPACK_RUNTIME_OPEN=$target" : 'DRUPACK_RUNTIME_OPEN');
 }
 
 // The token names this Site data over HTTP without disclosing its path. Windows spells one
@@ -707,8 +706,6 @@ try {
     }
     putenv("DRUPACK_RUNTIME_DATA_DIR=$data");
     putenv("DRUPACK_RUNTIME_FILES_DIR=$files");
-    putenv("DRUPACK_RUNTIME_BIND=$bind");
-    putenv("DRUPACK_RUNTIME_PORT=$port");
     putenv('DRUPACK_RUNTIME_ID=' . siteToken($data));
     // Drupal matches its trusted host patterns against the request's host, which keeps an
     // IPv6 address's brackets.
@@ -719,7 +716,6 @@ try {
     $url = 'http://' . urlHost($options['host']) . ":$port/";
     putenv("DRUSH_OPTIONS_URI=$url");
     $logPath = $site->logs() . '/caddy.log';
-    putenv("DRUPACK_RUNTIME_LOG_PATH=$logPath");
     $runtime = canonical(realpath($site->runtime()));
     // Caddy state and every temporary file stay beside the site they belong to.
     putenv("TMPDIR=$runtime");
@@ -770,10 +766,6 @@ try {
     if (siteSettings()['writable'] !== []) {
         useSiteApplication($site, $drush);
     }
-    // Absolute, because FrankenPHP resolves a relative docroot against the directory its
-    // process started in, which on Unix is the shared application whatever the entry point
-    // changes to.
-    putenv('DRUPACK_RUNTIME_DOCROOT=' . application() . '/' . siteSettings()['docroot']);
     if ($steps !== []) {
         // Read again under the lease: another start may have finished initializing between
         // the first read and the moment this one claimed the Site data.
@@ -840,7 +832,23 @@ try {
     // site runs, so the credential stops here.
     putenv('DRUPACK_ADMIN_PASSWORD');
     fwrite(STDOUT, "Starting the web server.\n");
-    replaceProcess($binary, ['php-server'], application(), 'Cannot start FrankenPHP');
+    // The server reads its configuration from Site data, written from the template the
+    // application ships. application() names the site's own copy once it is laid.
+    $caddyfile = "$runtime/Caddyfile";
+    renderTemplate(application() . '/Caddyfile', [
+        'PORT' => (string) $port,
+        'BIND' => $bind,
+        // Absolute, because FrankenPHP resolves a relative docroot against the directory
+        // its process started in, which on Unix is the shared application whatever the
+        // entry point changes to.
+        'DOCROOT' => application() . '/' . siteSettings()['docroot'],
+        'LOG_PATH' => $logPath,
+        'ID' => siteToken($data),
+        'FILES_DIR' => $files,
+        // Caddy resolves an import from the Caddyfile's own directory, which is Site data's.
+        'GUARDS' => application() . '/guards.caddy',
+    ], $caddyfile);
+    replaceProcess($binary, ['php-server', $caddyfile], application(), 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
     exit(1);

@@ -129,6 +129,8 @@ class SeededSite(harness.ConformanceCase):
         self.assertTrue((data / "site.sqlite").is_file())
         self.assertTrue((data / "settings.php").is_file())
         self.assertTrue((data / "files").is_dir())
+        # The start writes the server's configuration into Site data before it execs the server.
+        self.assertIn(f"http://:{self.site.port} {{", (data / "runtime" / "Caddyfile").read_text())
         status = self.run_drush(data, "status", "--format=json")
         self.assertEqual(status.returncode, 0, status.stderr)
         self.assertIn("drupal-version", status.stdout)

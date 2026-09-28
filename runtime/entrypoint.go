@@ -83,14 +83,14 @@ Examples:
 const readinessPath = "/.drupack-id?id="
 
 // openWhenReady waits for the site to answer at address, then reports readiness, closes
-// ready and opens the browser on target when asked. The terminal keeps one readiness
+// ready and opens the browser on target when launch.php set one. The terminal keeps one readiness
 // line even when no browser opens. The target is a one-time login link, which a request spends, so the poll
 // asks for the readiness path instead. launch.php passes both through the environment.
 //
 // Only 204 from that path counts. A 500 from a failed bootstrap and a 400 from a rejected
 // host both reach a client that connects, so a poll accepting any answer would announce a
 // site nobody can use.
-func openWhenReady(address string, token string, target string, browser bool, ready chan<- struct{}) {
+func openWhenReady(address string, token string, target string, ready chan<- struct{}) {
 	// A cold start answers its first request slowly, and a request that never returns would
 	// otherwise hold the poll past the deadline.
 	client := http.Client{Timeout: 30 * time.Second}
@@ -105,7 +105,7 @@ func openWhenReady(address string, token string, target string, browser bool, re
 			if response.StatusCode == http.StatusNoContent {
 				fmt.Printf("\n%s is ready. Press Ctrl+C to stop.\n", siteName())
 				close(ready)
-				if browser {
+				if target != "" {
 					openBrowser(target)
 				}
 				return
@@ -246,16 +246,17 @@ func init() {
 			panic(err)
 		}
 	}
-	// launch.php replaces itself with this command to serve the site.
-	if len(os.Args) > 1 && os.Args[1] == "php-server" {
+	// launch.php replaces itself with this command to serve the site, naming the
+	// Caddyfile it wrote into Site data.
+	if len(os.Args) == 3 && os.Args[1] == "php-server" {
 		stopping := forceExitOnStalledShutdown()
 		ready := make(chan struct{})
 		// The server waits for itself. A separate process would first extract its own copy
 		// of the embedded application, which takes longer than the wait on a slow disk.
 		go openWhenReady(os.Getenv("DRUPACK_RUNTIME_URL"), os.Getenv("DRUPACK_RUNTIME_ID"),
-			os.Getenv("DRUPACK_RUNTIME_OPEN"), os.Getenv("DRUPACK_RUNTIME_BROWSER") == "1", ready)
+			os.Getenv("DRUPACK_RUNTIME_OPEN"), ready)
 		go runScheduledWork(stopping, executable, application, ready)
-		serveCaddyfile(filepath.Join(application, "Caddyfile"))
+		serveCaddyfile(os.Args[2])
 		return
 	}
 	// The engine executable's serve.php replaces itself with this command, naming its
