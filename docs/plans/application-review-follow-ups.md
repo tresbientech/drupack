@@ -99,16 +99,16 @@ Previous-release fallback returns only when a need for it appears.
 
 `installDrupal()` stops putting the database URL and the administrator password
 in subprocess arguments, where every local account can read them.
-`configureSeedAdministrator()` already reads its password from the environment
+`configureAdministrator()` already reads its password from the environment
 inside the child, which is the pattern to follow.
 
 ### Acceptance criteria
 
-- [ ] A conformance case reads the command line of every Drush child during a
+- [x] A conformance case reads the command line of every Drush child during a
       first install and finds no password and no database URL. It runs on Linux
       through `/proc`. Windows runs no server database, and its SQLite first
       start passes no secret in arguments.
-- [ ] A first start still installs on sqlite, mysql and pgsql, and its printed
+- [x] A first start still installs on sqlite, mysql and pgsql, and its printed
       login link still works.
 - [ ] The Linux and Windows conformance runs pass whole.
 
