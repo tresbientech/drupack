@@ -101,15 +101,9 @@ test('an empty site data directory installs on a database server', function (): 
 
 test('a fresh start drops an installation start no progress resumes', function (): void {
     $site = scratch();
-    $site->startInstall(['name' => 'site']);
+    $site->startInstall();
     same(['settings', 'install', 'modules'], $site->steps('pgsql'));
-    same(null, $site->installStarted());
-});
-
-test('an unreadable installation start refuses', function (): void {
-    $site = scratch();
-    file_put_contents("$site->directory/install-started", 'not json');
-    throws('Cannot read the recorded installation start', fn() => $site->installStarted());
+    same(false, $site->installStarted());
 });
 
 test('an unreadable listener record refuses', function (): void {
@@ -156,13 +150,13 @@ test('a finished initialization leaves no progress, adoption or installation sta
     $steps = $site->steps('pgsql');
     same(true, $site->initialize($steps, function (string $step) use ($site): bool {
         if ($step === 'install') {
-            $site->startInstall(['name' => 'site']);
+            $site->startInstall();
             return true;
         }
         return false;
     }));
     same(['site-installed'], stateFiles($site));
-    same(null, $site->installStarted());
+    same(false, $site->installStarted());
     same(true, $site->installed());
     same([], $site->steps('pgsql'));
 });
@@ -189,21 +183,20 @@ test('a step that throws leaves progress naming it onward', function (): void {
 
 test('an installation start outlives a crash in the install step and goes with the finished marker', function (): void {
     $site = scratch();
-    $database = ['driver' => 'pgsql', 'host' => 'db', 'port' => '5432', 'name' => 'site', 'user' => 'u'];
-    throws('install cut off', fn() => $site->initialize($site->steps('pgsql'), function (string $step) use ($site, $database): bool {
+    throws('install cut off', fn() => $site->initialize($site->steps('pgsql'), function (string $step) use ($site): bool {
         if ($step === 'install') {
-            $site->startInstall($database);
+            $site->startInstall();
             throw new RuntimeException('install cut off');
         }
         return false;
     }));
-    same($database, $site->installStarted());
+    same(true, $site->installStarted());
     same(['install', 'modules'], $site->steps('pgsql'));
-    same($database, $site->installStarted(), 'reading resumed steps dropped the installation start');
+    same(true, $site->installStarted(), 'reading resumed steps dropped the installation start');
     $calls = [];
     $site->initialize($site->steps('pgsql'), recorder($calls));
     same([['install', false], ['modules', false]], $calls);
-    same(null, $site->installStarted());
+    same(false, $site->installStarted());
     same(['site-installed'], stateFiles($site));
 });
 

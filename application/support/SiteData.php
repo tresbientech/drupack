@@ -17,8 +17,7 @@ final class SiteData
     private const PROGRESS = 'installation-progress';
     // The install step found a site already in the database, so the modules step changes nothing.
     private const ADOPTED = 'site-adopted';
-    // The database the install step found empty and began installing into, as JSON.
-    // Every table that database holds from then on is this initialization's own.
+    // The install step found the database empty and began installing into it.
     private const INSTALL_STARTED = 'install-started';
     // Every start records where it serves, so a later `drush` addresses the site on the
     // port it actually uses, and keeps the files directory the last start named.
@@ -150,7 +149,7 @@ final class SiteData
             return ['seed', 'settings', 'administrator'];
         }
         // A record with no progress beside it belongs to an initialization nobody resumes,
-        // so it no longer vouches for what that database holds.
+        // so it says nothing about what the database holds now.
         if (file_exists($this->path(self::INSTALL_STARTED))) {
             unlink($this->path(self::INSTALL_STARTED));
         }
@@ -190,25 +189,16 @@ final class SiteData
         return $adopted;
     }
 
-    // Records the database the install step found empty, before it writes to it.
-    public function startInstall(array $database): void
+    // Records that the install step found the database empty, before it writes to it.
+    public function startInstall(): void
     {
-        $this->write(self::INSTALL_STARTED, json_encode($database), 'Cannot record the database the installation began in');
+        $this->write(self::INSTALL_STARTED, '', 'Cannot record that the installation began');
     }
 
-    // The database an install step of this initialization found empty, or null.
-    public function installStarted(): ?array
+    // Whether an install step of this initialization found the database empty and began.
+    public function installStarted(): bool
     {
-        $record = $this->path(self::INSTALL_STARTED);
-        if (!file_exists($record)) {
-            return null;
-        }
-        $database = json_decode((string) file_get_contents($record), true);
-        if (!is_array($database)) {
-            throw new RuntimeException("Cannot read the recorded installation start: $record. Remove that file, then start "
-                . \executableName() . ' again to check the site.');
-        }
-        return $database;
+        return file_exists($this->path(self::INSTALL_STARTED));
     }
 
     private function recordProgress(array $steps): void

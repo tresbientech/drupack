@@ -453,59 +453,18 @@ function handOver(string $binary, string $url, string $data, bool $browser): nev
     replaceProcess($binary, ['browser-open'], application(), 'Cannot open the browser');
 }
 
-function serverDatabase(array $options): PDO
+function databaseHoldsTables(array $options): bool
 {
-    return new PDO(
+    $connection = new PDO(
         sprintf('%s:host=%s;port=%s;dbname=%s', $options['database'], $options['db-host'], databasePort($options), $options['db-name']),
         $options['db-user'],
         $options['db-password'],
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
     );
-}
-
-// The tables and views the site's database holds, as [schema, name, type] rows.
-function databaseTables(PDO $connection, string $backend): array
-{
     // PostgreSQL resolves its own schemas from the search path, which need not name public first.
-    $schema = $backend === 'mysql' ? '= DATABASE()' : '= ANY(current_schemas(false))';
-    return $connection->query("SELECT table_schema, table_name, table_type FROM information_schema.tables WHERE table_schema $schema")
-        ->fetchAll(PDO::FETCH_NUM);
-}
-
-function databaseHoldsTables(array $options): bool
-{
-    return databaseTables(serverDatabase($options), $options['database']) !== [];
-}
-
-// Which database the options name, as the installation start records it.
-function databaseIdentity(array $options): array
-{
-    return [
-        'driver' => $options['database'],
-        'host' => $options['db-host'],
-        'port' => databasePort($options),
-        'name' => $options['db-name'],
-        'user' => $options['db-user'],
-    ];
-}
-
-// Drops every table and view of a database an interrupted install began in. site:install
-// empties a database through the psql or mysql client, which the runtime does not carry.
-// The database held nothing when the install began, so a PostgreSQL cascade reaches only
-// what came after, and a later row may name something the cascade already dropped.
-function dropInterruptedInstall(array $options): void
-{
-    $connection = serverDatabase($options);
-    $mysql = $options['database'] === 'mysql';
-    $quote = $mysql ? '`' : '"';
-    $identifier = fn(string $name): string => $quote . str_replace($quote, $quote . $quote, $name) . $quote;
-    if ($mysql) {
-        $connection->exec('SET FOREIGN_KEY_CHECKS = 0');
-    }
-    foreach (databaseTables($connection, $options['database']) as [$schema, $name, $type]) {
-        $connection->exec(($type === 'VIEW' ? 'DROP VIEW IF EXISTS ' : 'DROP TABLE IF EXISTS ')
-            . $identifier($schema) . '.' . $identifier($name) . ($mysql ? '' : ' CASCADE'));
-    }
+    $schema = $options['database'] === 'mysql' ? '= DATABASE()' : '= ANY(current_schemas(false))';
+    $statement = $connection->query("SELECT count(*) FROM information_schema.tables WHERE table_schema $schema");
+    return (int) $statement->fetchColumn() > 0;
 }
 
 function installDrupal(array $options, string $binary): void
@@ -529,23 +488,13 @@ function installDrupal(array $options, string $binary): void
 }
 
 // The database is the user's only copy: an installed site is kept, and other tables stop the start.
-// A database this initialization began installing into held no tables then, so what it holds
-// now came from the interrupted install, which is dropped and installed again. A site that
-// boots there may have been cut off mid-recipe, so it is never taken as finished. The drop
-// runs only on the database the record names, reached through the recorded settings.
+// A database this initialization began installing into held no tables then, so a site that
+// boots there now may have been cut off mid-recipe, and it is never adopted. Its tables stay
+// until a person empties the database: nothing here proves they are still the install's own.
 function installSite(SiteData $site, array $options, string $binary): bool
 {
     $started = $site->installStarted();
-    if ($started !== null) {
-        if (!file_exists($site->settings()) || $started !== databaseIdentity($options)) {
-            throw new RuntimeException("This Site data holds an installation interrupted in another database than its settings name now: $site->directory. "
-                . "Restore the settings.php it was installing with, or start " . executableName() . " with an empty Site data directory.");
-        }
-        dropInterruptedInstall($options);
-        installDrupal($options, $binary);
-        return false;
-    }
-    if (drushField($binary, ['status', '--field=bootstrap']) === 'Successful') {
+    if (!$started && drushField($binary, ['status', '--field=bootstrap']) === 'Successful') {
         fwrite(STDOUT, "This database already holds a site. " . executableName() . " enabled nothing on it, and keeps its own administrator account.\n");
         return true;
     }
@@ -554,9 +503,15 @@ function installSite(SiteData $site, array $options, string $binary): bool
             . " has no recipe to install one. Name the database that holds its site, then start " . executableName() . " again.");
     }
     if (databaseHoldsTables($options)) {
+        if ($started) {
+            throw new RuntimeException("An interrupted installation left tables in the {$options['database']} database {$options['db-name']} on "
+                . "{$options['db-host']}:" . databasePort($options) . ". Empty that database, then start " . executableName() . " again.");
+        }
         throw new RuntimeException("The database for $site->directory holds tables without an installed site. Empty it or name another database, then start " . executableName() . " again.");
     }
-    $site->startInstall(databaseIdentity($options));
+    if (!$started) {
+        $site->startInstall();
+    }
     installDrupal($options, $binary);
     return false;
 }

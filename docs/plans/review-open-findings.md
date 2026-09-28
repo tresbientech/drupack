@@ -5,13 +5,13 @@
 
 ## Decisions
 
-- F08: the install step records the database it found empty, in
-  `install-started`, before `site:install` writes to it. A resumed install step
-  drops what the interrupted run left, over PDO, then installs again. Drush
-  empties a database through the psql or mysql client, which the runtime lacks.
-  The drop runs only when the record names the database the recorded settings
-  name. A start with no progress deletes a leftover record. A database with no
-  record that bootstraps is adopted. The `first-install` record goes.
+- F08: the install step records in `install-started` that it found the
+  database empty, before `site:install` writes to it. A resumed install step
+  with that record never adopts: tables in the database stop the start with a
+  message naming the database, and an empty database installs. Nothing drops a
+  table, since no check can prove the tables are still the install's own. A
+  start with no progress deletes a leftover record. A database with no record
+  that bootstraps is adopted. The `first-install` record goes.
 - F08, accepted gap: Site data interrupted under an earlier release holds
   `first-install` and no record, so it resumes as before this change. That
   record was written before any emptiness check, so it cannot license a drop.
@@ -35,7 +35,7 @@
 
 - [x] `grep -rn 'first-install\|FIRST_EVER\|firstEver' application tests` prints nothing.
 - [x] `site_data_test.php` passes, with cases for the claim record and its removal at the end.
-- [x] `MysqlServerDatabase` and `PostgresqlServerDatabase` pass: a start resumed at the install step over a claimed database empties it, reinstalls it and removes the recipe modules.
+- [x] `MysqlServerDatabase` and `PostgresqlServerDatabase` pass: a start resumed at the install step with the record refuses while the database holds tables, then installs and removes the recipe modules once it is empty.
 - [x] The existing unclaimed-resume and existing-site cases pass unchanged.
 
 ---

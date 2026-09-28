@@ -101,25 +101,30 @@ class _ServerDatabaseBackend:
             site.stop()
 
         # A first start cut off after its install step began in the empty database leaves
-        # tables that may boot as a half-installed site. The resume drops them and installs
-        # again, and only in the database the record names.
+        # tables that may boot as a half-installed site. The resume neither adopts nor drops
+        # them: it names the database, and installs once a person has emptied it.
         renamed = harness.run_drush(harness.BINARY, self.case_dir, data,
                                     "config:set", "system.site", "name", "Interrupted install", "--yes")
         self.assertEqual(renamed.returncode, 0, renamed.stderr)
         (data / "site-installed").unlink()
         (data / "installation-progress").write_text('["install","modules"]')
-        record = {"driver": self.DATABASE, "host": self.server.host, "port": str(self.server.port),
-                  "name": "another", "user": harness.DATABASE_USER}
-        (data / "install-started").write_text(json.dumps(record))
-        text = harness.refuse(self, self.case_dir, "another-database", "--data-dir", str(data),
+        (data / "install-started").write_text("")
+        text = harness.refuse(self, self.case_dir, "interrupted-install", "--data-dir", str(data),
                               "--admin-user", "resume-admin", "--admin-password", harness.DATABASE_PASSWORD)
-        self.assertIn("interrupted in another database", text)
+        self.assertIn(f"An interrupted installation left tables in the {self.DATABASE} database drupal on "
+                      f"{self.server.host}:{self.server.port}", text)
         name = harness.run_drush(harness.BINARY, self.case_dir, data,
                                  "config:get", "system.site", "name", "--format=string")
         self.assertEqual(name.stdout.strip(), "Interrupted install", "the refused resume changed the database")
 
-        (data / "install-started").write_text(json.dumps(dict(record, name="drupal")))
-        site = harness.Site(harness.BINARY, self.case_dir / "interrupted-resume")
+        if self.DATABASE == "mysql":
+            # The test user holds every privilege on this database, so it can drop and recreate it.
+            self.server.execute("", "DROP DATABASE drupal")
+            self.server.execute("", "CREATE DATABASE drupal")
+        else:
+            self.server.execute("drupal", "DROP SCHEMA public CASCADE")
+            self.server.execute("drupal", "CREATE SCHEMA public")
+        site = harness.Site(harness.BINARY, self.case_dir / "emptied-resume")
         site.start(data, "--admin-user", "resume-admin", "--admin-password", harness.DATABASE_PASSWORD,
                    ready_wait="database_start")
         site.stop()

@@ -156,7 +156,7 @@ Drupack refuses to serve in three cases, each naming the directory and the comma
 - a site exists that Drupal cannot start
 - the database already holds a site that Drupack did not install
 
-An interrupted setup resumes where it stopped. Drupack never installs Drupal over a database that already holds a site, and never copies its starting site over an existing one. The one exception is its own setup: when a setup is cut off after it began installing into a database it found empty, the next start empties that database and installs again.
+An interrupted setup resumes where it stopped. Drupack never installs Drupal over a database that already holds a site, and never copies its starting site over an existing one. A setup cut off after it began installing into a database it found empty never counts as a site: the next start stops and names that database, and installs once you have emptied it.
 
 ## The unpacked runtime
 
