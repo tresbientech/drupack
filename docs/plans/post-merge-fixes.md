@@ -31,12 +31,12 @@ then has nothing left to carry.
 
 ### Acceptance criteria
 
-- [ ] An engine case serves a Project folder whose path holds a space, and `/` answers 200.
-- [ ] A writable case starts a site whose Site data path holds a space, and `/user/login` answers 200.
-- [ ] An engine case starts a server and finds no `drupack-*.Caddyfile` in the temporary directory, and a site case finds no `Caddyfile` in Site data.
-- [ ] `git grep -n -e renderTemplate -e __DRUPACK_ -- application engine` finds nothing.
-- [ ] `grep -n '{\$DRUPACK' engine/Caddyfile application/Caddyfile` shows every reference inside double quotes.
-- [ ] `python3 -m unittest discover -s tests/conformance -p test_environment.py` passes, with the new variables and their readers listed.
+- [x] An engine case serves a Project folder whose path holds a space, and `/` answers 200.
+- [x] A writable case starts a site whose Site data path holds a space, and `/user/login` answers 200.
+- [x] An engine case starts a server and finds no `drupack-*.Caddyfile` in the temporary directory, and a site case finds no `Caddyfile` in Site data.
+- [x] `git grep -n renderTemplate -- application engine` and `grep -n __DRUPACK_ engine/Caddyfile application/Caddyfile` find nothing.
+- [x] `grep -n '{\$DRUPACK' engine/Caddyfile application/Caddyfile` shows every reference inside double quotes.
+- [x] `python3 -m unittest discover -s tests/conformance -p test_environment.py` passes, with the new variables and their readers listed.
 
 ---
 
@@ -51,9 +51,9 @@ runs the Runtime.
 
 ### Acceptance criteria
 
-- [ ] An engine case sets `DRUPACK_RUNTIME_APP_DIR` to a directory, and `drupack php SCRIPT` runs the script in the reader's directory.
-- [ ] The same case serves a Project folder, and `/` answers 200.
-- [ ] `python3 -m unittest discover -s tests/conformance -p test_environment.py` passes, with the Engine launcher named where the contract needs it.
+- [x] An engine case sets `DRUPACK_RUNTIME_APP_DIR` to a directory, and `drupack php SCRIPT` runs the script in the reader's directory.
+- [x] The same case serves a Project folder, and `/` answers 200.
+- [x] `python3 -m unittest discover -s tests/conformance -p test_environment.py` passes, with the Engine launcher named where the contract needs it.
 
 ---
 
