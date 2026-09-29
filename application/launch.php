@@ -695,7 +695,8 @@ try {
         && !filter_var($options['host'], FILTER_VALIDATE_IP)) {
         throw new InvalidArgumentException('Invalid --host value');
     }
-    // The log path reaches the Caddyfile as raw text before Caddy tokenizes it, so a quote breaks it.
+    // The log path reaches the Caddyfile through the environment, which Caddy splices in before it
+    // reads quotes, so a quote breaks it.
     if (str_contains($options['data-dir'], '"')) {
         throw new InvalidArgumentException('--data-dir must not contain a double quote');
     }
@@ -721,7 +722,6 @@ try {
     }
     putenv("DRUPACK_RUNTIME_DATA_DIR=$data");
     putenv("DRUPACK_RUNTIME_FILES_DIR=$files");
-    putenv('DRUPACK_RUNTIME_ID=' . siteToken($data));
     // Drupal matches its trusted host patterns against the request's host, which keeps an
     // IPv6 address's brackets.
     putenv('DRUPACK_RUNTIME_HOST=' . urlHost($options['host']));
@@ -847,23 +847,18 @@ try {
     // site runs, so the credential stops here.
     putenv('DRUPACK_ADMIN_PASSWORD');
     fwrite(STDOUT, "Starting the web server.\n");
-    // The server reads its configuration from Site data, written from the template the
-    // application ships. application() names the site's own copy once it is laid.
-    $caddyfile = "$runtime/Caddyfile";
-    renderTemplate(application() . '/Caddyfile', [
-        'PORT' => (string) $port,
-        'BIND' => $bind,
+    // The Caddyfile the application ships is fixed, and Caddy fills its values from this environment.
+    exportServerEnvironment([
+        'DRUPACK_RUNTIME_PORT' => (string) $port,
+        'DRUPACK_RUNTIME_BIND' => $bind,
+        'DRUPACK_RUNTIME_ID' => siteToken($data),
         // Absolute, because FrankenPHP resolves a relative docroot against the directory
         // its process started in, which on Unix is the shared application whatever the
         // entry point changes to.
-        'DOCROOT' => application() . '/' . siteSettings()['docroot'],
-        'LOG_PATH' => $logPath,
-        'ID' => siteToken($data),
-        'FILES_DIR' => $files,
-        // Caddy resolves an import from the Caddyfile's own directory, which is Site data's.
-        'GUARDS' => application() . '/guards.caddy',
-    ], $caddyfile);
-    replaceProcess($binary, ['php-server', $caddyfile], application(), 'Cannot start FrankenPHP');
+        'DRUPACK_RUNTIME_DOCROOT' => application() . '/' . siteSettings()['docroot'],
+        'DRUPACK_RUNTIME_LOG_PATH' => $logPath,
+    ]);
+    replaceProcess($binary, ['php-server', application() . '/Caddyfile'], application(), 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
     exit(1);

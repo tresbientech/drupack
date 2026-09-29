@@ -1,3 +1,6 @@
+# Caddy splices each DRUPACK_RUNTIME environment reference into this text before it
+# reads quotes, so a reference stays inside double quotes and a start refuses a value
+# holding one.
 {
 	admin off
 	auto_https off
@@ -7,11 +10,11 @@
 	# before it binds. The cache id gives each Site data its own segment. Other platforms do
 	# not register the directive and ignore it.
 	frankenphp {
-		php_ini "opcache.cache_id" "__DRUPACK_ID__"
+		php_ini "opcache.cache_id" "{$DRUPACK_RUNTIME_ID}"
 	}
 	order php_server before file_server
 	log {
-		output file "__DRUPACK_LOG_PATH__" {
+		output file "{$DRUPACK_RUNTIME_LOG_PATH}" {
 			roll_size 100MiB
 			roll_keep 10
 		}
@@ -19,9 +22,9 @@
 	}
 }
 
-http://:__DRUPACK_PORT__ {
-	bind __DRUPACK_BIND__
-	root * __DRUPACK_DOCROOT__
+"http://:{$DRUPACK_RUNTIME_PORT}" {
+	bind "{$DRUPACK_RUNTIME_BIND}"
+	root * "{$DRUPACK_RUNTIME_DOCROOT}"
 	encode zstd br gzip
 
 	# Caddy sorts directives by kind, which puts a file route ahead of every
@@ -35,18 +38,18 @@ http://:__DRUPACK_PORT__ {
 		# Placed ahead of the protected-file matchers, which answer 403 for any dot path.
 		@drupackIdentity {
 			path /.drupack-id
-			query id=__DRUPACK_ID__
+			query "id={$DRUPACK_RUNTIME_ID}"
 		}
 		respond @drupackIdentity 204
 		@drupackIdentityOther path /.drupack-id
 		respond @drupackIdentityOther 404
 
-		import "__DRUPACK_GUARDS__"
+		import "guards.caddy"
 		# Public files live in the files directory, Site data's "files" unless a start
 		# names another, never under the application, which one release shares across
 		# sites. The address stays root-relative, so it survives a restart on another port.
 		route /sites/default/files/* {
-			root * "__DRUPACK_FILES_DIR__"
+			root * "{$DRUPACK_RUNTIME_FILES_DIR}"
 			uri strip_prefix /sites/default/files
 			@stored file
 			file_server @stored
@@ -57,7 +60,7 @@ http://:__DRUPACK_PORT__ {
 			rewrite @absent /sites/default/files{path}
 		}
 		php_server {
-			root __DRUPACK_DOCROOT__
+			root "{$DRUPACK_RUNTIME_DOCROOT}"
 		}
 	}
 }

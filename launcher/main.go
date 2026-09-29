@@ -62,8 +62,12 @@ func run() error {
 		return err
 	}
 	// The engine executable serves a folder named from the reader's own directory,
-	// so the runtime gets no application to change into.
+	// so the runtime gets no application to change into. An inherited directory
+	// would send it down the site path, which refuses the php word.
 	if engine {
+		if err := os.Unsetenv("DRUPACK_RUNTIME_APP_DIR"); err != nil {
+			return err
+		}
 		return launch(filepath.Join(directory, m.Entry), engineArguments(application))
 	}
 	// The server resolves the site from its working directory, which the entry

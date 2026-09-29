@@ -155,18 +155,14 @@ function serve(string $binary, array $arguments): never
     }
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n") . "  Project: $project\n");
     fwrite(STDOUT, "Starting the web server. Press Ctrl+C to stop.\n");
-    // The folder stays unchanged outside its public files, so the server's configuration goes
-    // to the temporary directory, under a name a restart on the same address overwrites.
-    $caddyfile = canonical(sys_get_temp_dir()) . '/drupack-' . substr(hash('sha256', "$project $listen"), 0, 16) . '.Caddyfile';
-    renderTemplate(__DIR__ . '/Caddyfile', [
-        'PORT' => $port,
-        'BIND' => $bind,
-        'DOCROOT' => $docroot,
-        'ID' => substr(hash('sha256', $project), 0, 16),
-        // Caddy resolves an import from the Caddyfile's own directory, which is the temporary one.
-        'GUARDS' => canonical(__DIR__) . '/guards.caddy',
-    ], $caddyfile);
-    replaceProcess($binary, ['folder-server', $caddyfile], $project, 'Cannot start FrankenPHP');
+    // The Caddyfile beside this file is fixed, and Caddy fills its values from this environment.
+    exportServerEnvironment([
+        'DRUPACK_RUNTIME_PORT' => $port,
+        'DRUPACK_RUNTIME_BIND' => $bind,
+        'DRUPACK_RUNTIME_DOCROOT' => $docroot,
+        'DRUPACK_RUNTIME_ID' => substr(hash('sha256', $project), 0, 16),
+    ]);
+    replaceProcess($binary, ['folder-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }
 
 // The nearest installed Composer project at or above the working directory. Drupal

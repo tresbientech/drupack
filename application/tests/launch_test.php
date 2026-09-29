@@ -279,32 +279,22 @@ test('the site token hashes the path, lowercased on windows', function (): void 
         'windows spells one path in several casings, so the hash reads one');
 });
 
-test('a rendered template holds every value in place of its token', function (): void {
-    $directory = scratch();
-    file_put_contents("$directory/template", "http://:__DRUPACK_PORT__ {\n\tbind __DRUPACK_BIND__\n\troot * __DRUPACK_PORT__\n}\n");
-    renderTemplate("$directory/template", ['PORT' => '8080', 'BIND' => '::1'], "$directory/Caddyfile");
-    same("http://:8080 {\n\tbind ::1\n\troot * 8080\n}\n", file_get_contents("$directory/Caddyfile"));
-    same(false, file_exists("$directory/Caddyfile.new"), 'the staging file was renamed away');
+test('the server environment holds every value it is given', function (): void {
+    exportServerEnvironment(['DRUPACK_RUNTIME_PORT' => '8080', 'DRUPACK_RUNTIME_BIND' => '::1']);
+    same('8080', getenv('DRUPACK_RUNTIME_PORT'));
+    same('::1', getenv('DRUPACK_RUNTIME_BIND'));
+    putenv('DRUPACK_RUNTIME_PORT');
+    putenv('DRUPACK_RUNTIME_BIND');
 });
 
-test('a template token without a value refuses', function (): void {
-    $directory = scratch();
-    file_put_contents("$directory/template", "bind __DRUPACK_BIND__ __DRUPACK_PORT__");
-    throws('names __DRUPACK_PORT__, which has no value', fn() => renderTemplate("$directory/template", ['BIND' => '::1'], "$directory/Caddyfile"));
-    same(false, file_exists("$directory/Caddyfile"));
+test('an empty server environment value refuses', function (): void {
+    throws('DRUPACK_RUNTIME_PORT is empty', fn() => exportServerEnvironment(['DRUPACK_RUNTIME_PORT' => '']));
 });
 
-test('a rendered value holding a double quote refuses', function (): void {
-    $directory = scratch();
-    file_put_contents("$directory/template", 'output file "__DRUPACK_LOG_PATH__"');
-    throws('LOG_PATH must not contain a double quote', fn() => renderTemplate("$directory/template", ['LOG_PATH' => '/a"b'], "$directory/Caddyfile"));
-});
-
-test('the shipped Caddyfile names only the tokens a start supplies', function (): void {
-    preg_match_all('/__DRUPACK_([A-Z_]+)__/', file_get_contents(__DIR__ . '/../Caddyfile'), $tokens);
-    $names = array_values(array_unique($tokens[1]));
-    sort($names);
-    same(['BIND', 'DOCROOT', 'FILES_DIR', 'GUARDS', 'ID', 'LOG_PATH', 'PORT'], $names);
+test('a server environment value holding a double quote refuses', function (): void {
+    throws('DRUPACK_RUNTIME_LOG_PATH must not contain a double quote',
+        fn() => exportServerEnvironment(['DRUPACK_RUNTIME_LOG_PATH' => '/a"b']));
+    same(false, getenv('DRUPACK_RUNTIME_LOG_PATH'));
 });
 
 test('a database port defaults per backend', function (): void {

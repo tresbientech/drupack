@@ -268,7 +268,7 @@ func init() {
 		return
 	}
 	// launch.php replaces itself with this command to serve the site, naming the
-	// Caddyfile it wrote into Site data.
+	// fixed Caddyfile the application ships.
 	if len(os.Args) == 3 && os.Args[1] == "php-server" {
 		// The server waits for itself. A separate process would first extract its own copy
 		// of the embedded application, which takes longer than the wait on a slow disk.
