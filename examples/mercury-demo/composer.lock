@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a8b2205a854a2001a6a5753f2405ed34",
+    "content-hash": "84bc516c0a1e95a234e595e903be5b71",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -6653,7 +6653,7 @@
             "source": {
                 "type": "git",
                 "url": "/home/theodore/DEV/DRUPAL/wordpal",
-                "reference": "36020bb584645064d85efd1ccf446a5340ef0b36"
+                "reference": "8e1362b9a2d27567569ab318323bc69b4f1f9516"
             },
             "type": "drupal-module"
         },

@@ -13,8 +13,8 @@
   and installs `wordpal_canvas`.
 - Until WordPal publishes, an inline package repository names `drupal/wordpal`
   with the local WordPal checkout as its source, pinned to a commit.
-- The first conversion applies WordPal's own recipe. The inline package
-  scaffolds that recipe into `recipes/wordpal`, where the conversion looks.
+- The first conversion applies WordPal's own recipe from WordPal's installed
+  package.
 
 ---
 
