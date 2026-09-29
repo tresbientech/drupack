@@ -232,6 +232,25 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertEqual(Path(directory).resolve(), self.class_dir.resolve())
         self.assertEqual(arguments, "a,b")
 
+    def test_an_inherited_application_directory_does_not_reach_the_runtime(self):
+        env = dict(os.environ, DRUPACK_RUNTIME_APP_DIR=str(self.lacking))
+        (self.class_dir / "arguments.php").write_text("<?php echo getcwd();")
+        result = self.engine_run("php", "arguments.php", env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(Path(result.stdout).resolve(), self.class_dir.resolve())
+        port = harness.pick_port()
+        log = self.class_dir / "inherited.log"
+        with open(log, "wb") as handle:
+            process = harness.popen([str(self.engine), str(self.project), "--listen", f"127.0.0.1:{port}"],
+                                    cwd=self.class_dir, env=env, stdout=handle, stderr=subprocess.STDOUT,
+                                    start_new_session=True)
+        self.addCleanup(harness.stop_process, process, harness.WAITS["stop"].seconds, f": inspect {log}")
+        deadline = time.monotonic() + harness.WAITS["start"].seconds
+        while self.status(port, "/") != 200:
+            self.assertIsNone(process.poll(), f"the start exited before answering: inspect {log}")
+            self.assertLess(time.monotonic(), deadline, f"the start did not answer /: inspect {log}")
+            time.sleep(0.25)
+
     def test_php_runs_code(self):
         result = self.engine_run("php", "-r", "echo 1;")
         self.assertEqual(result.returncode, 0, result.stderr)
