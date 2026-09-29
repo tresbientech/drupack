@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	runtimepkg "git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
@@ -42,7 +44,7 @@ func buildFixture(t *testing.T) ([]byte, runtimepkg.Manifest) {
 // prepareAndActivate runs a start's runtime steps, the way PrepareRelease runs
 // them around a ready application.
 func prepareAndActivate(root string, payload []byte, m runtimepkg.Manifest, notice io.Writer) (string, error) {
-	entry, err := runtimepkg.Prepare(root, payload, m, notice)
+	entry, err := runtimepkg.Prepare(root, payload, m, notice, func(string) {})
 	if err != nil {
 		return "", err
 	}
@@ -398,6 +400,87 @@ func TestSafePathRefusesAWindowsVolumeName(t *testing.T) {
 		clean := filepath.Clean(filepath.FromSlash(path))
 		if filepath.VolumeName(clean) != "" && runtimepkg.SafePath(path) {
 			t.Fatalf("SafePath(%q) accepted a path naming a volume", path)
+		}
+	}
+}
+
+// Environment names the child below reads. A child, not this process: the
+// holder must outlive its Prepare call the way a launcher does, and Windows
+// refuses to delete a directory this process still holds a marker in.
+const (
+	prepareRootVariable    = "DRUPACK_TEST_PREPARE_ROOT"
+	prepareAckVariable     = "DRUPACK_TEST_PREPARE_ACK"
+	prepareReleaseVariable = "DRUPACK_TEST_PREPARE_RELEASE"
+)
+
+// TestPreparesAndHoldsForAnotherProcess runs as that child. Started on its own
+// it skips.
+func TestPreparesAndHoldsForAnotherProcess(t *testing.T) {
+	root := os.Getenv(prepareRootVariable)
+	if root == "" {
+		t.Skip("child process of TestAnotherReleaseActivatingKeepsAnEntryAStartPrepared")
+	}
+	payload, manifest := buildFixture(t)
+	manifest.Version = "1.0.0"
+	if _, err := runtimepkg.Prepare(root, payload, manifest, io.Discard, runtimepkg.HoldUsage); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(os.Getenv(prepareAckVariable), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	release := os.Getenv(prepareReleaseVariable)
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(release); err == nil {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("the parent never released this start")
+}
+
+// A start's Prepare returns before its launcher execs, and another release's
+// Activate can run in between. Prepare's own hold has to cover that gap.
+func TestAnotherReleaseActivatingKeepsAnEntryAStartPrepared(t *testing.T) {
+	payload, manifest := buildFixture(t)
+	root := t.TempDir()
+	work := t.TempDir()
+	ack := filepath.Join(work, "prepared")
+	release := filepath.Join(work, "release")
+
+	child := exec.Command(os.Args[0], "-test.run=TestPreparesAndHoldsForAnotherProcess")
+	child.Env = append(os.Environ(),
+		prepareRootVariable+"="+root, prepareAckVariable+"="+ack, prepareReleaseVariable+"="+release)
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.WriteFile(release, nil, 0600)
+		child.Wait()
+	})
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		if _, err := os.Stat(ack); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the child never prepared its release")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	first := manifest
+	first.Version = "1.0.0"
+	firstEntry := filepath.Join(root, runtimepkg.Key(first.Version, payload))
+	second := manifest
+	second.Version = "2.0.0"
+	if _, err := prepareAndActivate(root, payload, second, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, file := range first.Files {
+		if _, err := os.Stat(filepath.Join(firstEntry, filepath.FromSlash(file.Path))); err != nil {
+			t.Errorf("activating another release removed %s from a prepared entry: %v", file.Path, err)
 		}
 	}
 }

@@ -17,6 +17,15 @@ const lockTimeout = 60 * time.Second
 // file handle the way flock offers on unix.
 const lockPollInterval = 100 * time.Millisecond
 
+// holdAttempts and holdRetryInterval bound how long HoldUsage waits out an
+// entryInUse test of the same marker.
+const holdAttempts = 50
+
+// errorSharingViolation is ERROR_SHARING_VIOLATION, which package syscall omits.
+const errorSharingViolation syscall.Errno = 32
+
+const holdRetryInterval = 10 * time.Millisecond
+
 // HoldUsage marks entry as running for the rest of this process's life, so
 // cleanup skips it. The handle stays open on purpose, and Windows closes it
 // when the process ends. launch_windows.go waits for the runtime it starts, so
@@ -29,8 +38,16 @@ func HoldUsage(entry string) {
 		return
 	}
 	// FILE_SHARE_READ lets entryInUse open the same marker to test it, while a
-	// removal of the directory holding it still fails.
-	syscall.CreateFile(pointer, syscall.GENERIC_READ, syscall.FILE_SHARE_READ, nil, syscall.OPEN_ALWAYS, syscall.FILE_ATTRIBUTE_NORMAL, 0)
+	// removal of the directory holding it still fails. entryInUse opens the
+	// marker exclusively for an instant, which refuses this open with a sharing
+	// violation, so that error retries.
+	for range holdAttempts {
+		_, err := syscall.CreateFile(pointer, syscall.GENERIC_READ, syscall.FILE_SHARE_READ, nil, syscall.OPEN_ALWAYS, syscall.FILE_ATTRIBUTE_NORMAL, 0)
+		if err != errorSharingViolation {
+			return
+		}
+		time.Sleep(holdRetryInterval)
+	}
 }
 
 // entryInUse reports whether another process still runs from entry. A missing
