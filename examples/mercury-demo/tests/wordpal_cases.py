@@ -57,7 +57,7 @@ class WordPalConversion(harness.ConformanceCase):
         self.site.stop()
 
         converted = harness.run([str(harness.BINARY), "drush", "--data-dir", str(self.data),
-                                 "wordpal:convert", THEME, "--target=canvas"],
+                                 "wpc", THEME, "--target=canvas"],
                                 cwd=self.case_dir, capture_output=True, text=True, timeout=CONVERT_SECONDS)
         self.assertEqual(converted.returncode, 0, converted.stdout + converted.stderr)
 
