@@ -13,27 +13,25 @@ in its code base and enables none of it.
 ## Solution
 
 Mercury Demo applies the Agent Access recipe. Each site generates its own OAuth
-key pair on its first start. A reader starts the demo, adds the demo's address
+key pair on the first request it serves. A reader starts the demo, adds the demo's address
 followed by `/mcp` to an agent, and signs in as the administrator.
 
 ## User Stories
 
 1. As a reader, I want Agent Access applied on a fresh demo, so that my first start serves an MCP endpoint.
-2. As a reader, I want OAuth keys generated on my first start, so that I run no key command.
+2. As a reader, I want OAuth keys generated on the first request my site serves, so that I run no key command.
 3. As a reader, I want my site's keys to differ from every other demo's keys, so that a token another demo signed never opens my site.
 4. As a reader, I want my keys kept across restarts, so that my agent's tokens stay valid.
-5. As a reader, I want my keys kept across a demo upgrade, so that a new release does not disconnect my agent.
-6. As a reader, I want the authorization metadata to name the host I browse, so that my agent registers against the demo and not `localhost` from the build.
-7. As a reader, I want `/mcp` to refuse a request without a token, so that the endpoint exposes nothing to an unauthenticated caller.
-8. As a reader, I want to connect as the administrator I created on the first start, so that I grant no permission before trying it.
-9. As a reader, I want the README to name the MCP address and the sign-in step, so that I can connect an agent without reading Agent Access's own docs.
-10. As a reader, I want the README to say some agents refuse a plain HTTP address, so that a refusal is expected.
-11. As a reader of a demo installed before this release, I want the README to name the one command that applies Agent Access, so that I can connect too.
-12. As a reader who never connects an agent, I want the demo to serve my site unchanged, so that Agent Access costs me only one key generation.
-13. As a reader on Linux, macOS or Windows, I want the keys generated the same way, so that every platform can connect.
-14. As a maintainer, I want Agent Access pinned to one release, so that a new alpha changes the demo only when I choose.
-15. As a maintainer, I want a site test that checks the endpoint, the metadata and the keys, so that a regression stops the release.
-16. As a maintainer, I want the Seed site to carry no key, so that no two sites can share one.
+5. As a reader, I want the authorization metadata to name the host I browse, so that my agent registers against the demo and not `localhost` from the build.
+6. As a reader, I want `/mcp` to refuse a request without a token, so that the endpoint exposes nothing to an unauthenticated caller.
+7. As a reader, I want to connect as the administrator I created on the first start, so that I grant no permission before trying it.
+8. As a reader, I want the README to name the MCP address and the sign-in step, so that I can connect an agent without reading Agent Access's own docs.
+9. As a reader, I want the README to say some agents refuse a plain HTTP address, so that a refusal is expected.
+10. As a reader who never connects an agent, I want the demo to serve my site unchanged, so that Agent Access costs me only one key generation.
+11. As a reader on Linux, macOS or Windows, I want the keys generated the same way, so that every platform can connect.
+12. As a maintainer, I want Agent Access pinned to one release, so that a new alpha changes the demo only when I choose.
+13. As a maintainer, I want a site test that checks the endpoint, the metadata and the keys, so that a regression stops the release.
+14. As a maintainer, I want the Seed site to carry no key, so that no two sites can share one.
 
 ## Implementation Decisions
 
@@ -54,12 +52,13 @@ Keys:
 - The demo's site settings file points Simple OAuth at a key directory in Site
   data. The directory sits outside the private files directory, which Drupal
   serves through `/system/files`.
-- When that directory is missing, the settings file generates an RSA pair into a
-  temporary directory and renames it into place. A start that loses the rename
-  discards its pair, so the two keys always match.
+- When that directory is missing, a served request generates an RSA pair into a
+  temporary directory and renames it into place. A request that loses the
+  rename discards its pair, so the two keys always match.
+- Drush never generates keys. The build installs the Seed site through Drush
+  with the same settings file, so the application ships no key.
 - Key files are readable by their owner only.
-- The check costs one directory test per bootstrap. The first bootstrap is a
-  Drush step of the first start.
+- The check costs one directory test per request.
 
 Registration endpoint:
 
@@ -71,10 +70,13 @@ Access:
 - The recipe creates no role and grants no permission. The administrator holds
   every permission and connects as themselves.
 
-Backlog:
+Composer conflicts:
 
-- The entry on Mercury's MCP packages narrows to `mcp_tools`, which the demo
-  still ships without enabling.
+- `mcp_tools` 1.0.0-beta18 caps `mcp/sdk` at 0.6, and Agent Access needs
+  `mcp_server` 2.0.0-beta5, which needs 0.7.1 or later. Nothing enabled
+  `mcp_tools`, so the demo drops it.
+- `mcp/sdk` 0.8.1 clears the advisory the demo ignored, so the ignore goes.
+- The backlog entry on Mercury's MCP packages leaves.
 
 ## Testing Decisions
 
@@ -95,7 +97,6 @@ Backlog:
 - A dedicated agent role or any permission grant.
 - A generic first-start hook in the engine.
 - Key rotation.
-- Removing `mcp_tools` from the demo.
 - Agent Access for sites other than Mercury Demo.
 
 ## Further Notes
