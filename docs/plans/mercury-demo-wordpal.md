@@ -20,27 +20,24 @@
 
 ## Phase 1: writable Mercury Demo
 
-User stories: 6, 7, 12
+User stories: 9
 
 ### What to build
 
-Mercury Demo's contract names the two writable directories. A fresh demo and
-a demo from the previous release both lay the site's own application on their
-next start. Entries a reader adds to those directories survive an upgrade.
+Mercury Demo's contract names the two writable directories. A fresh demo lays
+the site's own application on its first start.
 
 ### Acceptance criteria
 
 - [x] The writable cases pass against Mercury Demo.
 - [x] Mercury Demo's site tests pass, with the site serving from its own
       application in Site data.
-- [x] A case starts a Site data directory from the previous release and shows
-      the next start lays the application and serves `/`.
 
 ---
 
 ## Phase 2: WordPal converts on Linux
 
-User stories: 1, 2, 3, 4, 5, 13
+User stories: 1, 2, 3, 4, 5, 10
 
 ### What to build
 
@@ -67,25 +64,23 @@ across a restart.
 
 ## Phase 3: README
 
-User stories: 8, 9, 10
+User stories: 6, 7
 
 ### What to build
 
-The README shows the conversion command. It names the one command that enables
-the converter on a demo installed before this release. It says conversion needs
-network access to wordpress.org and npm, and the glibc build on Linux.
+The README shows the conversion command. It says conversion needs network
+access to wordpress.org and npm, and the glibc build on Linux.
 
 ### Acceptance criteria
 
-- [x] `grep -n 'wpc' README.md` finds the conversion command and the enable
-      command. For the enable command, grep finds the sentence three lines above it.
+- [x] `grep -n 'wpc' README.md` finds the conversion command.
 - [x] The README names wordpress.org, npm and the glibc build.
 
 ---
 
 ## Phase 4: published WordPal, macOS and Windows
 
-User stories: 11, 14
+User stories: 8, 11
 
 ### What to build
 

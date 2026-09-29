@@ -161,15 +161,9 @@ The Mercury Demo carries WordPal, which converts a WordPress block theme into a 
 
 The argument is a wordpress.org theme slug, a path to a theme zip, or an https URL to one. The next start serves the converted theme as the default theme.
 
-The theme lands in `web/themes/custom` and its recipe in `recipes`. Both sit in the site's own copy of the application, in Site data, and a newer release keeps them.
+The theme lands in `web/themes/custom` and its recipe in `recipes`. Both sit in the site's own copy of the application, in Site data.
 
 Conversion runs WordPress in WordPress Playground, so it needs network access to wordpress.org and npm. It runs on the Node the demo carries, and the host needs none. On Linux it needs the glibc build, because the musl build carries no Node.
-
-A demo installed before this release runs `wpc` only after enabling the converter once:
-
-```sh
-./mercury-demo drush pm:install wordpal_canvas
-```
 
 ## Site data
 
