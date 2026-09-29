@@ -251,3 +251,85 @@ func TestPrepareAppUnpacksAnEmptyArchive(t *testing.T) {
 		t.Errorf("a second start reported %q", notice.String())
 	}
 }
+
+func TestCleanNodeListsThenRemovesEachReleaseAndKeepsOneInUse(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"v24.21.0-aaaaaaaaaaaa", "v22.30.0-bbbbbbbbbbbb", "v26.1.0-cccccccccccc"} {
+		if err := os.MkdirAll(filepath.Join(NodeRoot(root), name, "bin"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(NodeRoot(root), name, "bin", "node"), make([]byte, 2*megabyte), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	running := filepath.Join(NodeRoot(root), "v26.1.0-cccccccccccc")
+	holdUsageInChild(t, root, running)
+
+	var listing bytes.Buffer
+	if err := CleanNode(root, true, &listing); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(listing.String(), "  node/v24.21.0-aaaaaaaaaaaa  2 MB\n") ||
+		!strings.Contains(listing.String(), "4 MB in 2 unpacked Node releases.") {
+		t.Fatalf("clean --dry-run printed %q", listing.String())
+	}
+	if _, err := os.Stat(filepath.Join(NodeRoot(root), "v24.21.0-aaaaaaaaaaaa")); err != nil {
+		t.Fatalf("a dry run removed a release: %v", err)
+	}
+
+	var removal bytes.Buffer
+	if err := CleanNode(root, false, &removal); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(removal.String(), "Removed 2 unpacked Node releases, freeing 4 MB.") ||
+		!strings.Contains(removal.String(), "Kept 1 unpacked Node release a running site still uses.") {
+		t.Fatalf("clean printed %q", removal.String())
+	}
+	entries, _ := os.ReadDir(NodeRoot(root))
+	for _, entry := range entries {
+		if entry.IsDir() && entry.Name() != "v26.1.0-cccccccccccc" {
+			t.Errorf("clean left %s", entry.Name())
+		}
+	}
+}
+
+func TestCleanNodeSaysNothingWhereNoReleaseWasUnpacked(t *testing.T) {
+	var out bytes.Buffer
+	if err := CleanNode(t.TempDir(), false, &out); err != nil || out.Len() != 0 {
+		t.Fatalf("CleanNode = %v, printed %q; want nothing", err, out.String())
+	}
+}
+
+func TestPrepareNodeUnpacksOnceUnderTheNodeDirectory(t *testing.T) {
+	tree := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tree, "bin"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tree, "bin", "node"), []byte("node"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	payload, m, err := Build(tree, "24.21.0", "bin/node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	var notice bytes.Buffer
+	entry, err := PrepareNode(root, payload, m, &notice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Dir(entry) != NodeRoot(root) || !strings.Contains(notice.String(), "Unpacking Node 24.21.0.") {
+		t.Fatalf("PrepareNode = %s, printed %q", entry, notice.String())
+	}
+	before, err := os.Stat(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	notice.Reset()
+	if again, err := PrepareNode(root, payload, m, &notice); err != nil || again != entry || notice.Len() != 0 {
+		t.Fatalf("a second PrepareNode = %s, %v, printed %q", again, err, notice.String())
+	}
+	if after, _ := os.Stat(entry); !after.ModTime().Equal(before.ModTime()) {
+		t.Fatal("a second PrepareNode changed the release directory")
+	}
+}

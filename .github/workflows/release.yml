@@ -260,6 +260,14 @@ jobs:
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
             drupack-build --engine-executable --payload-only --output dist/engine
 
+      # The macOS and Windows jobs pack the Node fixture from this payload, which
+      # holds each of their targets' Node archives.
+      - name: Export the Node fixture payload
+        run: |
+          bash build/node-fixture.sh "$RUNNER_TEMP/node-site"
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$RUNNER_TEMP/node-site:/node-site" -w /src drupack-job \
+            drupack-build --site /node-site --payload-only --output dist/node
+
       # A main push and a tag push of one commit run at once. Each ref type pushes
       # its own image tag, so a main run never replaces a release's image.
       - name: Push the job image under this commit
@@ -283,6 +291,12 @@ jobs:
         with:
           name: engine-payload-archive
           path: dist/engine/payload
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: node-payload-archive
+          path: dist/node/payload
           if-no-files-found: error
 
   # Mercury goes through the workflow site repositories call, in the image the
@@ -498,6 +512,23 @@ jobs:
           Copy-Item dist\payload\site.json dist\site.json
           python tests/conformance dist\mercury-demo.exe test-results\conformance --site-tests examples\mercury-demo\tests
 
+      - uses: actions/download-artifact@v8
+        with:
+          name: node-payload-archive
+          path: dist/node-payload
+
+      # The Node fixture packs on the runtime the build above left in its work directory.
+      - name: Run the Node fixture cases
+        env:
+          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          New-Item -ItemType Directory -Force -Path dist\node | Out-Null
+          Push-Location launcher
+          go run ./cmd/pack -runtime "$env:RUNNER_TEMP\drupack\runtime" -entry frankenphp.exe -version $env:DRUPACK_VERSION -source . -output ..\dist\node\node-demo.exe -app ..\dist\node-payload\app-payload.tar -app-checksum ..\dist\node-payload\app_checksum.txt -site ..\dist\node-payload\site.json -site-version $env:DRUPACK_VERSION -node ..\dist\node-payload\node\windows-amd64.zip
+          Pop-Location
+          Copy-Item dist\node-payload\site.json dist\node\site.json
+          python tests/conformance dist\node\node-demo.exe test-results\node -k Node
+
       - name: Upload test results
         if: failure()
         uses: actions/upload-artifact@v7
@@ -586,6 +617,25 @@ jobs:
           DRUPACK_TEST_ENGINE: dist/engine/drupack
         run: |
           python3 tests/conformance dist/mercury-demo test-results/conformance --site-tests examples/mercury-demo/tests
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: node-payload-archive
+          path: dist/node-payload
+
+      # The Node fixture packs on the runtime the build above left in its work directory.
+      - name: Run the Node fixture cases
+        env:
+          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          mkdir -p dist/node
+          (cd launcher && go run ./cmd/pack -runtime "$RUNNER_TEMP/drupack/runtime" -entry drupack \
+            -version "$DRUPACK_VERSION" -source . -output ../dist/node/node-demo \
+            -app ../dist/node-payload/app-payload.tar -app-checksum ../dist/node-payload/app_checksum.txt \
+            -site ../dist/node-payload/site.json -site-version "$DRUPACK_VERSION" \
+            -node "../dist/node-payload/node/macos-${{ matrix.arch }}.tar.gz")
+          cp dist/node-payload/site.json dist/node/site.json
+          python3 tests/conformance dist/node/node-demo test-results/node -k Node
 
       - name: Check the unsigned launch steps
         run: |

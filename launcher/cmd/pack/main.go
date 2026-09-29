@@ -15,6 +15,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/build"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/node"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
@@ -47,6 +48,12 @@ var appPayload []byte
 //go:embed app_checksum.txt
 var appChecksum []byte
 
+//go:embed node.tar.zst
+var nodePayload []byte
+
+//go:embed node-manifest.json
+var nodeManifest []byte
+
 var siteName = %q
 
 var siteVersion = %q
@@ -74,6 +81,7 @@ func run() error {
 	app := flag.String("app", "", "application tar to carry")
 	appChecksum := flag.String("app-checksum", "", "file holding the application checksum")
 	engine := flag.Bool("engine", false, "pack the engine executable, whose -app holds the engine's files and whose release is -version")
+	nodeArchive := flag.String("node", "", "a Node archive the build verified, carried as the release site.json names")
 	flag.Parse()
 	required := map[string]string{
 		"runtime":      *directory,
@@ -92,6 +100,7 @@ func run() error {
 		return err
 	}
 	packaged := site{name: build.EngineName, version: *version, engine: true}
+	var nodeVersion siteconfig.Node
 	if !*engine {
 		// The build wrote site.json from a validated drupack.yml.
 		var described siteconfig.Site
@@ -103,6 +112,7 @@ func run() error {
 			return fmt.Errorf("%s: %w", *siteFile, err)
 		}
 		packaged = site{name: described.Name, version: *siteVersion}
+		nodeVersion = described.Node
 	}
 
 	payload, manifest, err := runtime.Build(*directory, *version, *entry)
@@ -120,6 +130,9 @@ func run() error {
 	defer os.RemoveAll(build)
 
 	if err := writeBuildCopy(build, *source, payload, manifest, packaged); err != nil {
+		return err
+	}
+	if err := writeNodePayload(build, *nodeArchive, string(nodeVersion)); err != nil {
 		return err
 	}
 	if err := writeAppPayload(build, *app, *appChecksum); err != nil {
@@ -170,6 +183,35 @@ func writeBuildCopy(directory, source string, payload []byte, manifest runtime.M
 		return err
 	}
 	return os.WriteFile(filepath.Join(directory, "payload.go"), []byte(embeddedPayloadSource(packaged)), 0600)
+}
+
+// writeNodePayload packs the Node release in archive into the build copy, or
+// leaves both embedded files empty when archive is unset.
+func writeNodePayload(build, archive, version string) error {
+	var payload, manifestData []byte
+	if archive != "" {
+		tree, err := os.MkdirTemp("", "drupack-node-")
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(tree)
+		executable, err := node.Unpack(archive, tree)
+		if err != nil {
+			return err
+		}
+		var manifest runtime.Manifest
+		if payload, manifest, err = runtime.Build(tree, version, executable); err != nil {
+			return err
+		}
+		if manifestData, err = json.Marshal(manifest); err != nil {
+			return err
+		}
+		fmt.Printf("Node %s payload %d bytes\n", version, len(payload))
+	}
+	if err := os.WriteFile(filepath.Join(build, "node.tar.zst"), payload, 0600); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(build, "node-manifest.json"), manifestData, 0600)
 }
 
 // writeAppPayload compresses the application tar into the build copy, beside

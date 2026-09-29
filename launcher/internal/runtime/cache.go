@@ -137,6 +137,12 @@ func Key(version string, payload []byte) string {
 // start that cannot stage the runtime it carries reports the failure and
 // stops, since the application beside it belongs to this release alone.
 func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string, error) {
+	return prepare(root, "runtime", payload, m, notice)
+}
+
+// prepare stages payload into root as the entry m describes, once, and names
+// what it unpacks as what in its notice.
+func prepare(root, what string, payload []byte, m Manifest, notice io.Writer) (string, error) {
 	key := Key(m.Version, payload)
 
 	if entry, ok := warmEntry(root, key, m); ok {
@@ -154,7 +160,7 @@ func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string,
 		return entry, nil
 	}
 
-	fmt.Fprintf(notice, "Unpacking runtime %s. This happens once for each version.\n", m.Version)
+	fmt.Fprintf(notice, "Unpacking %s %s. This happens once for each version.\n", what, m.Version)
 
 	name, err := stage(root, key, payload, m, notice)
 	if err != nil {

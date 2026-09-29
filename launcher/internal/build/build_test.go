@@ -1,6 +1,7 @@
 package build_test
 
 import (
+	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
@@ -616,5 +617,99 @@ func TestAPayloadOnlyEnginePlanExportsTheArchiveAndPacksNothing(t *testing.T) {
 	want := []string{"stage the engine files", "archive the engine files", "export the engine payload"}
 	if got := names(plan); !reflect.DeepEqual(got, want) {
 		t.Fatalf("steps %v, want %v", got, want)
+	}
+}
+
+func TestASiteWithoutNodeWritesNoNodeEntry(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Work = t.TempDir()
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(names(plan), "resolve Node") {
+		t.Fatalf("steps = %v; want no Node step", names(plan))
+	}
+	// Staging makes the application directory.
+	if err := os.Mkdir(filepath.Join(r.Work, "app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := step(t, plan, "write site.json").Func(io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(filepath.Join(r.Work, "app", siteconfig.OutputName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var written map[string]any
+	if err := json.Unmarshal(content, &written); err != nil {
+		t.Fatal(err)
+	}
+	if node, ok := written["node"]; ok {
+		t.Fatalf("site.json carries node %v", node)
+	}
+}
+
+func TestASiteWithNodeResolvesItFirst(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Site.Node = siteconfig.NodeLTS
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := names(plan)[0]; got != "resolve Node" {
+		t.Fatalf("the first step is %q; want resolve Node", got)
+	}
+}
+
+func TestOnlyATargetNodeBuildsForCarriesIt(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Site.Node = "24"
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	glibc := step(t, plan, "pack linux-amd64").Command
+	if index := slices.Index(glibc, "-node"); index < 0 || glibc[index+1] != filepath.Join("/work", "node", "linux-amd64.tar.gz") {
+		t.Errorf("the glibc pack command %v does not carry the Node archive", glibc)
+	}
+	if musl := step(t, plan, "pack linux-amd64-musl").Command; slices.Contains(musl, "-node") {
+		t.Errorf("the musl pack command %v carries Node", musl)
+	}
+	r.Site.Node = ""
+	plan, err = build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if glibc := step(t, plan, "pack linux-amd64").Command; slices.Contains(glibc, "-node") {
+		t.Errorf("a site without Node packs %v", glibc)
+	}
+}
+
+func TestAPayloadOnlyBuildExportsTheNodeArchiveOfEachPayloadTarget(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Runtimes, r.PayloadOnly, r.Site.Node = nil, true, "24"
+	r.Work, r.Output = t.TempDir(), t.TempDir()
+	for _, name := range []string{"payload/app-payload.tar", "payload/app_checksum.txt", "app/site.json",
+		"node/macos-amd64.tar.gz", "node/macos-arm64.tar.gz", "node/windows-amd64.zip"} {
+		path := filepath.Join(r.Work, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(name), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := step(t, plan, "export the payload").Func(io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"macos-amd64.tar.gz", "macos-arm64.tar.gz", "windows-amd64.zip"} {
+		if content, err := os.ReadFile(filepath.Join(r.Output, "payload", "node", name)); err != nil || string(content) != "node/"+name {
+			t.Errorf("payload/node/%s = %q, %v", name, content, err)
+		}
 	}
 }

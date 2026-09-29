@@ -32,7 +32,10 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		return runtime.CleanApps(root, siteName, dry, os.Stdout)
+		if err := runtime.CleanApps(root, siteName, dry, os.Stdout); err != nil {
+			return err
+		}
+		return runtime.CleanNode(root, dry, os.Stdout)
 	}
 	m, err := runtime.ParseManifest(runtimeManifest)
 	if err != nil {
@@ -52,6 +55,9 @@ func run() error {
 	// and leaves a running site's files alone.
 	runtime.HoldUsage(directory)
 	runtime.HoldUsage(application)
+	if err := prepareNode(root); err != nil {
+		return err
+	}
 	// The runtime and launch.php are shared by every site built on this engine, so
 	// the site's name and release reach them from here.
 	if err := os.Setenv("DRUPACK_RUNTIME_NAME", siteName); err != nil {
@@ -82,6 +88,31 @@ func run() error {
 	}
 	// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.
 	return launch(filepath.Join(directory, m.Entry), os.Args)
+}
+
+// prepareNode unpacks the Node release this file carries and puts its
+// executable directory first on PATH, for the server, Drush and the node, npm
+// and npx commands.
+func prepareNode(root string) error {
+	// A Drupack site that carries Node can start one that does not, which
+	// would otherwise inherit the first one's release.
+	if len(nodeManifest) == 0 {
+		return os.Unsetenv("DRUPACK_RUNTIME_NODE")
+	}
+	m, err := runtime.ParseManifest(nodeManifest)
+	if err != nil {
+		return err
+	}
+	directory, err := runtime.PrepareNode(root, nodePayload, m, os.Stderr)
+	if err != nil {
+		return err
+	}
+	runtime.HoldUsage(directory)
+	executables := filepath.Dir(filepath.Join(directory, filepath.FromSlash(m.Entry)))
+	if err := os.Setenv("PATH", executables+string(os.PathListSeparator)+os.Getenv("PATH")); err != nil {
+		return err
+	}
+	return os.Setenv("DRUPACK_RUNTIME_NODE", runtime.Canonical(executables))
 }
 
 // engineArguments turns the reader's words into the runtime's: `php` reaches

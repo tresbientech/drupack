@@ -11,6 +11,7 @@ in `engine/serve.php` the contract the engine commands record. A test in
 ```
 SITE [OPTIONS]
 SITE drush [OPTIONS] DRUSH_COMMAND
+SITE node|npm|npx [ARGUMENTS]
 SITE clean [--dry-run]
 SITE --help
 SITE --version
@@ -121,9 +122,22 @@ acts on none of them:
 serves. It needs an installed site. An empty Site data directory stops it with
 the directory named.
 
+## `node`, `npm` and `npx`
+
+A site that carries Bundled Node runs its release under these three words.
+Each runs in the reader's directory with the reader's arguments. It exits with
+the program's status.
+
+The first start of a release unpacks it into the cache, under `node`, once per
+version. npm keeps its own cache and registry settings in the reader's home.
+The server and `drush` find the same release first on `PATH`.
+
+A musl file carries no Node. There each word exits 1 and names the glibc
+file. A site without Node answers each word as an unknown command.
+
 ## `clean`
 
-`clean` removes the unpacked applications from the cache. An entry a running
+`clean` removes the unpacked applications and Node releases from the cache. An entry a running
 site holds is listed and kept, because the site reads its PHP files on every
 request. `--dry-run` lists every entry with its size and removes none.
 

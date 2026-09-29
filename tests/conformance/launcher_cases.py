@@ -29,6 +29,12 @@ APPLICATION_PATTERN = re.compile(
     r"^Unpacking the application\. This happens once for each release\.$", re.MULTILINE
 )
 
+# The line cache.go writes to standard error, once per unpacked Node release, for a site
+# that carries Node.
+NODE_PATTERN = re.compile(
+    r"^Unpacking Node .+\. This happens once for each version\.$", re.MULTILINE
+)
+
 # One progress report, which names how far the unpacking has read and the whole payload.
 PROGRESS_PATTERN = re.compile(r"^  (\d+) of (\d+) MB$", re.MULTILINE)
 
@@ -41,13 +47,14 @@ ENTRY = "frankenphp.exe" if harness.current_platform() == harness.WINDOWS else "
 DEBIAN_IMAGE = "debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171"
 
 
-# The cache root holds the unpacked applications beside the runtime entries.
+# The cache root holds the unpacked applications and Node releases beside the runtime entries.
 APPLICATIONS = "app"
+NOT_RUNTIMES = {APPLICATIONS, "node"}
 
 
 def entry_count(cache_root):
     """Count cache_root's immediate subdirectories: one cache entry each."""
-    return sum(1 for path in cache_root.iterdir() if path.is_dir() and path.name != APPLICATIONS)
+    return sum(1 for path in cache_root.iterdir() if path.is_dir() and path.name not in NOT_RUNTIMES)
 
 
 def run(case_dir, executable, name, *args, env=None):
@@ -92,7 +99,7 @@ class ColdWarmStart(harness.ConformanceCase):
         self.assertEqual(entry_count(self.cache), 1, "a cold start did not leave exactly one cache entry")
         key = next(
             path.name for path in self.cache.iterdir()
-            if path.is_dir() and path.name != APPLICATIONS
+            if path.is_dir() and path.name not in NOT_RUNTIMES
         )
         self.assertTrue((self.cache / key / "manifest.json").is_file(), "the cache entry has no manifest.json")
         self.assertTrue((self.cache / key / ENTRY).is_file(), f"the cache entry has no {ENTRY} executable")
@@ -120,13 +127,18 @@ class ColdWarmStart(harness.ConformanceCase):
             len(APPLICATION_PATTERN.findall(cold_err)), 1,
             "a cold start did not print exactly one application unpacking line",
         )
-        # Both unpackings report, so each payload's reports are read on their own:
-        # the runtime's before the application line, the application's after it.
+        # Each unpacking reports, so each payload's reports are read on their own: the
+        # runtime's before the application line, the application's after it, and a Node
+        # release's after its own line.
         boundary = APPLICATION_PATTERN.search(cold_err)
+        node = NODE_PATTERN.search(cold_err)
+        application_end = node.start() if node else len(cold_err)
         streams = {
             "runtime": PROGRESS_PATTERN.findall(cold_err[: boundary.start()]),
-            "application": PROGRESS_PATTERN.findall(cold_err[boundary.end() :]),
+            "application": PROGRESS_PATTERN.findall(cold_err[boundary.end() : application_end]),
         }
+        if node:
+            streams["Node"] = PROGRESS_PATTERN.findall(cold_err[node.end() :])
         for name, reports in streams.items():
             self.assertGreaterEqual(
                 len(reports), 2,

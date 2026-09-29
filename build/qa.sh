@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # The full QA a release tag waits on. It builds the job image, which compiles both
-# runtimes from this checkout. It builds Mercury Demo with drupack-build inside
+# runtimes from this checkout. It builds Mercury Demo, and a copy of it asking
+# for Node, with drupack-build inside
 # that image, where no Docker daemon answers, and the engine executable beside
 # it. It then runs the cases that need a daemon on this host, and the engine
 # executable's cases against the Mercury Demo application.
@@ -17,6 +18,13 @@ docker build --target job -t drupack-job .
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
     drupack-build --site examples/mercury-demo --platform "$platform" --libc glibc \
     --output dist --work dist/work
+# The Node fixture's build tests its glibc file, and the musl file's refusal runs below.
+node_site=$(mktemp -d)
+trap 'rm -rf "$node_site"' EXIT
+bash build/node-fixture.sh "$node_site"
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$node_site:/node-site" -w /src drupack-job \
+    drupack-build --site /node-site --platform "$platform" --libc both \
+    --output dist/node --work dist/node-work
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
     drupack-build --engine-executable --platform "$platform" --libc glibc --output dist/engine --work dist/engine-work
 
@@ -36,3 +44,4 @@ python3 -m unittest discover -s tests/conformance -p test_environment.py
 DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" test-results/conformance --site-tests examples/mercury-demo/tests \
     -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \
     -k ExistingSiteAdoption -k EngineExecutable
+python3 tests/conformance "dist/node/node-demo-$platform-musl" test-results/node-musl -k NodeRefusals
