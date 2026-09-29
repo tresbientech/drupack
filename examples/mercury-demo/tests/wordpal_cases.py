@@ -1,14 +1,15 @@
 """WordPal converts a WordPress theme on a fresh demo, and the site serves it across a restart.
 
-The conversion downloads the theme from wordpress.org and WordPress Playground from npm.
+The conversion runs on the demo's Bundled Node. It downloads the theme from wordpress.org
+and WordPress Playground from npm.
 """
 
 import re
-import shutil
 import socket
 import unittest
 
 import harness
+import node_cases
 
 ADMIN_USER = "wordpal-admin"
 ADMIN_PASSWORD = "Wordpal.conversion.test.2026"
@@ -27,9 +28,8 @@ class WordPalConversion(harness.ConformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Conversion runs npx from the host's PATH until the demo carries Bundled Node.
-        if shutil.which("npx") is None:
-            raise unittest.SkipTest("needs npx on PATH")
+        if node_cases.musl():
+            raise unittest.SkipTest(node_cases.MUSL_SKIP)
         try:
             socket.create_connection(("wordpress.org", 443), timeout=10).close()
         except OSError:

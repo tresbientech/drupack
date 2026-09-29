@@ -7,9 +7,8 @@
 
 - `writable` lists the docroot's custom themes directory and the project's
   recipes directory, so the demo lays its own application in Site data.
-- [ ] `node: true`. Waits on Bundled Node: this branch's contract parser refuses
-      the field. Until then the site test runs npx from the host's PATH and skips
-      when PATH has none, and that skip goes with this change.
+- [x] `node: true`. The conversion runs on the bundled Node 24.21.0 with no
+      Node on the host's PATH.
 - The Site template becomes a site recipe that applies the Mercury Demo recipe
   and installs `wordpal_canvas`.
 - Until WordPal publishes, an inline package repository names `drupal/wordpal`
