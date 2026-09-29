@@ -11,14 +11,14 @@ the declaration disagree.
 ## Problem
 
 A start runs four processes: the launcher, the runtime, `launch.php`, then the
-server. The engine executable runs `serve.php` or `php.php` in place of
+server. The engine executable runs `serve.php` in place of
 `launch.php`. Nineteen variables carry state across those hops, and no file
 declares them:
 
 | Variable | Named in |
 |---|---|
 | `APP_DIR` | `launcher/main.go`, `runtime/entrypoint.go`, `launch.php`, `settings.php` |
-| `BINARY` | `entrypoint.go`, `launch.php`, `serve.php`, `php.php` |
+| `BINARY` | `entrypoint.go`, `launch.php`, `serve.php` |
 | `BIND`, `DOCROOT`, `PORT` | `launch.php`, `serve.php`, both Caddyfiles |
 | `ID` | `entrypoint.go`, `launch.php`, `serve.php`, both Caddyfiles |
 | `DATA_DIR` | `launch.php`, `settings.php`, `build/site-settings.php` |
