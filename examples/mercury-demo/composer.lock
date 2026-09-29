@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8a5e6f8d481077638c13e28a9128924f",
+    "content-hash": "0fe673c5570dda3578795919df341c7c",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -2049,6 +2049,62 @@
             }
         },
         {
+            "name": "drupal/bpmn_io",
+            "version": "3.0.6",
+            "source": {
+                "type": "git",
+                "url": "https://git.drupalcode.org/project/bpmn_io.git",
+                "reference": "3.0.6"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://ftp.drupal.org/files/projects/bpmn_io-3.0.6.zip",
+                "reference": "3.0.6",
+                "shasum": "dd80e7d7129796f8f23f383236e17326e919f7c3"
+            },
+            "require": {
+                "drupal/core": "^11.2 || ^12",
+                "drupal/modeler_api": "^1.0",
+                "ext-dom": "*",
+                "mtownsend/xml-to-array": "^2.0",
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "drupal/eca": "^3.0"
+            },
+            "type": "drupal-module",
+            "extra": {
+                "drupal": {
+                    "version": "3.0.6",
+                    "datestamp": "1783080701",
+                    "security-coverage": {
+                        "status": "covered",
+                        "message": "Covered by Drupal's security advisory policy"
+                    }
+                }
+            },
+            "notification-url": "https://packages.drupal.org/8/downloads",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "boromino",
+                    "homepage": "https://www.drupal.org/user/859722"
+                },
+                {
+                    "name": "jurgenhaas",
+                    "homepage": "https://www.drupal.org/user/168924"
+                }
+            ],
+            "description": "BPMN modeler, integrated into Drupal's admin UI.",
+            "homepage": "https://www.drupal.org/project/bpmn_io",
+            "support": {
+                "source": "https://drupal.org/project/bpmn_io",
+                "issues": "https://drupal.org/project/issues/bpmn_io"
+            }
+        },
+        {
             "name": "drupal/canvas",
             "version": "1.12.0",
             "source": {
@@ -3161,6 +3217,47 @@
             }
         },
         {
+            "name": "drupal/drupal_cms_content_type_base",
+            "version": "2.1.6",
+            "source": {
+                "type": "git",
+                "url": "https://git.drupalcode.org/project/drupal_cms_content_type_base.git",
+                "reference": "c317ecdbe24f843e1eccf182161205c450fcf884"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://git.drupalcode.org/api/v4/projects/project%2Fdrupal_cms_content_type_base/repository/archive.zip?sha=c317ecdbe24f843e1eccf182161205c450fcf884",
+                "reference": "c317ecdbe24f843e1eccf182161205c450fcf884",
+                "shasum": ""
+            },
+            "require": {
+                "drupal/autosave_form": "^1.10",
+                "drupal/bpmn_io": "^3",
+                "drupal/canvas": "^1.11",
+                "drupal/core": "^11.3.10",
+                "drupal/drupal_cms_helper": "^2",
+                "drupal/eca": "^3.0.8",
+                "drupal/linkit": "^7",
+                "drupal/modeler_api": "^1",
+                "drupal/pathauto": "^1.13",
+                "drupal/scheduler": "^2.2",
+                "drupal/scheduler_content_moderation_integration": "^3.0.4",
+                "drupal/tagify": "^1.2",
+                "drupal/token": "^1",
+                "drupal/trash": "^3.0.13"
+            },
+            "type": "drupal-recipe",
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Provides basic tools for creating content.",
+            "support": {
+                "source": "https://git.drupalcode.org/project/drupal_cms_content_type_base/-/tree/2.1.6"
+            },
+            "time": "2026-09-23T15:55:17+00:00"
+        },
+        {
             "name": "drupal/drupal_cms_helper",
             "version": "2.2.0",
             "source": {
@@ -3236,6 +3333,39 @@
             "description": "Provides install-time tweaks for Drupal CMS. Not to be used in production.",
             "support": {
                 "source": "https://git.drupalcode.org/project/drupal_cms_installer/-/tree/2.2.0"
+            },
+            "time": "2026-09-25T18:09:39+00:00"
+        },
+        {
+            "name": "drupal/drupal_cms_search",
+            "version": "2.2.0",
+            "source": {
+                "type": "git",
+                "url": "https://git.drupalcode.org/project/drupal_cms_search.git",
+                "reference": "34f1c47f8508c812fda72177dea6ac0b59d1a1ff"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://git.drupalcode.org/api/v4/projects/project%2Fdrupal_cms_search/repository/archive.zip?sha=34f1c47f8508c812fda72177dea6ac0b59d1a1ff",
+                "reference": "34f1c47f8508c812fda72177dea6ac0b59d1a1ff",
+                "shasum": ""
+            },
+            "require": {
+                "drupal/canvas": "^1.2",
+                "drupal/eca": "^3.1.2",
+                "drupal/modeler": "^1.0",
+                "drupal/search_api": "^1.39",
+                "drupal/search_api_exclude": "^2",
+                "drupal/token": "^1.17"
+            },
+            "type": "drupal-recipe",
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Adds a search to help visitors find content.",
+            "support": {
+                "source": "https://git.drupalcode.org/project/drupal_cms_search/-/tree/2.2.0"
             },
             "time": "2026-09-25T18:09:39+00:00"
         },
@@ -5754,6 +5884,131 @@
             }
         },
         {
+            "name": "drupal/search_api",
+            "version": "1.41.0",
+            "source": {
+                "type": "git",
+                "url": "https://git.drupalcode.org/project/search_api.git",
+                "reference": "8.x-1.41"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://ftp.drupal.org/files/projects/search_api-8.x-1.41.zip",
+                "reference": "8.x-1.41",
+                "shasum": "bb030951ee9a09fac67e8cde5b495c3b67e2949d"
+            },
+            "require": {
+                "drupal/core": "^10.3 || ^11"
+            },
+            "conflict": {
+                "drupal/search_api_solr": "2.* || 3.0 || 3.1"
+            },
+            "require-dev": {
+                "drupal/config_readonly": "1.x-dev",
+                "drupal/language_fallback_fix": "1.x-dev",
+                "drupal/search_api_autocomplete": "1.x-dev",
+                "drupal/search_api_db": "*"
+            },
+            "suggest": {
+                "drupal/facets": "Adds the ability to create faceted searches.",
+                "drupal/search_api_autocomplete": "Allows adding autocomplete suggestions to search fields.",
+                "drupal/search_api_solr": "Adds support for using Apache Solr as a backend."
+            },
+            "type": "drupal-module",
+            "extra": {
+                "drupal": {
+                    "version": "8.x-1.41",
+                    "datestamp": "1780907071",
+                    "security-coverage": {
+                        "status": "covered",
+                        "message": "Covered by Drupal's security advisory policy"
+                    }
+                },
+                "branch-alias": {
+                    "dev-8.x-1.x": "1.x-dev"
+                }
+            },
+            "notification-url": "https://packages.drupal.org/8/downloads",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "Thomas Seidl",
+                    "homepage": "https://www.drupal.org/u/drunken-monkey"
+                },
+                {
+                    "name": "Nick Veenhof",
+                    "homepage": "https://www.drupal.org/u/nick_vh"
+                },
+                {
+                    "name": "See other contributors",
+                    "homepage": "https://www.drupal.org/node/790418/committers"
+                }
+            ],
+            "description": "Provides a generic framework for modules offering search capabilities.",
+            "homepage": "https://www.drupal.org/project/search_api",
+            "support": {
+                "source": "https://git.drupalcode.org/project/search_api",
+                "issues": "https://www.drupal.org/project/issues/search_api",
+                "irc": "irc://irc.freenode.org/drupal-search-api"
+            }
+        },
+        {
+            "name": "drupal/search_api_exclude",
+            "version": "2.0.3",
+            "source": {
+                "type": "git",
+                "url": "https://git.drupalcode.org/project/search_api_exclude.git",
+                "reference": "2.0.3"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://ftp.drupal.org/files/projects/search_api_exclude-2.0.3.zip",
+                "reference": "2.0.3",
+                "shasum": "e3a4bebe7be44417ad87e3a463678f89b5fdad0b"
+            },
+            "require": {
+                "drupal/core": "^8 || ^9 || ^10 || ^11",
+                "drupal/search_api": "^1.3"
+            },
+            "type": "drupal-module",
+            "extra": {
+                "drupal": {
+                    "version": "2.0.3",
+                    "datestamp": "1726853600",
+                    "security-coverage": {
+                        "status": "covered",
+                        "message": "Covered by Drupal's security advisory policy"
+                    }
+                }
+            },
+            "notification-url": "https://packages.drupal.org/8/downloads",
+            "license": [
+                "GPL-2.0+"
+            ],
+            "authors": [
+                {
+                    "name": "kevinquillen",
+                    "homepage": "https://www.drupal.org/user/317279"
+                },
+                {
+                    "name": "misc",
+                    "homepage": "https://www.drupal.org/user/382892"
+                },
+                {
+                    "name": "stijnstroobants",
+                    "homepage": "https://www.drupal.org/user/1787140"
+                }
+            ],
+            "description": "The Search API Exclude module allows users to prevent certain nodes from being indexed.",
+            "homepage": "https://www.drupal.org/project/search_api_exclude",
+            "support": {
+                "source": "https://git.drupalcode.org/project/search_api_exclude",
+                "issues": "https://www.drupal.org/project/issues/search_api_exclude"
+            }
+        },
+        {
             "name": "drupal/seo_checklist",
             "version": "5.2.4",
             "source": {
@@ -6364,6 +6619,29 @@
             "homepage": "https://www.drupal.org/project/view_password",
             "support": {
                 "source": "https://git.drupalcode.org/project/view_password"
+            }
+        },
+        {
+            "name": "drupal/wordpal",
+            "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "/home/theodore/DEV/DRUPAL/wordpal",
+                "reference": "e8edd3a033efed9062d5ed1ab8e718df85e1249b"
+            },
+            "type": "drupal-module",
+            "extra": {
+                "drupal-scaffold": {
+                    "file-mapping": {
+                        "[project-root]/recipes/wordpal/recipe.yml": "recipes/wordpal/recipe.yml",
+                        "[project-root]/recipes/wordpal/config/core.entity_form_display.node.blog.default.yml": "recipes/wordpal/config/core.entity_form_display.node.blog.default.yml",
+                        "[project-root]/recipes/wordpal/config/field.field.node.blog.field_content.yml": "recipes/wordpal/config/field.field.node.blog.field_content.yml",
+                        "[project-root]/recipes/wordpal/config/field.field.node.blog.field_description.yml": "recipes/wordpal/config/field.field.node.blog.field_description.yml",
+                        "[project-root]/recipes/wordpal/config/field.field.node.blog.field_featured_image.yml": "recipes/wordpal/config/field.field.node.blog.field_featured_image.yml",
+                        "[project-root]/recipes/wordpal/config/field.field.node.blog.field_tags.yml": "recipes/wordpal/config/field.field.node.blog.field_tags.yml",
+                        "[project-root]/recipes/wordpal/config/node.type.blog.yml": "recipes/wordpal/config/node.type.blog.yml"
+                    }
+                }
             }
         },
         {
@@ -7689,6 +7967,60 @@
                 "source": "https://github.com/modelcontextprotocol/php-sdk/tree/v0.6.0"
             },
             "time": "2026-06-02T15:47:04+00:00"
+        },
+        {
+            "name": "mtownsend/xml-to-array",
+            "version": "2.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/mtownsend5512/xml-to-array.git",
+                "reference": "8e4b08ae0f56f1e2a77b4b88a0e17bce0200350e"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/mtownsend5512/xml-to-array/zipball/8e4b08ae0f56f1e2a77b4b88a0e17bce0200350e",
+                "reference": "8e4b08ae0f56f1e2a77b4b88a0e17bce0200350e",
+                "shasum": ""
+            },
+            "require": {
+                "ext-dom": "*",
+                "php": "~7.0|~8.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^6.4"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "src/helpers.php"
+                ],
+                "psr-4": {
+                    "Mtownsend\\XmlToArray\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Mark Townsend",
+                    "email": "mtownsend5512@gmail.com",
+                    "role": "Developer"
+                }
+            ],
+            "description": "Easily convert valid xml to a php array.",
+            "keywords": [
+                "array",
+                "convert",
+                "laravel",
+                "xml"
+            ],
+            "support": {
+                "issues": "https://github.com/mtownsend5512/xml-to-array/issues",
+                "source": "https://github.com/mtownsend5512/xml-to-array/tree/2.0.1"
+            },
+            "time": "2026-09-15T13:43:01+00:00"
         },
         {
             "name": "nikic/php-parser",
@@ -13366,7 +13698,8 @@
     "stability-flags": {
         "drupal/mcp_server": 10,
         "drupal/mcp_tools": 10,
-        "drupal/tool": 20
+        "drupal/tool": 20,
+        "drupal/wordpal": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,
@@ -13378,5 +13711,5 @@
     "platform-overrides": {
         "php": "8.5.10"
     },
-    "plugin-api-version": "2.6.0"
+    "plugin-api-version": "2.9.0"
 }

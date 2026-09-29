@@ -1,0 +1,7 @@
+name: 'Drupal Mercury Demo'
+type: Site
+description: 'The Mercury Demo site template, with the WordPal converter enabled.'
+recipes:
+  - mercury_demo
+install:
+  - wordpal_canvas

@@ -7,12 +7,15 @@
 
 - `writable` lists the docroot's custom themes directory and the project's
   recipes directory, so the demo lays its own application in Site data.
-- `node: true`.
+- [ ] `node: true`. Waits on Bundled Node: this branch's contract parser refuses
+      the field. Until then the site test runs npx from the host's PATH and skips
+      when PATH has none, and that skip goes with this change.
 - The Site template becomes a site recipe that applies the Mercury Demo recipe
   and installs `wordpal_canvas`.
 - Until WordPal publishes, an inline package repository names `drupal/wordpal`
   with the local WordPal checkout as its source, pinned to a commit.
-- The first conversion applies WordPal's own recipe.
+- The first conversion applies WordPal's own recipe. The inline package
+  scaffolds that recipe into `recipes/wordpal`, where the conversion looks.
 
 ---
 
@@ -50,14 +53,16 @@ across a restart.
 
 ### Acceptance criteria
 
-- [ ] `./mercury-demo drush wpc twentytwentyfour --target=canvas` exits 0 on a
+- [x] `./mercury-demo drush wpc twentytwentyfour --target=canvas` exits 0 on a
       fresh demo.
-- [ ] The site test checks that `/` answers 200 with the converted theme's
+- [x] The site test checks that `/` answers 200 with the converted theme's
       stylesheet, before and after a restart.
-- [ ] The site test skips by name when wordpress.org is unreachable.
-- [ ] A conversion from a theme zip path exits 0, run once by hand and
+- [x] The site test skips by name when wordpress.org is unreachable.
+- [x] A conversion from a theme zip path exits 0, run once by hand and
       recorded in the phase report.
-- [ ] `bash build/qa.sh` passes with the network present.
+- [x] `bash build/qa.sh` passes with the network present.
+      Run as its own commands with the WordPal checkout mounted read-only at
+      its path, which the container cannot otherwise reach.
 
 ---
 
