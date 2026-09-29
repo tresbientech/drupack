@@ -233,9 +233,19 @@ Ten options read an environment variable when the option is absent: `DRUPACK_DAT
 
 A server with 512 MB of memory runs the demo site. The site uses about 170 MB. Your own modules and content can use more.
 
-## Local AI agents
+## Connect an AI agent
 
-Drupack carries the MCP Tools and MCP Server modules, both disabled, with no transport exposed.
+The Mercury Demo applies [Agent Access](https://www.drupal.org/project/agent_access), which serves an MCP endpoint behind OAuth. Add this address to an agent that runs on your machine:
+
+```text
+http://localhost:7225/mcp
+```
+
+The agent registers itself, then sends you to the site to sign in and approve it. Sign in as the administrator. The agent then acts with that account's permissions.
+
+Each site generates its own OAuth key pair on its first served request, and keeps it in Site data under `oauth-keys`.
+
+The demo serves plain HTTP. OAuth allows it on a loopback address, and some agents refuse it anyway. A hosted connector, such as the ones in claude.ai, calls from its vendor's servers and cannot reach `localhost`.
 
 ## Updates
 

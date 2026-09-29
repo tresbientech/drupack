@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8550f57bb71d85156f3c4f8782ebc9d6",
+    "content-hash": "a8b2205a854a2001a6a5753f2405ed34",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -122,294 +122,6 @@
                 "source": "https://github.com/Chi-teck/drupal-code-generator/tree/4.2.0"
             },
             "time": "2025-06-01T13:48:30+00:00"
-        },
-        {
-            "name": "code-wheel/mcp-error-codes",
-            "version": "v1.3.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/code-wheel/mcp-error-codes-php.git",
-                "reference": "6b5ed2cbacc366af5dcd5df3a3c53bdd1cdb8fb9"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/code-wheel/mcp-error-codes-php/zipball/6b5ed2cbacc366af5dcd5df3a3c53bdd1cdb8fb9",
-                "reference": "6b5ed2cbacc366af5dcd5df3a3c53bdd1cdb8fb9",
-                "shasum": ""
-            },
-            "require": {
-                "php": ">=8.1"
-            },
-            "require-dev": {
-                "mcp/sdk": "^0.2.2 || ^0.3 || ^0.4 || ^0.5 || ^0.6",
-                "phpstan/phpstan": "^1.10",
-                "phpunit/phpunit": "^10.0 || ^11.0"
-            },
-            "suggest": {
-                "mcp/sdk": "Enables ErrorBag::toCallToolResult() for MCP tool responses (any 0.2.2+ version)"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "CodeWheel\\McpErrorCodes\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "CodeWheel",
-                    "email": "dev@codewheel.com"
-                }
-            ],
-            "description": "Standardized error codes and fluent error builders for MCP (Model Context Protocol) servers in PHP",
-            "keywords": [
-                "ai",
-                "api",
-                "error-codes",
-                "error-handling",
-                "llm",
-                "mcp",
-                "model-context-protocol"
-            ],
-            "support": {
-                "issues": "https://github.com/code-wheel/mcp-error-codes-php/issues",
-                "source": "https://github.com/code-wheel/mcp-error-codes-php/tree/master"
-            },
-            "time": "2026-06-12T20:50:32+00:00"
-        },
-        {
-            "name": "code-wheel/mcp-events",
-            "version": "v2.1.1",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/code-wheel/mcp-events-php.git",
-                "reference": "9df0cd5fa9f2799678cbf9bdc2fd2367986887ab"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/code-wheel/mcp-events-php/zipball/9df0cd5fa9f2799678cbf9bdc2fd2367986887ab",
-                "reference": "9df0cd5fa9f2799678cbf9bdc2fd2367986887ab",
-                "shasum": ""
-            },
-            "require": {
-                "php": ">=8.1"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.0 || ^11.0"
-            },
-            "suggest": {
-                "mcp/sdk": "For type-safe CallToolResult objects (^0.2)"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "CodeWheel\\McpEvents\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "CodeWheel",
-                    "email": "dev@codewheel.com"
-                }
-            ],
-            "description": "Standardized event classes for MCP (Model Context Protocol) tool execution lifecycle",
-            "keywords": [
-                "ai",
-                "events",
-                "llm",
-                "mcp",
-                "model-context-protocol",
-                "observability"
-            ],
-            "support": {
-                "issues": "https://github.com/code-wheel/mcp-events-php/issues",
-                "source": "https://github.com/code-wheel/mcp-events-php/tree/v2.1.1"
-            },
-            "time": "2026-01-10T04:03:31+00:00"
-        },
-        {
-            "name": "code-wheel/mcp-http-security",
-            "version": "v1.0.4",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/code-wheel/mcp-http-security-php.git",
-                "reference": "820452d90249c8df7942f30c87352822ce44f5a7"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/code-wheel/mcp-http-security-php/zipball/820452d90249c8df7942f30c87352822ce44f5a7",
-                "reference": "820452d90249c8df7942f30c87352822ce44f5a7",
-                "shasum": ""
-            },
-            "require": {
-                "php": ">=8.1",
-                "psr/clock": "^1.0",
-                "psr/http-message": "^1.0 || ^2.0",
-                "psr/http-server-middleware": "^1.0",
-                "psr/log": "^1.0 || ^2.0 || ^3.0"
-            },
-            "require-dev": {
-                "infection/infection": "^0.27 || ^0.28 || ^0.29",
-                "phpbench/phpbench": "^1.2",
-                "phpstan/phpstan": "^1.10",
-                "phpunit/phpunit": "^10.0 || ^11.0",
-                "psr/http-factory": "^1.0"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "CodeWheel\\McpSecurity\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "CodeWheel",
-                    "homepage": "https://github.com/code-wheel"
-                }
-            ],
-            "description": "Secure HTTP transport wrapper for MCP servers with API key auth, IP/Origin allowlisting, and rate limiting",
-            "keywords": [
-                "Authentication",
-                "api-key",
-                "mcp",
-                "middleware",
-                "model-context-protocol",
-                "security"
-            ],
-            "support": {
-                "issues": "https://github.com/code-wheel/mcp-http-security-php/issues",
-                "source": "https://github.com/code-wheel/mcp-http-security-php/tree/v1.0.4"
-            },
-            "time": "2026-01-10T04:34:55+00:00"
-        },
-        {
-            "name": "code-wheel/mcp-schema-builder",
-            "version": "v1.1.3",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/code-wheel/mcp-schema-builder-php.git",
-                "reference": "832c54d03dbe4b6d3180b07748d8dddf77563f05"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/code-wheel/mcp-schema-builder-php/zipball/832c54d03dbe4b6d3180b07748d8dddf77563f05",
-                "reference": "832c54d03dbe4b6d3180b07748d8dddf77563f05",
-                "shasum": ""
-            },
-            "require": {
-                "php": ">=8.1"
-            },
-            "require-dev": {
-                "code-wheel/mcp-error-codes": "^1.2",
-                "phpstan/phpstan": "^1.10",
-                "phpunit/phpunit": "^10.0 || ^11.0"
-            },
-            "suggest": {
-                "code-wheel/mcp-error-codes": "Required for ValidationResult::toErrorBag() integration"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "CodeWheel\\McpSchemaBuilder\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Code Wheel",
-                    "email": "mowens3@gmail.com"
-                }
-            ],
-            "description": "JSON Schema builder and validator for MCP tool definitions",
-            "keywords": [
-                "json-schema",
-                "mcp",
-                "model-context-protocol",
-                "schema",
-                "tools",
-                "validation"
-            ],
-            "support": {
-                "issues": "https://github.com/code-wheel/mcp-schema-builder-php/issues",
-                "source": "https://github.com/code-wheel/mcp-schema-builder-php/tree/v1.1.3"
-            },
-            "time": "2026-01-10T04:24:14+00:00"
-        },
-        {
-            "name": "code-wheel/mcp-tool-gateway",
-            "version": "v1.2.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/code-wheel/mcp-tool-gateway-php.git",
-                "reference": "865fd52b644438fa08ffea0b7d294676dbf1c407"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/code-wheel/mcp-tool-gateway-php/zipball/865fd52b644438fa08ffea0b7d294676dbf1c407",
-                "reference": "865fd52b644438fa08ffea0b7d294676dbf1c407",
-                "shasum": ""
-            },
-            "require": {
-                "mcp/sdk": "0.6.0",
-                "php": ">=8.1"
-            },
-            "require-dev": {
-                "phpstan/phpstan": "^1.10",
-                "phpunit/phpunit": "^10.0 || ^11.0",
-                "psr/event-dispatcher": "^1.0",
-                "psr/log": "^3.0",
-                "psr/simple-cache": "^3.0"
-            },
-            "suggest": {
-                "code-wheel/mcp-schema-builder": "Recommended for ValidatingMiddleware",
-                "psr/event-dispatcher": "Required for EventMiddleware",
-                "psr/log": "Required for LoggingMiddleware",
-                "psr/simple-cache": "Required for CachingToolProvider"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "CodeWheel\\McpToolGateway\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Code Wheel",
-                    "email": "mowens3@gmail.com"
-                }
-            ],
-            "description": "MCP Tool Gateway - Dynamic tool discovery, middleware pipeline, and caching for MCP servers",
-            "keywords": [
-                "discovery",
-                "gateway",
-                "mcp",
-                "middleware",
-                "model-context-protocol",
-                "tools"
-            ],
-            "support": {
-                "issues": "https://github.com/code-wheel/mcp-tool-gateway-php/issues",
-                "source": "https://github.com/code-wheel/mcp-tool-gateway-php/tree/master"
-            },
-            "time": "2026-06-12T20:50:30+00:00"
         },
         {
             "name": "composer/ca-bundle",
@@ -1635,6 +1347,73 @@
             "time": "2026-06-07T03:26:06+00:00"
         },
         {
+            "name": "defuse/php-encryption",
+            "version": "v2.4.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/defuse/php-encryption.git",
+                "reference": "f53396c2d34225064647a05ca76c1da9d99e5828"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/defuse/php-encryption/zipball/f53396c2d34225064647a05ca76c1da9d99e5828",
+                "reference": "f53396c2d34225064647a05ca76c1da9d99e5828",
+                "shasum": ""
+            },
+            "require": {
+                "ext-openssl": "*",
+                "paragonie/random_compat": ">= 2",
+                "php": ">=5.6.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^5|^6|^7|^8|^9|^10",
+                "yoast/phpunit-polyfills": "^2.0.0"
+            },
+            "bin": [
+                "bin/generate-defuse-key"
+            ],
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Defuse\\Crypto\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Taylor Hornby",
+                    "email": "taylor@defuse.ca",
+                    "homepage": "https://defuse.ca/"
+                },
+                {
+                    "name": "Scott Arciszewski",
+                    "email": "info@paragonie.com",
+                    "homepage": "https://paragonie.com"
+                }
+            ],
+            "description": "Secure PHP Encryption Library",
+            "keywords": [
+                "aes",
+                "authenticated encryption",
+                "cipher",
+                "crypto",
+                "cryptography",
+                "encrypt",
+                "encryption",
+                "openssl",
+                "security",
+                "symmetric key cryptography"
+            ],
+            "support": {
+                "issues": "https://github.com/defuse/php-encryption/issues",
+                "source": "https://github.com/defuse/php-encryption/tree/v2.4.0"
+            },
+            "time": "2023-06-19T06:10:36+00:00"
+        },
+        {
             "name": "dflydev/dot-access-data",
             "version": "v3.0.3",
             "source": {
@@ -1895,6 +1674,41 @@
                 }
             ],
             "time": "2025-10-31T18:51:33+00:00"
+        },
+        {
+            "name": "drupal/agent_access",
+            "version": "1.0.0-alpha2",
+            "source": {
+                "type": "git",
+                "url": "https://git.drupalcode.org/project/agent_access.git",
+                "reference": "ee58666de91472c8078ad5084b5003c8ca241a9a"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://git.drupalcode.org/api/v4/projects/project%2Fagent_access/repository/archive.zip?sha=ee58666de91472c8078ad5084b5003c8ca241a9a",
+                "reference": "ee58666de91472c8078ad5084b5003c8ca241a9a",
+                "shasum": ""
+            },
+            "require": {
+                "drupal/core": "^11.4",
+                "drupal/mcp_server": "^2.0.0-beta5",
+                "drupal/mcp_server_oauth-mcp_server_oauth": "^1.0@alpha",
+                "drupal/mcp_server_tool_bridge": "^1.0.0-beta3@beta",
+                "drupal/simple_oauth": "^6.1",
+                "drupal/tool": "^1.0@beta",
+                "drupal/tool_belt": "^1.0@alpha",
+                "e0ipso/simple_oauth_21": "^1.13"
+            },
+            "type": "drupal-recipe",
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Drupal-side connectivity and authorization for external AI agents through existing user accounts; this implementation assembles MCP + OAuth.",
+            "support": {
+                "source": "https://git.drupalcode.org/project/agent_access/-/tree/1.0.0-alpha2"
+            },
+            "time": "2026-09-23T15:56:09+00:00"
         },
         {
             "name": "drupal/automatic_updates",
@@ -2507,6 +2321,58 @@
             "homepage": "https://www.drupal.org/project/config_language_lock",
             "support": {
                 "source": "https://git.drupalcode.org/project/config_language_lock"
+            }
+        },
+        {
+            "name": "drupal/consumers",
+            "version": "1.24.0",
+            "source": {
+                "type": "git",
+                "url": "https://git.drupalcode.org/project/consumers.git",
+                "reference": "8.x-1.24"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://ftp.drupal.org/files/projects/consumers-8.x-1.24.zip",
+                "reference": "8.x-1.24",
+                "shasum": "63acc012badaec2dd15cb4dd3e9cab9cb8a83eef"
+            },
+            "require": {
+                "drupal/core": "^10.3 || ^11"
+            },
+            "type": "drupal-module",
+            "extra": {
+                "drupal": {
+                    "version": "8.x-1.24",
+                    "datestamp": "1770824862",
+                    "security-coverage": {
+                        "status": "covered",
+                        "message": "Covered by Drupal's security advisory policy"
+                    }
+                }
+            },
+            "notification-url": "https://packages.drupal.org/8/downloads",
+            "license": [
+                "GPL-2.0+"
+            ],
+            "authors": [
+                {
+                    "name": "bojan_dev",
+                    "homepage": "https://www.drupal.org/user/2801849"
+                },
+                {
+                    "name": "e0ipso",
+                    "homepage": "https://www.drupal.org/user/550110"
+                },
+                {
+                    "name": "eojthebrave",
+                    "homepage": "https://www.drupal.org/user/79230"
+                }
+            ],
+            "description": "Declare all the consumers of your API.",
+            "homepage": "https://www.drupal.org/project/consumers",
+            "support": {
+                "source": "https://git.drupalcode.org/project/consumers"
             }
         },
         {
@@ -4744,37 +4610,37 @@
         },
         {
             "name": "drupal/mcp_server",
-            "version": "2.0.0-beta2",
+            "version": "2.0.0-beta5",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/mcp_server.git",
-                "reference": "2.0.0-beta2"
+                "reference": "2.0.0-beta5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/mcp_server-2.0.0-beta2.zip",
-                "reference": "2.0.0-beta2",
-                "shasum": "18c92231f75e4cd4a9155b707f213ca952b62c66"
+                "url": "https://ftp.drupal.org/files/projects/mcp_server-2.0.0-beta5.zip",
+                "reference": "2.0.0-beta5",
+                "shasum": "31ab95bf2dcbd58688a0cafbfc0f206d2c9ba1fd"
             },
             "require": {
                 "drupal/core": "^10 || ^11",
-                "mcp/sdk": "^0.6 || ^0.7",
+                "mcp/sdk": "^0.7.1 || ^0.8",
                 "php": "^8.3",
                 "psr/simple-cache": "^3.0"
             },
             "require-dev": {
                 "drupal/coder": "^8",
                 "drupal/tool": "1.0.0-beta2",
-                "mglaman/phpstan-drupal": "^2.0",
+                "mglaman/phpstan-drupal": "^1.2.12 || ^2.0",
                 "phpstan/extension-installer": "^1.4",
-                "phpstan/phpstan": "^2.1",
-                "phpstan/phpstan-deprecation-rules": "^2.0"
+                "phpstan/phpstan": "^1.12 || ^2.1",
+                "phpstan/phpstan-deprecation-rules": "^1.2 || ^2.0"
             },
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "2.0.0-beta2",
-                    "datestamp": "1788367283",
+                    "version": "2.0.0-beta5",
+                    "datestamp": "1790174303",
                     "security-coverage": {
                         "status": "not-covered",
                         "message": "Beta releases are not covered by Drupal security advisories."
@@ -4827,55 +4693,40 @@
             }
         },
         {
-            "name": "drupal/mcp_tools",
-            "version": "1.0.0-beta18",
+            "name": "drupal/mcp_server_oauth-mcp_server_oauth",
+            "version": "1.0.0-alpha1",
             "source": {
                 "type": "git",
-                "url": "https://git.drupalcode.org/project/mcp_tools.git",
-                "reference": "1.0.0-beta18"
+                "url": "https://git.drupalcode.org/project/mcp_server_oauth.git",
+                "reference": "1.0.0-alpha1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/mcp_tools-1.0.0-beta18.zip",
-                "reference": "1.0.0-beta18",
-                "shasum": "4cb10e63ea1ac42d3c12c04eb1d3d7c3e94e18e4"
+                "url": "https://ftp.drupal.org/files/projects/mcp_server_oauth-1.0.0-alpha1.zip",
+                "reference": "1.0.0-alpha1",
+                "shasum": "cef5d0e686f3a418f981c5dd784918a095ee827e"
             },
             "require": {
-                "code-wheel/mcp-error-codes": "^1.3",
-                "code-wheel/mcp-events": "^2.0",
-                "code-wheel/mcp-http-security": "^1.0",
-                "code-wheel/mcp-schema-builder": "^1.1",
-                "code-wheel/mcp-tool-gateway": "^1.2",
-                "drupal/core": "^10.3 || ^11 || ^12",
-                "drupal/tool": "^1.0@beta",
-                "enshrined/svg-sanitize": "^0.22",
-                "mcp/sdk": "^0.2.2 || ^0.3 || ^0.4 || ^0.5 || ^0.6",
-                "php": ">=8.3"
+                "drupal/core": "^11",
+                "drupal/mcp_server": "^2",
+                "drupal/simple_oauth": "^6",
+                "e0ipso/simple_oauth_21": "^1",
+                "php": "^8.3"
             },
             "require-dev": {
-                "drupal/ai": "*",
-                "drupal/entity_clone": "*",
-                "drupal/mcp_server": "<2.0",
-                "drupal/mcp_tools_media-mcp_tools_media": "*",
-                "drupal/metatag": "*",
-                "drupal/paragraphs": "*",
-                "drupal/pathauto": "*",
-                "drupal/redirect": "*",
-                "drupal/scheduler": "*",
-                "drupal/search_api": "*",
-                "drupal/simple_sitemap": "*",
-                "drupal/tool": "*",
-                "drupal/ultimate_cron": "*",
-                "drupal/webform": "*"
+                "drupal/mcp_server": "^2.0",
+                "drupal/simple_oauth": "*",
+                "drupal/simple_oauth_client_registration": "*",
+                "drupal/simple_oauth_server_metadata": "*"
             },
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "1.0.0-beta18",
-                    "datestamp": "1784932597",
+                    "version": "1.0.0-alpha1",
+                    "datestamp": "1785339167",
                     "security-coverage": {
                         "status": "not-covered",
-                        "message": "Project has not opted into security advisory coverage!"
+                        "message": "Alpha releases are not covered by Drupal security advisories."
                     }
                 }
             },
@@ -4885,26 +4736,74 @@
             ],
             "authors": [
                 {
-                    "name": "guillaumeg",
-                    "homepage": "https://www.drupal.org/user/1301498"
+                    "name": "e0ipso",
+                    "homepage": "https://www.drupal.org/user/550110"
                 },
                 {
-                    "name": "mowens",
-                    "homepage": "https://www.drupal.org/user/1989052"
+                    "name": "mglaman",
+                    "homepage": "https://www.drupal.org/user/2416470"
                 }
             ],
-            "description": "Batteries-included MCP tools for AI assistants working with Drupal sites.",
-            "homepage": "https://www.drupal.org/project/mcp_tools",
-            "keywords": [
-                "AI",
-                "Drupal",
-                "MCP",
-                "Model Context Protocol",
-                "Tools"
-            ],
+            "description": "OAuth2 scope-based authorization for MCP Server tools.",
+            "homepage": "https://www.drupal.org/project/mcp_server_oauth",
             "support": {
-                "source": "https://git.drupalcode.org/project/mcp_tools",
-                "issues": "https://www.drupal.org/project/issues/mcp_tools"
+                "source": "https://git.drupalcode.org/project/mcp_server_oauth"
+            }
+        },
+        {
+            "name": "drupal/mcp_server_tool_bridge",
+            "version": "1.0.0-beta3",
+            "source": {
+                "type": "git",
+                "url": "https://git.drupalcode.org/project/mcp_server_tool_bridge.git",
+                "reference": "1.0.0-beta3"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://ftp.drupal.org/files/projects/mcp_server_tool_bridge-1.0.0-beta3.zip",
+                "reference": "1.0.0-beta3",
+                "shasum": "c45f8d1134cc3eaa375bf244a19298ac989c8f41"
+            },
+            "require": {
+                "drupal/core": "^10 || ^11",
+                "drupal/mcp_server": "^2.0.0-beta5",
+                "drupal/tool": "^1.0.0-beta8",
+                "php": "^8.3"
+            },
+            "type": "drupal-module",
+            "extra": {
+                "drupal": {
+                    "version": "1.0.0-beta3",
+                    "datestamp": "1790174604",
+                    "security-coverage": {
+                        "status": "not-covered",
+                        "message": "Beta releases are not covered by Drupal security advisories."
+                    }
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Drupal\\mcp_server_tool_bridge\\": "src/"
+                }
+            },
+            "notification-url": "https://packages.drupal.org/8/downloads",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "e0ipso",
+                    "homepage": "https://www.drupal.org/user/550110"
+                },
+                {
+                    "name": "mglaman",
+                    "homepage": "https://www.drupal.org/user/2416470"
+                }
+            ],
+            "description": "Bridges Drupal Tool API tools into the MCP protocol via McpToolConfig entities.",
+            "homepage": "https://www.drupal.org/project/mcp_server_tool_bridge",
+            "support": {
+                "source": "https://git.drupalcode.org/project/mcp_server_tool_bridge"
             }
         },
         {
@@ -6090,6 +5989,75 @@
             }
         },
         {
+            "name": "drupal/simple_oauth",
+            "version": "6.1.1",
+            "source": {
+                "type": "git",
+                "url": "https://git.drupalcode.org/project/simple_oauth.git",
+                "reference": "6.1.1"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://ftp.drupal.org/files/projects/simple_oauth-6.1.1.zip",
+                "reference": "6.1.1",
+                "shasum": "ab22683835ac3300676618f1e59acb327b4989db"
+            },
+            "require": {
+                "drupal/consumers": "^1.17",
+                "drupal/core": "^10.3 || ^11",
+                "league/oauth2-server": "^9.0",
+                "php": ">=8.1",
+                "steverhoades/oauth2-openid-connect-server": "^3.0"
+            },
+            "require-dev": {
+                "drupal/simple_oauth_static_scope": "*",
+                "phpspec/prophecy-phpunit": "^2"
+            },
+            "type": "drupal-module",
+            "extra": {
+                "drupal": {
+                    "version": "6.1.1",
+                    "datestamp": "1779441676",
+                    "security-coverage": {
+                        "status": "covered",
+                        "message": "Covered by Drupal's security advisory policy"
+                    }
+                }
+            },
+            "notification-url": "https://packages.drupal.org/8/downloads",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "Mateu Aguiló Bosch",
+                    "homepage": "https://www.drupal.org/user/2801849",
+                    "email": "mateu.aguilo.bosch@gmail.com"
+                },
+                {
+                    "name": "bradjones1",
+                    "homepage": "https://www.drupal.org/user/405824"
+                },
+                {
+                    "name": "e0ipso",
+                    "homepage": "https://www.drupal.org/user/550110"
+                },
+                {
+                    "name": "kingdutch",
+                    "homepage": "https://www.drupal.org/user/1868952"
+                },
+                {
+                    "name": "pcambra",
+                    "homepage": "https://www.drupal.org/user/122101"
+                }
+            ],
+            "description": "The Simple OAuth module for Drupal",
+            "homepage": "https://www.drupal.org/project/simple_oauth",
+            "support": {
+                "source": "https://git.drupalcode.org/project/simple_oauth"
+            }
+        },
+        {
             "name": "drupal/simple_sitemap",
             "version": "4.2.3",
             "source": {
@@ -6441,17 +6409,17 @@
         },
         {
             "name": "drupal/tool",
-            "version": "1.0.0-beta8",
+            "version": "1.0.0-beta10",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/tool.git",
-                "reference": "1.0.0-beta8"
+                "reference": "1.0.0-beta10"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/tool-1.0.0-beta8.zip",
-                "reference": "1.0.0-beta8",
-                "shasum": "ef072ccd2b62ef5c765055100e33b82c53b5d0d6"
+                "url": "https://ftp.drupal.org/files/projects/tool-1.0.0-beta10.zip",
+                "reference": "1.0.0-beta10",
+                "shasum": "c0d5587b691a70f0654c880a7950ce3a152307ff"
             },
             "require": {
                 "drupal/core": "^10.5 || ^11",
@@ -6464,8 +6432,8 @@
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "1.0.0-beta8",
-                    "datestamp": "1789077594",
+                    "version": "1.0.0-beta10",
+                    "datestamp": "1790550171",
                     "security-coverage": {
                         "status": "not-covered",
                         "message": "Beta releases are not covered by Drupal security advisories."
@@ -6494,6 +6462,10 @@
                     "homepage": "https://www.drupal.org/user/385947"
                 },
                 {
+                    "name": "mglaman",
+                    "homepage": "https://www.drupal.org/user/2416470"
+                },
+                {
                     "name": "michaellander",
                     "homepage": "https://www.drupal.org/user/636494"
                 },
@@ -6507,6 +6479,60 @@
             "support": {
                 "source": "https://drupal.org/project/tool",
                 "issues": "https://drupal.org/project/issues/tool"
+            }
+        },
+        {
+            "name": "drupal/tool_belt",
+            "version": "1.0.0-alpha6",
+            "source": {
+                "type": "git",
+                "url": "https://git.drupalcode.org/project/tool_belt.git",
+                "reference": "1.0.0-alpha6"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://ftp.drupal.org/files/projects/tool_belt-1.0.0-alpha6.zip",
+                "reference": "1.0.0-alpha6",
+                "shasum": "0fd245cb07dbfd13a1a2491c68a2a5f1b24fcdd1"
+            },
+            "require": {
+                "drupal/core": "^10.5 || ^11 || ^12",
+                "drupal/tool": "^1.0.0-beta10"
+            },
+            "type": "drupal-module",
+            "extra": {
+                "drupal": {
+                    "version": "1.0.0-alpha6",
+                    "datestamp": "1790577600",
+                    "security-coverage": {
+                        "status": "not-covered",
+                        "message": "Alpha releases are not covered by Drupal security advisories."
+                    }
+                }
+            },
+            "notification-url": "https://packages.drupal.org/8/downloads",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "ajits",
+                    "homepage": "https://www.drupal.org/user/981944"
+                },
+                {
+                    "name": "b_sharpe",
+                    "homepage": "https://www.drupal.org/user/2512258"
+                },
+                {
+                    "name": "michaellander",
+                    "homepage": "https://www.drupal.org/user/636494"
+                }
+            ],
+            "description": "A default collection of tools covering common Drupal core actions.",
+            "homepage": "https://www.drupal.org/project/tool_belt",
+            "support": {
+                "source": "https://git.drupalcode.org/project/tool_belt",
+                "issues": "https://www.drupal.org/project/issues/tool_belt"
             }
         },
         {
@@ -6836,6 +6862,45 @@
                 }
             ],
             "time": "2026-09-08T18:24:55+00:00"
+        },
+        {
+            "name": "e0ipso/simple_oauth_21",
+            "version": "v1.13.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/e0ipso/simple_oauth_21.git",
+                "reference": "9ed04e9b181bc34c6a6505825fbdcc1c2289b966"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/e0ipso/simple_oauth_21/zipball/9ed04e9b181bc34c6a6505825fbdcc1c2289b966",
+                "reference": "9ed04e9b181bc34c6a6505825fbdcc1c2289b966",
+                "shasum": ""
+            },
+            "require-dev": {
+                "drupal/coder": "^8",
+                "mglaman/phpstan-drupal": "^2.0",
+                "phpstan/extension-installer": "^1.4",
+                "phpstan/phpstan": "^2.1",
+                "phpstan/phpstan-deprecation-rules": "^2.0"
+            },
+            "type": "drupal-module",
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "Mateu Aguiló Bosch",
+                    "email": "mateu@mateuaguilo.com"
+                }
+            ],
+            "description": "Implements OAuth 2.1 on top of Simple OAuth for Drupal",
+            "support": {
+                "issues": "https://github.com/e0ipso/simple_oauth_21/issues",
+                "source": "https://github.com/e0ipso/simple_oauth_21/tree/v1.13.0"
+            },
+            "time": "2025-11-03T17:00:51+00:00"
         },
         {
             "name": "egulias/email-validator",
@@ -7601,6 +7666,79 @@
             "time": "2026-08-20T12:55:36+00:00"
         },
         {
+            "name": "lcobucci/jwt",
+            "version": "5.6.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/lcobucci/jwt.git",
+                "reference": "bb3e9f21e4196e8afc41def81ef649c164bca25e"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/lcobucci/jwt/zipball/bb3e9f21e4196e8afc41def81ef649c164bca25e",
+                "reference": "bb3e9f21e4196e8afc41def81ef649c164bca25e",
+                "shasum": ""
+            },
+            "require": {
+                "ext-openssl": "*",
+                "ext-sodium": "*",
+                "php": "~8.2.0 || ~8.3.0 || ~8.4.0 || ~8.5.0",
+                "psr/clock": "^1.0"
+            },
+            "require-dev": {
+                "infection/infection": "^0.29",
+                "lcobucci/clock": "^3.2",
+                "lcobucci/coding-standard": "^11.0",
+                "phpbench/phpbench": "^1.2",
+                "phpstan/extension-installer": "^1.2",
+                "phpstan/phpstan": "^1.10.7",
+                "phpstan/phpstan-deprecation-rules": "^1.1.3",
+                "phpstan/phpstan-phpunit": "^1.3.10",
+                "phpstan/phpstan-strict-rules": "^1.5.0",
+                "phpunit/phpunit": "^11.1"
+            },
+            "suggest": {
+                "lcobucci/clock": ">= 3.2"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Lcobucci\\JWT\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "BSD-3-Clause"
+            ],
+            "authors": [
+                {
+                    "name": "Luís Cobucci",
+                    "email": "lcobucci@gmail.com",
+                    "role": "Developer"
+                }
+            ],
+            "description": "A simple library to work with JSON Web Token and JSON Web Signature",
+            "keywords": [
+                "JWS",
+                "jwt"
+            ],
+            "support": {
+                "issues": "https://github.com/lcobucci/jwt/issues",
+                "source": "https://github.com/lcobucci/jwt/tree/5.6.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/lcobucci",
+                    "type": "github"
+                },
+                {
+                    "url": "https://www.patreon.com/lcobucci",
+                    "type": "patreon"
+                }
+            ],
+            "time": "2025-10-17T11:30:53+00:00"
+        },
+        {
             "name": "league/container",
             "version": "4.2.5",
             "source": {
@@ -7681,6 +7819,344 @@
                 }
             ],
             "time": "2025-05-20T12:55:37+00:00"
+        },
+        {
+            "name": "league/event",
+            "version": "3.0.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/thephpleague/event.git",
+                "reference": "ec38ff7ea10cad7d99a79ac937fbcffb9334c210"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/thephpleague/event/zipball/ec38ff7ea10cad7d99a79ac937fbcffb9334c210",
+                "reference": "ec38ff7ea10cad7d99a79ac937fbcffb9334c210",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=7.2.0",
+                "psr/event-dispatcher": "^1.0"
+            },
+            "provide": {
+                "psr/event-dispatcher-implementation": "1.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^2.16",
+                "phpstan/phpstan": "^0.12.45",
+                "phpunit/phpunit": "^8.5"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "3.0-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "League\\Event\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Frank de Jonge",
+                    "email": "info@frenky.net"
+                }
+            ],
+            "description": "Event package",
+            "keywords": [
+                "emitter",
+                "event",
+                "listener"
+            ],
+            "support": {
+                "issues": "https://github.com/thephpleague/event/issues",
+                "source": "https://github.com/thephpleague/event/tree/3.0.3"
+            },
+            "time": "2024-09-04T16:06:53+00:00"
+        },
+        {
+            "name": "league/oauth2-server",
+            "version": "9.4.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/thephpleague/oauth2-server.git",
+                "reference": "9d2f6fc0a0b5aa1bb02506971d3a4ecff2c6526c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/thephpleague/oauth2-server/zipball/9d2f6fc0a0b5aa1bb02506971d3a4ecff2c6526c",
+                "reference": "9d2f6fc0a0b5aa1bb02506971d3a4ecff2c6526c",
+                "shasum": ""
+            },
+            "require": {
+                "defuse/php-encryption": "^2.4",
+                "ext-json": "*",
+                "ext-openssl": "*",
+                "lcobucci/jwt": "^5.6",
+                "league/event": "^3.0",
+                "league/uri": "^7.8",
+                "php": "~8.2.0 || ~8.3.0 || ~8.4.0 || ~8.5.0",
+                "psr/clock": "^1.0",
+                "psr/http-message": "^2.0",
+                "psr/http-server-middleware": "^1.0"
+            },
+            "replace": {
+                "league/oauth2server": "*",
+                "lncd/oauth2": "*"
+            },
+            "require-dev": {
+                "laminas/laminas-diactoros": "^3.8",
+                "paragonie/random_compat": "^9.99.100",
+                "php-parallel-lint/php-parallel-lint": "^1.4",
+                "phpstan/extension-installer": "^1.4.3",
+                "phpstan/phpstan": "^2.1.38",
+                "phpstan/phpstan-deprecation-rules": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0.12",
+                "phpstan/phpstan-strict-rules": "^2.0",
+                "phpunit/phpunit": "^11.5.50",
+                "roave/security-advisories": "dev-master",
+                "slevomat/coding-standard": "^8.27.1",
+                "squizlabs/php_codesniffer": "^4.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "League\\OAuth2\\Server\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Alex Bilbie",
+                    "email": "hello@alexbilbie.com",
+                    "homepage": "http://www.alexbilbie.com",
+                    "role": "Developer"
+                },
+                {
+                    "name": "Andy Millington",
+                    "email": "andrew@noexceptions.io",
+                    "homepage": "https://www.noexceptions.io",
+                    "role": "Developer"
+                }
+            ],
+            "description": "A lightweight and powerful OAuth 2.0 authorization and resource server library with support for all the core specification grants. This library will allow you to secure your API with OAuth and allow your applications users to approve apps that want to access their data from your API.",
+            "homepage": "https://oauth2.thephpleague.com/",
+            "keywords": [
+                "Authentication",
+                "api",
+                "auth",
+                "authorisation",
+                "authorization",
+                "oauth",
+                "oauth 2",
+                "oauth 2.0",
+                "oauth2",
+                "protect",
+                "resource",
+                "secure",
+                "server"
+            ],
+            "support": {
+                "issues": "https://github.com/thephpleague/oauth2-server/issues",
+                "source": "https://github.com/thephpleague/oauth2-server/tree/9.4.1"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/sephster",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-06-25T15:24:07+00:00"
+        },
+        {
+            "name": "league/uri",
+            "version": "7.8.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/thephpleague/uri.git",
+                "reference": "08cf38e3924d4f56238125547b5720496fac8fd4"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/thephpleague/uri/zipball/08cf38e3924d4f56238125547b5720496fac8fd4",
+                "reference": "08cf38e3924d4f56238125547b5720496fac8fd4",
+                "shasum": ""
+            },
+            "require": {
+                "league/uri-interfaces": "^7.8.1",
+                "php": "^8.1",
+                "psr/http-factory": "^1"
+            },
+            "conflict": {
+                "league/uri-schemes": "^1.0"
+            },
+            "suggest": {
+                "ext-bcmath": "to improve IPV4 host parsing",
+                "ext-dom": "to convert the URI into an HTML anchor tag",
+                "ext-fileinfo": "to create Data URI from file contennts",
+                "ext-gmp": "to improve IPV4 host parsing",
+                "ext-intl": "to handle IDN host with the best performance",
+                "ext-uri": "to use the PHP native URI class",
+                "jeremykendall/php-domain-parser": "to further parse the URI host and resolve its Public Suffix and Top Level Domain",
+                "league/uri-components": "to provide additional tools to manipulate URI objects components",
+                "league/uri-polyfill": "to backport the PHP URI extension for older versions of PHP",
+                "php-64bit": "to improve IPV4 host parsing",
+                "rowbot/url": "to handle URLs using the WHATWG URL Living Standard specification",
+                "symfony/polyfill-intl-idn": "to handle IDN host via the Symfony polyfill if ext-intl is not present"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "7.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "League\\Uri\\": ""
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Ignace Nyamagana Butera",
+                    "email": "nyamsprod@gmail.com",
+                    "homepage": "https://nyamsprod.com"
+                }
+            ],
+            "description": "URI manipulation library",
+            "homepage": "https://uri.thephpleague.com",
+            "keywords": [
+                "URN",
+                "data-uri",
+                "file-uri",
+                "ftp",
+                "hostname",
+                "http",
+                "https",
+                "middleware",
+                "parse_str",
+                "parse_url",
+                "psr-7",
+                "query-string",
+                "querystring",
+                "rfc2141",
+                "rfc3986",
+                "rfc3987",
+                "rfc6570",
+                "rfc8141",
+                "uri",
+                "uri-template",
+                "url",
+                "ws"
+            ],
+            "support": {
+                "docs": "https://uri.thephpleague.com",
+                "forum": "https://thephpleague.slack.com",
+                "issues": "https://github.com/thephpleague/uri-src/issues",
+                "source": "https://github.com/thephpleague/uri/tree/7.8.1"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/sponsors/nyamsprod",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-03-15T20:22:25+00:00"
+        },
+        {
+            "name": "league/uri-interfaces",
+            "version": "7.8.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/thephpleague/uri-interfaces.git",
+                "reference": "85d5c77c5d6d3af6c54db4a78246364908f3c928"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/thephpleague/uri-interfaces/zipball/85d5c77c5d6d3af6c54db4a78246364908f3c928",
+                "reference": "85d5c77c5d6d3af6c54db4a78246364908f3c928",
+                "shasum": ""
+            },
+            "require": {
+                "ext-filter": "*",
+                "php": "^8.1",
+                "psr/http-message": "^1.1 || ^2.0"
+            },
+            "suggest": {
+                "ext-bcmath": "to improve IPV4 host parsing",
+                "ext-gmp": "to improve IPV4 host parsing",
+                "ext-intl": "to handle IDN host with the best performance",
+                "php-64bit": "to improve IPV4 host parsing",
+                "rowbot/url": "to handle URLs using the WHATWG URL Living Standard specification",
+                "symfony/polyfill-intl-idn": "to handle IDN host via the Symfony polyfill if ext-intl is not present"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "7.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "League\\Uri\\": ""
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Ignace Nyamagana Butera",
+                    "email": "nyamsprod@gmail.com",
+                    "homepage": "https://nyamsprod.com"
+                }
+            ],
+            "description": "Common tools for parsing and resolving RFC3987/RFC3986 URI",
+            "homepage": "https://uri.thephpleague.com",
+            "keywords": [
+                "data-uri",
+                "file-uri",
+                "ftp",
+                "hostname",
+                "http",
+                "https",
+                "parse_str",
+                "parse_url",
+                "psr-7",
+                "query-string",
+                "querystring",
+                "rfc3986",
+                "rfc3987",
+                "rfc6570",
+                "uri",
+                "url",
+                "ws"
+            ],
+            "support": {
+                "docs": "https://uri.thephpleague.com",
+                "forum": "https://thephpleague.slack.com",
+                "issues": "https://github.com/thephpleague/uri-src/issues",
+                "source": "https://github.com/thephpleague/uri-interfaces/tree/7.8.1"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/sponsors/nyamsprod",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-03-08T20:05:35+00:00"
         },
         {
             "name": "marc-mabe/php-enum",
@@ -7873,16 +8349,16 @@
         },
         {
             "name": "mcp/sdk",
-            "version": "v0.6.0",
+            "version": "v0.8.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/modelcontextprotocol/php-sdk.git",
-                "reference": "433c84b58af346dd32f15f9909679e96a46ebe23"
+                "reference": "c5dbfb64e5a2a30872ec3927b4cf13a2eb05e10e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/modelcontextprotocol/php-sdk/zipball/433c84b58af346dd32f15f9909679e96a46ebe23",
-                "reference": "433c84b58af346dd32f15f9909679e96a46ebe23",
+                "url": "https://api.github.com/repos/modelcontextprotocol/php-sdk/zipball/c5dbfb64e5a2a30872ec3927b4cf13a2eb05e10e",
+                "reference": "c5dbfb64e5a2a30872ec3927b4cf13a2eb05e10e",
                 "shasum": ""
             },
             "require": {
@@ -7900,6 +8376,7 @@
                 "psr/http-server-handler": "^1.0",
                 "psr/http-server-middleware": "^1.0",
                 "psr/log": "^1.0 || ^2.0 || ^3.0",
+                "symfony/deprecation-contracts": "^2.5 || ^3.0",
                 "symfony/uid": "^5.4 || ^6.4 || ^7.3 || ^8.0"
             },
             "require-dev": {
@@ -7951,9 +8428,9 @@
             "description": "Model Context Protocol SDK for Client and Server applications in PHP",
             "support": {
                 "issues": "https://github.com/modelcontextprotocol/php-sdk/issues",
-                "source": "https://github.com/modelcontextprotocol/php-sdk/tree/v0.6.0"
+                "source": "https://github.com/modelcontextprotocol/php-sdk/tree/v0.8.1"
             },
-            "time": "2026-06-02T15:47:04+00:00"
+            "time": "2026-08-29T23:10:56+00:00"
         },
         {
             "name": "mtownsend/xml-to-array",
@@ -8255,6 +8732,56 @@
                 "source": "https://github.com/opis/uri/tree/1.1.0"
             },
             "time": "2021-05-22T15:57:08+00:00"
+        },
+        {
+            "name": "paragonie/random_compat",
+            "version": "v9.99.100",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/paragonie/random_compat.git",
+                "reference": "996434e5492cb4c3edcb9168db6fbb1359ef965a"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/paragonie/random_compat/zipball/996434e5492cb4c3edcb9168db6fbb1359ef965a",
+                "reference": "996434e5492cb4c3edcb9168db6fbb1359ef965a",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">= 7"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "4.*|5.*",
+                "vimeo/psalm": "^1"
+            },
+            "suggest": {
+                "ext-libsodium": "Provides a modern crypto API that can be used to generate random bytes."
+            },
+            "type": "library",
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Paragon Initiative Enterprises",
+                    "email": "security@paragonie.com",
+                    "homepage": "https://paragonie.com"
+                }
+            ],
+            "description": "PHP 5.x polyfill for random_bytes() and random_int() from PHP 7",
+            "keywords": [
+                "csprng",
+                "polyfill",
+                "pseudorandom",
+                "random"
+            ],
+            "support": {
+                "email": "info@paragonie.com",
+                "issues": "https://github.com/paragonie/random_compat/issues",
+                "source": "https://github.com/paragonie/random_compat"
+            },
+            "time": "2020-10-15T08:29:30+00:00"
         },
         {
             "name": "pear/archive_tar",
@@ -8744,20 +9271,25 @@
         },
         {
             "name": "phpdocumentor/reflection-common",
-            "version": "2.2.0",
+            "version": "2.2.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpDocumentor/ReflectionCommon.git",
-                "reference": "1d01c49d4ed62f25aa84a747ad35d5a16924662b"
+                "reference": "ee15a5a2022c8383906b225055e9496a6a5e6e3b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpDocumentor/ReflectionCommon/zipball/1d01c49d4ed62f25aa84a747ad35d5a16924662b",
-                "reference": "1d01c49d4ed62f25aa84a747ad35d5a16924662b",
+                "url": "https://api.github.com/repos/phpDocumentor/ReflectionCommon/zipball/ee15a5a2022c8383906b225055e9496a6a5e6e3b",
+                "reference": "ee15a5a2022c8383906b225055e9496a6a5e6e3b",
                 "shasum": ""
             },
             "require": {
-                "php": "^7.2 || ^8.0"
+                "php": "^7.4 || ^8.0"
+            },
+            "require-dev": {
+                "phpstan/phpstan": "^1.8",
+                "phpunit/phpunit": "^9.5",
+                "vimeo/psalm": "^4.25"
             },
             "type": "library",
             "extra": {
@@ -8781,7 +9313,7 @@
                 }
             ],
             "description": "Common reflection classes used by phpdocumentor to reflect the code structure",
-            "homepage": "http://www.phpdoc.org",
+            "homepage": "https://www.phpdoc.org",
             "keywords": [
                 "FQSEN",
                 "phpDocumentor",
@@ -8791,9 +9323,9 @@
             ],
             "support": {
                 "issues": "https://github.com/phpDocumentor/ReflectionCommon/issues",
-                "source": "https://github.com/phpDocumentor/ReflectionCommon/tree/2.x"
+                "source": "https://github.com/phpDocumentor/ReflectionCommon/tree/2.2.1"
             },
-            "time": "2020-06-27T09:03:43+00:00"
+            "time": "2025-11-10T21:21:55+00:00"
         },
         {
             "name": "phpdocumentor/reflection-docblock",
@@ -8862,16 +9394,16 @@
         },
         {
             "name": "phpdocumentor/type-resolver",
-            "version": "2.0.0",
+            "version": "2.1.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpDocumentor/TypeResolver.git",
-                "reference": "327a05bbee54120d4786a0dc67aad30226ad4cf9"
+                "reference": "dbe2133bb23e2e33a6834f4ed417f24a1b167769"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpDocumentor/TypeResolver/zipball/327a05bbee54120d4786a0dc67aad30226ad4cf9",
-                "reference": "327a05bbee54120d4786a0dc67aad30226ad4cf9",
+                "url": "https://api.github.com/repos/phpDocumentor/TypeResolver/zipball/dbe2133bb23e2e33a6834f4ed417f24a1b167769",
+                "reference": "dbe2133bb23e2e33a6834f4ed417f24a1b167769",
                 "shasum": ""
             },
             "require": {
@@ -8914,9 +9446,9 @@
             "description": "A PSR-5 based resolver of Class names, Types and Structural Element Names",
             "support": {
                 "issues": "https://github.com/phpDocumentor/TypeResolver/issues",
-                "source": "https://github.com/phpDocumentor/TypeResolver/tree/2.0.0"
+                "source": "https://github.com/phpDocumentor/TypeResolver/tree/2.1.0"
             },
-            "time": "2026-01-06T21:53:42+00:00"
+            "time": "2026-09-27T19:32:54+00:00"
         },
         {
             "name": "phpowermove/docblock",
@@ -8972,16 +9504,16 @@
         },
         {
             "name": "phpstan/phpdoc-parser",
-            "version": "2.3.5",
+            "version": "2.3.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpdoc-parser.git",
-                "reference": "148cefffaf0233e4c08cc13db8a195a56dd6dfe9"
+                "reference": "1427af4647235b4a73b13940b1f1258d3584f36e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/148cefffaf0233e4c08cc13db8a195a56dd6dfe9",
-                "reference": "148cefffaf0233e4c08cc13db8a195a56dd6dfe9",
+                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/1427af4647235b4a73b13940b1f1258d3584f36e",
+                "reference": "1427af4647235b4a73b13940b1f1258d3584f36e",
                 "shasum": ""
             },
             "require": {
@@ -9013,9 +9545,9 @@
             "description": "PHPDoc parser with support for nullable, intersection and generic types",
             "support": {
                 "issues": "https://github.com/phpstan/phpdoc-parser/issues",
-                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.5"
+                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.6"
             },
-            "time": "2026-08-31T16:05:28+00:00"
+            "time": "2026-09-27T20:07:45+00:00"
         },
         {
             "name": "psr/clock",
@@ -10061,6 +10593,52 @@
                 "source": "https://github.com/Seldaek/signal-handler/tree/2.0.2"
             },
             "time": "2023-09-03T09:24:00+00:00"
+        },
+        {
+            "name": "steverhoades/oauth2-openid-connect-server",
+            "version": "v3.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/steverhoades/oauth2-openid-connect-server.git",
+                "reference": "f20665aeeeec78fb336c1bc89e8152b4b2380221"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/steverhoades/oauth2-openid-connect-server/zipball/f20665aeeeec78fb336c1bc89e8152b4b2380221",
+                "reference": "f20665aeeeec78fb336c1bc89e8152b4b2380221",
+                "shasum": ""
+            },
+            "require": {
+                "lcobucci/jwt": "4.1.5|^4.2|^4.3|^5.0",
+                "league/oauth2-server": "^8.4.2|^9.0",
+                "php": ">=7.4"
+            },
+            "require-dev": {
+                "laminas/laminas-diactoros": "^1.3.2 || ^3.3",
+                "phpunit/phpunit": "^5.0|^9.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "OpenIDConnectServer\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Steve Rhoades",
+                    "email": "sedonami@gmail.com"
+                }
+            ],
+            "description": "An OpenID Connect Server that sites on The PHP League's OAuth2 Server",
+            "support": {
+                "issues": "https://github.com/steverhoades/oauth2-openid-connect-server/issues",
+                "source": "https://github.com/steverhoades/oauth2-openid-connect-server/tree/v3.0.1"
+            },
+            "time": "2024-09-26T16:19:13+00:00"
         },
         {
             "name": "symfony/console",
@@ -13683,9 +14261,12 @@
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {
+        "drupal/agent_access": 15,
         "drupal/mcp_server": 10,
-        "drupal/mcp_tools": 10,
+        "drupal/mcp_server_oauth-mcp_server_oauth": 15,
+        "drupal/mcp_server_tool_bridge": 10,
         "drupal/tool": 20,
+        "drupal/tool_belt": 15,
         "drupal/wordpal": 20
     },
     "prefer-stable": true,

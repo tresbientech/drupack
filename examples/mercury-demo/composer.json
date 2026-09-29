@@ -23,6 +23,7 @@
         "php": "~8.5.0",
         "ext-pdo_sqlite": "*",
         "composer/installers": "^2.3",
+        "drupal/agent_access": "1.0.0-alpha2",
         "drupal/canvas": "1.12.0",
         "drupal/core-composer-scaffold": "^11.4",
         "drupal/core-project-message": "^11.4",
@@ -32,9 +33,11 @@
         "drupal/drupal_cms_installer": "2.2.0",
         "drupal/drupal_cms_search": "2.2.0",
         "drupal/mcp_server": "^2.0@beta",
-        "drupal/mcp_tools": "^1.0@beta",
+        "drupal/mcp_server_oauth-mcp_server_oauth": "^1.0@alpha",
+        "drupal/mcp_server_tool_bridge": "^1.0@beta",
         "drupal/mercury_demo": "1.1.0",
         "drupal/tool": "^1.0@dev",
+        "drupal/tool_belt": "^1.0@alpha",
         "drupal/wordpal": "dev-main",
         "drush/drush": "^13.6",
         "twig/twig": "3.29.0"
@@ -49,11 +52,6 @@
             "drupal/core-vendor-hardening": true,
             "php-http/discovery": true,
             "symfony/runtime": true
-        },
-        "audit": {
-            "ignore": {
-                "PKSA-p9gd-j6gr-6f9t": "Affects Mcp\\Client\\Transport\\HttpTransport; drupal/mcp_tools and drupal/mcp_server use Mcp\\Server only."
-            }
         },
         "platform": {"php": "8.5.10"},
         "sort-packages": true,

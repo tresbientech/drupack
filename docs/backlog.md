@@ -94,13 +94,6 @@ Each image is about 1.4 GB, and nothing deletes one. A tag also adds
 `drupack-build:<version>`. Lean: keep every version tag, and delete `dev-` tags
 older than a few weeks.
 
-## Whether Mercury still needs its MCP packages
-
-The engine no longer enables `mcp_tools`, but Mercury's `composer.json` still
-requires `drupal/mcp_tools` and `drupal/mcp_server`. They ship in every Mercury
-executable. Lean: drop both from the example unless its recipe enables them,
-which is Mercury's decision rather than the engine's.
-
 ## Whether automatic_updates still stalls cron
 
 `build/seed.sh` uninstalls `automatic_updates` because it stalled a cron request,
