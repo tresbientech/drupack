@@ -102,6 +102,11 @@ func (n *Node) UnmarshalJSON(content []byte) error {
 	return fmt.Errorf("node: %s is not true, false, a major version such as 24, or a version such as 24.21.0", content)
 }
 
+// Exact reports whether n names one MAJOR.MINOR.PATCH release.
+func (n Node) Exact() bool {
+	return nodeVersionRe.MatchString(string(n))
+}
+
 // MarshalJSON writes the form drupack.yml takes, so the parsed contract reads back as written.
 func (n Node) MarshalJSON() ([]byte, error) {
 	if n == NodeLTS {

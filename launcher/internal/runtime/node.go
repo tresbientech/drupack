@@ -1,8 +1,10 @@
 package runtime
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -31,8 +33,11 @@ func PrepareNode(root string, payload []byte, m Manifest, notice io.Writer) (str
 func CleanNode(root string, dry bool, out io.Writer) error {
 	nodeRoot := NodeRoot(root)
 	entries, err := os.ReadDir(nodeRoot)
-	if err != nil {
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 	unlock, err := lockRoot(nodeRoot)
 	if err != nil {

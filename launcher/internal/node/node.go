@@ -41,16 +41,14 @@ const dist = "https://nodejs.org/dist"
 // list, and the end of its archive's name.
 type build struct{ index, archive string }
 
-// builds maps each target to its Node build. A musl target maps to none:
-// Node publishes no official musl build for arm64.
+// builds maps each target to its Node build. A musl target has no entry and
+// carries no Node: Node publishes no official musl build for arm64.
 var builds = map[string]build{
-	"linux-amd64":      {"linux-x64", "linux-x64.tar.gz"},
-	"linux-arm64":      {"linux-arm64", "linux-arm64.tar.gz"},
-	"linux-amd64-musl": {},
-	"linux-arm64-musl": {},
-	"macos-amd64":      {"osx-x64-tar", "darwin-x64.tar.gz"},
-	"macos-arm64":      {"osx-arm64-tar", "darwin-arm64.tar.gz"},
-	"windows-amd64":    {"win-x64-zip", "win-x64.zip"},
+	"linux-amd64":   {"linux-x64", "linux-x64.tar.gz"},
+	"linux-arm64":   {"linux-arm64", "linux-arm64.tar.gz"},
+	"macos-amd64":   {"osx-x64-tar", "darwin-x64.tar.gz"},
+	"macos-arm64":   {"osx-arm64-tar", "darwin-arm64.tar.gz"},
+	"windows-amd64": {"win-x64-zip", "win-x64.zip"},
 }
 
 // Archive returns the path Resolve writes target's archive to under dir, and
@@ -126,10 +124,7 @@ func Resolve(r Request) (Resolution, error) {
 
 	names := map[string]string{}
 	for _, target := range r.Targets {
-		build, ok := builds[target]
-		if !ok {
-			return Resolution{}, fmt.Errorf("no Node build is mapped for target %s", target)
-		}
+		build := builds[target]
 		if build.index == "" {
 			continue
 		}
@@ -183,7 +178,7 @@ func choose(value siteconfig.Node, releases []release) (release, string, error) 
 		switch {
 		case value == siteconfig.NodeLTS:
 			_, admitted = candidate.LTS.(string)
-		case strings.Contains(string(value), "."):
+		case value.Exact():
 			admitted = string(value) == strings.TrimPrefix(candidate.Version, "v")
 		default:
 			admitted = string(value) == parts[1]
@@ -196,7 +191,7 @@ func choose(value siteconfig.Node, releases []release) (release, string, error) 
 		switch {
 		case value == siteconfig.NodeLTS:
 			return release{}, "", errors.New("the Node release index names no LTS release")
-		case strings.Contains(string(value), "."):
+		case value.Exact():
 			return release{}, "", fmt.Errorf("node %s is not in the Node release index", value)
 		default:
 			return release{}, "", fmt.Errorf("node %s names no release in the Node release index", value)
