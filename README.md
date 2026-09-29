@@ -150,6 +150,27 @@ The site speaks plain HTTP. A listener beyond loopback, such as `--listen 0.0.0.
 ./mercury-demo drush pm:list --status=enabled
 ```
 
+## Convert a WordPress theme
+
+The Mercury Demo carries WordPal, which converts a WordPress block theme into a Drupal theme and Canvas pages. Convert a theme, then start the site:
+
+```sh
+./mercury-demo drush wpc twentytwentyfour --target=canvas
+./mercury-demo
+```
+
+The argument is a wordpress.org theme slug, a path to a theme zip, or an https URL to one. The next start serves the converted theme as the default theme.
+
+The theme lands in `web/themes/custom` and its recipe in `recipes`. Both sit in the site's own copy of the application, in Site data, and a newer release keeps them.
+
+Conversion runs WordPress in WordPress Playground, so it needs network access to wordpress.org and npm. On Linux it needs the glibc build, because the musl build carries no Node.
+
+A demo installed before this release runs `wpc` only after enabling the converter once:
+
+```sh
+./mercury-demo drush pm:install wordpal_canvas
+```
+
 ## Site data
 
 Site data lives in the `data` directory. It holds your database, uploads, private files, configuration exports and generated settings. Copy that directory to back your site up, with the site stopped. Keep the copy private: it holds your content and your site's secrets.

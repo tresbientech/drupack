@@ -78,9 +78,9 @@ network access to wordpress.org and npm, and the glibc build on Linux.
 
 ### Acceptance criteria
 
-- [ ] `grep -n 'wpc' README.md` finds the conversion command and the enable
-      command.
-- [ ] The README names wordpress.org, npm and the glibc build.
+- [x] `grep -n 'wpc' README.md` finds the conversion command and the enable
+      command. For the enable command, grep finds the sentence three lines above it.
+- [x] The README names wordpress.org, npm and the glibc build.
 
 ---
 
