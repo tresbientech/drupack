@@ -133,9 +133,9 @@ WordPal commit.
 
 ### Acceptance criteria
 
-- [ ] WordPal's `SiteSetupTest` passes with no `recipes/wordpal` in the fixture project.
-- [ ] `grep -c "recipes/wordpal" examples/mercury-demo/composer.json` prints 0 on the branch.
-- [ ] The branch's `WordPalConversion` site case passes.
+- [x] WordPal's `SiteSetupTest` passes with no `recipes/wordpal` in the fixture project.
+- [x] `grep -c "recipes/wordpal" examples/mercury-demo/composer.json` prints 0 on the branch.
+- [x] The branch's `WordPalConversion` site case passes.
 
 ---
 
