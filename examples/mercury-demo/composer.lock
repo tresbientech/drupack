@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0fe673c5570dda3578795919df341c7c",
+    "content-hash": "8550f57bb71d85156f3c4f8782ebc9d6",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -6627,22 +6627,9 @@
             "source": {
                 "type": "git",
                 "url": "/home/theodore/DEV/DRUPAL/wordpal",
-                "reference": "e8edd3a033efed9062d5ed1ab8e718df85e1249b"
+                "reference": "36020bb584645064d85efd1ccf446a5340ef0b36"
             },
-            "type": "drupal-module",
-            "extra": {
-                "drupal-scaffold": {
-                    "file-mapping": {
-                        "[project-root]/recipes/wordpal/recipe.yml": "recipes/wordpal/recipe.yml",
-                        "[project-root]/recipes/wordpal/config/core.entity_form_display.node.blog.default.yml": "recipes/wordpal/config/core.entity_form_display.node.blog.default.yml",
-                        "[project-root]/recipes/wordpal/config/field.field.node.blog.field_content.yml": "recipes/wordpal/config/field.field.node.blog.field_content.yml",
-                        "[project-root]/recipes/wordpal/config/field.field.node.blog.field_description.yml": "recipes/wordpal/config/field.field.node.blog.field_description.yml",
-                        "[project-root]/recipes/wordpal/config/field.field.node.blog.field_featured_image.yml": "recipes/wordpal/config/field.field.node.blog.field_featured_image.yml",
-                        "[project-root]/recipes/wordpal/config/field.field.node.blog.field_tags.yml": "recipes/wordpal/config/field.field.node.blog.field_tags.yml",
-                        "[project-root]/recipes/wordpal/config/node.type.blog.yml": "recipes/wordpal/config/node.type.blog.yml"
-                    }
-                }
-            }
+            "type": "drupal-module"
         },
         {
             "name": "drupal/yoast_seo",
