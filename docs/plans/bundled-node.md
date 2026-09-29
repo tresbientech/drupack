@@ -133,4 +133,4 @@ keyring rule.
 - [x] `git grep -n 'node:' docs/` finds the contract reference entry.
 - [x] The CLI reference names `node`, `npm` and `npx`.
 - [x] ADR 0027 exists and names the keyring update the build asks for.
-- [ ] `bash build/qa.sh` passes, and `.git/qa-green` records it.
+- [x] `bash build/qa.sh` passes, and `.git/qa-green` records it.
