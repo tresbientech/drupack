@@ -44,7 +44,7 @@ func buildFixture(t *testing.T) ([]byte, runtimepkg.Manifest) {
 // prepareAndActivate runs a start's runtime steps, the way PrepareRelease runs
 // them around a ready application.
 func prepareAndActivate(root string, payload []byte, m runtimepkg.Manifest, notice io.Writer) (string, error) {
-	entry, err := runtimepkg.Prepare(root, payload, m, notice, func(string) {})
+	entry, err := runtimepkg.Prepare(root, payload, m, notice, func(string) error { return nil })
 	if err != nil {
 		return "", err
 	}

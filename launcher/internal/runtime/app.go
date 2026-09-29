@@ -46,7 +46,7 @@ func AppRoot(root string) string {
 // happens under the root lock, into a staging directory that moves into place
 // once the marker is written, so a start interrupted halfway leaves nothing a
 // later start mistakes for a finished copy.
-func PrepareApp(root, checksum string, payload []byte, notice io.Writer, hold func(entry string)) (string, error) {
+func PrepareApp(root, checksum string, payload []byte, notice io.Writer, hold func(entry string) error) (string, error) {
 	if !SingleElement(checksum) || len(checksum) < 12 {
 		return "", fmt.Errorf("application checksum is not a single path element: %q", checksum)
 	}
@@ -75,7 +75,9 @@ func PrepareApp(root, checksum string, payload []byte, notice io.Writer, hold fu
 	}
 	// hold runs before the deferred unlock, so no sweep takes the lock and finds
 	// the entry unmarked.
-	hold(entry)
+	if err := hold(entry); err != nil {
+		return "", err
+	}
 	sweepApps(appRoot, name, time.Now())
 	return entry, nil
 }

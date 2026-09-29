@@ -50,10 +50,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	// Both directories stay in use until this process ends, which on unix is the
-	// exec below and on Windows the wait for the child. Cleanup reads the markers
-	// and leaves a running site's files alone. PrepareRelease already holds both
-	// markers, since they must be held before the cache locks release.
 	if err := prepareNode(root); err != nil {
 		return err
 	}

@@ -17,7 +17,7 @@ type Release struct {
 // PrepareRelease readies r's runtime and application under root and returns
 // both directories, calling hold on each before its cache lock releases. The
 // runtime turns active once both are ready, so a failed step leaves the release an earlier start activated in place.
-func PrepareRelease(root string, r Release, notice io.Writer, hold func(entry string)) (string, string, error) {
+func PrepareRelease(root string, r Release, notice io.Writer, hold func(entry string) error) (string, string, error) {
 	runtimeDir, err := Prepare(root, r.Payload, r.Manifest, notice, hold)
 	if err != nil {
 		return "", "", r.failure("runtime", err)

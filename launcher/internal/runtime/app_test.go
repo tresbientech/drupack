@@ -123,7 +123,9 @@ func TestHoldsUsageForAnotherProcess(t *testing.T) {
 	if entry == "" {
 		t.Skip("child process of TestCleanupKeepsAnEntryARunningStartHolds")
 	}
-	HoldUsage(entry)
+	if err := HoldUsage(entry); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(os.Getenv(holdAckVariable), nil, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +234,7 @@ func TestPrepareAppUnpacksAnEmptyArchive(t *testing.T) {
 	}
 
 	notice := &bytes.Buffer{}
-	entry, err := PrepareApp(root, "abc123def4567890", payload.Bytes(), notice, func(string) {})
+	entry, err := PrepareApp(root, "abc123def4567890", payload.Bytes(), notice, func(string) error { return nil })
 	if err != nil {
 		t.Fatalf("PrepareApp failed: %v", err)
 	}
@@ -244,7 +246,7 @@ func TestPrepareAppUnpacksAnEmptyArchive(t *testing.T) {
 	}
 
 	notice.Reset()
-	if _, err := PrepareApp(root, "abc123def4567890", payload.Bytes(), notice, func(string) {}); err != nil {
+	if _, err := PrepareApp(root, "abc123def4567890", payload.Bytes(), notice, func(string) error { return nil }); err != nil {
 		t.Fatalf("the second PrepareApp failed: %v", err)
 	}
 	if notice.Len() != 0 {
@@ -314,7 +316,7 @@ func TestPrepareNodeUnpacksOnceUnderTheNodeDirectory(t *testing.T) {
 	}
 	root := t.TempDir()
 	var notice bytes.Buffer
-	entry, err := PrepareNode(root, payload, m, &notice, func(string) {})
+	entry, err := PrepareNode(root, payload, m, &notice, func(string) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +328,7 @@ func TestPrepareNodeUnpacksOnceUnderTheNodeDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	notice.Reset()
-	if again, err := PrepareNode(root, payload, m, &notice, func(string) {}); err != nil || again != entry || notice.Len() != 0 {
+	if again, err := PrepareNode(root, payload, m, &notice, func(string) error { return nil }); err != nil || again != entry || notice.Len() != 0 {
 		t.Fatalf("a second PrepareNode = %s, %v, printed %q", again, err, notice.String())
 	}
 	if after, _ := os.Stat(entry); !after.ModTime().Equal(before.ModTime()) {

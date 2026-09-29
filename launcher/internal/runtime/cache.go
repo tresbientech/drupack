@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -24,6 +25,11 @@ const stagingPrefix = ".staging-"
 // serializes staging. Both live in the cache root, beside the entries.
 const activeName = "active"
 const lockName = "lock"
+
+// holdAttempts and holdRetryInterval bound how long HoldUsage waits out an
+// entryInUse test of the same marker, which briefly locks it exclusively.
+const holdAttempts = 50
+const holdRetryInterval = 10 * time.Millisecond
 
 // usageName lives inside one entry, runtime or application, and carries the
 // lock a running start holds on the files it serves from. Cleanup tests it
@@ -135,20 +141,26 @@ func Key(version string, payload []byte) string {
 // payload into root's cache the first time m's version and payload are seen.
 // It calls hold on the entry before the root lock releases, and hold marks the
 // entry in use for the rest of the process (HoldUsage), so an Activate by
-// another release cannot remove the entry before this start runs from it.
+// another release cannot remove the entry before this start runs from it. A
+// hold error stops the start. Production passes HoldUsage; hold is a seam for
+// tests, since a real Windows hold keeps a handle that blocks t.TempDir cleanup.
 // It activates nothing: Activate does, once the application is ready too. A
 // start that cannot stage the runtime it carries reports the failure and
 // stops, since the application beside it belongs to this release alone.
-func Prepare(root string, payload []byte, m Manifest, notice io.Writer, hold func(entry string)) (string, error) {
+func Prepare(root string, payload []byte, m Manifest, notice io.Writer, hold func(entry string) error) (string, error) {
 	return prepare(root, "runtime", payload, m, notice, hold)
 }
 
 // prepare stages payload into root as the entry m describes, once, and names
 // what it unpacks as what in its notice.
-func prepare(root, what string, payload []byte, m Manifest, notice io.Writer, hold func(entry string)) (string, error) {
+func prepare(root, what string, payload []byte, m Manifest, notice io.Writer, hold func(entry string) error) (string, error) {
 	key := Key(m.Version, payload)
 
-	if entry, ok := holdWarm(root, key, m, hold); ok {
+	entry, ok, err := holdWarm(root, key, m, hold)
+	if err != nil {
+		return "", err
+	}
+	if ok {
 		return entry, nil
 	}
 
@@ -159,7 +171,11 @@ func prepare(root, what string, payload []byte, m Manifest, notice io.Writer, ho
 	defer unlock()
 
 	// Another process may have finished staging while this one waited on the lock.
-	if entry, ok := holdWarm(root, key, m, hold); ok {
+	entry, ok, err = holdWarm(root, key, m, hold)
+	if err != nil {
+		return "", err
+	}
+	if ok {
 		return entry, nil
 	}
 
@@ -171,8 +187,10 @@ func prepare(root, what string, payload []byte, m Manifest, notice io.Writer, ho
 	}
 	// hold runs before the deferred unlock, so no Activate takes the lock and
 	// finds the entry unmarked.
-	entry := filepath.Join(root, name)
-	hold(entry)
+	entry = filepath.Join(root, name)
+	if err := hold(entry); err != nil {
+		return "", err
+	}
 	return entry, nil
 }
 
@@ -181,13 +199,19 @@ func prepare(root, what string, payload []byte, m Manifest, notice io.Writer, ho
 // it deletes it, and this runs without the root lock when it is the first
 // look, so a removal that beat the hold leaves the entry missing here and the
 // caller stages afresh.
-func holdWarm(root, key string, m Manifest, hold func(entry string)) (string, bool) {
+func holdWarm(root, key string, m Manifest, hold func(entry string) error) (string, bool, error) {
 	entry, ok := warmEntry(root, key, m)
 	if !ok {
-		return "", false
+		return "", false, nil
 	}
-	hold(entry)
-	return entry, warm(entry, m)
+	if err := hold(entry); err != nil {
+		// A removal that beat the hold is the case above, not a failure.
+		if _, statErr := os.Stat(entry); statErr != nil {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return entry, warm(entry, m), nil
 }
 
 // Activate names entry, a directory Prepare returned, as root's active runtime
@@ -300,6 +324,8 @@ func removeOthers(root, key string) {
 				continue
 			}
 			if entryInUse(doomed) {
+				// A failed rename back leaves the entry whole under its staging name,
+				// and the next call tests its marker there before it removes anything.
 				os.Rename(doomed, path)
 				continue
 			}
