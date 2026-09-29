@@ -5,7 +5,7 @@
 # sources.
 
 APP_DIR        writers=launcher/main.go,application/launch.php,build/seed.sh,build/dev/dev-entry.sh  readers=runtime/entrypoint.go,application/launch.php,application/settings.php
-BINARY         writers=runtime/entrypoint.go  readers=application/launch.php,engine/serve.php,engine/php.php
+BINARY         writers=runtime/entrypoint.go  readers=application/launch.php,engine/serve.php
 CONSOLE_OWNED  writers=launcher/launch_windows.go  readers=application/launch.php
 CWD            writers=runtime/entrypoint.go  readers=application/launch.php,runtime/entrypoint.go
 DATA_DIR       writers=application/launch.php,build/seed.sh  readers=application/settings.php,build/site-settings.php

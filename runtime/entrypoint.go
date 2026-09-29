@@ -145,6 +145,32 @@ func siteCarriesNode() bool {
 	return site.Node != ""
 }
 
+const phpUsage = `Usage: %[1]s php SCRIPT [ARGUMENTS]
+       %[1]s php -r CODE`
+
+// phpArguments turns the Engine executable's php command into php-cli's, which
+// reads no PHP option and passes -r code no $argv. The arguments come from the
+// reader or from Drush, so any other form stops here, before PHP starts.
+func phpArguments(arguments []string) []string {
+	var refusal string
+	switch {
+	case len(arguments) == 0:
+		refusal = "php takes a script or -r CODE."
+	case arguments[0] == "-r" && len(arguments) == 1:
+		refusal = "php -r takes CODE."
+	case arguments[0] == "-r" && len(arguments) > 2:
+		refusal = fmt.Sprintf("php -r CODE takes no argument after CODE, and %s follows it.", arguments[2])
+	case arguments[0] != "-r" && strings.HasPrefix(arguments[0], "-"):
+		refusal = fmt.Sprintf("php option %s is not supported.", arguments[0])
+	default:
+		return append([]string{"php-cli"}, arguments...)
+	}
+	fmt.Fprintf(os.Stderr, "%s\n\n", refusal)
+	fmt.Fprintf(os.Stderr, phpUsage+"\n", siteName())
+	os.Exit(1)
+	return nil
+}
+
 // readinessPath answers 204 for a request carrying this site's own identity token, and 404
 // for anything else. The Caddyfile serves it without reaching Drupal, so it
 // costs the readiness poll in watch.go no page render and no session.
@@ -234,6 +260,12 @@ func init() {
 		if err := os.Chdir(application); err != nil {
 			panic(err)
 		}
+	}
+	// The Engine executable alone has no application, and a Packaged site's
+	// command line has no php word.
+	if application == "" && len(os.Args) > 1 && os.Args[1] == "php" {
+		os.Args = append([]string{os.Args[0]}, phpArguments(os.Args[2:])...)
+		return
 	}
 	// launch.php replaces itself with this command to serve the site, naming the
 	// Caddyfile it wrote into Site data.

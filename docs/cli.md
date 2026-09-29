@@ -162,7 +162,8 @@ Two variables have no option:
 drupack [DIR] [--listen IP:PORT]
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
-drupack php [PHP_OPTIONS] SCRIPT|-r CODE [ARGUMENTS]
+drupack php SCRIPT [ARGUMENTS]
+drupack php -r CODE
 drupack clean [--dry-run]
 drupack --help
 drupack --version
@@ -192,17 +193,15 @@ that holds `vendor/autoload.php`. Drush's child processes find a `php` on
 `dr` runs Drupal core's own command line, `vendor/bin/dr`, of the same
 project, the same way. Drupal 11.4 and later ship it.
 
-`php` runs a script, or `-r` code, on the bundled PHP, from the working
-directory. It takes these options of php's own command line:
+`php` runs PHP from the working directory, in one of two forms:
 
-- `-d SETTING`, repeated, which reaches a script at startup
-- `-v`, `-m`, `-i`, `--ini` and `--ri EXTENSION`
-- `-l FILE`, which checks one file's syntax
-- `-f FILE`, `-h`, and `-q` and `-H`, which change nothing
+- `SCRIPT [ARGUMENTS]` runs the script with its arguments, and exits with its status.
+- `-r CODE` runs the code, which gets no `$argv`.
 
-It refuses any other option by name, such as `-S`, `-n` or `-c`, and reads no
-script from standard input. Drush's child processes reach the same command
-through the `php` on `PATH`.
+Any other option stops before PHP starts, with a message naming it and the two
+forms. That covers `-d`, `-l`, `-v`, `-m`, `-i`, `--ini`, `--ri`, `-f`, `-h`
+and `-S`. An argument after `-r CODE` stops the same way. Drush's child
+processes reach the same command through the `php` on `PATH`.
 
 `clean` removes the unpacked engine files from the cache.
 
