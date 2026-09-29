@@ -38,6 +38,7 @@ platforms: [linux-amd64]   # targets: linux-amd64, linux-arm64
 libc: both                 # Linux files, one per C library: both, glibc or musl
 extensions: [gmp]          # PHP extensions the site adds to the engine's
 writable: [recipes]        # directories the site writes at runtime
+node: true                 # the Node release the site carries, none by default
 ```
 
 `settings` names a PHP file in the site. The build stops when the file is
@@ -151,7 +152,31 @@ copy. An entry the release ships takes the release's version. A write outside
 the listed directories is lost.
 
 `drush` runs with the environment it was started in, so a command finds the tools
-on the reader's `PATH`.
+on the reader's `PATH`. A site that carries Node puts its release first there.
+
+## A site that runs Node
+
+A site whose Drush commands run Node programs names a release in `node`:
+
+- `node: true` takes the newest LTS release when the site is built.
+- `node: 24` takes the newest 24.x release.
+- `node: 24.21.0` takes that release.
+
+Absent or `false` means no Node. The build refuses any other value and names
+the accepted forms.
+
+The build reads nodejs.org's release index and prints the exact version. It
+writes that version to `site.json` as `node`. A version with no build for one
+of the targets stops the build and names the target.
+
+The build checks the signature on the release's `SHASUMS256.txt` against
+Node's release keys, which Drupack keeps. It then checks each archive's
+SHA-256. Any failure stops the build.
+
+Each glibc Linux, macOS and Windows file carries the release. A musl file
+carries none. The site's server and `drush` find the release first on `PATH`.
+A reader runs it as `SITE node`, `SITE npm` and `SITE npx`, which
+[the CLI reference](cli.md) describes.
 
 ## Private Composer packages
 
