@@ -4,14 +4,18 @@ Proposed on 2026-09-29. Not implemented.
 
 ## Goal
 
-Make `drupack php` and the PHP commands started by Drush preserve the supported
-PHP CLI behavior without trusting shared temporary files. Remove the extra
-PHP startup for ordinary scripts. Keep Windows cache-path selection, with
-native tests for its interaction with command-line settings.
+Make the Engine executable's `drupack php`, and the PHP commands Drush starts
+through it, keep the supported PHP CLI behavior without trusting shared
+temporary files. Remove the extra PHP startup for ordinary scripts. Keep
+Windows cache-path selection, with native tests for its interaction with
+command-line settings.
+
+A Packaged site has no `php` command and puts no PHP alias on PATH, so this
+RFC leaves it unchanged.
 
 This proposal follows a read-only review of commit
 `69ac4e17e78b616224be47ae2ef69c8c80117ba8`. The review covered the PHP wrappers
-and Windows short-path selection.
+and Windows short-path selection. Those files are unchanged at `9728499`.
 
 ## Current routing
 
@@ -23,7 +27,8 @@ it runs a Project folder's Drush or Drupal core command.
 - The Windows alias does the same through `php.cmd`.
 - The frontend answers informational options and evaluates `-r` code itself.
 - Script execution replaces the frontend on Unix and starts a child on Windows.
-- `-d` settings become an INI file whose directory is appended to `PHP_INI_SCAN_DIR`.
+- `-d` settings for a script or `-r` code become an INI file whose directory is appended to `PHP_INI_SCAN_DIR`.
+- `-d` settings for an informational option go through `ini_set()`.
 
 The Windows launcher resolves a non-ASCII cache root through its short name,
 then tries a temporary-directory fallback. Both candidates undergo ownership
@@ -43,9 +48,19 @@ The bundled PHP version was 8.5.10; the native comparison used PHP 8.4.26.
 | P2 | Lint accepts code PHP cannot compile | Duplicate function declarations passed wrapper lint and failed native lint with status 255 |
 | P2 | Frontend helpers occupy user global names | `-r 'function environment() {}'` failed with a redeclaration error |
 
-The planted-file test used the current account. Cross-account exposure follows
-from the unchecked shared-directory lookup; the review did not impersonate
+The planted-file test used the current account. The review did not impersonate
 another account.
+
+The directory name is a hash of the settings text, so another account can
+predict it for any known setting. The frontend reuses a directory it finds and
+checks neither its owner nor its mode. `sys_get_temp_dir()` decides who can
+plant there:
+
+- Linux: `/tmp` unless `TMPDIR` names another directory. Every account can write there.
+- macOS: the per-user directory `TMPDIR` names.
+- Windows: the per-user `TEMP` directory.
+
+Cross-account exposure applies to a Linux host whose accounts share `/tmp`.
 
 ## Measured startup cost
 
@@ -58,8 +73,7 @@ Twenty warm runs of an empty script produced these local medians:
 | Unix shell alias through the frontend | 70.4 ms |
 
 The frontend added about 28.5 ms, or 68%, in this measurement. Launcher
-extraction was excluded. These figures describe this Linux host and Runtime;
-they are not release-wide performance guarantees.
+extraction was excluded. The figures hold for this Linux host and Runtime.
 
 Windows retains waiting parent processes because its replacement helper uses
 `proc_open()`. The review did not measure Windows memory or startup cost.
@@ -76,14 +90,19 @@ Runtime's directory, rather than another system-temporary root.
 - Keep generated configuration outside the declared Runtime payload files.
 - Retain configuration with its Runtime cache entry until that entry is removed.
 - Stop reading the old `drupack-php-*` temporary directories immediately.
+- Encode each value as PHP's CLI encodes `-d`, which closes the `;` defect in the same change.
+
+The cache's warm check reads only the files a Runtime manifest declares, so a
+generated file leaves its entry valid. Cleanup deletes an entry once no start
+serves from it, and the entry's generated files go with it.
 
 Do not traverse or delete legacy shared directories during migration. Their
 ownership and contents are untrusted. A missing private-cache precondition
 must fail with a diagnostic before PHP starts with generated configuration.
 
 This containment change closes the local injection path independently of the
-CLI integration work. It does not resolve configuration inheritance or the
-other compatibility defects.
+CLI integration work. Configuration inheritance, lint and helper names stay
+open until the Runtime integration ships.
 
 ## Proposal: execute CLI behavior at the Runtime boundary
 
@@ -100,10 +119,10 @@ The execution contract is:
 - Compile without executing user code for `-l`, and preserve failure status.
 - Start PHP once for a script invocation that needs no configuration changes.
 
-Caller-supplied PHP configuration remains supported within the existing
-contract. The change concerns configuration Drupack manufactures for `-d`.
-Server startup and Packaged site lifecycle commands retain their current
-dispatch.
+A caller's own `PHP_INI_SCAN_DIR` stays in force, and the launcher keeps
+setting `PHPRC` to the Runtime directory. The change covers only the
+configuration Drupack writes for `-d`. Server startup and Packaged site
+lifecycle commands keep their current dispatch.
 
 ## Integration prerequisite
 
@@ -112,8 +131,8 @@ contract. Before replacing the frontend, prove the required startup and
 compilation hooks against the project's pinned FrankenPHP and PHP sources.
 
 The proof must run a script, invocation-local `-d`, isolated `-r`, and a
-compilation-only lint failure. It must build on every supported platform and
-both Linux libc variants carried by current releases.
+compilation-only lint failure. It must build on every supported platform, and
+on both Linux libc builds a release publishes.
 
 Prefer a bounded extension to the existing Runtime CLI integration. If the
 required hooks need a separate PHP executable or substantial dependency
@@ -123,8 +142,8 @@ with tokenization or silently drop supported options.
 ## Windows cache paths
 
 Keep the existing short-path selection and private-root checks. The review
-found no qualifying defect in that selection logic. This is a source-review
-result, not a Windows execution result.
+found no qualifying defect in that selection logic. It read the source and ran
+no Windows build.
 
 Native validation must cover:
 
@@ -141,8 +160,9 @@ configuration on a non-ASCII Windows account.
 
 ## Acceptance tests
 
-Add regression cases at the execution boundary, with native PHP from the
-same version as the comparison where behavior depends on PHP.
+Add regression cases at the execution boundary. Where behavior depends on PHP,
+compare against native PHP of the bundled version, since the review compared
+8.5.10 with 8.4.26.
 
 | Case | Required result |
 |---|---|
@@ -161,7 +181,7 @@ that the routed script path performs one PHP initialization.
 
 ## Delivery and removal
 
-1. Ship the private-cache containment change with the planted-configuration regression test.
+1. Ship the private-cache containment and value encoding, with the planted-configuration and `;` regression tests.
 2. Prove the Runtime integration contract and record platform results.
 3. Route launcher and alias calls through the shared CLI implementation.
 4. Remove `engine/php.php` and its obsolete parser, INI transport and helper tests.
