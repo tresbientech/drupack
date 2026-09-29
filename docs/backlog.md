@@ -140,14 +140,6 @@ payload. It adds code in both workflows, the release step, `drupack-build` and
 a new pack script, and removes none. Lean: wait for a site owner who needs
 those targets.
 
-## The development server and sites with writable directories
-
-`build/dev/dev-server.sh` exports no `DRUPACK_RUNTIME_LAUNCHER`. A site whose
-`drupack.yml` names writable directories runs that launcher's `lay-app` on every
-start, so it cannot start through the development server. This comes from
-reading `useSiteApplication()`; no such site has been tried. Lean: decide whether
-the development loop supports those sites before building anything.
-
 ## A cold `--help` unpacks the release
 
 A cold `drupack --help` unpacks the whole release before it prints usage.

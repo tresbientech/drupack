@@ -13,7 +13,7 @@ DRUSH          writers=runtime/entrypoint.go  readers=application/launch.php
 FILES_DIR      writers=application/launch.php  readers=application/launch.php,application/support/PublicFilesTemplateLoader.php,application/support/SiteDataPublicStream.php
 HOST           writers=application/launch.php  readers=application/settings.php
 ID             writers=application/launch.php  readers=runtime/entrypoint.go
-LAUNCHER       writers=launcher/main.go  readers=application/launch.php
+LAUNCHER       writers=launcher/main.go,build/dev/dev-entry.sh  readers=application/launch.php
 NAME           writers=launcher/main.go,build/dev/dev-entry.sh  readers=runtime/entrypoint.go,application/process.php
 NODE           writers=launcher/main.go  readers=runtime/entrypoint.go
 OPEN           writers=application/launch.php  readers=runtime/entrypoint.go
