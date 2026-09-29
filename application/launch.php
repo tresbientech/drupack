@@ -722,7 +722,6 @@ try {
     }
     putenv("DRUPACK_RUNTIME_DATA_DIR=$data");
     putenv("DRUPACK_RUNTIME_FILES_DIR=$files");
-    putenv('DRUPACK_RUNTIME_ID=' . siteToken($data));
     // Drupal matches its trusted host patterns against the request's host, which keeps an
     // IPv6 address's brackets.
     putenv('DRUPACK_RUNTIME_HOST=' . urlHost($options['host']));
@@ -852,6 +851,7 @@ try {
     exportServerEnvironment([
         'DRUPACK_RUNTIME_PORT' => (string) $port,
         'DRUPACK_RUNTIME_BIND' => $bind,
+        'DRUPACK_RUNTIME_ID' => siteToken($data),
         // Absolute, because FrankenPHP resolves a relative docroot against the directory
         // its process started in, which on Unix is the shared application whatever the
         // entry point changes to.
