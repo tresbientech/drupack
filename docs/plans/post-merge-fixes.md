@@ -7,28 +7,36 @@
 - Phases 1 to 5 touch disjoint files and can run in parallel worktrees.
 - Phase 6 changes WordPal's own repository, then the `mercury-demo-wordpal` branch.
 - Phase 7 waits until the `mercury-demo-wordpal` branch merges, since only then does Mercury Demo carry Node.
-- Every Caddyfile path a template fills stays in double quotes.
+- Both Caddyfiles are fixed files; every value they read comes from a quoted `{$DRUPACK_RUNTIME_*}` environment reference.
 
 ---
 
-## Phase 1: quote the docroot in both Caddyfiles
+## Phase 1: static Caddyfiles read their values from the environment
 
 ### What to build
 
-`engine/Caddyfile` fills `__DRUPACK_DOCROOT__` unquoted in `root *` and in
-`php_server`, so a Project folder whose path holds a space breaks the Engine.
-`application/Caddyfile` has the same two lines. A writable site keeps its docroot
-in Site data, so a Site data path with a space breaks it on main today. The
-`mercury-demo-wordpal` branch fixed the application half in `168e71e`.
+`launch.php` and `serve.php` render a Caddyfile per start with `renderTemplate`.
+The engine writes its copy to a predictable name in the shared temporary
+directory, and the docroot is filled unquoted, so a path with a space breaks both
+servers.
 
-Delta taken from that branch: the two quoted lines of `application/Caddyfile`
-alone. The engine half is new.
+Both Caddyfiles become fixed files. Each value is a quoted `{$DRUPACK_RUNTIME_*}`
+reference, which Caddy fills from the environment when it loads the file.
+`import "guards.caddy"` resolves beside each Caddyfile. `launch.php` and
+`serve.php` set every variable from one list, stop on an empty value, and start
+the server on the fixed file. `renderTemplate` and its callers' writes go. The
+double-quote refusal on `--data-dir` and `--files-dir` stays, since Caddy splices
+the value before it reads quotes. The `mercury-demo-wordpal` branch's `168e71e`
+then has nothing left to carry.
 
 ### Acceptance criteria
 
 - [ ] An engine case serves a Project folder whose path holds a space, and `/` answers 200.
 - [ ] A writable case starts a site whose Site data path holds a space, and `/user/login` answers 200.
-- [ ] `grep -n "root.*__DRUPACK_DOCROOT__" engine/Caddyfile application/Caddyfile` shows every match in double quotes.
+- [ ] An engine case starts a server and finds no `drupack-*.Caddyfile` in the temporary directory, and a site case finds no `Caddyfile` in Site data.
+- [ ] `git grep -n -e renderTemplate -e __DRUPACK_ -- application engine` finds nothing.
+- [ ] `grep -n '{\$DRUPACK' engine/Caddyfile application/Caddyfile` shows every reference inside double quotes.
+- [ ] `python3 -m unittest discover -s tests/conformance -p test_environment.py` passes, with the new variables and their readers listed.
 
 ---
 
