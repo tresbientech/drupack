@@ -32,7 +32,10 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		return runtime.CleanApps(root, siteName, dry, os.Stdout)
+		if err := runtime.CleanApps(root, siteName, dry, os.Stdout); err != nil {
+			return err
+		}
+		return runtime.CleanNode(root, dry, os.Stdout)
 	}
 	m, err := runtime.ParseManifest(runtimeManifest)
 	if err != nil {

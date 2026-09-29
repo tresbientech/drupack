@@ -1,5 +1,6 @@
 """Bundled Node: the node, npm and npx commands, Node first on PATH for Drush and the
-server, and the release unpacked once into the cache.
+server, the release unpacked once into the cache, clean, and the refusals of a musl
+build and of a site that carries no Node.
 """
 
 import json
@@ -11,6 +12,7 @@ import harness
 
 NODE_SKIP = "the site carries no Node"
 MUSL_SKIP = "a musl build carries no Node"
+GLIBC_SKIP = "only a musl build of a site carrying Node refuses these commands"
 
 
 def musl():
@@ -90,6 +92,30 @@ class NodeCommands(NodeCase):
         self.assertEqual(release(self.cache), directory)
         self.assertEqual(directory.stat().st_mtime_ns, before, "a second start changed the unpacked release")
 
+    def test_the_unpacked_release_holds_the_node_license(self):
+        result = run(self.case_dir, "node", "--version", env=self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((release(self.cache) / "LICENSE").is_file(), "the unpacked release has no LICENSE")
+
+
+class NodeClean(NodeCase):
+
+    def test_clean_lists_then_removes_the_unpacked_release(self):
+        result = run(self.case_dir, "node", "--version", env=self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        directory = release(self.cache)
+
+        listing = run(self.case_dir, "clean", "--dry-run", env=self.env)
+        self.assertEqual(listing.returncode, 0, listing.stderr)
+        self.assertIn(f"node/{directory.name}", listing.stdout)
+        self.assertIn("1 unpacked Node release.", listing.stdout)
+        self.assertTrue(directory.is_dir(), "a dry run removed the unpacked release")
+
+        removal = run(self.case_dir, "clean", env=self.env)
+        self.assertEqual(removal.returncode, 0, removal.stderr)
+        self.assertIn("Removed 1 unpacked Node release", removal.stdout)
+        self.assertFalse(directory.exists(), "clean left the unpacked release")
+
 
 class NodeOnPath(NodeCase):
     """The launcher execs the runtime, and launch.php execs the server, so the start's
@@ -136,3 +162,27 @@ class NodeFetchesPackages(NodeCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("< hi >", result.stdout)
         self.assertTrue((home / ".npm" / "_cacache").is_dir(), "npm kept no cache in the reader's home")
+
+
+class NodeRefusals(harness.ConformanceCase):
+    """A site without Node has no such command. A musl build of a site with Node names the
+    glibc build, which carries it."""
+
+    PLATFORMS = (harness.LINUX, harness.MACOS, harness.WINDOWS)
+    RECIPE = False
+
+    def test_a_site_without_node_answers_node_as_an_unknown_command(self):
+        if harness.SITE.get("node"):
+            self.skipTest("the site carries Node")
+        result = run(self.case_dir, "node", "--version")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("Unknown command: node", result.stderr)
+
+    def test_a_musl_build_names_the_glibc_build(self):
+        if not harness.SITE.get("node") or not musl():
+            self.skipTest(GLIBC_SKIP)
+        for program in ("node", "npm", "npx"):
+            with self.subTest(program=program):
+                result = run(self.case_dir, program, "--version")
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn("glibc build", result.stderr)

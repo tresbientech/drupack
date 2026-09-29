@@ -90,13 +90,13 @@ refuses them as unknown commands. Node's license files ship with it.
 
 ### Acceptance criteria
 
-- [ ] A conformance case shows `clean` removes the unpacked Node directory, and
+- [x] A conformance case shows `clean` removes the unpacked Node directory, and
       `clean --dry-run` lists it.
-- [ ] The musl run of the fixture case shows `node` exits 1 and names the glibc
+- [x] The musl run of the fixture case shows `node` exits 1 and names the glibc
       build.
-- [ ] A case on Mercury Demo, which carries no Node, shows `node` answers as an
+- [x] A case on Mercury Demo, which carries no Node, shows `node` answers as an
       unknown command.
-- [ ] The unpacked Node directory holds Node's `LICENSE`.
+- [x] The unpacked Node directory holds Node's `LICENSE`.
 
 ---
 

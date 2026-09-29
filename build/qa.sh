@@ -18,7 +18,7 @@ docker build --target job -t drupack-job .
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
     drupack-build --site examples/mercury-demo --platform "$platform" --libc glibc \
     --output dist --work dist/work
-# The Node fixture's build tests its glibc file.
+# The Node fixture's build tests its glibc file, and the musl file's refusal runs below.
 node_site=$(mktemp -d)
 trap 'rm -rf "$node_site"' EXIT
 bash build/node-fixture.sh "$node_site"
@@ -44,3 +44,4 @@ python3 -m unittest discover -s tests/conformance -p test_environment.py
 DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" test-results/conformance --site-tests examples/mercury-demo/tests \
     -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \
     -k ExistingSiteAdoption -k EngineExecutable
+python3 tests/conformance "dist/node/node-demo-$platform-musl" test-results/node-musl -k NodeRefusals
