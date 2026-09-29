@@ -45,7 +45,7 @@ The QA chain builds the glibc file it tests.
       the release workflow's size step. Pending CI.
 - [ ] The release workflow starts the musl file in the Alpine container, which
       answers `/user/login`. Pending CI.
-- [ ] `bash build/qa.sh` passes.
+- [x] `bash build/qa.sh` passes.
 
 ---
 
