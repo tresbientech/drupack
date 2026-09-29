@@ -21,7 +21,7 @@
 
 http://:__DRUPACK_PORT__ {
 	bind __DRUPACK_BIND__
-	root * __DRUPACK_DOCROOT__
+	root * "__DRUPACK_DOCROOT__"
 	encode zstd br gzip
 
 	# Caddy sorts directives by kind, which puts a file route ahead of every
@@ -57,7 +57,7 @@ http://:__DRUPACK_PORT__ {
 			rewrite @absent /sites/default/files{path}
 		}
 		php_server {
-			root __DRUPACK_DOCROOT__
+			root "__DRUPACK_DOCROOT__"
 		}
 	}
 }
