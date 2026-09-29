@@ -115,12 +115,11 @@ func prepareNode(root string) error {
 	return os.Setenv("DRUPACK_RUNTIME_NODE", runtime.Canonical(executables))
 }
 
-// engineArguments turns the reader's words into the runtime's: `php` reaches
-// php.php, the version flags reach the runtime, and every other word reaches
-// serve.php.
+// engineArguments turns the reader's words into the runtime's: `php` and the
+// version flags reach the runtime, and every other word reaches serve.php.
 func engineArguments(application string) []string {
 	if len(os.Args) > 1 && os.Args[1] == "php" {
-		return append([]string{os.Args[0], "php-cli", filepath.Join(application, "php.php")}, os.Args[2:]...)
+		return os.Args
 	}
 	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
 		return os.Args

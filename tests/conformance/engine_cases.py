@@ -29,6 +29,9 @@ $databases['default']['default'] = [
 $settings['hash_salt'] = 'engine-executable-case';
 """
 
+# The two forms the php command takes, which every refusal lists.
+USAGE = "Usage: drupack php SCRIPT [ARGUMENTS]\n       drupack php -r CODE"
+
 
 class EngineExecutable(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX, harness.MACOS, harness.WINDOWS)
@@ -202,29 +205,88 @@ class EngineExecutable(harness.ConformanceCase):
         # serve.php prints paths in Drupack's canonical form, forward slashes on Windows too.
         self.assertIn(f"{self.lacking.as_posix()}/vendor/drush/drush/drush.php does not exist", result.stderr)
 
-    def test_php_answers_its_informational_options(self):
-        version = self.engine_run("php", "-v")
-        self.assertEqual(version.returncode, 0, version.stderr)
-        self.assertRegex(version.stdout, r"^PHP 8\.\d+\.\d+ \(cli\)")
-        modules = self.engine_run("php", "-m")
-        self.assertIn("pdo_sqlite", modules.stdout.splitlines())
-
-    def test_php_passes_settings_to_a_script_and_to_code(self):
-        (self.class_dir / "limit.php").write_text("<?php echo ini_get('memory_limit'), ' ', $argv[1];")
-        script = self.engine_run("php", "-d", "memory_limit=321M", "limit.php", "argument")
-        self.assertEqual(script.returncode, 0, script.stderr)
-        self.assertEqual(script.stdout, "321M argument")
-        code = self.engine_run("php", "-dmemory_limit=123M", "-r", "echo ini_get('memory_limit'), ' ', $argv[1];", "--", "x")
-        self.assertEqual(code.returncode, 0, code.stderr)
-        self.assertEqual(code.stdout, "123M x")
-
-    def test_php_refuses_an_option_it_cannot_honour(self):
-        result = self.engine_run("php", "-S", "127.0.0.1:0")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("php option -S is not supported", result.stderr)
-
-    def test_php_runs_a_script_named_from_the_working_directory(self):
-        (self.class_dir / "script.php").write_text("<?php echo 'engine-php';")
-        result = self.engine_run("php", "script.php")
+    def alias_run(self, *commands):
+        """Runs each shell command from class_dir inside Drush, whose PATH names the php alias, and returns
+        each one's merged output and exit status."""
+        code = ("chdir(getenv('ENGINE_CASE_DIR')); $results = [];"
+                " foreach (json_decode(getenv('ENGINE_CASE_COMMANDS')) as $command) {"
+                " $output = []; exec($command . ' 2>&1', $output, $status);"
+                " $results[] = [implode(\"\\n\", $output), $status]; }"
+                " echo json_encode($results);")
+        result = self.engine_run("drush", "php:eval", code, cwd=self.project, env=dict(
+            os.environ, ENGINE_CASE_DIR=str(self.class_dir), ENGINE_CASE_COMMANDS=json.dumps(commands)))
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "engine-php")
+        return json.loads(result.stdout)
+
+    def test_php_runs_a_script_with_its_arguments_in_the_working_directory(self):
+        (self.class_dir / "arguments.php").write_text(
+            "<?php echo getcwd(), \"\\n\", implode(',', array_slice($argv, 1)); exit(3);")
+        result = self.engine_run("php", "arguments.php", "a", "b")
+        self.assertEqual(result.returncode, 3, result.stderr)
+        directory, arguments = result.stdout.split("\n")
+        self.assertEqual(Path(directory).resolve(), self.class_dir.resolve())
+        self.assertEqual(arguments, "a,b")
+        [[output, status]] = self.alias_run("php arguments.php a b")
+        self.assertEqual(status, 3, output)
+        directory, arguments = output.split("\n")
+        self.assertEqual(Path(directory).resolve(), self.class_dir.resolve())
+        self.assertEqual(arguments, "a,b")
+
+    def test_php_runs_code(self):
+        result = self.engine_run("php", "-r", "echo 1;")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "1")
+
+    def test_php_refuses_an_option_by_name_before_php_starts(self):
+        (self.class_dir / "sentinel.php").write_text("<?php echo 'php-ran';")
+        commands = (["-d", "x=1", "sentinel.php"], ["-l", "sentinel.php"], ["-v"], ["-S", "127.0.0.1:0", "sentinel.php"])
+        for command in commands:
+            with self.subTest(route="launcher", option=command[0]):
+                result = self.engine_run("php", *command)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertIn(f"php option {command[0]} is not supported.", result.stderr)
+                self.assertIn(USAGE, result.stderr)
+                self.assertNotIn("php-ran", result.stderr)
+        results = self.alias_run(*(" ".join(["php", *command]) for command in commands))
+        for command, (output, status) in zip(commands, results):
+            with self.subTest(route="alias", option=command[0]):
+                self.assertEqual(status, 1, output)
+                self.assertIn(f"php option {command[0]} is not supported.", output)
+                self.assertIn(USAGE, output)
+                self.assertNotIn("php-ran", output)
+
+    def test_php_refuses_an_argument_after_code(self):
+        result = self.engine_run("php", "-r", "echo 'php-ran';", "extra")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("extra follows it", result.stderr)
+        self.assertIn(USAGE, result.stderr)
+
+    def test_php_reads_no_settings_planted_in_the_temporary_directory(self):
+        temporary = harness.fresh_dir(self.class_dir / "temporary")
+        planted = temporary / "drupack-php-e3b0c44298fc1c14"
+        planted.mkdir()
+        (planted / "prepend.php").write_text("<?php echo 'planted';")
+        (planted / "settings.ini").write_text(f"auto_prepend_file={json.dumps(str(planted / 'prepend.php'))}\n")
+        (self.class_dir / "script.php").write_text("<?php echo 'engine-php';")
+        env = dict(os.environ, TMPDIR=str(temporary), TMP=str(temporary), TEMP=str(temporary))
+        script = self.engine_run("php", "script.php", env=env)
+        self.assertEqual(script.returncode, 0, script.stderr)
+        self.assertEqual(script.stdout, "engine-php")
+        code = self.engine_run("php", "-r", "echo 1;", env=env)
+        self.assertEqual(code.returncode, 0, code.stderr)
+        self.assertEqual(code.stdout, "1")
+        self.assertEqual([path.name for path in temporary.iterdir()], [planted.name])
+
+    def test_php_passes_arguments_through_the_alias_unchanged(self):
+        # Drush starts its child processes through Symfony Process, which runs php.cmd through cmd.exe on Windows.
+        arguments = ["a b", 'say "hi"', "100%", "%PATH%"]
+        (self.class_dir / "argv.php").write_text("<?php echo json_encode(array_slice($argv, 1));")
+        code = ("$process = new Symfony\\Component\\Process\\Process(array_merge(['php', 'argv.php'],"
+                " json_decode(getenv('ENGINE_CASE_ARGUMENTS'))), getenv('ENGINE_CASE_DIR'));"
+                " $process->run(); echo $process->getOutput(); fwrite(STDERR, $process->getErrorOutput());")
+        result = self.engine_run("drush", "php:eval", code, cwd=self.project, env=dict(
+            os.environ, ENGINE_CASE_DIR=str(self.class_dir), ENGINE_CASE_ARGUMENTS=json.dumps(arguments)))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), arguments, result.stderr)
