@@ -58,6 +58,12 @@ class WritableDirectories(harness.ConformanceCase):
         finally:
             self.site.stop()
 
+    def test_a_site_data_path_holding_a_space_serves(self):
+        data = self.class_dir / "site data"
+        self.site.start(data, env=self.env)
+        self.assertEqual(self.site.fetch("/user/login")[0], 200)
+        self.assertFalse((data / "runtime" / "Caddyfile").exists())
+
     def test_a_written_theme_serves(self):
         self.site.start(self.data, "--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD, env=self.env)
         self.site.stop()

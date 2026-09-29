@@ -78,13 +78,13 @@ class EngineExecutable(harness.ConformanceCase):
         return harness.run([str(self.engine), *arguments], cwd=cwd or self.class_dir, env=env,
                            capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
 
-    def start(self, name, *arguments, cwd=None):
+    def start(self, name, *arguments, cwd=None, env=None):
         """Starts the engine executable on a port of its own, waits for /user/login, and returns the port and log."""
         port = harness.pick_port()
         log = self.class_dir / f"{name}.log"
         with open(log, "wb") as handle:
             process = harness.popen([str(self.engine), *arguments, "--listen", f"127.0.0.1:{port}"],
-                                    cwd=cwd or self.class_dir, stdout=handle, stderr=subprocess.STDOUT,
+                                    cwd=cwd or self.class_dir, env=env, stdout=handle, stderr=subprocess.STDOUT,
                                     start_new_session=True)
         self.addCleanup(harness.stop_process, process, harness.WAITS["stop"].seconds, f": inspect {log}")
         deadline = time.monotonic() + harness.WAITS["start"].seconds
@@ -128,6 +128,16 @@ class EngineExecutable(harness.ConformanceCase):
         connection.close()
         self.doCleanups()
         self.assertEqual(self.snapshot(), before, "the start changed the project outside its public files directory")
+
+    def test_a_start_serves_a_folder_whose_path_holds_a_space(self):
+        spaced = self.class_dir / "spaced project"
+        shutil.copytree(self.project, spaced, symlinks=True)
+        temporary = self.class_dir / "temporary"
+        temporary.mkdir()
+        env = dict(os.environ, TMPDIR=str(temporary), TMP=str(temporary), TEMP=str(temporary))
+        port, _ = self.start("start-space", str(spaced), env=env)
+        self.assertEqual(self.status(port, "/"), 200)
+        self.assertEqual(list(temporary.glob("*Caddyfile*")), [], "the start wrote a Caddyfile into the temporary directory")
 
     def test_a_start_without_a_directory_serves_the_working_directory(self):
         port, _ = self.start("start-working-directory", cwd=self.project)

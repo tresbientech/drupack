@@ -68,29 +68,19 @@ function executableName(): string
     return getenv('DRUPACK_RUNTIME_NAME');
 }
 
-// Writes $template to $destination with each __DRUPACK_NAME__ token replaced by
-// $values[NAME]. The values reach Caddy's parser as raw text, where a double quote ends
-// a string, so a value holding one refuses. A token left without a value refuses too,
-// rather than reach the server as literal text.
-function renderTemplate(string $template, array $values, string $destination): void
+// Sets each variable of $values in this process's environment, which the server inherits
+// and Caddy splices into its Caddyfile before it reads quotes. A value holding a double
+// quote would end a string there, and an empty value would leave the file's setting empty.
+function exportServerEnvironment(array $values): void
 {
-    $content = file_get_contents($template);
-    if ($content === false) {
-        throw new RuntimeException("Cannot read $template");
-    }
     foreach ($values as $name => $value) {
+        if ($value === '') {
+            throw new RuntimeException("$name is empty");
+        }
         if (str_contains($value, '"')) {
             throw new InvalidArgumentException("$name must not contain a double quote: $value");
         }
-        $content = str_replace("__DRUPACK_{$name}__", $value, $content);
-    }
-    if (preg_match('/__DRUPACK_[A-Z_]+__/', $content, $left) === 1) {
-        throw new RuntimeException("$template names {$left[0]}, which has no value");
-    }
-    // The staging file sits beside the destination, so the rename never crosses a volume.
-    $staging = "$destination.new";
-    if (file_put_contents($staging, $content) === false || !rename($staging, $destination)) {
-        throw new RuntimeException("Cannot write $destination");
+        putenv("$name=$value");
     }
 }
 

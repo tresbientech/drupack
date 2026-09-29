@@ -49,7 +49,7 @@ the directory you started Drupack in, never against the unpacked application.
 `DRUPACK_DATA_DIR` sets the default.
 
 The value must not contain a double quote. The log path reaches the Caddyfile
-as raw text, before Caddy tokenizes it.
+through the environment, which Caddy splices in before it reads quotes.
 
 A site whose `drupack.yml` lists `writable` directories keeps its own
 application in `app` in Site data. A start lays it there once per release.
