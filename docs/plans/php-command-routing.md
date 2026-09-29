@@ -51,7 +51,7 @@ refusal once the pinned FrankenPHP runs PHP's own command line.
 
 ### Acceptance criteria
 
-- [ ] `git grep -n -e "-d SETTING" -e "with \`-v\`, \`-m\`, \`-d\`" docs README.md` finds nothing.
-- [ ] `git grep -n "php-cli" docs/backlog.md` finds the entry naming PHP 8.6.
-- [ ] ADR 0022 names the two forms.
+- [x] `git grep -n -e "-d SETTING" -e "with \`-v\`, \`-m\`, \`-d\`" docs README.md` finds nothing. It finds this criterion's own line.
+- [x] `git grep -n "php-cli" docs/backlog.md` finds the entry naming PHP 8.6.
+- [x] ADR 0022 names the two forms.
 - [ ] `bash build/qa.sh` passes, and `.git/qa-green` records it.

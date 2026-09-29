@@ -155,3 +155,11 @@ argv reaches the entry point only after preparation, and moving the decision
 into the launcher puts the option contract in a fourth place, against
 [ADR 0014](adr/0014-the-parser-owns-the-command-line.md). Lean: leave it as it
 is.
+
+## When `drupack php` takes PHP's own options
+
+`drupack php` refuses every PHP option but `-r`, since FrankenPHP 1.12.7's
+`php-cli` reads none. PHP 8.6 lets an embedder run PHP's own command line, and
+FrankenPHP's main branch calls it from `php-cli` on PHP 8.6 and later. Lean:
+once the pinned FrankenPHP does, drop the refusal in the runtime's entry point
+and pass every argument to `php-cli`.
