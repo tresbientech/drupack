@@ -74,9 +74,9 @@ deletes it, so a held entry fails the rename and stays whole.
 
 ### Acceptance criteria
 
-- [ ] A Go test in the runtime package interleaves one release's prepare with another's activate at the lock boundary, and the first entry keeps every declared file.
-- [ ] A Go test shows `removeOthers` leaves an entry whose marker another handle holds.
-- [ ] `(cd launcher && go test ./...)` passes.
+- [x] A Go test in the runtime package interleaves one release's prepare with another's activate at the lock boundary, and the first entry keeps every declared file.
+- [x] A Go test shows `removeOthers` leaves an entry whose marker another handle holds.
+- [x] `(cd launcher && go test ./...)` passes.
 - [ ] The Windows CI job passes the concurrent-releases case, pending the next tag build.
 
 ---
@@ -93,9 +93,9 @@ backlog entry for this question leaves.
 
 ### Acceptance criteria
 
-- [ ] `build/dev/dev-server.sh` starts a site built from a contract naming a writable directory, and `/` answers 200.
-- [ ] A file written into a writable directory survives a restart of the dev server.
-- [ ] `git grep -n "development server and sites with writable" docs/backlog.md` finds nothing.
+- [x] `build/dev/dev-server.sh` starts a site built from a contract naming a writable directory, and `/` answers 200.
+- [x] A file written into a writable directory survives a restart of the dev server.
+- [x] `git grep -n "development server and sites with writable" docs/backlog.md` finds nothing.
 
 ---
 
