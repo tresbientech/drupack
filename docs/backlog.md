@@ -50,7 +50,8 @@ within 8 percent. Authenticated throughput did not: 141 requests per second for
 musl against 488 for glibc at 16 users, 166 against 568 at 64, with p95 at 526ms
 against 150ms. Reversing the run order reproduced the musl figure. An anonymous
 request comes from the page cache and an authenticated one renders the page, so
-the split follows allocation volume. musl is the only libc a release ships.
+the split follows allocation volume. A release ships a glibc and a musl file
+per Linux target, and the install script picks glibc where the host has it.
 Lean: profile allocation in a rendered request before treating the number as a
 property of musl, since a mallocng tuning knob or a thread count may carry it.
 

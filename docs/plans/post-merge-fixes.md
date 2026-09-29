@@ -106,8 +106,8 @@ option weighed when that decision was taken, so it stays.
 
 ### Acceptance criteria
 
-- [ ] `git grep -n "only libc a release ships" docs` finds nothing.
-- [ ] `git grep -n "packs both" docs/adr/0016-*.md` finds nothing.
+- [x] `git grep -n "only libc a release ships" docs` finds nothing.
+- [x] `git grep -n "packs both" docs/adr/0016-*.md` finds nothing.
 
 ---
 

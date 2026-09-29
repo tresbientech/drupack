@@ -50,8 +50,8 @@ declares `pdo_mysql`, `pdo_pgsql`, `opcache` or `argon2`.
 
 - The builder pin moves from an image digest to a FrankenPHP source commit and a
   PHP version. An upgrade review reads a source diff instead of two digests.
-- Linux gains one CI job per libc, each compiling PHP, and a job that packs both
-  runtimes. A cold builder image takes 18 to 25 minutes, which
+- Linux gains one CI job per libc, each compiling PHP, and a job that packs one
+  file per runtime. A cold builder image takes 18 to 25 minutes, which
   `docs/adr/0018-release-graph.md` answers with a published image.
 - Measured on `f6b280c` against `74d1992`, the last build before the allowlist:
   the musl runtime executable fell from 170,275,248 to 146,212,008 bytes, 14.1
