@@ -181,10 +181,13 @@ if (-not $outputDirectory) { $outputDirectory = '.' }
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
 $outputPath = Join-Path (Resolve-Path $outputDirectory).Path (Split-Path -Leaf $Output)
 $launcherSource = (Resolve-Path (Join-Path $PSScriptRoot '..\..\launcher')).Path
+# The payload of a site asking for Node holds each target's verified archive.
+$nodeArchive = Join-Path $payload 'node\windows-amd64.zip'
+$node = if (Test-Path $nodeArchive) { @('-node', $nodeArchive) } else { @() }
 $env:CGO_ENABLED = '0'
 Push-Location $launcherSource
 try {
-  go run ./cmd/pack -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $outputPath -app (Join-Path $payload 'app-payload.tar') -app-checksum (Join-Path $payload 'app_checksum.txt') -site (Join-Path $payload 'site.json') -site-version $Version
+  go run ./cmd/pack -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $outputPath -app (Join-Path $payload 'app-payload.tar') -app-checksum (Join-Path $payload 'app_checksum.txt') -site (Join-Path $payload 'site.json') -site-version $Version @node
   if ($EnginePayloadDirectory) {
     go run ./cmd/pack -engine -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $engineOutputPath -app (Join-Path $enginePayload 'app-payload.tar') -app-checksum (Join-Path $enginePayload 'app_checksum.txt')
   }

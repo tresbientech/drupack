@@ -685,3 +685,31 @@ func TestOnlyATargetNodeBuildsForCarriesIt(t *testing.T) {
 		t.Errorf("a site without Node packs %v", glibc)
 	}
 }
+
+func TestAPayloadOnlyBuildExportsTheNodeArchiveOfEachPayloadTarget(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Runtimes, r.PayloadOnly, r.Site.Node = nil, true, "24"
+	r.Work, r.Output = t.TempDir(), t.TempDir()
+	for _, name := range []string{"payload/app-payload.tar", "payload/app_checksum.txt", "app/site.json",
+		"node/macos-amd64.tar.gz", "node/macos-arm64.tar.gz", "node/windows-amd64.zip"} {
+		path := filepath.Join(r.Work, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(name), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := step(t, plan, "export the payload").Func(io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"macos-amd64.tar.gz", "macos-arm64.tar.gz", "windows-amd64.zip"} {
+		if content, err := os.ReadFile(filepath.Join(r.Output, "payload", "node", name)); err != nil || string(content) != "node/"+name {
+			t.Errorf("payload/node/%s = %q, %v", name, content, err)
+		}
+	}
+}

@@ -112,9 +112,9 @@ right directory on PATH on each platform.
 
 ### Acceptance criteria
 
-- [ ] The resolver's Go tests cover the macOS and Windows archive names.
+- [x] The resolver's Go tests cover the macOS and Windows archive names.
 - [ ] The release workflow runs the Node fixture case on macOS and Windows, and
-      it passes.
+      it passes. Pending CI: actionlint passes on the workflow change.
 
 ---
 

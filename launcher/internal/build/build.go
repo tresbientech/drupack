@@ -125,7 +125,7 @@ func NewPlan(r Request) (Plan, error) {
 		{Name: "lay the engine over the site", Func: func(io.Writer) error { return layEngine(r.Engine, application, r.Site.Docroot) }},
 	}}
 	if r.Site.Node != "" {
-		plan.Steps = slices.Insert(plan.Steps, 0, resolveNode(&r.Site, r.Platforms, libcs, r.Work))
+		plan.Steps = slices.Insert(plan.Steps, 0, resolveNode(&r.Site, nodeTargets(r, libcs), r.Work))
 	}
 	// A site without a recipe ships no seed, and serves only a database that holds it.
 	if r.Site.Recipe != "" {
@@ -136,7 +136,7 @@ func NewPlan(r Request) (Plan, error) {
 		Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload, r.Site.Docroot}})
 	if r.PayloadOnly {
 		plan.Steps = append(plan.Steps, Step{Name: "export the payload", Func: func(io.Writer) error {
-			return exportPayload(payload, application, filepath.Join(r.Output, "payload"))
+			return exportPayload(payload, application, filepath.Join(r.Output, "payload"), r.Site.Node != "", r.Work)
 		}})
 		return plan, nil
 	}
@@ -169,6 +169,24 @@ func NewPlan(r Request) (Plan, error) {
 	return plan, nil
 }
 
+// payloadTargets are the builds that pack an exported payload on their own host.
+var payloadTargets = []string{"macos-amd64", "macos-arm64", "windows-amd64"}
+
+// nodeTargets lists the targets the resolve step fetches Node for: the payload
+// targets for a payload-only build, otherwise each file the build packs.
+func nodeTargets(r Request, libcs []string) []string {
+	if r.PayloadOnly {
+		return payloadTargets
+	}
+	var targets []string
+	for _, platform := range r.Platforms {
+		for _, libc := range libcs {
+			targets = append(targets, Target(platform, libc))
+		}
+	}
+	return targets
+}
+
 // nodeArchives is where the resolve step writes each target's Node archive.
 func nodeArchives(work string) string {
 	return filepath.Join(work, "node")
@@ -177,14 +195,8 @@ func nodeArchives(work string) string {
 // resolveNode fetches the verified Node archive of each target into the work
 // directory. It sets site.Node to the exact version, which the site.json steps
 // after it write.
-func resolveNode(site *siteconfig.Site, platforms, libcs []string, work string) Step {
+func resolveNode(site *siteconfig.Site, targets []string, work string) Step {
 	return Step{Name: "resolve Node", Func: func(log io.Writer) error {
-		var targets []string
-		for _, platform := range platforms {
-			for _, libc := range libcs {
-				targets = append(targets, Target(platform, libc))
-			}
-		}
 		resolved, err := node.Resolve(node.Request{Value: site.Node, Targets: targets, Dir: nodeArchives(work)})
 		if err != nil {
 			return err
@@ -431,10 +443,22 @@ func layEngine(engine, application, docroot string) error {
 	return nil
 }
 
-// exportPayload puts the payload and its site.json where a later platform build reads them.
-func exportPayload(payload, application, destination string) error {
-	return copyInto(destination, filepath.Join(payload, "app-payload.tar"),
+// exportPayload puts the payload and its site.json where a later platform build
+// reads them, with each payload target's Node archive in node/ for a site
+// carrying Node.
+func exportPayload(payload, application, destination string, carriesNode bool, work string) error {
+	err := copyInto(destination, filepath.Join(payload, "app-payload.tar"),
 		filepath.Join(payload, "app_checksum.txt"), filepath.Join(application, siteconfig.OutputName))
+	if err != nil || !carriesNode {
+		return err
+	}
+	for _, target := range payloadTargets {
+		archive, _ := node.Archive(nodeArchives(work), target)
+		if err := copyInto(filepath.Join(destination, "node"), archive); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // copyInto copies each source file into destination under its own name.

@@ -25,8 +25,8 @@ extensions=$(bash "$repository/runtime/extensions-list.sh" "$repository/runtime/
 extension_libs=$(bash "$repository/runtime/extensions-list.sh" "$repository/runtime/php-extension-libs.txt")
 
 case "$(uname -m)" in
-    arm64) spc_archive=spc-macos-aarch64.tar.gz; spc_sha256=acf2f25d56d0cbf8e65aa82e5054fef555f7be7c5c38046c6e0819f266d83225 ;;
-    x86_64) spc_archive=spc-macos-x86_64.tar.gz; spc_sha256=e8b798048f62ca4960764196543b60ae703f7174aa418824cf542aeec1d2cd6a ;;
+    arm64) spc_archive=spc-macos-aarch64.tar.gz; spc_sha256=acf2f25d56d0cbf8e65aa82e5054fef555f7be7c5c38046c6e0819f266d83225; target=macos-arm64 ;;
+    x86_64) spc_archive=spc-macos-x86_64.tar.gz; spc_sha256=e8b798048f62ca4960764196543b60ae703f7174aa418824cf542aeec1d2cd6a; target=macos-amd64 ;;
     *) printf 'Unsupported macOS architecture: %s\n' "$(uname -m)" >&2; exit 1 ;;
 esac
 
@@ -79,13 +79,19 @@ CGO_ENABLED=1 CGO_CFLAGS="$php_includes -DFRANKENPHP_VERSION=$frankenphp_version
 # names them at every hop.
 cp "$repository/application/php.ini" "$repository/application/cacert.pem" "$runtime/"
 
+# The payload of a site asking for Node holds each target's verified archive.
+# bash 3.2 calls an empty array unset, hence the guarded expansion below.
+node=()
+if [ -f "$payload/node/$target.tar.gz" ]; then
+    node=(-node "$payload/node/$target.tar.gz")
+fi
 # The subshell keeps the packer's build inside the launcher module, off this FrankenPHP checkout.
 (cd "$repository/launcher" \
   && go run ./cmd/pack -runtime "$runtime" -entry "$entry" \
      -version "$drupack_version" \
      -source "$repository/launcher" -output "$output" \
      -app "$payload/app-payload.tar" -app-checksum "$payload/app_checksum.txt" \
-     -site "$payload/site.json" -site-version "$drupack_version")
+     -site "$payload/site.json" -site-version "$drupack_version" ${node[@]+"${node[@]}"})
 "$output" version
 if [ -n "$engine_payload" ]; then
     (cd "$repository/launcher" \
