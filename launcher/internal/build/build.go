@@ -169,6 +169,11 @@ func NewPlan(r Request) (Plan, error) {
 	return plan, nil
 }
 
+// nodeArchives is where the resolve step writes each target's Node archive.
+func nodeArchives(work string) string {
+	return filepath.Join(work, "node")
+}
+
 // resolveNode fetches the verified Node archive of each target into the work
 // directory. It sets site.Node to the exact version, which the site.json steps
 // after it write.
@@ -177,10 +182,10 @@ func resolveNode(site *siteconfig.Site, platforms, libcs []string, work string) 
 		var targets []string
 		for _, platform := range platforms {
 			for _, libc := range libcs {
-				targets = append(targets, platform+"/"+libc)
+				targets = append(targets, Target(platform, libc))
 			}
 		}
-		resolved, err := node.Resolve(node.Request{Value: site.Node, Targets: targets, Dir: filepath.Join(work, "node")})
+		resolved, err := node.Resolve(node.Request{Value: site.Node, Targets: targets, Dir: nodeArchives(work)})
 		if err != nil {
 			return err
 		}
@@ -192,7 +197,8 @@ func resolveNode(site *siteconfig.Site, platforms, libcs []string, work string) 
 
 // packSteps packs one file per platform and libc, each carrying its one runtime
 // and the archive in payload, to OUTPUT/NAME-TARGET. extra adds the packer's
-// flags for what the archive holds.
+// flags for what the archive holds. A site asking for Node carries it on each
+// target Node builds for.
 func packSteps(r Request, libcs []string, resolved map[string]string, step, name, payload string, extra ...string) []Step {
 	var steps []Step
 	for _, platform := range r.Platforms {
@@ -204,6 +210,9 @@ func packSteps(r Request, libcs []string, resolved map[string]string, step, name
 				"-output", filepath.Join(r.Output, Executable(name, target)),
 				"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
 				"-goarch", siteconfig.Platforms[platform]}, extra...)
+			if archive, carried := node.Archive(nodeArchives(r.Work), target); r.Site.Node != "" && carried {
+				command = append(command, "-node", archive)
+			}
 			steps = append(steps, Step{Name: step + target, Command: command,
 				Dir: filepath.Join(r.Engine, "launcher"), Env: []string{"CGO_ENABLED=0"}})
 		}

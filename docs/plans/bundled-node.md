@@ -65,15 +65,15 @@ reader's arguments. npm keeps its own cache and registry settings.
 
 ### Acceptance criteria
 
-- [ ] A conformance case packs a fixture site with `node: true` and runs
+- [x] A conformance case packs a fixture site with `node: true` and runs
       `node --version`, `npm --version` and `npx --version`, each reporting the
       bundled release.
-- [ ] The same case shows a Drush command sees the bundled `node` first on PATH.
-- [ ] The same case shows a request's PHP process finds the same `node`.
-- [ ] A second start leaves the unpacked Node directory's modification time
+- [x] The same case shows a Drush command sees the bundled `node` first on PATH.
+- [x] The same case shows a request's PHP process finds the same `node`.
+- [x] A second start leaves the unpacked Node directory's modification time
       unchanged.
-- [ ] `node -e 'console.log(process.cwd())'` prints the reader's directory.
-- [ ] `npx -y cowsay hi` runs in a network case, with npm's cache in the
+- [x] `node -e 'console.log(process.cwd())'` prints the reader's directory.
+- [x] `npx -y cowsay hi` runs in a network case, with npm's cache in the
       reader's home.
 
 ---

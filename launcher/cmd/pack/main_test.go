@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -81,5 +83,58 @@ func TestTheEngineExecutableCarriesTheEngineMark(t *testing.T) {
 		if !strings.Contains(generated, want) {
 			t.Fatalf("payload.go does not carry %q:\n%s", want, generated)
 		}
+	}
+}
+
+func TestWriteNodePayloadCarriesTheReleaseOrNothing(t *testing.T) {
+	archive := filepath.Join(t.TempDir(), "linux-amd64.tar.gz")
+	writeNodeArchive(t, archive)
+	build := t.TempDir()
+	if err := writeNodePayload(build, archive, "24.21.0"); err != nil {
+		t.Fatal(err)
+	}
+	m, err := runtime.ParseManifest([]byte(readFile(t, filepath.Join(build, "node-manifest.json"))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Version != "24.21.0" || m.Entry != "bin/node" || len(m.Files) != 2 {
+		t.Fatalf("node-manifest.json = %+v; want 24.21.0 with bin/node and LICENSE", m)
+	}
+	if readFile(t, filepath.Join(build, "node.tar.zst")) == "" {
+		t.Fatal("node.tar.zst is empty")
+	}
+
+	none := t.TempDir()
+	if err := writeNodePayload(none, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"node.tar.zst", "node-manifest.json"} {
+		if content := readFile(t, filepath.Join(none, name)); content != "" {
+			t.Errorf("%s holds %d bytes for a file carrying no Node", name, len(content))
+		}
+	}
+}
+
+// writeNodeArchive writes a Node tarball holding bin/node and LICENSE.
+func writeNodeArchive(t *testing.T, path string) {
+	t.Helper()
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	compressed := gzip.NewWriter(file)
+	writer := tar.NewWriter(compressed)
+	for name, content := range map[string]string{"node-v24.21.0-linux-x64/bin/node": "node", "node-v24.21.0-linux-x64/LICENSE": "MIT"} {
+		if err := writer.WriteHeader(&tar.Header{Name: name, Mode: 0o755, Size: int64(len(content)), Typeflag: tar.TypeReg}); err != nil {
+			t.Fatal(err)
+		}
+		writer.Write([]byte(content))
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := compressed.Close(); err != nil {
+		t.Fatal(err)
 	}
 }

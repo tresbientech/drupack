@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -44,6 +45,7 @@ func release() string {
 
 const usage = `Usage: %[1]s [OPTIONS]
        %[1]s drush [OPTIONS] DRUSH_COMMAND
+       %[1]s node|npm|npx [ARGUMENTS]
        %[1]s clean [--dry-run]
 
 Options:
@@ -65,6 +67,8 @@ Options:
 
 Commands:
   drush                      Run a Drush command against the site
+  node, npm, npx             Run the site's bundled Node release, for a site
+                             that carries one
   clean                      Remove the unpacked applications from the cache.
                              --dry-run lists them and removes nothing.
 
@@ -75,6 +79,71 @@ Examples:
   %[1]s drush --data-dir ./site status
   %[1]s drush --data-dir ./site user:login
   %[1]s clean --dry-run`
+
+// nodeCommands names the programs of a site's bundled Node release that its
+// command line runs, with each one's file on Windows, where npm and npx are
+// batch files.
+var nodeCommands = map[string]string{"node": "node.exe", "npm": "npm.cmd", "npx": "npx.cmd"}
+
+// runNode runs program from the Node release the launcher unpacked, in the
+// reader's directory, and exits with its status. It returns for a site that
+// carries no Node, whose command line has no such word.
+func runNode(program string, arguments []string) {
+	directory := os.Getenv("DRUPACK_RUNTIME_NODE")
+	if directory == "" {
+		if !siteCarriesNode() {
+			return
+		}
+		fmt.Fprintf(os.Stderr, "%s: this musl build of %s carries no Node. Run the glibc build, the file without -musl in its name.\n",
+			program, siteName())
+		os.Exit(1)
+	}
+	file := program
+	if runtime.GOOS == "windows" {
+		file = nodeCommands[program]
+	}
+	command := exec.Command(filepath.Join(directory, file), arguments...)
+	command.Dir = os.Getenv("DRUPACK_RUNTIME_CWD")
+	command.Stdin, command.Stdout, command.Stderr = os.Stdin, os.Stdout, os.Stderr
+	// The terminal interrupts the whole process group, the program included, so
+	// this process waits for the program and passes on a termination alone.
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	if err := command.Start(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	go func() {
+		for received := range signals {
+			if received != os.Interrupt {
+				command.Process.Signal(received)
+			}
+		}
+	}()
+	command.Wait()
+	code := command.ProcessState.ExitCode()
+	// A program a signal ended reports -1.
+	if code < 0 {
+		code = 1
+	}
+	os.Exit(code)
+}
+
+// siteCarriesNode reads the site.json of the application this process runs
+// from, the working directory by now, for the Node release the build recorded.
+func siteCarriesNode() bool {
+	content, err := os.ReadFile("site.json")
+	if err != nil {
+		panic(err)
+	}
+	var site struct {
+		Node string `json:"node"`
+	}
+	if err := json.Unmarshal(content, &site); err != nil {
+		panic(err)
+	}
+	return site.Node != ""
+}
 
 // readinessPath answers 204 for a request carrying this site's own identity token, and 404
 // for anything else. The Caddyfile serves it without reaching Drupal, so it
@@ -208,6 +277,9 @@ func init() {
 		}
 		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[2:]...)
 		return
+	}
+	if len(os.Args) > 1 && nodeCommands[os.Args[1]] != "" {
+		runNode(os.Args[1], os.Args[2:])
 	}
 	if len(os.Args) == 2 && (os.Args[1] == "--help" || os.Args[1] == "-h") {
 		fmt.Printf(usage+"\n", siteName())

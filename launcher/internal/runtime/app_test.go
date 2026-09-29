@@ -251,3 +251,37 @@ func TestPrepareAppUnpacksAnEmptyArchive(t *testing.T) {
 		t.Errorf("a second start reported %q", notice.String())
 	}
 }
+
+func TestPrepareNodeUnpacksOnceUnderTheNodeDirectory(t *testing.T) {
+	tree := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tree, "bin"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tree, "bin", "node"), []byte("node"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	payload, m, err := Build(tree, "24.21.0", "bin/node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	var notice bytes.Buffer
+	entry, err := PrepareNode(root, payload, m, &notice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Dir(entry) != NodeRoot(root) || !strings.Contains(notice.String(), "Unpacking Node 24.21.0.") {
+		t.Fatalf("PrepareNode = %s, printed %q", entry, notice.String())
+	}
+	before, err := os.Stat(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	notice.Reset()
+	if again, err := PrepareNode(root, payload, m, &notice); err != nil || again != entry || notice.Len() != 0 {
+		t.Fatalf("a second PrepareNode = %s, %v, printed %q", again, err, notice.String())
+	}
+	if after, _ := os.Stat(entry); !after.ModTime().Equal(before.ModTime()) {
+		t.Fatal("a second PrepareNode changed the release directory")
+	}
+}

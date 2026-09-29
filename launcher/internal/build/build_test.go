@@ -661,3 +661,27 @@ func TestASiteWithNodeResolvesItFirst(t *testing.T) {
 		t.Fatalf("the first step is %q; want resolve Node", got)
 	}
 }
+
+func TestOnlyATargetNodeBuildsForCarriesIt(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Site.Node = "24"
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	glibc := step(t, plan, "pack linux-amd64").Command
+	if index := slices.Index(glibc, "-node"); index < 0 || glibc[index+1] != filepath.Join("/work", "node", "linux-amd64.tar.gz") {
+		t.Errorf("the glibc pack command %v does not carry the Node archive", glibc)
+	}
+	if musl := step(t, plan, "pack linux-amd64-musl").Command; slices.Contains(musl, "-node") {
+		t.Errorf("the musl pack command %v carries Node", musl)
+	}
+	r.Site.Node = ""
+	plan, err = build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if glibc := step(t, plan, "pack linux-amd64").Command; slices.Contains(glibc, "-node") {
+		t.Errorf("a site without Node packs %v", glibc)
+	}
+}

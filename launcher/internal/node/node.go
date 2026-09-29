@@ -44,21 +44,32 @@ type build struct{ index, archive string }
 // builds maps each target to its Node build. A musl target maps to none:
 // Node publishes no official musl build for arm64.
 var builds = map[string]build{
-	"linux-amd64/glibc": {"linux-x64", "linux-x64.tar.gz"},
-	"linux-arm64/glibc": {"linux-arm64", "linux-arm64.tar.gz"},
-	"linux-amd64/musl":  {},
-	"linux-arm64/musl":  {},
-	"macos-amd64":       {"osx-x64-tar", "darwin-x64.tar.gz"},
-	"macos-arm64":       {"osx-arm64-tar", "darwin-arm64.tar.gz"},
-	"windows-amd64":     {"win-x64-zip", "win-x64.zip"},
+	"linux-amd64":      {"linux-x64", "linux-x64.tar.gz"},
+	"linux-arm64":      {"linux-arm64", "linux-arm64.tar.gz"},
+	"linux-amd64-musl": {},
+	"linux-arm64-musl": {},
+	"macos-amd64":      {"osx-x64-tar", "darwin-x64.tar.gz"},
+	"macos-arm64":      {"osx-arm64-tar", "darwin-arm64.tar.gz"},
+	"windows-amd64":    {"win-x64-zip", "win-x64.zip"},
+}
+
+// Archive returns the path Resolve writes target's archive to under dir, and
+// false for a target that carries no Node.
+func Archive(dir, target string) (string, bool) {
+	build := builds[target]
+	if build.index == "" {
+		return "", false
+	}
+	return filepath.Join(dir, target+build.archive[strings.Index(build.archive, "."):]), true
 }
 
 // Request is one resolution.
 type Request struct {
 	Value siteconfig.Node
-	// Targets names each Linux target as PLATFORM/LIBC and any other by its platform.
+	// Targets names each target as its executable's suffix, such as linux-amd64-musl.
 	Targets []string
-	// Dir receives the archives. An archive already there with the signed hash is kept.
+	// Dir receives the archives, one per target. An archive already there with
+	// the signed hash is kept.
 	Dir string
 	// Dist is the release directory's URL, nodejs.org's when unset.
 	Dist string
@@ -113,7 +124,7 @@ func Resolve(r Request) (Resolution, error) {
 		return Resolution{}, err
 	}
 
-	archives := map[string]string{}
+	names := map[string]string{}
 	for _, target := range r.Targets {
 		build, ok := builds[target]
 		if !ok {
@@ -125,9 +136,10 @@ func Resolve(r Request) (Resolution, error) {
 		if !slices.Contains(chosen.Files, build.index) {
 			return Resolution{}, fmt.Errorf("Node %s has no build for %s, which needs %s", version, target, build.index)
 		}
-		archives[target] = "node-" + chosen.Version + "-" + build.archive
+		names[target] = "node-" + chosen.Version + "-" + build.archive
 	}
-	if len(archives) == 0 {
+	archives := map[string]string{}
+	if len(names) == 0 {
 		return Resolution{Version: version, Archives: archives}, nil
 	}
 
@@ -138,12 +150,12 @@ func Resolve(r Request) (Resolution, error) {
 	if err := os.MkdirAll(r.Dir, 0o755); err != nil {
 		return Resolution{}, err
 	}
-	for target, name := range archives {
+	for target, name := range names {
 		want, ok := sums[name]
 		if !ok {
 			return Resolution{}, fmt.Errorf("the signed SHASUMS256.txt of Node %s lists no %s", version, name)
 		}
-		path := filepath.Join(r.Dir, name)
+		path, _ := Archive(r.Dir, target)
 		if err := download(r.Dist+"/"+chosen.Version+"/"+name, path, want); err != nil {
 			return Resolution{}, err
 		}

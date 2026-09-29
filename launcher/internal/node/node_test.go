@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -100,7 +99,7 @@ func TestEachValueFormPicksItsRelease(t *testing.T) {
 		"22":               "22.30.0",
 		"24.20.0":          "24.20.0",
 	} {
-		r := d.request(t, value, "linux-amd64/glibc")
+		r := d.request(t, value, "linux-amd64")
 		resolved, err := node.Resolve(r)
 		if err != nil {
 			t.Errorf("%s: %v", value, err)
@@ -109,8 +108,8 @@ func TestEachValueFormPicksItsRelease(t *testing.T) {
 		if resolved.Version != want {
 			t.Errorf("%s resolves to %s; want %s", value, resolved.Version, want)
 		}
-		path := filepath.Join(r.Dir, "node-v"+want+"-linux-x64.tar.gz")
-		if resolved.Archives["linux-amd64/glibc"] != path {
+		path := filepath.Join(r.Dir, "linux-amd64.tar.gz")
+		if resolved.Archives["linux-amd64"] != path {
 			t.Errorf("%s: archives = %v; want %s", value, resolved.Archives, path)
 		}
 		if content, err := os.ReadFile(path); err != nil || string(content) != "archive node-v"+want+"-linux-x64.tar.gz" {
@@ -121,28 +120,33 @@ func TestEachValueFormPicksItsRelease(t *testing.T) {
 
 func TestEachTargetGetsItsBuildAndMuslGetsNone(t *testing.T) {
 	d := newDist(t)
-	r := d.request(t, "24", "linux-amd64/glibc", "linux-amd64/musl", "linux-arm64/glibc", "linux-arm64/musl",
+	r := d.request(t, "24", "linux-amd64", "linux-amd64-musl", "linux-arm64", "linux-arm64-musl",
 		"macos-amd64", "macos-arm64", "windows-amd64")
 	resolved, err := node.Resolve(r)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]string{}
 	for target, suffix := range map[string]string{
-		"linux-amd64/glibc": "linux-x64.tar.gz", "linux-arm64/glibc": "linux-arm64.tar.gz",
+		"linux-amd64": "linux-x64.tar.gz", "linux-arm64": "linux-arm64.tar.gz",
 		"macos-amd64": "darwin-x64.tar.gz", "macos-arm64": "darwin-arm64.tar.gz", "windows-amd64": "win-x64.zip",
 	} {
-		want[target] = filepath.Join(r.Dir, "node-v24.21.0-"+suffix)
+		path, carried := node.Archive(r.Dir, target)
+		if !carried || resolved.Archives[target] != path {
+			t.Errorf("%s: archive %q; want %q", target, resolved.Archives[target], path)
+		}
+		if content, _ := os.ReadFile(path); string(content) != "archive node-v24.21.0-"+suffix {
+			t.Errorf("%s: %s holds %q; want node-v24.21.0-%s", target, path, content, suffix)
+		}
 	}
-	if !reflect.DeepEqual(resolved.Archives, want) {
-		t.Fatalf("archives = %v; want %v", resolved.Archives, want)
+	if len(resolved.Archives) != 5 {
+		t.Errorf("archives = %v; want none for a musl target", resolved.Archives)
 	}
 }
 
 func TestAMuslOnlyBuildResolvesTheVersionAndFetchesNothing(t *testing.T) {
 	d := newDist(t)
 	delete(d.files, "/v24.21.0/SHASUMS256.txt")
-	resolved, err := node.Resolve(d.request(t, siteconfig.NodeLTS, "linux-amd64/musl", "linux-arm64/musl"))
+	resolved, err := node.Resolve(d.request(t, siteconfig.NodeLTS, "linux-amd64-musl", "linux-arm64-musl"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +158,7 @@ func TestAMuslOnlyBuildResolvesTheVersionAndFetchesNothing(t *testing.T) {
 func TestAVersionMissingFromTheIndexStops(t *testing.T) {
 	d := newDist(t)
 	for value, want := range map[siteconfig.Node]string{"24.99.0": "node 24.99.0", "23": "node 23"} {
-		if _, err := node.Resolve(d.request(t, value, "linux-amd64/glibc")); err == nil || !strings.Contains(err.Error(), want) {
+		if _, err := node.Resolve(d.request(t, value, "linux-amd64")); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%s: Resolve error = %v; want one naming %q", value, err, want)
 		}
 	}
@@ -162,8 +166,8 @@ func TestAVersionMissingFromTheIndexStops(t *testing.T) {
 
 func TestATargetWithoutABuildStopsAndNamesIt(t *testing.T) {
 	d := newDist(t)
-	_, err := node.Resolve(d.request(t, "25", "linux-amd64/glibc", "linux-arm64/glibc"))
-	if err == nil || !strings.Contains(err.Error(), "linux-arm64/glibc") {
+	_, err := node.Resolve(d.request(t, "25", "linux-amd64", "linux-arm64"))
+	if err == nil || !strings.Contains(err.Error(), "linux-arm64") {
 		t.Fatalf("Resolve error = %v; want one naming linux-arm64/glibc", err)
 	}
 }
@@ -172,7 +176,7 @@ func TestABadSignatureStops(t *testing.T) {
 	d := newDist(t)
 	sums := "/v24.21.0/SHASUMS256.txt"
 	d.files[sums] = bytes.Replace(d.files[sums], []byte("node-v24.21.0-win-x64.zip"), []byte("node-v24.21.0-win-x64.exe"), 1)
-	r := d.request(t, "24", "linux-amd64/glibc")
+	r := d.request(t, "24", "linux-amd64")
 	if _, err := node.Resolve(r); err == nil || !strings.Contains(err.Error(), "signature does not verify") {
 		t.Fatalf("Resolve error = %v; want one refusing the signature", err)
 	}
@@ -184,14 +188,14 @@ func TestABadSignatureStops(t *testing.T) {
 func TestAnUnknownKeyStopsAndNamesTheKeyring(t *testing.T) {
 	d := newDist(t)
 	d.sign(t, "v24.21.0", newKey(t))
-	if _, err := node.Resolve(d.request(t, "24", "linux-amd64/glibc")); err == nil || !strings.Contains(err.Error(), node.KeyringFile) {
+	if _, err := node.Resolve(d.request(t, "24", "linux-amd64")); err == nil || !strings.Contains(err.Error(), node.KeyringFile) {
 		t.Fatalf("Resolve error = %v; want one naming %s", err, node.KeyringFile)
 	}
 }
 
 func TestTheKeptKeyringHoldsNoTestKey(t *testing.T) {
 	d := newDist(t)
-	r := d.request(t, "24", "linux-amd64/glibc")
+	r := d.request(t, "24", "linux-amd64")
 	r.Keyring = nil
 	if _, err := node.Resolve(r); err == nil || !strings.Contains(err.Error(), node.KeyringFile) {
 		t.Fatalf("Resolve error = %v; want the kept keyring to refuse the test key", err)
@@ -201,24 +205,24 @@ func TestTheKeptKeyringHoldsNoTestKey(t *testing.T) {
 func TestAHashMismatchStopsAndKeepsNoFile(t *testing.T) {
 	d := newDist(t)
 	d.files["/v24.21.0/node-v24.21.0-linux-arm64.tar.gz"] = []byte("tampered")
-	r := d.request(t, "24", "linux-amd64/glibc", "linux-arm64/glibc")
+	r := d.request(t, "24", "linux-amd64", "linux-arm64")
 	_, err := node.Resolve(r)
 	if err == nil || !strings.Contains(err.Error(), "node-v24.21.0-linux-arm64.tar.gz has SHA-256") {
 		t.Fatalf("Resolve error = %v; want one naming the mismatched archive", err)
 	}
-	if _, err := os.Stat(filepath.Join(r.Dir, "node-v24.21.0-linux-arm64.tar.gz")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(r.Dir, "linux-arm64.tar.gz")); !os.IsNotExist(err) {
 		t.Fatalf("the mismatched archive was kept: %v", err)
 	}
 }
 
 func TestAnArchiveAlreadyVerifiedIsKeptAndACorruptOneReplaced(t *testing.T) {
 	d := newDist(t)
-	r := d.request(t, "24", "linux-amd64/glibc", "linux-arm64/glibc")
+	r := d.request(t, "24", "linux-amd64", "linux-arm64")
 	if _, err := node.Resolve(r); err != nil {
 		t.Fatal(err)
 	}
 	delete(d.files, "/v24.21.0/node-v24.21.0-linux-x64.tar.gz")
-	corrupt := filepath.Join(r.Dir, "node-v24.21.0-linux-arm64.tar.gz")
+	corrupt := filepath.Join(r.Dir, "linux-arm64.tar.gz")
 	if err := os.WriteFile(corrupt, []byte("truncated"), 0o644); err != nil {
 		t.Fatal(err)
 	}
