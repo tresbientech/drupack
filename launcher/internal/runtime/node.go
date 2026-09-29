@@ -20,11 +20,11 @@ func NodeRoot(root string) string {
 
 // PrepareNode returns the directory holding the Node release m describes,
 // staging payload under NodeRoot the first time m's version and payload are seen.
-func PrepareNode(root string, payload []byte, m Manifest, notice io.Writer) (string, error) {
+func PrepareNode(root string, payload []byte, m Manifest, notice io.Writer, hold func(entry string) error) (string, error) {
 	if err := os.MkdirAll(NodeRoot(root), rootMode); err != nil {
 		return "", err
 	}
-	return prepare(NodeRoot(root), "Node", payload, m, notice)
+	return prepare(NodeRoot(root), "Node", payload, m, notice, hold)
 }
 
 // CleanNode reports every unpacked Node release under root, with the space it

@@ -46,15 +46,10 @@ func run() error {
 		Manifest:    m,
 		AppChecksum: string(appChecksum),
 		AppPayload:  appPayload,
-	}, os.Stderr)
+	}, os.Stderr, runtime.HoldUsage)
 	if err != nil {
 		return err
 	}
-	// Both directories stay in use until this process ends, which on unix is the
-	// exec below and on Windows the wait for the child. Cleanup reads the markers
-	// and leaves a running site's files alone.
-	runtime.HoldUsage(directory)
-	runtime.HoldUsage(application)
 	if err := prepareNode(root); err != nil {
 		return err
 	}
@@ -103,11 +98,10 @@ func prepareNode(root string) error {
 	if err != nil {
 		return err
 	}
-	directory, err := runtime.PrepareNode(root, nodePayload, m, os.Stderr)
+	directory, err := runtime.PrepareNode(root, nodePayload, m, os.Stderr, runtime.HoldUsage)
 	if err != nil {
 		return err
 	}
-	runtime.HoldUsage(directory)
 	executables := filepath.Dir(filepath.Join(directory, filepath.FromSlash(m.Entry)))
 	if err := os.Setenv("PATH", executables+string(os.PathListSeparator)+os.Getenv("PATH")); err != nil {
 		return err
