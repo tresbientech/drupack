@@ -102,6 +102,23 @@ requires `drupal/mcp_tools` and `drupal/mcp_server`. They ship in every Mercury
 executable. Lean: drop both from the example unless its recipe enables them,
 which is Mercury's decision rather than the engine's.
 
+## HTTPS on a site's listener
+
+A site serves plain HTTP. Agent Access asks for an HTTPS MCP address, and some
+local agents enforce it. Hosted connectors, such as those in claude.ai, call
+from their vendor's servers and cannot reach a loopback address at all. HTTPS
+needs a TLS listener in the Caddyfile and certificate and key options with the
+double-quote refusal. It also needs the scheme in the printed URL and a
+readiness probe that speaks TLS. Three certificate sources exist:
+
+- files the reader names, made once with `mkcert localhost 127.0.0.1 ::1`
+- mkcert's root CA, which DDEV already installs, signing a leaf in Caddy
+- Caddy's own CA, with a command that installs it in the trust stores
+
+Lean: take files. Drupack then never reads a CA's private key, which can sign
+for any domain the machine trusts. A Node client still needs
+`NODE_EXTRA_CA_CERTS` pointing at the root.
+
 ## Whether automatic_updates still stalls cron
 
 `build/seed.sh` uninstalls `automatic_updates` because it stalled a cron request,
