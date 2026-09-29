@@ -47,6 +47,17 @@ function installCommand(bool $windows, string $script): array
         : ['sh', $script];
 }
 
+// Runs the fetched script in $root and returns its exit status. The script
+// inherits this process's environment, so a libc override reaches it. Its output
+// tells how to move the executable onto PATH, which a project keeps in its root,
+// so only its errors reach the terminal.
+function runScript(bool $windows, string $script, string $root): int
+{
+    $pipes = [];
+    $discard = ['file', $windows ? 'NUL' : '/dev/null', 'w'];
+    return proc_close(proc_open(installCommand($windows, $script), [0 => STDIN, 1 => $discard, 2 => STDERR], $pipes, $root));
+}
+
 // Whether $binary is byte for byte a drupack build of $version, by the release's
 // checksums.txt. The file is never run, since a project can hold any file there.
 function isRelease(string $binary, string $checksums, string $version): bool
@@ -127,13 +138,8 @@ try {
         $handle = fopen($script, 'x');
         fwrite($handle, $contents);
         fclose($handle);
-        // The script's own output tells how to move the executable onto PATH, which a
-        // project keeps in its root. Its errors still reach the terminal on stderr.
         echo "Downloading drupack $version for this system.\n";
-        $pipes = [];
-        $discard = ['file', $windows ? 'NUL' : '/dev/null', 'w'];
-        $install = proc_open(installCommand($windows, $script), [0 => STDIN, 1 => $discard, 2 => STDERR], $pipes, $root);
-        $status = proc_close($install);
+        $status = runScript($windows, $script, $root);
         unlink($script);
         if ($status !== 0) {
             throw new RuntimeException("drupack $version was not installed.");

@@ -8,8 +8,6 @@ import (
 // Release is the runtime build and the application one executable carries.
 // Neither runs with a component from another release.
 type Release struct {
-	// Libc names the runtime build Select picked, empty on a launcher carrying one.
-	Libc        string
 	Payload     []byte
 	Manifest    Manifest
 	AppChecksum string
@@ -36,10 +34,6 @@ func PrepareRelease(root string, r Release, notice io.Writer) (string, string, e
 
 // failure names what the start asked for and the step that stopped it.
 func (r Release) failure(step string, err error) error {
-	build := r.Libc
-	if build == "" {
-		build = "single"
-	}
-	return fmt.Errorf("could not prepare runtime %s (%s build) with application %s, at the %s step: %w",
-		Key(r.Manifest.Version, r.Payload), build, r.AppChecksum, step, err)
+	return fmt.Errorf("could not prepare runtime %s with application %s, at the %s step: %w",
+		Key(r.Manifest.Version, r.Payload), r.AppChecksum, step, err)
 }

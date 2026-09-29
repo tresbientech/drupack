@@ -94,7 +94,7 @@ jobs:
               echo 'Documentation alone changed. Nothing to build.'
             fi
           fi
-          # Each Linux architecture carries a runtime per C library.
+          # Each Linux architecture publishes a file per C library.
           linux_runtime=$(jq -cn --argjson linux "$linux" \
             '[$linux[] | ({arch: .arch, libc: "musl"}, {arch: .arch, libc: "gnu"})]')
           # Every platform packs the payload job's output, so any target calls for it.
@@ -348,9 +348,8 @@ jobs:
           name: engine-payload-archive
           path: dist/engine-payload
 
-      # The runtimes are listed with the one needing a host loader first, which is
-      # the order the launcher tries them in. The launcher itself carries no cgo,
-      # so one file runs on a glibc and a musl host alike.
+      # Each file carries one runtime. The launcher itself carries no cgo, so both
+      # files start on a glibc and a musl host alike.
       - name: Pack the executables
         working-directory: launcher
         env:
@@ -358,15 +357,20 @@ jobs:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
           chmod +x ../runtime-musl/out/drupack ../runtime-gnu/out/drupack
-          mkdir -p ../dist
-          go run ./cmd/pack -runtime glibc=../runtime-gnu/out -runtime musl=../runtime-musl/out \
-            -entry drupack -version "$DRUPACK_VERSION" -source . -output ../dist/mercury-demo \
-            -app ../dist/payload/app-payload.tar -app-checksum ../dist/payload/app_checksum.txt \
-            -site ../dist/payload/site.json -site-version "$DRUPACK_VERSION"
+          mkdir -p ../dist/musl ../dist/engine/musl
+          for libc in gnu musl; do
+            # The musl files land in their own directories, since each artifact holds one file named NAME.
+            directory=
+            if [ "$libc" = musl ]; then directory=/musl; fi
+            go run ./cmd/pack -runtime "../runtime-$libc/out" \
+              -entry drupack -version "$DRUPACK_VERSION" -source . -output "../dist$directory/mercury-demo" \
+              -app ../dist/payload/app-payload.tar -app-checksum ../dist/payload/app_checksum.txt \
+              -site ../dist/payload/site.json -site-version "$DRUPACK_VERSION"
+            go run ./cmd/pack -engine -runtime "../runtime-$libc/out" \
+              -entry drupack -version "$DRUPACK_VERSION" -source . -output "../dist/engine$directory/drupack" \
+              -app ../dist/engine-payload/app-payload.tar -app-checksum ../dist/engine-payload/app_checksum.txt
+          done
           cp ../dist/payload/site.json ../dist/site.json
-          go run ./cmd/pack -engine -runtime glibc=../runtime-gnu/out -runtime musl=../runtime-musl/out \
-            -entry drupack -version "$DRUPACK_VERSION" -source . -output ../dist/engine/drupack \
-            -app ../dist/engine-payload/app-payload.tar -app-checksum ../dist/engine-payload/app_checksum.txt
 
       - name: Run the harness unit tests
         run: python3 -m unittest discover -s tests/conformance -p 'test_harness.py'
@@ -377,32 +381,23 @@ jobs:
         run: |
           python3 tests/conformance dist/mercury-demo test-results/conformance --site-tests examples/mercury-demo/tests
 
-      # The executable carries a runtime per libc and picks one per host. This
-      # runner has glibc, so the step above exercised the glibc runtime. Forcing
-      # musl here covers the other runtime and the variable that selects it.
-      - name: Start a site on the musl runtime
+      - name: Check each file's runtime and size
         run: |
           set -eu
-          dist/mercury-demo --version | grep -q ', glibc)'
-          DRUPACK_LIBC=musl dist/mercury-demo --version | grep -q ', musl)'
-          if DRUPACK_LIBC=gnu dist/mercury-demo --version; then
-            echo 'An unknown DRUPACK_LIBC value was accepted' >&2
-            exit 1
-          fi
-          DRUPACK_LIBC=musl dist/mercury-demo --data-dir "$RUNNER_TEMP/musl-site" \
-            --admin-user musl-admin --admin-password Musl.check.password.2026 --no-browser &
-          for _ in $(seq 1 60); do
-            if curl -fsS -o /dev/null http://127.0.0.1:7225/user/login; then
-              exit 0
-            fi
-            sleep 2
+          for file in dist/mercury-demo dist/engine/drupack; do
+            "$file" --version | grep ', glibc)$'
           done
-          exit 1
+          for file in dist/musl/mercury-demo dist/engine/musl/drupack; do
+            "$file" --version | grep ', musl)$'
+          done
+          for file in dist/mercury-demo dist/musl/mercury-demo dist/engine/drupack dist/engine/musl/drupack; do
+            printf '%s: %d MB\n' "$file" "$(( $(stat -c %s "$file") / 1000000 ))"
+          done
 
       - name: Start a SQLite site on a musl host
         run: |
           docker run -d --name alpine-site --network none \
-            --mount type=bind,src="$PWD/dist/mercury-demo",dst=/usr/local/bin/mercury-demo,readonly \
+            --mount type=bind,src="$PWD/dist/musl/mercury-demo",dst=/usr/local/bin/mercury-demo,readonly \
             alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d \
             mercury-demo --data-dir /tmp/site --admin-user alpine-admin --admin-password Alpine.check.password.2026
           for _ in $(seq 1 60); do
@@ -431,6 +426,18 @@ jobs:
         with:
           name: drupack-linux-${{ matrix.arch }}
           path: dist/engine/drupack
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mercury-demo-linux-${{ matrix.arch }}-musl
+          path: dist/musl/mercury-demo
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: drupack-linux-${{ matrix.arch }}-musl
+          path: dist/engine/musl/drupack
           if-no-files-found: error
 
   windows:

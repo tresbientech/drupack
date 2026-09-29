@@ -11,13 +11,14 @@ platform=linux-$(go env GOARCH)
 executable=dist/mercury-demo-$platform
 engine=dist/engine/drupack-$platform
 
-# The job image carries both of this architecture's runtimes, so the build names none.
+# The job image carries both of this architecture's runtimes, so the build names
+# none. The chain tests the glibc file alone, so it packs no musl one.
 docker build --target job -t drupack-job .
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
-    drupack-build --site examples/mercury-demo --platform "$platform" --libc both \
+    drupack-build --site examples/mercury-demo --platform "$platform" --libc glibc \
     --output dist --work dist/work
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
-    drupack-build --engine-executable --platform "$platform" --output dist/engine --work dist/engine-work
+    drupack-build --engine-executable --platform "$platform" --libc glibc --output dist/engine --work dist/engine-work
 
 # The PHP unit files read the vendor directory of the site just built.
 ln -sfn ../dist/work/app/vendor application/vendor

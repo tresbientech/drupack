@@ -16,7 +16,7 @@ spec:
       description: "Comma-separated targets: linux-amd64, linux-arm64. Empty, drupack.yml's platforms."
       default: ""
     libc:
-      description: "The C library of each Linux runtime: both, glibc or musl. Empty, drupack.yml's libc."
+      description: "The Linux files to build, one per C library: both, glibc or musl. Empty, drupack.yml's libc."
       default: ""
     publish:
       description: On a tag pipeline, upload the executables and create a release.

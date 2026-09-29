@@ -31,7 +31,7 @@ build_tags=nobadger,nomysql,nopgx
 linker_flags="-Wl,--dynamic-list=/go/src/app/dist/static-php-cli/buildroot/lib/libphp.a.dynsym"
 # The builder image sets SPC_LIBC. A glibc build links a dynamic PIE against the
 # host libc. A musl build links a single file that runs on any host. A Linux
-# executable carries both, and the launcher picks one per host.
+# release publishes a file for each.
 # -z now resolves every relocation at load, which leaves the GOT read-only for
 # the process lifetime. The static-pie link already reports BIND_NOW.
 case "$SPC_LIBC" in

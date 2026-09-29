@@ -59,9 +59,18 @@ type Plan struct {
 	Untested []string
 }
 
-// Executable names a site's executable for one platform.
-func Executable(name, platform string) string {
-	return name + "-" + platform
+// Target names what one packed file runs on: its platform, with a -musl suffix
+// for the musl runtime.
+func Target(platform, libc string) string {
+	if libc == "musl" {
+		return platform + "-musl"
+	}
+	return platform
+}
+
+// Executable names a site's executable for one target.
+func Executable(name, target string) string {
+	return name + "-" + target
 }
 
 // NewPlan checks a request against what this release builds and orders its steps.
@@ -75,11 +84,11 @@ func NewPlan(r Request) (Plan, error) {
 	if r.Libc == "" {
 		r.Libc = r.Site.Libc
 	}
-	runtimes, ok := siteconfig.Libcs[r.Libc]
-	if !ok {
-		return Plan{}, fmt.Errorf("--libc %q is not one of both, glibc, musl", r.Libc)
+	libcs, err := requestLibcs(r.Libc)
+	if err != nil {
+		return Plan{}, err
 	}
-	resolved, err := resolveRuntimes(r, runtimes)
+	resolved, err := resolveRuntimes(r, libcs)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -131,41 +140,59 @@ func NewPlan(r Request) (Plan, error) {
 	plan.Steps = append(plan.Steps, Step{Name: "write site.json beside the executables", Func: func(io.Writer) error {
 		return siteconfig.Write(r.Site, r.Output)
 	}})
+	plan.Steps = append(plan.Steps, packSteps(r, libcs, resolved, "pack ", r.Site.Name, payload,
+		"-site", filepath.Join(application, siteconfig.OutputName), "-site-version", r.SiteVersion)...)
+	// The suite runs on the host's first file, the glibc one when the build packs both.
+	tested := ""
 	for _, platform := range r.Platforms {
-		command := packCommand(r, runtimes, resolved, platform, payload, Executable(r.Site.Name, platform),
-			"-site", filepath.Join(application, siteconfig.OutputName), "-site-version", r.SiteVersion)
-		plan.Steps = append(plan.Steps, Step{Name: "pack " + platform, Command: command,
-			Dir: filepath.Join(r.Engine, "launcher"), Env: []string{"CGO_ENABLED=0"}})
-	}
-	for _, platform := range r.Platforms {
-		if platform != r.Host {
-			plan.Untested = append(plan.Untested, platform)
-			continue
+		for _, libc := range libcs {
+			target := Target(platform, libc)
+			if tested != "" || platform != r.Host {
+				plan.Untested = append(plan.Untested, target)
+				continue
+			}
+			tested = target
 		}
+	}
+	if tested != "" {
 		command := []string{"python3", filepath.Join(r.Engine, "tests", "conformance"),
-			filepath.Join(r.Output, Executable(r.Site.Name, platform)), filepath.Join(r.Work, "test-results")}
+			filepath.Join(r.Output, Executable(r.Site.Name, tested)), filepath.Join(r.Work, "test-results")}
 		if info, err := os.Stat(filepath.Join(r.SiteDir, "tests")); err == nil && info.IsDir() {
 			command = append(command, "--site-tests", filepath.Join(r.SiteDir, "tests"))
 		}
-		plan.Steps = append(plan.Steps, Step{Name: "test " + platform, Command: command})
+		plan.Steps = append(plan.Steps, Step{Name: "test " + tested, Command: command})
 	}
 	return plan, nil
 }
 
-// packCommand runs cmd/pack for platform, carrying one runtime per libc and the
-// archive in payload, to OUTPUT/executable. extra adds the packer's flags for
-// what the archive holds.
-func packCommand(r Request, libcs []string, resolved map[string]string, platform, payload, executable string, extra ...string) []string {
-	command := []string{"go", "run", "./cmd/pack"}
-	for _, libc := range libcs {
-		command = append(command, "-runtime", libc+"="+resolved[platform+"/"+libc])
+// packSteps packs one file per platform and libc, each carrying its one runtime
+// and the archive in payload, to OUTPUT/NAME-TARGET. extra adds the packer's
+// flags for what the archive holds.
+func packSteps(r Request, libcs []string, resolved map[string]string, step, name, payload string, extra ...string) []Step {
+	var steps []Step
+	for _, platform := range r.Platforms {
+		for _, libc := range libcs {
+			target := Target(platform, libc)
+			command := append([]string{"go", "run", "./cmd/pack", "-runtime", resolved[platform+"/"+libc],
+				"-entry", "drupack", "-version", r.EngineVersion,
+				"-source", filepath.Join(r.Engine, "launcher"),
+				"-output", filepath.Join(r.Output, Executable(name, target)),
+				"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
+				"-goarch", siteconfig.Platforms[platform]}, extra...)
+			steps = append(steps, Step{Name: step + target, Command: command,
+				Dir: filepath.Join(r.Engine, "launcher"), Env: []string{"CGO_ENABLED=0"}})
+		}
 	}
-	command = append(command, "-entry", "drupack", "-version", r.EngineVersion,
-		"-source", filepath.Join(r.Engine, "launcher"),
-		"-output", filepath.Join(r.Output, executable),
-		"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
-		"-goarch", siteconfig.Platforms[platform])
-	return append(command, extra...)
+	return steps
+}
+
+// requestLibcs returns the C library of each Linux file libc packs.
+func requestLibcs(libc string) ([]string, error) {
+	libcs, ok := siteconfig.Libcs[libc]
+	if !ok {
+		return nil, fmt.Errorf("--libc %q is not one of both, glibc, musl", libc)
+	}
+	return libcs, nil
 }
 
 // resolveRuntimes checks each of r.Platforms and maps its "PLATFORM/LIBC" targets
@@ -215,8 +242,8 @@ func Run(plan Plan, log io.Writer) error {
 			return fmt.Errorf("%s: %w", step.Name, err)
 		}
 	}
-	for _, platform := range plan.Untested {
-		fmt.Fprintf(log, "Not tested: %s, which this host cannot run.\n", platform)
+	for _, target := range plan.Untested {
+		fmt.Fprintf(log, "Not tested: %s.\n", target)
 	}
 	return nil
 }

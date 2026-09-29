@@ -1,4 +1,4 @@
-// Command pack builds a launcher carrying one runtime build per -runtime.
+// Command pack builds a launcher carrying the runtime build -runtime names.
 package main
 
 import (
@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	goruntime "runtime"
-	"strings"
 
 	"github.com/klauspost/compress/zstd"
 
@@ -28,62 +27,32 @@ type site struct {
 	engine  bool
 }
 
-// packedRuntime names one runtime the launcher will carry: the libc it was
-// linked against, and the directory holding its files. A value naming no libc
-// is the sole runtime of a launcher that carries one, which the launcher runs
-// without reading anything.
-type packedRuntime struct {
-	libc      string
-	directory string
-}
-
-// runtimeList collects repeated -runtime values in the order given, which is
-// the order the launcher tries them in. The separator is '=' rather than ':',
-// since a Windows build passes a directory carrying a drive letter.
-type runtimeList []packedRuntime
-
-func (l *runtimeList) String() string {
-	return fmt.Sprint([]packedRuntime(*l))
-}
-
-func (l *runtimeList) Set(value string) error {
-	libc, directory, named := strings.Cut(value, "=")
-	if !named {
-		*l = append(*l, packedRuntime{directory: value})
-		return nil
-	}
-	if libc == "" || directory == "" {
-		return fmt.Errorf("-runtime takes LIBC=DIRECTORY or DIRECTORY, got %q", value)
-	}
-	*l = append(*l, packedRuntime{libc: libc, directory: directory})
-	return nil
-}
-
-// builtRuntime is one packed runtime: its libc, its compressed payload and the
-// manifest describing what the payload holds.
-type builtRuntime struct {
-	libc     string
-	payload  []byte
-	manifest runtime.Manifest
-}
-
 // embeddedPayloadSource returns the payload.go that replaces
 // launcher's own in the build copy, so the launcher embeds this
-// build's runtimes instead of the zero-value placeholder committed there.
-func embeddedPayloadSource(built []builtRuntime, packaged site) string {
-	var source strings.Builder
-	source.WriteString("package main\n\nimport _ \"embed\"\n")
-	for index := range built {
-		fmt.Fprintf(&source, "\n//go:embed payload-%d.tar.zst\nvar payload%d []byte\n", index, index)
-		fmt.Fprintf(&source, "\n//go:embed manifest-%d.json\nvar manifest%d []byte\n", index, index)
-	}
-	source.WriteString("\nvar runtimes = []embeddedRuntime{\n")
-	for index, one := range built {
-		fmt.Fprintf(&source, "\t{libc: %q, payload: payload%d, manifest: manifest%d},\n", one.libc, index, index)
-	}
-	source.WriteString("}\n\n//go:embed app.tar.zst\nvar appPayload []byte\n\n//go:embed app_checksum.txt\nvar appChecksum []byte\n")
-	fmt.Fprintf(&source, "\nvar siteName = %q\n\nvar siteVersion = %q\n\nvar engine = %t\n", packaged.name, packaged.version, packaged.engine)
-	return source.String()
+// build's runtime instead of the zero-value placeholder committed there.
+func embeddedPayloadSource(packaged site) string {
+	return fmt.Sprintf(`package main
+
+import _ "embed"
+
+//go:embed runtime.tar.zst
+var runtimePayload []byte
+
+//go:embed manifest.json
+var runtimeManifest []byte
+
+//go:embed app.tar.zst
+var appPayload []byte
+
+//go:embed app_checksum.txt
+var appChecksum []byte
+
+var siteName = %q
+
+var siteVersion = %q
+
+var engine = %t
+`, packaged.name, packaged.version, packaged.engine)
 }
 
 func main() {
@@ -94,8 +63,7 @@ func main() {
 }
 
 func run() error {
-	var carried runtimeList
-	flag.Var(&carried, "runtime", "runtime to pack, as LIBC=DIRECTORY, repeated for a launcher carrying more than one")
+	directory := flag.String("runtime", "", "directory holding the runtime to pack")
 	version := flag.String("version", "", "engine version, which names each runtime's cache entry")
 	siteFile := flag.String("site", "", "the site.json of the site the application holds")
 	siteVersion := flag.String("site-version", "", "the site's release")
@@ -108,6 +76,7 @@ func run() error {
 	engine := flag.Bool("engine", false, "pack the engine executable, whose -app holds the engine's files and whose release is -version")
 	flag.Parse()
 	required := map[string]string{
+		"runtime":      *directory,
 		"version":      *version,
 		"entry":        *entry,
 		"source":       *source,
@@ -121,9 +90,6 @@ func run() error {
 	}
 	if err := requireFlags(required); err != nil {
 		return err
-	}
-	if len(carried) == 0 {
-		return fmt.Errorf("-runtime is required")
 	}
 	packaged := site{name: build.EngineName, version: *version, engine: true}
 	if !*engine {
@@ -139,16 +105,12 @@ func run() error {
 		packaged = site{name: described.Name, version: *siteVersion}
 	}
 
-	built := make([]builtRuntime, 0, len(carried))
-	for _, one := range carried {
-		payload, manifest, err := runtime.Build(one.directory, *version, *entry)
-		if err != nil {
-			return err
-		}
-		if key := runtime.Key(*version, payload); !runtime.MintedSegment(key) {
-			return fmt.Errorf("version %q would mint the cache entry %q, breaking the rule %s", *version, key, runtime.MintedSegmentPattern)
-		}
-		built = append(built, builtRuntime{libc: one.libc, payload: payload, manifest: manifest})
+	payload, manifest, err := runtime.Build(*directory, *version, *entry)
+	if err != nil {
+		return err
+	}
+	if key := runtime.Key(*version, payload); !runtime.MintedSegment(key) {
+		return fmt.Errorf("version %q would mint the cache entry %q, breaking the rule %s", *version, key, runtime.MintedSegmentPattern)
 	}
 
 	build, err := os.MkdirTemp("", "drupack-pack-")
@@ -157,7 +119,7 @@ func run() error {
 	}
 	defer os.RemoveAll(build)
 
-	if err := writeBuildCopy(build, *source, built, packaged); err != nil {
+	if err := writeBuildCopy(build, *source, payload, manifest, packaged); err != nil {
 		return err
 	}
 	if err := writeAppPayload(build, *app, *appChecksum); err != nil {
@@ -176,9 +138,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	for index, one := range built {
-		fmt.Printf("runtime %d libc %q payload %d bytes\n", index, one.libc, len(one.payload))
-	}
+	fmt.Printf("runtime payload %d bytes\n", len(payload))
 	fmt.Printf("output %d bytes\n", info.Size())
 	return nil
 }
@@ -192,28 +152,24 @@ func requireFlags(flags map[string]string) error {
 	return nil
 }
 
-// writeBuildCopy copies source into directory, then adds every runtime's payload
+// writeBuildCopy copies source into directory, then adds the runtime's payload
 // and manifest plus the embedding source, which together replace source's own
 // payload.go in the copy that go build sees.
-func writeBuildCopy(directory, source string, built []builtRuntime, packaged site) error {
+func writeBuildCopy(directory, source string, payload []byte, manifest runtime.Manifest, packaged site) error {
 	if err := build.CopyTree(source, directory, func(string) bool { return false }); err != nil {
 		return err
 	}
-	for index, one := range built {
-		payloadName := fmt.Sprintf("payload-%d.tar.zst", index)
-		if err := os.WriteFile(filepath.Join(directory, payloadName), one.payload, 0600); err != nil {
-			return err
-		}
-		manifestData, err := json.Marshal(one.manifest)
-		if err != nil {
-			return err
-		}
-		manifestName := fmt.Sprintf("manifest-%d.json", index)
-		if err := os.WriteFile(filepath.Join(directory, manifestName), manifestData, 0600); err != nil {
-			return err
-		}
+	if err := os.WriteFile(filepath.Join(directory, "runtime.tar.zst"), payload, 0600); err != nil {
+		return err
 	}
-	return os.WriteFile(filepath.Join(directory, "payload.go"), []byte(embeddedPayloadSource(built, packaged)), 0600)
+	manifestData, err := json.Marshal(manifest)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(directory, "manifest.json"), manifestData, 0600); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(directory, "payload.go"), []byte(embeddedPayloadSource(packaged)), 0600)
 }
 
 // writeAppPayload compresses the application tar into the build copy, beside

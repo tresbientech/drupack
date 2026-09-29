@@ -21,7 +21,7 @@ var version = "dev"
 
 // libc names the C library this runtime was linked against. embed.sh sets it
 // from the builder image's SPC_LIBC, and a build that links no libc of its own
-// leaves it empty. A Linux executable carries a runtime per libc, so a report
+// leaves it empty. A Linux release publishes a file per libc, so a report
 // about one of them has to say which ran.
 var libc = ""
 

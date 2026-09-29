@@ -17,12 +17,7 @@ import (
 type Manifest struct {
 	Version string `json:"version"`
 	Entry   string `json:"entry"`
-	// Interpreter names the ELF program interpreter the entry needs, empty
-	// for an entry that needs none. A launcher carrying more than one runtime
-	// stats it to tell which runtimes this host can run. Selection only stats
-	// it, so a cache copy an owner edited cannot direct a join or an exec.
-	Interpreter string `json:"interpreter,omitempty"`
-	Files       []File `json:"files"`
+	Files   []File `json:"files"`
 }
 
 // File is one runtime file, declared by its path relative to the runtime

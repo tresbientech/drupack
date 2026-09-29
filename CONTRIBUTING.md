@@ -22,13 +22,13 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
     --output dist --work dist/work
 ```
 
-The build packs the targets Mercury's `drupack.yml` names. `--libc glibc` or `--libc musl` packs one runtime instead of both, and `--platform` overrides the file's platforms. `--runtime PLATFORM/LIBC=DIRECTORY` replaces one carried runtime with a local one. `drupack-build -help` lists every option.
+The build packs the targets Mercury's `drupack.yml` names, one file per platform and C library. `--libc glibc` or `--libc musl` packs that file alone instead of both, and `--platform` overrides the file's platforms. `--runtime PLATFORM/LIBC=DIRECTORY` replaces one runtime with a local one. `drupack-build -help` lists every option.
 
 A release tag publishes the image as `ghcr.io/tresbientech/drupack-build:VERSION`, carrying all four Linux runtimes. The image itself runs on amd64 only.
 
 The release workflow names the same image after its inputs. `runtime/builder-tag.sh` digests the FrankenPHP commit, the PHP version, both extension list files, the C library and the machine type, and the workflow pulls `ghcr.io/tresbientech/drupack-builder` under that tag. A run whose inputs are unchanged pulls the published image; a run that changes one builds the image and publishes it under the new tag. `runtime/builder-inputs.sh` holds the version pins both scripts read.
 
-The output is `dist/mercury-demo-linux-amd64` on an amd64 host, with `dist/site.json` beside it. The host needs no PHP, Composer or database server: the job image runs Composer, Drush and the seed install with the musl runtime's own PHP.
+The output is `dist/mercury-demo-linux-amd64` and `dist/mercury-demo-linux-amd64-musl` on an amd64 host, with `dist/site.json` beside them. The build tests the glibc file. The host needs no PHP, Composer or database server: the job image runs Composer, Drush and the seed install with the musl runtime's own PHP.
 
 The engine executable builds without a site:
 
@@ -37,7 +37,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
     drupack-build --engine-executable --output dist/engine --work dist/engine-work
 ```
 
-It packs `engine/` in place of an application, with both runtimes, to `dist/engine/drupack-linux-amd64`. `--payload-only` stops at the archive, in `dist/engine/payload`, for the macOS and Windows builds.
+It packs `engine/` in place of an application, to `dist/engine/drupack-linux-amd64` and `dist/engine/drupack-linux-amd64-musl`. `--libc` picks one of them, as for a site. `--payload-only` stops at the archive, in `dist/engine/payload`, for the macOS and Windows builds.
 
 `application/` holds the engine's PHP files, which the build lays over a site's Composer project to make the application root. `examples/mercury-demo/` is the site the Drupack release packages: its Composer project and its `drupack.yml`, which `launcher/internal/siteconfig` validates and writes out as `site.json`. `runtime/` holds the PHP and FrankenPHP compile. `launcher/` is the Go module for the launcher, its packer and `drupack-build`. `engine/` holds the engine executable's own files, two of them links into `application/`. `build/` holds the scripts `drupack-build` runs, the macOS and Windows builds and the development loop. The `Dockerfile` at the root compiles the Linux runtimes and builds the `job` image. [ADR 0017](docs/adr/0017-one-directory-per-artifact.md) records the shape.
 
@@ -149,11 +149,11 @@ Neither start needs more options. The test scripts still need a built executable
 
 Every published executable is a launcher carrying the real executable, compressed with `github.com/klauspost/compress/zstd`. The first run of a version unpacks it under the user's cache directory, then replaces its own process with it on Linux and macOS, or starts it as a child on Windows, which has no `exec`. Later runs compare a stored manifest and file sizes, then start. `DRUPACK_CACHE_DIR` moves that cache.
 
-`launcher/` holds the launcher and its packer, at the path its `go.mod` declares. A Linux executable carries a runtime per C library, built from one builder image each, and the launcher picks one per host. `drupack-build` runs the packer over the runtime directories it is given. `docker build --target uncompressed` gives you the musl runtime executable on its own, and `--target uncompressed-gnu` the glibc one.
+`launcher/` holds the launcher and its packer, at the path its `go.mod` declares. A Linux release publishes a file per C library, each carrying one runtime built from that library's builder image. `drupack-build` runs the packer once per file, over the runtime directory it is given. `docker build --target uncompressed` gives you the musl runtime executable on its own, and `--target uncompressed-gnu` the glibc one.
 
 ## Releases
 
-A version tag without a `v` prefix, such as `0.1.1`, pushed to the Forge, mirrors to GitHub and drupal.org and starts the release workflow. It builds all five targets, runs their tests, then publishes a GitHub Release. `build/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. Packagist reads the same tag from the GitHub mirror as a version of the Composer package `tresbientech/drupack`, which [ADR 0024](docs/adr/0024-composer-package.md) describes.
+A version tag without a `v` prefix, such as `0.1.1`, pushed to the Forge, mirrors to GitHub and drupal.org and starts the release workflow. It builds all seven targets and runs the suite on each, except the two musl files, which start a site on Alpine. It then publishes a GitHub Release. `build/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. Packagist reads the same tag from the GitHub mirror as a version of the Composer package `tresbientech/drupack`, which [ADR 0024](docs/adr/0024-composer-package.md) describes.
 
 A push to `main` mirrors the same way. It builds and tests Linux amd64 when the push touched a path outside `docs/`, `LICENSE` and the root Markdown files. A documentation commit starts no build.
 

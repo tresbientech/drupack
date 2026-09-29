@@ -48,6 +48,19 @@ test('each system runs the fetched script as a file', function (): void {
     same('drupack', executable(false));
 });
 
+test('the fetched script runs in the project root with DRUPACK_LIBC', function (): void {
+    $directory = directory('environment');
+    $script = "$directory/install.sh";
+    file_put_contents($script, "printf %s \"\$DRUPACK_LIBC\" > libc\necho discarded\n");
+    putenv('DRUPACK_LIBC=musl');
+    try {
+        same(0, runScript(false, $script, $directory));
+    } finally {
+        putenv('DRUPACK_LIBC');
+    }
+    same('musl', file_get_contents("$directory/libc"));
+});
+
 test('a build is current when the release lists its SHA-256 for drupack', function (): void {
     $directory = directory('current');
     file_put_contents("$directory/drupack", 'a drupack build');
