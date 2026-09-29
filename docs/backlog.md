@@ -163,3 +163,11 @@ is.
 FrankenPHP's main branch calls it from `php-cli` on PHP 8.6 and later. Lean:
 once the pinned FrankenPHP does, drop the refusal in the runtime's entry point
 and pass every argument to `php-cli`.
+
+## Checks only a tag build runs
+
+A main push builds and tests Linux amd64 alone. Two shipped changes wait for the
+macOS and Windows jobs of the next tag build: Node packed and run on both
+platforms, and the Windows `php.cmd` alias passing spaces, quotes and `%`
+unchanged. Lean: read those jobs' results before announcing the release, and
+fix on main with the next patch version if one fails.
