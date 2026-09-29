@@ -23,6 +23,9 @@ const FileName = "drupack.yml"
 // OutputName is the normalized form every other reader takes.
 const OutputName = "site.json"
 
+// DefaultLibc is the libc value of a site whose contract names none, and of the engine.
+const DefaultLibc = "both"
+
 // Libcs lists the values libc takes, and the C library of each Linux file each
 // one packs. glibc comes first, so a build that packs both tests its glibc file.
 var Libcs = map[string][]string{
@@ -87,7 +90,7 @@ func Parse(content []byte) (Site, error) {
 		site.Platforms = []string{"linux-amd64"}
 	}
 	if site.Libc == "" {
-		site.Libc = "both"
+		site.Libc = DefaultLibc
 	}
 	if site.Writable == nil {
 		site.Writable = []string{}

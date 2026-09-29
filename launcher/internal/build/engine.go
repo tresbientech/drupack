@@ -4,6 +4,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
 // EngineName names the engine executable, which serves a project folder and
@@ -20,7 +22,7 @@ func NewEnginePlan(r Request) (Plan, error) {
 	}
 	// The engine reads no site, so it packs both files unless --libc names one.
 	if r.Libc == "" {
-		r.Libc = "both"
+		r.Libc = siteconfig.DefaultLibc
 	}
 	libcs, err := requestLibcs(r.Libc)
 	if err != nil {
