@@ -76,9 +76,10 @@ function useSiteApplication(SiteData $site, bool $drush): void
     putenv('DRUPACK_RUNTIME_APP_DIR=' . $site->application());
 }
 
-// The packaged site's defaults, written from its drupack.yml when the application was built.
+// Site data when neither --data-dir nor DRUPACK_DATA_DIR names one.
 const DEFAULT_DATA_DIR = './data';
 
+// The packaged site's defaults, written from its drupack.yml when the application was built.
 function siteSettings(): array
 {
     static $site;

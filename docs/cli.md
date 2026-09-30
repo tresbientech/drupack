@@ -209,7 +209,8 @@ link, returns once the site answers, and names the log file. `--foreground`
 serves in the terminal until a signal stops it. `drupack stop [DIR]` ends the
 server of `DIR`, the working directory by default. The server's lease, stop
 record and log live in the cache, keyed by the folder, so the folder gains no
-file. A second start on a Project folder that a server already serves exits 1 and says it already serves.
+file. A second start on a Project folder that a server already serves exits 1
+and says it already serves.
 
 - The docroot is the scaffold web root `composer.json` names, `web` when it
   names none.

@@ -68,7 +68,8 @@ type stopRecord struct {
 // writes the record that names the port and the token to path. The channel binds
 // loopback whatever address the site listens on, so no other computer reaches it. On
 // Unix the record is owner-only, so no other account holds the token; Windows ignores
-// the mode, and the file takes the access of its directory. A valid request gets 204, then shutdown runs. Ending stopping closes the listener.
+// the mode, and the file takes the access of its directory. A valid request gets
+// 204, then shutdown runs. Ending stopping closes the listener.
 func serveStop(stopping context.Context, path string, shutdown func()) error {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
