@@ -13,7 +13,7 @@ use Symfony\Component\Filesystem\Path;
 // The option set also reaches a reader through runtime/entrypoint.go's usage and
 // docs/cli.md. application/tests/launch_test.php asserts all three against options().
 const HELP = <<<'TEXT'
-Usage: %1$s [OPTIONS]
+Usage: %1$s [start] [OPTIONS]
        %1$s drush [OPTIONS] DRUSH_COMMAND
        %1$s stop [--data-dir PATH]
 
@@ -317,10 +317,29 @@ function servedListener(SiteData $site, array $options): array
     return [$bind, 'http://' . urlHost($record['host']) . ":$port/"];
 }
 
-// A person is present when a terminal started this, or a file manager's console did.
+// A person is present when a terminal started this, or a file manager's console did. A
+// detached start has no terminal of its own, so it passes on whether its parent had one.
 function personPresent(): bool
 {
-    return stream_isatty(STDIN) || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1';
+    return stream_isatty(STDIN) || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1'
+        || environment('DRUPACK_RUNTIME_PERSON') === '1';
+}
+
+// Runs this start again as a background server, through the launcher's detach word, and
+// relays the server's log until it answers. The lease is released first, so the server
+// takes it. The server gets the same arguments and the same working directory, so every
+// path the reader wrote resolves as it did here. This never returns.
+function detach(SiteData $site, $lease, array $arguments): never
+{
+    fclose($lease);
+    if (personPresent()) {
+        putenv('DRUPACK_RUNTIME_PERSON=1');
+    }
+    $start = environment('DRUPACK_RUNTIME_CWD') ?? getcwd();
+    // pcntl_exec keeps the working directory, which is the application's by now.
+    chdir($start);
+    replaceProcess(getenv('DRUPACK_RUNTIME_LAUNCHER'),
+        array_merge(['detach', $site->serverLog(), '--'], $arguments, ['--foreground']), $start, 'Cannot start the server in the background');
 }
 
 // An option the reader gave beats the recorded listener. Site data written before the
@@ -862,6 +881,11 @@ try {
         // `stop` reads a missing record as a start still preparing.
         if (file_exists($site->stopRecord())) {
             unlink($site->stopRecord());
+        }
+        // A double-click owns its console, which closing the window would end along with a
+        // background server, so it serves where the reader can stop it.
+        if ($options['foreground'] === null && environment('DRUPACK_RUNTIME_CONSOLE_OWNED') !== '1') {
+            detach($site, $lease, array_slice($argv, 1));
         }
         $site->recordListener($options['listen'], $options['host'], $options['files-dir']);
     }

@@ -13,7 +13,7 @@ class ArgumentCases(harness.ConformanceCase):
         log = self.case_dir / "run.log"
         with open(log, "wb") as log_handle:
             result = harness.run(
-                [str(harness.BINARY), *args], cwd=self.case_dir,
+                [str(harness.BINARY), *args, "--foreground"], cwd=self.case_dir,
                 stdout=log_handle, stderr=subprocess.STDOUT,
                 timeout=harness.WAITS["refusal"].seconds,
             )

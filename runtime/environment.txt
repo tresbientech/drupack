@@ -15,11 +15,15 @@ DRUSH          writers=runtime/entrypoint.go  readers=application/launch.php
 FILES_DIR      writers=application/launch.php  readers=application/Caddyfile,application/launch.php,application/support/PublicFilesTemplateLoader.php,application/support/SiteDataPublicStream.php
 HOST           writers=application/launch.php  readers=application/settings.php
 ID             writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go,application/Caddyfile,engine/Caddyfile
+INVOKED        writers=launcher/main.go  readers=launcher/detach.go
 LAUNCHER       writers=launcher/main.go,build/dev/dev-entry.sh  readers=application/launch.php
 LOG_PATH       writers=application/launch.php  readers=application/Caddyfile
 NAME           writers=launcher/main.go,build/dev/dev-entry.sh  readers=runtime/entrypoint.go,application/process.php
 NODE           writers=launcher/main.go  readers=runtime/entrypoint.go
 OPEN           writers=application/launch.php  readers=runtime/entrypoint.go
+PERSON         writers=application/launch.php  readers=application/launch.php
 PORT           writers=application/launch.php,engine/serve.php  readers=application/Caddyfile,engine/Caddyfile
 SITE_VERSION   writers=launcher/main.go  readers=runtime/entrypoint.go
+STOP           writers=runtime/entrypoint.go  readers=application/launch.php
+STOP_RECORD    writers=application/launch.php  readers=runtime/entrypoint.go
 URL            writers=application/launch.php  readers=runtime/entrypoint.go

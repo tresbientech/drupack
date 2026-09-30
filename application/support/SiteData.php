@@ -59,6 +59,12 @@ final class SiteData
         return "$this->directory/logs";
     }
 
+    // What a background server writes to standard output and error, truncated per start.
+    public function serverLog(): string
+    {
+        return $this->logs() . '/server.log';
+    }
+
     public function runtime(): string
     {
         return "$this->directory/runtime";

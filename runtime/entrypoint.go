@@ -44,7 +44,7 @@ func release() string {
 	return site + " (drupack " + version + ", " + libc + ")"
 }
 
-const usage = `Usage: %[1]s [OPTIONS]
+const usage = `Usage: %[1]s [start] [OPTIONS]
        %[1]s drush [OPTIONS] DRUSH_COMMAND
        %[1]s node|npm|npx [ARGUMENTS]
        %[1]s stop [--data-dir PATH]
@@ -69,6 +69,7 @@ Options:
   --version, --help
 
 Commands:
+  start                      Start the site, which a bare command does too
   drush                      Run a Drush command against the site
   stop                       Stop the site serving the Site data, for a site
                              another terminal started
@@ -338,6 +339,11 @@ func init() {
 		if err := os.Setenv("DRUPACK_RUNTIME_DRUSH", "1"); err != nil {
 			panic(err)
 		}
+		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[2:]...)
+		return
+	}
+	// The word names what no word does, so launch.php never sees it.
+	if len(os.Args) > 1 && os.Args[1] == "start" {
 		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[2:]...)
 		return
 	}

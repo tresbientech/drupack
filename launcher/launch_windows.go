@@ -40,6 +40,15 @@ func launch(executable string, args []string) error {
 	return err
 }
 
+// createNoWindow gives a process a console no window shows. syscall does not define it.
+const createNoWindow = 0x08000000
+
+// detachedProcess starts the server with a hidden console, which its own console
+// children, cron and Drush, share instead of opening windows of their own.
+func detachedProcess() *syscall.SysProcAttr {
+	return &syscall.SysProcAttr{CreationFlags: createNoWindow}
+}
+
 // consoleOwned reports whether this process is alone on its console, which
 // means a file manager created the window. A console from a shell also holds
 // the shell.

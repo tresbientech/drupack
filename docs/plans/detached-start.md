@@ -66,13 +66,13 @@ helpers pass `--foreground`.
 
 ### Acceptance criteria
 
-- [ ] A conformance case: a first start returns 0 after the ready line, its output holds the login link and the log path, and `SITE drush status` then exits 0.
-- [ ] A conformance case: `SITE start` returns the same way as `SITE`.
-- [ ] A conformance case: a start on a taken port exits 1 with the port message, and no server remains.
-- [ ] A conformance case: a second start while detached hands over and exits 0.
-- [ ] A conformance case: `SITE stop` ends a detached site.
-- [ ] `(cd launcher && go test ./...)` passes.
-- [ ] `bash build/qa.sh` passes.
+- [x] A conformance case: a first start returns 0 after the ready line, its output holds the login link and the log path, and `SITE drush status` then exits 0.
+- [x] A conformance case: `SITE start` returns the same way as `SITE`.
+- [x] A conformance case: a start on a taken port exits 1 with the port message, and no server remains.
+- [x] A conformance case: a second start while detached hands over and exits 0.
+- [x] A conformance case: `SITE stop` ends a detached site.
+- [x] `(cd launcher && go test ./...)` passes.
+- [x] `bash build/qa.sh` passes.
 
 ---
 
