@@ -23,8 +23,9 @@ const relayPoll = 100 * time.Millisecond
 // detach runs this executable again with the arguments after `--`, as a background
 // server that writes to the log file, and relays that log to the reader until the
 // server answers or exits. The caller names the command that stops it, since only the
-// caller knows which Site data or folder the reader named. launch.php runs this word once it holds no lease and has
-// checked the listener, so the server it starts is the one that takes the lease.
+// caller knows which Site data or folder the reader named. launch.php and the engine
+// executable's serve.php run this word once they hold no lease and have checked the
+// listener, so the server it starts is the one that takes the lease.
 func detach(arguments []string) error {
 	if len(arguments) < 4 || arguments[2] != "--" {
 		return errors.New("detach takes LOG STOP_COMMAND -- ARGUMENTS")
@@ -41,6 +42,9 @@ func detach(arguments []string) error {
 	// A nil Stdin is the null device, since nothing answers a terminal prompt here.
 	command := exec.Command(executable, server...)
 	command.Stdout, command.Stderr = file, file
+	// The child's hidden console holds the child alone, which launch_windows.go would
+	// otherwise read as a file manager's window.
+	command.Env = append(os.Environ(), "DRUPACK_RUNTIME_DETACHED=1")
 	command.SysProcAttr = detachedProcess()
 	if err := command.Start(); err != nil {
 		file.Close()
@@ -128,4 +132,10 @@ func relay(log string, exited <-chan int, out io.Writer, stop string, colour boo
 		}
 		time.Sleep(poll)
 	}
+}
+
+// ownsConsole reports whether a file manager created this process's console: nothing
+// but this process holds it, and a detached server's hidden console is not one.
+func ownsConsole(detached string, processes uint32) bool {
+	return detached != "1" && processes == 1
 }

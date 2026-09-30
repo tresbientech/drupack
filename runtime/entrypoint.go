@@ -339,7 +339,7 @@ func init() {
 		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[2:]...)
 		return
 	}
-	// The word names what no word does, so launch.php never sees it.
+	// start is the bare command; the word is dropped before launch.php runs.
 	if len(os.Args) > 1 && os.Args[1] == "start" {
 		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[2:]...)
 		return

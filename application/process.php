@@ -190,7 +190,7 @@ function leaseFree(string $path): bool
 // relays the server's log until it answers. The lease is released first, so the server
 // takes it. The server gets the same arguments and the same working directory, so every
 // path the reader wrote resolves as it did here. $stop is the command the relay prints
-// for ending the server. This never returns.
+// for ending the server.
 function detachServer($lease, string $log, string $stop, array $arguments): never
 {
     fclose($lease);
@@ -202,6 +202,40 @@ function detachServer($lease, string $log, string $stop, array $arguments): neve
     chdir($start);
     replaceProcess(getenv('DRUPACK_RUNTIME_LAUNCHER'),
         array_merge(['detach', $log, $stop, '--'], $arguments, ['--foreground']), $start, 'Cannot start the server in the background');
+}
+
+// What a start does once it holds the lease. A record from an earlier server names a port
+// and a token nobody listens on, and `stop` reads a missing record as a start still
+// preparing, so it goes. A double-click owns its console, which closing the window would
+// end along with a background server, so it serves where the reader can stop it. Every
+// other start detaches unless it was asked to serve in the foreground.
+function detachStart($lease, bool $foreground, string $record, string $log, string $stop, array $arguments): void
+{
+    if (file_exists($record)) {
+        unlink($record);
+    }
+    if (!$foreground && !consoleOwned()) {
+        detachServer($lease, $log, $stop, $arguments);
+    }
+}
+
+// An IPv6 address takes brackets inside a URL authority.
+function urlHost(string $host): string
+{
+    return str_contains($host, ':') ? "[$host]" : $host;
+}
+
+// The address a probe on this computer reaches a server bound to $bind, which a wildcard
+// reaches through its own family's loopback, since an IPv6-only listener never answers on
+// 127.0.0.1.
+function probeHost(string $bind): string
+{
+    $bind = trim($bind, '[]');
+    return match ($bind) {
+        '0.0.0.0' => '127.0.0.1',
+        '::' => '::1',
+        default => $bind,
+    };
 }
 
 // One word of a command a reader pastes into their shell.
@@ -218,7 +252,7 @@ function shellWord(string $value): string
 // default does.
 function stopCommand(string $target): string
 {
-    return environment('DRUPACK_RUNTIME_INVOKED') . ' stop' . $target;
+    return shellWord(environment('DRUPACK_RUNTIME_INVOKED')) . ' stop' . $target;
 }
 
 function notRunning(): int

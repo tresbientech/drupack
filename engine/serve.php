@@ -121,7 +121,8 @@ function checkPlatform(string $binary, string $project): void
 // Windows spells one path in several casings, so the key reads a single one.
 function folderEntry(string $project): string
 {
-    return getenv('DRUPACK_RUNTIME_CACHE_ROOT') . '/folders/'
+    // The letter keeps the name inside ADR 0010's cache segment form.
+    return getenv('DRUPACK_RUNTIME_CACHE_ROOT') . '/folders/f'
         . substr(hash('sha256', windows() ? strtolower($project) : $project), 0, 16);
 }
 
@@ -136,6 +137,21 @@ function projectFolder(?string $directory): string
     return canonical($project);
 }
 
+function entryLease(string $entry): string
+{
+    return "$entry/serving.lock";
+}
+
+function entryStopRecord(string $entry): string
+{
+    return "$entry/stop.json";
+}
+
+function entryLog(string $entry): string
+{
+    return "$entry/server.log";
+}
+
 // `stop` takes the folder alone. A folder that was never served has no entry, and the
 // lookup creates none.
 function stopFolder(array $arguments): int
@@ -145,19 +161,7 @@ function stopFolder(array $arguments): int
     }
     $project = projectFolder($arguments[0] ?? null);
     $entry = folderEntry($project);
-    return stopServer("$entry/serving.lock", "$entry/stop.json", 'folder', $project);
-}
-
-// The address a probe on this computer reaches a server bound to $bind, which a wildcard
-// reaches through its own family's loopback.
-function probeUrl(string $bind, string $port): string
-{
-    $host = match (trim($bind, '[]')) {
-        '0.0.0.0' => '127.0.0.1',
-        '::' => '::1',
-        default => trim($bind, '[]'),
-    };
-    return 'http://' . (str_contains($host, ':') ? "[$host]" : $host) . ":$port";
+    return stopServer(entryLease($entry), entryStopRecord($entry), 'folder', $project);
 }
 
 function serve(string $binary, array $arguments): never
@@ -192,20 +196,12 @@ function serve(string $binary, array $arguments): never
     // detaches has nothing left to refuse but the server's own failures.
     $entry = folderEntry($project);
     directory($entry);
-    $lease = takeLease("$entry/serving.lock");
+    $lease = takeLease(entryLease($entry));
     if ($lease === null) {
         throw new RuntimeException(executableName() . " already serves $project");
     }
-    // A record from an earlier server names a port and a token nobody listens on, and
-    // `stop` reads a missing record as a start still preparing.
-    if (file_exists("$entry/stop.json")) {
-        unlink("$entry/stop.json");
-    }
-    // A double-click owns its console, which closing the window would end along with a
-    // background server, so it serves where the reader can stop it.
-    if (!$foreground && !consoleOwned()) {
-        detachServer($lease, "$entry/server.log", stopCommand($directory === null ? '' : ' ' . shellWord($directory)), array_merge(['start'], $typed));
-    }
+    detachStart($lease, $foreground, entryStopRecord($entry), entryLog($entry),
+        stopCommand($directory === null ? '' : ' ' . shellWord($directory)), array_merge(['start'], $typed));
 
     $url = "http://$listen";
     $link = null;
@@ -231,8 +227,8 @@ function serve(string $binary, array $arguments): never
         'DRUPACK_RUNTIME_BIND' => $bind,
         'DRUPACK_RUNTIME_DOCROOT' => $docroot,
         'DRUPACK_RUNTIME_ID' => basename($entry),
-        'DRUPACK_RUNTIME_URL' => probeUrl($bind, $port),
-        'DRUPACK_RUNTIME_STOP_RECORD' => "$entry/stop.json",
+        'DRUPACK_RUNTIME_URL' => 'http://' . urlHost(probeHost($bind)) . ":$port",
+        'DRUPACK_RUNTIME_STOP_RECORD' => entryStopRecord($entry),
     ]);
     replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }

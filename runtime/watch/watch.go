@@ -66,9 +66,9 @@ type stopRecord struct {
 
 // serveStop listens for one request, POST /stop with the token as a bearer value, and
 // writes the record that names the port and the token to path. The channel binds
-// loopback whatever address the site listens on, so no other computer reaches it, and
-// the record is owner-only, so no other account on this one holds the token. A valid
-// request gets 204, then shutdown runs. Ending stopping closes the listener.
+// loopback whatever address the site listens on, so no other computer reaches it. On
+// Unix the record is owner-only, so no other account holds the token; Windows ignores
+// the mode, and the file takes the access of its directory. A valid request gets 204, then shutdown runs. Ending stopping closes the listener.
 func serveStop(stopping context.Context, path string, shutdown func()) error {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -110,7 +110,7 @@ func serveStop(stopping context.Context, path string, shutdown func()) error {
 
 // writeOwnerOnly replaces the file at path with content, in one rename, so a reader
 // sees the old record or the new one and never half of either. CreateTemp makes the
-// file mode 0600.
+// file mode 0600 on Unix. Windows ignores the mode.
 func writeOwnerOnly(path string, content []byte) error {
 	staging, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*")
 	if err != nil {

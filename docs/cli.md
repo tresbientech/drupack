@@ -151,8 +151,9 @@ or a systemd unit needs. A Windows start from a file manager owns its window,
 so it serves in the foreground too.
 
 Once the site answers, the server listens on a random port of `127.0.0.1`,
-whatever `--listen` names. It writes that port and a random token to
-`stop.json` in Site data, readable by its owner alone. `stop` sends the token
+whatever `--listen` names. It writes that port, a random token and its PID to
+`stop.json` in Site data. On Unix only its owner can read the file; on Windows
+it takes the access of the Site data directory. `stop` sends the token
 there, and the server stops the way Ctrl+C stops it. `stop` then waits for the
 Serving lease to free, 15 seconds at most, and exits 1 past that. With no
 server running it says so and exits 0.
@@ -208,7 +209,7 @@ link, returns once the site answers, and names the log file. `--foreground`
 serves in the terminal until a signal stops it. `drupack stop [DIR]` ends the
 server of `DIR`, the working directory by default. The server's lease, stop
 record and log live in the cache, keyed by the folder, so the folder gains no
-file. A second start on a served folder exits 1 and says it already serves.
+file. A second start on a Project folder that a server already serves exits 1 and says it already serves.
 
 - The docroot is the scaffold web root `composer.json` names, `web` when it
   names none.

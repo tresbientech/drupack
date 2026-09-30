@@ -30,6 +30,18 @@ func served(t *testing.T, log string, exited chan int, colour bool) (string, int
 	}
 }
 
+func TestADetachedChildOwnsNoConsole(t *testing.T) {
+	for _, c := range []struct {
+		detached  string
+		processes uint32
+		want      bool
+	}{{"", 1, true}, {"", 2, false}, {"1", 1, false}, {"1", 2, false}} {
+		if got := ownsConsole(c.detached, c.processes); got != c.want {
+			t.Fatalf("ownsConsole(%q, %d) = %v, want %v", c.detached, c.processes, got, c.want)
+		}
+	}
+}
+
 func TestRelayStopsAtTheReadyLineAndPrintsTheSummary(t *testing.T) {
 	out, code := served(t, "[1/3] Seeding\nStarting the web server.\n\ndemo is ready. Press Ctrl+C to stop.\nlater line\n", make(chan int), false)
 	head := "[1/3] Seeding\nStarting the web server.\n\ndemo runs in the background. Its log: "

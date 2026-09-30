@@ -50,13 +50,13 @@ func detachedProcess() *syscall.SysProcAttr {
 }
 
 // consoleOwned reports whether this process is alone on its console, which
-// means a file manager created the window. A console from a shell also holds
-// the shell.
+// means a file manager created the window, unless detach.go started it. A
+// console from a shell also holds the shell.
 func consoleOwned() bool {
 	var process uint32
 	count, _, _ := syscall.NewLazyDLL("kernel32.dll").NewProc("GetConsoleProcessList").
 		Call(uintptr(unsafe.Pointer(&process)), 1)
-	return count == 1
+	return ownsConsole(os.Getenv("DRUPACK_RUNTIME_DETACHED"), uint32(count))
 }
 
 // holdConsole keeps a file manager's window open so its reader sees a

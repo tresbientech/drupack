@@ -21,8 +21,9 @@ gets no Ctrl+C, so a background site there had no graceful stop at all.
   per start. The start relays that log until the ready line, then prints the
   log path and the stop command.
 - Once the site answers, the server binds `127.0.0.1` on a random port. It
-  writes `stop.json` with the port, a 32-byte token and its PID, owner-only,
-  then prints the ready line.
+  writes `stop.json` with the port, a 32-byte token and its PID, then prints the
+  ready line. The file is owner-only on Unix; on Windows it takes the access of
+  its directory.
 - The channel serves `POST /stop` with the token as a bearer value, compared in
   constant time. A valid stop sends the server SIGINT, the path Ctrl+C takes.
   Windows cannot deliver that signal, so there the server arms its stop guard,
@@ -53,5 +54,5 @@ gets no Ctrl+C, so a background site there had no graceful stop at all.
   terminal works as before.
 - The conformance harness starts every foreground site with `--foreground`.
 - Folder mode now holds a lease, which ADR 0022's amendment records.
-- Each detached Windows site keeps one more waiting process, the PHP start
-  that holds the lease.
+- On Windows the PHP start that holds the lease waits for the server as a
+  separate process, where Unix execs into it.

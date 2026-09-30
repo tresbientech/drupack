@@ -23,7 +23,8 @@ func run() error {
 	if len(os.Args) > 1 && os.Args[1] == "lay-app" {
 		return layApp(os.Args[2:])
 	}
-	// launch.php runs this word to start the server in the background. It needs no cache.
+	// launch.php and serve.php run this word to start the server in the background. It needs
+	// no cache.
 	if len(os.Args) > 1 && os.Args[1] == "detach" {
 		return detach(os.Args[2:])
 	}

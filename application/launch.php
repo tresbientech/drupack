@@ -77,6 +77,8 @@ function useSiteApplication(SiteData $site, bool $drush): void
 }
 
 // The packaged site's defaults, written from its drupack.yml when the application was built.
+const DEFAULT_DATA_DIR = './data';
+
 function siteSettings(): array
 {
     static $site;
@@ -86,7 +88,7 @@ function siteSettings(): array
 function options(array $arguments, bool $drush, array $site): array
 {
     $options = [
-        'data-dir' => environment('DRUPACK_DATA_DIR') ?? './data',
+        'data-dir' => environment('DRUPACK_DATA_DIR') ?? DEFAULT_DATA_DIR,
         // The listener defaults after the recorded one is read, so an absent option is still visible here.
         'listen' => null,
         'host' => null,
@@ -171,7 +173,7 @@ function siteToken(string $data): string
 // reach a command that changes no site.
 function stopDataDirectory(array $arguments): string
 {
-    $directory = environment('DRUPACK_DATA_DIR') ?? './data';
+    $directory = environment('DRUPACK_DATA_DIR') ?? DEFAULT_DATA_DIR;
     while ($arguments !== []) {
         $argument = array_shift($arguments);
         if ($argument === '--help') {
@@ -202,12 +204,6 @@ function stopSite(string $directory): int
     return stopServer($site->lease(), $site->stopRecord(), 'Site data', $site->directory);
 }
 
-// An IPv6 address takes brackets inside a URL authority.
-function urlHost(string $host): string
-{
-    return str_contains($host, ':') ? "[$host]" : $host;
-}
-
 // Splits IP:PORT, an IPv6 address in brackets, into the bare address and the port.
 function listenerParts(string $listen): array
 {
@@ -231,12 +227,7 @@ function loopback(string $bind): bool
 // answers on 127.0.0.1.
 function portTaken(string $bind, int $port): bool
 {
-    $host = match ($bind) {
-        '0.0.0.0' => '127.0.0.1',
-        '::' => '::1',
-        default => $bind,
-    };
-    $probe = @stream_socket_client('tcp://' . urlHost($host) . ":$port", $code, $error, 1);
+    $probe = @stream_socket_client('tcp://' . urlHost(probeHost($bind)) . ":$port", $code, $error, 1);
     if ($probe === false) {
         return false;
     }
@@ -790,17 +781,8 @@ try {
             throw new RuntimeException("Another program is listening on {$options['listen']}. Stop it, or start on"
                 . " a free port: " . executableName() . " --listen $bind:" . ($port + 1));
         }
-        // A record from an earlier server names a port and a token nobody listens on, and
-        // `stop` reads a missing record as a start still preparing.
-        if (file_exists($site->stopRecord())) {
-            unlink($site->stopRecord());
-        }
-        // A double-click owns its console, which closing the window would end along with a
-        // background server, so it serves where the reader can stop it.
-        if ($options['foreground'] === null && !consoleOwned()) {
-            detachServer($lease, $site->serverLog(),
-                stopCommand($written === './data' ? '' : ' --data-dir ' . shellWord($written)), array_slice($argv, 1));
-        }
+        detachStart($lease, $options['foreground'] !== null, $site->stopRecord(), $site->serverLog(),
+            stopCommand($written === DEFAULT_DATA_DIR ? '' : ' --data-dir ' . shellWord($written)), array_slice($argv, 1));
         $site->recordListener($options['listen'], $options['host'], $options['files-dir']);
     }
     if (siteSettings()['writable'] !== []) {
