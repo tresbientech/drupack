@@ -164,6 +164,8 @@ class InstallScript(harness.ConformanceCase):
         self.assertEqual(sha256(installed), sha256(harness.BINARY))
         self.assertEqual([path.name for path in directory.iterdir()], [installed.name])
         self.assertIn(f"Installed {self.name} {VERSION}", result.stdout)
+        start = f".\\{self.name}.exe" if self.windows else f"./{self.name}"
+        self.assertIn(f"\n\n    {start}\n\n", result.stdout)
 
     def test_the_script_refuses_a_download_whose_sha256_differs(self):
         release = self.release("tampered", self.host_build())

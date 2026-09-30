@@ -80,7 +80,17 @@ if [ -e "$name" ]; then
 fi
 chmod 755 "$download"
 mv -f "$download" "$name"
-echo "Installed $name $version in $PWD/$name. Start it with: ./$name"
+echo "Installed $name $version in $PWD/$name."
+echo
+echo "Start it with:"
+echo
+# Bold green on a terminal, plain text when piped or when NO_COLOR is set.
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    printf '    \033[1;32m./%s\033[0m\n' "$name"
+else
+    printf '    ./%s\n' "$name"
+fi
+echo
 echo "To run it from any directory, move it onto your PATH:"
 echo "  mkdir -p ~/.local/bin && mv $name ~/.local/bin/"
 case ":$PATH:" in
