@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/caddyserver/caddy/v2"
 	"github.com/dunglas/frankenphp"
 )
 
@@ -46,6 +47,7 @@ func release() string {
 const usage = `Usage: %[1]s [OPTIONS]
        %[1]s drush [OPTIONS] DRUSH_COMMAND
        %[1]s node|npm|npx [ARGUMENTS]
+       %[1]s stop [--data-dir PATH]
        %[1]s clean [--dry-run]
 
 Options:
@@ -63,10 +65,13 @@ Options:
                              login link.
   --site-name NAME           Site name for a first start, the packaged site's name by default
   --no-browser               Do not open a browser
+  --foreground               Serve in this terminal until a signal stops the site
   --version, --help
 
 Commands:
   drush                      Run a Drush command against the site
+  stop                       Stop the site serving the Site data, for a site
+                             another terminal started
   node, npm, npx             Run the site's bundled Node release, for a site
                              that carries one
   clean                      Remove the unpacked applications from the cache.
@@ -195,13 +200,37 @@ const shutdownDeadline = 10 * time.Second
 // stopGuard runs only for a server. Notifying on these signals suppresses Go's own
 // termination, which a command that handles neither still needs, and guard in
 // watch.go forces the exit instead once the deadline passes.
-func stopGuard() context.Context {
+// It returns the channel the guard listens on, which stopServer feeds where a signal
+// cannot reach the process.
+func stopGuard() (context.Context, chan<- os.Signal) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 	return guard(signals, shutdownDeadline, func(code int) {
 		fmt.Fprintf(os.Stderr, "%s did not stop within %s. Forcing exit.\n", siteName(), shutdownDeadline)
 		os.Exit(code)
-	})
+	}), signals
+}
+
+// stopServer ends the server the way Ctrl+C does: Caddy traps the interrupt and stops
+// gracefully, and stopGuard's signal.Notify sees the same one. Windows cannot deliver
+// os.Interrupt to a process, so there the guard is armed through its channel and
+// Caddy stops directly.
+func stopServer(guardSignals chan<- os.Signal) {
+	self, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		panic(err)
+	}
+	if self.Signal(os.Interrupt) == nil {
+		return
+	}
+	select {
+	case guardSignals <- os.Interrupt:
+	default:
+	}
+	if err := caddy.Stop(); err != nil {
+		panic(err)
+	}
+	os.Exit(0)
 }
 
 // cronInterval is the period automated_cron ships with, whose in-request run the
@@ -272,18 +301,20 @@ func init() {
 	if len(os.Args) == 3 && os.Args[1] == "php-server" {
 		// The server waits for itself. A separate process would first extract its own copy
 		// of the embedded application, which takes longer than the wait on a slow disk.
-		go run(stopGuard(), siteName(), plan{
+		stopping, guardSignals := stopGuard()
+		go run(stopping, siteName(), plan{
 			probe: strings.TrimSuffix(os.Getenv("DRUPACK_RUNTIME_URL"), "/") +
 				readinessPath + url.QueryEscape(os.Getenv("DRUPACK_RUNTIME_ID")),
 			open: os.Getenv("DRUPACK_RUNTIME_OPEN"),
 			cron: []string{executable, "php-cli",
 				filepath.Join(application, "vendor", "drush", "drush", "drush.php"), "cron"},
 			dir:         application,
+			stopRecord:  os.Getenv("DRUPACK_RUNTIME_STOP_RECORD"),
 			poll:        500 * time.Millisecond,
 			readyWithin: 2 * time.Minute,
 			firstCron:   cronFirstDelay,
 			cronEvery:   cronInterval,
-		}, os.Stdout, os.Stderr, openBrowser)
+		}, os.Stdout, os.Stderr, openBrowser, func() { stopServer(guardSignals) })
 		serveCaddyfile(os.Args[2])
 		return
 	}
@@ -305,6 +336,13 @@ func init() {
 	launchScript := filepath.Join(application, "launch.php")
 	if len(os.Args) > 1 && os.Args[1] == "drush" {
 		if err := os.Setenv("DRUPACK_RUNTIME_DRUSH", "1"); err != nil {
+			panic(err)
+		}
+		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[2:]...)
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "stop" {
+		if err := os.Setenv("DRUPACK_RUNTIME_STOP", "1"); err != nil {
 			panic(err)
 		}
 		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[2:]...)

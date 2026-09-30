@@ -41,6 +41,7 @@ standard error and exits 1.
 | `--admin-password` | PASSWORD | generated | `DRUPACK_ADMIN_PASSWORD` | first start |
 | `--site-name` | NAME | the site's name, `Drupal Mercury Demo` for the Mercury Demo | `DRUPACK_SITE_NAME` | first start |
 | `--no-browser` | none | off | none | every start |
+| `--foreground` | none | off | none | every start |
 
 ## Site data
 

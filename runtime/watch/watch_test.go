@@ -3,11 +3,14 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -104,6 +107,7 @@ func scripted(t *testing.T, statuses ...int) (*httptest.Server, func() time.Time
 type watching struct {
 	out, errs output
 	opened    chan string
+	shutdowns chan struct{}
 	stop      context.CancelFunc
 	done      chan struct{}
 }
@@ -111,9 +115,10 @@ type watching struct {
 // watch starts run on p and ends it when the test ends.
 func watch(t *testing.T, p plan) *watching {
 	stopping, stop := context.WithCancel(context.Background())
-	w := &watching{opened: make(chan string, 10), stop: stop, done: make(chan struct{})}
+	w := &watching{opened: make(chan string, 10), shutdowns: make(chan struct{}, 10), stop: stop, done: make(chan struct{})}
 	go func() {
-		run(stopping, "Demo", p, &w.out, &w.errs, func(link string) { w.opened <- link })
+		run(stopping, "Demo", p, &w.out, &w.errs, func(link string) { w.opened <- link },
+			func() { w.shutdowns <- struct{}{} })
 		close(w.done)
 	}()
 	t.Cleanup(func() {
@@ -134,10 +139,11 @@ func (w *watching) returns(t *testing.T, limit time.Duration) {
 }
 
 // probing builds a plan for server with cron far off, which the readiness cases leave unrun.
-func probing(server *httptest.Server, open string) plan {
+func probing(t *testing.T, server *httptest.Server, open string) plan {
 	return plan{
 		probe:       server.URL + "/.drupack-id?id=token",
 		open:        open,
+		stopRecord:  filepath.Join(t.TempDir(), "stop.json"),
 		cron:        []string{"cron-never-runs"},
 		poll:        10 * time.Millisecond,
 		readyWithin: 5 * time.Second,
@@ -150,7 +156,7 @@ const readyLine = "\nDemo is ready. Press Ctrl+C to stop.\n"
 
 func TestRunAnnouncesReadyOnceThenOpensTheLink(t *testing.T) {
 	server, _ := scripted(t, http.StatusNotFound, http.StatusNotFound, http.StatusNoContent)
-	w := watch(t, probing(server, "http://login"))
+	w := watch(t, probing(t, server, "http://login"))
 	select {
 	case link := <-w.opened:
 		if link != "http://login" {
@@ -173,7 +179,7 @@ func TestRunAnnouncesReadyOnceThenOpensTheLink(t *testing.T) {
 
 func TestRunNamesTheLastAnswerWhenTheSiteNeverAnswers204(t *testing.T) {
 	server, _ := scripted(t, http.StatusInternalServerError)
-	p := probing(server, "http://login")
+	p := probing(t, server, "http://login")
 	p.readyWithin = 100 * time.Millisecond
 	w := watch(t, p)
 	w.returns(t, 5*time.Second)
@@ -195,7 +201,7 @@ func TestRunNamesTheLastAnswerWhenTheSiteNeverAnswers204(t *testing.T) {
 
 func TestRunWithNoLinkAnnouncesReadyAndOpensNothing(t *testing.T) {
 	server, _ := scripted(t, http.StatusNoContent)
-	w := watch(t, probing(server, ""))
+	w := watch(t, probing(t, server, ""))
 	deadline := time.Now().Add(5 * time.Second)
 	for w.out.String() == "" && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
@@ -207,6 +213,128 @@ func TestRunWithNoLinkAnnouncesReadyAndOpensNothing(t *testing.T) {
 	if len(w.opened) != 0 {
 		t.Fatalf("opened %q with no link to open", <-w.opened)
 	}
+}
+
+// stopChannel waits for the record the ready line follows, then returns its contents.
+func (w *watching) stopChannel(t *testing.T, p plan) stopRecord {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !strings.Contains(w.out.String(), "is ready") && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	content, err := os.ReadFile(p.stopRecord)
+	if err != nil {
+		t.Fatalf("no stop record once the site was ready: %v", err)
+	}
+	var record stopRecord
+	if err := json.Unmarshal(content, &record); err != nil {
+		t.Fatal(err)
+	}
+	return record
+}
+
+// request sends method path to the stop channel with authorization, "" for none.
+func request(t *testing.T, record stopRecord, method, path, authorization string) int {
+	t.Helper()
+	req, err := http.NewRequest(method, fmt.Sprintf("http://127.0.0.1:%d%s", record.Port, path), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if authorization != "" {
+		req.Header.Set("Authorization", authorization)
+	}
+	response, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	return response.StatusCode
+}
+
+func TestStopRecordHoldsThePortTheTokenAndThePidOwnerOnly(t *testing.T) {
+	server, _ := scripted(t, http.StatusNoContent)
+	p := probing(t, server, "")
+	w := watch(t, p)
+	record := w.stopChannel(t, p)
+	if record.Port == 0 || record.Pid != os.Getpid() || len(record.Token) != 64 {
+		t.Fatalf("record %+v, want a port, this pid and 64 hex characters", record)
+	}
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(p.stopRecord)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mode := info.Mode().Perm(); mode != 0o600 {
+			t.Fatalf("record mode %o, want 600", mode)
+		}
+	}
+}
+
+func TestStopWithTheTokenAnswers204ThenShutsDown(t *testing.T) {
+	server, _ := scripted(t, http.StatusNoContent)
+	p := probing(t, server, "")
+	w := watch(t, p)
+	record := w.stopChannel(t, p)
+	if status := request(t, record, http.MethodPost, "/stop", "Bearer "+record.Token); status != http.StatusNoContent {
+		t.Fatalf("status %d, want 204", status)
+	}
+	select {
+	case <-w.shutdowns:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the shutdown callback never ran")
+	}
+}
+
+func TestStopWithAWrongOrMissingTokenAnswers403AndStopsNothing(t *testing.T) {
+	server, _ := scripted(t, http.StatusNoContent)
+	p := probing(t, server, "")
+	w := watch(t, p)
+	record := w.stopChannel(t, p)
+	for _, authorization := range []string{"", "Bearer " + strings.Repeat("0", 64), record.Token, "Bearer"} {
+		if status := request(t, record, http.MethodPost, "/stop", authorization); status != http.StatusForbidden {
+			t.Fatalf("authorization %q: status %d, want 403", authorization, status)
+		}
+	}
+	if len(w.shutdowns) != 0 {
+		t.Fatal("the shutdown callback ran without the token")
+	}
+}
+
+func TestStopChannelAnswers404ToAnythingButPostStop(t *testing.T) {
+	server, _ := scripted(t, http.StatusNoContent)
+	p := probing(t, server, "")
+	w := watch(t, p)
+	record := w.stopChannel(t, p)
+	bearer := "Bearer " + record.Token
+	for _, tried := range []struct{ method, path string }{
+		{http.MethodGet, "/stop"}, {http.MethodPut, "/stop"}, {http.MethodPost, "/"}, {http.MethodPost, "/stop/now"},
+	} {
+		if status := request(t, record, tried.method, tried.path, bearer); status != http.StatusNotFound {
+			t.Fatalf("%s %s: status %d, want 404", tried.method, tried.path, status)
+		}
+	}
+	if len(w.shutdowns) != 0 {
+		t.Fatal("the shutdown callback ran for a request that was not POST /stop")
+	}
+}
+
+func TestStopChannelClosesWhenStoppingEnds(t *testing.T) {
+	server, _ := scripted(t, http.StatusNoContent)
+	p := probing(t, server, "")
+	w := watch(t, p)
+	record := w.stopChannel(t, p)
+	w.stop()
+	w.returns(t, 5*time.Second)
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		connection, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", record.Port))
+		if err != nil {
+			return
+		}
+		connection.Close()
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("the stop channel still accepted a connection after stopping ended")
 }
 
 // TestHelperProcess is the cron child. It records the time of each run on a line
@@ -241,7 +369,7 @@ func TestHelperProcess(t *testing.T) {
 func cronning(t *testing.T, server *httptest.Server, mode string, first, every time.Duration) (plan, func(n int) []time.Time) {
 	t.Setenv("DRUPACK_WATCH_HELPER", "1")
 	record := filepath.Join(t.TempDir(), "runs")
-	p := probing(server, "")
+	p := probing(t, server, "")
 	p.cron = []string{os.Args[0], "-test.run=^TestHelperProcess$", "--", mode, record}
 	p.dir = t.TempDir()
 	p.firstCron, p.cronEvery = first, every

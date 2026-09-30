@@ -69,6 +69,12 @@ final class SiteData
         return "$this->directory/serving.lock";
     }
 
+    // The server writes its stop channel's port, token and PID here once it answers.
+    public function stopRecord(): string
+    {
+        return "$this->directory/stop.json";
+    }
+
     public function prepare(): void
     {
         foreach (['runtime', 'private', 'tmp', 'config', 'logs'] as $name) {

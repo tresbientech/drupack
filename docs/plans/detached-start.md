@@ -43,12 +43,12 @@ Site data. `SITE stop` from another terminal ends it through Ctrl+C's path.
 
 ### Acceptance criteria
 
-- [ ] `(cd runtime/watch && go test ./...)` passes, with a case for the stop route, a wrong token and a missing token.
-- [ ] A conformance case: `SITE stop` ends a running site, frees the lease, closes the port, and exits 0.
-- [ ] A conformance case: `SITE stop` with no running site exits 0 and says it is not running, a stale `stop.json` present.
-- [ ] A conformance case: a wrong token leaves the site serving, and the channel answers only on 127.0.0.1 under `--listen 0.0.0.0`.
-- [ ] A conformance case: `stop.json` is mode 0600 on Linux and macOS.
-- [ ] `application/tests/launch_test.php` passes with `--foreground` in the parser, the usage and the help.
+- [x] `(cd runtime/watch && go test ./...)` passes, with a case for the stop route, a wrong token and a missing token.
+- [x] A conformance case: `SITE stop` ends a running site, frees the lease, closes the port, and exits 0.
+- [x] A conformance case: `SITE stop` with no running site exits 0 and says it is not running, a stale `stop.json` present.
+- [x] A conformance case: a wrong token leaves the site serving, and the channel answers only on 127.0.0.1 under `--listen 0.0.0.0`.
+- [x] A conformance case: `stop.json` is mode 0600 on Linux and macOS.
+- [x] `application/tests/launch_test.php` passes with `--foreground` in the parser, the usage and the help.
 
 ---
 

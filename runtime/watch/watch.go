@@ -5,12 +5,18 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 )
 
@@ -21,24 +27,103 @@ type plan struct {
 	open        string   // the login link to open once ready, "" for none
 	cron        []string // one cron run's argv
 	dir         string   // the directory cron runs in
+	stopRecord  string   // the file that tells SITE stop where the stop channel listens
 	poll        time.Duration
 	readyWithin time.Duration
 	firstCron   time.Duration
 	cronEvery   time.Duration
 }
 
-// run waits for the site to answer, prints the ready line on out, calls opener with
-// p.open when it is set, then runs cron on p's schedule. It returns once stopping
-// ends and any cron child in flight has exited, or when the site never answers.
-func run(stopping context.Context, site string, p plan, out, errs io.Writer, opener func(string)) {
+// run waits for the site to answer, opens the stop channel, prints the ready line on
+// out, calls opener with p.open when it is set, then runs cron on p's schedule.
+// shutdown stops the process when a request to the channel carries the token. run
+// returns once stopping ends and any cron child in flight has exited, or when the
+// site never answers.
+func run(stopping context.Context, site string, p plan, out, errs io.Writer, opener func(string), shutdown func()) {
 	if !ready(stopping, p, errs) {
 		return
+	}
+	// The record precedes the ready line, so a start that has returned is always stoppable.
+	if err := serveStop(stopping, p.stopRecord, shutdown); err != nil {
+		panic(err)
 	}
 	fmt.Fprintf(out, "\n%s is ready. Press Ctrl+C to stop.\n", site)
 	if p.open != "" {
 		opener(p.open)
 	}
 	scheduleCron(stopping, p, errs)
+}
+
+// stopRecord is what SITE stop reads from the file serveStop writes.
+type stopRecord struct {
+	Port  int    `json:"port"`
+	Token string `json:"token"`
+	Pid   int    `json:"pid"`
+}
+
+// serveStop listens for one request, POST /stop with the token as a bearer value, and
+// writes the record that names the port and the token to path. The channel binds
+// loopback whatever address the site listens on, so no other computer reaches it, and
+// the record is owner-only, so no other account on this one holds the token. A valid
+// request gets 204, then shutdown runs. Ending stopping closes the listener.
+func serveStop(stopping context.Context, path string, shutdown func()) error {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return err
+	}
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return err
+	}
+	token := hex.EncodeToString(raw)
+	content, err := json.Marshal(stopRecord{Port: listener.Addr().(*net.TCPAddr).Port, Token: token, Pid: os.Getpid()})
+	if err != nil {
+		return err
+	}
+	if err := writeOwnerOnly(path, content); err != nil {
+		return err
+	}
+	wanted := []byte("Bearer " + token)
+	server := http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/stop" {
+			http.NotFound(w, r)
+			return
+		}
+		if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), wanted) != 1 {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		w.(http.Flusher).Flush()
+		shutdown()
+	})}
+	go server.Serve(listener)
+	go func() {
+		<-stopping.Done()
+		server.Close()
+	}()
+	return nil
+}
+
+// writeOwnerOnly replaces the file at path with content, in one rename, so a reader
+// sees the old record or the new one and never half of either. CreateTemp makes the
+// file mode 0600.
+func writeOwnerOnly(path string, content []byte) error {
+	staging, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*")
+	if err != nil {
+		return err
+	}
+	_, err = staging.Write(content)
+	if closed := staging.Close(); err == nil {
+		err = closed
+	}
+	if err == nil {
+		err = os.Rename(staging.Name(), path)
+	}
+	if err != nil {
+		os.Remove(staging.Name())
+	}
+	return err
 }
 
 // ready polls p.probe until it answers 204. The open link is a one-time login
