@@ -49,6 +49,7 @@ class DetachedCases(harness.ConformanceCase):
         log = self.data / "logs" / "server.log"
         self.assertIn(f"runs in the background. Its log: {log.as_posix()}", result.stdout)
         self.assertNotIn("Press Ctrl+C", result.stdout)
+        self.assertIn(f"    {harness.BINARY} stop --data-dir {self.data}\n", result.stdout)
         self.assertTrue(log.is_file())
         drush = harness.run_drush(harness.BINARY, self.case_dir, self.data, "status")
         self.assertEqual(drush.returncode, 0, f"drush failed against the detached site: {drush.stderr}")

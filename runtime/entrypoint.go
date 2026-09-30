@@ -297,18 +297,23 @@ func init() {
 		os.Args = append([]string{os.Args[0]}, phpArguments(os.Args[2:])...)
 		return
 	}
-	// launch.php replaces itself with this command to serve the site, naming the
-	// fixed Caddyfile the application ships.
+	// launch.php and the engine executable's serve.php replace themselves with this
+	// command to serve, naming the fixed Caddyfile they ship.
 	if len(os.Args) == 3 && os.Args[1] == "php-server" {
 		// The server waits for itself. A separate process would first extract its own copy
 		// of the embedded application, which takes longer than the wait on a slow disk.
 		stopping, guardSignals := stopGuard()
+		// The engine executable has no application, and its folder server runs no cron.
+		var cron []string
+		if application != "" {
+			cron = []string{executable, "php-cli",
+				filepath.Join(application, "vendor", "drush", "drush", "drush.php"), "cron"}
+		}
 		go run(stopping, siteName(), plan{
 			probe: strings.TrimSuffix(os.Getenv("DRUPACK_RUNTIME_URL"), "/") +
 				readinessPath + url.QueryEscape(os.Getenv("DRUPACK_RUNTIME_ID")),
-			open: os.Getenv("DRUPACK_RUNTIME_OPEN"),
-			cron: []string{executable, "php-cli",
-				filepath.Join(application, "vendor", "drush", "drush", "drush.php"), "cron"},
+			open:        os.Getenv("DRUPACK_RUNTIME_OPEN"),
+			cron:        cron,
 			dir:         application,
 			stopRecord:  os.Getenv("DRUPACK_RUNTIME_STOP_RECORD"),
 			poll:        500 * time.Millisecond,
@@ -316,14 +321,6 @@ func init() {
 			firstCron:   cronFirstDelay,
 			cronEvery:   cronInterval,
 		}, os.Stdout, os.Stderr, openBrowser, func() { stopServer(guardSignals) })
-		serveCaddyfile(os.Args[2])
-		return
-	}
-	// The engine executable's serve.php replaces itself with this command, naming its
-	// Caddyfile. The folder keeps automated_cron, which runs inside a request after
-	// its response, so a stop meets a running PHP request as the site's server does.
-	if len(os.Args) == 3 && os.Args[1] == "folder-server" {
-		stopGuard()
 		serveCaddyfile(os.Args[2])
 		return
 	}

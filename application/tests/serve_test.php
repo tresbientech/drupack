@@ -94,6 +94,25 @@ test('a lock declaring loaded extensions alone passes', function () {
     checkPlatform('', $project);
 });
 
+test('a folder keeps its state in a cache entry its canonical path names', function () {
+    putenv('DRUPACK_RUNTIME_CACHE_ROOT=/cache');
+    $entry = folderEntry('/home/reader/project');
+    same('/cache/folders/', substr($entry, 0, strlen('/cache/folders/')));
+    same(16, strlen(basename($entry)));
+    same($entry, folderEntry('/home/reader/project'));
+    if ($entry === folderEntry('/home/reader/other')) {
+        throw new RuntimeException('two folders share an entry');
+    }
+});
+
+test('a wildcard listener is probed on its own family\'s loopback', function () {
+    same('http://127.0.0.1:8888', probeUrl('0.0.0.0', '8888'));
+    same('http://[::1]:8888', probeUrl('[::]', '8888'));
+    same('http://[::1]:8888', probeUrl('::', '8888'));
+    same('http://[fd00::2]:80', probeUrl('[fd00::2]', '80'));
+    same('http://192.168.1.4:80', probeUrl('192.168.1.4', '80'));
+});
+
 test('docs/cli.md names every engine command the usage names', function () {
     $page = (string) file_get_contents(__DIR__ . '/../../docs/cli.md');
     $section = substr($page, strpos($page, '## The engine executable'));
@@ -103,7 +122,7 @@ test('docs/cli.md names every engine command the usage names', function () {
             throw new RuntimeException("docs/cli.md's engine section omits $command");
         }
     }
-    same(['drush', 'dr', 'php', 'clean'], $commands[1]);
+    same(['start', 'stop', 'drush', 'dr', 'php', 'clean'], $commands[1]);
 });
 
 $status = runCases();

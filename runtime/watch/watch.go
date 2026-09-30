@@ -25,7 +25,7 @@ import (
 type plan struct {
 	probe       string   // the identity route's URL, token included
 	open        string   // the login link to open once ready, "" for none
-	cron        []string // one cron run's argv
+	cron        []string // one cron run's argv, empty for a server that runs no cron
 	dir         string   // the directory cron runs in
 	stopRecord  string   // the file that tells SITE stop where the stop channel listens
 	poll        time.Duration
@@ -35,10 +35,11 @@ type plan struct {
 }
 
 // run waits for the site to answer, opens the stop channel, prints the ready line on
-// out, calls opener with p.open when it is set, then runs cron on p's schedule.
+// out, calls opener with p.open when it is set, then runs cron on p's schedule, when
+// p has a cron.
 // shutdown stops the process when a request to the channel carries the token. run
 // returns once stopping ends and any cron child in flight has exited, or when the
-// site never answers.
+// site never answers, or at once after the ready line when p has no cron.
 func run(stopping context.Context, site string, p plan, out, errs io.Writer, opener func(string), shutdown func()) {
 	if !ready(stopping, p, errs) {
 		return
@@ -51,7 +52,9 @@ func run(stopping context.Context, site string, p plan, out, errs io.Writer, ope
 	if p.open != "" {
 		opener(p.open)
 	}
-	scheduleCron(stopping, p, errs)
+	if len(p.cron) > 0 {
+		scheduleCron(stopping, p, errs)
+	}
 }
 
 // stopRecord is what SITE stop reads from the file serveStop writes.

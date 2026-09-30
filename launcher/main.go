@@ -65,23 +65,8 @@ func run() error {
 	if err := os.Setenv("DRUPACK_RUNTIME_SITE_VERSION", siteVersion); err != nil {
 		return err
 	}
-	// The engine executable serves a folder named from the reader's own directory,
-	// so the runtime gets no application to change into. An inherited directory
-	// would send it down the site path, which refuses the php word.
-	if engine {
-		if err := os.Unsetenv("DRUPACK_RUNTIME_APP_DIR"); err != nil {
-			return err
-		}
-		return launch(filepath.Join(directory, m.Entry), engineArguments(application))
-	}
-	// The server resolves the site from its working directory, which the entry
-	// point sets from this variable once it starts. PHP, Caddy and the reader's
-	// terminal read the exported value, so it takes Drupack's canonical form;
-	// application itself stays native for the join below.
-	if err := os.Setenv("DRUPACK_RUNTIME_APP_DIR", runtime.Canonical(application)); err != nil {
-		return err
-	}
-	// launch.php runs this executable again to lay a site's own application.
+	// launch.php runs this executable again to lay a site's own application, and to
+	// detach a server, as serve.php does for a folder.
 	launcher, err := os.Executable()
 	if err != nil {
 		return err
@@ -92,6 +77,26 @@ func run() error {
 	// A start that detaches tells the reader how to stop the site, in the words the
 	// reader used to run it.
 	if err := os.Setenv("DRUPACK_RUNTIME_INVOKED", os.Args[0]); err != nil {
+		return err
+	}
+	// The engine executable serves a folder named from the reader's own directory,
+	// so the runtime gets no application to change into. An inherited directory
+	// would send it down the site path, which refuses the php word.
+	if engine {
+		if err := os.Unsetenv("DRUPACK_RUNTIME_APP_DIR"); err != nil {
+			return err
+		}
+		// serve.php keeps each served folder's lease, stop record and log in an entry here.
+		if err := os.Setenv("DRUPACK_RUNTIME_CACHE_ROOT", runtime.Canonical(root)); err != nil {
+			return err
+		}
+		return launch(filepath.Join(directory, m.Entry), engineArguments(application))
+	}
+	// The server resolves the site from its working directory, which the entry
+	// point sets from this variable once it starts. PHP, Caddy and the reader's
+	// terminal read the exported value, so it takes Drupack's canonical form;
+	// application itself stays native for the join below.
+	if err := os.Setenv("DRUPACK_RUNTIME_APP_DIR", runtime.Canonical(application)); err != nil {
 		return err
 	}
 	// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.

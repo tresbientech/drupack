@@ -90,11 +90,11 @@ readiness route.
 
 ### Acceptance criteria
 
-- [ ] A conformance case: `drupack` in a folder returns 0 once ready, and `drupack stop` ends it and exits 0.
-- [ ] A conformance case: a detached folder start and stop leave the project snapshot unchanged.
-- [ ] A conformance case: a second `drupack` on a served folder exits 1 and says it already serves.
-- [ ] `git grep -n folder-server -- runtime engine application` finds nothing.
-- [ ] `bash build/qa.sh` passes.
+- [x] A conformance case: `drupack` in a folder returns 0 once ready, and `drupack stop` ends it and exits 0.
+- [x] A conformance case: a detached folder start and stop leave the project snapshot unchanged.
+- [x] A conformance case: a second `drupack` on a served folder exits 1 and says it already serves.
+- [x] `git grep -n folder-server -- runtime engine application` finds nothing.
+- [x] `bash build/qa.sh` passes.
 
 ---
 

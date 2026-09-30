@@ -160,7 +160,8 @@ Two variables have no option:
 ## The engine executable
 
 ```
-drupack [DIR] [--listen IP:PORT]
+drupack [start] [DIR] [--listen IP:PORT] [--foreground]
+drupack stop [DIR]
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
 drupack php SCRIPT [ARGUMENTS]
@@ -174,7 +175,16 @@ drupack --version
 has no Site data, and it takes none of the options above.
 
 `drupack` with no command serves `DIR`, the working directory by default. A
-first word naming no command is taken as `DIR`.
+first word naming no command is taken as `DIR`. `drupack start` does the same
+as `drupack`, and `start` and `stop` are reserved: a folder with either name
+takes `./start`.
+
+The server runs in the background. The start prints its progress and the login
+link, returns once the site answers, and names the log file. `--foreground`
+serves in the terminal until a signal stops it. `drupack stop [DIR]` ends the
+server of `DIR`, the working directory by default. The server's lease, stop
+record and log live in the cache, keyed by the folder, so the folder gains no
+file. A second start on a served folder exits 1 and says it already serves.
 
 - The docroot is the scaffold web root `composer.json` names, `web` when it
   names none.

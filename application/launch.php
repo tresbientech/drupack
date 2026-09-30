@@ -167,28 +167,6 @@ function siteToken(string $data): string
     return hash('sha256', windows() ? strtolower($data) : $data);
 }
 
-// The lease one server holds over its Site data, for as long as it serves. Two servers
-// over one database and one runtime directory would corrupt both, whatever addresses
-// they bind, so the claim belongs to the data rather than to a port.
-//
-// The lock lives on the open file description, which survives the exec into the server,
-// so the kernel holds it for that process and releases it when the process ends, a kill
-// included. On Windows this process waits for the server it starts, so the handle lives
-// exactly as long. The caller keeps the returned handle: closing it drops the lease.
-// A null return means another start serves this Site data.
-function servingLease(SiteData $site)
-{
-    $handle = fopen($site->lease(), 'c');
-    if ($handle === false) {
-        throw new RuntimeException('Cannot open the serving lease: ' . $site->lease());
-    }
-    if (!flock($handle, LOCK_EX | LOCK_NB)) {
-        fclose($handle);
-        return null;
-    }
-    return $handle;
-}
-
 // `stop` takes --data-dir alone. Any other option is refused, so a start's options cannot
 // reach a command that changes no site.
 function stopDataDirectory(array $arguments): string
@@ -212,57 +190,16 @@ function stopDataDirectory(array $arguments): string
     return $directory;
 }
 
-// Whether no server holds the lease. Taking it to ask drops it again.
-function leaseFree(SiteData $site): bool
-{
-    $lease = servingLease($site);
-    if ($lease === null) {
-        return false;
-    }
-    fclose($lease);
-    return true;
-}
-
-// How long `stop` waits for the lease to free. runtime/entrypoint.go forces the server's
-// own exit at 10 seconds.
-const STOP_WAIT_SECONDS = 15;
-
-// Ends the server that holds the Serving lease over $directory, through the stop channel
-// its record names, and waits for the lease to free. Returns the exit code. A free lease
-// means no server runs, whatever a stale record says. The directory is resolved but never
-// created, so a stop on a mistyped path leaves nothing behind.
+// Ends the server that holds the Serving lease over $directory. The directory is resolved
+// but never created, so a stop on a mistyped path leaves nothing behind.
 function stopSite(string $directory): int
 {
     $resolved = realpath($directory);
-    $site = $resolved === false ? null : new SiteData(canonical($resolved));
-    if ($site === null || !is_file($site->lease()) || leaseFree($site)) {
-        fwrite(STDOUT, executableName() . " is not running.\n");
-        return 0;
+    if ($resolved === false) {
+        return notRunning();
     }
-    if (!is_file($site->stopRecord())) {
-        throw new RuntimeException("A " . executableName() . " start is still preparing this Site data: $site->directory");
-    }
-    $record = json_decode((string) file_get_contents($site->stopRecord()), true, 512, JSON_THROW_ON_ERROR);
-    $context = stream_context_create(['http' => [
-        'method' => 'POST',
-        'header' => "Authorization: Bearer {$record['token']}\r\nContent-Length: 0\r\n",
-        'timeout' => 10,
-        'ignore_errors' => true,
-    ]]);
-    @file_get_contents("http://127.0.0.1:{$record['port']}/stop", false, $context);
-    $status = $http_response_header[0] ?? 'no answer';
-    if (!str_contains($status, ' 204')) {
-        throw new RuntimeException("The stop channel of " . executableName() . " refused the request ($status): $site->directory");
-    }
-    $deadline = microtime(true) + STOP_WAIT_SECONDS;
-    while (!leaseFree($site)) {
-        if (microtime(true) >= $deadline) {
-            throw new RuntimeException(executableName() . ' did not stop within ' . STOP_WAIT_SECONDS . " seconds: $site->directory");
-        }
-        usleep(200000);
-    }
-    fwrite(STDOUT, executableName() . " stopped.\n");
-    return 0;
+    $site = new SiteData(canonical($resolved));
+    return stopServer($site->lease(), $site->stopRecord(), 'Site data', $site->directory);
 }
 
 // An IPv6 address takes brackets inside a URL authority.
@@ -315,31 +252,6 @@ function servedListener(SiteData $site, array $options): array
     $record = $site->listener() ?? $options;
     [$bind, $port] = listenerParts($record['listen']);
     return [$bind, 'http://' . urlHost($record['host']) . ":$port/"];
-}
-
-// A person is present when a terminal started this, or a file manager's console did. A
-// detached start has no terminal of its own, so it passes on whether its parent had one.
-function personPresent(): bool
-{
-    return stream_isatty(STDIN) || environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1'
-        || environment('DRUPACK_RUNTIME_PERSON') === '1';
-}
-
-// Runs this start again as a background server, through the launcher's detach word, and
-// relays the server's log until it answers. The lease is released first, so the server
-// takes it. The server gets the same arguments and the same working directory, so every
-// path the reader wrote resolves as it did here. This never returns.
-function detach(SiteData $site, $lease, array $arguments): never
-{
-    fclose($lease);
-    if (personPresent()) {
-        putenv('DRUPACK_RUNTIME_PERSON=1');
-    }
-    $start = environment('DRUPACK_RUNTIME_CWD') ?? getcwd();
-    // pcntl_exec keeps the working directory, which is the application's by now.
-    chdir($start);
-    replaceProcess(getenv('DRUPACK_RUNTIME_LAUNCHER'),
-        array_merge(['detach', $site->serverLog(), '--'], $arguments, ['--foreground']), $start, 'Cannot start the server in the background');
 }
 
 // An option the reader gave beats the recorded listener. Site data written before the
@@ -756,7 +668,8 @@ try {
     }
     $drush = environment('DRUPACK_RUNTIME_DRUSH') === '1';
     [$options, $command] = options(array_slice($argv, 1), $drush, siteSettings());
-    $options['data-dir'] = fromStartDirectory($options['data-dir']);
+    $written = $options['data-dir'];
+    $options['data-dir'] = fromStartDirectory($written);
     if ($options['files-dir'] !== null) {
         $options['files-dir'] = fromStartDirectory($options['files-dir']);
     }
@@ -859,7 +772,7 @@ try {
     // a bind error or a corrupted database.
     $lease = null;
     if (!$drush) {
-        $lease = servingLease($site);
+        $lease = takeLease($site->lease());
         if ($lease === null) {
             // The holder is still installing while no completion marker exists, and
             // serving once it does. A handover addresses a site that answers requests,
@@ -884,8 +797,9 @@ try {
         }
         // A double-click owns its console, which closing the window would end along with a
         // background server, so it serves where the reader can stop it.
-        if ($options['foreground'] === null && environment('DRUPACK_RUNTIME_CONSOLE_OWNED') !== '1') {
-            detach($site, $lease, array_slice($argv, 1));
+        if ($options['foreground'] === null && !consoleOwned()) {
+            detachServer($lease, $site->serverLog(),
+                stopCommand($written === './data' ? '' : ' --data-dir ' . shellWord($written)), array_slice($argv, 1));
         }
         $site->recordListener($options['listen'], $options['host'], $options['files-dir']);
     }

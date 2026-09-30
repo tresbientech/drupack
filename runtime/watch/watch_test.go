@@ -177,6 +177,17 @@ func TestRunAnnouncesReadyOnceThenOpensTheLink(t *testing.T) {
 	}
 }
 
+func TestRunReturnsAfterTheReadyLineWhenThePlanHasNoCron(t *testing.T) {
+	server, _ := scripted(t, http.StatusNoContent)
+	p := probing(t, server, "")
+	p.cron = nil
+	w := watch(t, p)
+	w.returns(t, 5*time.Second)
+	if got := w.out.String(); got != readyLine {
+		t.Fatalf("printed %q, want the ready line", got)
+	}
+}
+
 func TestRunNamesTheLastAnswerWhenTheSiteNeverAnswers204(t *testing.T) {
 	server, _ := scripted(t, http.StatusInternalServerError)
 	p := probing(t, server, "http://login")

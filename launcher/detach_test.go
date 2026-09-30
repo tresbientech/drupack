@@ -20,7 +20,7 @@ func served(t *testing.T, log string, exited chan int, colour bool) (string, int
 	}
 	var out bytes.Buffer
 	code := make(chan int, 1)
-	go func() { code <- relay(path, exited, &out, "./demo", colour, time.Millisecond) }()
+	go func() { code <- relay(path, exited, &out, "./demo stop", colour, time.Millisecond) }()
 	select {
 	case got := <-code:
 		return out.String(), got
@@ -74,7 +74,7 @@ func TestRelayWaitsForTheLogToGrow(t *testing.T) {
 	}
 	var out bytes.Buffer
 	code := make(chan int, 1)
-	go func() { code <- relay(path, make(chan int), &out, "./demo", false, time.Millisecond) }()
+	go func() { code <- relay(path, make(chan int), &out, "./demo stop", false, time.Millisecond) }()
 	time.Sleep(50 * time.Millisecond)
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {

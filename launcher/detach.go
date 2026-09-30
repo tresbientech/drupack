@@ -22,13 +22,14 @@ const relayPoll = 100 * time.Millisecond
 
 // detach runs this executable again with the arguments after `--`, as a background
 // server that writes to the log file, and relays that log to the reader until the
-// server answers or exits. launch.php runs this word once it holds no lease and has
+// server answers or exits. The caller names the command that stops it, since only the
+// caller knows which Site data or folder the reader named. launch.php runs this word once it holds no lease and has
 // checked the listener, so the server it starts is the one that takes the lease.
 func detach(arguments []string) error {
-	if len(arguments) < 3 || arguments[1] != "--" {
-		return errors.New("detach takes LOG -- ARGUMENTS")
+	if len(arguments) < 4 || arguments[2] != "--" {
+		return errors.New("detach takes LOG STOP_COMMAND -- ARGUMENTS")
 	}
-	log, server := arguments[0], arguments[2:]
+	log, stop, server := arguments[0], arguments[1], arguments[3:]
 	executable, err := os.Executable()
 	if err != nil {
 		return err
@@ -61,7 +62,7 @@ func detach(arguments []string) error {
 		return err
 	}
 	colour := info.Mode()&os.ModeCharDevice != 0 && os.Getenv("NO_COLOR") == ""
-	code := relay(log, exited, os.Stdout, os.Getenv("DRUPACK_RUNTIME_INVOKED"), colour, relayPoll)
+	code := relay(log, exited, os.Stdout, stop, colour, relayPoll)
 	if code != 0 {
 		os.Exit(code)
 	}
@@ -73,13 +74,12 @@ func detach(arguments []string) error {
 // follows replaces it. A server that exits first ends it with the server's code,
 // after the rest of the log. The timeout line ends it with 1, since the server
 // still runs and the reader has to stop it.
-func relay(log string, exited <-chan int, out io.Writer, invoked string, colour bool, poll time.Duration) int {
+func relay(log string, exited <-chan int, out io.Writer, stop string, colour bool, poll time.Duration) int {
 	file, err := os.Open(log)
 	if err != nil {
 		panic(err)
 	}
 	defer file.Close()
-	stop := invoked + " stop"
 	if colour {
 		stop = "\x1b[1;32m" + stop + "\x1b[0m"
 	}
