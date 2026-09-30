@@ -181,3 +181,24 @@ macOS and Windows jobs of the next tag build: Node packed and run on both
 platforms, and the Windows `php.cmd` alias passing spaces, quotes and `%`
 unchanged. Lean: read those jobs' results before announcing the release, and
 fix on main with the next patch version if one fails.
+
+## `status`, `logs` and `restart`
+
+A detached site answers `start` and `stop` alone. `status` would read the
+Serving lease and the Listener record, `logs` would print or follow
+`server.log`, and `restart` would stop and start with the same options. Lean:
+add one when a reader asks for it.
+
+## An owner-only stop record on Windows
+
+`stop.json` is mode 0600 on Linux and macOS. On Windows it takes the access of
+Site data, or of the folder's cache entry, so an account that reads Site data
+reads the token and can stop the site. That account already reads the database
+and `settings.php`. Lean: give the record a protected DACL for the current user,
+as the cache root has, when a reader shares a Windows machine.
+
+## Windows stop and a cron run in flight
+
+On Windows a valid stop calls `caddy.Stop()` and exits, where a Unix stop runs
+the Ctrl+C path. An exit mid-cron cuts that `drush cron` short. Lean: wait for
+the runner to return before the exit.
