@@ -132,8 +132,7 @@ class EngineExecutable(harness.ConformanceCase):
     def test_a_start_serves_a_folder_whose_path_holds_a_space(self):
         spaced = self.class_dir / "spaced project"
         shutil.copytree(self.project, spaced, symlinks=True)
-        temporary = self.class_dir / "temporary"
-        temporary.mkdir()
+        temporary = harness.fresh_dir(self.class_dir / "start-space-temporary")
         env = dict(os.environ, TMPDIR=str(temporary), TMP=str(temporary), TEMP=str(temporary))
         port, _ = self.start("start-space", str(spaced), env=env)
         self.assertEqual(self.status(port, "/"), 200)

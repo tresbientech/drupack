@@ -69,7 +69,8 @@ class InstallScript(harness.ConformanceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         interpreter = self.glibc_interpreter if glibc_host else self.class_dir / "no-such-interpreter"
         script = output / f"install-{self.name}.sh"
-        text, count = re.subn(r"interpreter=\S+ ;;", f"interpreter='{interpreter}' ;;", script.read_text())
+        # A function replacement keeps a Windows path's backslashes from reading as escapes.
+        text, count = re.subn(r"interpreter=\S+ ;;", lambda _: f"interpreter='{interpreter}' ;;", script.read_text())
         self.assertEqual(count, 2, "the script names no glibc interpreter per architecture")
         script.write_text(text)
         return output
