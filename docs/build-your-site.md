@@ -229,8 +229,9 @@ Every run uploads the executables as the `executables` artifact. With `publish`,
 a tag run creates a release in the site repository. It holds:
 
 - each executable as `NAME-VERSION-TARGET`
-- `install-NAME.sh` and `install-NAME.ps1`, which install the build for the
-  reader's system into the current directory
+- `install-NAME.sh`, which installs the build for the reader's system into the
+  current directory. The workflow builds Linux targets only, so a release
+  carries no `install-NAME.ps1`.
 - `checksums.txt` and `release.json`
 - a CycloneDX SBOM and build provenance
 

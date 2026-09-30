@@ -5,8 +5,9 @@ Usage: release-files.py --output DIR --version VERSION --base-url URL --commit S
 
 Each FILE is named NAME-TARGET, with .exe on Windows, as drupack-build and the
 release workflow write it. DIR receives NAME-VERSION-TARGET for each file,
-checksums.txt, release.json, and install-NAME.sh and install-NAME.ps1 for each
-NAME. The scripts download from URL, the directory holding the versioned files.
+checksums.txt, release.json, and install-NAME.sh for each NAME, with
+install-NAME.ps1 beside it when NAME has a Windows build. The scripts download
+from URL, the directory holding the versioned files.
 """
 
 import argparse
@@ -77,8 +78,9 @@ def main():
         rows = sorted(targets.items())
         checksums.append(stamp("install.sh", args.output, name, args.version, args.base_url,
                                "\n".join(f"{target} {sha256}" for target, sha256 in rows)))
-        checksums.append(stamp("install.ps1", args.output, name, args.version, args.base_url,
-                               "\n".join(f"        '{target}' = '{sha256}'" for target, sha256 in rows)))
+        if any(target.startswith("windows-") for target in targets):
+            checksums.append(stamp("install.ps1", args.output, name, args.version, args.base_url,
+                                   "\n".join(f"        '{target}' = '{sha256}'" for target, sha256 in rows)))
 
     (args.output / "checksums.txt").write_bytes("".join(checksums).encode())
     (args.output / "release.json").write_bytes((json.dumps(

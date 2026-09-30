@@ -59,3 +59,9 @@ every release cannot serve a manifest.
 `/demo.ps1` to `install-mercury-demo`. The README shows these. The redirect
 lives in the fleet's NPM, as INFRA's npm ADR 0004 records, and the release
 workflow does not depend on it.
+
+## Amendment, 2026-09-30
+
+A release carries `install-NAME.ps1` only when it holds a Windows build of
+NAME. A site release built by `build.yml` holds Linux builds alone, and its
+PowerShell script had no build to install.
