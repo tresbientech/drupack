@@ -77,7 +77,7 @@ deletes it, so a held entry fails the rename and stays whole.
 - [x] A Go test in the runtime package interleaves one release's prepare with another's activate at the lock boundary, and the first entry keeps every declared file.
 - [x] A Go test shows `removeOthers` leaves an entry whose marker another handle holds.
 - [x] `(cd launcher && go test ./...)` passes.
-- [ ] The Windows CI job passes the concurrent-releases case, pending the next tag build.
+- [x] The Windows CI job passes the concurrent-releases case, pending the next tag build.
 
 ---
 
