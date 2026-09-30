@@ -113,6 +113,6 @@ ADR 0022 gains its amendment. `docs/cli.md` documents `start`, `stop` and
 ### Acceptance criteria
 
 - [ ] A `workflow_dispatch` release run on the branch passes on Windows amd64 and both macOS jobs.
-- [ ] `ls docs/adr | grep -c detach` prints 1, and `grep -n 'Amendment' docs/adr/0022-engine-executable.md` finds the folder lease.
-- [ ] `grep -n -- '--foreground' docs/cli.md` finds the option row and the container note.
-- [ ] `grep -n '^SITE stop' docs/cli.md` finds the synopsis line.
+- [x] `ls docs/adr | grep -c detach` prints 1, and `grep -n 'Amendment' docs/adr/0022-engine-executable.md` finds the folder lease.
+- [x] `grep -n -- '--foreground' docs/cli.md` finds the option row and the container note.
+- [x] `grep -n '^SITE stop' docs/cli.md` finds the synopsis line.

@@ -121,9 +121,15 @@ To choose the administrator name and password yourself, for a script or a fresh 
 
 Drupack still prints the login link.
 
-Stop the site with Ctrl+C.
+A start returns your prompt once the site answers, and the site keeps serving in the background, so Drush runs in the same terminal. Stop the site with:
 
-The terminal shows the address, where Site data lives, the log file and how to stop. Caddy's messages, PHP warnings and PHP errors go to `data/logs/caddy.log`, so they stay out of your way.
+```sh
+./mercury-demo stop
+```
+
+`--foreground` serves in the terminal until Ctrl+C instead, for a container or a systemd unit.
+
+The terminal shows the address, where Site data lives, the log files and how to stop. What the server prints later goes to `data/logs/server.log`. Caddy's messages, PHP warnings and PHP errors go to `data/logs/caddy.log`, so they stay out of your way.
 
 Useful options:
 

@@ -9,7 +9,8 @@ in `engine/serve.php` the contract the engine commands record. A test in
 ## Synopsis
 
 ```
-SITE [OPTIONS]
+SITE [start] [OPTIONS]
+SITE stop [--data-dir PATH]
 SITE drush [OPTIONS] DRUSH_COMMAND
 SITE node|npm|npx [ARGUMENTS]
 SITE clean [--dry-run]
@@ -135,6 +136,29 @@ The server and `drush` find the same release first on `PATH`.
 
 A musl file carries no Node. There each word exits 1 and names the glibc
 file. A site without Node answers each word as an unknown command.
+
+## `start` and `stop`
+
+`SITE` and `SITE start` are one command. A start takes the Serving lease, then
+runs itself again in the background with `--foreground`. It shows that
+server's output until the site answers, then prints the log file and the
+command that stops the site, and returns 0. A server that exits before it
+answers makes the start exit with its code. Its output after that goes to
+`logs/server.log` in Site data, which each start empties.
+
+`--foreground` serves in the terminal until Ctrl+C or a signal, as a container
+or a systemd unit needs. A Windows start from a file manager owns its window,
+so it serves in the foreground too.
+
+Once the site answers, the server listens on a random port of `127.0.0.1`,
+whatever `--listen` names. It writes that port and a random token to
+`stop.json` in Site data, readable by its owner alone. `stop` sends the token
+there, and the server stops the way Ctrl+C stops it. `stop` then waits for the
+Serving lease to free, 15 seconds at most, and exits 1 past that. With no
+server running it says so and exits 0.
+
+`stop` takes `--data-dir` and no other option. It works on a foreground site
+too.
 
 ## `clean`
 
