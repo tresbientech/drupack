@@ -96,7 +96,7 @@ final class SiteData
         if (!file_exists($path)) {
             return null;
         }
-        $record = json_decode((string) file_get_contents($path), true);
+        $record = json_decode($this->read($path), true);
         if (!is_array($record)) {
             throw new RuntimeException("Cannot read the recorded listener: $path. Remove that file, then start "
                 . \executableName() . ' again to record it.');
@@ -142,7 +142,7 @@ final class SiteData
         }
         $progress = $this->path(self::PROGRESS);
         if (file_exists($progress)) {
-            $steps = json_decode((string) file_get_contents($progress), true);
+            $steps = json_decode($this->read($progress), true);
             if (!is_array($steps)) {
                 throw new RuntimeException("Cannot read the recorded initialization progress: $progress. Remove that file, then start "
                     . \executableName() . ' again to check the site.');
@@ -223,6 +223,20 @@ final class SiteData
         if (file_put_contents($this->path($name), $contents, LOCK_EX) === false) {
             throw new RuntimeException($failure);
         }
+    }
+
+    // A start reads these records before it holds the lease, while another start may be
+    // writing one. write() truncates under an exclusive lock, so the shared lock waits
+    // for the whole record.
+    private function read(string $path): string
+    {
+        $handle = fopen($path, 'r');
+        if ($handle === false || !flock($handle, LOCK_SH)) {
+            throw new RuntimeException("Cannot read $path");
+        }
+        $contents = stream_get_contents($handle);
+        fclose($handle);
+        return (string) $contents;
     }
 
     private function path(string $name): string
