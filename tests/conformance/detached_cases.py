@@ -89,6 +89,18 @@ class DetachedCases(harness.ConformanceCase):
         shutil.copy2(harness.BINARY, binary)
         self._assert_powershell_runs_the_printed_stop(binary, self.case_dir, f'& "{binary}"')
 
+    def test_a_start_without_a_data_dir_keeps_its_site_data_where_it_started(self):
+        result = harness.run(
+            [str(harness.BINARY), "--listen", f"127.0.0.1:{self.port}"],
+            cwd=self.case_dir, capture_output=True, text=True, timeout=harness.WAITS["start"].seconds,
+        )
+        self.assertEqual(result.returncode, 0, f"the start exited non-zero: {result.stdout}{result.stderr}")
+        self.assertTrue((self.data / "settings.php").is_file(), f"no Site data in the start directory: {result.stdout}")
+        stop = harness.run([str(harness.BINARY), "stop"], cwd=self.case_dir, capture_output=True, text=True,
+                           timeout=harness.WAITS["stop"].seconds + 30)
+        self.assertEqual(stop.returncode, 0, f"{stop.stdout}{stop.stderr}")
+        self.assertIn("stopped", stop.stdout)
+
     def test_stop_ends_a_detached_site(self):
         self.assertEqual(self._start().returncode, 0)
         result = self._stop()
