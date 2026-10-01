@@ -198,8 +198,6 @@ function detachServer($lease, string $log, string $stop, array $arguments): neve
         putenv('DRUPACK_RUNTIME_PERSON=1');
     }
     $start = startDirectory();
-    // pcntl_exec keeps the working directory, which is the application's by now.
-    chdir($start);
     replaceProcess(getenv('DRUPACK_RUNTIME_LAUNCHER'),
         array_merge(['detach', $log, $stop, '--'], $arguments, ['--foreground']), $start, 'Cannot start the server in the background');
 }

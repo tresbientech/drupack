@@ -42,6 +42,10 @@ func detach(arguments []string) error {
 	// A nil Stdin is the null device, since nothing answers a terminal prompt here.
 	command := exec.Command(executable, server...)
 	command.Stdout, command.Stderr = file, file
+	// launch.php runs this word from the application directory, since PHP's chdir moves
+	// only PHP's own view. The server resolves a relative --data-dir from where it starts.
+	// The engine executable records no start directory and already runs from the reader's.
+	command.Dir = os.Getenv("DRUPACK_RUNTIME_CWD")
 	// The child's hidden console holds the child alone, which launch_windows.go would
 	// otherwise read as a file manager's window. The server reopens the log by this path.
 	command.Env = append(os.Environ(), "DRUPACK_RUNTIME_DETACHED="+log)
