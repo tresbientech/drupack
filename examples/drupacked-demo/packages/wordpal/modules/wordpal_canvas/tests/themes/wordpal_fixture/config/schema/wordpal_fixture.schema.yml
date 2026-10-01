@@ -1,0 +1,7 @@
+wordpal_fixture.settings:
+  type: theme_settings
+  label: 'Theme settings'
+  mapping:
+    style_variation:
+      type: string
+      label: 'Style variation'

@@ -1,0 +1,5 @@
+wp--preset--color--base:
+  label: Base
+  category: 'WordPress presets'
+  default_values:
+    ':root': '#f9f9f9'

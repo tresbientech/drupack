@@ -1,0 +1,44 @@
+--- a/display_builder.services.yml
++++ b/display_builder.services.yml
+@@ -21,7 +21,7 @@
+   display_builder.component_library_definitions:
+     class: Drupal\display_builder\ComponentLibraryDefinitions
+     arguments:
+-      - '@plugin.manager.sdc'
++      - '@plugin.manager.ui_patterns_component'
+       - '@plugin.manager.ui_patterns_source'
+ 
+   display_builder.block_library_sources:
+--- a/src/Controller/ApiPreviewController.php
++++ b/src/Controller/ApiPreviewController.php
+@@ -32,7 +32,7 @@
+   public function __construct(
+     #[Autowire(service: 'plugin.manager.component_story')]
+     private StoryPluginManager $storyPluginManager,
+-    #[Autowire(service: 'plugin.manager.sdc')]
++    #[Autowire(service: 'plugin.manager.ui_patterns_component')]
+     private ComponentPluginManager $componentManager,
+     private RendererInterface $renderer,
+     private IslandPluginManagerInterface $islandPluginManager,
+--- a/src/Island/IslandPluginBase.php
++++ b/src/Island/IslandPluginBase.php
+@@ -75,7 +75,7 @@
+       $configuration,
+       $plugin_id,
+       $plugin_definition,
+-      $container->get('plugin.manager.sdc'),
++      $container->get('plugin.manager.ui_patterns_component'),
+       $container->get('display_builder.htmx_events'),
+       $container->get('entity_type.manager'),
+       $container->get('plugin.manager.ui_patterns_source'),
+--- a/src/Plugin/UiPatterns/Source/ComponentSource.php
++++ b/src/Plugin/UiPatterns/Source/ComponentSource.php
+@@ -78,7 +78,7 @@
+       $container->get('token'),
+       $container->get('ui_patterns.normalizer'),
+       $container->get('ui_patterns.component_element_builder'),
+-      $container->get('plugin.manager.sdc'),
++      $container->get('plugin.manager.ui_patterns_component'),
+       $container->get('plugin.manager.ui_patterns_source'),
+     );
+   }

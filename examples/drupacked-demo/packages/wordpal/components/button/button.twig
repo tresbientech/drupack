@@ -1,0 +1,44 @@
+{#
+/**
+ * @file
+ * WordPress core/button.
+ *
+ * The wrapper carries the block style, the anchor, the writing mode and the
+ * width, the link carries the colors and the rest of the typography. The
+ * width follows blocks/button.php: a percentage becomes a custom property
+ * and, for the four standard widths, a legacy class.
+ */
+#}
+{% set tag = tag_name in ['a', 'button'] ? tag_name : 'a' %}
+{% set percent = width and width ends with '%' ? width|trim('%', 'right') + 0 : null %}
+{% set wrapper = [
+  'wp-block-button',
+  width ? 'has-custom-width',
+  percent is not null ? 'wp-block-button__width',
+  percent in [25, 50, 75, 100] ? 'wp-block-button__width-' ~ percent,
+] %}
+{% set wrapper_attributes = wordpal_attributes('core/button', {'css_class': css_class, 'anchor': anchor, 'writing_mode': writing_mode}, false).addClass(wrapper) %}
+{% if width %}
+  {% set width_style = percent is not null ? '--wp--block-button--width: ' ~ percent ~ ';' : 'width: ' ~ wordpal_css_value(width) ~ ';' %}
+  {% set wrapper_attributes = wrapper_attributes.setAttribute('style', width_style ~ (wrapper_attributes.style ? ' ' ~ wrapper_attributes.style : '')) %}
+{% endif %}
+{% set link = attributes
+  .addClass(['wp-block-button__link', 'wp-element-button', font_size ? 'has-custom-font-size'])
+  .addClass(link_css_class ? link_css_class|split(' ') : [])
+  .merge(wordpal_attributes('core/button', _context|merge({'css_class': null, 'anchor': null, 'writing_mode': null}), false)) %}
+{% if tag == 'button' %}
+  {% set link = link.setAttribute('type', 'button') %}
+{% endif %}
+{% if tag == 'a' and url %}
+  {% set link = link.setAttribute('href', wordpal_url(url)) %}
+{% endif %}
+{% if link_target %}
+  {% set link = link.setAttribute('target', link_target) %}
+{% endif %}
+{% if rel %}
+  {% set link = link.setAttribute('rel', rel) %}
+{% endif %}
+{% if title %}
+  {% set link = link.setAttribute('title', title) %}
+{% endif %}
+<div{{ wrapper_attributes }}><{{ tag }}{{ link }}>{{ wordpal_html(text|default('')) }}</{{ tag }}></div>

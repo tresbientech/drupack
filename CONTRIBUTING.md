@@ -70,6 +70,22 @@ That writes `app-payload.tar`, `app_checksum.txt` and `site.json` to `dist/paylo
 
 The Windows executable is the same launcher as Linux and macOS. It carries the PHP and FrankenPHP tree compressed with zstd, and unpacks under `%LOCALAPPDATA%\<name>\runtime` on first start, `<name>` being the site's `name`. Later starts compare a stored manifest and file sizes. Windows has no `exec`, so the launcher starts a child process instead of replacing itself.
 
+### WordPal in the demo
+
+`examples/drupacked-demo/packages/wordpal` holds WordPal at commit `c428ac1`, as
+`git archive` exports it. Composer installs it from that path, as copied files.
+To refresh it from a WordPal checkout beside this one:
+
+```sh
+rm -rf examples/drupacked-demo/packages/wordpal
+mkdir examples/drupacked-demo/packages/wordpal
+git -C ../wordpal archive COMMIT | tar -x -C examples/drupacked-demo/packages/wordpal
+composer update drupal/wordpal --working-dir=examples/drupacked-demo --no-install --ignore-platform-reqs
+```
+
+Then name the new commit above. The copy goes once WordPal's main reaches
+drupal.org, and Composer takes WordPal from there.
+
 ## Tests
 
 The suites run against the published executable, which is the launcher.

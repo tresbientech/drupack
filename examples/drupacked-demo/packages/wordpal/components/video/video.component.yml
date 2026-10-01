@@ -1,0 +1,141 @@
+name: Video
+description: 'Embed a video from your media library or upload a new one.'
+status: stable
+group: 'WordPress: media'
+links:
+  - 'https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes/blocks/video'
+props:
+  type: object
+  properties:
+    caption:
+      title: Caption
+      type: string
+      contentMediaType: text/html
+      x-formatting-context: inline
+      x-wordpal-panel: content
+    id:
+      title: Id
+      type: number
+      x-wordpal-panel: content
+    src:
+      title: Src
+      type: string
+      x-wordpal-panel: content
+    autoplay:
+      title: Autoplay
+      type: boolean
+      x-wordpal-panel: settings
+    controls:
+      title: Controls
+      type: boolean
+      examples:
+        - true
+      x-wordpal-panel: settings
+    loop:
+      title: Loop
+      type: boolean
+      x-wordpal-panel: settings
+    muted:
+      title: Muted
+      type: boolean
+      x-wordpal-panel: settings
+    poster:
+      title: Poster
+      type: string
+      x-wordpal-panel: settings
+    preload:
+      title: Preload
+      type: string
+      examples:
+        - metadata
+      x-wordpal-panel: settings
+    blob:
+      title: Blob
+      type: string
+      x-wordpal-panel: settings
+    width:
+      title: Width
+      type: number
+      x-wordpal-panel: settings
+    height:
+      title: Height
+      type: number
+      x-wordpal-panel: settings
+    plays_inline:
+      title: 'Plays inline'
+      type: boolean
+      x-wordpal-panel: settings
+    align:
+      title: Align
+      type: string
+      enum:
+        - left
+        - center
+        - right
+        - wide
+        - full
+      'meta:enum':
+        left: 'Align left'
+        center: 'Align center'
+        right: 'Align right'
+        wide: 'Wide width'
+        full: 'Full width'
+      x-wordpal-panel: settings
+    anchor:
+      title: Anchor
+      type: string
+      x-wordpal-panel: advanced
+    css_class:
+      title: 'CSS class'
+      type: string
+      x-wordpal-panel: advanced
+    padding_top:
+      title: 'Padding top'
+      type: string
+      x-wordpal-panel: dimensions
+    padding_right:
+      title: 'Padding right'
+      type: string
+      x-wordpal-panel: dimensions
+    padding_bottom:
+      title: 'Padding bottom'
+      type: string
+      x-wordpal-panel: dimensions
+    padding_left:
+      title: 'Padding left'
+      type: string
+      x-wordpal-panel: dimensions
+    margin_top:
+      title: 'Margin top'
+      type: string
+      x-wordpal-panel: dimensions
+    margin_right:
+      title: 'Margin right'
+      type: string
+      x-wordpal-panel: dimensions
+    margin_bottom:
+      title: 'Margin bottom'
+      type: string
+      x-wordpal-panel: dimensions
+    margin_left:
+      title: 'Margin left'
+      type: string
+      x-wordpal-panel: dimensions
+    self_stretch:
+      title: 'Self stretch'
+      type: string
+      enum:
+        - fit
+        - fill
+        - fixed
+        - fixedNoShrink
+      'meta:enum':
+        fit: Fit
+        fill: Grow
+        fixed: Max
+        fixedNoShrink: Fixed
+      x-wordpal-panel: dimensions
+    flex_size:
+      title: 'Flex size'
+      type: string
+      x-wordpal-panel: dimensions

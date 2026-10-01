@@ -1,0 +1,32 @@
+name: 'Custom HTML'
+description: 'Add custom HTML code and preview it as you edit.'
+status: stable
+group: 'WordPress: widgets'
+links:
+  - 'https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes/blocks/html'
+props:
+  type: object
+  properties:
+    content:
+      title: HTML
+      type: string
+      pattern: '(.|\r?\n)*'
+      x-wordpal-panel: content
+    self_stretch:
+      title: 'Self stretch'
+      type: string
+      enum:
+        - fit
+        - fill
+        - fixed
+        - fixedNoShrink
+      'meta:enum':
+        fit: Fit
+        fill: Grow
+        fixed: Max
+        fixedNoShrink: Fixed
+      x-wordpal-panel: dimensions
+    flex_size:
+      title: 'Flex size'
+      type: string
+      x-wordpal-panel: dimensions

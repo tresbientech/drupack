@@ -1,0 +1,9 @@
+{% if settings.display_as_dropdown %}
+<div{{ attributes.addClass('wp-block-archives-dropdown', 'wp-block-archives').merge(wordpal_attributes('core/archives', settings.supports, false)) }}><label for="{{ dropdown_id }}" class="wp-block-archives__label">{{ 'Archives'|t }}</label>
+		<select id="{{ dropdown_id }}" name="archive-dropdown">
+		<option value="">{{ 'Select Month'|t }}</option>{% for month in months %}	<option value="{{ month.url }}">{{ month.label }}{% if settings.show_post_counts %}&nbsp;({{ month.count }}){% endif %}</option>{% endfor %}</select><script>document.currentScript.previousElementSibling.addEventListener('change',function(e){if(e.target.value){window.location.assign(e.target.value);}});</script>
+</div>
+{% else %}
+<ul{{ attributes.addClass('wp-block-archives-list', 'wp-block-archives').merge(wordpal_attributes('core/archives', settings.supports, false)) }}>{% for month in months %}<li><a href="{{ month.url }}">{{ month.label }}</a>{% if settings.show_post_counts %}&nbsp;({{ month.count }}){% endif %}</li>
+{% endfor %}</ul>
+{% endif %}

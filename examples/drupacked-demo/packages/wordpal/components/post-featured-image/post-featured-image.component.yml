@@ -1,0 +1,253 @@
+name: 'Featured Image'
+description: "Display a post's featured image."
+status: stable
+group: 'WordPress: theme'
+links:
+  - 'https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes/blocks/post-featured-image'
+props:
+  type: object
+  properties:
+    src:
+      title: Image
+      type: string
+      format: uri-reference
+      examples:
+        - /sites/default/files/example.png
+    alt:
+      title: Alt
+      type: string
+    image_width:
+      title: 'Image width'
+      type: integer
+    image_height:
+      title: 'Image height'
+      type: integer
+    url:
+      title: URL
+      type: string
+      format: uri-reference
+    is_link:
+      title: 'Is link'
+      type: boolean
+      examples:
+        - false
+      x-wordpal-panel: content
+    rel:
+      title: Rel
+      type: string
+      x-wordpal-panel: content
+    link_target:
+      title: 'Link target'
+      type: string
+      examples:
+        - _self
+      x-wordpal-panel: content
+    aspect_ratio:
+      title: 'Aspect ratio'
+      type: string
+      x-wordpal-panel: settings
+    width:
+      title: Width
+      type: string
+      x-wordpal-panel: settings
+    height:
+      title: Height
+      type: string
+      x-wordpal-panel: settings
+    scale:
+      title: Scale
+      type: string
+      examples:
+        - cover
+      x-wordpal-panel: settings
+    size_slug:
+      title: 'Size slug'
+      type: string
+      x-wordpal-panel: settings
+    overlay_color:
+      title: 'Overlay color'
+      type: string
+      x-wordpal-panel: settings
+    custom_overlay_color:
+      title: 'Custom overlay color'
+      type: string
+      x-wordpal-panel: settings
+    dim_ratio:
+      title: 'Dim ratio'
+      type: number
+      examples:
+        - 0
+      x-wordpal-panel: settings
+    gradient:
+      title: Gradient
+      type: string
+      x-wordpal-panel: settings
+    custom_gradient:
+      title: 'Custom gradient'
+      type: string
+      x-wordpal-panel: settings
+    use_first_image_from_post:
+      title: 'Use first image from post'
+      type: boolean
+      examples:
+        - false
+      x-wordpal-panel: settings
+    align:
+      title: Align
+      type: string
+      enum:
+        - left
+        - right
+        - center
+        - wide
+        - full
+      'meta:enum':
+        left: 'Align left'
+        right: 'Align right'
+        center: 'Align center'
+        wide: 'Wide width'
+        full: 'Full width'
+      x-wordpal-panel: settings
+    anchor:
+      title: Anchor
+      type: string
+      x-wordpal-panel: advanced
+    css_class:
+      title: 'CSS class'
+      type: string
+      x-wordpal-panel: advanced
+    link_color:
+      title: 'Link color'
+      type: string
+      x-wordpal-panel: color
+    heading_color:
+      title: 'Heading color'
+      type: string
+      x-wordpal-panel: color
+    button_color:
+      title: 'Button color'
+      type: string
+      x-wordpal-panel: color
+    button_background_color:
+      title: 'Button background color'
+      type: string
+      x-wordpal-panel: color
+    duotone:
+      title: Duotone
+      type: string
+      x-wordpal-panel: filter
+      x-wordpal-duotone-selector: '.wp-block-post-featured-image img, .wp-block-post-featured-image .wp-block-post-featured-image__placeholder, .wp-block-post-featured-image .components-placeholder__illustration, .wp-block-post-featured-image .components-placeholder::before'
+    padding_top:
+      title: 'Padding top'
+      type: string
+      x-wordpal-panel: dimensions
+    padding_right:
+      title: 'Padding right'
+      type: string
+      x-wordpal-panel: dimensions
+    padding_bottom:
+      title: 'Padding bottom'
+      type: string
+      x-wordpal-panel: dimensions
+    padding_left:
+      title: 'Padding left'
+      type: string
+      x-wordpal-panel: dimensions
+    margin_top:
+      title: 'Margin top'
+      type: string
+      x-wordpal-panel: dimensions
+    margin_right:
+      title: 'Margin right'
+      type: string
+      x-wordpal-panel: dimensions
+    margin_bottom:
+      title: 'Margin bottom'
+      type: string
+      x-wordpal-panel: dimensions
+    margin_left:
+      title: 'Margin left'
+      type: string
+      x-wordpal-panel: dimensions
+    self_stretch:
+      title: 'Self stretch'
+      type: string
+      enum:
+        - fit
+        - fill
+        - fixed
+        - fixedNoShrink
+      'meta:enum':
+        fit: Fit
+        fill: Grow
+        fixed: Max
+        fixedNoShrink: Fixed
+      x-wordpal-panel: dimensions
+    flex_size:
+      title: 'Flex size'
+      type: string
+      x-wordpal-panel: dimensions
+    border_radius:
+      title: 'Border radius'
+      type: string
+      x-wordpal-panel: border
+    border_color:
+      title: 'Border color'
+      type: string
+      x-wordpal-panel: border
+    border_width:
+      title: 'Border width'
+      type: string
+      x-wordpal-panel: border
+    border_top_width:
+      title: 'Border top width'
+      type: string
+      x-wordpal-panel: border
+    border_top_color:
+      title: 'Border top color'
+      type: string
+      x-wordpal-panel: border
+    border_right_width:
+      title: 'Border right width'
+      type: string
+      x-wordpal-panel: border
+    border_right_color:
+      title: 'Border right color'
+      type: string
+      x-wordpal-panel: border
+    border_bottom_width:
+      title: 'Border bottom width'
+      type: string
+      x-wordpal-panel: border
+    border_bottom_color:
+      title: 'Border bottom color'
+      type: string
+      x-wordpal-panel: border
+    border_left_width:
+      title: 'Border left width'
+      type: string
+      x-wordpal-panel: border
+    border_left_color:
+      title: 'Border left color'
+      type: string
+      x-wordpal-panel: border
+    border_top_left_radius:
+      title: 'Border top left radius'
+      type: string
+      x-wordpal-panel: border
+    border_top_right_radius:
+      title: 'Border top right radius'
+      type: string
+      x-wordpal-panel: border
+    border_bottom_left_radius:
+      title: 'Border bottom left radius'
+      type: string
+      x-wordpal-panel: border
+    border_bottom_right_radius:
+      title: 'Border bottom right radius'
+      type: string
+      x-wordpal-panel: border
+    shadow:
+      title: Shadow
+      type: string
+      x-wordpal-panel: border

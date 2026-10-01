@@ -1,0 +1,6 @@
+name: 'WordPal frozen test'
+type: theme
+description: 'Holds Frozen block files and a plugin stylesheet for kernel tests.'
+core_version_requirement: ^11
+base theme: false
+package: Testing

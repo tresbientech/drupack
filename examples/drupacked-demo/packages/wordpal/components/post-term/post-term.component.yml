@@ -1,0 +1,14 @@
+name: 'Post Term'
+description: 'One term link a Post Terms block lists.'
+status: stable
+group: 'WordPress: theme'
+props:
+  type: object
+  properties:
+    label:
+      title: Label
+      type: string
+    url:
+      title: URL
+      type: string
+      format: uri-reference

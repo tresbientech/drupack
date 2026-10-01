@@ -1,0 +1,15 @@
+{
+    "layout": {
+        "wideSize": "1200px"
+    },
+    "position": {
+        "sticky": false,
+        "fixed": false
+    },
+    "duotone_filters": {},
+    "use_root_padding_aware_alignments": false,
+    "typography": {
+        "fluid": false
+    },
+    "styled_variations": []
+}

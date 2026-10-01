@@ -1,0 +1,19 @@
+{#
+/**
+ * @file
+ * WordPress core/post-author.
+ *
+ * WordPress renders nothing outside a post, where author_id has no binding.
+ * A builder drop leaves is_link and link_target unset.
+ */
+#}
+{% if author_id %}
+<div{{ attributes.addClass('wp-block-post-author').merge(wordpal_attributes('core/post-author', _context, false)) }}>
+  {%- if show_avatar -%}<div class="wp-block-post-author__avatar">{{ wordpal_author_avatar(author_id, avatar_size) }}</div>{%- endif -%}
+  <div class="wp-block-post-author__content">
+    {%- if byline -%}<p class="wp-block-post-author__byline">{{ wordpal_html(byline) }}</p>{%- endif -%}
+    <p class="wp-block-post-author__name">{{ wordpal_author(author_id, is_link|default(false), link_target, '') }}</p>
+    {%- if show_bio -%}<p class="wp-block-post-author__bio"></p>{%- endif -%}
+  </div>
+</div>{{ wordpal_duotone_filter(duotone) }}
+{% endif %}

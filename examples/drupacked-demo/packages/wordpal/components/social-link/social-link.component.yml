@@ -1,0 +1,79 @@
+name: 'Social Icon'
+description: 'Display an icon linking to a social profile or site.'
+status: stable
+group: 'WordPress: widgets'
+links:
+  - 'https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes/blocks/social-link'
+props:
+  type: object
+  properties:
+    url:
+      title: URL
+      type: string
+      x-wordpal-panel: content
+    label:
+      title: Label
+      type: string
+      x-wordpal-panel: content
+    open_in_new_tab:
+      title: 'Open in new tab'
+      type: boolean
+      examples:
+        - false
+      x-wordpal-panel: settings
+    show_labels:
+      title: 'Show labels'
+      type: boolean
+      examples:
+        - false
+      x-wordpal-panel: settings
+    icon_color:
+      title: 'Icon color'
+      type: string
+      x-wordpal-panel: settings
+    icon_color_value:
+      title: 'Icon color value'
+      type: string
+      x-wordpal-panel: settings
+    icon_background_color:
+      title: 'Icon background color'
+      type: string
+      x-wordpal-panel: settings
+    icon_background_color_value:
+      title: 'Icon background color value'
+      type: string
+      x-wordpal-panel: settings
+    service:
+      title: Service
+      type: string
+      x-wordpal-panel: settings
+    rel:
+      title: Rel
+      type: string
+      x-wordpal-panel: settings
+    anchor:
+      title: Anchor
+      type: string
+      x-wordpal-panel: advanced
+    css_class:
+      title: 'CSS class'
+      type: string
+      x-wordpal-panel: advanced
+    self_stretch:
+      title: 'Self stretch'
+      type: string
+      enum:
+        - fit
+        - fill
+        - fixed
+        - fixedNoShrink
+      'meta:enum':
+        fit: Fit
+        fill: Grow
+        fixed: Max
+        fixedNoShrink: Fixed
+      x-wordpal-panel: dimensions
+    flex_size:
+      title: 'Flex size'
+      type: string
+      x-wordpal-panel: dimensions

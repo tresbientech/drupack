@@ -1,0 +1,39 @@
+color:
+  base:
+    $type: color
+    $value: '#f9f9f9'
+    $description: Base
+  contrast:
+    $type: color
+    $value: '#111111'
+    $description: Contrast
+font-size:
+  small:
+    $type: dimension
+    $value:
+      value: 0.9
+      unit: rem
+    $description: Small
+  large:
+    $type: dimension
+    $value:
+      value: 1.85
+      unit: rem
+    $description: Large
+font-family:
+  body:
+    $type: fontFamily
+    $value:
+      - Inter
+      - sans-serif
+    $description: Body
+spacing:
+  10:
+    $type: dimension
+    $value:
+      value: 1
+      unit: rem
+    $description: '1'
+  20:
+    $value: 'min(1.5rem, 2vw)'
+    $description: '2'

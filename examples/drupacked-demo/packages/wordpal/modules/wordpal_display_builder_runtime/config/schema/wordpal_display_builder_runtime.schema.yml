@@ -1,0 +1,40 @@
+views.area.wordpal_pattern_preset:
+  type: views_area
+  label: 'WordPal pattern preset'
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    pattern_id:
+      type: string
+      label: 'Display Builder pattern preset ID'
+    vocabularies:
+      type: sequence
+      label: 'Vocabularies of the route term'
+      sequence:
+        type: string
+        label: 'Vocabulary ID'
+    negate:
+      type: boolean
+
+display_builder_page_layout.page_layout.*.third_party.wordpal_display_builder_runtime:
+  type: mapping
+  label: 'WordPal page frame'
+  mapping:
+    theme:
+      type: string
+      label: 'Theme the frame was converted for'
+      constraints:
+        ExtensionName: ~
+
+condition.plugin.wordpal_frame_routes:
+  type: condition.plugin
+  label: 'WordPal frame routes'
+  mapping:
+    pages:
+      type: string
+      label: 'Paths, one per line'
+    bundles:
+      type: sequence
+      label: 'Node bundles'
+      sequence:
+        type: string
+        label: 'Node bundle'

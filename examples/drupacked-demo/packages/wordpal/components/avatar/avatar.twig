@@ -1,0 +1,15 @@
+{#
+/**
+ * @file
+ * WordPress core/avatar, outside a comment.
+ *
+ * WordPress prints the border on the image and the other supports on the
+ * wrapper. It renders nothing outside a post, where author_id has no
+ * binding.
+ */
+#}
+{% if author_id %}
+{% set border_props = _context|filter((value, key) => key starts with 'border_') %}
+{% set wrapper_props = _context|merge(border_props|map(value => null)) %}
+<div{{ attributes.addClass('wp-block-avatar').merge(wordpal_attributes('core/avatar', wrapper_props, false)) }}>{{ wordpal_avatar(author_id, size|default(96), is_link|default(false), link_target|default('_self'), wordpal_attributes('core/avatar', border_props, false)) }}</div>{{ wordpal_duotone_filter(duotone) }}
+{% endif %}

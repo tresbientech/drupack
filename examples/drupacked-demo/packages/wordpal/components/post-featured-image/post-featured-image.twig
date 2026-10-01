@@ -1,0 +1,30 @@
+{#- The image follows post-featured-image.php. The border and the shadow style
+   the <img> WordPress prints through get_the_post_thumbnail(), not the
+   <figure>, and a border class replaces the attachment size classes. The
+   overlay repeats the border and adds the dim, color and gradient. -#}
+{% set border_keys = wordpal_border_props() %}
+{% set border = wordpal_attributes('core/post-featured-image', _context|filter((value, key) => key in border_keys), false) %}
+{% set size = size_slug|default('post-thumbnail') %}
+{%- set image_style -%}
+  {%- if border['style'] is not null -%}{{ border['style']|trim(';', 'right') }};{%- endif -%}
+  {%- if aspect_ratio -%}{% if aspect_ratio != 'auto' %}aspect-ratio:{{ wordpal_css_value(aspect_ratio) }};{% endif %}width:100%;{%- endif -%}
+  {%- if height -%}height:{{ wordpal_css_value(height) }};{%- elseif width -%}height:auto;{%- endif -%}
+  {%- if width -%}width:{{ wordpal_css_value(width) }};{%- endif -%}
+  {%- if scale -%}object-fit:{{ wordpal_css_value(scale) }};{%- endif -%}
+  {%- if shadow -%}box-shadow:{{ wordpal_css_value(shadow) }};{%- endif -%}
+{%- endset -%}
+{% set image_classes = border['class'] is not null ? border['class'] : ['attachment-' ~ size, 'size-' ~ size] %}
+{% set overlay_classes = ['wp-block-post-featured-image__overlay']
+  |merge(border['class'] is not null ? border['class'] : [])
+  |merge(['has-background-dim', 'has-background-dim-' ~ dim_ratio])
+  |merge(overlay_color ? ['has-' ~ overlay_color ~ '-background-color'] : [])
+  |merge(gradient or custom_gradient ? ['has-background-gradient'] : [])
+  |merge(gradient ? ['has-' ~ gradient ~ '-gradient-background'] : []) %}
+{%- set overlay_style -%}
+  {%- if border['style'] is not null -%}{{ border['style']|trim(';', 'right') }};{%- endif -%}
+  {%- if custom_gradient -%}background-image:{{ wordpal_css_value(custom_gradient) }};{%- endif -%}
+  {%- if custom_overlay_color -%}background-color:{{ wordpal_css_value(custom_overlay_color) }};{%- endif -%}
+{%- endset -%}
+{% set overlay %}{% if dim_ratio %}<span class="{{ overlay_classes|join(' ') }}" style="{{ overlay_style }}" aria-hidden="true"></span>{% endif %}{% endset %}
+{% set wrapper_context = _context|filter((value, key) => key not in border_keys and key not in ['shadow', 'gradient', 'custom_gradient']) %}
+{% if src %}<figure{{ attributes.addClass('wp-block-post-featured-image').merge(wordpal_attributes('core/post-featured-image', wrapper_context, false)) }}>{% if is_link %}<a href="{{ wordpal_url(url) }}" target="_self">{% endif %}<img src="{{ wordpal_url(src) }}" class="{{ image_classes|join(' ') }} wp-post-image" alt="{{ alt|default('') }}"{% if image_style %} style="{{ image_style }}"{% endif %} decoding="async" loading="lazy"{% if image_width %} width="{{ image_width }}"{% endif %}{% if image_height %} height="{{ image_height }}"{% endif %} />{{ overlay }}{% if is_link %}</a>{% endif %}</figure>{{ wordpal_duotone_filter(duotone) }}{% endif %}

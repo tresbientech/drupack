@@ -1,0 +1,18 @@
+{#
+/**
+ * @file
+ * WordPress core/details.
+ *
+ * The browser opens and closes the element, with no script.
+ */
+#}
+{% set wrapper = attributes
+  .addClass('wp-block-details')
+  .merge(wordpal_attributes('core/details', _context)) %}
+{% if name %}
+  {% set wrapper = wrapper.setAttribute('name', name) %}
+{% endif %}
+{% if show_content %}
+  {% set wrapper = wrapper.setAttribute('open', true) %}
+{% endif %}
+<details{{ wrapper }}><summary>{{ wordpal_html(summary|default('')) }}</summary>{% block content %}{% endblock %}</details>

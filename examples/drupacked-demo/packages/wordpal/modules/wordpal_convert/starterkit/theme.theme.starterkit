@@ -1,0 +1,34 @@
+<?php
+
+/**
+ * @file
+ * Loads the selected style variation, prints WordPress's body classes and
+ * styles Drupal's form buttons.
+ */
+
+use Drupal\Core\Extension\ThemeSettingsProvider;
+use Drupal\wordpal\Theme\BodyClasses;
+use Drupal\wordpal\Theme\FormButtons;
+
+/**
+ * Implements hook_preprocess_html().
+ */
+function {theme}_preprocess_html(array &$variables): void {
+  \Drupal::service(BodyClasses::class)->preprocessHtml($variables);
+}
+
+/**
+ * Implements hook_library_info_alter().
+ */
+function {theme}_library_info_alter(array &$libraries, string $extension): void {
+  if ($extension === '{theme}') {
+    $libraries['global']['dependencies'][] = '{theme}/{library}' . \Drupal::service(ThemeSettingsProvider::class)->getSetting('{setting}', '{theme}');
+  }
+}
+
+/**
+ * Implements hook_preprocess_input().
+ */
+function {theme}_preprocess_input(array &$variables): void {
+  FormButtons::preprocessInput($variables);
+}

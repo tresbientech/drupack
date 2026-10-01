@@ -1,0 +1,4 @@
+# Generated component CSS, copied WordPress stylesheets and test fixtures.
+components/
+modules/*/tests/fixtures/
+modules/*/tests/themes/

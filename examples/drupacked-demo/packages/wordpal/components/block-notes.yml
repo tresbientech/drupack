@@ -1,0 +1,123 @@
+# Hand-kept notes of docs/block-support.md. Run drush wordpal:block-table
+# after an edit. A note takes an optional builder (canvas, display_builder)
+# and an optional ref, a path relative to docs/.
+blocks:
+  core/accordion:
+    - &data-uri-freeze
+        note: A link or image URL that holds a `data:` URI freezes the block, because Canvas stores a URL prop as a link field.
+        builder: canvas
+  core/archives:
+    - note: Each dropdown option links to its Drupal URL.
+      ref: adr/0004-parity-exceptions.md
+  core/avatar:
+    - note: Prints an image only when the author has a Drupal user picture. WordPress falls back to Gravatar.
+      ref: adr/0004-parity-exceptions.md
+    - note: A custom duotone is left out. Preset duotones convert.
+      ref: adr/0004-parity-exceptions.md
+  core/button:
+    - note: An image in the button text drops.
+      builder: canvas
+      ref: adr/0004-parity-exceptions.md
+    - note: A bare `#` link prints no `href`, because the link prop rejects it.
+      builder: canvas
+      ref: adr/0004-parity-exceptions.md
+    - *data-uri-freeze
+  core/categories:
+    - note: Each dropdown option links to its Drupal URL.
+      ref: adr/0004-parity-exceptions.md
+    - note: '`showEmpty` lists the empty terms of the Drupal vocabulary, which can differ from the WordPress site.'
+      ref: plans/block-matrix-2026-09-28.md
+  core/comments:
+    - note: The comment form is the Drupal comment form. Its field names, hidden inputs and wrappers differ, and it has no cookie-consent checkbox.
+      ref: adr/0004-parity-exceptions.md
+    - note: The comment form and reply links show only to visitors with the `post comments` permission.
+    - note: A comment block whose values no component or Frozen block accepts stops the conversion.
+  core/cover:
+    - note: A custom duotone is left out. Preset duotones convert.
+      ref: adr/0004-parity-exceptions.md
+    - *data-uri-freeze
+  core/gallery:
+    - note: The gallery has no `wp-block-gallery-<n>` class. Its gap is layout CSS.
+      ref: adr/0004-parity-exceptions.md
+  core/group:
+    - *data-uri-freeze
+  core/html:
+    - note: The HTML text format removes `style` and `on*` attributes, `<script>` tags and tags outside its allow-list.
+      ref: adr/0004-parity-exceptions.md
+  core/image:
+    - note: The lightbox does not open. Its markup and script are left out.
+      ref: adr/0009-reuse-interactivity-scripts.md
+    - note: An empty custom link prints no link.
+      ref: adr/0004-parity-exceptions.md
+    - note: A custom duotone is left out. Preset duotones convert.
+      ref: adr/0004-parity-exceptions.md
+    - *data-uri-freeze
+  core/latest-comments:
+    - note: Drops the avatar when the author has no Drupal user picture.
+      ref: adr/0004-parity-exceptions.md
+  core/navigation:
+    - note: A block bound to a Drupal menu prints the menu label as its `aria-label`.
+      ref: adr/0004-parity-exceptions.md
+    - note: A block with its own links renders a Drupal menu the conversion writes from them. It binds no mapped menu.
+    - note: Trailing Social Links render as a nested component after the links.
+  core/page-list-item:
+    - note: WordPress never saves this block. Page List renders its items.
+  core/post-author:
+    - note: Prints an avatar image only when the author has a Drupal user picture.
+      ref: adr/0004-parity-exceptions.md
+    - note: Links the author name only for visitors with the `access user profiles` permission.
+      ref: adr/0004-parity-exceptions.md
+    - note: A custom duotone is left out. Preset duotones convert.
+      ref: adr/0004-parity-exceptions.md
+  core/post-author-name:
+    - note: Links to the author page only for visitors with the `access user profiles` permission.
+      ref: adr/0004-parity-exceptions.md
+  core/post-comments-form:
+    - note: Shows only to visitors with the `post comments` permission.
+  core/post-content:
+    - *data-uri-freeze
+  core/post-date:
+    - *data-uri-freeze
+  core/post-excerpt:
+    - *data-uri-freeze
+  core/post-featured-image:
+    - note: A custom duotone is left out. Preset duotones convert.
+      ref: adr/0004-parity-exceptions.md
+    - *data-uri-freeze
+  core/post-terms:
+    - *data-uri-freeze
+  core/post-title:
+    - *data-uri-freeze
+  core/query:
+    - note: Enhanced pagination reloads the page. Its script is not ported.
+      ref: adr/0009-reuse-interactivity-scripts.md
+  core/query-pagination-next:
+    - *data-uri-freeze
+  core/query-pagination-numbers:
+    - note: Drupal's pager centers a fixed window of pages in place of `midSize`.
+      ref: adr/0004-parity-exceptions.md
+  core/query-pagination-previous:
+    - *data-uri-freeze
+  core/quote:
+    - *data-uri-freeze
+  core/read-more:
+    - *data-uri-freeze
+  core/search:
+    - note: The form submits the mapped search parameter to the mapped search path.
+      ref: adr/0004-parity-exceptions.md
+    - note: Results list in the Search API index's relevance order.
+      ref: adr/0004-parity-exceptions.md
+    - note: With the button inside, the wrapper radius is not the `calc()` of radius and padding WordPress prints.
+      ref: plans/block-matrix-2026-09-28.md
+site:
+  - note: WordPress and Drupal number posts, terms and comments on their own. ID-based classes and attributes differ.
+    ref: adr/0004-parity-exceptions.md
+  - note: Classes and ids WordPress numbers per request, such as `wp-elements-N`, carry other numbers.
+    ref: adr/0004-parity-exceptions.md
+  - note: Dates render in each site's own time zone.
+    ref: adr/0004-parity-exceptions.md
+  - note: WordPress plugin and theme filters on core block output do not run.
+    ref: adr/0004-parity-exceptions.md
+  - note: Inline links in rich text keep only `href`. A saved `rel`, `target` or class drops.
+    builder: canvas
+    ref: adr/0004-parity-exceptions.md

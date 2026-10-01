@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="wordpal">
+  <description>Drupal coding standards, apart from the files copied from WordPress.</description>
+
+  <file>.</file>
+  <arg name="extensions" value="php,module,inc,install,yml,twig"/>
+
+  <rule ref="Drupal"/>
+  <rule ref="DrupalPractice"/>
+
+  <!-- WordPress core code, kept as it ships so it can be updated from upstream. -->
+  <exclude-pattern>modules/wordpal_convert/src/WordPress/WpBlockParser*.php</exclude-pattern>
+  <exclude-pattern>src/WordPress/StyleEngine/Vendor/*.php</exclude-pattern>
+</ruleset>

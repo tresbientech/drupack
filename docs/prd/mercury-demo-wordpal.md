@@ -34,7 +34,7 @@ The converted theme and recipe land in the site's own application in Site data.
 8. As a reader on Linux, macOS or Windows, I want conversion to work the same way, so that every platform can try WordPal.
 9. As a reader who never converts, I want the demo to keep serving my site unchanged, so that WordPal costs me only the first start's application copy.
 10. As a maintainer, I want a site test that converts and serves a theme, so that a regression stops the release.
-11. As a maintainer, I want the demo to take WordPal from a published source before it merges, so that CI and releases can build it.
+11. As a maintainer, I want the demo to carry WordPal's source before it merges, so that CI and releases can build it.
 
 ## Implementation Decisions
 
@@ -49,19 +49,21 @@ Site contract:
 
 Composer:
 
-- Until WordPal publishes a release, an inline package repository names
-  `drupal/wordpal` as a Drupal module. Its source is the local WordPal checkout,
-  pinned to a commit.
+- Until WordPal's main reaches drupal.org, the demo carries a copy of WordPal
+  in its own directory, as `git archive` exports one commit. A Composer path
+  repository installs it as copied files. drupal.org's WordPal repository holds
+  a February 2025 commit, and the Forge's needs a login, so CI reaches neither.
 - The two Drupal CMS recipes WordPal builds on join the demo's requirements.
 - The first conversion applies WordPal's own recipe, so the seed needs no link
   to it.
 
 Branch and merge:
 
-- The work stays on a branch while WordPal is a local source. A local
-  repository resolves only on the maintainer's machine, so CI cannot build it.
-- Switching to a published WordPal is the merge gate. The first CI run after it
-  must pass the conversion test on macOS and Windows.
+- The branch merges once a release run passes on every platform, the
+  conversion test included. A Windows failure gets its fix in WordPal and a new
+  copy before the merge.
+- Once WordPal's main reaches drupal.org, Composer takes WordPal from there and
+  the copy goes.
 
 ## Testing Decisions
 

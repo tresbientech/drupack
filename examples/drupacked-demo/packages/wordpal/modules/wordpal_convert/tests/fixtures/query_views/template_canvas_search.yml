@@ -1,0 +1,52 @@
+id: wordpal_fixture_search
+label: 'Archive Template'
+description: 'The search Template converted from WordPress.'
+tag: wordpal_template
+base_table: node_field_data
+display:
+  default:
+    id: default
+    display_title: Default
+    display_plugin: default
+    position: 0
+    display_options:
+      access:
+        type: perm
+        options:
+          perm: 'access content'
+      cache:
+        type: tag
+        options: {  }
+      pager:
+        type: some
+        options:
+          items_per_page: 1
+          offset: 0
+      style:
+        type: default
+        options: {  }
+      row:
+        type: fields
+        options: {  }
+      fields: {  }
+      header:
+        wordpal_pattern:
+          id: wordpal_pattern
+          pattern_id: wordpal_fixture_template
+          vocabularies: {  }
+          negate: false
+          table: views
+          field: wordpal_pattern
+          relationship: none
+          group_type: group
+          admin_label: ''
+          plugin_id: wordpal_pattern
+          empty: true
+      title: Search
+  page_1:
+    id: page_1
+    display_title: Page
+    display_plugin: page
+    position: 1
+    display_options:
+      path: search

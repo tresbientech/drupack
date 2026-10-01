@@ -1,0 +1,58 @@
+{#
+/**
+ * @file
+ * WordPress core/image.
+ *
+ * The figure carries the alignment and the block style, the image carries its
+ * own size, border and shadow.
+ */
+#}
+{# The border and the shadow style the image, as the block's save does. Only
+   the border marks the figure with has-custom-border. #}
+{% set image_keys = wordpal_border_props() %}
+{% set image_attributes = wordpal_attributes('core/image', _context|filter((value, key) => key in image_keys), false) %}
+{% set figure_classes = [
+  'wp-block-image',
+  size_slug ? 'size-' ~ size_slug,
+  image_attributes['class'] is not null or image_attributes['style'] is not null ? 'has-custom-border',
+  width or height ? 'is-resized',
+  duotone ? 'wp-duotone-' ~ duotone|split('|')|last,
+] %}
+{# A bare number, saved before WordPress 6.3, is a pixel count. #}
+{% set image_styles = {} %}
+{% if shadow %}
+  {% set image_styles = image_styles|merge({'box-shadow': wordpal_css_value(shadow)}) %}
+{% endif %}
+{% if aspect_ratio %}
+  {% set image_styles = image_styles|merge({'aspect-ratio': wordpal_css_value(aspect_ratio)}) %}
+{% endif %}
+{% if scale %}
+  {% set image_styles = image_styles|merge({'object-fit': wordpal_css_value(scale)}) %}
+{% endif %}
+{% if width %}
+  {% set image_styles = image_styles|merge({'width': wordpal_css_value(width matches '/^\\d+$/' ? width ~ 'px' : width)}) %}
+{% endif %}
+{% if width or height %}
+  {% set image_styles = image_styles|merge({'height': height ? wordpal_css_value(height matches '/^\\d+$/' ? height ~ 'px' : height) : 'auto'}) %}
+{% endif %}
+{% if id %}
+  {% set image_attributes = image_attributes.addClass('wp-image-' ~ id) %}
+{% endif %}
+{% if image_styles %}
+  {% set image_attributes = image_attributes.setAttribute('style', (image_attributes['style'] is not null ? image_attributes['style']|trim(';', 'right') ~ ';' : '') ~ wordpal_css_declarations(image_styles)) %}
+{% endif %}
+{% if title %}
+  {% set image_attributes = image_attributes.setAttribute('title', title) %}
+{% endif %}
+{% if is_decorative %}
+  {% set image_attributes = image_attributes.setAttribute('role', 'none') %}
+{% endif %}
+{# WordPress renders nothing for an image that carries no file. #}
+{% if url %}
+<figure{{ attributes.addClass(figure_classes).merge(wordpal_attributes('core/image', _context|filter((value, key) => key not in image_keys and key != 'shadow'), false)) }}>
+  {%- if href is not null -%}<a href="{{ wordpal_url(href) }}"{% if link_target %} target="{{ link_target }}"{% endif %}{% if rel %} rel="{{ rel }}"{% endif %}>{%- endif -%}
+  <img{% if in_template_part %} decoding="async"{% endif %} src="{{ wordpal_url(url) }}" alt="{{ alt|default('') }}"{{ image_attributes }}{% if in_gallery and id %} data-id="{{ id }}"{% endif %} />
+  {%- if href is not null -%}</a>{%- endif -%}
+  {%- if caption -%}<figcaption class="wp-element-caption">{{ wordpal_html(caption) }}</figcaption>{%- endif -%}
+</figure>{{ wordpal_duotone_filter(duotone) }}
+{% endif %}

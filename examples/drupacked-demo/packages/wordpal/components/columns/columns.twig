@@ -1,0 +1,14 @@
+{#
+/**
+ * @file
+ * WordPress core/columns.
+ */
+#}
+{% set classes = [
+  'wp-block-columns',
+  vertical_alignment ? 'are-vertically-aligned-' ~ vertical_alignment,
+  is_stacked_on_mobile is same as(false) ? 'is-not-stacked-on-mobile',
+] %}
+{# A columns block lays its children out in a row that does not wrap. #}
+{% set layout_default = {'layout_type': 'flex', 'flex_wrap': 'nowrap'} %}
+<div{{ attributes.addClass(classes).merge(wordpal_attributes('core/columns', _context, true, {}, layout_default)) }}>{% block content %}{% endblock %}</div>

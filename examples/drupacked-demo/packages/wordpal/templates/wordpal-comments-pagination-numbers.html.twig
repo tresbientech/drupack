@@ -1,0 +1,2 @@
+{# paginate_links() joins its links with a newline. #}
+<div class="wp-block-comments-pagination-numbers">{% for page in pages %}{% if not loop.first %}{{ "\n" }}{% endif %}{% if page.number is null %}<span class="page-numbers dots">…</span>{% elseif page.url is null %}<span aria-current="page" class="page-numbers current">{{ page.number }}</span>{% else %}<a class="page-numbers" href="{{ page.url }}">{{ page.number }}</a>{% endif %}{% endfor %}</div>

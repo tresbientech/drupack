@@ -1,0 +1,62 @@
+services:
+  logger.channel.wordpal_convert:
+    parent: logger.channel_base
+    arguments: ['wordpal_convert']
+  Drupal\wordpal_convert\Theme\AttributeSourceInterface: '@Drupal\wordpal_convert\Js\WordPressAttributeSource'
+  Drupal\wordpal_convert\Js\WordPressAttributeSource:
+    autowire: true
+  Drupal\wordpal_convert\Js\AttributeParser: ~
+  Drupal\wordpal_convert\Theme\BlockParser:
+    autowire: true
+  Drupal\wordpal_convert\Theme\ReferenceExpander:
+    autowire: true
+  Drupal\wordpal_convert\Theme\ThemeTrees:
+    autowire: true
+  Drupal\wordpal_convert\Theme\ThemeGenerator:
+    arguments: ['%app.root%', '@module_handler']
+  Drupal\wordpal_convert\Component\DefinitionGenerator: ~
+  Drupal\wordpal_convert\Component\AttributeFlattener: ~
+  Drupal\wordpal_convert\Component\BlockPluginInputs:
+    autowire: true
+  Drupal\wordpal_convert\Component\ComponentInputs:
+    autowire: true
+  Drupal\wordpal_convert\Component\CommentBlockInputs:
+    autowire: true
+  Drupal\wordpal_convert\Query\QuerySettingsWriter:
+    autowire: true
+  Drupal\wordpal_convert\Theme\TreeHashing:
+    autowire: true
+  Drupal\wordpal_convert\Listing\ListingBlockSettings:
+    autowire: true
+  Drupal\wordpal_convert\Component\ComponentSet:
+    arguments: ['%app.root%', '@extension.list.module']
+  Drupal\wordpal_convert\WordPress\PlaygroundRunner: ~
+  Drupal\wordpal_convert\WordPress\WordPressRelease:
+    autowire: true
+  Drupal\wordpal_convert\WordPress\ThemeSource:
+    autowire: true
+  Drupal\wordpal_convert\WordPress\SourceResolver:
+    autowire: true
+  Drupal\wordpal_convert\Content\ContentMappingLoader: ~
+  Drupal\wordpal_convert\Content\ContentFixtureLoader: ~
+  Drupal\wordpal_convert\Content\DemoContentSeeder:
+    arguments: ['@Drupal\wordpal_convert\Content\ContentFixtureLoader', '@entity_type.manager', '@entity_field.manager', '@file_system', '@path.validator', '@menu.link_tree', '@?trash.manager', '@database', '@Drupal\filter\FilterFormatRepositoryInterface']
+  Drupal\wordpal_convert\Content\ContentMappingTargetValidator:
+    autowire: true
+  Drupal\wordpal_convert\Content\SiteSetup:
+    factory: ['Drupal\wordpal_convert\Content\SiteSetup', fromPackage]
+    arguments: ['@Drupal\wordpal_convert\Content\ContentMappingTargetValidator', '@extension.list.module', '%app.root%']
+  Drupal\wordpal_convert\ConversionOwnership:
+    arguments: ['@entity_type.manager', '@config.factory', '%app.root%', '@Drupal\wordpal_convert\Theme\ThemeGenerator', '@entity.repository', '@?trash.manager']
+  Drupal\wordpal_convert\WriterSelector:
+    tags:
+      - { name: service_collector, tag: wordpal_convert.writer, call: addWriter }
+  Drupal\wordpal_convert\ConversionRunner:
+    autowire: true
+  Drupal\wordpal_convert\NavigationMenus:
+    autowire: true
+  Drupal\wordpal_convert\SiteRecipeWriter:
+    arguments: ['%app.root%', '@Drupal\wordpal_convert\ConversionOwnership', '@config.storage', '@config.factory', '@entity_type.manager', '@entity.repository', '@Drupal\Core\DefaultContent\Exporter', '@Drupal\Core\DefaultContent\AdminAccountSwitcher', '@Drupal\wordpal_convert\EventSubscriber\SiteRecipeExport', '@Drupal\wordpal_convert\WriterSelector']
+  Drupal\wordpal_convert\EventSubscriber\SiteRecipeExport:
+    tags:
+      - { name: event_subscriber }

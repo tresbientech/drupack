@@ -78,19 +78,19 @@ access to wordpress.org and npm, and the glibc build on Linux.
 
 ---
 
-## Phase 4: published WordPal, macOS and Windows
+## Phase 4: WordPal's source in the demo, macOS and Windows
 
 User stories: 8, 11
 
 ### What to build
 
-The demo takes WordPal from its published release, and the inline package
-repository leaves `composer.json`. The first CI run proves conversion on macOS
-and Windows. A WordPal fix that run proves needed goes to WordPal, and the
-demo takes its next release. This phase is the merge gate.
+The demo carries WordPal's `git archive` export in its own directory, and a
+Composer path repository installs it. The release run proves conversion on
+macOS and Windows. A WordPal fix that run proves needed goes to WordPal, and the
+demo takes a new copy. This phase is the merge gate.
 
 ### Acceptance criteria
 
-- [ ] `composer.json` names no local path or inline WordPal package.
+- [x] `git grep -n "/home/\|\"type\": \"package\"" examples/drupacked-demo/composer.json` finds nothing.
 - [ ] The release workflow runs the conversion site test on Linux, macOS and
       Windows, and it passes.

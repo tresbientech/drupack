@@ -1,0 +1,2 @@
+{# A grid layout's own columnCount names a class; a default layout's does not (post-template.php). #}
+<ul{{ attributes.addClass('wp-block-post-template', display_layout_columns ? ['is-flex-container', 'columns-' ~ display_layout_columns], column_count and layout_type == 'grid' ? 'columns-' ~ column_count).merge(wordpal_attributes('core/post-template', _context)) }}>{% block content %}{% endblock %}</ul>

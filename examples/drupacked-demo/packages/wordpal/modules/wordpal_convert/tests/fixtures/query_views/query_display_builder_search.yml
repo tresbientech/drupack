@@ -1,0 +1,190 @@
+id: wordpal_fixture_view_x
+label: 'Owner query'
+description: 'Posts converted from the WordPress Query block.'
+tag: wordpal_query
+base_table: search_api_index_wordpal_content
+display:
+  default:
+    id: default
+    display_title: Default
+    display_plugin: default
+    position: 0
+    display_options:
+      access:
+        type: perm
+        options:
+          perm: 'access content'
+      cache:
+        type: search_api_none
+        options: {  }
+      pager:
+        type: wordpal_query
+        options:
+          offset: 0
+          pagination_heading_level: h4
+          items_per_page: 3
+          total_pages: 0
+          id: 0
+          tags:
+            next: Next
+            previous: Previous
+            first: First
+            last: Last
+          expose:
+            items_per_page: false
+            items_per_page_label: 'Items per page'
+            items_per_page_options: '5, 10, 25, 50'
+            items_per_page_options_all: false
+            items_per_page_options_all_label: '- All -'
+            offset: false
+            offset_label: Offset
+          quantity: 9
+      style:
+        type: default
+        options: {  }
+      row:
+        type: ui_patterns
+        options:
+          ui_patterns:
+            component_id: 'wordpal:post-title'
+            props: {  }
+            slots: {  }
+      filters:
+        search_api_fulltext:
+          id: search_api_fulltext
+          table: search_api_index_wordpal_content
+          field: search_api_fulltext
+          plugin_id: search_api_fulltext
+          operator: and
+          value: ''
+          exposed: true
+          expose:
+            operator_id: search_api_fulltext_op
+            label: ''
+            identifier: keywords
+            required: false
+            remember: false
+            multiple: false
+            remember_roles:
+              authenticated: authenticated
+          parse_mode: terms
+          fields: {  }
+        search_api_datasource:
+          id: search_api_datasource
+          table: search_api_index_wordpal_content
+          field: search_api_datasource
+          plugin_id: search_api_datasource
+          operator: or
+          value:
+            'entity:node': 'entity:node'
+      sorts:
+        search_api_relevance:
+          id: search_api_relevance
+          table: search_api_index_wordpal_content
+          field: search_api_relevance
+          plugin_id: search_api
+          order: DESC
+      empty:
+        wordpal_pattern_preset:
+          id: wordpal_pattern_preset
+          table: views
+          field: wordpal_pattern_preset
+          relationship: none
+          group_type: group
+          admin_label: ''
+          plugin_id: wordpal_pattern_preset
+          empty: true
+          pattern_id: empty_x
+          vocabularies: {  }
+          negate: false
+      display_extenders:
+        display_builder:
+          profile: default
+          sources:
+            -
+              node_id: 5feceb66ffc86f38
+              source_id: component
+              source:
+                component:
+                  component_id: 'wordpal:query'
+                  props:
+                    tag_name:
+                      source_id: select
+                      source:
+                        value: div
+                    enhanced_pagination:
+                      source_id: checkbox
+                      source:
+                        value: false
+                  slots:
+                    content:
+                      sources:
+                        -
+                          node_id: 943c9f751f5d79fa
+                          source_id: view_rows
+                          source: {  }
+                        -
+                          node_id: e90307478fc01d04
+                          source_id: view_pager
+                          source: {  }
+                        -
+                          node_id: 29ca1af657fe1ab8
+                          source_id: view_empty
+                          source: {  }
+      query:
+        type: views_query
+        options: {  }
+      exposed_form:
+        type: basic
+        options:
+          submit_button: Search
+          reset_button: false
+          reset_button_label: Reset
+          exposed_sorts_label: 'Sort by'
+          expose_sort_order: false
+          sort_asc_label: Asc
+          sort_desc_label: Desc
+  block_1:
+    id: block_1
+    display_title: Block
+    display_plugin: block
+    position: 1
+    display_options:
+      block_description: 'Owner query'
+      allow:
+        items_per_page: true
+      display_extenders:
+        display_builder:
+          profile: default
+          sources:
+            -
+              node_id: 5feceb66ffc86f38
+              source_id: component
+              source:
+                component:
+                  component_id: 'wordpal:query'
+                  props:
+                    tag_name:
+                      source_id: select
+                      source:
+                        value: div
+                    enhanced_pagination:
+                      source_id: checkbox
+                      source:
+                        value: false
+                  slots:
+                    content:
+                      sources:
+                        -
+                          node_id: 943c9f751f5d79fa
+                          source_id: view_rows
+                          source: {  }
+                        -
+                          node_id: e90307478fc01d04
+                          source_id: view_pager
+                          source: {  }
+                        -
+                          node_id: 29ca1af657fe1ab8
+                          source_id: view_empty
+                          source: {  }
+      exposed_block: true

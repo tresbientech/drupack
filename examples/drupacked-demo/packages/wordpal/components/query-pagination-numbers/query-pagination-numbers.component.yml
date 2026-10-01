@@ -1,0 +1,114 @@
+name: 'Page Numbers'
+description: 'Displays a list of page numbers for pagination.'
+status: stable
+group: 'WordPress: theme'
+links:
+  - 'https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes/blocks/query-pagination-numbers'
+props:
+  type: object
+  properties:
+    current:
+      title: 'Current page'
+      type: integer
+      examples:
+        - 1
+    previous_ellipsis:
+      title: 'Previous ellipsis'
+      type: boolean
+      examples:
+        - false
+    next_ellipsis:
+      title: 'Next ellipsis'
+      type: boolean
+      examples:
+        - false
+    mid_size:
+      title: 'Mid size'
+      type: number
+      examples:
+        - 2
+      x-wordpal-panel: settings
+    anchor:
+      title: Anchor
+      type: string
+      x-wordpal-panel: advanced
+    css_class:
+      title: 'CSS class'
+      type: string
+      x-wordpal-panel: advanced
+    font_size:
+      title: 'Font size'
+      type: string
+      x-wordpal-panel: typography
+    line_height:
+      title: 'Line height'
+      type: string
+      x-wordpal-panel: typography
+    font_family:
+      title: 'Font family'
+      type: string
+      x-wordpal-panel: typography
+    font_weight:
+      title: 'Font weight'
+      type: string
+      x-wordpal-panel: typography
+    font_style:
+      title: 'Font style'
+      type: string
+      x-wordpal-panel: typography
+    text_transform:
+      title: 'Text transform'
+      type: string
+      x-wordpal-panel: typography
+    text_decoration:
+      title: 'Text decoration'
+      type: string
+      x-wordpal-panel: typography
+    letter_spacing:
+      title: 'Letter spacing'
+      type: string
+      x-wordpal-panel: typography
+    background_color:
+      title: 'Background color'
+      type: string
+      x-wordpal-panel: color
+    gradient:
+      title: Gradient
+      type: string
+      x-wordpal-panel: color
+    link_color:
+      title: 'Link color'
+      type: string
+      x-wordpal-panel: color
+    heading_color:
+      title: 'Heading color'
+      type: string
+      x-wordpal-panel: color
+    button_color:
+      title: 'Button color'
+      type: string
+      x-wordpal-panel: color
+    button_background_color:
+      title: 'Button background color'
+      type: string
+      x-wordpal-panel: color
+    self_stretch:
+      title: 'Self stretch'
+      type: string
+      enum:
+        - fit
+        - fill
+        - fixed
+        - fixedNoShrink
+      'meta:enum':
+        fit: Fit
+        fill: Grow
+        fixed: Max
+        fixedNoShrink: Fixed
+      x-wordpal-panel: dimensions
+    flex_size:
+      title: 'Flex size'
+      type: string
+      x-wordpal-panel: dimensions
+  required:
+    - current

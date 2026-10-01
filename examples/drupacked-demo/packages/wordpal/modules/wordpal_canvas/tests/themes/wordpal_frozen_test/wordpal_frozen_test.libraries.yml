@@ -1,0 +1,12 @@
+plugin.wc-blocks-packages-style:
+  version: 1.x
+  css:
+    theme:
+      styles/plugin-wc-blocks-packages-style.css: {}
+plugin.wc-blocks-style-mini-cart:
+  version: 1.x
+  css:
+    theme:
+      styles/plugin-wc-blocks-style-mini-cart.css: {}
+  dependencies:
+    - wordpal_frozen_test/plugin.wc-blocks-packages-style

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "84bc516c0a1e95a234e595e903be5b71",
+    "content-hash": "df80e45d4203fc5d38497d50fc7318d9",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -6650,12 +6650,46 @@
         {
             "name": "drupal/wordpal",
             "version": "dev-main",
-            "source": {
-                "type": "git",
-                "url": "/home/theodore/DEV/DRUPAL/wordpal",
-                "reference": "8e1362b9a2d27567569ab318323bc69b4f1f9516"
+            "dist": {
+                "type": "path",
+                "url": "packages/wordpal",
+                "reference": "f307c5cd9d866e289e8a0730a15f8ffb7c04f667"
             },
-            "type": "drupal-module"
+            "require": {
+                "ext-zip": "*",
+                "php": ">=8.4"
+            },
+            "require-dev": {
+                "drupal/canvas": "^1.11",
+                "drupal/display_builder": "^1.0.0-beta7",
+                "drupal/pathauto": "^1.13",
+                "drupal/search_api": "^1.41",
+                "drupal/trash": "^3.1",
+                "drupal/ui_patterns": "^2.0.21",
+                "drupal/ui_skins": "^1.2",
+                "drush/drush": "^13"
+            },
+            "suggest": {
+                "drupal/canvas": "Required by wordpal_canvas and wordpal_canvas_runtime, the Canvas target.",
+                "drupal/display_builder": "Required by wordpal_display_builder and wordpal_display_builder_runtime, the Display Builder target.",
+                "drupal/pathauto": "Installed by every Site recipe a conversion writes.",
+                "drupal/ui_patterns": "Required by the Display Builder target.",
+                "drupal/ui_skins": "Required by the Display Builder target."
+            },
+            "type": "drupal-module",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Converts a WordPress block theme into a Drupal CMS site editors change in Drupal Canvas or Display Builder.",
+            "homepage": "https://www.drupal.org/project/wordpal",
+            "support": {
+                "issues": "https://www.drupal.org/project/issues/wordpal",
+                "source": "https://git.drupalcode.org/project/wordpal"
+            },
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
         },
         {
             "name": "drupal/yoast_seo",

@@ -1,0 +1,14 @@
+{#
+/**
+ * @file
+ * WordPress core/spacer.
+ */
+#}
+{% set extra = {} %}
+{% if height %}
+  {% set extra = extra|merge({'height': wordpal_css_value(height)}) %}
+{% endif %}
+{% if width %}
+  {% set extra = extra|merge({'width': wordpal_css_value(width)}) %}
+{% endif %}
+<div{{ attributes.addClass('wp-block-spacer').setAttribute('aria-hidden', 'true').merge(wordpal_attributes('core/spacer', _context, false, extra)) }}></div>

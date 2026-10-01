@@ -1,0 +1,32 @@
+name: 'Frozen block'
+description: 'The HTML WordPress rendered for a block WordPal has no component for, read from the theme. Editors cannot change it.'
+status: stable
+group: 'WordPress: frozen'
+props:
+  type: object
+  properties:
+    block_name:
+      title: Block
+      type: string
+      examples:
+        - core/avatar
+      x-wordpal-panel: advanced
+    key:
+      title: Key
+      type: string
+      examples:
+        - e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+      x-wordpal-panel: advanced
+slots:
+  hole_1:
+    title: 'Query 1'
+    description: "The View of the block's first Query, at that Query's place in the HTML."
+  hole_2:
+    title: 'Query 2'
+    description: "The View of the block's second Query."
+  hole_3:
+    title: 'Query 3'
+    description: "The View of the block's third Query."
+  hole_4:
+    title: 'Query 4'
+    description: "The View of the block's fourth Query."

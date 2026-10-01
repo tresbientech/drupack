@@ -1,0 +1,11 @@
+{#
+/**
+ * @file
+ * WordPress core/read-more.
+ *
+ * WordPress renders nothing outside a post, where url has no binding.
+ */
+#}
+{% if url %}
+<a{{ attributes.addClass('wp-block-read-more').merge(wordpal_attributes('core/read-more', _context, false)) }} href="{{ wordpal_url(url) }}" target="{{ link_target }}">{{ content ? wordpal_html(content) : 'Read more'|t }}<span class="screen-reader-text">: {{ title }}</span></a>
+{% endif %}

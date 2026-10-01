@@ -4,20 +4,12 @@
     "type": "project",
     "license": "GPL-2.0-or-later",
     "repositories": [
-        {"type": "composer", "url": "https://packages.drupal.org/8"},
         {
-            "type": "package",
-            "package": {
-                "name": "drupal/wordpal",
-                "version": "dev-main",
-                "type": "drupal-module",
-                "source": {
-                    "type": "git",
-                    "url": "/home/theodore/DEV/DRUPAL/wordpal",
-                    "reference": "8e1362b9a2d27567569ab318323bc69b4f1f9516"
-                }
-            }
-        }
+            "type": "path",
+            "url": "packages/wordpal",
+            "options": {"symlink": false, "versions": {"drupal/wordpal": "dev-main"}}
+        },
+        {"type": "composer", "url": "https://packages.drupal.org/8"}
     ],
     "require": {
         "php": "~8.5.0",

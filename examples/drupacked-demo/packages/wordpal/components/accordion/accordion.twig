@@ -1,0 +1,16 @@
+{#
+/**
+ * @file
+ * WordPress core/accordion.
+ *
+ * WordPress's accordion view module opens and closes the items.
+ */
+#}
+{{ attach_library('wordpal/interactivity.accordion') }}
+{% set wrapper = attributes
+  .addClass('wp-block-accordion')
+  .setAttribute('role', 'group')
+  .setAttribute('data-wp-interactive', 'core/accordion')
+  .setAttribute('data-wp-context', '{ "autoclose": ' ~ (autoclose ? 'true' : 'false') ~ ', "accordionItems": [] }')
+  .merge(wordpal_attributes('core/accordion', _context)) %}
+<div{{ wrapper }}>{% block content %}{% endblock %}</div>
