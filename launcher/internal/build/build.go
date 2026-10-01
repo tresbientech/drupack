@@ -169,8 +169,9 @@ func NewPlan(r Request) (Plan, error) {
 	return plan, nil
 }
 
-// payloadTargets are the builds that pack an exported payload on their own host.
-var payloadTargets = []string{"macos-amd64", "macos-arm64", "windows-amd64"}
+// payloadTargets are the builds that pack an exported payload: the release
+// workflow's Linux jobs, and the macOS and Windows builds on their own hosts.
+var payloadTargets = []string{"linux-amd64", "linux-arm64", "macos-amd64", "macos-arm64", "windows-amd64"}
 
 // nodeTargets lists the targets the resolve step fetches Node for: the payload
 // targets for a payload-only build, otherwise each file the build packs.
