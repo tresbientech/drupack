@@ -11,7 +11,7 @@ CACHE_ROOT     writers=launcher/main.go  readers=engine/serve.php
 CONSOLE_OWNED  writers=launcher/launch_windows.go  readers=application/process.php
 CWD            writers=runtime/entrypoint.go  readers=application/launch.php,application/process.php,runtime/entrypoint.go
 DATA_DIR       writers=application/launch.php,build/seed.sh  readers=application/settings.php,build/site-settings.php
-DETACHED       writers=launcher/detach.go  readers=launcher/launch_windows.go
+DETACHED       writers=launcher/detach.go  readers=launcher/launch_windows.go,runtime/entrypoint.go
 DOCROOT        writers=application/launch.php,engine/serve.php  readers=application/Caddyfile,engine/Caddyfile
 DRUSH          writers=runtime/entrypoint.go  readers=application/launch.php
 FILES_DIR      writers=application/launch.php  readers=application/Caddyfile,application/launch.php,application/support/PublicFilesTemplateLoader.php,application/support/SiteDataPublicStream.php

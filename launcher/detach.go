@@ -43,8 +43,8 @@ func detach(arguments []string) error {
 	command := exec.Command(executable, server...)
 	command.Stdout, command.Stderr = file, file
 	// The child's hidden console holds the child alone, which launch_windows.go would
-	// otherwise read as a file manager's window.
-	command.Env = append(os.Environ(), "DRUPACK_RUNTIME_DETACHED=1")
+	// otherwise read as a file manager's window. The server reopens the log by this path.
+	command.Env = append(os.Environ(), "DRUPACK_RUNTIME_DETACHED="+log)
 	command.SysProcAttr = detachedProcess()
 	if err := command.Start(); err != nil {
 		file.Close()
@@ -137,5 +137,5 @@ func relay(log string, exited <-chan int, out io.Writer, stop string, colour boo
 // ownsConsole reports whether a file manager created this process's console: nothing
 // but this process holds it, and a detached server's hidden console is not one.
 func ownsConsole(detached string, processes uint32) bool {
-	return detached != "1" && processes == 1
+	return detached == "" && processes == 1
 }

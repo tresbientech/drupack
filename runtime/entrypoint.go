@@ -300,6 +300,15 @@ func init() {
 	// launch.php and the engine executable's serve.php replace themselves with this
 	// command to serve, naming the fixed Caddyfile they ship.
 	if len(os.Args) == 3 && os.Args[1] == "php-server" {
+		// On Windows the handle PHP's proc_open hands this process writes at a stale
+		// offset, over the log's first lines, so a detached server appends through its own.
+		if log := os.Getenv("DRUPACK_RUNTIME_DETACHED"); log != "" {
+			file, err := os.OpenFile(log, os.O_WRONLY|os.O_APPEND, 0)
+			if err != nil {
+				panic(err)
+			}
+			os.Stdout, os.Stderr = file, file
+		}
 		// The server waits for itself. A separate process would first extract its own copy
 		// of the embedded application, which takes longer than the wait on a slow disk.
 		stopping, guardSignals := stopGuard()

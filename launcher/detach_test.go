@@ -35,7 +35,7 @@ func TestADetachedChildOwnsNoConsole(t *testing.T) {
 		detached  string
 		processes uint32
 		want      bool
-	}{{"", 1, true}, {"", 2, false}, {"1", 1, false}, {"1", 2, false}} {
+	}{{"", 1, true}, {"", 2, false}, {"server.log", 1, false}, {"server.log", 2, false}} {
 		if got := ownsConsole(c.detached, c.processes); got != c.want {
 			t.Fatalf("ownsConsole(%q, %d) = %v, want %v", c.detached, c.processes, got, c.want)
 		}
