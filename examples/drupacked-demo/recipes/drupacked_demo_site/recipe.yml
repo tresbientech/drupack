@@ -1,4 +1,4 @@
-name: 'Drupal Mercury Demo'
+name: 'Drupacked Demo'
 type: Site
 description: 'The Mercury Demo site template, with the WordPal converter and Agent Access enabled.'
 recipes:

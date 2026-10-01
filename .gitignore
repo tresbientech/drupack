@@ -1,10 +1,10 @@
 # composer install --working-dir=examples/<site> writes these three, and
-# application/vendor links to one of them for the PHP unit files. Mercury
+# application/vendor links to one of them for the PHP unit files. Drupacked
 # Demo's site recipe sits among the recipes Composer installs.
 /examples/*/vendor/
 /examples/*/web/
 /examples/*/recipes/*
-!/examples/mercury-demo/recipes/mercury_demo_site/
+!/examples/drupacked-demo/recipes/drupacked_demo_site/
 /application/vendor
 /dist/
 /dist-phase1/

@@ -118,7 +118,7 @@ jobs:
       # Every builder compiles the extensions runtime/php-extensions.txt names, so
       # a lock that declares one the file omits stops the release here.
       - name: Check the allowlist against the lock
-        run: python3 runtime/check-extensions.py examples/mercury-demo
+        run: python3 runtime/check-extensions.py examples/drupacked-demo
 
   # A builder image carries the PHP its own build compiled, so one image serves
   # one libc on one architecture. Its content follows the inputs
@@ -252,7 +252,7 @@ jobs:
       - name: Export the application payload
         run: |
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
-            drupack-build --site examples/mercury-demo --payload-only --output dist
+            drupack-build --site examples/drupacked-demo --payload-only --output dist
 
       # The engine executable carries the engine's files in place of an application.
       - name: Export the engine payload
@@ -299,11 +299,11 @@ jobs:
           path: dist/node/payload
           if-no-files-found: error
 
-  # Mercury goes through the workflow site repositories call, in the image the
+  # The demo goes through the workflow site repositories call, in the image the
   # payload job pushed. That image carries the amd64 glibc runtime only when the
   # run builds Linux amd64.
-  mercury:
-    name: Mercury through build.yml
+  demo:
+    name: Drupacked Demo through build.yml
     needs: [gate, payload]
     if: contains(needs.gate.outputs.linux, 'amd64')
     permissions:
@@ -311,7 +311,7 @@ jobs:
       id-token: write
     uses: ./.github/workflows/build.yml
     with:
-      site: examples/mercury-demo
+      site: examples/drupacked-demo
 
   linux:
     name: Linux ${{ matrix.arch }}
@@ -377,7 +377,7 @@ jobs:
             directory=
             if [ "$libc" = musl ]; then directory=/musl; fi
             go run ./cmd/pack -runtime "../runtime-$libc/out" \
-              -entry drupack -version "$DRUPACK_VERSION" -source . -output "../dist$directory/mercury-demo" \
+              -entry drupack -version "$DRUPACK_VERSION" -source . -output "../dist$directory/drupacked-demo" \
               -app ../dist/payload/app-payload.tar -app-checksum ../dist/payload/app_checksum.txt \
               -site ../dist/payload/site.json -site-version "$DRUPACK_VERSION"
             go run ./cmd/pack -engine -runtime "../runtime-$libc/out" \
@@ -393,27 +393,27 @@ jobs:
         env:
           DRUPACK_TEST_ENGINE: dist/engine/drupack
         run: |
-          python3 tests/conformance dist/mercury-demo test-results/conformance --site-tests examples/mercury-demo/tests
+          python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests examples/drupacked-demo/tests
 
       - name: Check each file's runtime and size
         run: |
           set -eu
-          for file in dist/mercury-demo dist/engine/drupack; do
+          for file in dist/drupacked-demo dist/engine/drupack; do
             "$file" --version | grep ', glibc)$'
           done
-          for file in dist/musl/mercury-demo dist/engine/musl/drupack; do
+          for file in dist/musl/drupacked-demo dist/engine/musl/drupack; do
             "$file" --version | grep ', musl)$'
           done
-          for file in dist/mercury-demo dist/musl/mercury-demo dist/engine/drupack dist/engine/musl/drupack; do
+          for file in dist/drupacked-demo dist/musl/drupacked-demo dist/engine/drupack dist/engine/musl/drupack; do
             printf '%s: %d MB\n' "$file" "$(( $(stat -c %s "$file") / 1000000 ))"
           done
 
       - name: Start a SQLite site on a musl host
         run: |
           docker run -d --name alpine-site --network none \
-            --mount type=bind,src="$PWD/dist/musl/mercury-demo",dst=/usr/local/bin/mercury-demo,readonly \
+            --mount type=bind,src="$PWD/dist/musl/drupacked-demo",dst=/usr/local/bin/drupacked-demo,readonly \
             alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d \
-            mercury-demo --foreground --data-dir /tmp/site --admin-user alpine-admin --admin-password Alpine.check.password.2026
+            drupacked-demo --foreground --data-dir /tmp/site --admin-user alpine-admin --admin-password Alpine.check.password.2026
           for _ in $(seq 1 60); do
             if docker exec alpine-site wget -q -O /dev/null http://127.0.0.1:7225/user/login 2>/dev/null; then
               exit 0
@@ -432,8 +432,8 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: mercury-demo-linux-${{ matrix.arch }}
-          path: dist/mercury-demo
+          name: drupacked-demo-linux-${{ matrix.arch }}
+          path: dist/drupacked-demo
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v7
@@ -444,8 +444,8 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: mercury-demo-linux-${{ matrix.arch }}-musl
-          path: dist/musl/mercury-demo
+          name: drupacked-demo-linux-${{ matrix.arch }}-musl
+          path: dist/musl/drupacked-demo
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v7
@@ -503,13 +503,13 @@ jobs:
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
-          ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\mercury-demo.exe -EnginePayloadDirectory dist\engine-payload -EngineOutput dist\engine\drupack.exe
+          ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupacked-demo.exe -EnginePayloadDirectory dist\engine-payload -EngineOutput dist\engine\drupack.exe
 
       # The executables upload before the suite, so a run the suite hangs still keeps them.
       - uses: actions/upload-artifact@v7
         with:
-          name: mercury-demo-windows-amd64
-          path: dist/mercury-demo.exe
+          name: drupacked-demo-windows-amd64
+          path: dist/drupacked-demo.exe
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v7
@@ -523,7 +523,7 @@ jobs:
           DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
         run: |
           Copy-Item dist\payload\site.json dist\site.json
-          python tests/conformance dist\mercury-demo.exe test-results\conformance --site-tests examples\mercury-demo\tests
+          python tests/conformance dist\drupacked-demo.exe test-results\conformance --site-tests examples\drupacked-demo\tests
 
       - uses: actions/download-artifact@v8
         with:
@@ -601,7 +601,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
-          bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/mercury-demo dist/engine-payload dist/engine/drupack
+          bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/drupacked-demo dist/engine-payload dist/engine/drupack
           cp dist/payload/site.json dist/site.json
 
       # Saved before the tests, so a failed test does not repeat the PHP build.
@@ -617,7 +617,7 @@ jobs:
         env:
           DRUPACK_TEST_ENGINE: dist/engine/drupack
         run: |
-          python3 tests/conformance dist/mercury-demo test-results/conformance --site-tests examples/mercury-demo/tests
+          python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests examples/drupacked-demo/tests
 
       - uses: actions/download-artifact@v8
         with:
@@ -640,7 +640,7 @@ jobs:
 
       - name: Check the unsigned launch steps
         run: |
-          cp dist/mercury-demo test-results/quarantined
+          cp dist/drupacked-demo test-results/quarantined
           xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" test-results/quarantined
           xattr -d com.apple.quarantine test-results/quarantined
           test-results/quarantined --help
@@ -654,8 +654,8 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: mercury-demo-macos-${{ matrix.arch }}
-          path: dist/mercury-demo
+          name: drupacked-demo-macos-${{ matrix.arch }}
+          path: dist/drupacked-demo
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v7
@@ -665,7 +665,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [linux, windows, macos, mercury]
+    needs: [linux, windows, macos, demo]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     permissions:
@@ -686,7 +686,7 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          pattern: mercury-demo-*
+          pattern: drupacked-demo-*
           path: candidates
 
       # Each artifact is NAME-TARGET holding one file, NAME or NAME.exe. The loop

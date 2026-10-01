@@ -5,4 +5,4 @@ include:
   - local: /ci/drupack.gitlab-ci.yml
     inputs:
       version: local
-      site: examples/mercury-demo
+      site: examples/drupacked-demo

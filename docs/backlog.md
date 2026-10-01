@@ -119,9 +119,9 @@ and `package_manager` because it cannot write into the read-only application.
 Nobody has checked the stall against the current module release. Lean: keep the
 uninstall, and retest the stall when the recipe's version of the module changes.
 
-## When Mercury can leave Twig 3.29
+## When the demo can leave Twig 3.29
 
-Mercury's `composer.json` pins `twig/twig` to 3.29.0. Under Twig 3.30, cron
+The demo's `composer.json` pins `twig/twig` to 3.29.0. Under Twig 3.30, cron
 fails with a `TypeError` from `EscaperRuntime::escape()` in easy_email's compiled
 body template, which Drupal CMS 2.2's site template base brings. Lean: retest
 cron on each Drupal core or easy_email release, and drop the pin once it passes.
@@ -144,7 +144,7 @@ versioned names, then update it from the release workflow.
 ## Site builds for macOS and Windows
 
 The site workflow builds Linux targets only. Drupack's own release already
-ships Mercury Demo for all five targets, so only a third-party site misses
+ships Drupacked Demo for all five targets, so only a third-party site misses
 macOS and Windows. `docs/prd/native-site-builds.md` holds the design: engine
 releases publish their runtimes, and native jobs pack them with the site's
 payload. It adds code in both workflows, the release step, `drupack-build` and

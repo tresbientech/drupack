@@ -1,6 +1,6 @@
-name: mercury-demo
-recipe: recipes/mercury_demo_site
-site_name: Drupal Mercury Demo
+name: drupacked-demo
+recipe: recipes/drupacked_demo_site
+site_name: Drupacked Demo
 languages: [fr, zh-hans, es, hi, ar]
 platforms: [linux-amd64]
 libc: both

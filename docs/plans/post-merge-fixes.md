@@ -6,7 +6,7 @@
 
 - Phases 1 to 5 touch disjoint files and can run in parallel worktrees.
 - Phase 6 changes WordPal's own repository, then the `mercury-demo-wordpal` branch.
-- Phase 7 waits until the `mercury-demo-wordpal` branch merges, since only then does Mercury Demo carry Node.
+- Phase 7 waits until the `mercury-demo-wordpal` branch merges, since only then does Drupacked Demo carry Node.
 - Both Caddyfiles are fixed files; every value they read comes from a quoted `{$DRUPACK_RUNTIME_*}` environment reference.
 
 ---
@@ -134,22 +134,22 @@ WordPal commit.
 ### Acceptance criteria
 
 - [x] WordPal's `SiteSetupTest` passes with no `recipes/wordpal` in the fixture project.
-- [x] `grep -c "recipes/wordpal" examples/mercury-demo/composer.json` prints 0 on the branch.
+- [x] `grep -c "recipes/wordpal" examples/drupacked-demo/composer.json` prints 0 on the branch.
 - [x] The branch's `WordPalConversion` site case passes.
 
 ---
 
-## Phase 7: Node cases after Mercury Demo carries Node
+## Phase 7: Node cases after Drupacked Demo carries Node
 
 ### What to build
 
 Once the `mercury-demo-wordpal` branch merges, both sites QA builds carry Node.
 The case for a site without Node then always skips. The Node fixture becomes a
-copy of Mercury Demo without Node. QA builds Mercury Demo with both libcs, so
-the musl refusal runs on Mercury's own musl file.
+copy of Drupacked Demo without Node. QA builds Drupacked Demo with both libcs, so
+the musl refusal runs on the demo's own musl file.
 
 ### Acceptance criteria
 
 - [ ] `bash build/qa.sh` runs `test_a_site_without_node_answers_node_as_an_unknown_command` and it passes.
-- [ ] `bash build/qa.sh` runs `test_a_musl_build_names_the_glibc_build` against Mercury Demo's musl file and it passes.
+- [ ] `bash build/qa.sh` runs `test_a_musl_build_names_the_glibc_build` against Drupacked Demo's musl file and it passes.
 - [ ] `bash build/qa.sh` passes, and `.git/qa-green` records it.

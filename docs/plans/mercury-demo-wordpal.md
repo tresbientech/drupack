@@ -1,4 +1,4 @@
-# Plan: WordPal in Mercury Demo
+# Plan: WordPal in Drupacked Demo
 
 > Source PRD: `docs/prd/mercury-demo-wordpal.md`. Starts after the Bundled Node
 > plan merges. Phases 1 to 3 stay on a branch until WordPal publishes a release.
@@ -18,19 +18,19 @@
 
 ---
 
-## Phase 1: writable Mercury Demo
+## Phase 1: writable Drupacked Demo
 
 User stories: 9
 
 ### What to build
 
-Mercury Demo's contract names the two writable directories. A fresh demo lays
+Drupacked Demo's contract names the two writable directories. A fresh demo lays
 the site's own application on its first start.
 
 ### Acceptance criteria
 
-- [x] The writable cases pass against Mercury Demo.
-- [x] Mercury Demo's site tests pass, with the site serving from its own
+- [x] The writable cases pass against Drupacked Demo.
+- [x] Drupacked Demo's site tests pass, with the site serving from its own
       application in Site data.
 
 ---
@@ -49,7 +49,7 @@ across a restart.
 
 ### Acceptance criteria
 
-- [x] `./mercury-demo drush wpc twentytwentyfour --target=canvas` exits 0 on a
+- [x] `./drupacked-demo drush wpc twentytwentyfour --target=canvas` exits 0 on a
       fresh demo.
 - [x] The site test checks that `/` answers 200 with the converted theme's
       stylesheet, before and after a restart.
