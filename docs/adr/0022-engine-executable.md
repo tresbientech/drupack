@@ -70,3 +70,11 @@ data.
 - `serve.php` loads no Composer autoloader, since the engine carries no
   `vendor/`. It resolves paths with `realpath` and `dirname`, in place of the
   `Path` class ADR 0010 names.
+
+## Amendment, 2026-09-30
+
+A folder mode start holds a Serving lease on its cache entry, keyed by the
+folder's path, beside that entry's `stop.json` and `server.log`. The lease
+guards `drupack stop` and a second start on the same folder, and the folder
+gets no new file. It runs the site's readiness runner without cron. ADR 0028
+records the detached start and the stop channel.

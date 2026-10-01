@@ -78,7 +78,7 @@ The listen address and permitted host the last start served on, and the Files di
 SQLite, MySQL, or PostgreSQL, selected when a Packaged site first starts. It stores the structured part of Site data.
 
 **Serving lease**:
-The exclusive claim one start holds over a Site data directory, from the moment it begins preparing until its server exits. A second start refuses or hands over, whatever address it was given.
+The exclusive claim one start holds over a Site data directory, or over a Project folder, from the moment it begins preparing until its server exits. A second start on Site data refuses or hands over, and one on a Project folder refuses, whatever address it was given.
 
 ### Paths
 

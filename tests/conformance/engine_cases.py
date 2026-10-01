@@ -8,6 +8,7 @@ folder lands in its public files directory.
 import http.client
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import threading
@@ -83,7 +84,7 @@ class EngineExecutable(harness.ConformanceCase):
         port = harness.pick_port()
         log = self.class_dir / f"{name}.log"
         with open(log, "wb") as handle:
-            process = harness.popen([str(self.engine), *arguments, "--listen", f"127.0.0.1:{port}"],
+            process = harness.popen([str(self.engine), *arguments, "--foreground", "--listen", f"127.0.0.1:{port}"],
                                     cwd=cwd or self.class_dir, env=env, stdout=handle, stderr=subprocess.STDOUT,
                                     start_new_session=True)
         self.addCleanup(harness.stop_process, process, harness.WAITS["stop"].seconds, f": inspect {log}")
@@ -105,6 +106,16 @@ class EngineExecutable(harness.ConformanceCase):
             return error.code
         except (URLError, ConnectionError, TimeoutError):
             return None
+
+    def detached_start(self, *arguments, cwd=None):
+        """Starts the engine executable in the background on a port of its own, which the
+        case's cleanup stops, and returns the port and the finished start."""
+        port = harness.pick_port()
+        target = str(cwd or self.class_dir)
+        self.addCleanup(self.engine_run, "stop", str(self.project), cwd=target)
+        start = harness.run([str(self.engine), *arguments, "--listen", f"127.0.0.1:{port}"], cwd=target,
+                            capture_output=True, text=True, timeout=harness.WAITS["start"].seconds)
+        return port, start
 
     def snapshot(self):
         """Size and modification time of every project file outside the public files directory."""
@@ -128,6 +139,59 @@ class EngineExecutable(harness.ConformanceCase):
         connection.close()
         self.doCleanups()
         self.assertEqual(self.snapshot(), before, "the start changed the project outside its public files directory")
+
+    def test_a_detached_start_returns_once_ready_and_stop_ends_it(self):
+        port, start = self.detached_start(str(self.project))
+        self.assertEqual(start.returncode, 0, f"the start exited non-zero: {start.stdout}{start.stderr}")
+        self.assertIn("  Login:", start.stdout)
+        self.assertIn("runs in the background. Its log: ", start.stdout)
+        self.assertNotIn("Press Ctrl+C", start.stdout)
+        self.assertEqual(self.status(port, "/"), 200)
+        stop = self.engine_run("stop", str(self.project))
+        self.assertEqual(stop.returncode, 0, stop.stderr)
+        self.assertIn("stopped", stop.stdout)
+        self.assertIsNone(self.status(port, "/"), "the server still answers after stop")
+        again = self.engine_run("stop", str(self.project))
+        self.assertEqual(again.returncode, 0, again.stderr)
+        self.assertIn("is not running", again.stdout)
+
+    def test_the_printed_stop_command_names_a_folder_started_from_another_directory(self):
+        port, start = self.detached_start(str(self.project))
+        self.assertEqual(start.returncode, 0, f"{start.stdout}{start.stderr}")
+        command = f"    {self.engine} stop {self.project}\n"
+        self.assertIn(f"Stop it with:\n\n{command}", start.stdout)
+        stop = harness.run(shlex.split(command, posix=os.name != "nt"), cwd=self.class_dir.parent,
+                           capture_output=True, text=True, timeout=harness.WAITS["stop"].seconds + 30)
+        self.assertEqual(stop.returncode, 0, stop.stderr)
+        self.assertIn("stopped", stop.stdout)
+        self.assertIsNone(self.status(port, "/"), "the printed command left the server running")
+
+    def test_a_detached_start_and_stop_leave_the_project_unchanged(self):
+        before = self.snapshot()
+        port, start = self.detached_start(cwd=self.project)
+        self.assertEqual(start.returncode, 0, f"the start exited non-zero: {start.stdout}{start.stderr}")
+        self.assertEqual(self.status(port, "/"), 200)
+        stop = self.engine_run("stop", cwd=self.project)
+        self.assertEqual(stop.returncode, 0, stop.stderr)
+        self.assertEqual(self.snapshot(), before, "the start or stop changed the project outside its public files directory")
+
+    def test_a_second_start_on_a_served_folder_says_it_already_serves(self):
+        _, first = self.detached_start(str(self.project))
+        self.assertEqual(first.returncode, 0, f"{first.stdout}{first.stderr}")
+        second = self.engine_run(str(self.project), "--listen", f"127.0.0.1:{harness.pick_port()}")
+        self.assertEqual(second.returncode, 1, second.stdout)
+        self.assertIn(f"drupack already serves {self.project.as_posix()}", second.stderr)
+
+    def test_a_start_in_the_foreground_is_stopped_by_stop(self):
+        port, _ = self.start("start-stopped", str(self.project))
+        stop = self.engine_run("stop", str(self.project))
+        self.assertEqual(stop.returncode, 0, stop.stderr)
+        self.assertIsNone(self.status(port, "/"), "the server still answers after stop")
+
+    def test_a_stop_on_a_missing_folder_names_it(self):
+        result = self.engine_run("stop", str(self.class_dir / "never-served"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("No such directory", result.stderr)
 
     def test_a_start_serves_a_folder_whose_path_holds_a_space(self):
         spaced = self.class_dir / "spaced project"
@@ -250,7 +314,7 @@ class EngineExecutable(harness.ConformanceCase):
         port = harness.pick_port()
         log = self.class_dir / "inherited.log"
         with open(log, "wb") as handle:
-            process = harness.popen([str(self.engine), str(self.project), "--listen", f"127.0.0.1:{port}"],
+            process = harness.popen([str(self.engine), str(self.project), "--foreground", "--listen", f"127.0.0.1:{port}"],
                                     cwd=self.class_dir, env=env, stdout=handle, stderr=subprocess.STDOUT,
                                     start_new_session=True)
         self.addCleanup(harness.stop_process, process, harness.WAITS["stop"].seconds, f": inspect {log}")

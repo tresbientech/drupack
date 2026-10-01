@@ -27,6 +27,16 @@
 	# Public files sit under the docroot, where the folder's settings put them, and
 	# php_server serves them as static files.
 	route {
+		# The readiness probe runtime/watch/watch.go polls until this server answers, as in
+		# application/Caddyfile. Placed ahead of the guards, which refuse any dot path.
+		@drupackIdentity {
+			path /.drupack-id
+			query "id={$DRUPACK_RUNTIME_ID}"
+		}
+		respond @drupackIdentity 204
+		@drupackIdentityOther path /.drupack-id
+		respond @drupackIdentityOther 404
+
 		import "guards.caddy"
 		php_server {
 			root "{$DRUPACK_RUNTIME_DOCROOT}"

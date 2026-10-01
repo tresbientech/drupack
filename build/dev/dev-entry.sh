@@ -92,5 +92,6 @@ export DRUPACK_RUNTIME_NAME
 export PHPRC=/data/runtime/app
 export DRUPACK_CA_FILE=${DRUPACK_CA_FILE-/data/runtime/app/cacert.pem}
 
-# launch.php sets up the site, then replaces itself with the server.
-exec "$DRUPACK_PHP" --data-dir /data --listen "0.0.0.0:$listen" "$@"
+# launch.php sets up the site, then replaces itself with the server. The container's
+# process is the server, so it serves in the foreground rather than detaching.
+exec "$DRUPACK_PHP" --foreground --data-dir /data --listen "0.0.0.0:$listen" "$@"

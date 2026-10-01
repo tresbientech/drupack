@@ -96,7 +96,7 @@ def _start_site_container(name, network, alias, data_src, data_dst, args, log_pa
          "--mount", f"type=bind,src={harness.BINARY},dst=/artifact/drupack,readonly",
          "--mount", f"type=bind,src={data_src},dst={data_dst}",
          "--mount", f"type=bind,src={os.environ['DRUPACK_CACHE_DIR']},dst=/cache",
-         DEBIAN_IMAGE, "/artifact/drupack", *args],
+         DEBIAN_IMAGE, "/artifact/drupack", "--foreground", *args],
         check=True, capture_output=True, text=True, timeout=harness.WAITS["network_container"].seconds,
     )
     deadline = time.monotonic() + harness.WAITS["start"].seconds

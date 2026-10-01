@@ -40,14 +40,23 @@ func launch(executable string, args []string) error {
 	return err
 }
 
+// createNoWindow gives a process a console no window shows. syscall does not define it.
+const createNoWindow = 0x08000000
+
+// detachedProcess starts the server with a hidden console, which its own console
+// children, cron and Drush, share instead of opening windows of their own.
+func detachedProcess() *syscall.SysProcAttr {
+	return &syscall.SysProcAttr{CreationFlags: createNoWindow}
+}
+
 // consoleOwned reports whether this process is alone on its console, which
-// means a file manager created the window. A console from a shell also holds
-// the shell.
+// means a file manager created the window, unless detach.go started it. A
+// console from a shell also holds the shell.
 func consoleOwned() bool {
 	var process uint32
 	count, _, _ := syscall.NewLazyDLL("kernel32.dll").NewProc("GetConsoleProcessList").
 		Call(uintptr(unsafe.Pointer(&process)), 1)
-	return count == 1
+	return ownsConsole(os.Getenv("DRUPACK_RUNTIME_DETACHED"), uint32(count))
 }
 
 // holdConsole keeps a file manager's window open so its reader sees a

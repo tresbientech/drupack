@@ -253,7 +253,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
         log = interrupted_dir / "run.log"
         with open(log, "wb") as handle:
             process = harness.popen(
-                [str(harness.BINARY), "--data-dir", str(data), "--admin-user", "init-admin",
+                [str(harness.BINARY), "--foreground", "--data-dir", str(data), "--admin-user", "init-admin",
                  "--admin-password", PASSWORD, "--listen", f"127.0.0.1:{harness.pick_port()}"],
                 cwd=interrupted_dir, stdout=handle, stderr=subprocess.STDOUT, start_new_session=True,
             )
@@ -317,7 +317,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
             handle = open(race_dir / f"{label}.log", "wb")
             handles.append(handle)
             candidates.append((label, harness.popen(
-                [str(harness.BINARY), "--data-dir", str(data), "--listen", f"127.0.0.1:{port}",
+                [str(harness.BINARY), "--foreground", "--data-dir", str(data), "--listen", f"127.0.0.1:{port}",
                  "--admin-user", "init-admin", "--admin-password", PASSWORD],
                 cwd=race_dir, stdout=handle, stderr=subprocess.STDOUT, start_new_session=True,
             )))

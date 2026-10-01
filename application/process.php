@@ -138,3 +138,165 @@ function drushLoginLink(string $binary, string $drush, string $directory, array 
     }
     return $link;
 }
+
+// Whether a file manager's console started this process, which closing the window would end
+// along with a background server.
+function consoleOwned(): bool
+{
+    return environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1';
+}
+
+// A person is present when a terminal started this, or a file manager's console did. A
+// detached start has no terminal of its own, so it passes on whether its parent had one.
+function personPresent(): bool
+{
+    return stream_isatty(STDIN) || consoleOwned() || environment('DRUPACK_RUNTIME_PERSON') === '1';
+}
+
+// The lease one server holds over its state directory, for as long as it serves. Two
+// servers over one set of data would corrupt both, whatever addresses they bind, so the
+// claim belongs to the data rather than to a port.
+//
+// The lock lives on the open file description, which survives the exec into the server,
+// so the kernel holds it for that process and releases it when the process ends, a kill
+// included. On Windows this process waits for the server it starts, so the handle lives
+// exactly as long. The caller keeps the returned handle: closing it drops the lease.
+// A null return means another start serves this data.
+function takeLease(string $path)
+{
+    $handle = fopen($path, 'c');
+    if ($handle === false) {
+        throw new RuntimeException("Cannot open the serving lease: $path");
+    }
+    if (!flock($handle, LOCK_EX | LOCK_NB)) {
+        fclose($handle);
+        return null;
+    }
+    return $handle;
+}
+
+// Whether no server holds the lease. Taking it to ask drops it again.
+function leaseFree(string $path): bool
+{
+    $lease = takeLease($path);
+    if ($lease === null) {
+        return false;
+    }
+    fclose($lease);
+    return true;
+}
+
+// Runs this start again as a background server, through the launcher's detach word, and
+// relays the server's log until it answers. The lease is released first, so the server
+// takes it. The server gets the same arguments and the same working directory, so every
+// path the reader wrote resolves as it did here. $stop is the command the relay prints
+// for ending the server.
+function detachServer($lease, string $log, string $stop, array $arguments): never
+{
+    fclose($lease);
+    if (personPresent()) {
+        putenv('DRUPACK_RUNTIME_PERSON=1');
+    }
+    $start = environment('DRUPACK_RUNTIME_CWD') ?? getcwd();
+    // pcntl_exec keeps the working directory, which is the application's by now.
+    chdir($start);
+    replaceProcess(getenv('DRUPACK_RUNTIME_LAUNCHER'),
+        array_merge(['detach', $log, $stop, '--'], $arguments, ['--foreground']), $start, 'Cannot start the server in the background');
+}
+
+// What a start does once it holds the lease. A record from an earlier server names a port
+// and a token nobody listens on, and `stop` reads a missing record as a start still
+// preparing, so it goes. A double-click owns its console, which closing the window would
+// end along with a background server, so it serves where the reader can stop it. Every
+// other start detaches unless it was asked to serve in the foreground.
+function detachStart($lease, bool $foreground, string $record, string $log, string $stop, array $arguments): void
+{
+    if (file_exists($record)) {
+        unlink($record);
+    }
+    if (!$foreground && !consoleOwned()) {
+        detachServer($lease, $log, $stop, $arguments);
+    }
+}
+
+// An IPv6 address takes brackets inside a URL authority.
+function urlHost(string $host): string
+{
+    return str_contains($host, ':') ? "[$host]" : $host;
+}
+
+// The address a probe on this computer reaches a server bound to $bind, which a wildcard
+// reaches through its own family's loopback, since an IPv6-only listener never answers on
+// 127.0.0.1.
+function probeHost(string $bind): string
+{
+    $bind = trim($bind, '[]');
+    return match ($bind) {
+        '0.0.0.0' => '127.0.0.1',
+        '::' => '::1',
+        default => $bind,
+    };
+}
+
+// One word of a command a reader pastes into their shell.
+function shellWord(string $value): string
+{
+    // cmd and PowerShell read a backslash as itself, and PowerShell reads a quoted first
+    // word as a string to print, so a Windows path stays bare when nothing else needs quotes.
+    if (preg_match('~^[A-Za-z0-9_./:=@%+' . (windows() ? '\\\\' : '') . '-]+$~', $value) === 1) {
+        return $value;
+    }
+    return windows() ? '"' . $value . '"' : "'" . str_replace("'", "'\\''", $value) . "'";
+}
+
+// The command that stops what this start runs, in the words the reader ran it with.
+// $target is the quoted words `stop` needs to find the same server, empty when its
+// default does.
+function stopCommand(string $target): string
+{
+    return shellWord(environment('DRUPACK_RUNTIME_INVOKED')) . ' stop' . $target;
+}
+
+function notRunning(): int
+{
+    fwrite(STDOUT, executableName() . " is not running.\n");
+    return 0;
+}
+
+// How long `stop` waits for the lease to free. runtime/entrypoint.go forces the server's
+// own exit at 10 seconds.
+const STOP_WAIT_SECONDS = 15;
+
+// Ends the server that holds $lease, through the stop channel its $record names, and waits
+// for the lease to free. $what and $directory name the state for a message. Returns the
+// exit code. A free lease means no server runs, whatever a stale record says.
+function stopServer(string $lease, string $record, string $what, string $directory): int
+{
+    if (!is_file($lease) || leaseFree($lease)) {
+        return notRunning();
+    }
+    if (!is_file($record)) {
+        throw new RuntimeException("A " . executableName() . " start is still preparing this $what: $directory");
+    }
+    $channel = json_decode((string) file_get_contents($record), true, 512, JSON_THROW_ON_ERROR);
+    $context = stream_context_create(['http' => [
+        'method' => 'POST',
+        'header' => "Authorization: Bearer {$channel['token']}\r\nContent-Length: 0\r\n",
+        'timeout' => 10,
+        'ignore_errors' => true,
+    ]]);
+    @file_get_contents("http://127.0.0.1:{$channel['port']}/stop", false, $context);
+    $status = $http_response_header[0] ?? 'no answer';
+    if (!str_contains($status, ' 204')) {
+        throw new RuntimeException("The stop channel of " . executableName() . " refused the request ($status): $directory");
+    }
+    $deadline = microtime(true) + STOP_WAIT_SECONDS;
+    while (!leaseFree($lease)) {
+        if (microtime(true) >= $deadline) {
+            throw new RuntimeException(executableName() . ' did not stop within ' . STOP_WAIT_SECONDS . " seconds: $directory");
+        }
+        usleep(200000);
+    }
+    fwrite(STDOUT, executableName() . " stopped.\n");
+    return 0;
+}
