@@ -69,7 +69,8 @@ class InstallScript(harness.ConformanceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         interpreter = self.glibc_interpreter if glibc_host else self.class_dir / "no-such-interpreter"
         script = output / f"install-{self.name}.sh"
-        text, count = re.subn(r"interpreter=\S+ ;;", f"interpreter='{interpreter}' ;;", script.read_text())
+        # A function replacement keeps a Windows path's backslashes from reading as escapes.
+        text, count = re.subn(r"interpreter=\S+ ;;", lambda _: f"interpreter='{interpreter}' ;;", script.read_text())
         self.assertEqual(count, 2, "the script names no glibc interpreter per architecture")
         script.write_text(text)
         return output
@@ -115,8 +116,10 @@ class InstallScript(harness.ConformanceCase):
         musl.write_bytes(b"a musl build")
         release = self.release("names", self.host_build(), musl)
         executables = [f"{self.name}-{VERSION}-{self.target}{self.extension}", f"{self.name}-{VERSION}-linux-amd64-musl"]
-        self.assertEqual(sorted(path.name for path in release.iterdir()), sorted(
-            [*executables, "checksums.txt", "release.json", f"install-{self.name}.ps1", f"install-{self.name}.sh"]))
+        # Only a release holding a Windows build carries the PowerShell script.
+        scripts = [f"install-{self.name}.sh", *([f"install-{self.name}.ps1"] if self.windows else [])]
+        self.assertEqual(sorted(path.name for path in release.iterdir()),
+                         sorted([*executables, "checksums.txt", "release.json", *scripts]))
         checksums = (release / "checksums.txt").read_text()
         assets = {asset["asset"]: asset for asset in json.loads((release / "release.json").read_text())["assets"]}
         for executable in executables:
@@ -161,6 +164,8 @@ class InstallScript(harness.ConformanceCase):
         self.assertEqual(sha256(installed), sha256(harness.BINARY))
         self.assertEqual([path.name for path in directory.iterdir()], [installed.name])
         self.assertIn(f"Installed {self.name} {VERSION}", result.stdout)
+        start = f".\\{self.name}.exe" if self.windows else f"./{self.name}"
+        self.assertIn(f"\n\n    {start}\n\n", result.stdout)
 
     def test_the_script_refuses_a_download_whose_sha256_differs(self):
         release = self.release("tampered", self.host_build())
@@ -171,7 +176,9 @@ class InstallScript(harness.ConformanceCase):
         self.assertEqual(list(directory.iterdir()), [])
 
     def test_the_script_names_the_builds_of_a_release_without_one_for_the_host(self):
-        other = "linux-amd64" if self.windows else "windows-amd64"
+        # A Windows host runs the PowerShell script, which only a release with a Windows build carries.
+        other = ("windows-arm64" if self.target == "windows-amd64" else "windows-amd64") if self.windows \
+            else "windows-amd64"
         build = harness.fresh_dir(self.class_dir / "other-build") / f"{self.name}-{other}"
         build.write_bytes(b"another platform's build")
         result, directory = self.install(self.release("elsewhere", build))

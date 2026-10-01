@@ -24,13 +24,14 @@ PATTERNS = {
         [rf'os\.Getenv\("{NAME}"\)'],
     ),
     ".php": (
-        [rf"putenv\(.*?{NAME}"],
+        [rf"putenv\(.*?{NAME}", rf"['\"]{NAME}['\"]\s*=>"],
         [rf"getenv\(['\"]{NAME}['\"]\)", rf"environment\(['\"]{NAME}['\"]\)"],
     ),
     ".sh": (
         [rf"^\s*(?:export\s+)?{NAME}=", rf"^\s*export\s+{NAME}\s*$"],
         [rf"\$\{{?{NAME}"],
     ),
+    "Caddyfile": ([], [rf"\{{\$" + NAME + r"\}"]),
 }
 
 
@@ -48,7 +49,7 @@ def found():
     """{name: {"writers": {file: line}, "readers": {file: line}}} as the sources hold them."""
     uses = defaultdict(lambda: {"writers": {}, "readers": {}})
     for path in sources():
-        patterns = PATTERNS.get(Path(path).suffix)
+        patterns = PATTERNS.get(Path(path).name) or PATTERNS.get(Path(path).suffix)
         if patterns is None:
             continue
         writes, reads = patterns
@@ -105,13 +106,15 @@ class EnvironmentContract(unittest.TestCase):
                 self.assertTrue(roles["writers"], f"{name} declares no writer")
                 self.assertTrue(roles["readers"], f"{name} declares no reader")
 
-    def test_no_caddyfile_reads_the_environment(self):
-        # The entry points write each Caddyfile from its template, so a placeholder would
-        # reach Caddy unset and resolve to an empty string.
+    def test_every_caddyfile_reference_sits_inside_double_quotes(self):
+        # Caddy splices the value into the text before it reads quotes, so a start refuses a
+        # value holding a double quote only where the reference has quotes around it.
         for path in sources():
-            if Path(path).name == "Caddyfile" or path.endswith(".caddy"):
+            if Path(path).name == "Caddyfile":
                 with self.subTest(path=path):
-                    self.assertNotIn("{$DRUPACK_RUNTIME_", (ROOT / path).read_text())
+                    for number, line in enumerate((ROOT / path).read_text().splitlines(), 1):
+                        unquoted = re.sub(r'"[^"]*"', "", line)
+                        self.assertNotIn("{$DRUPACK_RUNTIME_", unquoted, f"{path}:{number}")
 
 
 if __name__ == "__main__":

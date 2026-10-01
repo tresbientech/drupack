@@ -1,3 +1,6 @@
+# Caddy splices each DRUPACK_RUNTIME environment reference into this text before it
+# reads quotes, so a reference stays inside double quotes and a start refuses a value
+# holding one.
 {
 	admin off
 	auto_https off
@@ -5,7 +8,7 @@
 	# Windows PHP keys its opcache segment per user account. The cache id gives each
 	# served folder its own segment, as application/Caddyfile does per Site data.
 	frankenphp {
-		php_ini "opcache.cache_id" "__DRUPACK_ID__"
+		php_ini "opcache.cache_id" "{$DRUPACK_RUNTIME_ID}"
 	}
 	order php_server before file_server
 	log {
@@ -15,18 +18,28 @@
 	}
 }
 
-http://:__DRUPACK_PORT__ {
-	bind __DRUPACK_BIND__
-	root * __DRUPACK_DOCROOT__
+"http://:{$DRUPACK_RUNTIME_PORT}" {
+	bind "{$DRUPACK_RUNTIME_BIND}"
+	root * "{$DRUPACK_RUNTIME_DOCROOT}"
 	encode zstd br gzip
 
 	# One route block keeps the written order, so every guard runs before Drupal.
 	# Public files sit under the docroot, where the folder's settings put them, and
 	# php_server serves them as static files.
 	route {
-		import "__DRUPACK_GUARDS__"
+		# The readiness probe runtime/watch/watch.go polls until this server answers, as in
+		# application/Caddyfile. Placed ahead of the guards, which refuse any dot path.
+		@drupackIdentity {
+			path /.drupack-id
+			query "id={$DRUPACK_RUNTIME_ID}"
+		}
+		respond @drupackIdentity 204
+		@drupackIdentityOther path /.drupack-id
+		respond @drupackIdentityOther 404
+
+		import "guards.caddy"
 		php_server {
-			root __DRUPACK_DOCROOT__
+			root "{$DRUPACK_RUNTIME_DOCROOT}"
 		}
 	}
 }

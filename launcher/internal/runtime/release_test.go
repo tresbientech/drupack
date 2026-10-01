@@ -63,7 +63,7 @@ func TestPrepareReleaseActivatesOnlyAWholeRelease(t *testing.T) {
 
 			release := runtimepkg.Release{Payload: c.payload, Manifest: upgrade,
 				AppChecksum: releaseAppChecksum, AppPayload: c.appPayload}
-			runtimeDir, _, err := runtimepkg.PrepareRelease(root, release, io.Discard)
+			runtimeDir, _, err := runtimepkg.PrepareRelease(root, release, io.Discard, func(string) error { return nil })
 
 			if c.step == "" {
 				if err != nil {

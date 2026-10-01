@@ -50,7 +50,8 @@ within 8 percent. Authenticated throughput did not: 141 requests per second for
 musl against 488 for glibc at 16 users, 166 against 568 at 64, with p95 at 526ms
 against 150ms. Reversing the run order reproduced the musl figure. An anonymous
 request comes from the page cache and an authenticated one renders the page, so
-the split follows allocation volume. musl is the only libc a release ships.
+the split follows allocation volume. A release ships a glibc and a musl file
+per Linux target, and the install script picks glibc where the host has it.
 Lean: profile allocation in a rendered request before treating the number as a
 property of musl, since a mallocng tuning knob or a thread count may carry it.
 
@@ -94,6 +95,23 @@ Each image is about 1.4 GB, and nothing deletes one. A tag also adds
 `drupack-build:<version>`. Lean: keep every version tag, and delete `dev-` tags
 older than a few weeks.
 
+## HTTPS on a site's listener
+
+A site serves plain HTTP. Agent Access asks for an HTTPS MCP address, and some
+local agents enforce it. Hosted connectors, such as those in claude.ai, call
+from their vendor's servers and cannot reach a loopback address at all. HTTPS
+needs a TLS listener in the Caddyfile and certificate and key options with the
+double-quote refusal. It also needs the scheme in the printed URL and a
+readiness probe that speaks TLS. Three certificate sources exist:
+
+- files the reader names, made once with `mkcert localhost 127.0.0.1 ::1`
+- mkcert's root CA, which DDEV already installs, signing a leaf in Caddy
+- Caddy's own CA, with a command that installs it in the trust stores
+
+Lean: take files. Drupack then never reads a CA's private key, which can sign
+for any domain the machine trusts. A Node client still needs
+`NODE_EXTRA_CA_CERTS` pointing at the root.
+
 ## Whether automatic_updates still stalls cron
 
 `build/seed.sh` uninstalls `automatic_updates` because it stalled a cron request,
@@ -133,14 +151,6 @@ payload. It adds code in both workflows, the release step, `drupack-build` and
 a new pack script, and removes none. Lean: wait for a site owner who needs
 those targets.
 
-## The development server and sites with writable directories
-
-`build/dev/dev-server.sh` exports no `DRUPACK_RUNTIME_LAUNCHER`. A site whose
-`drupack.yml` names writable directories runs that launcher's `lay-app` on every
-start, so it cannot start through the development server. This comes from
-reading `useSiteApplication()`; no such site has been tried. Lean: decide whether
-the development loop supports those sites before building anything.
-
 ## A cold `--help` unpacks the release
 
 A cold `drupack --help` unpacks the whole release before it prints usage.
@@ -148,3 +158,48 @@ argv reaches the entry point only after preparation, and moving the decision
 into the launcher puts the option contract in a fourth place, against
 [ADR 0014](adr/0014-the-parser-owns-the-command-line.md). Lean: leave it as it
 is.
+
+## When `drupack php` takes PHP's own options
+
+`drupack php` refuses every PHP option but `-r`, since FrankenPHP 1.12.7's
+`php-cli` reads none. PHP 8.6 lets an embedder run PHP's own command line, and
+FrankenPHP's main branch calls it from `php-cli` on PHP 8.6 and later. Lean:
+once the pinned FrankenPHP does, drop the refusal in the runtime's entry point
+and pass every argument to `php-cli`.
+
+## Checks only a tag build runs
+
+A main push builds and tests Linux amd64 alone. Two shipped changes wait for the
+macOS and Windows jobs of the next tag build: Node packed and run on both
+platforms, and the Windows `php.cmd` alias passing spaces, quotes and `%`
+unchanged. Lean: read those jobs' results before announcing the release, and
+fix on main with the next patch version if one fails.
+
+## `status`, `logs` and `restart`
+
+A detached site answers `start` and `stop` alone. `status` would read the
+Serving lease and the Listener record, `logs` would print or follow
+`server.log`, and `restart` would stop and start with the same options. Lean:
+add one when a reader asks for it.
+
+## An owner-only stop record on Windows
+
+`stop.json` is mode 0600 on Linux and macOS. On Windows it takes the access of
+Site data, or of the folder's cache entry, so an account that reads Site data
+reads the token and can stop the site. That account already reads the database
+and `settings.php`. Lean: give the record a protected DACL for the current user,
+as the cache root has, when a reader shares a Windows machine.
+
+## Windows stop and a cron run in flight
+
+On Windows a valid stop calls `caddy.Stop()` and exits, where a Unix stop runs
+the Ctrl+C path. An exit mid-cron cuts that `drush cron` short. Lean: wait for
+the runner to return before the exit.
+
+## The Windows build's SourceForge downloads
+
+vcpkg fetches pthreads from SourceForge, which on 2026-10-01 served an HTML page
+in place of the zip. A run with no Windows build cache then fails. A tag run reads
+only its own cache and main's, so a release during such an outage fails on
+Windows. Lean: point `X_VCPKG_ASSET_SOURCES` at our own copy of each download,
+keyed by its SHA-512.

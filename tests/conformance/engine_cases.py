@@ -8,6 +8,7 @@ folder lands in its public files directory.
 import http.client
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import threading
@@ -28,6 +29,9 @@ $databases['default']['default'] = [
 ];
 $settings['hash_salt'] = 'engine-executable-case';
 """
+
+# The two forms the php command takes, which every refusal lists.
+USAGE = "Usage: drupack php SCRIPT [ARGUMENTS]\n       drupack php -r CODE"
 
 
 class EngineExecutable(harness.ConformanceCase):
@@ -75,13 +79,13 @@ class EngineExecutable(harness.ConformanceCase):
         return harness.run([str(self.engine), *arguments], cwd=cwd or self.class_dir, env=env,
                            capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
 
-    def start(self, name, *arguments, cwd=None):
+    def start(self, name, *arguments, cwd=None, env=None):
         """Starts the engine executable on a port of its own, waits for /user/login, and returns the port and log."""
         port = harness.pick_port()
         log = self.class_dir / f"{name}.log"
         with open(log, "wb") as handle:
-            process = harness.popen([str(self.engine), *arguments, "--listen", f"127.0.0.1:{port}"],
-                                    cwd=cwd or self.class_dir, stdout=handle, stderr=subprocess.STDOUT,
+            process = harness.popen([str(self.engine), *arguments, "--foreground", "--listen", f"127.0.0.1:{port}"],
+                                    cwd=cwd or self.class_dir, env=env, stdout=handle, stderr=subprocess.STDOUT,
                                     start_new_session=True)
         self.addCleanup(harness.stop_process, process, harness.WAITS["stop"].seconds, f": inspect {log}")
         deadline = time.monotonic() + harness.WAITS["start"].seconds
@@ -102,6 +106,16 @@ class EngineExecutable(harness.ConformanceCase):
             return error.code
         except (URLError, ConnectionError, TimeoutError):
             return None
+
+    def detached_start(self, *arguments, cwd=None):
+        """Starts the engine executable in the background on a port of its own, which the
+        case's cleanup stops, and returns the port and the finished start."""
+        port = harness.pick_port()
+        target = str(cwd or self.class_dir)
+        self.addCleanup(self.engine_run, "stop", str(self.project), cwd=target)
+        start = harness.run([str(self.engine), *arguments, "--listen", f"127.0.0.1:{port}"], cwd=target,
+                            capture_output=True, text=True, timeout=harness.WAITS["start"].seconds)
+        return port, start
 
     def snapshot(self):
         """Size and modification time of every project file outside the public files directory."""
@@ -125,6 +139,68 @@ class EngineExecutable(harness.ConformanceCase):
         connection.close()
         self.doCleanups()
         self.assertEqual(self.snapshot(), before, "the start changed the project outside its public files directory")
+
+    def test_a_detached_start_returns_once_ready_and_stop_ends_it(self):
+        port, start = self.detached_start(str(self.project))
+        self.assertEqual(start.returncode, 0, f"the start exited non-zero: {start.stdout}{start.stderr}")
+        self.assertIn("  Login:", start.stdout)
+        self.assertIn("runs in the background. Its log: ", start.stdout)
+        self.assertNotIn("Press Ctrl+C", start.stdout)
+        self.assertEqual(self.status(port, "/"), 200)
+        stop = self.engine_run("stop", str(self.project))
+        self.assertEqual(stop.returncode, 0, stop.stderr)
+        self.assertIn("stopped", stop.stdout)
+        self.assertIsNone(self.status(port, "/"), "the server still answers after stop")
+        again = self.engine_run("stop", str(self.project))
+        self.assertEqual(again.returncode, 0, again.stderr)
+        self.assertIn("is not running", again.stdout)
+
+    def test_the_printed_stop_command_names_a_folder_started_from_another_directory(self):
+        port, start = self.detached_start(str(self.project))
+        self.assertEqual(start.returncode, 0, f"{start.stdout}{start.stderr}")
+        command = f"    {self.engine} stop {self.project}\n"
+        self.assertIn(f"Stop it with:\n\n{command}", start.stdout)
+        stop = harness.run(shlex.split(command, posix=os.name != "nt"), cwd=self.class_dir.parent,
+                           capture_output=True, text=True, timeout=harness.WAITS["stop"].seconds + 30)
+        self.assertEqual(stop.returncode, 0, stop.stderr)
+        self.assertIn("stopped", stop.stdout)
+        self.assertIsNone(self.status(port, "/"), "the printed command left the server running")
+
+    def test_a_detached_start_and_stop_leave_the_project_unchanged(self):
+        before = self.snapshot()
+        port, start = self.detached_start(cwd=self.project)
+        self.assertEqual(start.returncode, 0, f"the start exited non-zero: {start.stdout}{start.stderr}")
+        self.assertEqual(self.status(port, "/"), 200)
+        stop = self.engine_run("stop", cwd=self.project)
+        self.assertEqual(stop.returncode, 0, stop.stderr)
+        self.assertEqual(self.snapshot(), before, "the start or stop changed the project outside its public files directory")
+
+    def test_a_second_start_on_a_served_folder_says_it_already_serves(self):
+        _, first = self.detached_start(str(self.project))
+        self.assertEqual(first.returncode, 0, f"{first.stdout}{first.stderr}")
+        second = self.engine_run(str(self.project), "--listen", f"127.0.0.1:{harness.pick_port()}")
+        self.assertEqual(second.returncode, 1, second.stdout)
+        self.assertIn(f"drupack already serves {self.project.as_posix()}", second.stderr)
+
+    def test_a_start_in_the_foreground_is_stopped_by_stop(self):
+        port, _ = self.start("start-stopped", str(self.project))
+        stop = self.engine_run("stop", str(self.project))
+        self.assertEqual(stop.returncode, 0, stop.stderr)
+        self.assertIsNone(self.status(port, "/"), "the server still answers after stop")
+
+    def test_a_stop_on_a_missing_folder_names_it(self):
+        result = self.engine_run("stop", str(self.class_dir / "never-served"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("No such directory", result.stderr)
+
+    def test_a_start_serves_a_folder_whose_path_holds_a_space(self):
+        spaced = self.class_dir / "spaced project"
+        shutil.copytree(self.project, spaced, symlinks=True)
+        temporary = harness.fresh_dir(self.class_dir / "start-space-temporary")
+        env = dict(os.environ, TMPDIR=str(temporary), TMP=str(temporary), TEMP=str(temporary))
+        port, _ = self.start("start-space", str(spaced), env=env)
+        self.assertEqual(self.status(port, "/"), 200)
+        self.assertEqual(list(temporary.glob("*Caddyfile*")), [], "the start wrote a Caddyfile into the temporary directory")
 
     def test_a_start_without_a_directory_serves_the_working_directory(self):
         port, _ = self.start("start-working-directory", cwd=self.project)
@@ -202,29 +278,107 @@ class EngineExecutable(harness.ConformanceCase):
         # serve.php prints paths in Drupack's canonical form, forward slashes on Windows too.
         self.assertIn(f"{self.lacking.as_posix()}/vendor/drush/drush/drush.php does not exist", result.stderr)
 
-    def test_php_answers_its_informational_options(self):
-        version = self.engine_run("php", "-v")
-        self.assertEqual(version.returncode, 0, version.stderr)
-        self.assertRegex(version.stdout, r"^PHP 8\.\d+\.\d+ \(cli\)")
-        modules = self.engine_run("php", "-m")
-        self.assertIn("pdo_sqlite", modules.stdout.splitlines())
-
-    def test_php_passes_settings_to_a_script_and_to_code(self):
-        (self.class_dir / "limit.php").write_text("<?php echo ini_get('memory_limit'), ' ', $argv[1];")
-        script = self.engine_run("php", "-d", "memory_limit=321M", "limit.php", "argument")
-        self.assertEqual(script.returncode, 0, script.stderr)
-        self.assertEqual(script.stdout, "321M argument")
-        code = self.engine_run("php", "-dmemory_limit=123M", "-r", "echo ini_get('memory_limit'), ' ', $argv[1];", "--", "x")
-        self.assertEqual(code.returncode, 0, code.stderr)
-        self.assertEqual(code.stdout, "123M x")
-
-    def test_php_refuses_an_option_it_cannot_honour(self):
-        result = self.engine_run("php", "-S", "127.0.0.1:0")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("php option -S is not supported", result.stderr)
-
-    def test_php_runs_a_script_named_from_the_working_directory(self):
-        (self.class_dir / "script.php").write_text("<?php echo 'engine-php';")
-        result = self.engine_run("php", "script.php")
+    def alias_run(self, *commands):
+        """Runs each shell command from class_dir inside Drush, whose PATH names the php alias, and returns
+        each one's merged output and exit status."""
+        code = ("chdir(getenv('ENGINE_CASE_DIR')); $results = [];"
+                " foreach (json_decode(getenv('ENGINE_CASE_COMMANDS')) as $command) {"
+                " $output = []; exec($command . ' 2>&1', $output, $status);"
+                " $results[] = [implode(\"\\n\", $output), $status]; }"
+                " echo json_encode($results);")
+        result = self.engine_run("drush", "php:eval", code, cwd=self.project, env=dict(
+            os.environ, ENGINE_CASE_DIR=str(self.class_dir), ENGINE_CASE_COMMANDS=json.dumps(commands)))
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "engine-php")
+        return json.loads(result.stdout)
+
+    def test_php_runs_a_script_with_its_arguments_in_the_working_directory(self):
+        (self.class_dir / "arguments.php").write_text(
+            "<?php echo getcwd(), \"\\n\", implode(',', array_slice($argv, 1)); exit(3);")
+        result = self.engine_run("php", "arguments.php", "a", "b")
+        self.assertEqual(result.returncode, 3, result.stderr)
+        directory, arguments = result.stdout.split("\n")
+        self.assertEqual(Path(directory).resolve(), self.class_dir.resolve())
+        self.assertEqual(arguments, "a,b")
+        [[output, status]] = self.alias_run("php arguments.php a b")
+        self.assertEqual(status, 3, output)
+        directory, arguments = output.split("\n")
+        self.assertEqual(Path(directory).resolve(), self.class_dir.resolve())
+        self.assertEqual(arguments, "a,b")
+
+    def test_an_inherited_application_directory_does_not_reach_the_runtime(self):
+        env = dict(os.environ, DRUPACK_RUNTIME_APP_DIR=str(self.lacking))
+        (self.class_dir / "arguments.php").write_text("<?php echo getcwd();")
+        result = self.engine_run("php", "arguments.php", env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(Path(result.stdout).resolve(), self.class_dir.resolve())
+        port = harness.pick_port()
+        log = self.class_dir / "inherited.log"
+        with open(log, "wb") as handle:
+            process = harness.popen([str(self.engine), str(self.project), "--foreground", "--listen", f"127.0.0.1:{port}"],
+                                    cwd=self.class_dir, env=env, stdout=handle, stderr=subprocess.STDOUT,
+                                    start_new_session=True)
+        self.addCleanup(harness.stop_process, process, harness.WAITS["stop"].seconds, f": inspect {log}")
+        deadline = time.monotonic() + harness.WAITS["start"].seconds
+        while self.status(port, "/") != 200:
+            self.assertIsNone(process.poll(), f"the start exited before answering: inspect {log}")
+            self.assertLess(time.monotonic(), deadline, f"the start did not answer /: inspect {log}")
+            time.sleep(0.25)
+
+    def test_php_runs_code(self):
+        result = self.engine_run("php", "-r", "echo 1;")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "1")
+
+    def test_php_refuses_an_option_by_name_before_php_starts(self):
+        (self.class_dir / "sentinel.php").write_text("<?php echo 'php-ran';")
+        commands = (["-d", "x=1", "sentinel.php"], ["-l", "sentinel.php"], ["-v"], ["-S", "127.0.0.1:0", "sentinel.php"])
+        for command in commands:
+            with self.subTest(route="launcher", option=command[0]):
+                result = self.engine_run("php", *command)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertIn(f"php option {command[0]} is not supported.", result.stderr)
+                self.assertIn(USAGE, result.stderr)
+                self.assertNotIn("php-ran", result.stderr)
+        results = self.alias_run(*(" ".join(["php", *command]) for command in commands))
+        for command, (output, status) in zip(commands, results):
+            with self.subTest(route="alias", option=command[0]):
+                self.assertEqual(status, 1, output)
+                self.assertIn(f"php option {command[0]} is not supported.", output)
+                self.assertIn(USAGE, output)
+                self.assertNotIn("php-ran", output)
+
+    def test_php_refuses_an_argument_after_code(self):
+        result = self.engine_run("php", "-r", "echo 'php-ran';", "extra")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("extra follows it", result.stderr)
+        self.assertIn(USAGE, result.stderr)
+
+    def test_php_reads_no_settings_planted_in_the_temporary_directory(self):
+        temporary = harness.fresh_dir(self.class_dir / "temporary")
+        planted = temporary / "drupack-php-e3b0c44298fc1c14"
+        planted.mkdir()
+        (planted / "prepend.php").write_text("<?php echo 'planted';")
+        (planted / "settings.ini").write_text(f"auto_prepend_file={json.dumps(str(planted / 'prepend.php'))}\n")
+        (self.class_dir / "script.php").write_text("<?php echo 'engine-php';")
+        env = dict(os.environ, TMPDIR=str(temporary), TMP=str(temporary), TEMP=str(temporary))
+        script = self.engine_run("php", "script.php", env=env)
+        self.assertEqual(script.returncode, 0, script.stderr)
+        self.assertEqual(script.stdout, "engine-php")
+        code = self.engine_run("php", "-r", "echo 1;", env=env)
+        self.assertEqual(code.returncode, 0, code.stderr)
+        self.assertEqual(code.stdout, "1")
+        self.assertEqual([path.name for path in temporary.iterdir()], [planted.name])
+
+    def test_php_passes_arguments_through_the_alias_unchanged(self):
+        # Drush starts its child processes through Symfony Process, which runs php.cmd through cmd.exe on Windows.
+        arguments = ["a b", 'say "hi"', "100%", "%PATH%"]
+        (self.class_dir / "argv.php").write_text("<?php echo json_encode(array_slice($argv, 1));")
+        code = ("$process = new Symfony\\Component\\Process\\Process(array_merge(['php', 'argv.php'],"
+                " json_decode(getenv('ENGINE_CASE_ARGUMENTS'))), getenv('ENGINE_CASE_DIR'));"
+                " $process->run(); echo $process->getOutput(); fwrite(STDERR, $process->getErrorOutput());")
+        result = self.engine_run("drush", "php:eval", code, cwd=self.project, env=dict(
+            os.environ, ENGINE_CASE_DIR=str(self.class_dir), ENGINE_CASE_ARGUMENTS=json.dumps(arguments)))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), arguments, result.stderr)

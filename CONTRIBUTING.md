@@ -145,7 +145,7 @@ bash build/qa.sh
 bash build/dev/dev-server.sh ./dev-data 7225
 ```
 
-Neither start needs more options. The test scripts still need a built executable.
+Neither start needs more options. A site whose contract names writable directories runs too: the dev entry script stands in for the launcher's `lay-app` word and keeps those directories' entries in Site data. The test scripts still need a built executable.
 
 ## Launcher
 

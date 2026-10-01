@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -24,6 +25,11 @@ const stagingPrefix = ".staging-"
 // serializes staging. Both live in the cache root, beside the entries.
 const activeName = "active"
 const lockName = "lock"
+
+// holdAttempts and holdRetryInterval bound how long HoldUsage waits out an
+// entryInUse test of the same marker, which briefly locks it exclusively.
+const holdAttempts = 50
+const holdRetryInterval = 10 * time.Millisecond
 
 // usageName lives inside one entry, runtime or application, and carries the
 // lock a running start holds on the files it serves from. Cleanup tests it
@@ -133,19 +139,28 @@ func Key(version string, payload []byte) string {
 
 // Prepare returns the directory holding the runtime m describes, staging
 // payload into root's cache the first time m's version and payload are seen.
+// It calls hold on the entry before the root lock releases, and hold marks the
+// entry in use for the rest of the process (HoldUsage), so an Activate by
+// another release cannot remove the entry before this start runs from it. A
+// hold error stops the start. Production passes HoldUsage; hold is a seam for
+// tests, since a real Windows hold keeps a handle that blocks t.TempDir cleanup.
 // It activates nothing: Activate does, once the application is ready too. A
 // start that cannot stage the runtime it carries reports the failure and
 // stops, since the application beside it belongs to this release alone.
-func Prepare(root string, payload []byte, m Manifest, notice io.Writer) (string, error) {
-	return prepare(root, "runtime", payload, m, notice)
+func Prepare(root string, payload []byte, m Manifest, notice io.Writer, hold func(entry string) error) (string, error) {
+	return prepare(root, "runtime", payload, m, notice, hold)
 }
 
 // prepare stages payload into root as the entry m describes, once, and names
 // what it unpacks as what in its notice.
-func prepare(root, what string, payload []byte, m Manifest, notice io.Writer) (string, error) {
+func prepare(root, what string, payload []byte, m Manifest, notice io.Writer, hold func(entry string) error) (string, error) {
 	key := Key(m.Version, payload)
 
-	if entry, ok := warmEntry(root, key, m); ok {
+	entry, ok, err := holdWarm(root, key, m, hold)
+	if err != nil {
+		return "", err
+	}
+	if ok {
 		return entry, nil
 	}
 
@@ -156,7 +171,11 @@ func prepare(root, what string, payload []byte, m Manifest, notice io.Writer) (s
 	defer unlock()
 
 	// Another process may have finished staging while this one waited on the lock.
-	if entry, ok := warmEntry(root, key, m); ok {
+	entry, ok, err = holdWarm(root, key, m, hold)
+	if err != nil {
+		return "", err
+	}
+	if ok {
 		return entry, nil
 	}
 
@@ -166,7 +185,33 @@ func prepare(root, what string, payload []byte, m Manifest, notice io.Writer) (s
 	if err != nil {
 		return "", stagingFailure(root, m, err)
 	}
-	return filepath.Join(root, name), nil
+	// hold runs before the deferred unlock, so no Activate takes the lock and
+	// finds the entry unmarked.
+	entry = filepath.Join(root, name)
+	if err := hold(entry); err != nil {
+		return "", err
+	}
+	return entry, nil
+}
+
+// holdWarm calls hold on the warm entry warmEntry finds, then
+// checks the entry is still whole. removeOthers renames an entry away before
+// it deletes it, and this runs without the root lock when it is the first
+// look, so a removal that beat the hold leaves the entry missing here and the
+// caller stages afresh.
+func holdWarm(root, key string, m Manifest, hold func(entry string) error) (string, bool, error) {
+	entry, ok := warmEntry(root, key, m)
+	if !ok {
+		return "", false, nil
+	}
+	if err := hold(entry); err != nil {
+		// A removal that beat the hold is the case above, not a failure.
+		if _, statErr := os.Stat(entry); statErr != nil {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return entry, warm(entry, m), nil
 }
 
 // Activate names entry, a directory Prepare returned, as root's active runtime
@@ -246,8 +291,13 @@ func sizesMatch(entry string, m Manifest) bool {
 // manifest this program wrote, or when it is a staging directory an
 // interrupted run abandoned. Staging runs under the root lock, so no live one
 // exists here. An entry another start still serves from stays, since removing
-// it would pull PHP files out from under a running site. A removal failure
-// reports nothing, because the next start retries.
+// it would pull PHP files out from under a running site. A start holds its
+// marker without the root lock when the entry is warm, so a marker can appear
+// between the test and the removal. Each entry therefore moves to a staging
+// name first, and the marker is tested again there: Windows refuses the move
+// while a handle is open inside, and the flock on unix follows the directory
+// through the move. A holder that comes later finds the entry gone from its
+// path. A removal failure reports nothing, because the next start retries.
 func removeOthers(root, key string) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -259,13 +309,27 @@ func removeOthers(root, key string) {
 			continue
 		}
 		path := filepath.Join(root, name)
-		if abandoned, _ := filepath.Match("*"+stagingPrefix+"*", name); !abandoned {
+		abandoned, _ := filepath.Match("*"+stagingPrefix+"*", name)
+		if !abandoned {
 			if _, err := readManifest(path); err != nil {
 				continue
 			}
-			if entryInUse(path) {
+		}
+		if entryInUse(path) {
+			continue
+		}
+		if !abandoned {
+			doomed := filepath.Join(root, stagingPrefix+"removing-"+name)
+			if os.Rename(path, doomed) != nil {
 				continue
 			}
+			if entryInUse(doomed) {
+				// A failed rename back leaves the entry whole under its staging name,
+				// and the next call tests its marker there before it removes anything.
+				os.Rename(doomed, path)
+				continue
+			}
+			path = doomed
 		}
 		os.RemoveAll(path)
 	}

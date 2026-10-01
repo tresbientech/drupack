@@ -413,7 +413,7 @@ jobs:
           docker run -d --name alpine-site --network none \
             --mount type=bind,src="$PWD/dist/musl/mercury-demo",dst=/usr/local/bin/mercury-demo,readonly \
             alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d \
-            mercury-demo --data-dir /tmp/site --admin-user alpine-admin --admin-password Alpine.check.password.2026
+            mercury-demo --foreground --data-dir /tmp/site --admin-user alpine-admin --admin-password Alpine.check.password.2026
           for _ in $(seq 1 60); do
             if docker exec alpine-site wget -q -O /dev/null http://127.0.0.1:7225/user/login 2>/dev/null; then
               exit 0
@@ -505,6 +505,19 @@ jobs:
         run: |
           ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\mercury-demo.exe -EnginePayloadDirectory dist\engine-payload -EngineOutput dist\engine\drupack.exe
 
+      # The executables upload before the suite, so a run the suite hangs still keeps them.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mercury-demo-windows-amd64
+          path: dist/mercury-demo.exe
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: drupack-windows-amd64
+          path: dist/engine/drupack.exe
+          if-no-files-found: error
+
       - name: Run the conformance suite
         env:
           DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
@@ -535,18 +548,6 @@ jobs:
         with:
           name: test-results-windows-amd64
           path: test-results
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: mercury-demo-windows-amd64
-          path: dist/mercury-demo.exe
-          if-no-files-found: error
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: drupack-windows-amd64
-          path: dist/engine/drupack.exe
-          if-no-files-found: error
 
   macos:
     name: macOS ${{ matrix.arch }}

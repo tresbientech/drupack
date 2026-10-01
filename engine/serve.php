@@ -3,25 +3,31 @@
 declare(strict_types=1);
 
 // The engine executable's entry script. The launcher runs it for every word but
-// `php` and `clean`, from the directory the reader started in. A first word that
-// names no command starts the server.
+// `php` and `clean`, from the directory the reader started in. `start` and `stop` are
+// reserved, so a folder with either name takes ./start or ./stop. Any other first word
+// that names no command starts the server.
 
 require_once __DIR__ . '/process.php';
 
 const USAGE = <<<'TEXT'
-Usage: %1$s [DIR] [--listen IP:PORT]
+Usage: %1$s [start] [DIR] [--listen IP:PORT] [--foreground]
+       %1$s stop [DIR]
        %1$s drush DRUSH_COMMAND
        %1$s dr DRUPAL_COMMAND
-       %1$s php [PHP_OPTIONS] SCRIPT|-r CODE [ARGUMENTS]
+       %1$s php SCRIPT [ARGUMENTS]
+       %1$s php -r CODE
        %1$s clean [--dry-run]
 
 Serves the Drupal project in DIR, the working directory by default, with its
-own settings. --listen defaults to %2$s.
+own settings, in the background. --foreground serves in this terminal until a
+signal stops it. --listen defaults to %2$s.
 
 Commands:
+  start    Serve the project, which a bare command does too
+  stop     Stop the server of the project in DIR
   drush    Run the Drush of the project holding the working directory
   dr       Run Drupal core's command line of that project
-  php      Run PHP as php does: a script, -r CODE, -v, -m, -d and the like
+  php      Run a script or -r CODE on the bundled PHP, with no PHP option
   clean    Remove the unpacked engine files from the cache
 
 docs/cli.md explains every command.
@@ -110,16 +116,68 @@ function checkPlatform(string $binary, string $project): void
     }
 }
 
+// One served folder's state: the lease, the stop record and the log. The entry sits in the
+// cache beside the unpacked engine, keyed by the folder, so the folder itself gains no file.
+// Windows spells one path in several casings, so the key reads a single one.
+function folderEntry(string $project): string
+{
+    // The letter keeps the name inside ADR 0010's cache segment form.
+    return getenv('DRUPACK_RUNTIME_CACHE_ROOT') . '/folders/f'
+        . substr(hash('sha256', windows() ? strtolower($project) : $project), 0, 16);
+}
+
+// The project folder a word names, the reader's directory with none. A directory the
+// reader typed may not exist.
+function projectFolder(?string $directory): string
+{
+    $project = realpath($directory ?? '.');
+    if ($project === false || !is_dir($project)) {
+        throw new RuntimeException("No such directory: $directory. Run " . executableName() . ' --help.');
+    }
+    return canonical($project);
+}
+
+function entryLease(string $entry): string
+{
+    return "$entry/serving.lock";
+}
+
+function entryStopRecord(string $entry): string
+{
+    return "$entry/stop.json";
+}
+
+function entryLog(string $entry): string
+{
+    return "$entry/server.log";
+}
+
+// `stop` takes the folder alone. A folder that was never served has no entry, and the
+// lookup creates none.
+function stopFolder(array $arguments): int
+{
+    if (count($arguments) > 1 || str_starts_with($arguments[0] ?? '', '-')) {
+        throw new RuntimeException('stop takes a folder alone. Run ' . executableName() . ' --help.');
+    }
+    $project = projectFolder($arguments[0] ?? null);
+    $entry = folderEntry($project);
+    return stopServer(entryLease($entry), entryStopRecord($entry), 'folder', $project);
+}
+
 function serve(string $binary, array $arguments): never
 {
+    $typed = $arguments;
     $directory = null;
     $listen = DEFAULT_LISTEN;
+    $foreground = false;
     while ($arguments !== []) {
         $argument = array_shift($arguments);
         if ($argument === '--listen') {
             $listen = array_shift($arguments) ?? throw new RuntimeException('--listen takes IP:PORT');
         } elseif (str_starts_with($argument, '--listen=')) {
             $listen = substr($argument, strlen('--listen='));
+        } elseif ($argument === '--foreground') {
+            $foreground = true;
         } elseif ($directory === null && !str_starts_with($argument, '-')) {
             $directory = $argument;
         } else {
@@ -130,13 +188,20 @@ function serve(string $binary, array $arguments): never
         throw new RuntimeException("--listen takes IP:PORT, got $listen");
     }
     [, $bind, $port] = $parts;
-    $project = realpath($directory ?? '.');
-    if ($project === false || !is_dir($project)) {
-        throw new RuntimeException("No such directory: $directory. Run " . executableName() . ' --help.');
-    }
-    $project = canonical($project);
+    $project = projectFolder($directory);
     $docroot = canonical(docroot($project));
     checkPlatform($binary, $project);
+
+    // The reader's terminal gets every refusal above and the lease's below, so a start that
+    // detaches has nothing left to refuse but the server's own failures.
+    $entry = folderEntry($project);
+    directory($entry);
+    $lease = takeLease(entryLease($entry));
+    if ($lease === null) {
+        throw new RuntimeException(executableName() . " already serves $project");
+    }
+    detachStart($lease, $foreground, entryStopRecord($entry), entryLog($entry),
+        stopCommand($directory === null ? '' : ' ' . shellWord($directory)), array_merge(['start'], $typed));
 
     $url = "http://$listen";
     $link = null;
@@ -153,19 +218,19 @@ function serve(string $binary, array $arguments): never
         }
     }
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n") . "  Project: $project\n");
-    fwrite(STDOUT, "Starting the web server. Press Ctrl+C to stop.\n");
-    // The folder stays unchanged outside its public files, so the server's configuration goes
-    // to the temporary directory, under a name a restart on the same address overwrites.
-    $caddyfile = canonical(sys_get_temp_dir()) . '/drupack-' . substr(hash('sha256', "$project $listen"), 0, 16) . '.Caddyfile';
-    renderTemplate(__DIR__ . '/Caddyfile', [
-        'PORT' => $port,
-        'BIND' => $bind,
-        'DOCROOT' => $docroot,
-        'ID' => substr(hash('sha256', $project), 0, 16),
-        // Caddy resolves an import from the Caddyfile's own directory, which is the temporary one.
-        'GUARDS' => canonical(__DIR__) . '/guards.caddy',
-    ], $caddyfile);
-    replaceProcess($binary, ['folder-server', $caddyfile], $project, 'Cannot start FrankenPHP');
+    fwrite(STDOUT, "Starting the web server.\n");
+    // The Caddyfile beside this file is fixed, and Caddy fills its values from this environment.
+    // The server opens no browser, so a value inherited from an earlier start is cleared.
+    putenv('DRUPACK_RUNTIME_OPEN');
+    exportServerEnvironment([
+        'DRUPACK_RUNTIME_PORT' => $port,
+        'DRUPACK_RUNTIME_BIND' => $bind,
+        'DRUPACK_RUNTIME_DOCROOT' => $docroot,
+        'DRUPACK_RUNTIME_ID' => basename($entry),
+        'DRUPACK_RUNTIME_URL' => 'http://' . urlHost(probeHost($bind)) . ":$port",
+        'DRUPACK_RUNTIME_STOP_RECORD' => entryStopRecord($entry),
+    ]);
+    replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }
 
 // The nearest installed Composer project at or above the working directory. Drupal
@@ -199,6 +264,8 @@ if (defined('DRUPACK_SERVE_LIBRARY')) {
 try {
     $binary = getenv('DRUPACK_RUNTIME_BINARY');
     match ($argv[1] ?? null) {
+        'stop' => exit(stopFolder(array_slice($argv, 2))),
+        'start' => serve($binary, array_slice($argv, 2)),
         'drush' => runScript($binary, drushScript(project()), array_slice($argv, 2)),
         'dr' => runScript($binary, coreScript(project()), array_slice($argv, 2)),
         '--help', '-h' => fwrite(STDOUT, sprintf(USAGE, executableName(), DEFAULT_LISTEN) . "\n"),

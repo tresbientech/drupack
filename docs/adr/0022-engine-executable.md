@@ -30,8 +30,9 @@ data.
 - A site executable's Drush command is renamed from `dr` to `drush`, with no
   alias. `dr` is core's name, and Drupack's command runs Drush. A `php` on PATH
   sends Drush's child processes to the same PHP.
-- `drupack php` takes the options of php's own command line that it can
-  honour, and refuses the rest by name.
+- `drupack php` takes two forms, `SCRIPT [ARGUMENTS]` and `-r CODE`, and
+  passes each to the runtime's `php-cli` unchanged. It refuses any other
+  option by name, and `-r CODE` followed by an argument, before PHP starts.
 - A start prints a one-time login link, as a packaged site's does.
 - The folder mode has its own PHP entry script. It shares process and path
   helpers with `launch.php`.
@@ -63,10 +64,17 @@ data.
   to a `mercury-demo` directory.
 - The runtime changes to no directory of its own for the engine executable,
   so relative paths in a start, `drush` and `php` resolve against the reader's.
-- FrankenPHP's `php-cli` takes a script or `-r` code, and no PHP option. A
-  front end, `php.php`, answers `-v`, `-m`, `-i` and the like itself. It
-  passes `-d` settings to a script through an ini file that
-  `PHP_INI_SCAN_DIR` names, and runs `-r` code in its own process.
+- FrankenPHP's `php-cli` takes a script or `-r` code, and no PHP option. It
+  passes `-r` code no `$argv`. The runtime's entry point checks the form, so
+  the launcher and both `php` aliases share one rule.
 - `serve.php` loads no Composer autoloader, since the engine carries no
   `vendor/`. It resolves paths with `realpath` and `dirname`, in place of the
   `Path` class ADR 0010 names.
+
+## Amendment, 2026-09-30
+
+A folder mode start holds a Serving lease on its cache entry, keyed by the
+folder's path, beside that entry's `stop.json` and `server.log`. The lease
+guards `drupack stop` and a second start on the same folder, and the folder
+gets no new file. It runs the site's readiness runner without cron. ADR 0028
+records the detached start and the stop channel.

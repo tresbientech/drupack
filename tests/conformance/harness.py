@@ -446,7 +446,8 @@ class Site:
 
     def start(self, data_dir, *options, listen=True, bind="127.0.0.1", ready_wait="start", attach_pty=False, env=None):
         self.port = pick_port() if listen else SITE["port"]
-        args = [str(self.binary), "--data-dir", str(data_dir)]
+        # The harness keeps the process it starts: a detached start would return at once.
+        args = [str(self.binary), "--foreground", "--data-dir", str(data_dir)]
         if listen:
             args += ["--listen", f"{bind}:{self.port}"]
         args += list(options)
@@ -561,7 +562,7 @@ def refuse(case, case_dir, name, *args):
     with open(log, "wb") as handle:
         try:
             result = run(
-                [str(BINARY), *args, "--listen", f"127.0.0.1:{pick_port()}"],
+                [str(BINARY), *args, "--foreground", "--listen", f"127.0.0.1:{pick_port()}"],
                 cwd=case_dir, stdout=handle, stderr=subprocess.STDOUT,
                 timeout=WAITS["bootstrap_refusal"].seconds,
             )

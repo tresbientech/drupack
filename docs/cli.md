@@ -9,7 +9,8 @@ in `engine/serve.php` the contract the engine commands record. A test in
 ## Synopsis
 
 ```
-SITE [OPTIONS]
+SITE [start] [OPTIONS]
+SITE stop [--data-dir PATH]
 SITE drush [OPTIONS] DRUSH_COMMAND
 SITE node|npm|npx [ARGUMENTS]
 SITE clean [--dry-run]
@@ -41,6 +42,7 @@ standard error and exits 1.
 | `--admin-password` | PASSWORD | generated | `DRUPACK_ADMIN_PASSWORD` | first start |
 | `--site-name` | NAME | the site's name, `Drupal Mercury Demo` for the Mercury Demo | `DRUPACK_SITE_NAME` | first start |
 | `--no-browser` | none | off | none | every start |
+| `--foreground` | none | off | none | every start |
 
 ## Site data
 
@@ -49,7 +51,7 @@ the directory you started Drupack in, never against the unpacked application.
 `DRUPACK_DATA_DIR` sets the default.
 
 The value must not contain a double quote. The log path reaches the Caddyfile
-as raw text, before Caddy tokenizes it.
+through the environment, which Caddy splices in before it reads quotes.
 
 A site whose `drupack.yml` lists `writable` directories keeps its own
 application in `app` in Site data. A start lays it there once per release.
@@ -135,6 +137,34 @@ The server and `drush` find the same release first on `PATH`.
 A musl file carries no Node. There each word exits 1 and names the glibc
 file. A site without Node answers each word as an unknown command.
 
+## `start` and `stop`
+
+`SITE` and `SITE start` are one command. A start takes the Serving lease, then
+runs itself again in the background with `--foreground`. It shows that
+server's output until the site answers, then prints the log file and the
+command that stops the site, and returns 0. A server that exits before it
+answers makes the start exit with its code. Its output after that goes to
+`logs/server.log` in Site data, which each start empties.
+
+On Windows the printed command names the executable as `.\NAME.exe` when the
+start ran in its folder. A path that needs quotes gets PowerShell's `& ` in
+front, which cmd does not accept.
+
+`--foreground` serves in the terminal until Ctrl+C or a signal, as a container
+or a systemd unit needs. A Windows start from a file manager owns its window,
+so it serves in the foreground too.
+
+Once the site answers, the server listens on a random port of `127.0.0.1`,
+whatever `--listen` names. It writes that port, a random token and its PID to
+`stop.json` in Site data. On Unix only its owner can read the file; on Windows
+it takes the access of the Site data directory. `stop` sends the token
+there, and the server stops the way Ctrl+C stops it. `stop` then waits for the
+Serving lease to free, 15 seconds at most, and exits 1 past that. With no
+server running it says so and exits 0.
+
+`stop` takes `--data-dir` and no other option. It works on a foreground site
+too.
+
 ## `clean`
 
 `clean` removes the unpacked applications and Node releases from the cache. An entry a running
@@ -159,10 +189,12 @@ Two variables have no option:
 ## The engine executable
 
 ```
-drupack [DIR] [--listen IP:PORT]
+drupack [start] [DIR] [--listen IP:PORT] [--foreground]
+drupack stop [DIR]
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
-drupack php [PHP_OPTIONS] SCRIPT|-r CODE [ARGUMENTS]
+drupack php SCRIPT [ARGUMENTS]
+drupack php -r CODE
 drupack clean [--dry-run]
 drupack --help
 drupack --version
@@ -172,7 +204,17 @@ drupack --version
 has no Site data, and it takes none of the options above.
 
 `drupack` with no command serves `DIR`, the working directory by default. A
-first word naming no command is taken as `DIR`.
+first word naming no command is taken as `DIR`. `drupack start` does the same
+as `drupack`, and `start` and `stop` are reserved: a folder with either name
+takes `./start`.
+
+The server runs in the background. The start prints its progress and the login
+link, returns once the site answers, and names the log file. `--foreground`
+serves in the terminal until a signal stops it. `drupack stop [DIR]` ends the
+server of `DIR`, the working directory by default. The server's lease, stop
+record and log live in the cache, keyed by the folder, so the folder gains no
+file. A second start on a Project folder that a server already serves exits 1
+and says it already serves.
 
 - The docroot is the scaffold web root `composer.json` names, `web` when it
   names none.
@@ -192,17 +234,15 @@ that holds `vendor/autoload.php`. Drush's child processes find a `php` on
 `dr` runs Drupal core's own command line, `vendor/bin/dr`, of the same
 project, the same way. Drupal 11.4 and later ship it.
 
-`php` runs a script, or `-r` code, on the bundled PHP, from the working
-directory. It takes these options of php's own command line:
+`php` runs PHP from the working directory, in one of two forms:
 
-- `-d SETTING`, repeated, which reaches a script at startup
-- `-v`, `-m`, `-i`, `--ini` and `--ri EXTENSION`
-- `-l FILE`, which checks one file's syntax
-- `-f FILE`, `-h`, and `-q` and `-H`, which change nothing
+- `SCRIPT [ARGUMENTS]` runs the script with its arguments, and exits with its status.
+- `-r CODE` runs the code, which gets no `$argv`.
 
-It refuses any other option by name, such as `-S`, `-n` or `-c`, and reads no
-script from standard input. Drush's child processes reach the same command
-through the `php` on `PATH`.
+Any other option stops before PHP starts, with a message naming it and the two
+forms. That covers `-d`, `-l`, `-v`, `-m`, `-i`, `--ini`, `--ri`, `-f`, `-h`
+and `-S`. An argument after `-r CODE` stops the same way. Drush's child
+processes reach the same command through the `php` on `PATH`.
 
 `clean` removes the unpacked engine files from the cache.
 

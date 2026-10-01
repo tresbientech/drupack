@@ -23,6 +23,11 @@ func run() error {
 	if len(os.Args) > 1 && os.Args[1] == "lay-app" {
 		return layApp(os.Args[2:])
 	}
+	// launch.php and serve.php run this word to start the server in the background. It needs
+	// no cache.
+	if len(os.Args) > 1 && os.Args[1] == "detach" {
+		return detach(os.Args[2:])
+	}
 	root, err := runtime.Root(siteName, os.Stderr)
 	if err != nil {
 		return err
@@ -46,15 +51,10 @@ func run() error {
 		Manifest:    m,
 		AppChecksum: string(appChecksum),
 		AppPayload:  appPayload,
-	}, os.Stderr)
+	}, os.Stderr, runtime.HoldUsage)
 	if err != nil {
 		return err
 	}
-	// Both directories stay in use until this process ends, which on unix is the
-	// exec below and on Windows the wait for the child. Cleanup reads the markers
-	// and leaves a running site's files alone.
-	runtime.HoldUsage(directory)
-	runtime.HoldUsage(application)
 	if err := prepareNode(root); err != nil {
 		return err
 	}
@@ -66,9 +66,31 @@ func run() error {
 	if err := os.Setenv("DRUPACK_RUNTIME_SITE_VERSION", siteVersion); err != nil {
 		return err
 	}
+	// launch.php runs this executable again to lay a site's own application, and to
+	// detach a server, as serve.php does for a folder.
+	launcher, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	if err := os.Setenv("DRUPACK_RUNTIME_LAUNCHER", runtime.Canonical(launcher)); err != nil {
+		return err
+	}
+	// A start that detaches tells the reader how to stop the site, in the words the
+	// reader used to run it.
+	if err := os.Setenv("DRUPACK_RUNTIME_INVOKED", os.Args[0]); err != nil {
+		return err
+	}
 	// The engine executable serves a folder named from the reader's own directory,
-	// so the runtime gets no application to change into.
+	// so the runtime gets no application to change into. An inherited directory
+	// would send it down the site path, which refuses the php word.
 	if engine {
+		if err := os.Unsetenv("DRUPACK_RUNTIME_APP_DIR"); err != nil {
+			return err
+		}
+		// serve.php keeps each served folder's lease, stop record and log in an entry here.
+		if err := os.Setenv("DRUPACK_RUNTIME_CACHE_ROOT", runtime.Canonical(root)); err != nil {
+			return err
+		}
 		return launch(filepath.Join(directory, m.Entry), engineArguments(application))
 	}
 	// The server resolves the site from its working directory, which the entry
@@ -76,14 +98,6 @@ func run() error {
 	// terminal read the exported value, so it takes Drupack's canonical form;
 	// application itself stays native for the join below.
 	if err := os.Setenv("DRUPACK_RUNTIME_APP_DIR", runtime.Canonical(application)); err != nil {
-		return err
-	}
-	// launch.php runs this executable again to lay a site's own application.
-	launcher, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	if err := os.Setenv("DRUPACK_RUNTIME_LAUNCHER", runtime.Canonical(launcher)); err != nil {
 		return err
 	}
 	// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.
@@ -103,11 +117,10 @@ func prepareNode(root string) error {
 	if err != nil {
 		return err
 	}
-	directory, err := runtime.PrepareNode(root, nodePayload, m, os.Stderr)
+	directory, err := runtime.PrepareNode(root, nodePayload, m, os.Stderr, runtime.HoldUsage)
 	if err != nil {
 		return err
 	}
-	runtime.HoldUsage(directory)
 	executables := filepath.Dir(filepath.Join(directory, filepath.FromSlash(m.Entry)))
 	if err := os.Setenv("PATH", executables+string(os.PathListSeparator)+os.Getenv("PATH")); err != nil {
 		return err
@@ -115,12 +128,11 @@ func prepareNode(root string) error {
 	return os.Setenv("DRUPACK_RUNTIME_NODE", runtime.Canonical(executables))
 }
 
-// engineArguments turns the reader's words into the runtime's: `php` reaches
-// php.php, the version flags reach the runtime, and every other word reaches
-// serve.php.
+// engineArguments turns the reader's words into the runtime's: `php` and the
+// version flags reach the runtime, and every other word reaches serve.php.
 func engineArguments(application string) []string {
 	if len(os.Args) > 1 && os.Args[1] == "php" {
-		return append([]string{os.Args[0], "php-cli", filepath.Join(application, "php.php")}, os.Args[2:]...)
+		return os.Args
 	}
 	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
 		return os.Args

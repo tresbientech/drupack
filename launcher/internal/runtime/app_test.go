@@ -123,7 +123,9 @@ func TestHoldsUsageForAnotherProcess(t *testing.T) {
 	if entry == "" {
 		t.Skip("child process of TestCleanupKeepsAnEntryARunningStartHolds")
 	}
-	HoldUsage(entry)
+	if err := HoldUsage(entry); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(os.Getenv(holdAckVariable), nil, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +234,7 @@ func TestPrepareAppUnpacksAnEmptyArchive(t *testing.T) {
 	}
 
 	notice := &bytes.Buffer{}
-	entry, err := PrepareApp(root, "abc123def4567890", payload.Bytes(), notice)
+	entry, err := PrepareApp(root, "abc123def4567890", payload.Bytes(), notice, func(string) error { return nil })
 	if err != nil {
 		t.Fatalf("PrepareApp failed: %v", err)
 	}
@@ -244,7 +246,7 @@ func TestPrepareAppUnpacksAnEmptyArchive(t *testing.T) {
 	}
 
 	notice.Reset()
-	if _, err := PrepareApp(root, "abc123def4567890", payload.Bytes(), notice); err != nil {
+	if _, err := PrepareApp(root, "abc123def4567890", payload.Bytes(), notice, func(string) error { return nil }); err != nil {
 		t.Fatalf("the second PrepareApp failed: %v", err)
 	}
 	if notice.Len() != 0 {
@@ -314,7 +316,7 @@ func TestPrepareNodeUnpacksOnceUnderTheNodeDirectory(t *testing.T) {
 	}
 	root := t.TempDir()
 	var notice bytes.Buffer
-	entry, err := PrepareNode(root, payload, m, &notice)
+	entry, err := PrepareNode(root, payload, m, &notice, func(string) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,10 +328,45 @@ func TestPrepareNodeUnpacksOnceUnderTheNodeDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	notice.Reset()
-	if again, err := PrepareNode(root, payload, m, &notice); err != nil || again != entry || notice.Len() != 0 {
+	if again, err := PrepareNode(root, payload, m, &notice, func(string) error { return nil }); err != nil || again != entry || notice.Len() != 0 {
 		t.Fatalf("a second PrepareNode = %s, %v, printed %q", again, err, notice.String())
 	}
 	if after, _ := os.Stat(entry); !after.ModTime().Equal(before.ModTime()) {
 		t.Fatal("a second PrepareNode changed the release directory")
+	}
+}
+
+// removeOthers renames an entry aside before deleting it and tests the marker
+// again there, so a start that held the marker after the first test still keeps
+// its files.
+func TestRemoveOthersKeepsAnEntryAnotherProcessHolds(t *testing.T) {
+	root := t.TempDir()
+	work := t.TempDir()
+	held := filepath.Join(root, "vheld-000000000000")
+	free := filepath.Join(root, "vfree-000000000000")
+	for _, entry := range []string{held, free} {
+		if err := os.MkdirAll(entry, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(entry, "payload"), []byte("x"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(entry, ManifestName), []byte(`{"version":"1.0.0","entry":"payload","files":[{"path":"payload","size":1,"sha256":"00"}]}`), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	holdUsageInChild(t, work, held)
+
+	removeOthers(root, "vactive-000000000000")
+
+	if _, err := os.Stat(filepath.Join(held, "payload")); err != nil {
+		t.Errorf("removeOthers took a file from an entry another process holds: %v", err)
+	}
+	if _, err := os.Stat(free); !os.IsNotExist(err) {
+		t.Errorf("removeOthers kept an entry nothing holds: %v", err)
+	}
+	leftovers, _ := filepath.Glob(filepath.Join(root, "*"+stagingPrefix+"*"))
+	if len(leftovers) != 0 {
+		t.Errorf("removeOthers left staging directories behind: %v", leftovers)
 	}
 }

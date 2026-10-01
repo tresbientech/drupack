@@ -1,6 +1,51 @@
 #!/bin/sh
 set -e
 
+# launch.php runs this script as the launcher's lay-app word: `lay-app DATA
+# WRITABLE...` lays the site's own application in DATA/app from the overlaid copy
+# in DATA/runtime/app, and `lay-app --check DATA` answers yes. Every start lays
+# again, so a change to application/ applies. As in an upgrade, a restart
+# replaces the files the release ships inside a writable directory.
+if [ "$1" = lay-app ]; then
+    shift
+    if [ "$1" = --check ]; then
+        exit 0
+    fi
+    data=$1
+    shift
+    # The writable list comes from the command line of a word anyone can run.
+    for directory in "$@"; do
+        case /$directory/ in
+            //* | */../* | /./)
+                printf 'writable directory is not a relative path inside the application: %s\n' "$directory" >&2
+                exit 1
+                ;;
+        esac
+    done
+    rm -rf "$data/app.partial"
+    cp -r "$data/runtime/app" "$data/app.partial"
+    # An interrupted lay leaves the old application in .previous-app with no app.
+    if [ -d "$data/app" ]; then
+        rm -rf "$data/.previous-app"
+        mv "$data/app" "$data/.previous-app"
+    fi
+    for directory in "$@"; do
+        mkdir -p "$data/app.partial/$directory"
+        if [ -d "$data/.previous-app/$directory" ]; then
+            for entry in "$data/.previous-app/$directory"/* "$data/.previous-app/$directory"/.[!.]*; do
+                if [ -e "$entry" ] || [ -L "$entry" ]; then
+                    if [ ! -e "$data/app.partial/$directory/${entry##*/}" ] && [ ! -L "$data/app.partial/$directory/${entry##*/}" ]; then
+                        cp -a "$entry" "$data/app.partial/$directory/"
+                    fi
+                fi
+            done
+        fi
+    done
+    mv "$data/app.partial" "$data/app"
+    rm -rf "$data/.previous-app"
+    exit 0
+fi
+
 listen=$1
 shift
 mkdir -p /data/runtime
@@ -40,10 +85,13 @@ replace /dev-build/site-templates.php "$docroot/sites/default/site-templates.php
 # unpacked, the site's name, php.ini's directory and the packed trust bundle. A
 # caller's own bundle still wins.
 export DRUPACK_RUNTIME_APP_DIR=/data/runtime/app
+# The lay-app word above; a release start's launcher names itself here.
+export DRUPACK_RUNTIME_LAUNCHER=/dev-entry.sh
 DRUPACK_RUNTIME_NAME=$(python3 -c 'import json; print(json.load(open("site.json"))["name"])')
 export DRUPACK_RUNTIME_NAME
 export PHPRC=/data/runtime/app
 export DRUPACK_CA_FILE=${DRUPACK_CA_FILE-/data/runtime/app/cacert.pem}
 
-# launch.php sets up the site, then replaces itself with the server.
-exec "$DRUPACK_PHP" --data-dir /data --listen "0.0.0.0:$listen" "$@"
+# launch.php sets up the site, then replaces itself with the server. The container's
+# process is the server, so it serves in the foreground rather than detaching.
+exec "$DRUPACK_PHP" --foreground --data-dir /data --listen "0.0.0.0:$listen" "$@"
