@@ -266,6 +266,19 @@ Open, not fixes:
 | Gutenverse inline CSS is missing from Frozen blocks | unibiz, zeever, tourze-lite | owner ruling: separate change |
 | A Frozen query or post block prints what WordPress listed at capture: Gutenverse post lists and single-post fields, WooCommerce's product collection | zeever, unibiz, tourze-lite, bizboost | ADR 0007: Frozen HTML is static |
 | Search results list in another order | every theme with a search listing | ADR 0004 exception |
+| Per-block `@mobile`, `@tablet` and `:hover` styles (the 7.1 states support) are dropped | none: source review | feature, not built |
+| Viewport layout overrides (`style["@mobile"].layout`) are dropped | none: source review | feature, not built |
+| Per-block custom CSS (`style.css`) is dropped | none: source review | feature, not built |
+| Grid child placement (`columnStart`, `columnSpan`, `rowStart`, `rowSpan`) is dropped | none: source review | feature, not built |
+| A grid ignores `autoFit` and `rowCount` | none: source review | feature, not built |
+| Element colors past link text, heading text and button text and background are dropped: heading background and gradient, `h1` to `h6`, button gradient | none: source review | feature, not built |
+| Group `minWidth` is dropped | none: source review | feature, not built |
+| Video text tracks are dropped | none: source review | feature, not built |
+| Gallery `randomOrder` keeps the saved order | none: source review | feature, needs a per-request cache rule |
+| Post Date's `human-diff` format prints PHP date letters | none: source review | feature, needs a cache max-age |
+| Post Featured Image ignores `useFirstImageFromPost` | none: source review | feature, not built |
+| A `dynamicContent` Gallery prints an empty wrapper | none: source review | out of policy: attachment query |
+| Video prints no width, height or aspect ratio from its attachment | none: source review | out of policy: media library |
 
 ### Visual check
 

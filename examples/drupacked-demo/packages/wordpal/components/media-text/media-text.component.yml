@@ -100,6 +100,10 @@ props:
       title: 'In a Template part'
       type: boolean
       x-wordpal-panel: settings
+    focal_point:
+      title: 'Focal point'
+      type: string
+      x-wordpal-panel: settings
     anchor:
       title: Anchor
       type: string

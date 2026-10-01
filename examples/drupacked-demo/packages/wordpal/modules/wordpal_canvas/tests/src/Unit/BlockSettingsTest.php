@@ -57,16 +57,24 @@ final class BlockSettingsTest extends UnitTestCase {
    * @param array<string, string> $fieldTypes
    *   Field types keyed by field name, as getFieldDefinitions() returns
    *   them for the "wordpal_post" bundle.
+   * @param array<string, string> $userFieldTypes
+   *   The same for the "user" bundle.
    */
-  private function blockSettings(array $fieldTypes = []): BlockSettings {
+  private function blockSettings(array $fieldTypes = [], array $userFieldTypes = []): BlockSettings {
     $fieldManager = $this->createMock(EntityFieldManagerInterface::class);
-    $definitions = [];
-    foreach ($fieldTypes as $name => $type) {
-      $definition = $this->createMock(FieldDefinitionInterface::class);
-      $definition->method('getType')->willReturn($type);
-      $definitions[$name] = $definition;
-    }
-    $fieldManager->method('getFieldDefinitions')->with('node', 'wordpal_post')->willReturn($definitions);
+    $definitions = static function (array $types, self $test): array {
+      $definitions = [];
+      foreach ($types as $name => $type) {
+        $definition = $test->createMock(FieldDefinitionInterface::class);
+        $definition->method('getType')->willReturn($type);
+        $definitions[$name] = $definition;
+      }
+      return $definitions;
+    };
+    $fieldManager->method('getFieldDefinitions')->willReturnMap([
+      ['node', 'wordpal_post', $definitions($fieldTypes, $this)],
+      ['user', 'user', $definitions($userFieldTypes, $this)],
+    ]);
     $componentPluginManager = $this->createMock(ComponentPluginManager::class);
     $commentBlockInputs = new CommentBlockInputs(new AttributeFlattener(), $componentPluginManager, new ComponentInputs($componentPluginManager, new AttributeFlattener()));
     // The wordpal module root, whose generated block-supports.json the
@@ -201,6 +209,47 @@ final class BlockSettingsTest extends UnitTestCase {
     self::assertArrayHasKey('published_timestamp', $modified);
     self::assertStringContainsString('created', $published['date']['expression']);
     self::assertArrayNotHasKey('published_timestamp', $published);
+  }
+
+  /**
+   * Tests the Modified Date binding binds the changed field.
+   */
+  public function testDynamicFieldBindingsPostDateModifiedBindingBindsChanged(): void {
+    $node = new BlockNode('core/post-date', [
+      'metadata' => [
+        'bindings' => [
+          'datetime' => ['source' => 'core/post-data', 'args' => ['field' => 'modified']],
+        ],
+      ],
+    ], '', []);
+    $bindings = $this->blockSettings()->dynamicFieldBindings($node, 'wordpal_post', $this->mapping(), [], TRUE);
+
+    self::assertStringContainsString('changed', $bindings['timestamp']['expression']);
+    self::assertArrayHasKey('published_timestamp', $bindings);
+  }
+
+  /**
+   * Tests the Author block binds the mapped biography when it shows one.
+   */
+  public function testDynamicFieldBindingsPostAuthorBindsBiography(): void {
+    $mapping = new ContentMapping(['post' => 'wordpal_post', 'author_biography' => 'field_bio']);
+    $settings = $this->blockSettings([], ['field_bio' => 'text_long']);
+
+    $shown = $settings->dynamicFieldBindings(new BlockNode('core/post-author', ['showBio' => TRUE], '', []), 'wordpal_post', $mapping, [], TRUE);
+    self::assertStringContainsString('entity:user␝field_bio', $shown['author_bio']['expression']);
+    self::assertStringEndsWith('field_bio␞␟processed', $shown['author_bio']['expression']);
+
+    $hidden = $settings->dynamicFieldBindings(new BlockNode('core/post-author', [], '', []), 'wordpal_post', $mapping, [], TRUE);
+    self::assertArrayNotHasKey('author_bio', $hidden);
+  }
+
+  /**
+   * Tests the Featured Image binds the post title for a linked image's alt.
+   */
+  public function testDynamicFieldBindingsFeaturedImageBindsTitle(): void {
+    $bindings = $this->blockSettings(['field_image' => 'image'])->dynamicFieldBindings(new BlockNode('core/post-featured-image', [], '', []), 'wordpal_post', $this->mapping(), [], TRUE);
+
+    self::assertStringContainsString('title', $bindings['title']['expression']);
   }
 
   /**

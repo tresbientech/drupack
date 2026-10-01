@@ -8,7 +8,7 @@
 #}
 {% set color_props = background_color ? {'text_color': background_color} : {} %}
 {% set support_props = _context|merge(color_props) %}
-{% set gradient_is_custom = gradient and not (gradient matches '/^[a-z][a-z0-9-]*$/i') %}
+{% set gradient_is_custom = gradient and not (gradient starts with 'var:preset|') %}
 {% if gradient_is_custom %}
   {# save() keeps has-background for a gradient but only ever turns a solid
      color into an inline style, never the gradient value itself. #}

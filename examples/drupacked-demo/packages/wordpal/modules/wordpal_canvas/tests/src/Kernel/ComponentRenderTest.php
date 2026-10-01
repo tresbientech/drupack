@@ -271,12 +271,12 @@ final class ComponentRenderTest extends CanvasKernelTestBase {
   /**
    * Tests a Cover's gradient overlay classes the span, not the root.
    *
-   * Cover's own gradient attribute is a preset slug; customGradient a raw
+   * Cover's own gradient attribute is a preset reference; customGradient a raw
    * CSS gradient. Neither belongs on the root, which the generic color
    * support would otherwise class from either.
    */
   public function testCoverGradientOverlayMatchesWordPress(): void {
-    $preset = $this->renderSdc('wordpal:cover', ['gradient' => 'primary-fade-1']);
+    $preset = $this->renderSdc('wordpal:cover', ['gradient' => 'var:preset|gradient|primary-fade-1']);
     self::assertStringContainsString(
       '<span aria-hidden="true" class="wp-block-cover__background has-background-dim has-background-gradient has-primary-fade-1-gradient-background"></span>',
       $preset,
@@ -290,7 +290,7 @@ final class ComponentRenderTest extends CanvasKernelTestBase {
       $custom,
     );
     $overImage = $this->renderSdc('wordpal:cover', [
-      'gradient' => 'primary-fade-1',
+      'gradient' => 'var:preset|gradient|primary-fade-1',
       'url' => 'https://example.com/x.jpg',
     ]);
     self::assertStringContainsString('wp-block-cover__gradient-background', $overImage, 'The save function keeps the class over a saved image.');
@@ -334,7 +334,7 @@ final class ComponentRenderTest extends CanvasKernelTestBase {
       'padding_top' => '12px',
     ]);
     self::assertStringContainsString('class="wp-block-quote has-background ', $html);
-    self::assertStringContainsString('style="background-image:url(/sites/default/files/quote.png);background-size:cover;padding-top:12px"', $html);
+    self::assertStringContainsString('style="padding-top:12px;background-image:url(/sites/default/files/quote.png);background-size:cover"', $html);
   }
 
   /**
@@ -403,7 +403,8 @@ final class ComponentRenderTest extends CanvasKernelTestBase {
    * Tests a grid Post Template's minimum column width and column count.
    *
    * WordPress's wp_get_layout_style() gives a grid its auto-fill columns
-   * from minimumColumnWidth, unless columnCount is set, which wins.
+   * from minimumColumnWidth. With columnCount set too, the columns shrink
+   * once the container cannot fit the minimum width.
    */
   public function testPostTemplateMinimumColumnWidth(): void {
     $render = fn (array $props): string => $this->processedLayoutHead($this->renderPostTemplateWithAttachments($props));
@@ -411,6 +412,9 @@ final class ComponentRenderTest extends CanvasKernelTestBase {
     self::assertStringContainsString('grid-template-columns:repeat(auto-fill, minmax(min(18rem, 100%), 1fr))', $css);
     self::assertStringContainsString('container-type:inline-size', $css);
     $css = $render(['layout_type' => 'grid', 'minimum_column_width' => '18rem', 'column_count' => 3]);
+    self::assertStringContainsString('grid-template-columns:repeat(auto-fill, minmax(max(min(18rem, 100%), (100% - (var(--wp--style--block-gap, 0.5em) * (3 - 1))) /3), 1fr))', $css);
+    self::assertStringContainsString('container-type:inline-size', $css);
+    $css = $render(['layout_type' => 'grid', 'column_count' => 3]);
     self::assertStringContainsString('repeat(3, minmax(0, 1fr))', $css);
     self::assertStringNotContainsString('auto-fill', $css);
   }
@@ -493,6 +497,22 @@ final class ComponentRenderTest extends CanvasKernelTestBase {
       [],
       TRUE,
     ];
+    yield 'list type' => [
+      'wordpal:list',
+      ['ordered' => TRUE, 'type' => 'disc;position:fixed;background:url(//evil)'],
+      [],
+      TRUE,
+    ];
+    yield 'cover parallax focal point' => [
+      'wordpal:cover',
+      [
+        'url' => 'https://example.com/b.jpg',
+        'has_parallax' => TRUE,
+        'focal_point' => '0 0;background-image:url(//evil)',
+      ],
+      [],
+      TRUE,
+    ];
     yield 'cover min height unit' => [
       'wordpal:cover',
       ['min_height' => 300, 'min_height_unit' => 'px;background:url(//evil)'],
@@ -556,6 +576,20 @@ final class ComponentRenderTest extends CanvasKernelTestBase {
     $linked = $this->renderSdc('wordpal:image', ['url' => 'https://example.com/x.jpg', 'href' => '']);
     self::assertStringContainsString('<a href=""><img', $linked);
     self::assertStringNotContainsString('<a', $this->renderSdc('wordpal:image', ['url' => 'https://example.com/x.jpg']));
+  }
+
+  /**
+   * Tests a wide or full Image prints no size, as WordPress's editor saves it.
+   */
+  public function testWideImagePrintsNoSize(): void {
+    $sized = ['url' => 'https://example.com/x.png', 'width' => '2000', 'height' => '474'];
+    foreach (['wide', 'full'] as $align) {
+      $html = $this->renderSdc('wordpal:image', ['align' => $align] + $sized);
+      self::assertStringContainsString("align$align", $html);
+      self::assertStringNotContainsString('is-resized', $html);
+      self::assertStringNotContainsString('style=', $html);
+    }
+    self::assertStringContainsString('style="width:2000px;height:474px"', $this->renderSdc('wordpal:image', ['align' => 'center'] + $sized));
   }
 
   /**

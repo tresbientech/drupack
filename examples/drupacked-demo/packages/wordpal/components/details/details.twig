@@ -15,4 +15,6 @@
 {% if show_content %}
   {% set wrapper = wrapper.setAttribute('open', true) %}
 {% endif %}
-<details{{ wrapper }}><summary>{{ wordpal_html(summary|default('')) }}</summary>{% block content %}{% endblock %}</details>
+{% set body %}{% block content %}{% endblock %}{% endset %}
+{% set details %}<details{{ wrapper }}><summary>{{ wordpal_html(summary|default('')) }}</summary>{{ body }}</details>{% endset %}
+{{ show_content ? details : wordpal_low_priority_images(details) }}

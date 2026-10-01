@@ -20,6 +20,7 @@ use Drupal\KernelTests\KernelTestBase;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\node\NodeInterface;
+use Drupal\Tests\wordpal\Traits\ThemeSettingsTrait;
 use Drupal\user\Entity\Role;
 use Drupal\user\Entity\User;
 use Drupal\wordpal\Comment\CommentRuntime;
@@ -36,6 +37,7 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class CommentRuntimeTest extends KernelTestBase {
 
+  use ThemeSettingsTrait;
   use CommentTestTrait;
 
   /**
@@ -242,7 +244,11 @@ final class CommentRuntimeTest extends KernelTestBase {
     // supports, the same as any other component.
     $typedNameBuild = $runtime->fragment('wordpal_comment_author_name', [
       'comment' => $comment,
-      'settings' => ['is_link' => FALSE, 'font_size' => 'small', 'text_color' => 'contrast'],
+      'settings' => [
+        'is_link' => FALSE,
+        'font_size' => 'var:preset|font-size|small',
+        'text_color' => 'var:preset|color|contrast',
+      ],
     ]);
     $typedNameMarkup = (string) $renderer->renderRoot($typedNameBuild);
     self::assertStringContainsString('has-small-font-size', $typedNameMarkup);
@@ -268,7 +274,7 @@ final class CommentRuntimeTest extends KernelTestBase {
     // core/comment-reply-link carries its own block.json typography support
     // too, on the wrapper the generic links theme system builds around the
     // access-checked link itself.
-    $typedReply = $runtime->renderActionLinks((string) $rootA->id(), 'en', 'reply', Json::encode(['font_size' => 'small']));
+    $typedReply = $runtime->renderActionLinks((string) $rootA->id(), 'en', 'reply', Json::encode(['font_size' => 'var:preset|font-size|small']));
     $typedReplyMarkup = (string) $renderer->renderRoot($typedReply);
     self::assertStringContainsString('wp-block-comment-reply-link has-small-font-size', $typedReplyMarkup);
 
@@ -533,6 +539,7 @@ final class CommentRuntimeTest extends KernelTestBase {
     $this->installSchema('comment', ['comment_entity_statistics']);
     $this->installSchema('file', ['file_usage']);
     $this->installConfig(['system', 'filter', 'user', 'node', 'comment']);
+    $this->writeThemeSettings();
     NodeType::create(['type' => 'article', 'name' => 'Article'])->save();
     CommentType::create(['id' => 'comment', 'label' => 'Comment', 'target_entity_type_id' => 'node'])->save();
     $this->addDefaultCommentField('node', 'article', 'field_comments');

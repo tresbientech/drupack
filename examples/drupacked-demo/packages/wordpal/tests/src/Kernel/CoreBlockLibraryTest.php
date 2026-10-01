@@ -15,15 +15,18 @@ use Drupal\node\NodeAccessRebuild;
 use Drupal\taxonomy\Entity\Term;
 use Drupal\taxonomy\Entity\Vocabulary;
 use Drupal\Tests\node\Traits\NodeAccessTrait;
+use Drupal\Tests\wordpal\Traits\ThemeSettingsTrait;
 use Drupal\user\Entity\User;
 use Drupal\views\Entity\View;
-use Drupal\wordpal\Theme\ThemeSettings;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use Symfony\Component\HttpFoundation\InputBag;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\Component\Routing\Route;
+use Twig\Error\RuntimeError;
 
 /**
  * Renders each core block of the library added for Drupal CMS themes.
@@ -32,6 +35,7 @@ use Symfony\Component\Routing\Route;
 #[RunTestsInSeparateProcesses]
 final class CoreBlockLibraryTest extends KernelTestBase {
 
+  use ThemeSettingsTrait;
   use NodeAccessTrait;
 
   /**
@@ -67,8 +71,7 @@ final class CoreBlockLibraryTest extends KernelTestBase {
     $this->installEntitySchema('taxonomy_term');
     $this->installSchema('node', ['node_access']);
     $this->installConfig(['system', 'filter', 'user', 'node', 'taxonomy', 'wordpal']);
-    $theme = $this->container->get('theme.manager')->getActiveTheme()->getName();
-    $this->container->get('config.factory')->getEditable(ThemeSettings::configName($theme))->set('styled_variations', [])->save();
+    $this->writeThemeSettings(['block_gap_support' => TRUE, 'styled_variations' => []]);
     NodeType::create(['type' => 'blog', 'name' => 'Blog'])->save();
     NodeType::create(['type' => 'page', 'name' => 'Page'])->save();
     Vocabulary::create(['vid' => 'tags', 'name' => 'Tags'])->save();
@@ -106,6 +109,8 @@ final class CoreBlockLibraryTest extends KernelTestBase {
         RouteObjectInterface::ROUTE_NAME => $routeName,
         RouteObjectInterface::ROUTE_OBJECT => new Route('/{' . implode('}/{', array_keys($parameters)) . '}'),
       ] + $parameters);
+      // Url::fromRouteMatch() builds the route's URL from the raw values.
+      $request->attributes->set('_raw_variables', new InputBag(array_map(static fn (mixed $value): mixed => $value->id(), $parameters)));
     }
     $this->container->get('request_stack')->push($request);
     $this->container->get('current_route_match')->resetRouteMatch();
@@ -207,7 +212,7 @@ final class CoreBlockLibraryTest extends KernelTestBase {
       'caption' => 'City',
     ]);
 
-    self::assertStringContainsString('class="wp-block-video"><video controls loop muted src="/files/city.mp4" width="640" height="360" playsinline></video><figcaption class="wp-element-caption">City</figcaption></figure>', $html);
+    self::assertStringContainsString('class="wp-block-video"><video controls loop muted src="/files/city.mp4" width="640" height="360" style="aspect-ratio:640 / 360" playsinline></video><figcaption class="wp-element-caption">City</figcaption></figure>', $html);
   }
 
   /**
@@ -444,6 +449,23 @@ final class CoreBlockLibraryTest extends KernelTestBase {
   }
 
   /**
+   * Tests a gradient prop that is not a preset reference fails the render.
+   */
+  #[DataProvider('gradientComponents')]
+  public function testGradientPropMustBePresetReference(string $component): void {
+    $this->expectException(RuntimeError::class);
+    $this->expectExceptionMessage('Not a gradient preset reference');
+    $this->renderComponent($component, ['gradient' => 'primary-fade-1']);
+  }
+
+  /**
+   * Returns the components that print a gradient preset class.
+   */
+  public static function gradientComponents(): array {
+    return ['cover' => ['cover'], 'post featured image' => ['post-featured-image']];
+  }
+
+  /**
    * Tests Read More links its post, and renders nothing without one.
    */
   public function testReadMore(): void {
@@ -473,6 +495,83 @@ final class CoreBlockLibraryTest extends KernelTestBase {
     ]);
 
     self::assertMatchesRegularExpression('#<div data-component-id="wordpal:post-author" class="wp-block-post-author"><div class="wp-block-post-author__avatar">\s*</div><div class="wp-block-post-author__content"><p class="wp-block-post-author__byline">Written by</p><p class="wp-block-post-author__name">Morgan Reed</p><p class="wp-block-post-author__bio"></p></div>#', $html);
+  }
+
+  /**
+   * Tests the Post Type label names the routed node outside a Query.
+   *
+   * WordPress's query-title.php reads get_post_type() without a Query
+   * context, and prints nothing where no post is queried.
+   */
+  public function testQueryTitlePostTypeOutsideQuery(): void {
+    $page = $this->createNode('page', 'About', 1000);
+    $props = ['type' => 'post-type', 'show_prefix' => TRUE];
+
+    $this->visit('/node/' . $page->id(), 'entity.node.canonical', ['node' => $page]);
+    self::assertStringContainsString('Post Type: “Page”', $this->renderComponent('query-title', $props));
+    self::assertStringContainsString('Post Type: “Blog”', $this->renderComponent('query-title', $props + ['post_bundle' => 'blog']));
+
+    $this->visit('/nowhere', 'system.404');
+    self::assertSame('', trim($this->renderComponent('query-title', $props + ['listing_bundle' => 'blog'])));
+  }
+
+  /**
+   * Tests the Post Type label names the mapped post bundle on the front page.
+   */
+  public function testQueryTitlePostTypeOnTheFrontPage(): void {
+    $this->config('system.site')->set('page.front', '/user/login')->save();
+    $props = ['type' => 'post-type', 'show_prefix' => TRUE, 'listing_bundle' => 'blog'];
+
+    $this->visit('/user/login', 'user.login');
+    self::assertStringContainsString('Post Type: “Blog”', $this->renderComponent('query-title', $props));
+  }
+
+  /**
+   * Tests a node set as the front page names the mapped post bundle.
+   *
+   * A Display Builder site stores its home Template as a page node.
+   */
+  public function testQueryTitlePostTypeOnNodeFrontPage(): void {
+    $home = $this->createNode('page', 'Home', 1000);
+    $this->config('system.site')->set('page.front', '/node/' . $home->id())->save();
+    $props = ['type' => 'post-type', 'show_prefix' => TRUE, 'listing_bundle' => 'blog'];
+
+    $this->visit('/node/' . $home->id(), 'entity.node.canonical', ['node' => $home]);
+    self::assertStringContainsString('Post Type: “Blog”', $this->renderComponent('query-title', $props));
+  }
+
+  /**
+   * Tests a node set as the 404 page prints no Post Type.
+   */
+  public function testQueryTitlePostTypeOnNodeNotFoundPage(): void {
+    $notFound = $this->createNode('page', 'Not found', 1000);
+    $this->config('system.site')->set('page.404', '/node/' . $notFound->id())->save();
+    $props = ['type' => 'post-type', 'show_prefix' => TRUE, 'listing_bundle' => 'blog'];
+
+    $this->visit('/node/' . $notFound->id(), 'entity.node.canonical', ['node' => $notFound]);
+    self::assertSame('', trim($this->renderComponent('query-title', $props)));
+  }
+
+  /**
+   * Tests the Post Type label names the mapped post bundle on a term page.
+   */
+  public function testQueryTitlePostTypeOnTermPage(): void {
+    $tag = Term::create(['vid' => 'tags', 'name' => 'City']);
+    $tag->save();
+    $props = ['type' => 'post-type', 'show_prefix' => TRUE, 'listing_bundle' => 'blog'];
+
+    $this->visit('/taxonomy/term/' . $tag->id(), 'entity.taxonomy_term.canonical', ['taxonomy_term' => $tag]);
+    self::assertStringContainsString('Post Type: “Blog”', $this->renderComponent('query-title', $props));
+  }
+
+  /**
+   * Tests the Post Type label names the mapped post bundle on the search page.
+   */
+  public function testQueryTitlePostTypeOnTheSearchPage(): void {
+    $props = ['type' => 'post-type', 'show_prefix' => TRUE, 'listing_bundle' => 'blog', 'search_path' => '/search'];
+
+    $this->visit('/search');
+    self::assertStringContainsString('Post Type: “Blog”', $this->renderComponent('query-title', $props));
   }
 
   /**

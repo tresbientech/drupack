@@ -6,6 +6,7 @@ namespace Drupal\Tests\wordpal\Kernel;
 
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\system\Entity\Menu;
+use Drupal\Tests\wordpal\Traits\ThemeSettingsTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -16,6 +17,8 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[Group('wordpal')]
 #[RunTestsInSeparateProcesses]
 final class InteractivityTest extends KernelTestBase {
+
+  use ThemeSettingsTrait;
 
   /**
    * Modules needed for menu rendering.
@@ -35,6 +38,14 @@ final class InteractivityTest extends KernelTestBase {
     'text',
     'wordpal',
   ];
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function setUp(): void {
+    parent::setUp();
+    $this->writeThemeSettings();
+  }
 
   /**
    * Tests that the navigation library loads a module that reaches the runtime.

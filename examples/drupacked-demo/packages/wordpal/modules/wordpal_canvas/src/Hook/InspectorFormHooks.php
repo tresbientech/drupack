@@ -9,7 +9,6 @@ use Drupal\Core\Hook\Attribute\Hook;
 use Drupal\Core\Theme\ComponentPluginManager;
 use Drupal\wordpal\Component\InspectorPanel;
 use Drupal\wordpal\Component\InspectorPanelBuilder;
-use Drupal\wordpal\Support\PresetSupport;
 use Drupal\wordpal\Support\PropSchema;
 use Drupal\wordpal_canvas\CanvasWriter;
 
@@ -55,11 +54,11 @@ final class InspectorFormHooks {
         continue;
       }
       $field = $instance[$name];
-      $preset = PropSchema::preset($name);
-      if ($preset !== NULL) {
+      $group = PropSchema::presetGroup($name);
+      if ($group !== NULL) {
         // Read once per form build, and only once a prop needs it.
         $tokens ??= $this->panelBuilder->defaultThemeTokens();
-        $field = $this->withPresets($name, $preset, $field, $tokens);
+        $field = $this->withPresets($name, $group, $field, $tokens);
       }
       if (isset($field['widget']['#options'])) {
         $field['widget']['#options'] = $this->panelBuilder->limitOptions($field['widget']['#options'], $schema, ((array) ($field['widget']['#default_value'] ?? []))[0] ?? NULL);
@@ -99,8 +98,8 @@ final class InspectorFormHooks {
    * The text field stays the only input Canvas reads: the select the shared
    * builder returns has no name, so Canvas stores what it stored before.
    */
-  private function withPresets(string $name, PresetSupport $preset, array $field, array $tokens): array {
-    $select = $this->panelBuilder->presetSelect($name, $preset, $tokens, $field['widget'][0]['value']['#title']);
+  private function withPresets(string $name, string $group, array $field, array $tokens): array {
+    $select = $this->panelBuilder->presetSelect($name, $group, $tokens, $field['widget'][0]['value']['#title']);
     if ($select === NULL) {
       return $field;
     }

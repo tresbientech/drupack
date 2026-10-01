@@ -1,2 +1,2 @@
 {# A builder drop leaves is_link unset. #}
-<div{{ attributes.addClass('wp-block-post-author-name').merge(wordpal_attributes('core/post-author-name', _context, false)) }}>{{ wordpal_author(author_id, is_link|default(false)) }}</div>
+<div{{ attributes.addClass('wp-block-post-author-name').merge(wordpal_attributes('core/post-author-name', _context, false)) }}>{{ wordpal_author(author_id, is_link|default(false), link_target) }}</div>

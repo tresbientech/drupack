@@ -54,6 +54,11 @@ final class ComponentInputs {
       ->find(self::COMPONENT_PROVIDER . ':' . $node->slug())
       ->metadata->schema['properties'] ?? [];
     $values = $this->flattener->flatten($node->attributes, $node->name);
+    // The Next and Previous Page blocks print their default label for an
+    // empty one (query-pagination-next.php).
+    if (in_array($node->name, ['core/query-pagination-next', 'core/query-pagination-previous'], TRUE) && ($values['label'] ?? NULL) === '') {
+      unset($values['label']);
+    }
     // Post Content holding Drupal's main content shows no post, so its post
     // data props take no sample value.
     $noSample = in_array(DrupalRouteFrame::MAIN_CONTENT, array_column($node->children, 'name'), TRUE)
@@ -75,6 +80,14 @@ final class ComponentInputs {
         continue;
       }
       $value = $this->cast($values[$prop], $schema);
+      // The Button's save() adds no-border-radius for a number 0 only, and the
+      // prop carries both as "0", so "0" in the prop means the number. A
+      // string "0" becomes "0px" to tell the two apart. WordPress prints
+      // border-radius:0 for both; MarkupComparator::style() treats ":0px" as
+      // ":0".
+      if ($node->name === 'core/button' && $prop === 'border_radius' && $values[$prop] === '0') {
+        $value = '0px';
+      }
       // WordPress samples link to "#", which these URL formats reject.
       if ($value === '#' && in_array($schema['format'] ?? NULL, self::URL_FORMATS, TRUE)) {
         continue;
@@ -126,7 +139,7 @@ final class ComponentInputs {
   /**
    * Returns the props a component takes from the content mapping.
    */
-  public static function mapped(BlockNode $node, ContentMapping $mapping): array {
+  public static function mapped(BlockNode $node, ContentMapping $mapping, bool $inQuery): array {
     if ($node->name !== 'core/query-title') {
       return [];
     }
@@ -136,6 +149,13 @@ final class ComponentInputs {
         $inputs[$concept . '_vocabulary'] = $mapping->target($concept)['vocabulary'];
       }
     }
+    // Inside a Query the Post Type label names the Query's own post type,
+    // which WordPal limits to the post bundle. Elsewhere it names the
+    // routed node's bundle, which the component reads at render time, or on
+    // a listing route the post bundle.
+    if ($mapping->binds('post')) {
+      $inputs[$inQuery ? 'post_bundle' : 'listing_bundle'] = $mapping->target('post');
+    }
     if ($mapping->has('search') && !$mapping->drops('search')) {
       $inputs['search_path'] = $mapping->target('search')['path'];
       $inputs['search_parameter'] = $mapping->target('search')['parameter'];
@@ -144,18 +164,22 @@ final class ComponentInputs {
   }
 
   /**
-   * Returns whether a node's children sit in a Template part and a Gallery.
+   * Returns where a node's children sit.
+   *
+   * The children sit in a Template part, a Gallery or a Query.
    *
    * A Template part referenced inside a tree is a Group marked
    * templatePart.
    *
-   * @return array{0: bool, 1: bool}
-   *   Whether the children are in a Template part, then in a Gallery.
+   * @return array{0: bool, 1: bool, 2: bool}
+   *   Whether the children are in a Template part, in a Gallery, then in a
+   *   Query.
    */
-  public static function childContext(BlockNode $node, bool $inTemplatePart, bool $inGallery): array {
+  public static function childContext(BlockNode $node, bool $inTemplatePart, bool $inGallery, bool $inQuery): array {
     return [
       $inTemplatePart || ($node->name === 'core/group' && ($node->attributes['templatePart'] ?? FALSE)),
       $inGallery || $node->name === 'core/gallery',
+      $inQuery || $node->name === 'core/query',
     ];
   }
 

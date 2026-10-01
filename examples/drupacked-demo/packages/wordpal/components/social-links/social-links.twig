@@ -5,11 +5,13 @@
  */
 #}
 {% set layout_default = {'layout_type': 'flex'} %}
+{# The editor clears the icon background color of the Logos Only style on load. #}
+{% set background = icon_background_color_value and 'is-style-logos-only' not in (css_class ?? '')|split(' ') %}
 {% set classes = [
   'wp-block-social-links',
   size,
   show_labels ? 'has-visible-labels',
   icon_color_value ? 'has-icon-color',
-  icon_background_color_value ? 'has-icon-background-color',
+  background ? 'has-icon-background-color',
 ] %}
 <ul{{ attributes.addClass(classes).merge(wordpal_attributes('core/social-links', _context, true, {}, layout_default)) }}>{% block content %}{% endblock %}</ul>

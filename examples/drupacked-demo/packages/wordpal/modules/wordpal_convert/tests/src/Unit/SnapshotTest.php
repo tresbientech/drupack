@@ -66,8 +66,13 @@ final class SnapshotTest extends UnitTestCase {
       'position' => ['sticky' => TRUE, 'fixed' => FALSE],
       'duotone_filters' => ['dark-grayscale' => $svg],
       'use_root_padding_aware_alignments' => FALSE,
+      'block_gap_support' => FALSE,
+      'block_gaps' => [],
+      'root_block_gap' => NULL,
+      'button_widths' => [],
       'typography' => ['fluid' => FALSE],
       'styled_variations' => [],
+      'registered_variations' => [],
     ], JSON_THROW_ON_ERROR));
 
     try {
@@ -110,8 +115,13 @@ final class SnapshotTest extends UnitTestCase {
       'position' => ['sticky' => TRUE, 'fixed' => FALSE],
       'duotone_filters' => [],
       'use_root_padding_aware_alignments' => FALSE,
+      'block_gap_support' => FALSE,
+      'block_gaps' => [],
+      'root_block_gap' => NULL,
+      'button_widths' => [],
       'typography' => ['fluid' => FALSE],
       'styled_variations' => [],
+      'registered_variations' => [],
     ];
     $presets = ['color' => [], 'gradient' => [], 'font-size' => [], 'font-family' => [], 'spacing' => []];
     $pattern = ['slug' => 'fixture/cta', 'title' => 'CTA', 'categories' => ['featured'], 'inserter' => TRUE];
@@ -122,6 +132,46 @@ final class SnapshotTest extends UnitTestCase {
       'settings alignment flag' => [
         'settings',
         ['use_root_padding_aware_alignments' => 'yes'] + $settings,
+        $settingsError,
+      ],
+      'settings block gap flag' => [
+        'settings',
+        ['block_gap_support' => 'yes'] + $settings,
+        $settingsError,
+      ],
+      'settings block gaps' => [
+        'settings',
+        ['block_gaps' => ['core/columns' => 3]] + $settings,
+        $settingsError,
+      ],
+      'settings block gap sides' => [
+        'settings',
+        ['block_gaps' => ['core/columns' => ['top' => 3]]] + $settings,
+        $settingsError,
+      ],
+      'settings root block gap' => [
+        'settings',
+        ['root_block_gap' => 3] + $settings,
+        $settingsError,
+      ],
+      'settings without root block gap' => [
+        'settings',
+        array_diff_key($settings, ['root_block_gap' => TRUE]),
+        $settingsError,
+      ],
+      'settings without registered variations' => [
+        'settings',
+        array_diff_key($settings, ['registered_variations' => TRUE]),
+        $settingsError,
+      ],
+      'settings registered variation names' => [
+        'settings',
+        ['registered_variations' => ['core/button' => [1]]] + $settings,
+        $settingsError,
+      ],
+      'settings button widths' => [
+        'settings',
+        ['button_widths' => ['50' => 50]] + $settings,
         $settingsError,
       ],
       'settings fluid' => ['settings', ['typography' => ['fluid' => 'on']] + $settings, $settingsError],

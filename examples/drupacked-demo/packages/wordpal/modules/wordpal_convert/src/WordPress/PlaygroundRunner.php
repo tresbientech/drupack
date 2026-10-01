@@ -118,7 +118,11 @@ final class PlaygroundRunner {
       '@wp-playground/cli@' . self::PLAYGROUND_VERSION,
       'run-blueprint',
       '--blueprint=' . $directory . '/blueprint.json',
-      '--mount=' . $directory . ':' . self::MOUNT,
+      // --mount splits HOST:VFS at a colon, which a Windows drive letter
+      // repeats; --mount-dir takes the two paths as separate arguments.
+      '--mount-dir',
+      $directory,
+      self::MOUNT,
       '--verbosity=quiet',
     ]);
     $process->setTimeout(900);

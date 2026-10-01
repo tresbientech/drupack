@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Drupal\Tests\wordpal\Unit;
 
 use Drupal\Tests\UnitTestCase;
-use Drupal\wordpal\Support\PresetShape;
 use Drupal\wordpal\Support\PropSchema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Group;
@@ -18,30 +17,19 @@ use PHPUnit\Framework\Attributes\Group;
 final class PropSchemaTest extends UnitTestCase {
 
   /**
-   * Tests a prop that stores a bare preset slug.
+   * Tests that a preset prop returns its theme.json group.
    */
-  public function testSlugPresetReturnsGroupAndShape(): void {
-    $preset = PropSchema::preset('background_color');
-    self::assertNotNull($preset);
-    self::assertSame('color', $preset->group);
-    self::assertSame(PresetShape::Slug, $preset->shape);
-  }
-
-  /**
-   * Tests a prop that stores a `var:preset|<group>|<slug>` reference.
-   */
-  public function testReferencePresetReturnsShape(): void {
-    $preset = PropSchema::preset('link_color');
-    self::assertNotNull($preset);
-    self::assertSame('color', $preset->group);
-    self::assertSame(PresetShape::Reference, $preset->shape);
+  public function testPresetPropReturnsGroup(): void {
+    self::assertSame('color', PropSchema::presetGroup('background_color'));
+    self::assertSame('color', PropSchema::presetGroup('link_color'));
+    self::assertSame('font-size', PropSchema::presetGroup('font_size'));
   }
 
   /**
    * Tests that a plain, non-preset prop returns NULL.
    */
   public function testPlainPropReturnsNull(): void {
-    self::assertNull(PropSchema::preset('content'));
+    self::assertNull(PropSchema::presetGroup('content'));
   }
 
   /**

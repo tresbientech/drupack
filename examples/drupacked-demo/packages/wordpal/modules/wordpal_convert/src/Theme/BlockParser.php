@@ -81,6 +81,11 @@ final class BlockParser {
         continue;
       }
       [$attributes, $isValid, $children] = $this->resolve($name, (array) $block['attrs'], $parsed);
+      if ($name === 'core/html') {
+        // WordPress 7.1 keeps this block's markup in innerContent, outside the
+        // attributes its own parse returns.
+        $attributes['content'] = $block['innerHTML'];
+      }
       $nodes[] = new BlockNode(
         $name,
         $attributes,

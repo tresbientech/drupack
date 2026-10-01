@@ -11,8 +11,6 @@ use Drupal\Core\Render\Element;
 use Drupal\Tests\UnitTestCase;
 use Drupal\wordpal\Component\InspectorPanel;
 use Drupal\wordpal\Component\InspectorPanelBuilder;
-use Drupal\wordpal\Support\PresetShape;
-use Drupal\wordpal\Support\PresetSupport;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Group;
 
@@ -86,16 +84,9 @@ final class InspectorPanelBuilderTest extends UnitTestCase {
       ],
     ];
 
-    $select = $this->builder()->presetSelect('text_color', new PresetSupport('color', PresetShape::Slug), $tokens, 'Text color');
+    $select = $this->builder()->presetSelect('text_color', 'color', $tokens, 'Text color');
 
     self::assertSame('text_color', $select['#attributes']['data-wordpal-preset-for']);
-    self::assertSame(
-      ['' => 'Default', 'base' => 'Base', 'contrast' => 'Contrast', '__custom' => 'Custom…'],
-      $this->options($select),
-    );
-    // A reference-shaped preset stores the theme.json reference, not the
-    // bare slug the slug shape stores.
-    $reference = $this->builder()->presetSelect('link_color', new PresetSupport('color', PresetShape::Reference), $tokens, 'Link color');
     self::assertSame(
       [
         '' => 'Default',
@@ -103,7 +94,7 @@ final class InspectorPanelBuilderTest extends UnitTestCase {
         'var:preset|color|contrast' => 'Contrast',
         '__custom' => 'Custom…',
       ],
-      $this->options($reference),
+      $this->options($select),
     );
   }
 
@@ -114,7 +105,7 @@ final class InspectorPanelBuilderTest extends UnitTestCase {
    * this method never touches it, only ever returning NULL or a fresh select.
    */
   public function testPresetSelectIsNullWhenTheThemeHasNoSuchGroup(): void {
-    self::assertNull($this->builder()->presetSelect('gradient', new PresetSupport('gradient', PresetShape::Slug), ['color' => []], 'Gradient'));
+    self::assertNull($this->builder()->presetSelect('gradient', 'gradient', ['color' => []], 'Gradient'));
   }
 
   /**

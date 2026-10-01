@@ -30,10 +30,18 @@ final class SupportOutput {
 
   /**
    * Returns the inline style attribute value.
+   *
+   * Every value is validated, so a template that forgets its own wrapper
+   * still cannot print a second declaration. A url() the extension built with
+   * cssUrl() passes as it is: its argument has no quote, parenthesis or space.
    */
   public function style(): string {
     $declarations = [];
     foreach ($this->styles as $property => $value) {
+      $value = (string) $value;
+      if (!preg_match('/^url\([^()\s"\'\\\\]*\)$/D', $value)) {
+        PresetValue::css($value);
+      }
       $declarations[] = "$property:$value";
     }
     return implode(';', $declarations);

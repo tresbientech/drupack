@@ -8,7 +8,8 @@
  */
 #}
 {% if url %}
-  {% set service_data = wordpal_social_service(service ?: 'Icon') %}
+  {% set service = service ?: 'Icon' %}
+  {% set service_data = wordpal_social_service(service) %}
   {% set href = url %}
   {% if '@' in url and ':' not in url and ' ' not in url %}
     {% set href = 'mailto:' ~ url %}

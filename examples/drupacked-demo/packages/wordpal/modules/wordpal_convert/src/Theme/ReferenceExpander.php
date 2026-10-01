@@ -12,7 +12,8 @@ use Drupal\wordpal_convert\WordPress\Snapshot;
  * A template's main area, the parts around it, and a pattern's own blocks
  * can each hold `core/pattern` and `core/template-part` references. One walk
  * resolves both kinds wherever they appear, so a template and a pattern see
- * the same handling of missing and cyclic references.
+ * the same handling of missing and cyclic references. The same walk resolves
+ * a Button's width preset, which needs the theme's own sizes.
  */
 final class ReferenceExpander {
 
@@ -25,6 +26,11 @@ final class ReferenceExpander {
    * The block that references a template part.
    */
   public const TEMPLATE_PART = 'core/template-part';
+
+  /**
+   * The start of a width that names a dimension preset.
+   */
+  private const DIMENSION_PRESET = 'var:preset|dimension|';
 
   public function __construct(
     private readonly BlockParser $parser,
@@ -58,7 +64,7 @@ final class ReferenceExpander {
       }
       $expanded[] = new BlockNode(
         $node->name,
-        $node->attributes,
+        $node->name === 'core/button' ? $this->resolveButtonWidth($node->attributes, $snapshot) : $node->attributes,
         $node->innerHtml,
         $this->expand($node->children, $snapshot, $patterns, $parts),
         $node->rendered,
@@ -66,6 +72,25 @@ final class ReferenceExpander {
       );
     }
     return $expanded;
+  }
+
+  /**
+   * Replaces a Button's width preset with its percentage.
+   *
+   * The Button block prints a percentage as a custom property, which only
+   * the size the theme gives the preset can tell (blocks/button.php). Any
+   * other size stays a reference.
+   */
+  private function resolveButtonWidth(array $attributes, Snapshot $snapshot): array {
+    $width = $attributes['style']['dimensions']['width'] ?? NULL;
+    if (!is_string($width) || !str_starts_with($width, self::DIMENSION_PRESET)) {
+      return $attributes;
+    }
+    $size = $snapshot->buttonWidth(substr($width, strlen(self::DIMENSION_PRESET)));
+    if ($size !== NULL && str_ends_with($size, '%')) {
+      $attributes['style']['dimensions']['width'] = $size;
+    }
+    return $attributes;
   }
 
   /**

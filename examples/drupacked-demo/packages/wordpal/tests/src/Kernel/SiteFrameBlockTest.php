@@ -12,6 +12,7 @@ use Drupal\menu_link_content\Entity\MenuLinkContent;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\system\Entity\Menu;
+use Drupal\Tests\wordpal\Traits\ThemeSettingsTrait;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use Symfony\Component\HttpFoundation\Request;
@@ -24,6 +25,8 @@ use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 #[Group('wordpal')]
 #[RunTestsInSeparateProcesses]
 final class SiteFrameBlockTest extends KernelTestBase {
+
+  use ThemeSettingsTrait;
 
   /**
    * Modules needed for identity and menu rendering.
@@ -42,6 +45,14 @@ final class SiteFrameBlockTest extends KernelTestBase {
     'text',
     'wordpal',
   ];
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function setUp(): void {
+    parent::setUp();
+    $this->writeThemeSettings();
+  }
 
   /**
    * Tests identity values and their configuration cache dependency.
@@ -151,7 +162,7 @@ final class SiteFrameBlockTest extends KernelTestBase {
       ->createInstance('wordpal_site_title', [
         'level' => 0,
         'supports' => [
-          'text_color' => 'accent',
+          'text_color' => 'var:preset|color|accent',
           'font_style' => 'normal',
           'font_weight' => '600',
         ],
@@ -418,7 +429,10 @@ final class SiteFrameBlockTest extends KernelTestBase {
     self::assertContains('is-horizontal', $classes($labelled, '//nav'), 'Layout support prints the orientation the block sets.');
     self::assertNotContains('is-horizontal', $classes($labelled, '//ul'));
 
-    $colored = $render(['text_color' => 'header-foreground', 'supports' => ['text_transform' => 'uppercase']]);
+    $colored = $render([
+      'text_color' => 'var:preset|color|header-foreground',
+      'supports' => ['text_transform' => 'uppercase'],
+    ]);
     foreach (['//nav', '//ul'] as $query) {
       self::assertContains('has-header-foreground-color', $classes($colored, $query));
       self::assertContains('has-text-color', $classes($colored, $query));
@@ -459,7 +473,7 @@ final class SiteFrameBlockTest extends KernelTestBase {
     self::assertStringContainsString('no-wrap', $nowrap);
     self::assertSame(2, substr_count($nowrap, 'no-wrap'), 'The <nav> and its list both carry no-wrap.');
 
-    $fonted = $render(['supports' => ['font_family' => 'system']]);
+    $fonted = $render(['supports' => ['font_family' => 'var:preset|font-family|system']]);
     self::assertStringContainsString('has-system-font-family', $fonted);
   }
 

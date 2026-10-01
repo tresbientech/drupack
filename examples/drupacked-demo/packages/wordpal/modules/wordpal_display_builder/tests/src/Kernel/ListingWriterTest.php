@@ -15,6 +15,7 @@ use Drupal\search_api\Entity\Index;
 use Drupal\search_api\Entity\Server;
 use Drupal\taxonomy\Entity\Vocabulary;
 use Drupal\Tests\user\Traits\UserCreationTrait;
+use Drupal\Tests\wordpal\Traits\ThemeSettingsTrait;
 use Drupal\views\Entity\View;
 use Drupal\views\Views;
 use Drupal\wordpal\Component\FrozenBlock;
@@ -45,6 +46,7 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class ListingWriterTest extends KernelTestBase {
 
+  use ThemeSettingsTrait;
   use UserCreationTrait;
 
   /**
@@ -98,6 +100,7 @@ final class ListingWriterTest extends KernelTestBase {
     $targets['search'] = ['path' => '/search', 'parameter' => 'keywords', 'index' => 'wordpal_content'];
     $this->mapping = new ContentMapping($targets);
     $this->mapping->setThemeId('wordpal_fixture');
+    $this->writeThemeSettings();
   }
 
   /**

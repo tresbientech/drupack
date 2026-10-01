@@ -10,6 +10,7 @@ use Drupal\Core\Form\FormState;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\display_builder\SourceTree;
 use Drupal\KernelTests\KernelTestBase;
+use Drupal\Tests\wordpal\Traits\ThemeSettingsTrait;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -20,6 +21,8 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[Group('wordpal')]
 #[RunTestsInSeparateProcesses]
 final class ComponentEditingTest extends KernelTestBase {
+
+  use ThemeSettingsTrait;
 
   /**
    * {@inheritdoc}
@@ -51,6 +54,7 @@ final class ComponentEditingTest extends KernelTestBase {
     parent::setUp();
     $this->installEntitySchema('user');
     $this->installConfig(['system']);
+    $this->writeThemeSettings();
   }
 
   /**
@@ -90,7 +94,7 @@ final class ComponentEditingTest extends KernelTestBase {
    * @param string|null $rootClass
    *   The WordPress class the root element carries, NULL when the component
    *   prints nothing on an empty drop: like WordPress, it prints no element
-   *   until its content or post binding is set.
+   *   until its text, content or post binding is set.
    */
   #[DataProvider('componentProvider')]
   public function testComponentRendersWhenDropped(string $componentId, ?string $rootClass): void {
@@ -137,9 +141,9 @@ final class ComponentEditingTest extends KernelTestBase {
    */
   public static function componentProvider(): array {
     $noClass = [
-      'fragment', 'frozen-html', 'html', 'list-item', 'post-term', 'image',
-      'post-content', 'post-date', 'post-featured-image', 'post-terms', 'query-pagination',
-      'query-title', 'read-more', 'social-link', 'term-description',
+      'button', 'fragment', 'frozen-html', 'html', 'list-item', 'post-term', 'image',
+      'post-content', 'post-date', 'post-featured-image', 'post-terms', 'query-no-results',
+      'query-pagination', 'query-title', 'read-more', 'social-link', 'term-description',
     ];
     $cases = [];
     foreach (glob(dirname(__DIR__, 5) . '/components/*', GLOB_ONLYDIR) as $dir) {

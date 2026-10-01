@@ -108,6 +108,11 @@ final class CanvasWriter implements WriterInterface {
    */
   private bool $inGallery = FALSE;
 
+  /**
+   * Whether the nodes being built sit inside a Query block.
+   */
+  private bool $inQuery = FALSE;
+
   public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly ComponentPluginManager $componentPluginManager,
@@ -714,11 +719,23 @@ final class CanvasWriter implements WriterInterface {
     if ($cardBlockComponents !== []) {
       $this->componentSourceManager->generateComponents('block', $cardBlockComponents);
     }
-    $card = $this->buildItems($loop->postTemplate->children, $mapping, "$ownerLabel query card", [], $bundle);
+    $this->inQuery = TRUE;
+    try {
+      $card = $this->buildItems($loop->postTemplate->children, $mapping, "$ownerLabel query card", [], $bundle);
+    }
+    finally {
+      $this->inQuery = FALSE;
+    }
     // WordPress search results list pages with the same Post Template card.
     $pageCard = NULL;
     if ($route === 'search' && $mapping->binds('page')) {
-      $pageCard = $this->buildItems($loop->postTemplate->children, $mapping, "$ownerLabel query page card", [], $mapping->target('page'));
+      $this->inQuery = TRUE;
+      try {
+        $pageCard = $this->buildItems($loop->postTemplate->children, $mapping, "$ownerLabel query page card", [], $mapping->target('page'));
+      }
+      finally {
+        $this->inQuery = FALSE;
+      }
     }
 
     $empty = NULL;
@@ -727,7 +744,13 @@ final class CanvasWriter implements WriterInterface {
       if ($emptyBlockComponents !== []) {
         $this->componentSourceManager->generateComponents('block', $emptyBlockComponents);
       }
-      $empty = $this->buildItems([$loop->noResults], $mapping, "$ownerLabel query empty state");
+      $this->inQuery = TRUE;
+      try {
+        $empty = $this->buildItems([$loop->noResults], $mapping, "$ownerLabel query empty state");
+      }
+      finally {
+        $this->inQuery = FALSE;
+      }
     }
     return [
       'card' => $card,
@@ -1045,7 +1068,13 @@ final class CanvasWriter implements WriterInterface {
     $skipped = [];
     $settings = $this->querySettingsWriter->build($loop, $mapping, $route, $skipped);
     $settings['query'] = $this->inputs($loop->query, $skipped);
-    $settings['layout'] = $this->queryRuntimeTree($loop->query->children, $skipped);
+    $this->inQuery = TRUE;
+    try {
+      $settings['layout'] = $this->queryRuntimeTree($loop->query->children, $mapping, $skipped);
+    }
+    finally {
+      $this->inQuery = FALSE;
+    }
     if ($skipped !== []) {
       throw new \UnexpectedValueException('Query settings use unsupported values: ' . implode(', ', $skipped));
     }
@@ -1084,9 +1113,28 @@ final class CanvasWriter implements WriterInterface {
   }
 
   /**
+   * Runs a callback with the flags a node's children sit under.
+   *
+   * @param \Drupal\wordpal_convert\Theme\BlockNode $node
+   *   The parent block.
+   * @param callable $walk
+   *   Walks the children and returns what it builds.
+   */
+  private function inChildContext(BlockNode $node, callable $walk): mixed {
+    $context = [$this->inTemplatePart, $this->inGallery, $this->inQuery];
+    [$this->inTemplatePart, $this->inGallery, $this->inQuery] = ComponentInputs::childContext($node, ...$context);
+    try {
+      return $walk();
+    }
+    finally {
+      [$this->inTemplatePart, $this->inGallery, $this->inQuery] = $context;
+    }
+  }
+
+  /**
    * Serializes the ordered Query children around runtime View markers.
    */
-  private function queryRuntimeTree(array $nodes, array &$skipped): array {
+  private function queryRuntimeTree(array $nodes, ContentMapping $mapping, array &$skipped): array {
     $tree = [];
     foreach ($nodes as $node) {
       if ($node->name === 'core/post-template') {
@@ -1120,10 +1168,13 @@ final class CanvasWriter implements WriterInterface {
         $skipped[] = $node->name;
         continue;
       }
+      $props = $this->inputs($node, $skipped) + ComponentInputs::mapped($node, $mapping, $this->inQuery);
       $tree[] = [
         'component' => self::COMPONENT_PROVIDER . ':' . $node->slug(),
-        'props' => $this->inputs($node, $skipped),
-        'children' => $this->queryRuntimeTree($node->children, $skipped),
+        'props' => $props,
+        'children' => $this->inChildContext($node, function () use ($node, $mapping, &$skipped): array {
+          return $this->queryRuntimeTree($node->children, $mapping, $skipped);
+        }),
       ];
     }
     return $tree;
@@ -1321,7 +1372,7 @@ final class CanvasWriter implements WriterInterface {
       $dynamic = $bundle !== NULL && !str_starts_with($componentId, 'block.') ? $this->dynamicInputs($node, $bundle, $mapping) : NULL;
       $inputs = $dynamic ?? (str_starts_with($componentId, 'block.')
         ? $this->blockInputs($node, $componentId, $mapping)
-        : $this->inputs($node, $skipped) + ComponentInputs::mapped($node, $mapping));
+        : $this->inputs($node, $skipped) + ComponentInputs::mapped($node, $mapping, $this->inQuery));
       $uuid = $this->addContentItem($componentId, $inputs, $parentUuid, $slot, $items);
 
       if (str_starts_with($componentId, 'block.')) {
@@ -1330,16 +1381,9 @@ final class CanvasWriter implements WriterInterface {
 
       $childSlot = $this->slotName($node);
       if ($node->children !== [] && $childSlot !== NULL) {
-        $inTemplatePart = $this->inTemplatePart;
-        $inGallery = $this->inGallery;
-        [$this->inTemplatePart, $this->inGallery] = ComponentInputs::childContext($node, $inTemplatePart, $inGallery);
-        try {
+        $this->inChildContext($node, function () use ($node, $uuid, $childSlot, &$items, &$skipped, $mapping, $queryReplacements, $bundle): void {
           $this->addNodes(TreeConcepts::childNodes($node), $uuid, $childSlot, $items, $skipped, $mapping, $queryReplacements, $bundle);
-        }
-        finally {
-          $this->inTemplatePart = $inTemplatePart;
-          $this->inGallery = $inGallery;
-        }
+        });
       }
       elseif ($node->children !== []) {
         $skipped[] = $node->name . ': its component holds no slot';

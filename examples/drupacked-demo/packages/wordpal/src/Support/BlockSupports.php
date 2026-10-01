@@ -201,7 +201,7 @@ final class BlockSupports {
       $color = [];
       foreach ($colors as $key => $prop) {
         if (!empty($props[$prop])) {
-          $color[$key] = $this->styleValue($prop, (string) $props[$prop]);
+          $color[$key] = $this->styleValue((string) $props[$prop]);
         }
       }
       if ($color !== []) {
@@ -277,7 +277,7 @@ final class BlockSupports {
    */
   private function addTypography(array $props, array &$classes, array &$styles): void {
     $size = (string) ($props['font_size'] ?? '');
-    if ($size !== '' && !PresetValue::isSlug($size) && !str_starts_with($size, 'var:')) {
+    if ($size !== '' && !str_starts_with($size, 'var:')) {
       // WordPress turns a custom font size into its fluid value before the
       // style engine reads it (wp_get_typography_font_size_value()).
       $props['font_size'] = $this->themeSettings->fontSize(PresetValue::css($size));
@@ -365,7 +365,7 @@ final class BlockSupports {
     if (!isset($props[$prop]) || $props[$prop] === '') {
       return;
     }
-    $value = $this->styleValue($prop, (string) $props[$prop]);
+    $value = $this->styleValue((string) $props[$prop]);
     $blockStyles = [];
     $cursor = &$blockStyles;
     foreach ($path as $index => $segment) {
@@ -381,16 +381,13 @@ final class BlockSupports {
   /**
    * Returns a prop value in the form the style engine reads.
    */
-  private function styleValue(string $prop, string $value): string {
+  private function styleValue(string $value): string {
     if (PresetValue::isCustomReference($value)) {
       // The style engine matches only `var:preset|...` paths, so a
       // `var:custom|...` reference resolves here instead of reaching a
       // wrapper the style engine writes, which would print no declaration
       // for it at all (WP_Style_Engine::get_css_var_value()).
       $value = PresetValue::css($value);
-    }
-    elseif (PropSchema::preset($prop)?->shape === PresetShape::Slug && PresetValue::isSlug($value)) {
-      $value = 'var:preset|' . PropSchema::preset($prop)->group . "|$value";
     }
     else {
       // This value is our own converter's data, not a page author's. A

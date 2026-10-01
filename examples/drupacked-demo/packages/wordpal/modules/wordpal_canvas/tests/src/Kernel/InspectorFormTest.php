@@ -118,17 +118,17 @@ final class InspectorFormTest extends CanvasKernelTestBase {
     self::assertSame('font_size', $fontSize['wordpal_presets']['#attributes']['data-wordpal-preset-for']);
     self::assertSame('font_size', $fontSize['widget'][0]['value']['#attributes']['data-wordpal-preset']);
     self::assertSame(
-      ['' => 'Default', 'small' => 'Small', 'large' => 'Large', '__custom' => 'Custom…'],
+      [
+        '' => 'Default',
+        'var:preset|font-size|small' => 'Small',
+        'var:preset|font-size|large' => 'Large',
+        '__custom' => 'Custom…',
+      ],
       $this->options($fontSize),
     );
     // The field stays a text field, so a custom value is still allowed.
     self::assertSame('textfield', $fontSize['widget'][0]['value']['#type']);
 
-    self::assertSame(
-      ['' => 'Default', 'base' => 'Base', 'contrast' => 'Contrast', '__custom' => 'Custom…'],
-      $this->options($styles['wordpal_color']['text_color']),
-    );
-    // A prop that stores a preset reference gets the reference as its value.
     self::assertSame(
       [
         '' => 'Default',
@@ -136,14 +136,14 @@ final class InspectorFormTest extends CanvasKernelTestBase {
         'var:preset|color|contrast' => 'Contrast',
         '__custom' => 'Custom…',
       ],
-      $this->options($styles['wordpal_color']['link_color']),
+      $this->options($styles['wordpal_color']['text_color']),
     );
     self::assertSame(
       ['' => 'Default', 'var:preset|spacing|10' => '1', 'var:preset|spacing|20' => '2', '__custom' => 'Custom…'],
       $this->options($styles['wordpal_dimensions']['padding_top']),
     );
     self::assertSame(
-      ['' => 'Default', 'body' => 'Body', '__custom' => 'Custom…'],
+      ['' => 'Default', 'var:preset|font-family|body' => 'Body', '__custom' => 'Custom…'],
       $this->options($styles['wordpal_typography']['font_family']),
     );
     // The theme defines no gradients.
@@ -158,11 +158,11 @@ final class InspectorFormTest extends CanvasKernelTestBase {
     $field = ['widget' => [0 => ['value' => ['#title' => 'Text color']]]];
     $tokens = ['color' => ['base' => ['$description' => '<a href="/x"><b>Base</b></a> & co']]];
     $withPresets = new \ReflectionMethod(InspectorFormHooks::class, 'withPresets');
-    $field = $withPresets->invoke($this->container->get(InspectorFormHooks::class), 'text_color', PropSchema::preset('text_color'), $field, $tokens);
+    $field = $withPresets->invoke($this->container->get(InspectorFormHooks::class), 'text_color', PropSchema::presetGroup('text_color'), $field, $tokens);
 
     $html = (string) $this->container->get('renderer')->renderInIsolation($field['wordpal_presets']);
 
-    self::assertStringContainsString('<option value="base">&lt;a href=&quot;/x&quot;&gt;&lt;b&gt;Base&lt;/b&gt;&lt;/a&gt; &amp; co</option>', $html);
+    self::assertStringContainsString('<option value="var:preset|color|base">&lt;a href=&quot;/x&quot;&gt;&lt;b&gt;Base&lt;/b&gt;&lt;/a&gt; &amp; co</option>', $html);
   }
 
   /**

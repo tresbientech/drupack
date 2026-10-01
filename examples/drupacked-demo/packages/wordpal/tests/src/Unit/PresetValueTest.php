@@ -143,4 +143,32 @@ final class PresetValueTest extends UnitTestCase {
     PresetValue::layoutGap('var:custom|x);background:red');
   }
 
+  /**
+   * Tests a gradient reference yields its kebab-cased slug.
+   */
+  public function testGradientSlug(): void {
+    self::assertSame('vivid-cyan-blue', PresetValue::gradientSlug('var:preset|gradient|vividCyanBlue'));
+  }
+
+  /**
+   * Tests a value that is not a gradient preset reference fails.
+   */
+  #[DataProvider('invalidGradients')]
+  public function testGradientSlugRejects(string $value): void {
+    $this->expectException(\UnexpectedValueException::class);
+    PresetValue::gradientSlug($value);
+  }
+
+  /**
+   * Returns values a gradient prop must not hold.
+   */
+  public static function invalidGradients(): array {
+    return [
+      'bare slug' => ['primary-fade-1'],
+      'other group' => ['var:preset|color|primary'],
+      'extra segment' => ['var:preset|gradient|a|b'],
+      'empty slug' => ['var:preset|gradient|'],
+    ];
+  }
+
 }

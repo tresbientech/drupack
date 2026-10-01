@@ -8,8 +8,13 @@
     },
     "duotone_filters": {},
     "use_root_padding_aware_alignments": false,
+    "block_gap_support": false,
+    "block_gaps": {},
+    "root_block_gap": null,
+    "button_widths": {},
     "typography": {
         "fluid": false
     },
-    "styled_variations": []
+    "styled_variations": [],
+    "registered_variations": []
 }

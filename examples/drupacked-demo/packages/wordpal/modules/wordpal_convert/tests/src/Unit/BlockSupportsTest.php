@@ -67,7 +67,238 @@ class BlockSupportsTest extends UnitTestCase {
       'style' => ['spacing' => ['blockGap' => ['top' => '2rem']]],
     ], 'core/group');
 
-    self::assertSame('2rem 0.5em', $props['block_gap']);
+    self::assertSame('2rem var(--wp--style--block-gap, 0.5em)', $props['block_gap']);
+  }
+
+  /**
+   * Tests that the half-set gap reaches the CSS with the theme's gap.
+   */
+  public function testHalfSetGapPrintsTheThemeGapForTheMissingSide(): void {
+    $props = (new AttributeFlattener())->flatten([
+      'layout' => ['type' => 'flex'],
+      'style' => ['spacing' => ['blockGap' => ['left' => 'var:preset|spacing|50']]],
+    ], 'core/group');
+    $output = $this->supports()->render('core/group', $props);
+
+    self::assertStringContainsString('gap:var(--wp--style--block-gap, 0.5em) var(--wp--preset--spacing--50);', implode('', $output->cssRules));
+  }
+
+  /**
+   * Tests the first styled variation alone decides which gap a block reads.
+   */
+  public function testOnlyTheFirstStyledVariationSetsTheGap(): void {
+    $layout = new LayoutCss($this->themeSettings(TRUE, [
+      'core/group' => '3rem',
+      'core/group/b' => '5rem',
+    ]));
+    $props = (new AttributeFlattener())->flatten([
+      'layout' => ['type' => 'flex'],
+      'style' => ['spacing' => ['blockGap' => ['top' => '1rem']]],
+    ], 'core/group');
+
+    self::assertStringContainsString('gap:1rem 3rem;', implode('', $layout->build('core/group', $props + ['css_class' => 'is-style-a is-style-b'])->cssRules));
+  }
+
+  /**
+   * Tests a registered variation without a styled gap shadows a later one.
+   */
+  public function testRegisteredVariationWithoutGapResolvesFirst(): void {
+    $layout = new LayoutCss($this->themeSettings(TRUE, [
+      'core/group' => '3rem',
+      'core/group/b' => '5rem',
+    ]));
+    $props = (new AttributeFlattener())->flatten([
+      'layout' => ['type' => 'flex'],
+      'style' => ['spacing' => ['blockGap' => ['top' => '1rem']]],
+    ], 'core/group');
+
+    self::assertStringContainsString('gap:1rem 3rem;', implode('', $layout->build('core/group', $props + ['css_class' => 'is-style-c is-style-b'])->cssRules));
+  }
+
+  /**
+   * Tests a variation the style registry lacks sets no gap.
+   *
+   * WordPress reads block.json variations apart from the registry, and
+   * layout.php sees only the registry.
+   */
+  public function testVariationOutsideTheRegistrySetsNoGap(): void {
+    $layout = new LayoutCss($this->themeSettings(TRUE, [
+      'core/group' => '3rem',
+      'core/group/pill' => '9rem',
+    ]));
+    $props = (new AttributeFlattener())->flatten([
+      'layout' => ['type' => 'flex'],
+      'style' => ['spacing' => ['blockGap' => ['top' => '1rem']]],
+    ], 'core/group');
+
+    self::assertStringContainsString('gap:1rem 3rem;', implode('', $layout->build('core/group', $props + ['css_class' => 'is-style-pill'])->cssRules));
+  }
+
+  /**
+   * Tests a half-set gap reads the missing side from an array gap.
+   */
+  public function testHalfSetGapReadsTheSideOfAnArrayGap(): void {
+    $layout = new LayoutCss($this->themeSettings(TRUE, ['core/group' => ['top' => '2rem', 'left' => '4rem']]));
+    $props = (new AttributeFlattener())->flatten([
+      'layout' => ['type' => 'flex'],
+      'style' => ['spacing' => ['blockGap' => ['top' => '1rem']]],
+    ], 'core/group');
+
+    self::assertStringContainsString('gap:1rem 4rem;', implode('', $layout->build('core/group', $props)->cssRules));
+  }
+
+  /**
+   * Tests that a half-set gap takes the block type's or variation's own gap.
+   */
+  public function testHalfSetGapTakesTheBlockTypesOwnGap(): void {
+    $layout = new LayoutCss($this->themeSettings(TRUE, [
+      'core/group' => '3rem',
+      'core/group/section' => 'var:preset|spacing|60',
+    ]));
+    $props = (new AttributeFlattener())->flatten([
+      'layout' => ['type' => 'flex'],
+      'style' => ['spacing' => ['blockGap' => ['top' => '1rem']]],
+    ], 'core/group');
+
+    self::assertStringContainsString('gap:1rem 3rem;', implode('', $layout->build('core/group', $props)->cssRules));
+    self::assertStringContainsString('gap:1rem var(--wp--preset--spacing--60);', implode('', $layout->build('core/group', $props + ['css_class' => 'is-style-section'])->cssRules));
+    self::assertStringContainsString('gap:1rem var(--wp--style--block-gap, 0.5em);', implode('', $layout->build('core/columns', $props)->cssRules));
+  }
+
+  /**
+   * Tests a grid without block gap support falls back to the root gap value.
+   */
+  public function testGridWithoutGapSupportFallsBackToTheRootGap(): void {
+    $grid = ['layout_type' => 'grid', 'column_count' => 3, 'minimum_column_width' => '12rem'];
+
+    $layout = new LayoutCss($this->themeSettings(FALSE, [], '2rem'));
+    self::assertStringContainsString('(100% - (2rem * (3 - 1))) /3)', implode('', $layout->build('core/post-template', $grid)->cssRules));
+
+    $layout = new LayoutCss($this->themeSettings(FALSE, [], ['top' => '1rem', 'left' => '4rem']));
+    self::assertStringContainsString('(100% - (4rem * (3 - 1))) /3)', implode('', $layout->build('core/post-template', $grid)->cssRules));
+  }
+
+  /**
+   * Tests that a grid with a column count and a minimum width shrinks.
+   */
+  public function testGridWithCountAndMinimumWidthPrintsWordPressFormula(): void {
+    $layout = $this->layout();
+    $grid = ['layout_type' => 'grid', 'column_count' => 3, 'minimum_column_width' => '12rem'];
+
+    $css = implode('', $layout->build('core/post-template', $grid + ['block_gap' => '1rem'])->cssRules);
+    self::assertStringContainsString('grid-template-columns:repeat(auto-fill, minmax(max(min(12rem, 100%), (100% - (1rem * (3 - 1))) /3), 1fr));', $css);
+    self::assertStringContainsString('container-type:inline-size;', $css);
+
+    $css = implode('', $layout->build('core/post-template', $grid)->cssRules);
+    self::assertStringContainsString('(100% - (var(--wp--style--block-gap, 0.5em) * (3 - 1))) /3)', $css);
+
+    $css = implode('', $layout->build('core/post-template', $grid + ['block_gap' => '0'])->cssRules);
+    self::assertStringContainsString('(100% - (0px * (3 - 1))) /3)', $css);
+
+    $css = implode('', $layout->build('core/post-template', ['layout_type' => 'grid', 'column_count' => 3])->cssRules);
+    self::assertStringContainsString('grid-template-columns:repeat(3, minmax(0, 1fr));', $css);
+  }
+
+  /**
+   * Tests that a theme without block gap support gets no gap CSS.
+   */
+  public function testNoGapCssWithoutBlockGapSupport(): void {
+    $supports = $this->supports(FALSE);
+    foreach (['flex', 'grid', 'constrained', 'default'] as $type) {
+      $output = $supports->render('core/group', ['layout_type' => $type, 'block_gap' => '3rem']);
+      self::assertStringNotContainsString('gap', implode('', $output->cssRules), $type);
+      self::assertStringNotContainsString('margin-block-start:3rem', implode('', $output->cssRules), $type);
+    }
+  }
+
+  /**
+   * Tests that a zero root padding keeps the full-width pull-out valid.
+   */
+  public function testZeroPaddingPullsFullWidthChildrenOutByZeroPixels(): void {
+    $output = $this->supports()->render('core/group', [
+      'layout_type' => 'constrained',
+      'padding_left' => '0',
+      'padding_right' => '2rem',
+    ]);
+
+    $rules = implode('', $output->cssRules);
+    self::assertStringContainsString('margin-left:calc(0px * -1)', $rules);
+    self::assertStringContainsString('margin-right:calc(2rem * -1)', $rules);
+  }
+
+  /**
+   * Tests that a preset attribute wins over the custom value beside it.
+   */
+  public function testPresetAttributeWinsOverCustomStyleValue(): void {
+    $props = (new AttributeFlattener())->flatten([
+      'backgroundColor' => 'base',
+      'textColor' => 'contrast',
+      'gradient' => 'sunset',
+      'fontSize' => 'large',
+      'fontFamily' => 'serif-stack',
+      'borderColor' => 'accent',
+      'style' => [
+        'color' => ['background' => '#ff0000', 'text' => '#00ff00', 'gradient' => 'linear-gradient(#000,#fff)'],
+        'typography' => ['fontSize' => '20px', 'fontFamily' => 'Georgia'],
+        'border' => ['color' => '#0000ff'],
+      ],
+    ], 'core/group');
+
+    self::assertSame('var:preset|color|base', $props['background_color']);
+    self::assertSame('var:preset|color|contrast', $props['text_color']);
+    self::assertSame('var:preset|gradient|sunset', $props['gradient']);
+    self::assertSame('var:preset|font-size|large', $props['font_size']);
+    self::assertSame('var:preset|font-family|serif-stack', $props['font_family']);
+    self::assertSame('var:preset|color|accent', $props['border_color']);
+
+    $custom = (new AttributeFlattener())->flatten(['style' => ['color' => ['background' => '#ff0000']]], 'core/group');
+    self::assertSame('#ff0000', $custom['background_color']);
+  }
+
+  /**
+   * Tests that a CSS keyword in a style value stays a CSS value.
+   */
+  public function testCssKeywordsAreNotPresetSlugs(): void {
+    $flattener = new AttributeFlattener();
+    $custom = $flattener->flatten([
+      'style' => [
+        'color' => ['background' => 'transparent', 'text' => 'white'],
+        'border' => ['color' => 'currentColor'],
+        'typography' => ['fontFamily' => 'monospace'],
+      ],
+    ], 'core/button');
+    $output = $this->supports()->render('core/button', $custom, FALSE);
+
+    self::assertSame('transparent', $output->styles['background-color']);
+    self::assertSame('white', $output->styles['color']);
+    self::assertSame('currentColor', $output->styles['border-color']);
+    self::assertSame('monospace', $output->styles['font-family']);
+    self::assertNotContains('has-white-color', $output->classes);
+    self::assertNotContains('has-monospace-font-family', $output->classes);
+
+    // A theme preset spelled like a keyword is still a preset.
+    $preset = $flattener->flatten([
+      'backgroundColor' => 'transparent',
+      'textColor' => 'white',
+      'fontFamily' => 'monospace',
+    ], 'core/button');
+    $output = $this->supports()->render('core/button', $preset, FALSE);
+
+    self::assertContains('has-transparent-background-color', $output->classes);
+    self::assertContains('has-white-color', $output->classes);
+    self::assertContains('has-monospace-font-family', $output->classes);
+    self::assertArrayNotHasKey('font-family', $output->styles);
+  }
+
+  /**
+   * Tests that a unitless border width prints in pixels on engine blocks.
+   */
+  public function testAddsPixelsToUnitlessBorderWidth(): void {
+    $flattener = new AttributeFlattener();
+    $attributes = ['style' => ['border' => ['width' => 2, 'style' => 'solid']]];
+
+    self::assertSame('2px', $flattener->flatten($attributes, 'core/post-title')['border_width']);
+    self::assertSame(2, $flattener->flatten($attributes, 'core/heading')['border_width']);
   }
 
   /**
@@ -80,7 +311,7 @@ class BlockSupportsTest extends UnitTestCase {
 
     self::assertArrayNotHasKey('block_gap', $gap('var(--wp--preset--spacing--40)'));
     self::assertSame('var:preset|spacing|40', $gap('var:preset|spacing|40')['block_gap']);
-    self::assertSame('0.5em 2rem', $gap(['top' => 'calc(1rem)', 'left' => '2rem'])['block_gap']);
+    self::assertSame('var(--wp--style--block-gap, 0.5em) 2rem', $gap(['top' => 'calc(1rem)', 'left' => '2rem'])['block_gap']);
   }
 
   /**
@@ -240,10 +471,13 @@ class BlockSupportsTest extends UnitTestCase {
   }
 
   /**
-   * Tests a uniform border color: a preset slug becomes classes, else a style.
+   * Tests a uniform border color: a preset becomes classes, else a style.
    */
   public function testUniformBorderColor(): void {
-    $preset = $this->supports()->render('core/button', ['border_color' => 'accent', 'border_width' => '2px'], FALSE);
+    $preset = $this->supports()->render('core/button', [
+      'border_color' => 'var:preset|color|accent',
+      'border_width' => '2px',
+    ], FALSE);
     $this->assertSame(['has-border-color', 'has-accent-border-color'], $preset->classes);
     $this->assertSame(['border-width' => '2px'], $preset->styles);
 
@@ -489,35 +723,48 @@ class BlockSupportsTest extends UnitTestCase {
   /**
    * Builds block support services with the fixture theme settings.
    */
-  private function supports(): BlockSupports {
+  private function supports(bool $blockGapSupport = TRUE): BlockSupports {
     $components = $this->createMock(ComponentPluginManager::class);
     $duotone = [PropName::DUOTONE_SELECTOR => '.wp-block-image img, .wp-block-image .components-placeholder'];
     $components->method('getDefinition')->willReturnMap([
       ['wordpal:image', TRUE, ['props' => ['properties' => ['duotone' => $duotone]]]],
     ]);
-    return new BlockSupports($this->layout(), $this->themeSettings(), $components);
+    return new BlockSupports($this->layout($blockGapSupport), $this->themeSettings($blockGapSupport), $components);
   }
 
   /**
    * Builds the layout service with the fixture theme settings.
    */
-  private function layout(): LayoutCss {
-    return new LayoutCss($this->themeSettings());
+  private function layout(bool $blockGapSupport = TRUE): LayoutCss {
+    return new LayoutCss($this->themeSettings($blockGapSupport));
   }
 
   /**
    * Builds the theme settings used by the WordPress fixture.
    */
-  private function themeSettings(): ThemeSettings {
+  private function themeSettings(bool $blockGapSupport = TRUE, array $blockGaps = [], string|array|null $rootBlockGap = NULL): ThemeSettings {
     $config = $this->createMock(ImmutableConfig::class);
     $config->method('isNew')->willReturn(FALSE);
     $variationClasses = [
       'core/button/outline' => 'is-style-outline--b3',
       'core/image/rounded' => 'is-style-rounded--17',
+      'core/group/section' => 'is-style-section--1',
+      'core/group/pill' => 'is-style-pill--4',
+      'core/group/a' => 'is-style-a--2',
+      'core/group/b' => 'is-style-b--3',
+    ];
+    $registered = [
+      'core/button' => ['fill', 'outline'],
+      'core/image' => ['rounded'],
+      'core/group' => ['section', 'a', 'b', 'c'],
     ];
     $config->method('get')->willReturnMap([
       ['use_root_padding_aware_alignments', TRUE],
+      ['block_gap_support', $blockGapSupport],
+      ['block_gaps', $blockGaps],
+      ['root_block_gap', $rootBlockGap],
       ['styled_variations', $variationClasses],
+      ['registered_variations', $registered],
       ['position.sticky', TRUE],
       ['position.fixed', FALSE],
       ['duotone_filters', ['dark-grayscale' => '<svg></svg>']],

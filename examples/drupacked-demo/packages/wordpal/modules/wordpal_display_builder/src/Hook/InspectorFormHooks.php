@@ -62,11 +62,11 @@ final class InspectorFormHooks {
         continue;
       }
       $field = $element['props'][$name];
-      $preset = PropSchema::preset($name);
-      if ($preset !== NULL) {
+      $group = PropSchema::presetGroup($name);
+      if ($group !== NULL) {
         // Read once per form build, and only once a prop needs it.
         $tokens ??= $panelBuilder->defaultThemeTokens();
-        $select = $panelBuilder->presetSelect($name, $preset, $tokens, $field['#title'] ?? $name);
+        $select = $panelBuilder->presetSelect($name, $group, $tokens, $field['#title'] ?? $name);
         if ($select !== NULL) {
           $field['wordpal_presets'] = $select;
           // An editor can switch a prop's source to a token or an entity

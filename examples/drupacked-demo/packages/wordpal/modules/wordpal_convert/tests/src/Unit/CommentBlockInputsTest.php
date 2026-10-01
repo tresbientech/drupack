@@ -74,8 +74,8 @@ final class CommentBlockInputsTest extends UnitTestCase {
     $result = $this->commentBlockInputs()->values($node, ['field_name' => ''], $this->mapping());
     self::assertSame('is-style-card', $result['settings']['css_class']);
     self::assertSame('var:preset|spacing|70', $result['settings']['margin_top']);
-    self::assertSame('large', $result['settings']['comments_title']['font_size']);
-    self::assertSame('small', $result['settings']['comment_content']['font_size']);
+    self::assertSame('var:preset|font-size|large', $result['settings']['comments_title']['font_size']);
+    self::assertSame('var:preset|font-size|small', $result['settings']['comment_content']['font_size']);
   }
 
   /**

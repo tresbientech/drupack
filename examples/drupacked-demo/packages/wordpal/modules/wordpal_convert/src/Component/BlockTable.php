@@ -45,7 +45,7 @@ final class BlockTable {
       '- Block plugin: a WordPal Drupal block plugin.',
       "- View: a Drupal View built from the block's listing settings.",
       "- Part of: the parent block's Drupal target renders it.",
-      '- Frozen: the HTML WordPress rendered, fixed. Editors cannot change its content.',
+      '- Frozen: the HTML WordPress rendered, fixed. Editors cannot change it. A Query inside it renders as its View, in a hole slot.',
       '',
       sprintf('Usage is the share of the %s active block themes whose markup uses the block, from the theme census of %s. Rows run from the most used block.', number_format($usage['themes']), $usage['crawl_date']),
       '',

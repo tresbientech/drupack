@@ -7,11 +7,11 @@ namespace Drupal\Tests\wordpal_canvas\Kernel;
 use Drupal\canvas\ComponentSource\ComponentSourceManager;
 use Drupal\Core\Render\RendererInterface;
 use Drupal\Tests\canvas\Kernel\CanvasKernelTestBase;
+use Drupal\Tests\wordpal\Traits\ThemeSettingsTrait;
 use Drupal\wordpal\Layout\LayoutRenderer;
 use Drupal\wordpal_canvas_runtime\Plugin\views\area\PatternArea;
 use Drupal\wordpal_convert\Content\ContentMapping;
 use Drupal\wordpal_convert\Theme\BlockNode;
-use Drupal\wordpal\Theme\ThemeSettings;
 use Drupal\wordpal_canvas\CanvasWriter;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -22,6 +22,8 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[Group('wordpal')]
 #[RunTestsInSeparateProcesses]
 final class QueryRuntimeTest extends CanvasKernelTestBase {
+
+  use ThemeSettingsTrait;
 
   /**
    * Modules required for query component rendering.
@@ -35,8 +37,7 @@ final class QueryRuntimeTest extends CanvasKernelTestBase {
    */
   protected function setUp(): void {
     parent::setUp();
-    $theme = $this->container->get('theme.manager')->getActiveTheme()->getName();
-    $this->container->get('config.factory')->getEditable(ThemeSettings::configName($theme))->save();
+    $this->writeThemeSettings();
     $components = [
       'query',
       'post-template',

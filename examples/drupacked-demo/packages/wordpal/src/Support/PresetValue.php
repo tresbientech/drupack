@@ -113,6 +113,19 @@ final class PresetValue {
   }
 
   /**
+   * Returns the kebab-cased slug of a `var:preset|gradient|<slug>` reference.
+   *
+   * Cover and Post Featured Image print it into a
+   * `has-<slug>-gradient-background` class, so any other value fails.
+   */
+  public static function gradientSlug(string $value): string {
+    if (!preg_match('/^var:preset\|gradient\|([A-Za-z0-9-]+)$/D', $value, $matches)) {
+      throw new \UnexpectedValueException("Not a gradient preset reference: \"$value\".");
+    }
+    return self::slug($matches[1]);
+  }
+
+  /**
    * Returns the slug of a duotone preset reference, or NULL for another value.
    *
    * WP_Duotone::is_preset() accepts both reference forms.

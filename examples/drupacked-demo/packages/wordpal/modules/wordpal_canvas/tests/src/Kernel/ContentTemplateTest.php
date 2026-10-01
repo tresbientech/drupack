@@ -18,7 +18,9 @@ use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\taxonomy\Entity\Term;
 use Drupal\taxonomy\Entity\Vocabulary;
+use Drupal\user\Entity\User;
 use Drupal\Tests\canvas\Kernel\CanvasKernelTestBase;
+use Drupal\Tests\wordpal\Traits\ThemeSettingsTrait;
 use Drupal\wordpal_convert\Content\ContentMapping;
 use Drupal\wordpal_convert\Theme\BlockNode;
 use Drupal\wordpal_convert\Theme\PartSet;
@@ -33,6 +35,8 @@ use Psr\Log\AbstractLogger;
 #[Group('wordpal')]
 #[RunTestsInSeparateProcesses]
 final class ContentTemplateTest extends CanvasKernelTestBase {
+
+  use ThemeSettingsTrait;
 
   /**
    * Modules required for mapped node fields.
@@ -66,6 +70,7 @@ final class ContentTemplateTest extends CanvasKernelTestBase {
     $this->installEntitySchema('taxonomy_term');
     $this->installEntitySchema('comment');
     $this->installConfig(['field', 'node', 'taxonomy']);
+    $this->writeThemeSettings();
     NodeType::create(['type' => 'wordpal_post', 'name' => 'WordPal post'])->save();
     Vocabulary::create(['vid' => 'categories', 'name' => 'Categories'])->save();
     Vocabulary::create(['vid' => 'tags', 'name' => 'Tags'])->save();
@@ -457,6 +462,66 @@ final class ContentTemplateTest extends CanvasKernelTestBase {
   public function testPostContentKeepsFormatAllowedMarkup(): void {
     $markup = $this->renderPostContent('<p style="color:red">Body copy.</p>');
     self::assertStringContainsString('<p style="color:red" class="wp-block-paragraph">Body copy.</p>', $markup);
+  }
+
+  /**
+   * Tests a formatted biography prints through the binding in a div.
+   *
+   * The visitor may view user profiles, which Canvas checks on the referenced
+   * user. The processed text carries its own paragraph, which a <p> wrapper
+   * would close early.
+   */
+  public function testPostAuthorRendersFormattedBiographyInDiv(): void {
+    $markup = $this->renderPostAuthor('field_bio', 'text_long', '<p>Born in Lyon.</p>');
+    self::assertStringContainsString('<div class="wp-block-post-author__bio"><p>Born in Lyon.</p></div>', $markup);
+  }
+
+  /**
+   * Tests a plain biography keeps the paragraph.
+   */
+  public function testPostAuthorRendersPlainBiographyInParagraph(): void {
+    $markup = $this->renderPostAuthor('field_bio_plain', 'string_long', 'Born in Lyon.');
+    self::assertStringContainsString('<p class="wp-block-post-author__bio">Born in Lyon.</p>', $markup);
+  }
+
+  /**
+   * Writes a post-author template bound to a user field and renders it.
+   */
+  private function renderPostAuthor(string $fieldName, string $type, string $biography): string {
+    $mapping = new ContentMapping(['post' => 'wordpal_post', 'author_biography' => $fieldName]);
+    FieldStorageConfig::create(['entity_type' => 'user', 'field_name' => $fieldName, 'type' => $type])->save();
+    FieldConfig::create(['entity_type' => 'user', 'bundle' => 'user', 'field_name' => $fieldName, 'label' => $fieldName])->save();
+    $variant = $this->writeVariant($this->container->get(CanvasWriter::class), $this->partSet(), 'fixture', $mapping);
+    $this->container->get(ComponentSourceManager::class)->generateComponents('sdc', ['wordpal:post-author']);
+    $result = $this->container->get(CanvasWriter::class)->writeContentTemplate(
+      'wordpal_post',
+      'full',
+      [new BlockNode('core/post-author', ['showBio' => TRUE], '', [])],
+      $mapping,
+      $variant->id(),
+    );
+
+    $this->installEntitySchema('path_alias');
+    $this->installConfig(['user']);
+    user_role_grant_permissions('anonymous', ['access content', 'access user profiles']);
+    FilterFormat::create(['format' => 'unfiltered', 'name' => 'Unfiltered'])->save();
+    $author = User::create([
+      'name' => 'Ada',
+      'status' => 1,
+      $fieldName => ['value' => $biography, 'format' => 'unfiltered'],
+    ]);
+    $author->save();
+    $node = Node::create([
+      'type' => 'wordpal_post',
+      'title' => 'A walk through the city',
+      'status' => 1,
+      'uid' => $author->id(),
+    ]);
+    $node->save();
+
+    $build = $result->getComponentTree($node)->toRenderable($result, FALSE);
+    $renderer = $this->container->get(RendererInterface::class);
+    return (string) $renderer->executeInRenderContext(new RenderContext(), fn () => $renderer->render($build));
   }
 
   /**

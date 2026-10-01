@@ -17,6 +17,7 @@ use Drupal\taxonomy\Entity\Term;
 use Drupal\taxonomy\Entity\Vocabulary;
 use Drupal\Tests\canvas\Kernel\CanvasKernelTestBase;
 use Drupal\Tests\user\Traits\UserCreationTrait;
+use Drupal\Tests\wordpal\Traits\ThemeSettingsTrait;
 use Drupal\views\Views;
 use Drupal\wordpal_convert\Content\ContentMapping;
 use Drupal\wordpal\Component\FrozenBlock;
@@ -36,6 +37,7 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class TemplateWritersTest extends CanvasKernelTestBase {
 
+  use ThemeSettingsTrait;
   use UserCreationTrait;
 
   /**
@@ -65,6 +67,7 @@ final class TemplateWritersTest extends CanvasKernelTestBase {
     $this->installSchema('comment', ['comment_entity_statistics']);
     $this->installSchema('search_api', ['search_api_item']);
     $this->installConfig(['field', 'filter', 'node', 'system', 'taxonomy', 'user', 'views', 'search_api']);
+    $this->writeThemeSettings();
     NodeType::create(['type' => 'wordpal_post', 'name' => 'WordPal post'])->save();
     NodeType::create(['type' => 'wordpal_page', 'name' => 'WordPal page'])->save();
     Vocabulary::create(['vid' => 'tags', 'name' => 'Tags'])->save();

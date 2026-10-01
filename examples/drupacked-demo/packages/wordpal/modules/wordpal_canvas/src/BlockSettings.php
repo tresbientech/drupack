@@ -11,7 +11,9 @@ use Drupal\wordpal_convert\Component\BlockPluginInputs;
 use Drupal\wordpal_convert\Component\CommentBlockInputs;
 use Drupal\wordpal_convert\Content\ContentMapping;
 use Drupal\wordpal_convert\Content\MediaSourceField;
+use Drupal\wordpal_convert\Theme\AuthorBio;
 use Drupal\wordpal_convert\Theme\BlockNode;
+use Drupal\wordpal_convert\Theme\PostDate;
 
 /**
  * Builds a Block plugin's settings and a dynamic block's field bindings.
@@ -76,7 +78,10 @@ final class BlockSettings {
     return match ($node->name) {
       'core/post-title' => array_replace($staticInputs, ['title' => $field($base . 'title␞␟value'), 'url' => $hostUrl]),
       'core/post-date' => $this->postDateInputs($node, $staticInputs, $base, $field, $hostUrl),
-      'core/post-author-name', 'core/post-author', 'core/avatar' => array_replace($staticInputs, [
+      'core/post-author' => array_replace($staticInputs, [
+        'author_id' => $field($base . 'uid␞␟target_id'),
+      ], $this->authorBioInputs($node, $mapping, $base, $field)),
+      'core/post-author-name', 'core/avatar' => array_replace($staticInputs, [
         'author_id' => $field($base . 'uid␞␟target_id'),
       ]),
       'core/read-more' => array_replace($staticInputs, ['title' => $field($base . 'title␞␟value'), 'url' => $hostUrl]),
@@ -114,6 +119,7 @@ final class BlockSettings {
     return array_replace($staticInputs, [
       'src' => $field($imageBase . 'src'),
       'alt' => $field($imageBase . 'alt'),
+      'title' => $field($base . 'title␞␟value'),
       'image_width' => $field($imageBase . 'width'),
       'image_height' => $field($imageBase . 'height'),
       'url' => $hostUrl,
@@ -164,14 +170,14 @@ final class BlockSettings {
   /**
    * Builds Post Date bindings, modified or published.
    *
-   * WordPress's post-date.php legacy binding reads the node's changed
-   * field for displayType "modified", published otherwise. Only "modified"
-   * also binds published_timestamp, so the component can print nothing the
-   * way post-data.php's modified source does for a post never edited after
-   * publishing.
+   * WordPress's post-date.php reads the node's changed field for a
+   * "modified" datetime binding or displayType, published otherwise. Only
+   * "modified" also binds published_timestamp, so the component can print
+   * nothing the way post-data.php's modified source does for a post never
+   * edited after publishing.
    */
   private function postDateInputs(BlockNode $node, array $staticInputs, string $base, callable $field, array $hostUrl): array {
-    $modified = ($node->attributes['displayType'] ?? 'date') === 'modified';
+    $modified = PostDate::isModified($node);
     $sourceField = $modified ? 'changed' : 'created';
     $bindings = [
       'date' => $field($base . $sourceField . '␞␟value', 'unix_to_date'),
@@ -182,6 +188,21 @@ final class BlockSettings {
       $bindings['published_timestamp'] = $field($base . 'created␞␟value');
     }
     return array_replace($staticInputs, $bindings);
+  }
+
+  /**
+   * Builds the Author block's biography binding when it shows one.
+   *
+   * The biography is the mapped user field of the post's author; a mapping
+   * that drops it leaves the prop unbound.
+   */
+  private function authorBioInputs(BlockNode $node, ContentMapping $mapping, string $base, callable $field): array {
+    $source = AuthorBio::source($node, $mapping, $this->fieldManager);
+    if ($source === NULL) {
+      return [];
+    }
+    [$fieldName, $property] = $source;
+    return ['author_bio' => $field($base . "uid␞␟entity␜␜entity:user␝{$fieldName}␞␟{$property}")];
   }
 
   /**

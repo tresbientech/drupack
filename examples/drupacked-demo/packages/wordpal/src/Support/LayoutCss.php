@@ -34,6 +34,14 @@ final class LayoutCss {
    */
   private const GALLERY_GAP_FALLBACK = 'var(--wp--style--gallery-gap-default, var(--gallery-block--gutter-size, var(--wp--style--block-gap, 0.5em)))';
 
+  /**
+   * The root block gap, which a flattened gap names for a side it leaves out.
+   *
+   * A block.json `spacing.blockGap.__experimentalDefault` (`core/columns`
+   * declares "2em") does not apply: WordPal blocks carry no block.json.
+   */
+  public const ROOT_GAP = 'var(--wp--style--block-gap, 0.5em)';
+
   public function __construct(
     private readonly ThemeSettings $themeSettings,
   ) {}
@@ -78,10 +86,10 @@ final class LayoutCss {
     }
 
     $rules = match ($type) {
-      'constrained' => $this->constrainedRules($used),
-      'flex' => $this->flexRules($used),
-      'grid' => $this->gridRules($used),
-      default => $this->gapRules($used),
+      'constrained' => $this->constrainedRules($blockName, $used),
+      'flex' => $this->flexRules($blockName, $used),
+      'grid' => $this->gridRules($blockName, $used),
+      default => $this->gapRules($blockName, $used),
     };
 
     if ($blockName === 'core/gallery' && $type === 'flex') {
@@ -89,7 +97,7 @@ final class LayoutCss {
       // gap of the block's own: the Gallery style.css's width calc()s divide
       // it out of each image's flex-basis, falling through to the theme's
       // block gap when the block sets none.
-      $rules[''] = ($rules[''] ?? '') . '--wp--style--unstable-gallery-gap:' . $this->galleryGapColumn($used) . ';';
+      $rules[''] = ($rules[''] ?? '') . '--wp--style--unstable-gallery-gap:' . $this->galleryGapColumn($blockName, $used) . ';';
     }
 
     if ($rules === []) {
@@ -136,7 +144,7 @@ final class LayoutCss {
   /**
    * Returns the rules of a constrained layout.
    */
-  private function constrainedRules(array $used): array {
+  private function constrainedRules(string $blockName, array $used): array {
     $rules = [];
     $contentSize = $used['content_size'] ?? '';
     $wideSize = $used['wide_size'] ?? '';
@@ -158,6 +166,8 @@ final class LayoutCss {
       $padding = $used["padding_$side"] ?? NULL;
       if ($padding !== NULL && $padding !== '') {
         $value = PresetValue::css((string) $padding);
+        // A unitless zero makes calc() a number, which margins reject.
+        $value = $value === '0' ? '0px' : $value;
         $negative["margin-$side"] = "calc($value * -1)";
       }
     }
@@ -170,13 +180,13 @@ final class LayoutCss {
       $rules[' > :where(:not(.alignleft):not(.alignright):not(.alignfull))'] = "$side:0 !important;";
     }
 
-    return $rules + $this->gapRules($used);
+    return $rules + $this->gapRules($blockName, $used);
   }
 
   /**
    * Returns the rules of a flex layout.
    */
-  private function flexRules(array $used): array {
+  private function flexRules(string $blockName, array $used): array {
     $declarations = [];
     // WordPress prints flex-wrap only for nowrap (layout.php:735).
     if (($used['flex_wrap'] ?? NULL) === 'nowrap') {
@@ -185,7 +195,7 @@ final class LayoutCss {
     if (($used['orientation'] ?? NULL) === 'vertical') {
       $declarations['flex-direction'] = 'column';
     }
-    $gap = $this->gap($used);
+    $gap = $this->gap($blockName, $used);
     if ($gap !== NULL) {
       $declarations['gap'] = $gap;
     }
@@ -211,9 +221,28 @@ final class LayoutCss {
   /**
    * Returns the rules of a grid layout.
    */
-  private function gridRules(array $used): array {
+  private function gridRules(string $blockName, array $used): array {
     $declarations = [];
-    if (!empty($used['column_count'])) {
+    if (!empty($used['column_count']) && !empty($used['minimum_column_width'])) {
+      // The columns shrink in count once the container cannot fit the
+      // minimum width, and the gap comes out of each column's share
+      // (layout.php:877-881). A gap the block leaves out is the one its own
+      // block type or the root sets, support or not.
+      $count = (int) $used['column_count'];
+      $override = $this->themeSettings->blockGapOverride($blockName, (string) ($used['css_class'] ?? ''));
+      // Without block gap support the root gap's custom property is unset, so
+      // the theme's own root value is the fallback.
+      if ($override === NULL && !$this->themeSettings->hasBlockGapSupport()) {
+        $override = $this->themeSettings->rootBlockGap();
+      }
+      $gap = $this->gap($blockName, $used)
+        ?? PresetValue::layoutGap($override === NULL ? self::ROOT_GAP : self::gapSide($override, 'left'));
+      $gap = $gap === '0' ? '0px' : $gap;
+      $width = PresetValue::css((string) $used['minimum_column_width']);
+      $declarations['grid-template-columns'] = "repeat(auto-fill, minmax(max(min($width, 100%), (100% - ($gap * ($count - 1))) /$count), 1fr))";
+      $declarations['container-type'] = 'inline-size';
+    }
+    elseif (!empty($used['column_count'])) {
       $declarations['grid-template-columns'] = sprintf('repeat(%d, minmax(0, 1fr))', (int) $used['column_count']);
     }
     else {
@@ -222,7 +251,7 @@ final class LayoutCss {
       $declarations['grid-template-columns'] = sprintf('repeat(auto-fill, minmax(min(%s, 100%%), 1fr))', $width);
       $declarations['container-type'] = 'inline-size';
     }
-    $gap = $this->gap($used);
+    $gap = $this->gap($blockName, $used);
     if ($gap !== NULL) {
       $declarations['gap'] = $gap;
     }
@@ -232,8 +261,8 @@ final class LayoutCss {
   /**
    * Returns the rules that space out the children of a stacked layout.
    */
-  private function gapRules(array $used): array {
-    $gaps = $this->gapValues($used);
+  private function gapRules(string $blockName, array $used): array {
+    $gaps = $this->themeSettings->hasBlockGapSupport() ? $this->gapValues($blockName, $used) : [];
     if ($gaps === []) {
       return [];
     }
@@ -253,8 +282,8 @@ final class LayoutCss {
    * sets no gap at all. WordPress special-cases a literal `0` to `0px`
    * because the calc() this feeds needs a real unit.
    */
-  private function galleryGapColumn(array $used): string {
-    $values = $this->gapValues($used);
+  private function galleryGapColumn(string $blockName, array $used): string {
+    $values = $this->gapValues($blockName, $used);
     if ($values === []) {
       return self::GALLERY_GAP_FALLBACK;
     }
@@ -265,20 +294,36 @@ final class LayoutCss {
   /**
    * Returns the gap as CSS, or NULL when the block sets none.
    */
-  private function gap(array $used): ?string {
-    $values = $this->gapValues($used);
+  private function gap(string $blockName, array $used): ?string {
+    $values = $this->themeSettings->hasBlockGapSupport() ? $this->gapValues($blockName, $used) : [];
     return $values === [] ? NULL : implode(' ', $values);
   }
 
   /**
    * Returns the row and optional column gap without splitting CSS functions.
    */
-  private function gapValues(array $used): array {
+  private function gapValues(string $blockName, array $used): array {
     if (!isset($used['block_gap']) || $used['block_gap'] === '') {
       return [];
     }
     $values = $this->splitGap(trim((string) $used['block_gap']));
-    return array_map([PresetValue::class, 'layoutGap'], $values);
+    // A side the block leaves out takes the gap its own block type or style
+    // variation sets, else the root gap (layout.php:1177-1193).
+    $override = $this->themeSettings->blockGapOverride($blockName, (string) ($used['css_class'] ?? ''));
+    $sides = ['top', 'left'];
+    foreach ($values as $index => $value) {
+      $values[$index] = PresetValue::layoutGap($value === self::ROOT_GAP && $override !== NULL ? self::gapSide($override, $sides[$index]) : $value);
+    }
+    return $values;
+  }
+
+  /**
+   * Returns the gap of one side, as layout.php reads a fallback gap.
+   *
+   * An array without the side stands for its first value.
+   */
+  private static function gapSide(string|array $gap, string $side): string {
+    return is_array($gap) ? $gap[$side] ?? reset($gap) : $gap;
   }
 
   /**

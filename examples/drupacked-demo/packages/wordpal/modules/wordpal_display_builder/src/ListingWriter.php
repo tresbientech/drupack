@@ -205,7 +205,7 @@ final class ListingWriter {
     if ($existing !== NULL) {
       return $existing;
     }
-    $tree = $this->sourceTreeBuilder->build([$loop->noResults], $mapping);
+    $tree = $this->sourceTreeBuilder->build([$loop->noResults], $mapping, inQuery: TRUE);
     $preset = $this->savePreset($emptyPatternId, "$ownerLabel query empty state", $tree, $mapping->themeId());
     $preset->disable()->save();
     return $preset;
@@ -229,7 +229,7 @@ final class ListingWriter {
    * dropped from the card and reported, the same as on the page route.
    */
   private function rowComponent(QueryLoop $loop, string $bundle, ContentMapping $mapping): array {
-    $tree = $this->sourceTreeBuilder->build($loop->postTemplate->children, $mapping, boundBundle: $bundle);
+    $tree = $this->sourceTreeBuilder->build($loop->postTemplate->children, $mapping, boundBundle: $bundle, inQuery: TRUE);
     if ($tree === []) {
       throw new \UnexpectedValueException('A Query card has no block Display Builder can render.');
     }

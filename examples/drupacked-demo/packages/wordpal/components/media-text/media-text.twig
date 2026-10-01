@@ -21,7 +21,7 @@
     <video controls src="{{ wordpal_url(media_url) }}"></video>
   {%- elseif media_url -%}
     {%- if href -%}<a{% if link_class %} class="{{ link_class }}"{% endif %} href="{{ wordpal_url(href) }}"{% if link_target %} target="{{ link_target }}"{% endif %}{% if rel %} rel="{{ rel }}"{% endif %}>{%- endif -%}
-    <img{% if in_template_part %} decoding="async"{% endif %} src="{{ wordpal_url(media_url) }}" alt="{{ media_alt|default('') }}"{{ create_attribute({'class': image_classes|filter(c => c)}) }}/>
+    <img{% if in_template_part %} decoding="async"{% endif %} src="{{ wordpal_url(media_url) }}" alt="{{ media_alt|default('') }}"{{ create_attribute({'class': image_classes|filter(c => c)}) }}{% if image_fill %} style="object-position:{{ wordpal_css_value(focal_point ?: '50% 50%') }}"{% endif %}/>
     {%- if href -%}</a>{%- endif -%}
   {%- endif -%}
 </figure>

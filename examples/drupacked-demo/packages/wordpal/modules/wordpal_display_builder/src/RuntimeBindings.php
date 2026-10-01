@@ -10,7 +10,9 @@ use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\wordpal_convert\Component\ComponentSet;
 use Drupal\wordpal_convert\Content\ContentMapping;
 use Drupal\wordpal_convert\Content\MediaSourceField;
+use Drupal\wordpal_convert\Theme\AuthorBio;
 use Drupal\wordpal_convert\Theme\BlockNode;
+use Drupal\wordpal_convert\Theme\PostDate;
 use Drupal\wordpal_convert\Theme\TreeConcepts;
 
 /**
@@ -116,7 +118,10 @@ final class RuntimeBindings {
         'url' => self::entityLink(),
       ],
       'core/post-date' => $this->postDate($node, $bundle),
-      'core/post-author-name', 'core/post-author', 'core/avatar' => [
+      'core/post-author' => [
+        'author_id' => self::field('node', $bundle, 'uid', self::leaf('field_property:node:uid:target_id')),
+      ] + $this->authorBio($node, $bundle, $mapping),
+      'core/post-author-name', 'core/avatar' => [
         'author_id' => self::field('node', $bundle, 'uid', self::leaf('field_property:node:uid:target_id')),
       ],
       'core/read-more' => [
@@ -195,7 +200,7 @@ final class RuntimeBindings {
    * modified source.
    */
   private function postDate(BlockNode $node, string $bundle): array {
-    $modified = ($node->attributes['displayType'] ?? 'date') === 'modified';
+    $modified = PostDate::isModified($node);
     $sourceField = $modified ? 'changed' : 'created';
     $bindings = [
       'timestamp' => self::field('node', $bundle, $sourceField, self::leaf("field_property:node:$sourceField:value")),
@@ -205,6 +210,22 @@ final class RuntimeBindings {
       $bindings['published_timestamp'] = self::field('node', $bundle, 'created', self::leaf('field_property:node:created:value'));
     }
     return $bindings;
+  }
+
+  /**
+   * Builds the Author block's biography binding when it shows one.
+   *
+   * The biography is the mapped user field of the post's author; a mapping
+   * that drops it leaves the prop unbound.
+   */
+  private function authorBio(BlockNode $node, string $bundle, ContentMapping $mapping): array {
+    $source = AuthorBio::source($node, $mapping, $this->fieldManager);
+    if ($source === NULL) {
+      return [];
+    }
+    [$fieldName, $property] = $source;
+    $leaf = self::reference('node', $bundle, 'uid', 'user', 'user', self::leaf("field_property:user:$fieldName:$property"));
+    return ['author_bio' => self::field('node', $bundle, 'uid', $leaf)];
   }
 
   /**
@@ -235,10 +256,12 @@ final class RuntimeBindings {
   private function featuredImage(BlockNode $node, string $bundle, ContentMapping $mapping): array {
     $field = $this->resolvedField($node->name, 'src', $mapping, 'featured_image', $bundle);
     $fieldName = $field->getName();
+    $title = self::field('node', $bundle, 'title', self::leaf('field_property:node:title:value'));
     if ($field->getType() !== 'entity_reference') {
       return [
         'src' => self::field('node', $bundle, $fieldName, self::reference('node', $bundle, $fieldName, 'file', 'file', self::leaf('field_property:file:uri:value'))),
         'alt' => self::field('node', $bundle, $fieldName, self::leaf("field_property:node:$fieldName:alt")),
+        'title' => $title,
         'image_width' => self::field('node', $bundle, $fieldName, self::leaf("field_property:node:$fieldName:width")),
         'image_height' => self::field('node', $bundle, $fieldName, self::leaf("field_property:node:$fieldName:height")),
         'url' => self::entityLink(),
@@ -249,6 +272,7 @@ final class RuntimeBindings {
     return [
       'src' => $toMedia(self::reference('media', $mediaBundle, $sourceField, 'file', 'file', self::leaf('field_property:file:uri:value'))),
       'alt' => $toMedia(self::leaf("field_property:media:$sourceField:alt")),
+      'title' => $title,
       'image_width' => $toMedia(self::leaf("field_property:media:$sourceField:width")),
       'image_height' => $toMedia(self::leaf("field_property:media:$sourceField:height")),
       'url' => self::entityLink(),

@@ -521,6 +521,9 @@ final class Snapshot {
     $wideSize = $settings['layout']['wideSize'] ?? NULL;
     $fluid = $settings['typography']['fluid'] ?? NULL;
     $variations = $settings['styled_variations'] ?? NULL;
+    $registered = $settings['registered_variations'] ?? NULL;
+    $blockGaps = $settings['block_gaps'] ?? NULL;
+    $buttonWidths = $settings['button_widths'] ?? NULL;
     $position = $settings['position'] ?? NULL;
     $duotoneFilters = $settings['duotone_filters'] ?? NULL;
     if (
@@ -528,9 +531,18 @@ final class Snapshot {
       || !is_array($settings['layout'] ?? NULL)
       || ($wideSize !== NULL && !is_string($wideSize))
       || !is_bool($settings['use_root_padding_aware_alignments'] ?? NULL)
+      || !is_bool($settings['block_gap_support'] ?? NULL)
       || (!is_bool($fluid) && !is_array($fluid))
       || !is_array($variations)
       || array_filter($variations, 'is_string') !== $variations
+      || !is_array($registered)
+      || array_filter($registered, static fn (mixed $names): bool => is_array($names) && array_filter($names, 'is_string') === $names) !== $registered
+      || !is_array($blockGaps)
+      || array_filter($blockGaps, self::isGap(...)) !== $blockGaps
+      || !array_key_exists('root_block_gap', $settings)
+      || !($settings['root_block_gap'] === NULL || self::isGap($settings['root_block_gap']))
+      || !is_array($buttonWidths)
+      || array_filter($buttonWidths, 'is_string') !== $buttonWidths
       || !is_bool($position['sticky'] ?? NULL)
       || !is_bool($position['fixed'] ?? NULL)
       || !is_array($duotoneFilters)
@@ -539,6 +551,13 @@ final class Snapshot {
       throw new \UnexpectedValueException('Snapshot settings.json has an invalid shape. Run with --refresh.');
     }
     return $settings;
+  }
+
+  /**
+   * Returns the size of a dimension preset a Button width can name, or NULL.
+   */
+  public function buttonWidth(string $slug): ?string {
+    return $this->settings()['button_widths'][$slug] ?? NULL;
   }
 
   /**
@@ -740,6 +759,13 @@ final class Snapshot {
       }
     }
     return $renders;
+  }
+
+  /**
+   * Returns whether a value is a block gap: a string, or its string sides.
+   */
+  private static function isGap(mixed $gap): bool {
+    return is_string($gap) || (is_array($gap) && $gap !== [] && array_filter($gap, 'is_string') === $gap);
   }
 
   /**

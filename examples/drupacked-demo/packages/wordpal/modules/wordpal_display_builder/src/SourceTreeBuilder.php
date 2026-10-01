@@ -70,6 +70,11 @@ final class SourceTreeBuilder {
    */
   private bool $inGallery = FALSE;
 
+  /**
+   * Whether the nodes being built sit inside a Query block.
+   */
+  private bool $inQuery = FALSE;
+
   public function __construct(
     private readonly ComponentPluginManager $componentPluginManager,
     private readonly RuntimeBindings $runtimeBindings,
@@ -114,19 +119,22 @@ final class SourceTreeBuilder {
    *   is the bundle's only tree at that position, so it keeps the default.
    * @param bool $inTemplatePart
    *   Whether $nodes are a page frame's Template part.
+   * @param bool $inQuery
+   *   Whether $nodes are the card or empty state of a Query.
    *
    * @return array
    *   A list of source nodes, in Display Builder's stored shape.
    */
-  public function build(array $nodes, ContentMapping $mapping, array $replacements = [], ?callable $dynamicSource = NULL, ?string $boundBundle = NULL, array $rootPath = [], bool $inTemplatePart = FALSE): array {
-    $context = [$this->inTemplatePart, $this->inGallery];
+  public function build(array $nodes, ContentMapping $mapping, array $replacements = [], ?callable $dynamicSource = NULL, ?string $boundBundle = NULL, array $rootPath = [], bool $inTemplatePart = FALSE, bool $inQuery = FALSE): array {
+    $context = [$this->inTemplatePart, $this->inGallery, $this->inQuery];
     // A Query card tree built inside a Template part stays inside it.
     $this->inTemplatePart = $this->inTemplatePart || $inTemplatePart;
+    $this->inQuery = $this->inQuery || $inQuery;
     try {
       return $this->buildLevel($nodes, $rootPath, $mapping, $replacements, $dynamicSource, $boundBundle);
     }
     finally {
-      [$this->inTemplatePart, $this->inGallery] = $context;
+      [$this->inTemplatePart, $this->inGallery, $this->inQuery] = $context;
     }
   }
 
@@ -285,15 +293,15 @@ final class SourceTreeBuilder {
     }
     $slotId = array_key_first($metadata->slots);
     if ($slotId !== NULL && $node->children !== []) {
-      $context = [$this->inTemplatePart, $this->inGallery];
-      [$this->inTemplatePart, $this->inGallery] = ComponentInputs::childContext($node, ...$context);
+      $context = [$this->inTemplatePart, $this->inGallery, $this->inQuery];
+      [$this->inTemplatePart, $this->inGallery, $this->inQuery] = ComponentInputs::childContext($node, ...$context);
       try {
         $component['slots'] = [
           $slotId => ['sources' => $this->buildLevel(TreeConcepts::childNodes($node), [...$path, $slotId], $mapping, $replacements, $dynamicSource, $boundBundle)],
         ];
       }
       finally {
-        [$this->inTemplatePart, $this->inGallery] = $context;
+        [$this->inTemplatePart, $this->inGallery, $this->inQuery] = $context;
       }
     }
     return [
@@ -323,7 +331,7 @@ final class SourceTreeBuilder {
   private function props(BlockNode $node, array $properties, ?callable $dynamicSource, ContentMapping $mapping): array {
     // This target reports no line for a value no prop accepts.
     $skipped = [];
-    $values = $this->componentInputs->forNode($node, $skipped) + ComponentInputs::mapped($node, $mapping) + ComponentInputs::contextInputs($node, $this->inTemplatePart, $this->inGallery);
+    $values = $this->componentInputs->forNode($node, $skipped) + ComponentInputs::mapped($node, $mapping, $this->inQuery) + ComponentInputs::contextInputs($node, $this->inTemplatePart, $this->inGallery);
     $props = [];
     foreach ($properties as $prop => $schema) {
       $bound = $dynamicSource === NULL ? NULL : $dynamicSource($node, $prop, $schema);

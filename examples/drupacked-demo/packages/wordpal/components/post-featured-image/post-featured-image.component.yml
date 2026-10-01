@@ -16,6 +16,9 @@ props:
     alt:
       title: Alt
       type: string
+    title:
+      title: 'Post title'
+      type: string
     image_width:
       title: 'Image width'
       type: integer

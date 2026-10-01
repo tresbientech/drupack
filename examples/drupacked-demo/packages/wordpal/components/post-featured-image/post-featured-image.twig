@@ -19,7 +19,7 @@
   |merge(['has-background-dim', 'has-background-dim-' ~ dim_ratio])
   |merge(overlay_color ? ['has-' ~ overlay_color ~ '-background-color'] : [])
   |merge(gradient or custom_gradient ? ['has-background-gradient'] : [])
-  |merge(gradient ? ['has-' ~ gradient ~ '-gradient-background'] : []) %}
+  |merge(gradient ? ['has-' ~ wordpal_gradient_slug(gradient) ~ '-gradient-background'] : []) %}
 {%- set overlay_style -%}
   {%- if border['style'] is not null -%}{{ border['style']|trim(';', 'right') }};{%- endif -%}
   {%- if custom_gradient -%}background-image:{{ wordpal_css_value(custom_gradient) }};{%- endif -%}
@@ -27,4 +27,4 @@
 {%- endset -%}
 {% set overlay %}{% if dim_ratio %}<span class="{{ overlay_classes|join(' ') }}" style="{{ overlay_style }}" aria-hidden="true"></span>{% endif %}{% endset %}
 {% set wrapper_context = _context|filter((value, key) => key not in border_keys and key not in ['shadow', 'gradient', 'custom_gradient']) %}
-{% if src %}<figure{{ attributes.addClass('wp-block-post-featured-image').merge(wordpal_attributes('core/post-featured-image', wrapper_context, false)) }}>{% if is_link %}<a href="{{ wordpal_url(url) }}" target="_self">{% endif %}<img src="{{ wordpal_url(src) }}" class="{{ image_classes|join(' ') }} wp-post-image" alt="{{ alt|default('') }}"{% if image_style %} style="{{ image_style }}"{% endif %} decoding="async" loading="lazy"{% if image_width %} width="{{ image_width }}"{% endif %}{% if image_height %} height="{{ image_height }}"{% endif %} />{{ overlay }}{% if is_link %}</a>{% endif %}</figure>{{ wordpal_duotone_filter(duotone) }}{% endif %}
+{% if src %}<figure{{ attributes.addClass('wp-block-post-featured-image').merge(wordpal_attributes('core/post-featured-image', wrapper_context, false)) }}>{% if is_link %}<a href="{{ wordpal_url(url) }}" target="{{ link_target|default('_self') }}"{% if rel %} rel="{{ rel }}"{% endif %}>{% endif %}<img src="{{ wordpal_url(src) }}" class="{{ image_classes|join(' ') }} wp-post-image" alt="{{ is_link and title ? title|striptags|trim : alt|default('') }}"{% if image_style %} style="{{ image_style }}"{% endif %} decoding="async" loading="lazy"{% if image_width %} width="{{ image_width }}"{% endif %}{% if image_height %} height="{{ image_height }}"{% endif %} />{{ overlay }}{% if is_link %}</a>{% endif %}</figure>{{ wordpal_duotone_filter(duotone) }}{% endif %}

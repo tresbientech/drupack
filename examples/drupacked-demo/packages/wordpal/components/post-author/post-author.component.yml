@@ -12,6 +12,9 @@ props:
       type: integer
       examples:
         - 1
+    author_bio:
+      title: 'Author biography'
+      type: string
     is_link:
       title: 'Is link'
       type: boolean

@@ -42,6 +42,11 @@ final class TreeConcepts {
       return $node->children;
     }
     $context = array_intersect_key($node->attributes, array_flip(self::SOCIAL_LINK_CONTEXT));
+    // The editor clears the icon background color of the Logos Only style on
+    // load (social-links/edit.js).
+    if (in_array('is-style-logos-only', explode(' ', $node->attributes['className'] ?? ''), TRUE)) {
+      unset($context['iconBackgroundColor'], $context['iconBackgroundColorValue']);
+    }
     return array_map(
       static fn (BlockNode $child): BlockNode => new BlockNode($child->name, $child->attributes + $context, $child->innerHtml, $child->children, $child->rendered, $child->isValid, $child->cut),
       $node->children,

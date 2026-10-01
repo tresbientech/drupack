@@ -737,9 +737,29 @@ $settings = $theme_json->get_settings();
 $styles = $theme_json->get_raw_data()['styles'] ?? [];
 
 $variations = [];
+// The gap a block type, or one of its style variations, sets for itself
+// (layout.php reads these before the root gap): a string, or an object with
+// "top" and "left".
+$block_gaps = [];
+// The size of each dimension preset a Button width can name. blocks/button.php
+// reads wp_get_global_settings() scoped to core/button, so only the block's
+// own presets count, searched by origin: custom, then theme, then default.
+$dimension_origins = $settings['blocks']['core/button']['dimensions']['dimensionSizes'] ?? [];
+$button_widths = [];
+foreach (['custom', 'theme', 'default'] as $origin) {
+  foreach ($dimension_origins[$origin] ?? [] as $preset) {
+    $button_widths[$preset['slug']] ??= $preset['size'];
+  }
+}
 foreach ($styles['blocks'] ?? [] as $block_name => $block_styles) {
-  foreach (array_keys($block_styles['variations'] ?? []) as $variation) {
+  if (isset($block_styles['spacing']['blockGap'])) {
+    $block_gaps[$block_name] = $block_styles['spacing']['blockGap'];
+  }
+  foreach ($block_styles['variations'] ?? [] as $variation => $variation_styles) {
     $variations["$block_name/$variation"] = wordpal_variation_class($block_name, $variation);
+    if (isset($variation_styles['spacing']['blockGap'])) {
+      $block_gaps["$block_name/$variation"] = $variation_styles['spacing']['blockGap'];
+    }
   }
 }
 
@@ -752,6 +772,13 @@ foreach ($settings['color']['duotone'] ?? [] as $origin_presets) {
   }
 }
 
+// layout.php resolves a class attribute's style variation against this
+// registry alone, so a variation only block.json declares does not count.
+$registered_variations = [];
+foreach (WP_Block_Styles_Registry::get_instance()->get_all_registered() as $block_name => $block_styles) {
+  $registered_variations[$block_name] = array_map('strval', array_keys($block_styles));
+}
+
 file_put_contents($out . '/settings.json', json_encode([
   'layout' => ['wideSize' => $settings['layout']['wideSize'] ?? NULL],
   'position' => [
@@ -760,10 +787,16 @@ file_put_contents($out . '/settings.json', json_encode([
   ],
   'duotone_filters' => (object) $duotone_filters,
   'use_root_padding_aware_alignments' => $settings['useRootPaddingAwareAlignments'] ?? FALSE,
+  'block_gap_support' => isset($settings['spacing']['blockGap']),
+  'block_gaps' => (object) $block_gaps,
+  // The fallback for a gap nothing else sets, as theme.json states it.
+  'root_block_gap' => $styles['spacing']['blockGap'] ?? NULL,
+  'button_widths' => (object) $button_widths,
   'typography' => [
     'fluid' => $settings['typography']['fluid'] ?? FALSE,
   ],
   'styled_variations' => $variations,
+  'registered_variations' => (object) $registered_variations,
 ], JSON_PRETTY_PRINT));
 
 // The presets the theme defines, one list per group of a preset reference.

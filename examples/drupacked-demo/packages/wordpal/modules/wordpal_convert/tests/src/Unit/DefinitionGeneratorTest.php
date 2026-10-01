@@ -455,9 +455,10 @@ class DefinitionGeneratorTest extends UnitTestCase {
       'title' => 'Image',
       'category' => 'media',
       'attributes' => [],
-      'supports' => [],
+      'supports' => ['align' => ['left', 'center', 'right', 'wide', 'full']],
     ])['definition']['props']['properties'];
     $this->assertSame('boolean', $image['in_template_part']['type']);
+    $this->assertSame('none', $image['align']['enum'][0]);
   }
 
   /**

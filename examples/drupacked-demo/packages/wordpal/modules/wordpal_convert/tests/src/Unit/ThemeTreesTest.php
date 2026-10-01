@@ -6,6 +6,7 @@ namespace Drupal\Tests\wordpal_convert\Unit;
 
 use Drupal\Tests\UnitTestCase;
 use Drupal\wordpal_convert\Theme\AttributeSourceInterface;
+use Drupal\wordpal_convert\Theme\BlockNode;
 use Drupal\wordpal_convert\Theme\BlockParser;
 use Drupal\wordpal_convert\Theme\ReferenceExpander;
 use Drupal\wordpal_convert\Theme\ThemeTrees;
@@ -454,6 +455,33 @@ final class ThemeTreesTest extends UnitTestCase {
     $variant = $this->trees()->template($snapshot, 'variant');
 
     self::assertNotSame($single->partSet->id('fixture'), $variant->partSet->id('fixture'));
+  }
+
+  /**
+   * Tests that a Button's width preset resolves from the theme's sizes.
+   */
+  public function testResolvesButtonWidthPreset(): void {
+    $snapshot = $this->snapshot();
+    file_put_contents($this->directory . '/settings.json', json_encode([
+      'layout' => ['wideSize' => '1200px'],
+      'position' => ['sticky' => FALSE, 'fixed' => FALSE],
+      'duotone_filters' => [],
+      'use_root_padding_aware_alignments' => FALSE,
+      'block_gap_support' => FALSE,
+      'block_gaps' => [],
+      'root_block_gap' => NULL,
+      'button_widths' => ['33' => '33%', 'wide' => '20rem'],
+      'typography' => ['fluid' => FALSE],
+      'styled_variations' => [],
+      'registered_variations' => [],
+    ], JSON_THROW_ON_ERROR));
+    $expander = new ReferenceExpander(new BlockParser($this->createStub(AttributeSourceInterface::class)));
+    $width = static fn (string $value): mixed => $expander->expand([new BlockNode('core/button', ['style' => ['dimensions' => ['width' => $value]]], '', [])], $snapshot)[0]->attributes['style']['dimensions']['width'];
+
+    self::assertSame('33%', $width('var:preset|dimension|33'));
+    self::assertSame('var:preset|dimension|wide', $width('var:preset|dimension|wide'));
+    self::assertSame('var:preset|dimension|missing', $width('var:preset|dimension|missing'));
+    self::assertSame('40%', $width('40%'));
   }
 
   /**

@@ -1,1 +1,6 @@
-<a href="{{ wordpal_url(url) }}"{{ attributes.addClass('wp-block-query-pagination-previous').merge(wordpal_attributes('core/query-pagination-previous', _context, false)) }}>{% if pagination_arrow in ['arrow', 'chevron'] %}<span class="wp-block-query-pagination-previous-arrow is-arrow-{{ pagination_arrow }}" aria-hidden="true">{{ pagination_arrow == 'arrow' ? '←' : '«' }}</span>{% endif %}{{ label }}</a>
+{# WordPress hides the label only for an arrow or chevron, as the editor
+   does (query-pagination/edit.js). #}
+{% set label_hidden = show_label is same as(false) and pagination_arrow in ['arrow', 'chevron'] %}
+{% set link = attributes.addClass('wp-block-query-pagination-previous').merge(wordpal_attributes('core/query-pagination-previous', _context, false)) %}
+{% if label_hidden %}{% set link = link.setAttribute('aria-label', label) %}{% endif %}
+<a href="{{ wordpal_url(url) }}"{{ link }}>{% if pagination_arrow in ['arrow', 'chevron'] %}<span class="wp-block-query-pagination-previous-arrow is-arrow-{{ pagination_arrow }}" aria-hidden="true">{{ pagination_arrow == 'arrow' ? '←' : '«' }}</span>{% endif %}{{ label_hidden ? '' : label }}</a>

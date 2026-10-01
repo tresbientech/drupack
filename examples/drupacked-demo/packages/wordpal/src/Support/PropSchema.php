@@ -7,43 +7,44 @@ namespace Drupal\wordpal\Support;
 /**
  * The WordPress block-support facts every reader of a prop needs.
  *
- * Holds which props are presets and in what shape, which blocks build their
- * wrapper at render time, and which props the style engine writes there.
+ * Holds which props are presets and their preset group, which blocks build
+ * their wrapper at render time, and which props the style engine writes
+ * there.
  * `InspectorFormHooks`, `CanvasWriter` and `BlockSupports` read these facts
  * through this class rather than each holding its own copy of the tables.
  */
 final class PropSchema {
 
   /**
-   * Preset props, as prop => [theme.json preset group, stored shape].
+   * Preset props, as prop => theme.json preset group.
    *
-   * A slug shape becomes a class, such as `has-base-color`. A reference
-   * shape stores a `var:preset|<group>|<slug>` string.
+   * A prop stores a preset as a `var:preset|<group>|<slug>` string and any
+   * other value as the CSS the author wrote.
    *
    * @see \Drupal\wordpal\Support\PresetValue::css()
    */
   private const PRESETS = [
-    'background_color' => ['color', PresetShape::Slug],
-    'text_color' => ['color', PresetShape::Slug],
-    'gradient' => ['gradient', PresetShape::Slug],
-    'border_color' => ['color', PresetShape::Slug],
-    'font_size' => ['font-size', PresetShape::Slug],
-    'font_family' => ['font-family', PresetShape::Slug],
-    'link_color' => ['color', PresetShape::Reference],
-    'heading_color' => ['color', PresetShape::Reference],
-    'border_top_color' => ['color', PresetShape::Reference],
-    'border_right_color' => ['color', PresetShape::Reference],
-    'border_bottom_color' => ['color', PresetShape::Reference],
-    'border_left_color' => ['color', PresetShape::Reference],
-    'padding_top' => ['spacing', PresetShape::Reference],
-    'padding_right' => ['spacing', PresetShape::Reference],
-    'padding_bottom' => ['spacing', PresetShape::Reference],
-    'padding_left' => ['spacing', PresetShape::Reference],
-    'margin_top' => ['spacing', PresetShape::Reference],
-    'margin_right' => ['spacing', PresetShape::Reference],
-    'margin_bottom' => ['spacing', PresetShape::Reference],
-    'margin_left' => ['spacing', PresetShape::Reference],
-    'block_gap' => ['spacing', PresetShape::Reference],
+    'background_color' => 'color',
+    'text_color' => 'color',
+    'gradient' => 'gradient',
+    'border_color' => 'color',
+    'font_size' => 'font-size',
+    'font_family' => 'font-family',
+    'link_color' => 'color',
+    'heading_color' => 'color',
+    'border_top_color' => 'color',
+    'border_right_color' => 'color',
+    'border_bottom_color' => 'color',
+    'border_left_color' => 'color',
+    'padding_top' => 'spacing',
+    'padding_right' => 'spacing',
+    'padding_bottom' => 'spacing',
+    'padding_left' => 'spacing',
+    'margin_top' => 'spacing',
+    'margin_right' => 'spacing',
+    'margin_bottom' => 'spacing',
+    'margin_left' => 'spacing',
+    'block_gap' => 'spacing',
   ];
 
   /**
@@ -114,14 +115,10 @@ final class PropSchema {
   ];
 
   /**
-   * The preset group and stored shape of a prop, or NULL for a plain prop.
+   * The preset group of a prop, or NULL for a plain prop.
    */
-  public static function preset(string $prop): ?PresetSupport {
-    if (!isset(self::PRESETS[$prop])) {
-      return NULL;
-    }
-    [$group, $shape] = self::PRESETS[$prop];
-    return new PresetSupport($group, $shape);
+  public static function presetGroup(string $prop): ?string {
+    return self::PRESETS[$prop] ?? NULL;
   }
 
   /**

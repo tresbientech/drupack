@@ -63,4 +63,24 @@ final class AttributeFlattenerTest extends UnitTestCase {
     self::assertSame(['style.elements.link.:hover.color.text'], (new AttributeFlattener())->unreadStyles($attributes, 'core/group'));
   }
 
+  /**
+   * Tests a slug that starts with a digit is still a preset reference.
+   */
+  public function testDigitLeadingSlugIsPresetReference(): void {
+    $props = (new AttributeFlattener())->flatten(['fontSize' => '2xl', 'backgroundColor' => '2'], 'core/paragraph');
+
+    self::assertSame('var:preset|font-size|2-xl', $props['font_size']);
+    self::assertSame('var:preset|color|2', $props['background_color']);
+  }
+
+  /**
+   * Tests every preset attribute kebab-cases its slug as WordPress does.
+   */
+  public function testPresetSlugsAreKebabCased(): void {
+    $props = (new AttributeFlattener())->flatten(['backgroundColor' => 'accent_1', 'textColor' => 'vividCyan'], 'core/paragraph');
+
+    self::assertSame('var:preset|color|accent-1', $props['background_color']);
+    self::assertSame('var:preset|color|vivid-cyan', $props['text_color']);
+  }
+
 }

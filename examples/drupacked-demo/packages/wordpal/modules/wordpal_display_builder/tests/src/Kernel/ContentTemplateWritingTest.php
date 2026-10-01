@@ -20,6 +20,7 @@ use Drupal\media\Entity\Media;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\taxonomy\Entity\Term;
+use Drupal\Tests\wordpal\Traits\ThemeSettingsTrait;
 use Drupal\wordpal\Component\FrozenBlock;
 use Drupal\wordpal_convert\Content\ContentMapping;
 use Drupal\wordpal_convert\Theme\BlockNode;
@@ -43,6 +44,7 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class ContentTemplateWritingTest extends KernelTestBase {
 
+  use ThemeSettingsTrait;
   use MediaTypeCreationTrait;
   use TaxonomyTestTrait;
   use UserCreationTrait;
@@ -91,6 +93,7 @@ final class ContentTemplateWritingTest extends KernelTestBase {
       'target_type' => 'taxonomy_term',
       'handler_settings' => ['target_bundles' => ['tags' => 'tags']],
     ], FieldStorageConfig::CARDINALITY_UNLIMITED);
+    $this->writeThemeSettings();
     $this->createMediaType('image', ['id' => 'image']);
     $this->addField('blog', 'field_featured_image', 'entity_reference', [
       'target_type' => 'media',

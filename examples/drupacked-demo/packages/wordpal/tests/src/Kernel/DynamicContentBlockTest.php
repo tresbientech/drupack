@@ -14,8 +14,8 @@ use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\taxonomy\Entity\Term;
 use Drupal\taxonomy\Entity\Vocabulary;
+use Drupal\Tests\wordpal\Traits\ThemeSettingsTrait;
 use Drupal\user\Entity\User;
-use Drupal\wordpal\Theme\ThemeSettings;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
@@ -25,6 +25,8 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[Group('wordpal')]
 #[RunTestsInSeparateProcesses]
 final class DynamicContentBlockTest extends KernelTestBase {
+
+  use ThemeSettingsTrait;
 
   /**
    * {@inheritdoc}
@@ -52,8 +54,7 @@ final class DynamicContentBlockTest extends KernelTestBase {
     $this->installEntitySchema('taxonomy_term');
     $this->installSchema('node', ['node_access']);
     $this->installConfig(['system', 'filter', 'user', 'node', 'taxonomy']);
-    $theme = $this->container->get('theme.manager')->getActiveTheme()->getName();
-    $this->container->get('config.factory')->getEditable(ThemeSettings::configName($theme))->save();
+    $this->writeThemeSettings();
     NodeType::create(['type' => 'article', 'name' => 'Article'])->save();
     Vocabulary::create(['vid' => 'topics', 'name' => 'Topics'])->save();
     $term = Term::create(['vid' => 'topics', 'name' => 'Travel']);
@@ -95,7 +96,7 @@ final class DynamicContentBlockTest extends KernelTestBase {
       'show_count' => TRUE,
       'show_hierarchy' => FALSE,
       'show_empty' => TRUE,
-      'supports' => ['font_size' => 'small'],
+      'supports' => ['font_size' => 'var:preset|font-size|small'],
     ]);
     $categoriesBuild = $categories->build();
     self::assertContains('taxonomy_term_list:topics', $categoriesBuild['#cache']['tags']);
@@ -164,7 +165,7 @@ final class DynamicContentBlockTest extends KernelTestBase {
     // input.
     $typographyConfig = $search->getConfiguration();
     $typographyConfig['supports'] = [
-      'font_size' => 'small',
+      'font_size' => 'var:preset|font-size|small',
       'line_height' => '1.8',
       'text_decoration' => 'underline',
       'margin_top' => '12px',
@@ -195,7 +196,7 @@ final class DynamicContentBlockTest extends KernelTestBase {
 
     $biography = $manager->createInstance('wordpal_post_author_biography', [
       'field_name' => 'field_biography',
-      'supports' => ['font_size' => 'small'],
+      'supports' => ['font_size' => 'var:preset|font-size|small'],
     ]);
     self::assertSame(['#cache' => ['contexts' => ['route']]], $biography->build());
     $biography->setContext('node', new Context(new EntityContextDefinition('entity:node', required: FALSE), $node));
@@ -235,8 +236,7 @@ final class DynamicContentBlockTest extends KernelTestBase {
     $this->installSchema('node', ['node_access']);
     $this->installConfig(['system', 'filter', 'user', 'node', 'taxonomy']);
     $this->enableModules(['node_access_test']);
-    $theme = $this->container->get('theme.manager')->getActiveTheme()->getName();
-    $this->container->get('config.factory')->getEditable(ThemeSettings::configName($theme))->save();
+    $this->writeThemeSettings();
     user_role_grant_permissions('anonymous', ['access content']);
     NodeType::create(['type' => 'article', 'name' => 'Article'])->save();
     Vocabulary::create(['vid' => 'topics', 'name' => 'Topics'])->save();

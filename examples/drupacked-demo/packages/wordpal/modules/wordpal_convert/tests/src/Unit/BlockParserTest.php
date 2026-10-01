@@ -161,6 +161,19 @@ class BlockParserTest extends UnitTestCase {
   }
 
   /**
+   * Tests that Custom HTML keeps its markup as the content attribute.
+   *
+   * WordPress 7.1's own parse returns core/html with no attributes.
+   */
+  public function testCustomHtmlKeepsItsMarkupAsContent(): void {
+    $forest = [['name' => 'core/html', 'attributes' => [], 'isValid' => TRUE, 'innerBlocks' => []]];
+
+    [$node] = $this->parserReturning($forest)->parse('<!-- wp:html --><div class="promo">Sale</div><!-- /wp:html -->');
+
+    $this->assertSame(['content' => '<div class="promo">Sale</div>'], $node->attributes);
+  }
+
+  /**
    * Tests that a core/missing fallback keeps the grammar's own attributes.
    */
   public function testFallsBackOnUnresolvedName(): void {

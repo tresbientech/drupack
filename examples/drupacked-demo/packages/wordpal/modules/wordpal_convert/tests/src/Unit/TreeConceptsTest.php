@@ -40,6 +40,18 @@ final class TreeConceptsTest extends UnitTestCase {
   }
 
   /**
+   * Tests the Logos Only style passes no icon background color on.
+   */
+  public function testLogosOnlySocialLinksCarryNoIconBackground(): void {
+    $link = self::node('core/social-link', ['service' => 'x']);
+    $attributes = ['iconColor' => 'contrast', 'iconBackgroundColor' => 'base', 'iconBackgroundColorValue' => '#fff'];
+    $plain = TreeConcepts::childNodes(self::node('core/social-links', $attributes, [$link]));
+    self::assertSame('base', $plain[0]->attributes['iconBackgroundColor']);
+    $logos = TreeConcepts::childNodes(self::node('core/social-links', $attributes + ['className' => 'is-style-logos-only'], [$link]));
+    self::assertSame(['service' => 'x', 'iconColor' => 'contrast'], $logos[0]->attributes);
+  }
+
+  /**
    * Tests a navigation block with its own links binds no mapped menu.
    */
   public function testNavigationWithOwnLinksBindsNoMenu(): void {

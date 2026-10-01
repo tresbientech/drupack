@@ -368,7 +368,12 @@ final class DefinitionGenerator {
         InspectorPanel::KEY => 'settings',
       ];
     }
-    if ($blockName === 'core/cover') {
+    if ($blockName === 'core/image') {
+      // `align: none` is unique to the image block's transforms, and its save
+      // prints an alignnone class for it (image/save.js).
+      $props['align'] = $this->enumProp('Align', ['none', ...$props['align']['enum']], 'align') + [InspectorPanel::KEY => 'settings'];
+    }
+    if (in_array($blockName, ['core/cover', 'core/media-text'], TRUE)) {
       // The flattener prints the `focalPoint` object as whole percentages.
       $props['focal_point'] = $this->stringProp('focal_point') + [InspectorPanel::KEY => 'settings'];
     }

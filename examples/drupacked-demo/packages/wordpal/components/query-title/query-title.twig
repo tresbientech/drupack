@@ -4,10 +4,14 @@
  * WordPress core/query-title.
  *
  * WordPress renders nothing outside the archive or search page its type
- * names.
+ * names. The post-type type names a bundle's label:
+ * - inside a Query, the Query's post bundle;
+ * - on a node route, the routed node's bundle;
+ * - on a listing route (front, term, search), the mapped post bundle.
+ * A 404 prints nothing.
  */
 #}
-{% set title = wordpal_query_title(type ?: '', show_prefix is same as(true), show_search_term is same as(true), tag_vocabulary ?: '', category_vocabulary ?: '', search_path ?: '', search_parameter ?: '') %}
+{% set title = wordpal_query_title(type ?: '', show_prefix is same as(true), show_search_term is same as(true), tag_vocabulary ?: '', category_vocabulary ?: '', search_path ?: '', search_parameter ?: '', post_bundle ?: '', listing_bundle ?: '') %}
 {% if title['#markup'] is defined %}
   {% set tag = level in [1, 2, 3, 4, 5, 6] ? 'h' ~ level : (level is same as(0) ? 'p' : 'h1') %}
 <{{ tag }}{{ attributes.addClass('wp-block-query-title').merge(wordpal_attributes('core/query-title', _context, false)) }}>{{ title }}</{{ tag }}>

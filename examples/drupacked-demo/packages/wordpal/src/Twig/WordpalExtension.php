@@ -13,6 +13,7 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ThemeExtensionList;
+use Drupal\Core\Path\PathMatcherInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Render\RendererInterface;
 use Drupal\Core\Routing\RouteMatchInterface;
@@ -25,7 +26,9 @@ use Drupal\wordpal\Support\Cacheable;
 use Drupal\wordpal\Support\PresetValue;
 use Drupal\wordpal\Support\PropSchema;
 use Drupal\wordpal\Support\SupportOutput;
+use Drupal\wordpal\Theme\BodyClasses;
 use Drupal\wordpal\Theme\ThemeSettings;
+use Drupal\node\NodeInterface;
 use Drupal\taxonomy\TermInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -65,6 +68,8 @@ final class WordpalExtension extends AbstractExtension {
     private readonly RouteMatchInterface $routeMatch,
     private readonly RequestStack $requestStack,
     private readonly ThemeSettings $themeSettings,
+    private readonly PathMatcherInterface $pathMatcher,
+    private readonly BodyClasses $bodyClasses,
     #[Autowire(param: 'app.root')]
     private readonly string $appRoot,
   ) {}
@@ -77,8 +82,10 @@ final class WordpalExtension extends AbstractExtension {
       new TwigFunction('wordpal_attributes', $this->attributes(...)),
       new TwigFunction('wordpal_layout_attributes', $this->layoutAttributes(...)),
       new TwigFunction('wordpal_css_value', PresetValue::css(...)),
+      new TwigFunction('wordpal_gradient_slug', PresetValue::gradientSlug(...)),
       new TwigFunction('wordpal_border_props', static fn (): array => PropSchema::BORDER_PROPS),
       new TwigFunction('wordpal_css_declarations', $this->declarations(...)),
+      new TwigFunction('wordpal_is_processed', static fn (mixed $value): bool => $value instanceof MarkupInterface),
       new TwigFunction('wordpal_html', $this->html(...), ['is_safe' => ['html']]),
       new TwigFunction('wordpal_post_content', $this->postContent(...), ['is_safe' => ['html']]),
       new TwigFunction('wordpal_date', $this->date(...)),
@@ -88,12 +95,14 @@ final class WordpalExtension extends AbstractExtension {
       new TwigFunction('wordpal_social_service', $this->socialService(...)),
       new TwigFunction('wordpal_query_title', $this->queryTitle(...)),
       new TwigFunction('wordpal_term_description', $this->termDescription(...)),
+      new TwigFunction('wordpal_trim_words', $this->trimWords(...)),
       new TwigFunction('wordpal_url', UrlHelper::stripDangerousProtocols(...)),
       new TwigFunction('wordpal_css_url', $this->cssUrl(...)),
       new TwigFunction('wordpal_background_style', $this->backgroundStyle(...)),
       new TwigFunction('wordpal_duotone_filter', $this->duotoneFilter(...)),
       new TwigFunction('wordpal_frozen_html', $this->frozenHtml(...)),
       new TwigFunction('wordpal_accordion_item', $this->accordionItem(...), ['is_safe' => ['html']]),
+      new TwigFunction('wordpal_low_priority_images', $this->lowPriorityImages(...), ['is_safe' => ['html']]),
       new TwigFunction('wordpal_avatar', $this->avatar(...)),
     ];
   }
@@ -182,6 +191,20 @@ final class WordpalExtension extends AbstractExtension {
   }
 
   /**
+   * Marks every image of a collapsed Details block fetchpriority="low".
+   *
+   * WordPress does this in block_core_details_set_img_fetchpriority_low()
+   * so a hidden image never competes with the page's LCP image.
+   */
+  public function lowPriorityImages(string|MarkupInterface $markup): string|MarkupInterface {
+    $document = Html::load((string) $markup);
+    foreach ($document->getElementsByTagName('img') as $image) {
+      $image->setAttribute('fetchpriority', 'low');
+    }
+    return Markup::create(Html::serialize($document));
+  }
+
+  /**
    * Filters HTML supplied by a rich-text prop.
    */
   public function html(string $html): string|MarkupInterface {
@@ -203,6 +226,18 @@ final class WordpalExtension extends AbstractExtension {
       $paragraph->setAttribute('class', trim($paragraph->getAttribute('class') . ' wp-block-paragraph'));
     }
     return Markup::create(Html::serialize($document));
+  }
+
+  /**
+   * Cuts text to a word count, as wp_trim_words() does.
+   *
+   * Strips tags and collapses whitespace; a longer text ends with an
+   * ellipsis.
+   */
+  public function trimWords(string $text, int $count): string {
+    $words = preg_split('/\s+/', trim(strip_tags($text)), $count + 1, PREG_SPLIT_NO_EMPTY);
+    $trimmed = count($words) > $count;
+    return implode(' ', array_slice($words, 0, $count)) . ($trimmed ? '…' : '');
   }
 
   /**
@@ -341,7 +376,7 @@ final class WordpalExtension extends AbstractExtension {
    * page "Category:", any other vocabulary its own name.
    *
    * @param string $type
-   *   The page the title shows on: archive or search.
+   *   The page the title shows on: archive, search or post-type.
    * @param bool $showPrefix
    *   Whether an archive title names its vocabulary.
    * @param bool $showSearchTerm
@@ -354,15 +389,22 @@ final class WordpalExtension extends AbstractExtension {
    *   The path of the search page.
    * @param string $searchParameter
    *   The query parameter holding the search keys.
+   * @param string $postBundle
+   *   The node bundle of the enclosing Query's post type, or '' outside a
+   *   Query.
+   * @param string $listingBundle
+   *   The node bundle the content mapping maps WordPress posts to, which a
+   *   listing route names outside a Query, or ''.
    *
    * @return array
    *   The title under #markup, or only its cacheability on any other page.
    */
-  public function queryTitle(string $type, bool $showPrefix, bool $showSearchTerm, string $tagVocabulary, string $categoryVocabulary, string $searchPath, string $searchParameter): array {
-    $metadata = (new CacheableMetadata())->addCacheContexts(['route', 'url.path', 'url.query_args:' . $searchParameter]);
+  public function queryTitle(string $type, bool $showPrefix, bool $showSearchTerm, string $tagVocabulary, string $categoryVocabulary, string $searchPath, string $searchParameter, string $postBundle, string $listingBundle): array {
+    $metadata = (new CacheableMetadata())->addCacheContexts(['route', 'url.path', 'url.query_args:' . $searchParameter])->addCacheTags(['config:system.site']);
     $build = [];
     $term = $this->currentTerm();
     $request = $this->requestStack->getCurrentRequest();
+    $postTypeBundle = $this->postTypeBundle($postBundle, $listingBundle, $searchPath, $request->getPathInfo());
     if ($type === 'archive' && $term !== NULL) {
       $metadata->addCacheableDependency($term);
       $build['#markup'] = Html::escape($term->label());
@@ -379,6 +421,13 @@ final class WordpalExtension extends AbstractExtension {
           '@title' => $term->label(),
         ]);
       }
+    }
+    elseif ($type === 'post-type' && $postTypeBundle !== '') {
+      $bundle = $this->entityTypeManager->getStorage('node_type')->load($postTypeBundle);
+      $metadata->addCacheableDependency($bundle);
+      $build['#markup'] = $showPrefix
+        ? new TranslatableMarkup('Post Type: “@type”', ['@type' => $bundle->label()])
+        : Html::escape($bundle->label());
     }
     elseif ($type === 'search' && $searchPath !== '' && $request->getPathInfo() === $searchPath) {
       // The search keys arrive in the request.
@@ -409,6 +458,46 @@ final class WordpalExtension extends AbstractExtension {
     }
     $html = $this->renderer->render($build);
     return trim((string) $html) === '' ? '' : $html;
+  }
+
+  /**
+   * Returns the node bundle the Post Type title names, or '' for none.
+   *
+   * WordPress names get_post_type(): the Query's own type inside a Query,
+   * "post" on a listing route, the routed post on a node page, and nothing on
+   * a 404.
+   */
+  private function postTypeBundle(string $postBundle, string $listingBundle, string $searchPath, string $path): string {
+    if ($postBundle !== '') {
+      return $postBundle;
+    }
+    // A Display Builder site stores its home and 404 Templates as nodes, so
+    // these checks come before the routed node.
+    if ($this->bodyClasses->isNotFoundPage()) {
+      return '';
+    }
+    if ($this->isListingRoute($searchPath, $path)) {
+      return $listingBundle;
+    }
+    return $this->routedNode()?->bundle() ?? '';
+  }
+
+  /**
+   * Returns whether the current page is the front, a term or the search page.
+   *
+   * These are the listing routes, where WordPress queries its posts.
+   */
+  private function isListingRoute(string $searchPath, string $path): bool {
+    return $this->routeMatch->getRouteName() === 'entity.taxonomy_term.canonical'
+      || ($searchPath !== '' && $path === $searchPath)
+      || $this->pathMatcher->isFrontPage();
+  }
+
+  /**
+   * Returns the node of a node page, or NULL on any other page.
+   */
+  private function routedNode(): ?NodeInterface {
+    return $this->routeMatch->getRouteName() === 'entity.node.canonical' ? $this->routeMatch->getParameter('node') : NULL;
   }
 
   /**
@@ -492,10 +581,11 @@ final class WordpalExtension extends AbstractExtension {
     $background = $this->backgroundStyle($props['background_image'] ?? NULL, $props['background_size'] ?? NULL, $props['background_position'] ?? NULL, $props['background_repeat'] ?? NULL, $props['background_attachment'] ?? NULL);
     if ($background !== []) {
       $output = new SupportOutput(['has-background', ...$output->classes], $output->styles, $output->cssRules, $output->attributes);
-      $extraStyles += $background;
     }
-    if ($extraStyles !== []) {
-      $output = new SupportOutput($output->classes, $extraStyles + $output->styles, $output->cssRules, $output->attributes);
+    if ($extraStyles !== [] || $background !== []) {
+      // The image prints after the gradient shorthand, which resets it
+      // otherwise (WordPress appends the background styles to the saved style).
+      $output = new SupportOutput($output->classes, $extraStyles + $output->styles + $background, $output->cssRules, $output->attributes);
     }
     return $this->toAttribute($output);
   }

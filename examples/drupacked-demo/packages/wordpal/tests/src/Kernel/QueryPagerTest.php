@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\wordpal\Kernel;
 
 use Drupal\KernelTests\KernelTestBase;
+use Drupal\Tests\wordpal\Traits\ThemeSettingsTrait;
 use Drupal\views\Entity\View;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -16,6 +17,8 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class QueryPagerTest extends KernelTestBase {
 
+  use ThemeSettingsTrait;
+
   /**
    * {@inheritdoc}
    *
@@ -25,6 +28,14 @@ final class QueryPagerTest extends KernelTestBase {
     'wordpal', 'system', 'user', 'field', 'node', 'text', 'filter', 'views',
     'comment', 'link', 'menu_link_content',
   ];
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function setUp(): void {
+    parent::setUp();
+    $this->writeThemeSettings();
+  }
 
   /**
    * Tests the pager renders the pagination settings the View holds.

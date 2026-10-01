@@ -10,6 +10,7 @@
  */
 #}
 {% set tag = tag_name in ['a', 'button'] ? tag_name : 'a' %}
+{# A width preset the theme sizes in percent arrives as that percentage. #}
 {% set percent = width and width ends with '%' ? width|trim('%', 'right') + 0 : null %}
 {% set wrapper = [
   'wp-block-button',
@@ -23,11 +24,11 @@
   {% set wrapper_attributes = wrapper_attributes.setAttribute('style', width_style ~ (wrapper_attributes.style ? ' ' ~ wrapper_attributes.style : '')) %}
 {% endif %}
 {% set link = attributes
-  .addClass(['wp-block-button__link', 'wp-element-button', font_size ? 'has-custom-font-size'])
+  .addClass(['wp-block-button__link', 'wp-element-button', font_size ? 'has-custom-font-size', border_radius is same as('0') ? 'no-border-radius'])
   .addClass(link_css_class ? link_css_class|split(' ') : [])
   .merge(wordpal_attributes('core/button', _context|merge({'css_class': null, 'anchor': null, 'writing_mode': null}), false)) %}
 {% if tag == 'button' %}
-  {% set link = link.setAttribute('type', 'button') %}
+  {% set link = link.setAttribute('type', type ?: 'button') %}
 {% endif %}
 {% if tag == 'a' and url %}
   {% set link = link.setAttribute('href', wordpal_url(url)) %}
@@ -41,4 +42,7 @@
 {% if title %}
   {% set link = link.setAttribute('title', title) %}
 {% endif %}
-<div{{ wrapper_attributes }}><{{ tag }}{{ link }}>{{ wordpal_html(text|default('')) }}</{{ tag }}></div>
+{# blocks/button.php prints nothing for a button without text; a space is text. #}
+{% if text is not empty %}
+<div{{ wrapper_attributes }}><{{ tag }}{{ link }}>{{ wordpal_html(text) }}</{{ tag }}></div>
+{% endif %}

@@ -25,7 +25,7 @@
 {% set extra = explicit_ratio
   ? {'aspect-ratio': wordpal_css_value(aspect_ratio), 'min-height': 'unset', 'height': 'unset'}
   : (min_height ? {'min-height': wordpal_css_value(min_height ~ (min_height_unit|default('px'))), 'aspect-ratio': 'unset'} : {}) %}
-{# Cover's own gradient attribute is a preset slug; customGradient a raw CSS
+{# Cover's own gradient attribute is a preset reference; customGradient a raw CSS
    gradient. Neither belongs on the root: they overlay the background image.
    The save function keeps wp-block-cover__gradient-background for a saved
    image under a gradient and a dim. #}
@@ -38,7 +38,7 @@
   dim_ratio is not null and dim_ratio != 50 ? 'has-background-dim-' ~ (10 * (dim_ratio / 10)|round),
   url and not use_featured_image and (gradient or custom_gradient) and dim_ratio is not same as(0) ? 'wp-block-cover__gradient-background',
   (gradient or custom_gradient) ? 'has-background-gradient',
-  gradient ? 'has-' ~ gradient ~ '-gradient-background',
+  gradient ? 'has-' ~ wordpal_gradient_slug(gradient) ~ '-gradient-background',
 ] %}
 {% set overlay_style = {} %}
 {% if custom_gradient and not gradient %}
@@ -53,11 +53,17 @@
 <{{ tag }}{{ attributes.addClass(classes).merge(wordpal_attributes('core/cover', _context|merge({'gradient': null, 'custom_gradient': null}), false, extra)) }}>
   {%- if use_featured_image %}{{ overlay_span }}{% endif -%}
   {%- if url -%}
-    {%- if has_parallax or is_repeated -%}
+    {%- if background_type == 'embed-video' and not use_featured_image -%}
+      {#- cover.php swaps the embed for an iframe through oEmbed, which the
+          component does not do. -#}
+    {%- elseif background_type == 'video' and not use_featured_image -%}
+      {%- set video_position = focal_point and not has_parallax and not is_repeated ? focal_point -%}
+      <video class="wp-block-cover__video-background intrinsic-ignore" autoplay muted loop playsinline src="{{ wordpal_url(url) }}"{% if poster %} poster="{{ wordpal_url(poster) }}"{% endif %}{% if video_position %} style="object-position:{{ wordpal_css_value(video_position) }}"{% endif %} data-object-fit="cover"{% if video_position %} data-object-position="{{ video_position }}"{% endif %}></video>
+    {%- elseif has_parallax or is_repeated -%}
       {#- The block's save() pairs role="img" with aria-label only when alt
           is set; cover.php never touches this div (useFeaturedImage is
           false here). -#}
-      <div{% if alt %} role="img" aria-label="{{ alt }}"{% endif %} class="wp-block-cover__image-background{{ size_slug ? ' size-' ~ size_slug }}{{ has_parallax ? ' has-parallax' }}{{ is_repeated ? ' is-repeated' }}" style="{{ wordpal_css_declarations({'background-position': '50% 50%', 'background-image': wordpal_css_url(url)}) }}"></div>
+      <div{% if alt %} role="img" aria-label="{{ alt }}"{% endif %} class="wp-block-cover__image-background{{ id ? ' wp-image-' ~ id }}{{ size_slug ? ' size-' ~ size_slug }}{{ has_parallax ? ' has-parallax' }}{{ is_repeated ? ' is-repeated' }}" style="{{ wordpal_css_declarations({'background-position': wordpal_css_value(focal_point ?: '50% 50%'), 'background-image': wordpal_css_url(url)}) }}"></div>
     {%- else -%}
       {#- WordPress prints a featured image through get_the_post_thumbnail() (cover.php:152). -#}
       {%- if use_featured_image -%}

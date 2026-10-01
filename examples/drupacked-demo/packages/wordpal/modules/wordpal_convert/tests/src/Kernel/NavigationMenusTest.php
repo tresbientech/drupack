@@ -7,6 +7,7 @@ namespace Drupal\Tests\wordpal_convert\Kernel;
 use Drupal\Component\Utility\Html;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\menu_link_content\Entity\MenuLinkContent;
+use Drupal\Tests\wordpal\Traits\ThemeSettingsTrait;
 use Drupal\wordpal\Plugin\Block\NavigationBlock;
 use Drupal\wordpal_convert\Component\AttributeFlattener;
 use Drupal\wordpal_convert\Component\CommentBlockInputs;
@@ -22,6 +23,8 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[Group('wordpal')]
 #[RunTestsInSeparateProcesses]
 final class NavigationMenusTest extends KernelTestBase {
+
+  use ThemeSettingsTrait;
 
   /**
    * {@inheritdoc}
@@ -39,6 +42,7 @@ final class NavigationMenusTest extends KernelTestBase {
     $this->installEntitySchema('user');
     $this->installEntitySchema('menu_link_content');
     $this->installConfig(['system']);
+    $this->writeThemeSettings();
   }
 
   /**

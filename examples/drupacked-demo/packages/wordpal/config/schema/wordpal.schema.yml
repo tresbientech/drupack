@@ -12,6 +12,9 @@ wordpal.theme_settings.*:
     use_root_padding_aware_alignments:
       type: boolean
       label: 'Use root padding aware alignments'
+    block_gap_support:
+      type: boolean
+      label: 'Block gap support'
     position:
       type: mapping
       label: 'Position types'
@@ -28,6 +31,21 @@ wordpal.theme_settings.*:
       sequence:
         type: string
         label: 'SVG filter'
+    block_gaps:
+      type: sequence
+      label: 'Block gap of each block type and style variation'
+      sequence:
+        type: ignore
+        label: 'Block gap, a string or its top and left sides'
+    root_block_gap:
+      type: ignore
+      label: 'Root block gap, a string or its top and left sides'
+    button_widths:
+      type: sequence
+      label: 'Size of each dimension preset a Button width names'
+      sequence:
+        type: string
+        label: Size
     typography:
       type: ignore
       label: Typography
@@ -37,6 +55,15 @@ wordpal.theme_settings.*:
       sequence:
         type: string
         label: 'Class of the block variation'
+    registered_variations:
+      type: sequence
+      label: 'Registered block style variations'
+      sequence:
+        type: sequence
+        label: 'Variation names of a block'
+        sequence:
+          type: string
+          label: 'Variation name'
     body:
       type: mapping
       label: 'Body classes'

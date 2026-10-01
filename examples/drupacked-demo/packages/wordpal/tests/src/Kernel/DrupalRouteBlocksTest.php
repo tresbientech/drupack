@@ -6,8 +6,8 @@ namespace Drupal\Tests\wordpal\Kernel;
 
 use Drupal\Core\Routing\RouteObjectInterface;
 use Drupal\KernelTests\KernelTestBase;
+use Drupal\Tests\wordpal\Traits\ThemeSettingsTrait;
 use Drupal\wordpal\Plugin\Block\PageTitleBlock;
-use Drupal\wordpal\Theme\ThemeSettings;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use Symfony\Component\HttpFoundation\Request;
@@ -21,6 +21,8 @@ use Symfony\Component\Routing\Route;
 #[Group('wordpal')]
 #[RunTestsInSeparateProcesses]
 final class DrupalRouteBlocksTest extends KernelTestBase {
+
+  use ThemeSettingsTrait;
 
   /**
    * {@inheritdoc}
@@ -40,7 +42,7 @@ final class DrupalRouteBlocksTest extends KernelTestBase {
     $this->container->get('theme_installer')->install(['stark']);
     $this->config('system.theme')->set('default', 'stark')->save();
     $this->container->get('theme.manager')->resetActiveTheme();
-    $this->config(ThemeSettings::configName('stark'))->set('use_root_padding_aware_alignments', TRUE)->save();
+    $this->writeThemeSettings(['block_gap_support' => TRUE, 'use_root_padding_aware_alignments' => TRUE]);
   }
 
   /**

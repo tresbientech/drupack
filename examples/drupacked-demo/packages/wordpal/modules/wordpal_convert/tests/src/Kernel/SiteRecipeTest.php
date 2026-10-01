@@ -321,6 +321,8 @@ final class SiteRecipeTest extends CanvasKernelTestBase {
     self::assertFalse($moduleHandler->moduleExists('wordpal_convert'));
     self::assertSame(self::THEME_ID, $this->config('system.theme')->get('default'));
 
+    // The recipe changed the default theme after the active one was chosen.
+    $this->container->get('theme.manager')->resetActiveTheme();
     $home = $this->request('/');
     self::assertSame(200, $home->getStatusCode());
     self::assertStringContainsString('Welcome home.', $home->getContent());

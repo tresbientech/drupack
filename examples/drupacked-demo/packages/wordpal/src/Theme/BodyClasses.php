@@ -100,7 +100,7 @@ final class BodyClasses {
    * route. A conversion sets page.404 to a path alias, and
    * Url::fromUserInput() resolves it to its internal path.
    */
-  private function isNotFoundPage(): bool {
+  public function isNotFoundPage(): bool {
     $path = (string) $this->configFactory->get('system.site')->get('page.404');
     if ($path === '' || $this->routeMatch->getRouteName() === NULL) {
       return FALSE;

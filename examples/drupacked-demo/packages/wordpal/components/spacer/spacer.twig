@@ -5,7 +5,8 @@
  */
 #}
 {% set extra = {} %}
-{% if height %}
+{# The save function prints no height when the spacer fills or fits a flex parent. #}
+{% if height and self_stretch not in ['fill', 'fit'] %}
   {% set extra = extra|merge({'height': wordpal_css_value(height)}) %}
 {% endif %}
 {% if width %}

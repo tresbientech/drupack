@@ -106,7 +106,12 @@ final class InspectorFormTest extends KernelTestBase {
 
     self::assertSame('text_color', $textColor['wordpal_presets']['#attributes']['data-wordpal-preset-for']);
     self::assertSame(
-      ['' => 'Default', 'base' => 'Base', 'contrast' => 'Contrast', '__custom' => 'Custom…'],
+      [
+        '' => 'Default',
+        'var:preset|color|base' => 'Base',
+        'var:preset|color|contrast' => 'Contrast',
+        '__custom' => 'Custom…',
+      ],
       $this->options($textColor),
     );
   }
@@ -162,12 +167,12 @@ final class InspectorFormTest extends KernelTestBase {
    * Tests a preset chosen as the form stores it renders WordPress's class.
    *
    * The source is the shape the preset select's script writes into the
-   * prop's textfield source (the stored value is the preset slug).
+   * prop's textfield source (the stored value is the preset reference).
    */
   public function testChosenPresetRendersWordPressClass(): void {
     $props = [
       'content' => ['source_id' => 'textfield', 'source' => ['value' => 'Hello']],
-      'text_color' => ['source_id' => 'textfield', 'source' => ['value' => 'contrast']],
+      'text_color' => ['source_id' => 'textfield', 'source' => ['value' => 'var:preset|color|contrast']],
     ];
     $source = [
       'source_id' => 'component',

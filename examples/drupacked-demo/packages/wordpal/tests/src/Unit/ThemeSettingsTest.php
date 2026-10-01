@@ -42,6 +42,36 @@ final class ThemeSettingsTest extends UnitTestCase {
   }
 
   /**
+   * Tests that a wide size without a supported unit leaves the 1600px default.
+   */
+  public function testWideSizeInAnUnsupportedUnit(): void {
+    $default = $this->settings(['typography' => ['fluid' => TRUE]])->fontSize('3rem');
+    self::assertStringStartsWith('clamp(', $default);
+    foreach (['90vw', '80%', 'calc(100vw - 2rem)', 'var(--wp--custom--wide)'] as $wide) {
+      $settings = $this->settings(['typography' => ['fluid' => TRUE], 'layout' => ['wideSize' => $wide]]);
+      self::assertSame($default, $settings->fontSize('3rem'), $wide);
+    }
+  }
+
+  /**
+   * Tests that settings converted before block gap support was recorded fail.
+   */
+  public function testMissingBlockGapSupportFailsLoudly(): void {
+    $settings = $this->settings(['typography' => ['fluid' => FALSE]]);
+    $this->expectException(\RuntimeException::class);
+    $this->expectExceptionMessage('Reconvert it with wordpal:convert');
+    $settings->hasBlockGapSupport();
+  }
+
+  /**
+   * Tests that a recorded FALSE still reads as no support.
+   */
+  public function testRecordedBlockGapSupport(): void {
+    self::assertFalse($this->settings(['block_gap_support' => FALSE])->hasBlockGapSupport());
+    self::assertTrue($this->settings(['block_gap_support' => TRUE])->hasBlockGapSupport());
+  }
+
+  /**
    * Builds settings for the active theme from fixture data.
    */
   private function settings(array $data): ThemeSettings {

@@ -46,6 +46,60 @@ final class ThemeSettings {
   }
 
   /**
+   * Returns whether the theme turns block gap support on.
+   *
+   * Without it WordPress prints no gap CSS, whatever a block sets.
+   */
+  public function hasBlockGapSupport(): bool {
+    $support = $this->settings()->get('block_gap_support');
+    if ($support === NULL) {
+      $theme = $this->themeManager->getActiveTheme()->getName();
+      throw new \RuntimeException("Theme '$theme' was converted before WordPal recorded block gap support. Reconvert it with wordpal:convert.");
+    }
+    return $support;
+  }
+
+  /**
+   * Returns the gap a block's own styles set for a side it leaves out.
+   *
+   * WordPress resolves one registered style variation from the class
+   * attribute, then reads that variation's gap, then the block type's, before
+   * the root gap (block-supports/layout.php). Only a variation in the style
+   * registry counts, so a theme.json variation that block.json alone declares
+   * sets no gap.
+   *
+   * @param string $blockName
+   *   The WordPress block name, such as "core/columns".
+   * @param string $cssClass
+   *   The block's class attribute, which names a style variation.
+   *
+   * @return string|array|null
+   *   The gap as the theme.json states it, a string or an array with "top"
+   *   and "left", or NULL when only the root gap applies.
+   */
+  public function blockGapOverride(string $blockName, string $cssClass): string|array|null {
+    $gaps = $this->settings()->get('block_gaps');
+    $registered = $this->settings()->get('registered_variations')[$blockName] ?? [];
+    foreach (preg_split('/\s+/', $cssClass, -1, PREG_SPLIT_NO_EMPTY) as $class) {
+      $variation = substr($class, strlen('is-style-'));
+      if (str_starts_with($class, 'is-style-') && $variation !== 'default' && in_array($variation, $registered, TRUE)) {
+        return $gaps["$blockName/$variation"] ?? $gaps[$blockName] ?? NULL;
+      }
+    }
+    return $gaps[$blockName] ?? NULL;
+  }
+
+  /**
+   * Returns the root block gap as the theme.json states it, or NULL.
+   *
+   * @return string|array|null
+   *   A string, or an array with "top" and "left".
+   */
+  public function rootBlockGap(): string|array|null {
+    return $this->settings()->get('root_block_gap');
+  }
+
+  /**
    * Returns whether the theme allows a position type, such as "sticky".
    */
   public function allowsPosition(string $type): bool {
@@ -88,7 +142,12 @@ final class ThemeSettings {
     if ($value <= $minimumLimit[0]) {
       return $size;
     }
-    $wide = $this->settings()->get('layout.wideSize') ?? '1600px';
+    // WordPress takes the wide size as the largest viewport only in a unit
+    // it can compute with.
+    $wide = $this->settings()->get('layout.wideSize');
+    if ($wide === NULL || $this->dimension($wide) === NULL) {
+      $wide = '1600px';
+    }
     $maximumViewport = $this->dimension($options['maxViewportWidth'] ?? $wide, $unit);
     $minimumViewport = $this->dimension($options['minViewportWidth'] ?? '320px', $unit);
     if ($maximumViewport === NULL || $minimumViewport === NULL || $maximumViewport[0] === $minimumViewport[0]) {

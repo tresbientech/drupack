@@ -85,12 +85,14 @@ props:
       title: Align
       type: string
       enum:
+        - none
         - left
         - center
         - right
         - wide
         - full
       'meta:enum':
+        none: None
         left: 'Align left'
         center: 'Align center'
         right: 'Align right'

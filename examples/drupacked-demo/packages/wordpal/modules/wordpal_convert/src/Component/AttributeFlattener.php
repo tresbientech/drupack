@@ -6,6 +6,7 @@ namespace Drupal\wordpal_convert\Component;
 
 use Drupal\Component\Utility\NestedArray;
 use Drupal\wordpal\Component\PropName as RuntimePropName;
+use Drupal\wordpal\Support\LayoutCss;
 use Drupal\wordpal\Support\PresetValue;
 use Drupal\wordpal\Support\PropSchema;
 
@@ -16,19 +17,6 @@ use Drupal\wordpal\Support\PropSchema;
  * scalar prop per value.
  */
 final class AttributeFlattener {
-
-  /**
-   * WordPress's own fallback for a block gap side a theme did not set.
-   *
-   * `wp_get_layout_style()` in WordPress core uses this value for whichever
-   * of row or column gap a block leaves out of an asymmetrical `blockGap`,
-   * unless the block's own block.json declares a `spacing.blockGap.
-   * __experimentalDefault` (`core/columns` declares "2em"). That per-block
-   * default does not survive component generation into a prop definition,
-   * and flattening has no block name to look one up by, so every block
-   * falls back to this one WordPress-wide value.
-   */
-  private const FALLBACK_GAP = '0.5em';
 
   /**
    * Nested attribute paths, as path => prop name.
@@ -82,6 +70,14 @@ final class AttributeFlattener {
   ];
 
   /**
+   * The props a preset attribute and a custom `style` value both write.
+   */
+  private const PRESET_PROPS = [
+    'background_color', 'text_color', 'gradient', 'font_size', 'font_family',
+    'border_color',
+  ];
+
+  /**
    * A block gap WordPress drops before layout (wp_sanitize_block_gap_value()).
    */
   private const UNSAFE_GAP = '%[\\\\(&=}]|/\*%';
@@ -111,21 +107,15 @@ final class AttributeFlattener {
       }
       if (is_scalar($value)) {
         $prop = self::ALIASES[$name] ?? PropName::fromAttribute((string) $name);
-        // WordPress always treats this top-level shorthand as a preset
-        // reference (wp_apply_typography_support()'s
-        // "var:preset|font-size|{$block_attributes['fontSize']}"), then
-        // kebab-cases whatever it holds into a class
-        // (WP_Style_Engine::get_slug_from_preset_value()), even when a
-        // theme template hardcodes a literal CSS value there instead of a
-        // real slug. The nested style.typography.fontSize path below stays
-        // a raw CSS value.
-        $props[$prop] = $name === 'fontSize' ? PresetValue::slug((string) $value) : $value;
+        $props[$prop] = in_array($prop, self::PRESET_PROPS, TRUE) ? self::presetReference($prop, (string) $value) : $value;
       }
     }
 
     foreach (self::PATHS as $path => $prop) {
       $value = NestedArray::getValue($attributes, explode('.', $path));
-      if (is_scalar($value)) {
+      // A preset attribute wins over the custom value saved beside it
+      // (block-supports/colors.php, typography.php and border.php).
+      if (is_scalar($value) && !(isset($props[$prop]) && in_array($prop, self::PRESET_PROPS, TRUE))) {
         $props[$prop] = $value;
       }
     }
@@ -208,12 +198,18 @@ final class AttributeFlattener {
     }
 
     // A gap can hold a row and a column value, which CSS writes as one pair.
-    // A side a theme left out takes WordPress's own fallback, not the value
-    // of the side that is set.
+    // A side the block leaves out names the root gap, which LayoutCss swaps
+    // for the block type's own gap where the theme sets one.
     $row = self::safeGap(NestedArray::getValue($attributes, ['style', 'spacing', 'blockGap', 'top']));
     $column = self::safeGap(NestedArray::getValue($attributes, ['style', 'spacing', 'blockGap', 'left']));
     if (is_scalar($row) || is_scalar($column)) {
-      $props['block_gap'] = ($row ?? self::FALLBACK_GAP) . ' ' . ($column ?? self::FALLBACK_GAP);
+      $props['block_gap'] = ($row ?? LayoutCss::ROOT_GAP) . ' ' . ($column ?? LayoutCss::ROOT_GAP);
+    }
+
+    // WordPress prints a unitless border width in pixels on the same blocks
+    // (block-supports/border.php:92-93).
+    if (isset($props['border_width']) && is_numeric($props['border_width']) && PropSchema::isStyleEngineBlock($blockName)) {
+      $props['border_width'] .= 'px';
     }
 
     // WordPress prints a unitless radius in pixels on a block the style
@@ -283,6 +279,20 @@ final class AttributeFlattener {
         : [...$leaves, [...$parents, (string) $key]];
     }
     return $leaves;
+  }
+
+  /**
+   * Returns the reference a top-level preset attribute stands for.
+   *
+   * WordPress always treats these attributes as presets (for the font size,
+   * wp_apply_typography_support()'s "var:preset|font-size|{$slug}"), and
+   * kebab-cases the slug into a class even when a theme template hardcodes a
+   * literal CSS value there (WP_Style_Engine::get_slug_from_preset_value()).
+   * The nested `style.*` paths stay raw CSS values, so a prop holds a preset
+   * as a reference.
+   */
+  private static function presetReference(string $prop, string $value): string {
+    return 'var:preset|' . PropSchema::presetGroup($prop) . '|' . PresetValue::slug($value);
   }
 
   /**

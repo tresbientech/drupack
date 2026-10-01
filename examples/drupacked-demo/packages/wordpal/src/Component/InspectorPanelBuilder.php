@@ -11,8 +11,6 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Extension\ThemeExtensionList;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
-use Drupal\wordpal\Support\PresetShape;
-use Drupal\wordpal\Support\PresetSupport;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
@@ -98,8 +96,8 @@ final class InspectorPanelBuilder {
    *
    * @param string $name
    *   The prop name, paired to the field through a data attribute.
-   * @param \Drupal\wordpal\Support\PresetSupport $preset
-   *   The prop's preset group and stored shape.
+   * @param string $group
+   *   The prop's theme.json preset group, such as "color".
    * @param array $tokens
    *   The default theme's tokens, keyed by group then slug.
    * @param \Drupal\Core\StringTranslation\TranslatableMarkup|string $title
@@ -109,8 +107,8 @@ final class InspectorPanelBuilder {
    *   The select render array, or NULL when the theme defines no preset of
    *   this prop's group.
    */
-  public function presetSelect(string $name, PresetSupport $preset, array $tokens, TranslatableMarkup|string $title): ?array {
-    if (!isset($tokens[$preset->group])) {
+  public function presetSelect(string $name, string $group, array $tokens, TranslatableMarkup|string $title): ?array {
+    if (!isset($tokens[$group])) {
       return NULL;
     }
     $select = [
@@ -123,8 +121,8 @@ final class InspectorPanelBuilder {
       ],
       'default' => $this->option('', $this->t('Default')),
     ];
-    foreach ($tokens[$preset->group] as $slug => $token) {
-      $value = $preset->shape === PresetShape::Slug ? (string) $slug : "var:preset|{$preset->group}|$slug";
+    foreach ($tokens[$group] as $slug => $token) {
+      $value = "var:preset|$group|$slug";
       // A theme's theme.json names the preset, and html_tag only filters
       // a string label.
       $select[] = $this->option($value, new FormattableMarkup('@label', ['@label' => $token['$description']]));

@@ -1,1 +1,3 @@
-<div{{ attributes.addClass('wp-block-query-no-results').addClass(css_class ? [css_class] : []) }}>{% block content %}{% endblock %}</div>
+{# blocks/query-no-results.php prints nothing for a block without content. #}
+{% set content %}{% block content %}{% endblock %}{% endset %}
+{% if content|trim is not empty %}<div{{ attributes.addClass('wp-block-query-no-results').merge(wordpal_attributes('core/query-no-results', _context, false)) }}>{{ content }}</div>{% endif %}

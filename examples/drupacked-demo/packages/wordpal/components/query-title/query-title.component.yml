@@ -19,6 +19,12 @@ props:
     search_parameter:
       title: 'Search parameter'
       type: string
+    post_bundle:
+      title: 'Post bundle'
+      type: string
+    listing_bundle:
+      title: 'Listing bundle'
+      type: string
     type:
       title: Type
       type: string

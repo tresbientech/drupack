@@ -18,19 +18,21 @@ final class ComponentDefinitionAlter {
   public const RUNTIME_PROPS = [
     'avatar' => ['author_id'],
     'cover' => ['image_width', 'image_height'],
-    'post-author' => ['author_id'],
+    'post-author' => ['author_id', 'author_bio'],
     'post-author-name' => ['author_id'],
     'post-content' => ['content'],
     'post-date' => ['date', 'timestamp', 'published_timestamp', 'url'],
     'post-excerpt' => ['excerpt', 'url'],
-    'post-featured-image' => ['src', 'alt', 'image_width', 'image_height', 'url'],
+    'post-featured-image' => ['src', 'alt', 'title', 'image_width', 'image_height', 'url'],
     'post-terms' => ['terms', 'term_urls', 'taxonomy'],
     'post-title' => ['title', 'url'],
     'query-pagination-next' => ['url', 'label'],
     'query-pagination-numbers' => ['current', 'previous_ellipsis', 'next_ellipsis'],
     'query-pagination-previous' => ['url', 'label'],
     'query-no-results' => [],
-    'query-title' => ['tag_vocabulary', 'category_vocabulary', 'search_path', 'search_parameter'],
+    'query-title' => [
+      'tag_vocabulary', 'category_vocabulary', 'search_path', 'search_parameter', 'post_bundle', 'listing_bundle',
+    ],
     'read-more' => ['url', 'title'],
   ];
 

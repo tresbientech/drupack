@@ -8,6 +8,7 @@ use Drupal\canvas\ComponentSource\ComponentSourceManager;
 use Drupal\canvas\Entity\ContentTemplate;
 use Drupal\canvas\Entity\Pattern;
 use Drupal\Core\Entity\Entity\EntityViewMode;
+use Drupal\Core\Render\RendererInterface;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\Tests\canvas\Kernel\CanvasKernelTestBase;
@@ -59,6 +60,7 @@ final class QueryPageTest extends CanvasKernelTestBase {
       'wordpal:query-pagination-numbers',
       'wordpal:query-pagination-next',
       'wordpal:query-no-results',
+      'wordpal:query-title',
       'wordpal:frozen-html',
     ]);
   }
@@ -96,6 +98,34 @@ final class QueryPageTest extends CanvasKernelTestBase {
       'children' => [],
     ], $layout[0]);
     self::assertSame(['marker' => 'rows'], $layout[1]);
+  }
+
+  /**
+   * Tests a Query Title inside a Query names the Query's post bundle.
+   */
+  public function testQueryTitleInQueryLayoutTakesThePostBundle(): void {
+    $mapping = new ContentMapping([
+      'post' => 'wordpal_post',
+      'post_body' => 'body',
+      'category' => NULL,
+      'tag' => NULL,
+      'featured_image' => NULL,
+    ]);
+    $nodes = [
+      new BlockNode('core/query', [
+        'query' => ['perPage' => 3, 'offset' => 0, 'postType' => 'post', 'order' => 'desc', 'orderBy' => 'date'],
+      ], '', [
+        new BlockNode('core/query-title', ['type' => 'post-type'], '', []),
+        new BlockNode('core/post-template', [], '', [new BlockNode('core/post-title', [], '', [])]),
+      ]),
+    ];
+    $loops = QueryLoop::allFromTree($nodes, 10)['loops'];
+    $result = $this->container->get(CanvasWriter::class)->writeQueryPattern('title_query_fixture', 'Title query fixture', $nodes, $loops, $mapping, 'fixture');
+
+    $title = $result['queries'][0]['view']->getThirdPartySetting('wordpal', 'query')['layout'][0];
+    self::assertSame('wordpal_post', $title['props']['post_bundle']);
+    $build = ['#type' => 'component', '#component' => $title['component'], '#props' => $title['props']];
+    self::assertStringContainsString('WordPal post', (string) $this->container->get(RendererInterface::class)->renderRoot($build));
   }
 
   /**

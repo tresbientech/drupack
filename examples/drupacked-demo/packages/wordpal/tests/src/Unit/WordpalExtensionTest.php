@@ -8,15 +8,19 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ThemeExtensionList;
+use Drupal\Core\Language\LanguageManagerInterface;
+use Drupal\Core\Path\PathMatcherInterface;
 use Drupal\Core\Render\Element\HtmlTag;
 use Drupal\Core\Render\RendererInterface;
 use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\Core\Theme\ActiveTheme;
 use Drupal\Core\Theme\ComponentPluginManager;
 use Drupal\Core\Theme\ThemeManagerInterface;
 use Drupal\filter\Render\FilteredMarkup;
 use Drupal\Tests\UnitTestCase;
 use Drupal\wordpal\Support\BlockSupports;
 use Drupal\wordpal\Support\LayoutCss;
+use Drupal\wordpal\Theme\BodyClasses;
 use Drupal\wordpal\Theme\ThemeSettings;
 use Drupal\wordpal\Twig\WordpalExtension;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -34,7 +38,11 @@ final class WordpalExtensionTest extends UnitTestCase {
    * Builds a WordpalExtension around the given renderer and date formatter.
    */
   private function extension(?RendererInterface $renderer = NULL, ?DateFormatterInterface $dateFormatter = NULL): WordpalExtension {
-    $themeSettings = new ThemeSettings($this->createMock(ConfigFactoryInterface::class), $this->createMock(ThemeManagerInterface::class));
+    $activeTheme = $this->createMock(ActiveTheme::class);
+    $activeTheme->method('getName')->willReturn('fixture');
+    $themeManager = $this->createMock(ThemeManagerInterface::class);
+    $themeManager->method('getActiveTheme')->willReturn($activeTheme);
+    $themeSettings = new ThemeSettings($this->getConfigFactoryStub([ThemeSettings::configName('fixture') => ['block_gap_support' => TRUE]]), $themeManager);
     return new WordpalExtension(
       new BlockSupports(new LayoutCss($themeSettings), $themeSettings, $this->createMock(ComponentPluginManager::class)),
       $renderer ?? $this->createMock(RendererInterface::class),
@@ -45,7 +53,36 @@ final class WordpalExtensionTest extends UnitTestCase {
       $this->createMock(RouteMatchInterface::class),
       new RequestStack(),
       $themeSettings,
+      $this->createMock(PathMatcherInterface::class),
+      new BodyClasses($this->createMock(ConfigFactoryInterface::class), $themeManager, $this->createMock(RouteMatchInterface::class), new RequestStack(), $this->createMock(PathMatcherInterface::class), $this->createMock(LanguageManagerInterface::class), $this->createMock(EntityTypeManagerInterface::class)),
       '/app',
+    );
+  }
+
+  /**
+   * Tests an empty Details body passes through the low priority filter.
+   */
+  public function testLowPriorityImagesAcceptsAnEmptyBody(): void {
+    self::assertSame('', (string) $this->extension()->lowPriorityImages(''));
+    self::assertSame('<img src="a.jpg" fetchpriority="low">', trim((string) $this->extension()->lowPriorityImages('<img src="a.jpg">')));
+  }
+
+  /**
+   * Tests that declarations() rejects a value that injects a declaration.
+   */
+  public function testDeclarationsRejectAnInjectedDeclaration(): void {
+    $this->expectException(\UnexpectedValueException::class);
+    $this->extension()->declarations(['aspect-ratio' => '1/1;background:red']);
+  }
+
+  /**
+   * Tests that declarations() keeps safe values and a cssUrl() value.
+   */
+  public function testDeclarationsKeepSafeValues(): void {
+    $extension = $this->extension();
+    self::assertSame(
+      'width:50%;background-image:url(/a%20b.jpg)',
+      $extension->declarations(['width' => '50%', 'background-image' => $extension->cssUrl('/a b.jpg')]),
     );
   }
 
@@ -102,6 +139,15 @@ final class WordpalExtensionTest extends UnitTestCase {
   }
 
   /**
+   * Tests that trimWords() cuts like wp_trim_words().
+   */
+  public function testTrimWordsCutsAndMarksTheCut(): void {
+    $extension = $this->extension();
+    self::assertSame('One two…', $extension->trimWords("<p>One\n two  three</p>", 2));
+    self::assertSame('One two three', $extension->trimWords('<p>One two three</p>', 3));
+  }
+
+  /**
    * Tests that date() formats through DateFormatter and bubbles 'timezone'.
    */
   public function testDateBubblesTimezoneCacheContext(): void {
@@ -116,6 +162,19 @@ final class WordpalExtensionTest extends UnitTestCase {
       ->with(['#cache' => ['contexts' => ['timezone']]]);
     $formatted = $this->extension($renderer, $dateFormatter)->date(1705314600, 'F j, Y');
     self::assertSame('January 15, 2024', $formatted);
+  }
+
+  /**
+   * Tests that the background image prints after a gradient's shorthand.
+   */
+  public function testBackgroundImagePrintsAfterGradient(): void {
+    $attributes = $this->extension()->attributes('core/group', [
+      'gradient' => 'linear-gradient(135deg,#000 0%,#fff 100%)',
+      'background_image' => 'https://example.com/a.jpg',
+    ], FALSE);
+    $style = (string) $attributes['style'];
+
+    self::assertGreaterThan(strpos($style, 'background:'), strpos($style, 'background-image:'));
   }
 
   /**
