@@ -241,7 +241,10 @@ function probeHost(string $bind): string
 // One word of a command a reader pastes into their shell.
 function shellWord(string $value): string
 {
-    if (preg_match('~^[A-Za-z0-9_./:=@%+-]+$~', $value) === 1) {
+    // cmd and PowerShell read a backslash as itself, and PowerShell reads a quoted first
+    // word as a string to print, so a Windows path stays bare when nothing else needs quotes.
+    $plain = windows() ? '~^[A-Za-z0-9_./:=@%+\\\\-]+$~' : '~^[A-Za-z0-9_./:=@%+-]+$~';
+    if (preg_match($plain, $value) === 1) {
         return $value;
     }
     return windows() ? '"' . $value . '"' : "'" . str_replace("'", "'\\''", $value) . "'";
