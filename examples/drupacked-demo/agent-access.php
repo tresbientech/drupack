@@ -14,8 +14,11 @@ $config['simple_oauth_server_metadata.settings']['registration_endpoint'] = '';
 // rename to another discards its own pair, so the two keys always match.
 if (PHP_SAPI !== 'cli' && !is_dir($drupack_oauth_keys)) {
   $drupack_staging = "$drupack_oauth_keys." . bin2hex(random_bytes(8));
-  $drupack_key = openssl_pkey_new(['private_key_bits' => 4096, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
-  if ($drupack_key === FALSE || !openssl_pkey_export($drupack_key, $drupack_private) || !mkdir($drupack_staging, 0700)) {
+  // Key generation and export load an OpenSSL config file. The runtime's compiled-in
+  // path, /etc/ssl/openssl.cnf, is missing from slim containers.
+  $drupack_openssl = ['config' => __DIR__ . '/openssl.cnf'];
+  $drupack_key = openssl_pkey_new($drupack_openssl + ['private_key_bits' => 4096, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+  if ($drupack_key === FALSE || !openssl_pkey_export($drupack_key, $drupack_private, NULL, $drupack_openssl) || !mkdir($drupack_staging, 0700)) {
     throw new RuntimeException('Cannot generate the OAuth key pair: ' . openssl_error_string());
   }
   $drupack_pems = ['private.key' => $drupack_private, 'public.key' => openssl_pkey_get_details($drupack_key)['key']];
