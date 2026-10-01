@@ -197,7 +197,7 @@ function detachServer($lease, string $log, string $stop, array $arguments): neve
     if (personPresent()) {
         putenv('DRUPACK_RUNTIME_PERSON=1');
     }
-    $start = environment('DRUPACK_RUNTIME_CWD') ?? getcwd();
+    $start = startDirectory();
     // pcntl_exec keeps the working directory, which is the application's by now.
     chdir($start);
     replaceProcess(getenv('DRUPACK_RUNTIME_LAUNCHER'),
@@ -254,7 +254,26 @@ function shellWord(string $value): string
 // default does.
 function stopCommand(string $target): string
 {
-    return shellWord(environment('DRUPACK_RUNTIME_INVOKED')) . ' stop' . $target;
+    $invoked = environment('DRUPACK_RUNTIME_INVOKED');
+    $word = shellWord($invoked);
+    // PowerShell hands a program its full path, where cmd hands over the typed word, and
+    // runs a quoted first word only after `&`. Both shells run `.\NAME`.
+    if (windows() && preg_match('~^([A-Za-z]:)?[\\\\/]~', $invoked) === 1) {
+        $folder = fn (string $path): string => rtrim(strtr($path, '/', '\\'), '\\');
+        if (strcasecmp($folder(dirname($invoked)), $folder(startDirectory())) === 0) {
+            $word = '.\\' . basename($invoked);
+        } elseif ($word[0] === '"') {
+            $word = '& ' . $word;
+        }
+    }
+    return $word . ' stop' . $target;
+}
+
+// The directory the reader started in. The launcher records it, since launch.php moves
+// to the application's; the engine executable's serve.php stays where it started.
+function startDirectory(): string
+{
+    return environment('DRUPACK_RUNTIME_CWD') ?? getcwd();
 }
 
 function notRunning(): int
