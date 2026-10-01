@@ -60,7 +60,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
     drupack-build --site examples/drupacked-demo --payload-only --output dist
 ```
 
-That writes `app-payload.tar`, `app_checksum.txt` and `site.json` to `dist/payload`. A site asking for Node also gets `node/`, holding the verified macOS and Windows archives the two builds pack.
+That writes `app-payload.tar`, `app_checksum.txt` and `site.json` to `dist/payload`. A site asking for Node also gets `node/`, holding the verified Linux glibc, macOS and Windows archives the release workflow's builds pack.
 
 ```powershell
 ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version dev -WorkDirectory $env:TEMP\drupack -Output dist\drupacked-demo.exe -EnginePayloadDirectory dist\engine\payload -EngineOutput dist\engine\drupack.exe
