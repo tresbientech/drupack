@@ -125,7 +125,7 @@ then takes the runtimes directory:
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/site" -v "$PWD/../runtimes:/runtimes" \
-    -w /site ghcr.io/tresbientech/drupack-build:0.7.1 \
+    -w /site ghcr.io/tresbientech/drupack-build:0.8.0 \
     drupack-build --site . --runtimes /runtimes --output dist
 ```
 
@@ -205,7 +205,7 @@ jobs:
       contents: write
       id-token: write
       attestations: write
-    uses: tresbientech/drupack/.github/workflows/build.yml@0.7.1
+    uses: tresbientech/drupack/.github/workflows/build.yml@0.8.0
     with:
       publish: true
     secrets:
@@ -262,7 +262,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/tresbientech/drupack-build:0.7.1
+      image: ghcr.io/tresbientech/drupack-build:0.8.0
     defaults:
       run:
         shell: bash
@@ -326,10 +326,10 @@ that tag, since GitLab does not tell an included file its ref.
 ```yaml
 include:
   - project: project/drupack
-    ref: 0.7.1
+    ref: 0.8.0
     file: ci/drupack.gitlab-ci.yml
     inputs:
-      version: 0.7.1
+      version: 0.8.0
       publish: true
 ```
 
@@ -351,7 +351,7 @@ The build is one command in the job image, from the site repository's root:
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/site" -w /site -e COMPOSER_AUTH \
-    ghcr.io/tresbientech/drupack-build:0.7.1 \
+    ghcr.io/tresbientech/drupack-build:0.8.0 \
     drupack-build --site . --output dist
 ```
 
