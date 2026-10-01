@@ -1,7 +1,7 @@
 # Plan: WordPal in Drupacked Demo
 
 > Source PRD: `docs/prd/mercury-demo-wordpal.md`. Starts after the Bundled Node
-> plan merges. Phases 1 to 3 stay on a branch until WordPal publishes a release.
+> plan merges. The branch merges once phase 4 passes.
 
 ## Architectural decisions
 
@@ -11,8 +11,8 @@
       Node on the host's PATH.
 - The Site template becomes a site recipe that applies the Mercury Demo recipe
   and installs `wordpal_canvas`.
-- Until WordPal publishes, an inline package repository names `drupal/wordpal`
-  with the local WordPal checkout as its source, pinned to a commit.
+- The demo carries WordPal's `git archive` export of one commit, and a Composer
+  path repository installs it.
 - The first conversion applies WordPal's own recipe from WordPal's installed
   package.
 
@@ -41,7 +41,7 @@ User stories: 1, 2, 3, 4, 5, 10
 
 ### What to build
 
-The demo requires WordPal from the pinned local source and the two Drupal CMS
+The demo requires WordPal from its copy and the two Drupal CMS
 recipes it builds on. The site recipe installs `wordpal_canvas`, so a fresh
 demo converts on its first command. The demo carries Bundled Node, which runs
 Playground. A site test converts Twenty Twenty-Four and checks the result
