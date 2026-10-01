@@ -1,0 +1,16 @@
+{#
+/**
+ * @file
+ * WordPress core/group.
+ */
+#}
+{% set tag = tag_name in ['div', 'header', 'main', 'section', 'article', 'aside', 'footer', 'nav'] ? tag_name : 'div' %}
+{% set wrapper_tag = tag %}
+{# core/template-part supports only align and a custom className, of
+   everything a Group itself can carry. #}
+{# WordPress runs the align support before the generated classname support
+   (wp-settings.php's require order), so align's class prints first. #}
+{% set wrapper_attributes = template_part
+  ? attributes.addClass('wp-block-template-part').merge(wordpal_attributes('core/template-part', _context, false))
+  : attributes.addClass('wp-block-group').merge(wordpal_attributes('core/group', _context)) %}
+<{{ wrapper_tag }}{{ wrapper_attributes }}>{% block content %}{% endblock %}</{{ wrapper_tag }}>

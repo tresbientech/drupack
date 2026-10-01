@@ -1,0 +1,12 @@
+name: 'WordPal test'
+type: Content type
+description: 'Stands in for the WordPal recipe: a blog bundle on the base recipe storages.'
+recipes:
+  - wordpal_test_base
+install:
+  - node
+  # Absent from SiteSetupTest's modules, so applying rebuilds the container.
+  - options
+# Existing config wins, so a site keeps its customized blog bundle.
+config:
+  strict: false

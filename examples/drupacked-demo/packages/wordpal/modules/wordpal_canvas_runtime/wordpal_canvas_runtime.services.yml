@@ -1,0 +1,9 @@
+services:
+  Drupal\wordpal_canvas_runtime\EventSubscriber\PageVariantThemeGuard:
+    autowire: true
+    tags:
+      - { name: event_subscriber }
+  Drupal\wordpal_canvas_runtime\EventSubscriber\ViewFrameSelector:
+    autowire: true
+    tags:
+      - { name: event_subscriber }

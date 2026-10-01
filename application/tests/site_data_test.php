@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // Unit cases for Drupack\Support\SiteData. Run with:
-//   ./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/site_data_test.php"
+//   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/site_data_test.php"
 // launch.php registers the support namespace and loads process.php, whose
 // executableName() and directory() the class calls.
 

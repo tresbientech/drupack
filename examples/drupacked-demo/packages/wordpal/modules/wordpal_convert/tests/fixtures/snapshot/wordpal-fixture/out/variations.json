@@ -1,0 +1,12 @@
+[
+    {
+        "slug": "default",
+        "title": "Default",
+        "path": "styles/global.css"
+    },
+    {
+        "slug": "ember",
+        "title": "Ember",
+        "path": "styles/variation-ember.css"
+    }
+]

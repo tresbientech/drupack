@@ -1,0 +1,29 @@
+name: WordPal
+type: Content type
+description: 'Provides the blog post content type WordPal converts WordPress posts into, matching the Drupal CMS site templates.'
+# Drupal root relative: the recipe applies from the wordpal package, and
+# Composer installs the Drupal CMS recipes in the project's recipes directory.
+recipes:
+  - ../recipes/drupal_cms_content_type_base
+  - ../recipes/drupal_cms_search
+install:
+  - wordpal
+# Existing config wins, so a site keeps its customized blog bundle.
+config:
+  strict: false
+  # The archives block lists core's monthly archive, which ships disabled.
+  import:
+    node:
+      - views.view.archive
+    # A recipe installs a module's simple config only; config entities come
+    # through import.
+    wordpal:
+      - filter.format.wordpal_html
+  actions:
+    views.view.archive:
+      setStatus: true
+    # Drupal CMS moderates its content types; a blog post then saves its
+    # moderation state, which a Site recipe carries to the next site.
+    workflows.workflow.basic_editorial:
+      addNodeTypes:
+        - blog

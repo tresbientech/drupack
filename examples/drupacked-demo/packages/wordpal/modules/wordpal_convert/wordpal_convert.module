@@ -1,0 +1,33 @@
+<?php
+
+/**
+ * @file
+ * Generation hooks for WordPal Convert.
+ */
+
+declare(strict_types=1);
+
+use Drupal\Component\Serialization\Yaml;
+use Drupal\wordpal_convert\Component\ComponentSet;
+use Drupal\wordpal_convert\Component\ComponentDefinitionAlter;
+
+/**
+ * Implements hook_wordpal_component_definition_alter().
+ *
+ * The overlay applies regardless of Builder target: both writers bind these
+ * props from Drupal data at render time, so generate-components needs no
+ * builder module enabled.
+ */
+function wordpal_convert_wordpal_component_definition_alter(array &$definition, string $blockName): void {
+  if (!isset(ComponentDefinitionAlter::RUNTIME_PROPS[$blockName])) {
+    return;
+  }
+  $componentSet = \Drupal::service(ComponentSet::class);
+  $checkedInFile = "{$componentSet->directory()}/$blockName/$blockName.component.yml";
+  $checkedIn = Yaml::decode((string) file_get_contents($checkedInFile));
+  $definition = ComponentDefinitionAlter::overlay(
+    $definition,
+    $checkedIn,
+    ComponentDefinitionAlter::RUNTIME_PROPS[$blockName],
+  );
+}

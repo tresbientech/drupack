@@ -1,0 +1,15 @@
+{#
+/**
+ * @file
+ * WordPress core/post-terms.
+ *
+ * Display Builder fills the content slot with one Post Term link per term;
+ * Canvas binds the terms and term_urls lists.
+ */
+#}
+{% set separator_markup %}<span class="wp-block-post-terms__separator">{{ separator is null ? ', ' : separator|default(' ') }}</span>{% endset %}
+{% set term_links = content|default([])|filter((item, key) => (key ~ '')|first != '#') %}
+{# WordPress prints nothing for a post with no terms in the taxonomy. #}
+{% if term_links or terms|default([]) %}
+<div{{ attributes.addClass(['taxonomy-' ~ taxonomy, 'wp-block-post-terms']).merge(wordpal_attributes('core/post-terms', _context, false)) }}>{% if prefix %}<span class="wp-block-post-terms__prefix">{{ wordpal_html(prefix) }}</span>{% endif %}{% if term_links %}{% for link in term_links %}{{ link }}{% if not loop.last %}{{ separator_markup }}{% endif %}{% endfor %}{% else %}{% for term in terms|default([]) %}<a href="{{ wordpal_url(term_urls[loop.index0]) }}" rel="tag">{{ term }}</a>{% if not loop.last %}{{ separator_markup }}{% endif %}{% endfor %}{% endif %}{% if suffix %}<span class="wp-block-post-terms__suffix">{{ wordpal_html(suffix) }}</span>{% endif %}</div>
+{% endif %}

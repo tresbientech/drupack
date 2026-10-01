@@ -1,0 +1,103 @@
+id: wordpal_fixture_archive
+label: 'Archive Template'
+description: 'The archive Template converted from WordPress.'
+tag: wordpal_template
+base_table: taxonomy_term_field_data
+display:
+  default:
+    id: default
+    display_title: Default
+    display_plugin: default
+    position: 0
+    display_options:
+      access:
+        type: perm
+        options:
+          perm: 'access content'
+      cache:
+        type: tag
+        options: {  }
+      pager:
+        type: some
+        options:
+          items_per_page: 1
+          offset: 0
+      style:
+        type: default
+        options: {  }
+      row:
+        type: fields
+        options: {  }
+      fields: {  }
+      header:
+        wordpal_pattern_preset_tags:
+          id: wordpal_pattern_preset_tags
+          pattern_id: wordpal_fixture_tag_template
+          vocabularies:
+            - tags
+          table: views
+          field: wordpal_pattern_preset
+          relationship: none
+          group_type: group
+          admin_label: ''
+          plugin_id: wordpal_pattern_preset
+          empty: true
+          negate: false
+        wordpal_pattern_preset:
+          id: wordpal_pattern_preset
+          pattern_id: wordpal_fixture_template
+          vocabularies:
+            - tags
+          negate: true
+          table: views
+          field: wordpal_pattern_preset
+          relationship: none
+          group_type: group
+          admin_label: ''
+          plugin_id: wordpal_pattern_preset
+          empty: true
+      title: ''
+      display_extenders:
+        display_builder:
+          profile: default
+          sources:
+            -
+              node_id: 708b0dc7f74fb14d
+              source_id: view_header
+              source: {  }
+      arguments:
+        tid:
+          id: tid
+          table: taxonomy_term_field_data
+          field: tid
+          entity_type: taxonomy_term
+          entity_field: tid
+          plugin_id: taxonomy
+          default_action: 'not found'
+          title_enable: true
+          title: '{{ arguments.tid }}'
+          specify_validation: true
+          validate:
+            type: 'entity:taxonomy_term'
+            fail: 'not found'
+          validate_options:
+            bundles: {  }
+            access: true
+            operation: view
+            multiple: 0
+      filters:
+        status:
+          id: status
+          table: taxonomy_term_field_data
+          field: status
+          entity_type: taxonomy_term
+          entity_field: status
+          plugin_id: boolean
+          value: '1'
+  page_1:
+    id: page_1
+    display_title: Page
+    display_plugin: page
+    position: 1
+    display_options:
+      path: taxonomy/term/%

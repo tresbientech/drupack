@@ -1,0 +1,9 @@
+services:
+  Drupal\wordpal_canvas\CanvasWriter:
+    autowire: true
+    tags:
+      - { name: wordpal_convert.writer, target: canvas }
+  Drupal\wordpal_canvas\BlockSettings:
+    autowire: true
+  Drupal\wordpal_convert\WriterInterface:
+    alias: Drupal\wordpal_canvas\CanvasWriter

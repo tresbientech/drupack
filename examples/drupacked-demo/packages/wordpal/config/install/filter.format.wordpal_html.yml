@@ -1,0 +1,22 @@
+langcode: en
+status: true
+dependencies: {  }
+name: 'WordPal HTML'
+format: wordpal_html
+weight: 10
+filters:
+  filter_html:
+    id: filter_html
+    provider: filter
+    status: true
+    weight: -10
+    settings:
+      allowed_html: '<div class id title role aria-label aria-hidden> <span class id title role aria-label aria-hidden> <p class id> <br> <hr class id> <h1 class id> <h2 class id> <h3 class id> <h4 class id> <h5 class id> <h6 class id> <strong class> <em class> <b class> <i class aria-hidden> <u> <s> <small class> <sub> <sup> <mark class> <code class> <pre class> <blockquote class id cite> <cite class> <q cite> <abbr title> <time datetime> <ul class id> <ol class id reversed start type> <li class id> <dl class> <dt class> <dd class> <table class id> <caption class> <thead class> <tbody class> <tfoot class> <tr class> <th class colspan rowspan scope> <td class colspan rowspan> <figure class id> <figcaption class> <section class id aria-label> <article class id> <aside class id> <header class id> <footer class id> <nav class id aria-label> <main class id> <details class id open> <summary class> <a href hreflang target rel class id title aria-label> <img src alt title width height class id loading decoding srcset sizes> <picture class> <source src srcset sizes type media> <video src poster width height class id controls autoplay loop muted playsinline preload> <audio src class id controls autoplay loop muted preload> <iframe src width height class id title name allow allowfullscreen loading referrerpolicy frameborder scrolling> <svg class id xmlns viewbox width height fill stroke stroke-width aria-hidden role focusable> <g class fill stroke transform> <path d class fill stroke stroke-width stroke-linecap stroke-linejoin fill-rule clip-rule transform> <circle cx cy r class fill stroke> <rect x y width height rx ry class fill stroke> <line x1 y1 x2 y2 class stroke> <polyline points class fill stroke> <polygon points class fill stroke> <ellipse cx cy rx ry class fill stroke> <title> <desc>'
+      filter_html_help: false
+      filter_html_nofollow: false
+  filter_htmlcorrector:
+    id: filter_htmlcorrector
+    provider: filter
+    status: true
+    weight: 10
+    settings: {  }

@@ -1,0 +1,9 @@
+name: drupacked-demo
+recipe: recipes/drupacked_demo_site
+site_name: Drupacked Demo
+languages: [fr, zh-hans, es, hi, ar]
+platforms: [linux-amd64]
+libc: both
+writable: [web/themes/custom, recipes]
+node: true
+settings: agent-access.php

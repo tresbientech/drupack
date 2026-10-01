@@ -1,6 +1,0 @@
-name: mercury-demo
-recipe: recipes/mercury_demo
-site_name: Drupal Mercury Demo
-languages: [fr, zh-hans, es, hi, ar]
-platforms: [linux-amd64]
-libc: both

@@ -1,0 +1,8 @@
+name: 'WordPal fixture'
+type: theme
+description: 'Stands in for the theme a kernel test converts, which is written outside extension discovery.'
+package: Testing
+base theme: false
+core_version_requirement: ^11
+dependencies:
+  - wordpal:wordpal

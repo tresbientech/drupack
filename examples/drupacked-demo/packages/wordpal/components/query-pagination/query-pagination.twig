@@ -1,0 +1,5 @@
+{# WordPress lays the links out in a row and prints nothing without a link
+   (query-pagination.php). #}
+{% set layout_default = {'layout_type': 'flex'} %}
+{% set links %}{% block content %}{% endblock %}{% endset %}
+{% if links|trim is not empty %}<nav{{ attributes.addClass('wp-block-query-pagination').merge(wordpal_attributes('core/query-pagination', _context, true, {}, layout_default)) }} aria-label="{{ 'Pagination'|t }}">{{ links }}</nav>{% endif %}

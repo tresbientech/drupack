@@ -1,0 +1,11 @@
+--- a/src/Element/ComponentElementBuilder.php
++++ b/src/Element/ComponentElementBuilder.php
+@@ -179,7 +179,7 @@
+     return match ($prop_type->getPluginId()) {
+       'attributes' => FALSE,
+       'boolean', 'number' => ($data === NULL),
+-      default => empty($data),
++      default => $data === NULL || $data === '' || $data === [],
+     };
+   }
+ 

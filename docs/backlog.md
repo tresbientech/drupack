@@ -95,13 +95,6 @@ Each image is about 1.4 GB, and nothing deletes one. A tag also adds
 `drupack-build:<version>`. Lean: keep every version tag, and delete `dev-` tags
 older than a few weeks.
 
-## Whether Mercury still needs its MCP packages
-
-The engine no longer enables `mcp_tools`, but Mercury's `composer.json` still
-requires `drupal/mcp_tools` and `drupal/mcp_server`. They ship in every Mercury
-executable. Lean: drop both from the example unless its recipe enables them,
-which is Mercury's decision rather than the engine's.
-
 ## HTTPS on a site's listener
 
 A site serves plain HTTP. Agent Access asks for an HTTPS MCP address, and some
@@ -126,9 +119,9 @@ and `package_manager` because it cannot write into the read-only application.
 Nobody has checked the stall against the current module release. Lean: keep the
 uninstall, and retest the stall when the recipe's version of the module changes.
 
-## When Mercury can leave Twig 3.29
+## When the demo can leave Twig 3.29
 
-Mercury's `composer.json` pins `twig/twig` to 3.29.0. Under Twig 3.30, cron
+The demo's `composer.json` pins `twig/twig` to 3.29.0. Under Twig 3.30, cron
 fails with a `TypeError` from `EscaperRuntime::escape()` in easy_email's compiled
 body template, which Drupal CMS 2.2's site template base brings. Lean: retest
 cron on each Drupal core or easy_email release, and drop the pin once it passes.
@@ -151,7 +144,7 @@ versioned names, then update it from the release workflow.
 ## Site builds for macOS and Windows
 
 The site workflow builds Linux targets only. Drupack's own release already
-ships Mercury Demo for all five targets, so only a third-party site misses
+ships Drupacked Demo for all five targets, so only a third-party site misses
 macOS and Windows. `docs/prd/native-site-builds.md` holds the design: engine
 releases publish their runtimes, and native jobs pack them with the site's
 payload. It adds code in both workflows, the release step, `drupack-build` and
@@ -193,7 +186,8 @@ add one when a reader asks for it.
 
 `stop.json` is mode 0600 on Linux and macOS. On Windows it takes the access of
 Site data, or of the folder's cache entry, so an account that reads Site data
-reads the token and can stop the site. That account already reads the database
+reads the token and can stop the site. Drupacked Demo's OAuth key pair in
+Site data `oauth-keys` takes the same access. That account already reads the database
 and `settings.php`. Lean: give the record a protected DACL for the current user,
 as the cache root has, when a reader shares a Windows machine.
 
@@ -210,3 +204,10 @@ in place of the zip. A run with no Windows build cache then fails. A tag run rea
 only its own cache and main's, so a release during such an outage fails on
 Windows. Lean: point `X_VCPKG_ASSET_SOURCES` at our own copy of each download,
 keyed by its SHA-512.
+
+## WordPal's source twice in the demo
+
+The build packs every file git tracks, so the demo carries
+`packages/wordpal` beside the installed `web/modules/contrib/wordpal`, about
+5 MB twice. Lean: leave it until Composer takes WordPal from drupal.org and
+the copy goes.

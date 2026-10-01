@@ -1,0 +1,920 @@
+wordpal.theme_settings.*:
+  type: config_object
+  label: 'Converted WordPress theme settings'
+  mapping:
+    layout:
+      type: mapping
+      label: Layout
+      mapping:
+        wideSize:
+          type: string
+          label: 'Wide size'
+    use_root_padding_aware_alignments:
+      type: boolean
+      label: 'Use root padding aware alignments'
+    block_gap_support:
+      type: boolean
+      label: 'Block gap support'
+    position:
+      type: mapping
+      label: 'Position types'
+      mapping:
+        sticky:
+          type: boolean
+          label: Sticky
+        fixed:
+          type: boolean
+          label: Fixed
+    duotone_filters:
+      type: sequence
+      label: 'Duotone preset filters'
+      sequence:
+        type: string
+        label: 'SVG filter'
+    block_gaps:
+      type: sequence
+      label: 'Block gap of each block type and style variation'
+      sequence:
+        type: ignore
+        label: 'Block gap, a string or its top and left sides'
+    root_block_gap:
+      type: ignore
+      label: 'Root block gap, a string or its top and left sides'
+    button_widths:
+      type: sequence
+      label: 'Size of each dimension preset a Button width names'
+      sequence:
+        type: string
+        label: Size
+    typography:
+      type: ignore
+      label: Typography
+    styled_variations:
+      type: sequence
+      label: 'Styled block variations'
+      sequence:
+        type: string
+        label: 'Class of the block variation'
+    registered_variations:
+      type: sequence
+      label: 'Registered block style variations'
+      sequence:
+        type: sequence
+        label: 'Variation names of a block'
+        sequence:
+          type: string
+          label: 'Variation name'
+    body:
+      type: mapping
+      label: 'Body classes'
+      mapping:
+        classes:
+          type: sequence
+          label: 'Classes on every page'
+          sequence:
+            type: string
+            label: Class
+        bundles:
+          type: sequence
+          label: 'Template route of each node bundle'
+          sequence:
+            type: string
+            label: 'single or page'
+        vocabularies:
+          type: sequence
+          label: 'Class prefix of each vocabulary'
+          sequence:
+            type: string
+            label: 'tag or category'
+        search:
+          type: mapping
+          label: 'Search page'
+          nullable: true
+          mapping:
+            path:
+              type: string
+              label: Path
+            parameter:
+              type: string
+              label: 'Keywords parameter'
+            index:
+              type: string
+              label: 'Search API index'
+
+wordpal.block_supports:
+  type: sequence
+  label: 'Block supports'
+  sequence:
+    type: string
+    label: 'Support value'
+
+block.settings.wordpal_adjacent_post:
+  type: block_settings
+  label: 'WordPal adjacent post settings'
+  constraints:
+    FullyValidatable: ~
+  mapping:
+    direction:
+      type: string
+      label: Direction
+    label:
+      type: string
+      label: Label
+    show_title:
+      type: boolean
+      label: 'Show post title'
+    link_label:
+      type: boolean
+      label: 'Link label'
+    arrow:
+      type: string
+      label: Arrow
+    supports:
+      type: wordpal.block_supports
+      label: 'Block supports'
+
+block.settings.wordpal_site_title:
+  type: block_settings
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    level: { type: integer, label: Level }
+    is_link: { type: boolean, label: Link }
+    link_target: { type: string, label: 'Link target' }
+    supports: { type: wordpal.block_supports, label: 'Block supports' }
+
+block.settings.wordpal_page_title:
+  type: block_settings
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    level: { type: integer, label: Level }
+    align: { type: string, label: Align }
+    anchor: { type: string, label: Anchor }
+    css_class: { type: string, label: 'CSS class' }
+    font_size: { type: string, label: 'Font size' }
+    line_height: { type: string, label: 'Line height' }
+    font_family: { type: string, label: 'Font family' }
+    font_weight: { type: string, label: 'Font weight' }
+    font_style: { type: string, label: 'Font style' }
+    text_transform: { type: string, label: 'Text transform' }
+    text_decoration: { type: string, label: 'Text decoration' }
+    letter_spacing: { type: string, label: 'Letter spacing' }
+    text_align: { type: string, label: 'Text align' }
+    background_color: { type: string, label: 'Background color' }
+    text_color: { type: string, label: 'Text color' }
+    gradient: { type: string, label: Gradient }
+    link_color: { type: string, label: 'Link color' }
+    padding_top: { type: string, label: 'Padding top' }
+    padding_right: { type: string, label: 'Padding right' }
+    padding_bottom: { type: string, label: 'Padding bottom' }
+    padding_left: { type: string, label: 'Padding left' }
+    margin_top: { type: string, label: 'Margin top' }
+    margin_right: { type: string, label: 'Margin right' }
+    margin_bottom: { type: string, label: 'Margin bottom' }
+    margin_left: { type: string, label: 'Margin left' }
+    self_stretch: { type: string, label: 'Self stretch' }
+    flex_size: { type: string, label: 'Flex size' }
+    border_radius: { type: string, label: 'Border radius' }
+    border_color: { type: string, label: 'Border color' }
+    border_width: { type: string, label: 'Border width' }
+    border_style: { type: string, label: 'Border style' }
+    border_top_width: { type: string, label: 'Border top width' }
+    border_top_color: { type: string, label: 'Border top color' }
+    border_right_width: { type: string, label: 'Border right width' }
+    border_right_color: { type: string, label: 'Border right color' }
+    border_bottom_width: { type: string, label: 'Border bottom width' }
+    border_bottom_color: { type: string, label: 'Border bottom color' }
+    border_left_width: { type: string, label: 'Border left width' }
+    border_left_color: { type: string, label: 'Border left color' }
+
+block.settings.wordpal_site_tagline:
+  type: block_settings
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    level: { type: integer, label: Level }
+    supports: { type: wordpal.block_supports, label: 'Block supports' }
+
+block.settings.wordpal_site_logo:
+  type: block_settings
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    width: { type: integer, label: Width }
+    is_link: { type: boolean, label: Link }
+    link_target: { type: string, label: 'Link target' }
+    supports: { type: wordpal.block_supports, label: 'Block supports' }
+
+block.settings.wordpal_navigation:
+  type: block_settings
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    menu: { type: string, label: Menu }
+    icon: { type: string, label: 'Toggle icon' }
+    has_icon: { type: boolean, label: 'Show the toggle as an icon' }
+    show_submenu_icon: { type: boolean, label: 'Show submenu icon' }
+    submenu_visibility: { type: string, label: 'Submenu visibility' }
+    page_list: { type: boolean, label: 'Print the menu as a Page List' }
+    overlay_menu: { type: string, label: 'Overlay menu' }
+    menu_label: { type: boolean, label: 'Use the menu label without an ARIA label' }
+    trailing:
+      type: sequence
+      label: 'Blocks printed after the links'
+      sequence: { type: wordpal.comment_layout_node }
+    text_color: { type: string, label: 'Text color preset' }
+    custom_text_color: { type: string, label: 'Custom text color' }
+    background_color: { type: string, label: 'Background color preset' }
+    custom_background_color: { type: string, label: 'Custom background color' }
+    overlay_background_color: { type: string, label: 'Overlay background color preset' }
+    custom_overlay_background_color: { type: string, label: 'Custom overlay background color' }
+    overlay_text_color: { type: string, label: 'Overlay text color preset' }
+    custom_overlay_text_color: { type: string, label: 'Custom overlay text color' }
+    supports: { type: wordpal.block_supports, label: 'Block supports' }
+
+block.settings.wordpal_navigation_link:
+  type: block_settings
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    menu_link: { type: string, label: 'Menu-link plugin ID' }
+    css_class: { type: string, label: 'CSS class' }
+
+block.settings.wordpal_categories:
+  type: block_settings
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    vocabulary: { type: string, label: Vocabulary }
+    taxonomy: { type: string, label: Taxonomy }
+    show_count: { type: boolean, label: 'Show post counts' }
+    show_hierarchy: { type: boolean, label: 'Show hierarchy' }
+    show_empty: { type: boolean, label: 'Show empty terms' }
+    display_as_dropdown: { type: boolean, label: 'Display as dropdown' }
+    supports: { type: wordpal.block_supports, label: 'Block supports' }
+
+wordpal.listing.latest_posts:
+  type: mapping
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    bundle: { type: string, label: 'Content type' }
+    posts_to_show: { type: integer, label: 'Number of items' }
+    order: { type: string, label: Order }
+    order_by: { type: string, label: 'Order by' }
+    display_post_date: { type: boolean, label: 'Display post date' }
+    display_author: { type: boolean, label: 'Display author name' }
+    post_layout: { type: string, label: 'Post layout' }
+    columns: { type: integer, label: Columns }
+    css_class: { type: string, label: 'CSS class' }
+    display_post_content: { type: boolean, label: 'Display post content' }
+    excerpt_length: { type: integer, label: 'Excerpt length' }
+    display_featured_image: { type: boolean, label: 'Display featured image' }
+    featured_image_size_slug: { type: string, label: 'Featured image size' }
+    featured_image_size_width: { type: integer, label: 'Featured image width', nullable: true }
+    featured_image_size_height: { type: integer, label: 'Featured image height', nullable: true }
+    featured_image_align: { type: string, label: 'Featured image alignment' }
+    add_link_to_featured_image: { type: boolean, label: 'Link the featured image' }
+    excerpt_field: { type: string, label: 'Excerpt field' }
+    image_field: { type: string, label: 'Featured image field' }
+    font_size: { type: string, label: 'Font size' }
+    font_family: { type: string, label: 'Font family' }
+    line_height: { type: string, label: 'Line height' }
+    font_weight: { type: string, label: 'Font weight' }
+    font_style: { type: string, label: 'Font style' }
+    text_transform: { type: string, label: 'Text transform' }
+    text_decoration: { type: string, label: 'Text decoration' }
+    letter_spacing: { type: string, label: 'Letter spacing' }
+    background_color: { type: string, label: 'Background color' }
+    text_color: { type: string, label: 'Text color' }
+    gradient: { type: string, label: Gradient }
+    link_color: { type: string, label: 'Link color' }
+    padding_top: { type: string, label: 'Padding top' }
+    padding_right: { type: string, label: 'Padding right' }
+    padding_bottom: { type: string, label: 'Padding bottom' }
+    padding_left: { type: string, label: 'Padding left' }
+    margin_top: { type: string, label: 'Margin top' }
+    margin_right: { type: string, label: 'Margin right' }
+    margin_bottom: { type: string, label: 'Margin bottom' }
+    margin_left: { type: string, label: 'Margin left' }
+
+wordpal.listing.latest_comments:
+  type: mapping
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    field_name: { type: string, label: 'Comment field' }
+    comments_to_show: { type: integer, label: 'Number of comments' }
+    display_avatar: { type: boolean, label: 'Display avatar' }
+    display_date: { type: boolean, label: 'Display date' }
+    display_content:
+      type: string
+      label: 'Display content'
+      constraints:
+        Choice:
+          choices: [none, excerpt, full]
+    css_class: { type: string, label: 'CSS class' }
+
+wordpal.listing.page_list:
+  type: mapping
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    bundle: { type: string, label: 'Content type' }
+    css_class: { type: string, label: 'CSS class' }
+
+block.settings.wordpal_tag_cloud:
+  type: block_settings
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    vocabulary: { type: string, label: Vocabulary }
+    number_of_tags: { type: integer, label: 'Number of tags' }
+    show_tag_counts: { type: boolean, label: 'Show tag counts' }
+    smallest_font_size:
+      type: string
+      label: 'Smallest size'
+      constraints:
+        Regex:
+          pattern: '/^\d+(?:\.\d+)?(?:px|pt|em|rem|%)$/'
+    largest_font_size:
+      type: string
+      label: 'Largest size'
+      constraints:
+        Regex:
+          pattern: '/^\d+(?:\.\d+)?(?:px|pt|em|rem|%)$/'
+    supports: { type: wordpal.block_supports, label: 'Block supports' }
+
+block.settings.wordpal_archives:
+  type: block_settings
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    bundle: { type: string, label: 'Content type' }
+    show_post_counts: { type: boolean, label: 'Show post counts' }
+    display_as_dropdown: { type: boolean, label: 'Display as dropdown' }
+    supports: { type: wordpal.block_supports, label: 'Block supports' }
+
+block.settings.wordpal_search:
+  type: block_settings
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    path: { type: string, label: 'Search path' }
+    parameter: { type: string, label: 'Query parameter' }
+    label: { type: string, label: Label }
+    show_label: { type: boolean, label: 'Show label' }
+    placeholder: { type: string, label: Placeholder }
+    button_text: { type: string, label: 'Button text' }
+    button_position: { type: string, label: 'Button position' }
+    button_use_icon: { type: boolean, label: 'Use button icon' }
+    width:
+      type: string
+      label: Width
+      constraints:
+        Regex:
+          pattern: '/^(?:\d+(?:\.\d+)?(?:%|px|em|rem|vw|vh))?$/'
+    supports: { type: wordpal.block_supports, label: 'Block supports' }
+
+block.settings.wordpal_post_author_biography:
+  type: block_settings
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    field_name: { type: string, label: 'Biography field' }
+    supports: { type: wordpal.block_supports, label: 'Block supports' }
+
+block.settings.wordpal_comments:
+  type: block_settings
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    field_name: { type: string, label: 'Comment field' }
+    css_class: { type: string, label: 'CSS class' }
+    align: { type: string, label: Align }
+    background_color: { type: string, label: 'Background color' }
+    text_color: { type: string, label: 'Text color' }
+    gradient: { type: string, label: Gradient }
+    link_color: { type: string, label: 'Link color' }
+    heading_color: { type: string, label: 'Heading color' }
+    padding_top: { type: string, label: 'Padding top' }
+    padding_right: { type: string, label: 'Padding right' }
+    padding_bottom: { type: string, label: 'Padding bottom' }
+    padding_left: { type: string, label: 'Padding left' }
+    margin_top: { type: string, label: 'Margin top' }
+    margin_right: { type: string, label: 'Margin right' }
+    margin_bottom: { type: string, label: 'Margin bottom' }
+    margin_left: { type: string, label: 'Margin left' }
+    font_size: { type: string, label: 'Font size' }
+    line_height: { type: string, label: 'Line height' }
+    font_family: { type: string, label: 'Font family' }
+    font_weight: { type: string, label: 'Font weight' }
+    font_style: { type: string, label: 'Font style' }
+    text_transform: { type: string, label: 'Text transform' }
+    text_decoration: { type: string, label: 'Text decoration' }
+    letter_spacing: { type: string, label: 'Letter spacing' }
+    comments_title: { type: wordpal.comments_title_settings, label: 'Comments title' }
+    comment_template: { type: wordpal.empty_comment_settings, label: 'Comment template' }
+    avatar: { type: wordpal.avatar_settings, label: Avatar }
+    comment_author_name: { type: wordpal.author_name_settings, label: 'Author name' }
+    comment_date: { type: wordpal.comment_date_settings, label: Date }
+    comment_content: { type: wordpal.comment_content_settings, label: Content }
+    comment_edit_link: { type: wordpal.comment_link_settings, label: 'Edit link' }
+    comment_reply_link: { type: wordpal.comment_link_settings, label: 'Reply link' }
+    comments_pagination: { type: wordpal.comments_pagination_settings, label: Pagination }
+    comments_pagination_previous: { type: wordpal.pagination_link_settings, label: Previous }
+    comments_pagination_next: { type: wordpal.pagination_link_settings, label: Next }
+    post_comments_form: { type: wordpal.comments_form_settings, label: Form }
+    layout:
+      type: sequence
+      label: 'Ordered comment children'
+      sequence: { type: wordpal.comment_layout_node }
+
+wordpal.comment_layout_node:
+  type: mapping
+  label: 'Comment layout node'
+  mapping:
+    marker: { type: string, label: 'Comment output', nullable: true }
+    component: { type: string, label: 'SDC identifier', nullable: true }
+    props: { type: ignore, label: 'Component props', nullable: true }
+    children:
+      type: sequence
+      label: 'Ordered children'
+      sequence: { type: wordpal.comment_layout_node }
+
+wordpal.comments_title_settings:
+  type: mapping
+  mapping:
+    level: { type: integer, label: Level }
+    show_post_title: { type: boolean, label: 'Show post title' }
+    css_class: { type: string, label: 'CSS class' }
+    align: { type: string, label: Align }
+    background_color: { type: string, label: 'Background color' }
+    text_color: { type: string, label: 'Text color' }
+    gradient: { type: string, label: Gradient }
+    font_size: { type: string, label: 'Font size' }
+    line_height: { type: string, label: 'Line height' }
+    font_family: { type: string, label: 'Font family' }
+    font_weight: { type: string, label: 'Font weight' }
+    font_style: { type: string, label: 'Font style' }
+    text_transform: { type: string, label: 'Text transform' }
+    text_decoration: { type: string, label: 'Text decoration' }
+    letter_spacing: { type: string, label: 'Letter spacing' }
+    padding_top: { type: string, label: 'Padding top' }
+    padding_right: { type: string, label: 'Padding right' }
+    padding_bottom: { type: string, label: 'Padding bottom' }
+    padding_left: { type: string, label: 'Padding left' }
+    margin_top: { type: string, label: 'Margin top' }
+    margin_right: { type: string, label: 'Margin right' }
+    margin_bottom: { type: string, label: 'Margin bottom' }
+    margin_left: { type: string, label: 'Margin left' }
+    border_radius: { type: string, label: 'Border radius' }
+    border_color: { type: string, label: 'Border color' }
+    border_width: { type: string, label: 'Border width' }
+    border_style: { type: string, label: 'Border style' }
+    border_top_width: { type: string, label: 'Border top width' }
+    border_top_color: { type: string, label: 'Border top color' }
+    border_right_width: { type: string, label: 'Border right width' }
+    border_right_color: { type: string, label: 'Border right color' }
+    border_bottom_width: { type: string, label: 'Border bottom width' }
+    border_bottom_color: { type: string, label: 'Border bottom color' }
+    border_left_width: { type: string, label: 'Border left width' }
+    border_left_color: { type: string, label: 'Border left color' }
+
+wordpal.empty_comment_settings:
+  type: mapping
+  mapping: { }
+
+wordpal.comment_content_settings:
+  type: mapping
+  mapping:
+    css_class: { type: string, label: 'CSS class' }
+    text_align: { type: string, label: 'Text align' }
+    background_color: { type: string, label: 'Background color' }
+    text_color: { type: string, label: 'Text color' }
+    gradient: { type: string, label: Gradient }
+    link_color: { type: string, label: 'Link color' }
+    font_size: { type: string, label: 'Font size' }
+    line_height: { type: string, label: 'Line height' }
+    font_family: { type: string, label: 'Font family' }
+    font_weight: { type: string, label: 'Font weight' }
+    font_style: { type: string, label: 'Font style' }
+    text_transform: { type: string, label: 'Text transform' }
+    text_decoration: { type: string, label: 'Text decoration' }
+    letter_spacing: { type: string, label: 'Letter spacing' }
+    padding_top: { type: string, label: 'Padding top' }
+    padding_right: { type: string, label: 'Padding right' }
+    padding_bottom: { type: string, label: 'Padding bottom' }
+    padding_left: { type: string, label: 'Padding left' }
+    border_radius: { type: string, label: 'Border radius' }
+    border_color: { type: string, label: 'Border color' }
+    border_width: { type: string, label: 'Border width' }
+    border_style: { type: string, label: 'Border style' }
+    border_top_width: { type: string, label: 'Border top width' }
+    border_top_color: { type: string, label: 'Border top color' }
+    border_right_width: { type: string, label: 'Border right width' }
+    border_right_color: { type: string, label: 'Border right color' }
+    border_bottom_width: { type: string, label: 'Border bottom width' }
+    border_bottom_color: { type: string, label: 'Border bottom color' }
+    border_left_width: { type: string, label: 'Border left width' }
+    border_left_color: { type: string, label: 'Border left color' }
+
+wordpal.avatar_settings:
+  type: mapping
+  mapping:
+    size: { type: integer, label: Size }
+    is_link: { type: boolean, label: Link }
+    link_target: { type: string, label: 'Link target' }
+
+wordpal.author_name_settings:
+  type: mapping
+  mapping:
+    is_link: { type: boolean, label: Link }
+    link_target: { type: string, label: 'Link target' }
+    text_align: { type: string, label: 'Text align' }
+    font_size: { type: string, label: 'Font size' }
+    font_family: { type: string, label: 'Font family' }
+    font_style: { type: string, label: 'Font style' }
+    font_weight: { type: string, label: 'Font weight' }
+    text_transform: { type: string, label: 'Text transform' }
+    text_decoration: { type: string, label: 'Text decoration' }
+    letter_spacing: { type: string, label: 'Letter spacing' }
+    line_height: { type: string, label: 'Line height' }
+    text_color: { type: string, label: 'Text color' }
+    background_color: { type: string, label: 'Background color' }
+    gradient: { type: string, label: Gradient }
+    link_color: { type: string, label: 'Link color' }
+
+wordpal.comment_date_settings:
+  type: mapping
+  mapping:
+    format: { type: string, label: Format }
+    is_link: { type: boolean, label: Link }
+    font_size: { type: string, label: 'Font size' }
+    font_family: { type: string, label: 'Font family' }
+    font_style: { type: string, label: 'Font style' }
+    font_weight: { type: string, label: 'Font weight' }
+    text_transform: { type: string, label: 'Text transform' }
+    text_decoration: { type: string, label: 'Text decoration' }
+    letter_spacing: { type: string, label: 'Letter spacing' }
+    line_height: { type: string, label: 'Line height' }
+    text_color: { type: string, label: 'Text color' }
+    background_color: { type: string, label: 'Background color' }
+    gradient: { type: string, label: Gradient }
+    link_color: { type: string, label: 'Link color' }
+
+wordpal.comment_link_settings:
+  type: mapping
+  mapping:
+    label: { type: string, label: Label }
+    text_align: { type: string, label: 'Text align' }
+    font_size: { type: string, label: 'Font size' }
+    font_family: { type: string, label: 'Font family' }
+    font_style: { type: string, label: 'Font style' }
+    font_weight: { type: string, label: 'Font weight' }
+    text_transform: { type: string, label: 'Text transform' }
+    text_decoration: { type: string, label: 'Text decoration' }
+    letter_spacing: { type: string, label: 'Letter spacing' }
+    line_height: { type: string, label: 'Line height' }
+    text_color: { type: string, label: 'Text color' }
+    background_color: { type: string, label: 'Background color' }
+    gradient: { type: string, label: Gradient }
+    link_color: { type: string, label: 'Link color' }
+
+wordpal.pagination_link_settings:
+  type: mapping
+  label: 'Pagination link settings'
+  mapping:
+    label: { type: string, label: Label }
+
+wordpal.comments_pagination_settings:
+  type: mapping
+  mapping:
+    layout_type: { type: string, label: 'Layout type', nullable: true }
+    justify_content: { type: string, label: Justification }
+    orientation: { type: string, label: Orientation, nullable: true }
+    flex_wrap: { type: string, label: 'Flex wrap', nullable: true }
+    block_gap: { type: string, label: 'Block gap', nullable: true }
+
+wordpal.comments_form_settings:
+  type: mapping
+  mapping:
+    padding_top: { type: string, label: 'Top padding' }
+    padding_bottom: { type: string, label: 'Bottom padding' }
+
+views.view.*.third_party.wordpal:
+  type: config_entity
+  label: 'WordPal query settings'
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    query:
+      type: mapping
+      label: 'Query component inputs'
+      mapping:
+        query: { type: wordpal.query_inputs.query, label: Query }
+        post_template: { type: wordpal.query_inputs.post_template, label: 'Post template' }
+        pagination: { type: wordpal.query_inputs.pagination, label: Pagination }
+        previous: { type: wordpal.query_inputs.previous, label: Previous }
+        numbers: { type: wordpal.query_inputs.numbers, label: Numbers }
+        next: { type: wordpal.query_inputs.next, label: Next }
+        no_results: { type: wordpal.query_inputs.no_results, label: 'No results' }
+        layout:
+          type: sequence
+          label: 'Ordered query children'
+          sequence:
+            type: wordpal.query_layout_node
+        pagination_order:
+          type: sequence
+          label: 'Pagination child order'
+          sequence:
+            type: string
+            label: 'Pagination component'
+        bundles:
+          type: sequence
+          label: 'Listed bundles'
+          sequence:
+            type: mapping
+            label: 'Listed bundle'
+            mapping:
+              type:
+                type: string
+                label: 'Content concept'
+              category_field:
+                type: string
+                nullable: true
+                label: 'Mapped category field'
+              tag_field:
+                type: string
+                nullable: true
+                label: 'Mapped tag field'
+              image_field:
+                type: string
+                nullable: true
+                label: 'Mapped featured image field'
+    listing:
+      type: mapping
+      label: 'Listing settings'
+      mapping:
+        kind:
+          type: string
+          label: Kind
+          constraints:
+            Choice:
+              choices: [latest_posts, page_list, latest_comments]
+        settings: { type: 'wordpal.listing.[%parent.kind]', label: Settings }
+
+wordpal.query_layout_node:
+  type: mapping
+  label: 'Query layout node'
+  mapping:
+    marker:
+      type: string
+      label: 'View output'
+      constraints:
+        Choice:
+          choices: [rows, pager, empty]
+    component:
+      type: string
+      label: 'SDC identifier'
+    props:
+      # SDC schemas validate these component-specific props at render time.
+      type: ignore
+      label: 'Component props'
+    children:
+      type: sequence
+      label: 'Ordered children'
+      sequence:
+        type: wordpal.query_layout_node
+
+wordpal.query_inputs.query:
+  type: mapping
+  label: 'Inputs of wordpal:query'
+  mapping:
+    query_id: { type: float, label: 'Query id', nullable: true }
+    tag_name: { type: string, label: 'Tag name', nullable: true }
+    namespace: { type: string, label: Namespace, nullable: true }
+    enhanced_pagination: { type: boolean, label: 'Enhanced pagination', nullable: true }
+    align: { type: string, label: Align, nullable: true }
+    anchor: { type: string, label: Anchor, nullable: true }
+    css_class: { type: string, label: 'CSS class', nullable: true }
+    layout_type: { type: string, label: 'Layout type', nullable: true }
+    justify_content: { type: string, label: 'Justify content', nullable: true }
+    orientation: { type: string, label: Orientation, nullable: true }
+    flex_wrap: { type: string, label: 'Flex wrap', nullable: true }
+    vertical_alignment: { type: string, label: 'Vertical alignment', nullable: true }
+    content_size: { type: string, label: 'Content size', nullable: true }
+    wide_size: { type: string, label: 'Wide size', nullable: true }
+    column_count: { type: integer, label: 'Column count', nullable: true }
+    minimum_column_width: { type: string, label: 'Minimum column width', nullable: true }
+    self_stretch: { type: string, label: 'Self stretch', nullable: true }
+    flex_size: { type: string, label: 'Flex size', nullable: true }
+
+wordpal.query_inputs.post_template:
+  type: mapping
+  label: 'Inputs of wordpal:post-template'
+  mapping:
+    align: { type: string, label: Align, nullable: true }
+    display_layout_columns: { type: integer, label: 'Legacy flex columns', nullable: true }
+    anchor: { type: string, label: Anchor, nullable: true }
+    css_class: { type: string, label: 'CSS class', nullable: true }
+    font_size: { type: string, label: 'Font size', nullable: true }
+    line_height: { type: string, label: 'Line height', nullable: true }
+    font_family: { type: string, label: 'Font family', nullable: true }
+    font_weight: { type: string, label: 'Font weight', nullable: true }
+    font_style: { type: string, label: 'Font style', nullable: true }
+    text_transform: { type: string, label: 'Text transform', nullable: true }
+    text_decoration: { type: string, label: 'Text decoration', nullable: true }
+    letter_spacing: { type: string, label: 'Letter spacing', nullable: true }
+    background_color: { type: string, label: 'Background color', nullable: true }
+    text_color: { type: string, label: 'Text color', nullable: true }
+    gradient: { type: string, label: Gradient, nullable: true }
+    link_color: { type: string, label: 'Link color', nullable: true }
+    heading_color: { type: string, label: 'Heading color', nullable: true }
+    button_color: { type: string, label: 'Button color', nullable: true }
+    button_background_color: { type: string, label: 'Button background color', nullable: true }
+    layout_type: { type: string, label: 'Layout type', nullable: true }
+    justify_content: { type: string, label: 'Justify content', nullable: true }
+    orientation: { type: string, label: Orientation, nullable: true }
+    flex_wrap: { type: string, label: 'Flex wrap', nullable: true }
+    vertical_alignment: { type: string, label: 'Vertical alignment', nullable: true }
+    content_size: { type: string, label: 'Content size', nullable: true }
+    wide_size: { type: string, label: 'Wide size', nullable: true }
+    column_count: { type: integer, label: 'Column count', nullable: true }
+    minimum_column_width: { type: string, label: 'Minimum column width', nullable: true }
+    padding_top: { type: string, label: 'Padding top', nullable: true }
+    padding_right: { type: string, label: 'Padding right', nullable: true }
+    padding_bottom: { type: string, label: 'Padding bottom', nullable: true }
+    padding_left: { type: string, label: 'Padding left', nullable: true }
+    margin_top: { type: string, label: 'Margin top', nullable: true }
+    margin_right: { type: string, label: 'Margin right', nullable: true }
+    margin_bottom: { type: string, label: 'Margin bottom', nullable: true }
+    margin_left: { type: string, label: 'Margin left', nullable: true }
+    block_gap: { type: string, label: 'Block gap', nullable: true }
+    self_stretch: { type: string, label: 'Self stretch', nullable: true }
+    flex_size: { type: string, label: 'Flex size', nullable: true }
+    border_radius: { type: string, label: 'Border radius', nullable: true }
+    border_color: { type: string, label: 'Border color', nullable: true }
+    border_width: { type: string, label: 'Border width', nullable: true }
+    border_style: { type: string, label: 'Border style', nullable: true }
+    border_top_width: { type: string, label: 'Border top width', nullable: true }
+    border_top_color: { type: string, label: 'Border top color', nullable: true }
+    border_top_style: { type: string, label: 'Border top style', nullable: true }
+    border_right_width: { type: string, label: 'Border right width', nullable: true }
+    border_right_color: { type: string, label: 'Border right color', nullable: true }
+    border_right_style: { type: string, label: 'Border right style', nullable: true }
+    border_bottom_width: { type: string, label: 'Border bottom width', nullable: true }
+    border_bottom_color: { type: string, label: 'Border bottom color', nullable: true }
+    border_bottom_style: { type: string, label: 'Border bottom style', nullable: true }
+    border_left_width: { type: string, label: 'Border left width', nullable: true }
+    border_left_color: { type: string, label: 'Border left color', nullable: true }
+    border_left_style: { type: string, label: 'Border left style', nullable: true }
+    border_top_left_radius: { type: string, label: 'Border top left radius', nullable: true }
+    border_top_right_radius: { type: string, label: 'Border top right radius', nullable: true }
+    border_bottom_left_radius: { type: string, label: 'Border bottom left radius', nullable: true }
+    border_bottom_right_radius: { type: string, label: 'Border bottom right radius', nullable: true }
+
+wordpal.query_inputs.pagination:
+  type: mapping
+  label: 'Inputs of wordpal:query-pagination'
+  mapping:
+    pagination_arrow: { type: string, label: 'Pagination arrow', nullable: true }
+    show_label: { type: boolean, label: 'Show label', nullable: true }
+    align: { type: string, label: Align, nullable: true }
+    anchor: { type: string, label: Anchor, nullable: true }
+    css_class: { type: string, label: 'CSS class', nullable: true }
+    font_size: { type: string, label: 'Font size', nullable: true }
+    line_height: { type: string, label: 'Line height', nullable: true }
+    font_family: { type: string, label: 'Font family', nullable: true }
+    font_weight: { type: string, label: 'Font weight', nullable: true }
+    font_style: { type: string, label: 'Font style', nullable: true }
+    text_transform: { type: string, label: 'Text transform', nullable: true }
+    text_decoration: { type: string, label: 'Text decoration', nullable: true }
+    letter_spacing: { type: string, label: 'Letter spacing', nullable: true }
+    background_color: { type: string, label: 'Background color', nullable: true }
+    text_color: { type: string, label: 'Text color', nullable: true }
+    gradient: { type: string, label: Gradient, nullable: true }
+    link_color: { type: string, label: 'Link color', nullable: true }
+    heading_color: { type: string, label: 'Heading color', nullable: true }
+    button_color: { type: string, label: 'Button color', nullable: true }
+    button_background_color: { type: string, label: 'Button background color', nullable: true }
+    layout_type: { type: string, label: 'Layout type', nullable: true }
+    justify_content: { type: string, label: 'Justify content', nullable: true }
+    orientation: { type: string, label: Orientation, nullable: true }
+    flex_wrap: { type: string, label: 'Flex wrap', nullable: true }
+    vertical_alignment: { type: string, label: 'Vertical alignment', nullable: true }
+    content_size: { type: string, label: 'Content size', nullable: true }
+    wide_size: { type: string, label: 'Wide size', nullable: true }
+    column_count: { type: integer, label: 'Column count', nullable: true }
+    minimum_column_width: { type: string, label: 'Minimum column width', nullable: true }
+    self_stretch: { type: string, label: 'Self stretch', nullable: true }
+    flex_size: { type: string, label: 'Flex size', nullable: true }
+
+wordpal.query_inputs.previous:
+  type: mapping
+  label: 'Inputs of wordpal:query-pagination-previous'
+  mapping:
+    url: { type: string, label: URL, nullable: true }
+    label: { type: string, label: Label, nullable: true }
+    anchor: { type: string, label: Anchor, nullable: true }
+    css_class: { type: string, label: 'CSS class', nullable: true }
+    font_size: { type: string, label: 'Font size', nullable: true }
+    line_height: { type: string, label: 'Line height', nullable: true }
+    font_family: { type: string, label: 'Font family', nullable: true }
+    font_weight: { type: string, label: 'Font weight', nullable: true }
+    font_style: { type: string, label: 'Font style', nullable: true }
+    text_transform: { type: string, label: 'Text transform', nullable: true }
+    text_decoration: { type: string, label: 'Text decoration', nullable: true }
+    letter_spacing: { type: string, label: 'Letter spacing', nullable: true }
+    background_color: { type: string, label: 'Background color', nullable: true }
+    gradient: { type: string, label: Gradient, nullable: true }
+    link_color: { type: string, label: 'Link color', nullable: true }
+    heading_color: { type: string, label: 'Heading color', nullable: true }
+    button_color: { type: string, label: 'Button color', nullable: true }
+    button_background_color: { type: string, label: 'Button background color', nullable: true }
+    self_stretch: { type: string, label: 'Self stretch', nullable: true }
+    flex_size: { type: string, label: 'Flex size', nullable: true }
+
+wordpal.query_inputs.numbers:
+  type: mapping
+  label: 'Inputs of wordpal:query-pagination-numbers'
+  mapping:
+    current: { type: integer, label: 'Current page', nullable: true }
+    previous_ellipsis: { type: boolean, label: 'Previous ellipsis', nullable: true }
+    next_ellipsis: { type: boolean, label: 'Next ellipsis', nullable: true }
+    mid_size: { type: float, label: 'Mid size', nullable: true }
+    anchor: { type: string, label: Anchor, nullable: true }
+    css_class: { type: string, label: 'CSS class', nullable: true }
+    font_size: { type: string, label: 'Font size', nullable: true }
+    line_height: { type: string, label: 'Line height', nullable: true }
+    font_family: { type: string, label: 'Font family', nullable: true }
+    font_weight: { type: string, label: 'Font weight', nullable: true }
+    font_style: { type: string, label: 'Font style', nullable: true }
+    text_transform: { type: string, label: 'Text transform', nullable: true }
+    text_decoration: { type: string, label: 'Text decoration', nullable: true }
+    letter_spacing: { type: string, label: 'Letter spacing', nullable: true }
+    background_color: { type: string, label: 'Background color', nullable: true }
+    gradient: { type: string, label: Gradient, nullable: true }
+    link_color: { type: string, label: 'Link color', nullable: true }
+    heading_color: { type: string, label: 'Heading color', nullable: true }
+    button_color: { type: string, label: 'Button color', nullable: true }
+    button_background_color: { type: string, label: 'Button background color', nullable: true }
+    self_stretch: { type: string, label: 'Self stretch', nullable: true }
+    flex_size: { type: string, label: 'Flex size', nullable: true }
+
+wordpal.query_inputs.next:
+  type: mapping
+  label: 'Inputs of wordpal:query-pagination-next'
+  mapping:
+    url: { type: string, label: URL, nullable: true }
+    label: { type: string, label: Label, nullable: true }
+    anchor: { type: string, label: Anchor, nullable: true }
+    css_class: { type: string, label: 'CSS class', nullable: true }
+    font_size: { type: string, label: 'Font size', nullable: true }
+    line_height: { type: string, label: 'Line height', nullable: true }
+    font_family: { type: string, label: 'Font family', nullable: true }
+    font_weight: { type: string, label: 'Font weight', nullable: true }
+    font_style: { type: string, label: 'Font style', nullable: true }
+    text_transform: { type: string, label: 'Text transform', nullable: true }
+    text_decoration: { type: string, label: 'Text decoration', nullable: true }
+    letter_spacing: { type: string, label: 'Letter spacing', nullable: true }
+    background_color: { type: string, label: 'Background color', nullable: true }
+    gradient: { type: string, label: Gradient, nullable: true }
+    link_color: { type: string, label: 'Link color', nullable: true }
+    heading_color: { type: string, label: 'Heading color', nullable: true }
+    button_color: { type: string, label: 'Button color', nullable: true }
+    button_background_color: { type: string, label: 'Button background color', nullable: true }
+    self_stretch: { type: string, label: 'Self stretch', nullable: true }
+    flex_size: { type: string, label: 'Flex size', nullable: true }
+
+wordpal.query_inputs.no_results:
+  type: mapping
+  label: 'Inputs of wordpal:query-no-results'
+  mapping:
+    align: { type: string, label: Align, nullable: true }
+    anchor: { type: string, label: Anchor, nullable: true }
+    css_class: { type: string, label: 'CSS class', nullable: true }
+    font_size: { type: string, label: 'Font size', nullable: true }
+    line_height: { type: string, label: 'Line height', nullable: true }
+    font_family: { type: string, label: 'Font family', nullable: true }
+    font_weight: { type: string, label: 'Font weight', nullable: true }
+    font_style: { type: string, label: 'Font style', nullable: true }
+    text_transform: { type: string, label: 'Text transform', nullable: true }
+    text_decoration: { type: string, label: 'Text decoration', nullable: true }
+    letter_spacing: { type: string, label: 'Letter spacing', nullable: true }
+    background_color: { type: string, label: 'Background color', nullable: true }
+    text_color: { type: string, label: 'Text color', nullable: true }
+    gradient: { type: string, label: Gradient, nullable: true }
+    link_color: { type: string, label: 'Link color', nullable: true }
+    heading_color: { type: string, label: 'Heading color', nullable: true }
+    button_color: { type: string, label: 'Button color', nullable: true }
+    button_background_color: { type: string, label: 'Button background color', nullable: true }
+    self_stretch: { type: string, label: 'Self stretch', nullable: true }
+    flex_size: { type: string, label: 'Flex size', nullable: true }
+
+views.pager.wordpal_query:
+  type: views.pager.full
+  label: 'WordPal Query pagination'
+
+views.area.wordpal_pattern:
+  type: views_area
+  label: 'WordPal Pattern'
+  constraints: { FullyValidatable: ~ }
+  mapping:
+    pattern_id:
+      type: string
+      label: 'Canvas Pattern ID'
+    vocabularies:
+      type: sequence
+      label: 'Vocabularies of the route term'
+      sequence:
+        type: string
+        label: 'Vocabulary ID'
+    negate:
+      type: boolean
+      label: 'Render for every other vocabulary'

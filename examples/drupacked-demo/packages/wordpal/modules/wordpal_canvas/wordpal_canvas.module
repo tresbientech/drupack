@@ -1,0 +1,20 @@
+<?php
+
+/**
+ * @file
+ * Generation hooks for WordPal Canvas.
+ */
+
+declare(strict_types=1);
+
+use Drupal\wordpal\Theme\SiteBlocks;
+use Drupal\wordpal_convert\Theme\ThemeGenerator;
+
+/**
+ * Implements hook_wordpal_theme_files_alter().
+ */
+function wordpal_canvas_wordpal_theme_files_alter(array &$files, string $themeId): void {
+  $class = SiteBlocks::SITE_BLOCKS_CLASS;
+  $files[ThemeGenerator::directory($themeId) . 'templates/canvas-page-variant.html.twig'] =
+    "{{ content.messages }}\n<div class=\"$class\">\n  {{ content|without('messages') }}\n</div>\n";
+}

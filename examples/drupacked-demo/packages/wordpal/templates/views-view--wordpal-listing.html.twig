@@ -1,0 +1,42 @@
+{% if listing.kind == 'latest_posts' %}
+{% set grid = listing.settings.post_layout == 'grid' %}
+{% set classes = ['wp-block-latest-posts__list', grid ? 'is-grid', grid ? 'columns-' ~ listing.settings.columns, listing.settings.display_post_date ? 'has-dates', listing.settings.display_author ? 'has-author', 'wp-block-latest-posts', 'is-layout-flow', 'wp-block-latest-posts-is-layout-flow'] %}
+{% set size = listing.settings.featured_image_size_slug %}
+{% set image_style = (listing.settings.featured_image_size_width ? 'max-width:' ~ listing.settings.featured_image_size_width ~ 'px;') ~ (listing.settings.featured_image_size_height ? 'max-height:' ~ listing.settings.featured_image_size_height ~ 'px;') %}
+<ul{{ attributes.addClass(classes).merge(wordpal_attributes('core/latest-posts', listing.settings, false)) }}>{% for post in items %}<li>
+  {%- if post.image -%}
+    {%- set image -%}<img{% if post.image.width %} width="{{ post.image.width }}"{% endif %}{% if post.image.height %} height="{{ post.image.height }}"{% endif %} src="{{ post.image.src }}" class="attachment-{{ size }} size-{{ size }} wp-post-image" alt="{{ post.image.alt }}" style="{{ image_style }}" decoding="async" loading="lazy" />{%- endset -%}
+    <div class="wp-block-latest-posts__featured-image{{ listing.settings.featured_image_align ? ' align' ~ listing.settings.featured_image_align }}">{% if listing.settings.add_link_to_featured_image %}<a href="{{ post.url }}" aria-label="{{ post.title }}">{{ image }}</a>{% else %}{{ image }}{% endif %}</div>
+  {%- endif -%}
+  <a class="wp-block-latest-posts__post-title" href="{{ post.url }}">{{ post.title }}</a>
+  {%- if listing.settings.display_author %}<div class="wp-block-latest-posts__post-author">{{ 'by @name'|t({'@name': post.author}) }}</div>{% endif -%}
+  {%- if listing.settings.display_post_date %}<time datetime="{{ wordpal_date(post.created, 'c') }}" class="wp-block-latest-posts__post-date">{{ wordpal_date(post.created, wordpal_default_date_format()) }}</time>{% endif -%}
+  {%- if post.excerpt is not null %}<div class="wp-block-latest-posts__post-excerpt">{{ post.excerpt.text }}{% if post.excerpt.trimmed %} … <a class="wp-block-latest-posts__read-more" href="{{ post.url }}" rel="noopener">{{ 'Read more'|t }}<span class="screen-reader-text">: {{ post.title }}</span></a>{% endif %}</div>{% endif -%}
+</li>
+{% endfor %}</ul>
+{% elseif listing.kind == 'page_list' %}
+{# WordPress renders nothing for a site with no pages. #}
+{% if items %}<ul{{ attributes.addClass('wp-block-page-list', listing.settings.css_class) }}>{% for page in items %}<li class="wp-block-pages-list__item{{ page.current ? ' current-menu-item' }}"><a class="wp-block-pages-list__item__link" href="{{ page.url }}"{% if page.current %} aria-current="page"{% endif %}>{{ page.title }}</a></li>{% endfor %}</ul>{% endif %}
+{% elseif listing.kind == 'latest_comments' %}
+{% set content = listing.settings.display_content %}
+{% set classes = [
+  listing.settings.display_avatar ? 'has-avatars',
+  listing.settings.display_date ? 'has-dates',
+  content != 'none' ? 'has-excerpts',
+  items is empty ? 'no-comments',
+  'wp-block-latest-comments',
+  listing.settings.css_class,
+] %}
+{% if items is empty %}
+<div{{ attributes.addClass(classes) }}>{{ 'No comments to show.'|t }}</div>
+{% else %}
+<ol{{ attributes.addClass(classes) }}>{% for comment in items %}<li class="wp-block-latest-comments__comment">
+  {%- if listing.settings.display_avatar and comment.avatar -%}<img alt="" src="{{ comment.avatar }}" class="avatar avatar-48 photo wp-block-latest-comments__comment-avatar" height="48" width="48" loading="lazy" decoding="async">{%- endif -%}
+  <article><footer class="wp-block-latest-comments__comment-meta">
+    {%- if comment.author_url %}<a class="wp-block-latest-comments__comment-author" href="{{ comment.author_url }}">{{ comment.author }}</a>{% else %}<span class="wp-block-latest-comments__comment-author">{{ comment.author }}</span>{% endif %} on <a class="wp-block-latest-comments__comment-link" href="{{ comment.link }}">{{ comment.post_title }}</a>
+    {%- if listing.settings.display_date %}<time datetime="{{ wordpal_date(comment.created, 'c') }}" class="wp-block-latest-comments__comment-date">{{ wordpal_date(comment.created, wordpal_default_date_format()) }}</time>{% endif -%}
+  </footer>
+  {%- if content == 'full' %}<div class="wp-block-latest-comments__comment-excerpt">{{ comment.body }}</div>{% elseif content == 'excerpt' %}<div class="wp-block-latest-comments__comment-excerpt"><p>{{ comment.excerpt }}</p></div>{% endif -%}
+  </article></li>{% endfor %}</ol>
+{% endif %}
+{% endif %}

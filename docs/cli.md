@@ -18,7 +18,7 @@ SITE --help
 SITE --version
 ```
 
-`SITE` is the site's executable, `mercury-demo` for the Mercury Demo.
+`SITE` is the site's executable, `drupacked-demo` for the Drupacked Demo.
 
 An option takes `--name value` or `--name=value`. `--help` prints the option
 set. `--version` prints the release. A rejected value prints its reason on
@@ -29,7 +29,7 @@ standard error and exits 1.
 | Option | Value | Default | Environment | Applies |
 |---|---|---|---|---|
 | `--data-dir` | PATH | `./data` | `DRUPACK_DATA_DIR` | every start, `drush` |
-| `--listen` | IP:PORT | `127.0.0.1` on the site's port, `7225` for the Mercury Demo | none | every start |
+| `--listen` | IP:PORT | `127.0.0.1` on the site's port, `7225` for the Drupacked Demo | none | every start |
 | `--host` | HOST | `localhost` | none | every start |
 | `--files-dir` | PATH | `files` in Site data | none | every start, `drush` |
 | `--database` | `sqlite`, `mysql`, `pgsql` | `sqlite` | `DRUPACK_DATABASE` | first start |
@@ -40,7 +40,7 @@ standard error and exits 1.
 | `--db-password` | PASSWORD | none | `DRUPACK_DB_PASSWORD` | first start |
 | `--admin-user` | NAME | `admin` | `DRUPACK_ADMIN_USER` | first start |
 | `--admin-password` | PASSWORD | generated | `DRUPACK_ADMIN_PASSWORD` | first start |
-| `--site-name` | NAME | the site's name, `Drupal Mercury Demo` for the Mercury Demo | `DRUPACK_SITE_NAME` | first start |
+| `--site-name` | NAME | the site's name, `Drupacked Demo` for the Drupacked Demo | `DRUPACK_SITE_NAME` | first start |
 | `--no-browser` | none | off | none | every start |
 | `--foreground` | none | off | none | every start |
 

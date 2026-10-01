@@ -1,0 +1,32 @@
+{
+  "name": "drupal/wordpal",
+  "description": "Converts a WordPress block theme into a Drupal CMS site editors change in Drupal Canvas or Display Builder.",
+  "type": "drupal-module",
+  "license": "GPL-2.0-or-later",
+  "homepage": "https://www.drupal.org/project/wordpal",
+  "support": {
+    "issues": "https://www.drupal.org/project/issues/wordpal",
+    "source": "https://git.drupalcode.org/project/wordpal"
+  },
+  "require": {
+    "php": ">=8.4",
+    "ext-zip": "*"
+  },
+  "require-dev": {
+    "drupal/canvas": "^1.11",
+    "drupal/display_builder": "^1.0.0-beta7",
+    "drupal/pathauto": "^1.13",
+    "drupal/search_api": "^1.41",
+    "drupal/trash": "^3.1",
+    "drupal/ui_patterns": "^2.0.21",
+    "drupal/ui_skins": "^1.2",
+    "drush/drush": "^13"
+  },
+  "suggest": {
+    "drupal/canvas": "Required by wordpal_canvas and wordpal_canvas_runtime, the Canvas target.",
+    "drupal/display_builder": "Required by wordpal_display_builder and wordpal_display_builder_runtime, the Display Builder target.",
+    "drupal/ui_patterns": "Required by the Display Builder target.",
+    "drupal/ui_skins": "Required by the Display Builder target.",
+    "drupal/pathauto": "Installed by every Site recipe a conversion writes."
+  }
+}

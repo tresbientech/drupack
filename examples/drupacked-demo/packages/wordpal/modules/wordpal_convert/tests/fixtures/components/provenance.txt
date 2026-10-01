@@ -1,0 +1,5 @@
+Source: WordPress Twenty Twenty-Four theme 1.6 pattern files.
+WordPress: 7.1.1, requested and resolved exactly at the component pin.
+Generator: this module's PlaygroundRunner with @wp-playground/cli 3.1.54.
+Invocation: PlaygroundRunner::snapshot("twentytwentyfour", "7.1.1", "<snapshot directory>").
+The .html files are unmodified out/patterns files. The .rendered.html files are the matching out/patterns-rendered files. block-supports.css is the unmodified out/block-supports.css.

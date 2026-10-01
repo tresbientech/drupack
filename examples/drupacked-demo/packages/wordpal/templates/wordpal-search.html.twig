@@ -1,0 +1,44 @@
+{% set position = settings.button_position ?: 'button-outside' %}
+{% set show_button = position != 'no-button' %}
+{% set button_inside = position == 'button-inside' %}
+{#
+  A button-only search expands on click through the Interactivity API. The
+  attributes below are what WordPress prints after its server-side directive
+  pass, which drops the ones bound to client-only state.
+#}
+{% set expandable = position == 'button-only' %}
+{% set classes = ['wp-block-search__' ~ position, expandable ? 'wp-block-search__searchfield-hidden', settings.button_use_icon ? 'wp-block-search__icon-button' : 'wp-block-search__text-button', 'wp-block-search'] %}
+{#
+  search.php skips the generic color, typography and border serialization
+  (__experimentalSkipSerialization) and distributes them itself. Typography
+  goes on the label, input and button, and text decoration skips the input.
+  The label takes the preset classes only while it shows. Border width, color
+  and style go on the input and button, or onto the wrapper when the button
+  sits inside it. The radius stays on the input and button. Color goes on the
+  button when shown, else the input. None of these reach the form.
+#}
+{% set supports = settings.supports %}
+{% set typography_keys = ['font_size', 'font_family', 'line_height', 'font_weight', 'font_style', 'text_transform', 'letter_spacing'] %}
+{% set color_keys = ['background_color', 'text_color', 'gradient'] %}
+{% set border_keys = wordpal_border_props() %}
+{% set typography = supports|filter((value, key) => key in typography_keys) %}
+{% set decoration = supports|filter((value, key) => key == 'text_decoration') %}
+{% set color = supports|filter((value, key) => key in color_keys) %}
+{% set radius = supports|filter((value, key) => key in border_keys and key ends with '_radius') %}
+{% set border = supports|filter((value, key) => key in border_keys and not (key ends with '_radius')) %}
+{% set form_props = supports|filter((value, key) => key not in typography_keys|merge(color_keys)|merge(border_keys)|merge(['text_decoration'])) %}
+{% set label_visible = settings.show_label and settings.label %}
+{% set label_attrs = wordpal_attributes('core/search', typography|merge(settings.show_label ? decoration : {}), false) %}
+{% if not label_visible %}{% set label_attrs = label_attrs.removeAttribute('class') %}{% endif %}
+{% set label_attrs = create_attribute().addClass(label_visible ? ['wp-block-search__label'] : ['wp-block-search__label', 'screen-reader-text']).merge(label_attrs) %}
+{% set wrapper_attrs = create_attribute().addClass('wp-block-search__inside-wrapper').merge(wordpal_attributes('core/search', button_inside ? border : {}, false, width ? {width: width} : {})) %}
+{% set input_attrs = create_attribute().addClass('wp-block-search__input').merge(wordpal_attributes('core/search', typography|merge(radius)|merge(button_inside ? {} : border)|merge(show_button ? {} : color), false)) %}
+{% if expandable %}{% set input_attrs = input_attrs.setAttribute('aria-hidden', 'true').setAttribute('data-wp-bind--aria-hidden', '!context.isSearchInputVisible').setAttribute('data-wp-bind--tabindex', 'state.tabindex') %}{% endif %}
+{% set button_attrs = create_attribute().addClass(['wp-block-search__button', settings.button_use_icon ? 'has-icon', 'wp-element-button']).merge(wordpal_attributes('core/search', typography|merge(decoration)|merge(radius)|merge(button_inside ? {} : border)|merge(color), false)) %}
+{% if expandable %}
+  {% set button_attrs = button_attrs.setAttribute('aria-expanded', 'false').setAttribute('data-wp-bind--aria-controls', 'state.ariaControls').setAttribute('data-wp-bind--aria-expanded', 'context.isSearchInputVisible').setAttribute('data-wp-bind--aria-label', 'state.ariaLabel').setAttribute('data-wp-bind--type', 'state.type').setAttribute('data-wp-on--click', 'actions.openSearchInput') %}
+  {% set attributes = attributes.setAttribute('data-wp-interactive', 'core/search').setAttribute('data-wp-context', {isSearchInputVisible: false, inputId: input_id, ariaLabelExpanded: 'Submit Search'|t, ariaLabelCollapsed: 'Expand search field'|t}|json_encode).setAttribute('data-wp-class--wp-block-search__searchfield-hidden', '!context.isSearchInputVisible').setAttribute('data-wp-on--keydown', 'actions.handleSearchKeydown').setAttribute('data-wp-on--focusout', 'actions.handleSearchFocusout') %}
+  {{ attach_library('wordpal/interactivity.search') }}
+{% endif %}
+<form role="search" method="get" action="{{ action }}"{{ attributes.addClass(classes).merge(wordpal_attributes('core/search', form_props, false)) }}>{# search.php hides the label whenever showLabel is false or the saved label is empty: an empty visible label has nothing to show. #}
+<label{{ label_attrs }} for="{{ input_id }}">{{ settings.label }}</label><div{{ wrapper_attrs }}><input{{ input_attrs }} id="{{ input_id }}" placeholder="{{ settings.placeholder }}" value="{{ value }}" type="search" name="{{ parameter }}" required>{% if show_button %}<button{% if not expandable %} aria-label="{{ settings.button_text }}"{% endif %}{{ button_attrs }}{% if not expandable %} type="submit"{% endif %}>{% if settings.button_use_icon %}<svg class="search-icon" viewBox="0 0 24 24" width="24" height="24"><path d="M13 5c-3.3 0-6 2.7-6 6 0 1.4.5 2.7 1.3 3.7l-3.8 3.8 1.1 1.1 3.8-3.8c1 .8 2.3 1.3 3.7 1.3 3.3 0 6-2.7 6-6S16.3 5 13 5zm0 10.5c-2.5 0-4.5-2-4.5-4.5s2-4.5 4.5-4.5 4.5 2 4.5 4.5-2 4.5-4.5 4.5z"></path></svg>{% else %}{{ settings.button_text }}{% endif %}</button>{% endif %}</div></form>

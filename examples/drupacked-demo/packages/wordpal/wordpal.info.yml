@@ -1,0 +1,12 @@
+name: 'Wordpal'
+type: module
+description: 'WordPress core blocks as Drupal components.'
+package: 'WordPal'
+core_version_requirement: ^11.4
+dependencies:
+  - drupal:comment
+  - drupal:node
+  - drupal:taxonomy
+  - drupal:text
+  - drupal:menu_link_content
+  - drupal:views

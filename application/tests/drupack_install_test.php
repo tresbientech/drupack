@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // Unit cases for the functions in composer/drupack-install. Run with:
-//   ./dist/mercury-demo-linux-amd64 php-cli "$PWD/application/tests/drupack_install_test.php"
+//   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/drupack_install_test.php"
 // The constant loads drupack-install for its functions alone. PHP prints the
 // shebang line of an included file, so the buffer drops it.
 
@@ -67,7 +67,7 @@ test('a build is current when the release lists its SHA-256 for drupack', functi
     $sha256 = hash('sha256', 'a drupack build');
     same(true, isRelease("$directory/drupack", "0000  drupack-0.5.1-macos-arm64\n$sha256  drupack-0.5.1-linux-amd64\n", '0.5.1'));
     same(false, isRelease("$directory/drupack", "$sha256  drupack-0.5.2-linux-amd64\n", '0.5.1'));
-    same(false, isRelease("$directory/drupack", "$sha256  mercury-demo-0.5.1-linux-amd64\n", '0.5.1'));
+    same(false, isRelease("$directory/drupack", "$sha256  drupacked-demo-0.5.1-linux-amd64\n", '0.5.1'));
     file_put_contents("$directory/drupack", "#!/bin/sh\necho 'drupack 0.5.1 (drupack 0.5.1, glibc)'\n");
     same(false, isRelease("$directory/drupack", "$sha256  drupack-0.5.1-linux-amd64\n", '0.5.1'));
 });

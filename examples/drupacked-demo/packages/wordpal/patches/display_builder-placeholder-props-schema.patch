@@ -1,0 +1,9 @@
+--- a/components/placeholder/placeholder.component.yml
++++ b/components/placeholder/placeholder.component.yml
+@@ -20,3 +20,6 @@
+   dependencies:
+     - core/drupal
+     - core/once
++props:
++  type: object
++  properties: {}

@@ -1,0 +1,15 @@
+{#
+/**
+ * @file
+ * WordPress core/column.
+ */
+#}
+{% set classes = [
+  'wp-block-column',
+  vertical_alignment ? 'is-vertically-aligned-' ~ vertical_alignment,
+] %}
+{# WordPress saves a flex-basis only for a width holding a digit. #}
+{# column/save.js rounds a percentage to twelve decimals. #}
+{% set rounded = width and width matches '/^[0-9.]+%$/' ? ((width|trim('%', 'right') + 0)|round(12)) ~ '%' : null %}
+{% set extra = width and width matches '/\\d/' ? {'flex-basis': rounded ?? wordpal_css_value(width)} : {} %}
+<div{{ attributes.addClass(classes).merge(wordpal_attributes('core/column', _context, true, extra)) }}>{% block content %}{% endblock %}</div>

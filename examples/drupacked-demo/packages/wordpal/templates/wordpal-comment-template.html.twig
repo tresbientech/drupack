@@ -1,0 +1,6 @@
+{% macro thread(items, depth) %}
+  {% import _self as tree %}
+  {% for item in items %}<li id="comment-{{ item.id }}" class="comment {{ item.parity }}{% if depth == 1 %} thread-{{ loop.index is odd ? 'even' : 'odd' }}{% endif %} depth-{{ depth }}">{{ item.content }}{% if item.children %}<ol>{{ tree.thread(item.children, depth + 1) }}</ol>{% endif %}</li>{% endfor %}
+{% endmacro %}
+{% import _self as tree %}
+{% if comments %}<ol class="wp-block-comment-template">{{ tree.thread(comments, 1) }}</ol>{% endif %}

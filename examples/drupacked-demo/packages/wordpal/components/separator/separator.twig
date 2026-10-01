@@ -1,0 +1,22 @@
+{#
+/**
+ * @file
+ * WordPress core/separator.
+ *
+ * A separator paints its single color as both text and background.
+ */
+#}
+{% set color_props = background_color ? {'text_color': background_color} : {} %}
+{% set support_props = _context|merge(color_props) %}
+{% set gradient_is_custom = gradient and not (gradient starts with 'var:preset|') %}
+{% if gradient_is_custom %}
+  {# save() keeps has-background for a gradient but only ever turns a solid
+     color into an inline style, never the gradient value itself. #}
+  {% set support_props = support_props|merge({'gradient': null}) %}
+{% endif %}
+{% set separator = attributes.addClass('wp-block-separator').addClass(opacity == 'css' ? 'has-css-opacity' : 'has-alpha-channel-opacity').addClass(gradient_is_custom ? 'has-background').merge(wordpal_attributes('core/separator', support_props, false)) %}
+{% if tag_name == 'div' %}
+<div{{ separator }}></div>
+{% else %}
+<hr{{ separator }} />
+{% endif %}

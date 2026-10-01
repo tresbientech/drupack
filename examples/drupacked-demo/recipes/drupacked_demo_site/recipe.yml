@@ -1,0 +1,8 @@
+name: 'Drupacked Demo'
+type: Site
+description: 'The Mercury Demo site template, with the WordPal converter and Agent Access enabled.'
+recipes:
+  - mercury_demo
+  - agent_access
+install:
+  - wordpal_canvas

@@ -1,0 +1,13 @@
+services:
+  Drupal\wordpal_display_builder\RuntimeBindings:
+    autowire: true
+  Drupal\wordpal_display_builder\SourceTreeBuilder:
+    autowire: true
+  Drupal\wordpal_display_builder\ListingBlocks:
+    autowire: true
+  Drupal\wordpal_display_builder\ListingWriter:
+    autowire: true
+  Drupal\wordpal_display_builder\DisplayBuilderWriter:
+    autowire: true
+    tags:
+      - { name: wordpal_convert.writer, target: display_builder }

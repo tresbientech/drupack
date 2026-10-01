@@ -1,0 +1,19 @@
+{#
+/**
+ * @file
+ * WordPress core/post-excerpt.
+ *
+ * The more link prints on its own line unless show_more_on_new_line is
+ * false, as in WordPress.
+ */
+#}
+{% set more = more_text and url %}
+{% set new_line = show_more_on_new_line is not same as(false) %}
+<div{{ attributes.addClass('wp-block-post-excerpt').merge(wordpal_attributes('core/post-excerpt', _context, false)) }}><p class="wp-block-post-excerpt__excerpt">{{ excerpt_length is null ? excerpt|default('')|striptags : wordpal_trim_words(excerpt|default(''), excerpt_length) }}
+{%- if more and new_line -%}
+</p><p class="wp-block-post-excerpt__more-text">
+{%- else %} {% endif -%}
+{%- if more -%}
+<a class="wp-block-post-excerpt__more-link" href="{{ wordpal_url(url) }}">{{ wordpal_html(more_text) }}</a>
+{%- endif -%}
+</p></div>

@@ -65,3 +65,9 @@ workflow does not depend on it.
 A release carries `install-NAME.ps1` only when it holds a Windows build of
 NAME. A site release built by `build.yml` holds Linux builds alone, and its
 PowerShell script had no build to install.
+
+## Amendment, 2026-10-01
+
+From the first `drupacked-demo` release, `/demo.sh` and `/demo.ps1` redirect to
+`install-drupacked-demo`. That release publishes no `install-mercury-demo`, so
+the short paths fail between its publish and the change to the fleet's NPM.

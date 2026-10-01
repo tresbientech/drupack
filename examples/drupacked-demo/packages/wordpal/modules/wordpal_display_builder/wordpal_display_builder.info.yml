@@ -1,0 +1,23 @@
+name: 'Wordpal Display Builder'
+type: module
+description: 'Writes converted WordPress block themes into Drupal Display Builder.'
+package: 'WordPal'
+core_version_requirement: ^11.4
+dependencies:
+  - wordpal:wordpal
+  - wordpal:wordpal_convert
+  - wordpal:wordpal_display_builder_runtime
+  - display_builder:display_builder
+  - display_builder:display_builder_page_layout
+  - display_builder:display_builder_entity_view
+  - display_builder:display_builder_views
+  - ui_patterns:ui_patterns
+  - ui_patterns:ui_patterns_field
+  - ui_patterns:ui_patterns_field_formatters
+  - ui_patterns:ui_patterns_views
+  - drupal:views
+  - drupal:taxonomy
+  - ui_skins:ui_skins
+test_dependencies:
+  - search_api:search_api
+  - search_api:search_api_db

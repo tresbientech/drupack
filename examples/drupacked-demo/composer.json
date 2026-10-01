@@ -1,0 +1,68 @@
+{
+    "name": "tresbientech/drupack",
+    "description": "Offline Drupal CMS on the Mercury Demo recipe, with WordPal and Agent Access",
+    "type": "project",
+    "license": "GPL-2.0-or-later",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "packages/wordpal",
+            "options": {"symlink": false, "versions": {"drupal/wordpal": "dev-main"}}
+        },
+        {"type": "composer", "url": "https://packages.drupal.org/8"}
+    ],
+    "require": {
+        "php": "~8.5.0",
+        "ext-pdo_sqlite": "*",
+        "composer/installers": "^2.3",
+        "drupal/agent_access": "1.0.0-alpha2",
+        "drupal/canvas": "1.12.0",
+        "drupal/core-composer-scaffold": "^11.4",
+        "drupal/core-project-message": "^11.4",
+        "drupal/core-recommended": "^11.4",
+        "drupal/core-vendor-hardening": "^11.4",
+        "drupal/drupal_cms_content_type_base": "2.1.6",
+        "drupal/drupal_cms_installer": "2.2.0",
+        "drupal/drupal_cms_search": "2.2.0",
+        "drupal/mcp_server": "^2.0@beta",
+        "drupal/mcp_server_oauth-mcp_server_oauth": "^1.0@alpha",
+        "drupal/mcp_server_tool_bridge": "^1.0@beta",
+        "drupal/mercury_demo": "1.1.0",
+        "drupal/tool": "^1.0@dev",
+        "drupal/tool_belt": "^1.0@alpha",
+        "drupal/wordpal": "dev-main",
+        "drush/drush": "^13.6",
+        "twig/twig": "3.29.0"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "allow-plugins": {
+            "composer/installers": true,
+            "drupal/core-composer-scaffold": true,
+            "drupal/core-project-message": true,
+            "drupal/core-vendor-hardening": true,
+            "php-http/discovery": true,
+            "symfony/runtime": true
+        },
+        "platform": {"php": "8.5.10"},
+        "sort-packages": true,
+        "optimize-autoloader": true
+    },
+    "extra": {
+        "drupal-scaffold": {
+            "locations": {"web-root": "web/"},
+            "file-mapping": {"[web-root]/example.gitignore": false}
+        },
+        "installer-paths": {
+            "web/core": ["type:drupal-core"],
+            "web/libraries/{$name}": ["type:drupal-library"],
+            "web/modules/contrib/{$name}": ["type:drupal-module"],
+            "web/profiles/contrib/{$name}": ["type:drupal-profile"],
+            "web/themes/contrib/{$name}": ["type:drupal-theme"],
+            "web/modules/custom/{$name}": ["type:drupal-custom-module"],
+            "web/themes/custom/{$name}": ["type:drupal-custom-theme"],
+            "recipes/{$name}": ["type:drupal-recipe"]
+        }
+    }
+}

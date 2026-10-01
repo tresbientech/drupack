@@ -1,0 +1,424 @@
+name: 'Media & Text'
+description: 'Set media and words side-by-side for a richer layout.'
+status: stable
+group: 'WordPress: media'
+links:
+  - 'https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes/blocks/media-text'
+slots:
+  content:
+    title: Content
+props:
+  type: object
+  properties:
+    media_alt:
+      title: 'Media alt'
+      type: string
+      x-wordpal-panel: content
+    media_id:
+      title: 'Media id'
+      type: number
+      x-wordpal-panel: content
+    media_url:
+      title: 'Media url'
+      type: string
+      x-wordpal-panel: content
+    href:
+      title: Href
+      type: string
+      x-wordpal-panel: content
+    media_type:
+      title: 'Media type'
+      type: string
+      x-wordpal-panel: content
+    align:
+      title: Align
+      type: string
+      enum:
+        - wide
+        - full
+      'meta:enum':
+        wide: 'Wide width'
+        full: 'Full width'
+      x-wordpal-panel: settings
+    media_position:
+      title: 'Media position'
+      type: string
+      examples:
+        - left
+      x-wordpal-panel: settings
+    media_link:
+      title: 'Media link'
+      type: string
+      x-wordpal-panel: settings
+    link_destination:
+      title: 'Link destination'
+      type: string
+      x-wordpal-panel: settings
+    link_target:
+      title: 'Link target'
+      type: string
+      x-wordpal-panel: settings
+    rel:
+      title: Rel
+      type: string
+      x-wordpal-panel: settings
+    link_class:
+      title: 'Link class'
+      type: string
+      x-wordpal-panel: settings
+    media_width:
+      title: 'Media width'
+      type: number
+      examples:
+        - 50
+      x-wordpal-panel: settings
+    media_size_slug:
+      title: 'Media size slug'
+      type: string
+      x-wordpal-panel: settings
+    is_stacked_on_mobile:
+      title: 'Is stacked on mobile'
+      type: boolean
+      examples:
+        - true
+      x-wordpal-panel: settings
+    vertical_alignment:
+      title: 'Vertical alignment'
+      type: string
+      x-wordpal-panel: settings
+    image_fill:
+      title: 'Image fill'
+      type: boolean
+      x-wordpal-panel: settings
+    use_featured_image:
+      title: 'Use featured image'
+      type: boolean
+      examples:
+        - false
+      x-wordpal-panel: settings
+    in_template_part:
+      title: 'In a Template part'
+      type: boolean
+      x-wordpal-panel: settings
+    focal_point:
+      title: 'Focal point'
+      type: string
+      x-wordpal-panel: settings
+    anchor:
+      title: Anchor
+      type: string
+      x-wordpal-panel: advanced
+    css_class:
+      title: 'CSS class'
+      type: string
+      x-wordpal-panel: advanced
+    font_size:
+      title: 'Font size'
+      type: string
+      x-wordpal-panel: typography
+    line_height:
+      title: 'Line height'
+      type: string
+      x-wordpal-panel: typography
+    font_family:
+      title: 'Font family'
+      type: string
+      x-wordpal-panel: typography
+    font_weight:
+      title: 'Font weight'
+      type: string
+      x-wordpal-panel: typography
+    font_style:
+      title: 'Font style'
+      type: string
+      x-wordpal-panel: typography
+    text_transform:
+      title: 'Text transform'
+      type: string
+      x-wordpal-panel: typography
+    text_decoration:
+      title: 'Text decoration'
+      type: string
+      x-wordpal-panel: typography
+    letter_spacing:
+      title: 'Letter spacing'
+      type: string
+      x-wordpal-panel: typography
+    background_color:
+      title: 'Background color'
+      type: string
+      x-wordpal-panel: color
+    text_color:
+      title: 'Text color'
+      type: string
+      x-wordpal-panel: color
+    gradient:
+      title: Gradient
+      type: string
+      x-wordpal-panel: color
+    link_color:
+      title: 'Link color'
+      type: string
+      x-wordpal-panel: color
+    heading_color:
+      title: 'Heading color'
+      type: string
+      x-wordpal-panel: color
+    button_color:
+      title: 'Button color'
+      type: string
+      x-wordpal-panel: color
+    button_background_color:
+      title: 'Button background color'
+      type: string
+      x-wordpal-panel: color
+    padding_top:
+      title: 'Padding top'
+      type: string
+      x-wordpal-panel: dimensions
+    padding_right:
+      title: 'Padding right'
+      type: string
+      x-wordpal-panel: dimensions
+    padding_bottom:
+      title: 'Padding bottom'
+      type: string
+      x-wordpal-panel: dimensions
+    padding_left:
+      title: 'Padding left'
+      type: string
+      x-wordpal-panel: dimensions
+    margin_top:
+      title: 'Margin top'
+      type: string
+      x-wordpal-panel: dimensions
+    margin_right:
+      title: 'Margin right'
+      type: string
+      x-wordpal-panel: dimensions
+    margin_bottom:
+      title: 'Margin bottom'
+      type: string
+      x-wordpal-panel: dimensions
+    margin_left:
+      title: 'Margin left'
+      type: string
+      x-wordpal-panel: dimensions
+    self_stretch:
+      title: 'Self stretch'
+      type: string
+      enum:
+        - fit
+        - fill
+        - fixed
+        - fixedNoShrink
+      'meta:enum':
+        fit: Fit
+        fill: Grow
+        fixed: Max
+        fixedNoShrink: Fixed
+      x-wordpal-panel: dimensions
+    flex_size:
+      title: 'Flex size'
+      type: string
+      x-wordpal-panel: dimensions
+    border_radius:
+      title: 'Border radius'
+      type: string
+      x-wordpal-panel: border
+    border_color:
+      title: 'Border color'
+      type: string
+      x-wordpal-panel: border
+    border_width:
+      title: 'Border width'
+      type: string
+      x-wordpal-panel: border
+    border_style:
+      title: 'Border style'
+      type: string
+      enum:
+        - none
+        - solid
+        - dashed
+        - dotted
+        - double
+        - groove
+        - ridge
+        - inset
+        - outset
+      'meta:enum':
+        none: None
+        solid: Solid
+        dashed: Dashed
+        dotted: Dotted
+        double: Double
+        groove: Groove
+        ridge: Ridge
+        inset: Inset
+        outset: Outset
+      x-wordpal-options:
+        - solid
+        - dashed
+        - dotted
+      x-wordpal-panel: border
+    border_top_width:
+      title: 'Border top width'
+      type: string
+      x-wordpal-panel: border
+    border_top_color:
+      title: 'Border top color'
+      type: string
+      x-wordpal-panel: border
+    border_top_style:
+      title: 'Border top style'
+      type: string
+      enum:
+        - none
+        - solid
+        - dashed
+        - dotted
+        - double
+        - groove
+        - ridge
+        - inset
+        - outset
+      'meta:enum':
+        none: None
+        solid: Solid
+        dashed: Dashed
+        dotted: Dotted
+        double: Double
+        groove: Groove
+        ridge: Ridge
+        inset: Inset
+        outset: Outset
+      x-wordpal-options:
+        - solid
+        - dashed
+        - dotted
+      x-wordpal-panel: border
+    border_right_width:
+      title: 'Border right width'
+      type: string
+      x-wordpal-panel: border
+    border_right_color:
+      title: 'Border right color'
+      type: string
+      x-wordpal-panel: border
+    border_right_style:
+      title: 'Border right style'
+      type: string
+      enum:
+        - none
+        - solid
+        - dashed
+        - dotted
+        - double
+        - groove
+        - ridge
+        - inset
+        - outset
+      'meta:enum':
+        none: None
+        solid: Solid
+        dashed: Dashed
+        dotted: Dotted
+        double: Double
+        groove: Groove
+        ridge: Ridge
+        inset: Inset
+        outset: Outset
+      x-wordpal-options:
+        - solid
+        - dashed
+        - dotted
+      x-wordpal-panel: border
+    border_bottom_width:
+      title: 'Border bottom width'
+      type: string
+      x-wordpal-panel: border
+    border_bottom_color:
+      title: 'Border bottom color'
+      type: string
+      x-wordpal-panel: border
+    border_bottom_style:
+      title: 'Border bottom style'
+      type: string
+      enum:
+        - none
+        - solid
+        - dashed
+        - dotted
+        - double
+        - groove
+        - ridge
+        - inset
+        - outset
+      'meta:enum':
+        none: None
+        solid: Solid
+        dashed: Dashed
+        dotted: Dotted
+        double: Double
+        groove: Groove
+        ridge: Ridge
+        inset: Inset
+        outset: Outset
+      x-wordpal-options:
+        - solid
+        - dashed
+        - dotted
+      x-wordpal-panel: border
+    border_left_width:
+      title: 'Border left width'
+      type: string
+      x-wordpal-panel: border
+    border_left_color:
+      title: 'Border left color'
+      type: string
+      x-wordpal-panel: border
+    border_left_style:
+      title: 'Border left style'
+      type: string
+      enum:
+        - none
+        - solid
+        - dashed
+        - dotted
+        - double
+        - groove
+        - ridge
+        - inset
+        - outset
+      'meta:enum':
+        none: None
+        solid: Solid
+        dashed: Dashed
+        dotted: Dotted
+        double: Double
+        groove: Groove
+        ridge: Ridge
+        inset: Inset
+        outset: Outset
+      x-wordpal-options:
+        - solid
+        - dashed
+        - dotted
+      x-wordpal-panel: border
+    border_top_left_radius:
+      title: 'Border top left radius'
+      type: string
+      x-wordpal-panel: border
+    border_top_right_radius:
+      title: 'Border top right radius'
+      type: string
+      x-wordpal-panel: border
+    border_bottom_left_radius:
+      title: 'Border bottom left radius'
+      type: string
+      x-wordpal-panel: border
+    border_bottom_right_radius:
+      title: 'Border bottom right radius'
+      type: string
+      x-wordpal-panel: border

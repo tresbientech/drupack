@@ -105,4 +105,5 @@ Composer conflicts:
   strict config. A later release may conflict with Mercury's own config.
 - OAuth 2.1 allows plain HTTP on a loopback address. Agent Access's docs ask for
   HTTPS, and an agent may enforce that.
-- The WordPal branch waits on a WordPal release, so this change ships with it.
+- This change ships with the WordPal branch, which merges once a release run
+  passes on every platform.

@@ -1,0 +1,18 @@
+{#
+/**
+ * @file
+ * WordPress core/list.
+ */
+#}
+{% set tag = ordered ? 'ol' : 'ul' %}
+{% set extra = ordered and type and type != 'decimal' ? {'list-style-type': wordpal_css_value(type)} : {} %}
+{% set list = attributes.addClass('wp-block-list').merge(wordpal_attributes('core/list', _context, false, extra)) %}
+{# The save function passes reversed/start to useBlockProps regardless of
+   the ordered flag, so a ul can carry them too. #}
+{% if reversed %}
+  {% set list = list.setAttribute('reversed', '') %}
+{% endif %}
+{% if start is not null %}
+  {% set list = list.setAttribute('start', start) %}
+{% endif %}
+<{{ tag }}{{ list }}>{% block content %}{% endblock %}</{{ tag }}>

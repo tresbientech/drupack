@@ -1,0 +1,9 @@
+{#
+/**
+ * @file
+ * WordPress core/html.
+ *
+ * The WordPal HTML text format filters the HTML an editor enters.
+ */
+#}
+{{ {'#type': 'processed_text', '#text': content|default(''), '#format': 'wordpal_html'} }}

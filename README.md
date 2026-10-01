@@ -3,9 +3,9 @@
 Drupack runs Drupal from a single executable. Each release publishes two:
 
 - `drupack` serves a Drupal project you already have, with its own settings.
-- `mercury-demo` is a Drupal CMS site built from the Mercury Demo template. It carries Drupal CMS, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers and Drush, and needs nothing else to serve a site.
+- `drupacked-demo` is a Drupal CMS site built on the Mercury Demo recipe, with WordPal and Agent Access. It carries Drupal CMS, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers and Drush, and needs nothing else to serve a site.
 
-The first section covers `drupack`. Every later section covers the Mercury Demo.
+The first section covers `drupack`. Every later section covers the Drupacked Demo.
 
 ## Serve a Drupal project you already have
 
@@ -44,9 +44,9 @@ The project's own `settings.php` names the database, the files paths and the has
 
 A project whose `composer.lock` needs a PHP extension the bundled PHP lacks is refused, with the extension and the packages that need it.
 
-## Install the Mercury Demo
+## Install the Drupacked Demo
 
-Make a folder for your site and install the Mercury Demo into it. Site data lives in `data` inside the folder you start it from.
+Make a folder for your site and install the Drupacked Demo into it. Site data lives in `data` inside the folder you start it from.
 
 On Linux or macOS:
 
@@ -62,7 +62,7 @@ mkdir my-site; cd my-site
 irm https://drupack.tresbien.tech/demo.ps1 | iex
 ```
 
-The script picks the build for your system and processor, and checks its SHA-256. Each short URL redirects to the latest release's `install-mercury-demo.sh` or `install-drupack.sh` on GitHub. `https://github.com/tresbientech/drupack/releases/download/VERSION/install-mercury-demo.sh` installs one release instead.
+The script picks the build for your system and processor, and checks its SHA-256. Each short URL redirects to the latest release's `install-drupacked-demo.sh` or `install-drupack.sh` on GitHub. `https://github.com/tresbientech/drupack/releases/download/VERSION/install-drupacked-demo.sh` installs one release instead.
 
 ### Linux
 
@@ -83,24 +83,24 @@ to `musl` or `glibc` overrides the script's pick:
 curl -fsSL https://drupack.tresbien.tech/demo.sh | DRUPACK_LIBC=musl sh
 ```
 
-The script refuses any other value. `mercury-demo --version` names the C
+The script refuses any other value. `drupacked-demo --version` names the C
 library of the build you run.
 
 ### Downloading by hand
 
-The [releases page](https://github.com/tresbientech/drupack/releases) lists every build as `NAME-VERSION-TARGET`, such as `mercury-demo-0.5.1-macos-arm64`. A Linux target without a suffix names the glibc build, and `-musl` the musl one. A browser marks what it downloads, and the scripts avoid both marks below.
+The [releases page](https://github.com/tresbientech/drupack/releases) lists every build as `NAME-VERSION-TARGET`, such as `drupacked-demo-0.5.1-macos-arm64`. A Linux target without a suffix names the glibc build, and `-musl` the musl one. A browser marks what it downloads, and the scripts avoid both marks below.
 
-- macOS Gatekeeper blocks a marked executable that carries no Apple signature. `xattr -d com.apple.quarantine mercury-demo` clears the mark.
+- macOS Gatekeeper blocks a marked executable that carries no Apple signature. `xattr -d com.apple.quarantine drupacked-demo` clears the mark.
 - Windows SmartScreen shows "Windows protected your PC" the first time. Choose "More info", then "Run anyway".
 
-### Keeping the Mercury Demo on your PATH
+### Keeping the Drupacked Demo on your PATH
 
-A folder per site keeps each site with its data. To run `mercury-demo` from anywhere instead, move the executable into a directory on your `PATH`, as the script's last lines show. Site data then lands in whichever directory you start it from, so pass `--data-dir` to choose one.
+A folder per site keeps each site with its data. To run `drupacked-demo` from anywhere instead, move the executable into a directory on your `PATH`, as the script's last lines show. Site data then lands in whichever directory you start it from, so pass `--data-dir` to choose one.
 
 ## Start your site
 
 ```sh
-./mercury-demo
+./drupacked-demo
 ```
 
 Drupack installs your site and serves it on `http://localhost:7225`. It prints a one-time login link and opens your browser on it. The link logs you in as `admin` and lands you on your dashboard. Set your own password from there, under your account. The first start of each version also unpacks its runtime, which adds about a second.
@@ -108,15 +108,15 @@ Drupack installs your site and serves it on `http://localhost:7225`. It prints a
 Later starts need nothing:
 
 ```sh
-./mercury-demo
+./drupacked-demo
 ```
 
-Each one prints its own link and opens your dashboard the same way. A link works once, so `./mercury-demo drush user:login /admin/dashboard` prints a fresh one whenever you need it. `--no-browser` starts the site without opening anything, and still prints the link.
+Each one prints its own link and opens your dashboard the same way. A link works once, so `./drupacked-demo drush user:login /admin/dashboard` prints a fresh one whenever you need it. `--no-browser` starts the site without opening anything, and still prints the link.
 
 To choose the administrator name and password yourself, for a script or a fresh machine:
 
 ```sh
-./mercury-demo --admin-user admin --admin-password 'choose-a-password'
+./drupacked-demo --admin-user admin --admin-password 'choose-a-password'
 ```
 
 Drupack still prints the login link.
@@ -124,7 +124,7 @@ Drupack still prints the login link.
 A start returns your prompt once the site answers, and the site keeps serving in the background, so Drush runs in the same terminal. Stop the site with:
 
 ```sh
-./mercury-demo stop
+./drupacked-demo stop
 ```
 
 `--foreground` serves in the terminal until Ctrl+C instead, for a container or a systemd unit.
@@ -136,9 +136,9 @@ Useful options:
 - `--data-dir PATH` puts Site data somewhere else. `DRUPACK_DATA_DIR` sets a default.
 - `--listen IP:PORT` serves on another address, `127.0.0.1:7225` by default. Each start records its address in Site data, so `drush` reaches the site without repeating the option.
 - `--host HOST` names the address readers type, `localhost` by default. An IPv6 address works too, such as `--host ::1`.
-- `--site-name NAME` names the site on a first start, `Drupal Mercury Demo` by default. `DRUPACK_SITE_NAME` sets it too. A later start never renames a site.
+- `--site-name NAME` names the site on a first start, `Drupacked Demo` by default. `DRUPACK_SITE_NAME` sets it too. A later start never renames a site.
 - `--no-browser` starts without opening a browser.
-- `mercury-demo --version` prints the release, `mercury-demo version` names the FrankenPHP, PHP and Caddy it carries, and `mercury-demo --help` lists every option.
+- `drupacked-demo --version` prints the release, `drupacked-demo version` names the FrankenPHP, PHP and Caddy it carries, and `drupacked-demo --help` lists every option.
 
 [The command line reference](docs/cli.md) covers every option, including the ones this list leaves out.
 
@@ -151,10 +151,25 @@ The site speaks plain HTTP. A listener beyond loopback, such as `--listen 0.0.0.
 `drush` runs the bundled Drush commands against your site. Drupack's own options come before the Drush command.
 
 ```sh
-./mercury-demo drush status
-./mercury-demo drush --data-dir ./data user:login
-./mercury-demo drush pm:list --status=enabled
+./drupacked-demo drush status
+./drupacked-demo drush --data-dir ./data user:login
+./drupacked-demo drush pm:list --status=enabled
 ```
+
+## Convert a WordPress theme
+
+The Drupacked Demo carries WordPal, which converts a WordPress block theme into a Drupal theme and Canvas pages. Convert a theme, then start the site:
+
+```sh
+./drupacked-demo drush wpc twentytwentyfour --target=canvas
+./drupacked-demo
+```
+
+The argument is a wordpress.org theme slug, a path to a theme zip, or an https URL to one. The next start serves the converted theme as the default theme.
+
+The theme lands in `web/themes/custom` and its recipe in `recipes`. Both sit in the site's own copy of the application, in Site data.
+
+Conversion runs WordPress in WordPress Playground, so it needs network access to wordpress.org and npm. It runs on the Node the demo carries, and the host needs none. On Linux it needs the glibc build, because the musl build carries no Node.
 
 ## Site data
 
@@ -175,15 +190,17 @@ An interrupted setup resumes where it stopped. Drupack never installs Drupal ove
 
 ## The unpacked runtime
 
-Your download carries Drupal, PHP and Caddy compressed. The first start of a version unpacks them into a cache directory, which takes about a second. Every later start of that version uses what is already there.
+Your download carries Drupal, PHP and Caddy compressed. The first start of a version unpacks them into a cache directory, which takes about a second. Every later start of that version uses what is already there. `drupacked-demo` also lays its application in Site data on the first start of each version, since WordPal writes themes and recipes into it.
 
-- Linux: `~/.cache/mercury-demo/runtime`
-- macOS: `~/Library/Caches/mercury-demo/runtime`
-- Windows: `%LOCALAPPDATA%\mercury-demo\runtime`
+- Linux: `~/.cache/drupacked-demo/runtime`
+- macOS: `~/Library/Caches/drupacked-demo/runtime`
+- Windows: `%LOCALAPPDATA%\drupacked-demo\runtime`
 
-`drupack` unpacks the same way, under `drupack` in place of `mercury-demo`.
+`drupack` unpacks the same way, under `drupack` in place of `drupacked-demo`.
 
-Releases up to 0.4.0 named the Mercury Demo executable `drupack`, and unpacked it under `drupack`. `drupack clean` removes the applications those releases unpacked there. Releases up to 0.2.0 unpacked into `~/.cache/Drupack/runtime` on Linux. Nothing reads that directory any more, so delete it after upgrading.
+Releases up to 0.4.0 named the demo executable `drupack`, and unpacked it under `drupack`. `drupack clean` removes the applications those releases unpacked there. Releases up to 0.2.0 unpacked into `~/.cache/Drupack/runtime` on Linux. Nothing reads that directory any more, so delete it after upgrading.
+
+Releases 0.5.0 to 0.8.0 named it `mercury-demo`, and unpacked it under `mercury-demo`. `drupacked-demo` starts their Site data. Nothing reads their cache directory any more, so delete it after upgrading.
 
 One version takes about 400 MB on Linux and macOS, beside your Site data. The space is per version, and a successful start removes the versions it replaces, so upgrading does not stack them up.
 
@@ -204,7 +221,7 @@ Behind a proxy that re-signs TLS, set it to a bundle holding your proxy's root c
 SQLite runs your site by default, with no setup. To use a database server instead, pass its details on the first start:
 
 ```sh
-./mercury-demo --database mysql \
+./drupacked-demo --database mysql \
   --db-host 127.0.0.1 --db-name drupal \
   --db-user drupal --db-password 'database-password' \
   --admin-user admin --admin-password 'choose-a-password'
@@ -218,13 +235,30 @@ Ten options read an environment variable when the option is absent: `DRUPACK_DAT
 
 A server with 512 MB of memory runs the demo site. The site uses about 170 MB. Your own modules and content can use more.
 
-## Local AI agents
+## Connect an AI agent
 
-Drupack carries the MCP Tools and MCP Server modules, both disabled, with no transport exposed.
+The Drupacked Demo applies [Agent Access](https://www.drupal.org/project/agent_access), which serves an MCP endpoint behind OAuth. Add this address to an agent that runs on your machine:
+
+```text
+http://localhost:7225/mcp
+```
+
+The agent registers itself, then sends you to the site to sign in and approve it. Sign in as the administrator. The agent then acts with that account's permissions.
+
+Each site generates its own OAuth key pair on its first served request, and keeps it in Site data under `oauth-keys`.
+
+The demo serves plain HTTP. OAuth allows it on a loopback address, and some agents refuse it anyway. A hosted connector, such as the ones in claude.ai, calls from its vendor's servers and cannot reach `localhost`.
 
 ## Updates
 
 Drupal core security fixes reach you through a new Drupack release, because a packaged executable cannot update its own Drupal in place. Run the install script again in your site's folder, and start it.
+
+A site installed before `drupacked-demo` keeps its own configuration, so WordPal and Agent Access stay off. Turn them on from the site's folder:
+
+```sh
+./drupacked-demo drush pm:install -y wordpal_canvas
+./drupacked-demo drush recipe "$PWD/data/app/recipes/agent_access"
+```
 
 Your site ships without `automatic_updates` and `package_manager` enabled. `drupal/automatic_updates` 4.1.0 stalls a request for four minutes when cron runs, and its development branch carries the same code, so enabling either module brings that stall back.
 
@@ -243,7 +277,7 @@ sha256sum --ignore-missing -c checksums.txt
 On Windows, compare your file against the entry in `checksums.txt`:
 
 ```powershell
-(Get-FileHash mercury-demo-0.5.1-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
+(Get-FileHash drupacked-demo-0.5.1-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
 ```
 
 GitHub records where each file was built. The GitHub CLI checks that record:

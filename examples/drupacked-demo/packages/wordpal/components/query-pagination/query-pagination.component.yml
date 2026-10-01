@@ -1,0 +1,208 @@
+name: Pagination
+description: 'Displays a paginated navigation to next/previous set of posts, when applicable.'
+status: stable
+group: 'WordPress: theme'
+links:
+  - 'https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes/blocks/query-pagination'
+slots:
+  content:
+    title: Content
+props:
+  type: object
+  properties:
+    pagination_arrow:
+      title: 'Pagination arrow'
+      type: string
+      examples:
+        - none
+      x-wordpal-panel: settings
+    show_label:
+      title: 'Show label'
+      type: boolean
+      examples:
+        - true
+      x-wordpal-panel: settings
+    align:
+      title: Align
+      type: string
+      enum:
+        - left
+        - center
+        - right
+        - wide
+        - full
+      'meta:enum':
+        left: 'Align left'
+        center: 'Align center'
+        right: 'Align right'
+        wide: 'Wide width'
+        full: 'Full width'
+      x-wordpal-panel: settings
+    anchor:
+      title: Anchor
+      type: string
+      x-wordpal-panel: advanced
+    css_class:
+      title: 'CSS class'
+      type: string
+      x-wordpal-panel: advanced
+    font_size:
+      title: 'Font size'
+      type: string
+      x-wordpal-panel: typography
+    line_height:
+      title: 'Line height'
+      type: string
+      x-wordpal-panel: typography
+    font_family:
+      title: 'Font family'
+      type: string
+      x-wordpal-panel: typography
+    font_weight:
+      title: 'Font weight'
+      type: string
+      x-wordpal-panel: typography
+    font_style:
+      title: 'Font style'
+      type: string
+      x-wordpal-panel: typography
+    text_transform:
+      title: 'Text transform'
+      type: string
+      x-wordpal-panel: typography
+    text_decoration:
+      title: 'Text decoration'
+      type: string
+      x-wordpal-panel: typography
+    letter_spacing:
+      title: 'Letter spacing'
+      type: string
+      x-wordpal-panel: typography
+    background_color:
+      title: 'Background color'
+      type: string
+      x-wordpal-panel: color
+    text_color:
+      title: 'Text color'
+      type: string
+      x-wordpal-panel: color
+    gradient:
+      title: Gradient
+      type: string
+      x-wordpal-panel: color
+    link_color:
+      title: 'Link color'
+      type: string
+      x-wordpal-panel: color
+    heading_color:
+      title: 'Heading color'
+      type: string
+      x-wordpal-panel: color
+    button_color:
+      title: 'Button color'
+      type: string
+      x-wordpal-panel: color
+    button_background_color:
+      title: 'Button background color'
+      type: string
+      x-wordpal-panel: color
+    layout_type:
+      title: 'Layout type'
+      type: string
+      enum:
+        - default
+        - constrained
+        - flex
+        - grid
+      'meta:enum':
+        default: Flow
+        constrained: Constrained
+        flex: Flex
+        grid: Grid
+      x-wordpal-panel: layout
+    justify_content:
+      title: 'Justify content'
+      type: string
+      enum:
+        - left
+        - center
+        - right
+        - space-between
+        - stretch
+      'meta:enum':
+        left: 'Justify items left'
+        center: 'Justify items center'
+        right: 'Justify items right'
+        space-between: 'Space between items'
+        stretch: Stretch
+      x-wordpal-panel: layout
+    orientation:
+      title: Orientation
+      type: string
+      enum:
+        - horizontal
+        - vertical
+      'meta:enum':
+        horizontal: Horizontal
+        vertical: Vertical
+      x-wordpal-panel: layout
+    flex_wrap:
+      title: 'Flex wrap'
+      type: string
+      enum:
+        - wrap
+        - nowrap
+      'meta:enum':
+        wrap: Wrap
+        nowrap: Nowrap
+      x-wordpal-panel: layout
+    vertical_alignment:
+      title: 'Vertical alignment'
+      type: string
+      enum:
+        - top
+        - center
+        - bottom
+        - stretch
+        - space-between
+      'meta:enum':
+        top: 'Align top'
+        center: 'Align middle'
+        bottom: 'Align bottom'
+        stretch: 'Stretch to fill'
+        space-between: 'Space between'
+      x-wordpal-panel: layout
+    content_size:
+      title: 'Content size'
+      type: string
+      x-wordpal-panel: layout
+    wide_size:
+      title: 'Wide size'
+      type: string
+      x-wordpal-panel: layout
+    column_count:
+      title: 'Column count'
+      type: integer
+      x-wordpal-panel: layout
+    minimum_column_width:
+      title: 'Minimum column width'
+      type: string
+      x-wordpal-panel: layout
+    self_stretch:
+      title: 'Self stretch'
+      type: string
+      enum:
+        - fit
+        - fill
+        - fixed
+        - fixedNoShrink
+      'meta:enum':
+        fit: Fit
+        fill: Grow
+        fixed: Max
+        fixedNoShrink: Fixed
+      x-wordpal-panel: dimensions
+    flex_size:
+      title: 'Flex size'
+      type: string
+      x-wordpal-panel: dimensions
