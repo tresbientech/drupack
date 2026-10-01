@@ -1,6 +1,6 @@
 {
     "name": "tresbientech/drupack",
-    "description": "Offline Drupal CMS with the Mercury Demo site template",
+    "description": "Offline Drupal CMS on the Mercury Demo recipe, with WordPal and Agent Access",
     "type": "project",
     "license": "GPL-2.0-or-later",
     "repositories": [

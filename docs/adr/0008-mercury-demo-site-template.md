@@ -17,3 +17,11 @@ required eighteen that only it used.
   Local MCP Tools.
 - A site is named `Drupal Mercury Demo` unless `--site-name` or
   `DRUPACK_SITE_NAME` says otherwise. A later start never renames a site.
+
+## Amendment, 2026-10-01
+
+The demo is Drupacked Demo. Its Site template is `recipes/drupacked_demo_site`,
+which applies `mercury_demo` and `agent_access`, then installs `wordpal_canvas`.
+A MySQL or PostgreSQL first start installs that recipe. A site is named
+`Drupacked Demo` unless `--site-name` or `DRUPACK_SITE_NAME` says otherwise.
+No first start enables Local MCP Tools, and the demo carries no `mcp_tools`.

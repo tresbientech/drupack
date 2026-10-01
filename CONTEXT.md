@@ -11,13 +11,13 @@ The name of this project and of its Engine executable.
 _Avoid_: Portable Drupal, portable-drupal
 
 **Drupacked Demo**:
-The Packaged site each Drupack release publishes, built from the Mercury Demo Site template.
+The Packaged site each Drupack release publishes. Its Site template applies Drupal CMS's Mercury Demo recipe and Agent Access, and enables WordPal.
 
 **Packaged site**:
 A distributable Drupal application. One built from a Site template carries a Seed site. One built without serves a database that already holds its site.
 
 **Site template**:
-The Drupal CMS recipe that gives a new site its starting configuration and content. A Packaged site carries at most one, named in its Site contract. The Drupack release carries Drupacked Demo.
+The Drupal CMS recipe that gives a new site its starting configuration and content. A Packaged site carries at most one, named in its Site contract. Drupacked Demo carries its own.
 
 **Site contract**:
 The `drupack.yml` beside a site's `composer.json`, naming its executable, port, Site template, default site name, translations, settings file, build targets, added PHP extensions, Writable directories, and whether it carries Bundled Node. A build writes it out as `site.json`, with the docroot `composer.json` names, and every other reader takes that file.

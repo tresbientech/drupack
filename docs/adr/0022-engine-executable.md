@@ -78,3 +78,9 @@ folder's path, beside that entry's `stop.json` and `server.log`. The lease
 guards `drupack stop` and a second start on the same folder, and the folder
 gets no new file. It runs the site's readiness runner without cron. ADR 0028
 records the detached start and the stop channel.
+
+## Amendment, 2026-10-01
+
+The demo executable becomes `drupacked-demo`, and its cache moves to a
+`drupacked-demo` directory. Its release assets and `latest` links change name
+again. Nothing reads the `mercury-demo` caches of releases 0.5.0 to 0.8.0.

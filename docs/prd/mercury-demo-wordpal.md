@@ -74,8 +74,7 @@ Branch and merge:
   stylesheet, then restarts the demo and checks the theme again.
 - The test needs network access. It skips by name when the host cannot reach
   wordpress.org, and QA and CI run it with the network present.
-- The branch proves the test on Linux. The first CI run after the switch proves
-  it on macOS and Windows.
+- The release run proves the test on Linux, macOS and Windows before the merge.
 - Prior art: the demo's existing site tests and the writable directory cases.
 
 ## Out of Scope

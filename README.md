@@ -3,7 +3,7 @@
 Drupack runs Drupal from a single executable. Each release publishes two:
 
 - `drupack` serves a Drupal project you already have, with its own settings.
-- `drupacked-demo` is a Drupal CMS site built from the Mercury Demo template. It carries Drupal CMS, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers and Drush, and needs nothing else to serve a site.
+- `drupacked-demo` is a Drupal CMS site built on the Mercury Demo recipe, with WordPal and Agent Access. It carries Drupal CMS, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers and Drush, and needs nothing else to serve a site.
 
 The first section covers `drupack`. Every later section covers the Drupacked Demo.
 
@@ -190,7 +190,7 @@ An interrupted setup resumes where it stopped. Drupack never installs Drupal ove
 
 ## The unpacked runtime
 
-Your download carries Drupal, PHP and Caddy compressed. The first start of a version unpacks them into a cache directory, which takes about a second. Every later start of that version uses what is already there.
+Your download carries Drupal, PHP and Caddy compressed. The first start of a version unpacks them into a cache directory, which takes about a second. Every later start of that version uses what is already there. `drupacked-demo` also lays its application in Site data on the first start of each version, since WordPal writes themes and recipes into it.
 
 - Linux: `~/.cache/drupacked-demo/runtime`
 - macOS: `~/Library/Caches/drupacked-demo/runtime`

@@ -53,3 +53,11 @@ that none writes to.
   thread-safe build moves only PHP's own view of the directory.
 - Node on PATH is the converter site's requirement. `dr` passes the
   environment through and checks nothing.
+
+## Amendment, 2026-10-01
+
+- Drupacked Demo is a converter site. It converts through `drush wpc`, on the
+  Bundled Node ADR 0027 adds, so the host needs no Node.
+- Site data a shared-application release installed lays its own application on
+  its next start. `PreviousRelease` in `writable_cases.py` checks this with
+  `DRUPACK_TEST_PREVIOUS`, which no CI job sets.
