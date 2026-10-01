@@ -118,8 +118,8 @@ final class PlaygroundRunner {
       '@wp-playground/cli@' . self::PLAYGROUND_VERSION,
       'run-blueprint',
       '--blueprint=' . $directory . '/blueprint.json',
-      // --mount splits HOST:VFS at a colon, which a Windows drive letter
-      // repeats; --mount-dir takes the two paths as separate arguments.
+      // --mount-dir takes the host and VFS paths as two arguments, so the
+      // colon of a Windows drive letter stays part of the host path.
       '--mount-dir',
       $directory,
       self::MOUNT,

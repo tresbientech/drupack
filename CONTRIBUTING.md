@@ -72,7 +72,7 @@ The Windows executable is the same launcher as Linux and macOS. It carries the P
 
 ### WordPal in the demo
 
-`examples/drupacked-demo/packages/wordpal` holds WordPal at commit `001d27fb`, as
+`examples/drupacked-demo/packages/wordpal` holds WordPal at commit `745db908`, as
 `git archive` exports it. Composer installs it from that path, as copied files.
 To refresh it from a WordPal checkout beside this one:
 
