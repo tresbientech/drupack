@@ -253,6 +253,13 @@ The demo serves plain HTTP. OAuth allows it on a loopback address, and some agen
 
 Drupal core security fixes reach you through a new Drupack release, because a packaged executable cannot update its own Drupal in place. Run the install script again in your site's folder, and start it.
 
+A site installed before `drupacked-demo` keeps its own configuration, so WordPal and Agent Access stay off. Turn them on from the site's folder:
+
+```sh
+./drupacked-demo drush pm:install -y wordpal_canvas
+./drupacked-demo drush recipe "$PWD/data/app/recipes/agent_access"
+```
+
 Your site ships without `automatic_updates` and `package_manager` enabled. `drupal/automatic_updates` 4.1.0 stalls a request for four minutes when cron runs, and its development branch carries the same code, so enabling either module brings that stall back.
 
 Drupack runs Drupal's cron itself, in a separate process, a couple of minutes after your site answers and every three hours it keeps serving. The `automated_cron` module stays installed, as Drupal CMS installs it, with its interval set to 0 so it runs nothing at the end of a page request. A reader never waits on a queue or on a fetch that cannot reach drupal.org.
