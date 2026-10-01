@@ -137,9 +137,12 @@ $env:CC = 'clang'
 $env:CXX = 'clang++'
 $env:CGO_CFLAGS = "-DFRANKENPHP_VERSION=$frankenphpVersion -I$vcpkgRoot\include -I$watcherRoot -I$phpDevelRoot\include -I$phpDevelRoot\include\main -I$phpDevelRoot\include\TSRM -I$phpDevelRoot\include\Zend -I$phpDevelRoot\include\ext"
 $env:CGO_LDFLAGS = "-L$vcpkgRoot\lib -lbrotlienc -L$watcherRoot -llibwatcher-c -L$php -L$phpDevelRoot\lib -lphp8ts -lphp8embed"
+# --version names the SQLite release the zip's PHP loads, the library the runtime ships.
+$sqliteVersion = & (Join-Path $php 'php.exe') -n -d "extension_dir=$php\ext" -d extension=sqlite3 -r 'echo current(SQLite3::version());'
+if (-not $sqliteVersion) { throw 'php.exe named no SQLite release' }
 Push-Location (Join-Path $frankenphp 'caddy\frankenphp')
 try {
-  go build '-tags=nobadger,nomysql,nopgx' -ldflags="-extldflags=-fuse-ld=lld -X 'main.version=$Version' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphpVersion PHP $phpVersion Caddy'" -o $frankenphpExecutable
+  go build '-tags=nobadger,nomysql,nopgx' -ldflags="-extldflags=-fuse-ld=lld -X 'main.version=$Version' -X 'main.frankenphpVersion=$frankenphpVersion' -X 'main.sqliteVersion=$sqliteVersion' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphpVersion PHP $phpVersion Caddy'" -o $frankenphpExecutable
 } finally {
   Pop-Location
 }

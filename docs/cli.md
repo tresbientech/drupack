@@ -21,8 +21,14 @@ SITE --version
 `SITE` is the site's executable, `drupacked-demo` for the Drupacked Demo.
 
 An option takes `--name value` or `--name=value`. `--help` prints the option
-set. `--version` prints the release. A rejected value prints its reason on
-standard error and exits 1.
+set. A rejected value prints its reason on standard error and exits 1.
+
+`--version` prints the release on its first line, with the C library on Linux.
+One line per component follows, each naming the component and its release:
+
+- FrankenPHP, PHP, Caddy and SQLite, from the runtime build
+- Node, when the file carries it
+- Drupal core and Drush, from the site's `composer.lock`
 
 ## Options
 
@@ -202,6 +208,9 @@ drupack --version
 
 `drupack` serves a Drupal project folder under the folder's own settings. It
 has no Site data, and it takes none of the options above.
+
+`drupack --version` names FrankenPHP, PHP, Caddy and SQLite after its release.
+It carries no Drupal, Drush or Node, so it prints no line for them.
 
 `drupack` with no command serves `DIR`, the working directory by default. A
 first word naming no command is taken as `DIR`. `drupack start` does the same

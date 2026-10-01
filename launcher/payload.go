@@ -6,7 +6,9 @@ package main
 // siteVersion name the packaged site and its release. engine marks the engine
 // executable, whose application holds the engine's files alone. nodePayload
 // and nodeManifest carry the site's Node release, and are empty for a file
-// that carries none.
+// that carries none. siteComponents lists the site's parts that --version
+// names after the runtime's, one "Name version" line each, and is empty for
+// the engine.
 // launcher/cmd/pack replaces this file before it builds the launcher.
 var (
 	runtimePayload  []byte
@@ -17,5 +19,6 @@ var (
 	appChecksum     []byte
 	siteName        string
 	siteVersion     string
+	siteComponents  string
 	engine          bool
 )

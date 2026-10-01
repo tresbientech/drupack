@@ -139,13 +139,16 @@ func TestParseRefusesAMalformedNodeWithTheAcceptedForms(t *testing.T) {
 func site(t *testing.T, drupack, composer string) string {
 	t.Helper()
 	directory := t.TempDir()
-	for name, content := range map[string]string{siteconfig.FileName: drupack, "composer.json": composer} {
+	for name, content := range map[string]string{siteconfig.FileName: drupack, "composer.json": composer, "composer.lock": locked} {
 		if err := os.WriteFile(filepath.Join(directory, name), []byte(content), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 	return directory
 }
+
+// locked is a composer.lock naming the two releases Read takes.
+const locked = `{"packages": [{"name": "drupal/core", "version": "11.4.7"}, {"name": "drush/drush", "version": "13.8.0"}]}`
 
 func scaffold(webRoot string) string {
 	return `{"extra": {"drupal-scaffold": {"locations": {"web-root": "` + webRoot + `"}}}}`
@@ -179,6 +182,31 @@ func TestReadRefusesADocrootOutsideTheSite(t *testing.T) {
 		_, err := siteconfig.Read(site(t, minimal, composer))
 		if err == nil || !strings.Contains(err.Error(), "web-root") {
 			t.Errorf("%s: Read error = %v; want one naming web-root", composer, err)
+		}
+	}
+}
+
+func TestReadTakesDrupalAndDrushFromTheLock(t *testing.T) {
+	read, err := siteconfig.Read(site(t, minimal, scaffold("web")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read.Drupal != "11.4.7" || read.Drush != "13.8.0" {
+		t.Fatalf("drupal, drush = %q, %q; want 11.4.7, 13.8.0", read.Drupal, read.Drush)
+	}
+}
+
+func TestReadRefusesALockWithoutDrupalOrDrush(t *testing.T) {
+	for missing, lock := range map[string]string{
+		"drupal/core": `{"packages": [{"name": "drush/drush", "version": "13.8.0"}]}`,
+		"drush/drush": `{"packages": [{"name": "drupal/core", "version": "11.4.7"}]}`,
+	} {
+		directory := site(t, minimal, scaffold("web"))
+		if err := os.WriteFile(filepath.Join(directory, "composer.lock"), []byte(lock), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := siteconfig.Read(directory); err == nil || !strings.Contains(err.Error(), missing) {
+			t.Errorf("Read error = %v; want one naming %s", err, missing)
 		}
 	}
 }
@@ -220,7 +248,7 @@ func TestWriteProducesTheSiteJSONShape(t *testing.T) {
 	want := map[string]any{
 		"name": "mysite", "port": float64(7225), "recipe": "recipes/my_site", "site_name": "My Site",
 		"languages": []any{"fr"}, "smoke_paths": []any{"/"}, "extensions": []any{}, "docroot": "docroot", "settings": "",
-		"platforms": []any{"linux-amd64"}, "libc": "both", "writable": []any{},
+		"platforms": []any{"linux-amd64"}, "libc": "both", "writable": []any{}, "drupal": "11.4.7", "drush": "13.8.0",
 	}
 	if !reflect.DeepEqual(written, want) {
 		t.Fatalf("site.json = %v; want %v", written, want)

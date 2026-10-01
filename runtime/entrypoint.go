@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -27,6 +28,14 @@ var version = "dev"
 // about one of them has to say which ran.
 var libc = ""
 
+// frankenphpVersion and sqliteVersion name the FrankenPHP release this runtime
+// is built from and the SQLite library its PHP links. Each build script sets
+// both with -ldflags.
+var (
+	frankenphpVersion string
+	sqliteVersion     string
+)
+
 // siteName names the executable the reader ran. The launcher exports it with
 // the site's release, since one runtime build serves every site of an engine
 // release.
@@ -42,6 +51,33 @@ func release() string {
 		return site + " (drupack " + version + ")"
 	}
 	return site + " (drupack " + version + ", " + libc + ")"
+}
+
+// components lists what this file carries, one "Name version" line each: the
+// runtime's own parts, then the site's, which the launcher exports.
+func components() []string {
+	lines := []string{
+		"FrankenPHP " + frankenphpVersion,
+		"PHP " + frankenphp.Version().Version,
+		"Caddy " + strings.TrimPrefix(caddyVersion(), "v"),
+		"SQLite " + sqliteVersion,
+	}
+	if site := os.Getenv("DRUPACK_RUNTIME_COMPONENTS"); site != "" {
+		lines = append(lines, strings.Split(site, "\n")...)
+	}
+	return lines
+}
+
+// caddyVersion reads Caddy's module version from the build information.
+// caddy.Version prefixes the CustomVersion the build scripts set.
+func caddyVersion() string {
+	info, _ := debug.ReadBuildInfo()
+	for _, module := range info.Deps {
+		if module.Path == caddy.ImportPath {
+			return module.Version
+		}
+	}
+	panic("the build information names no " + caddy.ImportPath)
 }
 
 const usage = `Usage: %[1]s [start] [OPTIONS]
@@ -369,15 +405,16 @@ func init() {
 	}
 	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
 		fmt.Println(release())
+		fmt.Println(strings.Join(components(), "\n"))
 		os.Exit(0)
 	}
 	if len(os.Args) == 1 || strings.HasPrefix(os.Args[1], "-") {
 		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[1:]...)
 		return
 	}
-	// FrankenPHP's own command line takes every remaining word. Drupack and its builds
-	// use php-cli and version there, and any other word would answer with Caddy's usage.
-	if os.Args[1] != "php-cli" && os.Args[1] != "version" {
+	// FrankenPHP's own command line takes every remaining word. Drupack uses php-cli
+	// there, and any other word would answer with Caddy's usage.
+	if os.Args[1] != "php-cli" {
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", os.Args[1])
 		fmt.Fprintf(os.Stderr, usage+"\n", siteName())
 		os.Exit(1)

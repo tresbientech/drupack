@@ -45,6 +45,12 @@ tar -xzf "$spc_archive"
 ./spc build --enable-zts --build-embed --disable-opcache-jit "$extensions" --with-libs="$extension_libs"
 php_includes=$(./spc spc-config "$extensions" --with-libs="$extension_libs" --includes)
 php_libraries=$(./spc spc-config "$extensions" --with-libs="$extension_libs" --libs)
+# --version names the SQLite release static-php-cli compiled into PHP.
+sqlite_version=$(sed -n 's/^#define SQLITE_VERSION *"\(.*\)"$/\1/p' "$work/buildroot/include/sqlite3.h")
+if [[ -z $sqlite_version ]]; then
+    printf 'sqlite3.h names no SQLITE_VERSION\n' >&2
+    exit 1
+fi
 
 rm -rf frankenphp
 git -c advice.detachedHead=false clone --quiet --depth 1 --branch "v$frankenphp_version" https://github.com/php/frankenphp.git frankenphp
@@ -71,9 +77,9 @@ mkdir -p "$runtime"
 cd frankenphp/caddy/frankenphp
 CGO_ENABLED=1 CGO_CFLAGS="$php_includes -DFRANKENPHP_VERSION=$frankenphp_version" CGO_LDFLAGS="$php_libraries" \
     go build -buildmode=pie -tags=nobadger,nomysql,nopgx \
-    -ldflags="-s -w -linkmode=external -X 'main.version=$drupack_version' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $php_version Caddy'" \
+    -ldflags="-s -w -linkmode=external -X 'main.version=$drupack_version' -X 'main.frankenphpVersion=$frankenphp_version' -X 'main.sqliteVersion=$sqlite_version' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $php_version Caddy'" \
     -o "$runtime/$entry"
-"$runtime/$entry" version
+"$runtime/$entry" --version
 
 # php.ini and the trust bundle ride beside the entry executable, where PHPRC
 # names them at every hop.
@@ -92,7 +98,7 @@ fi
      -source "$repository/launcher" -output "$output" \
      -app "$payload/app-payload.tar" -app-checksum "$payload/app_checksum.txt" \
      -site "$payload/site.json" -site-version "$drupack_version" ${node[@]+"${node[@]}"})
-"$output" version
+"$output" --version
 if [ -n "$engine_payload" ]; then
     (cd "$repository/launcher" \
       && go run ./cmd/pack -engine -runtime "$runtime" -entry "$entry" \

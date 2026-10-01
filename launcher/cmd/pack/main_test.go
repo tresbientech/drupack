@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/build"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
 // buildRuntime packs a directory holding one entry file and returns what
@@ -64,6 +66,24 @@ func TestWriteBuildCopyCarriesTheRuntime(t *testing.T) {
 	} {
 		if !strings.Contains(generated, want) {
 			t.Fatalf("payload.go does not carry %q:\n%s", want, generated)
+		}
+	}
+}
+
+func TestASiteNamesNodeOnlyWhenItCarriesIt(t *testing.T) {
+	described := siteconfig.Site{Node: "24.21.0", Drupal: "11.4.7", Drush: "13.8.0"}
+	for carried, want := range map[bool]string{
+		true:  "Node 24.21.0\nDrupal 11.4.7\nDrush 13.8.0",
+		false: "Drupal 11.4.7\nDrush 13.8.0",
+	} {
+		build := t.TempDir()
+		payload, manifest := buildRuntime(t)
+		packaged := site{name: "acme", version: "1.4.0", components: siteComponents(described, carried)}
+		if err := writeBuildCopy(build, source(t), payload, manifest, packaged); err != nil {
+			t.Fatalf("writeBuildCopy: %v", err)
+		}
+		if line := fmt.Sprintf("var siteComponents = %q", want); !strings.Contains(readFile(t, filepath.Join(build, "payload.go")), line) {
+			t.Errorf("payload.go for a file carrying Node %t does not hold %s", carried, line)
 		}
 	}
 }

@@ -59,6 +59,10 @@ type Site struct {
 	// Read sets Docroot from composer.json. Parse leaves it empty.
 	Docroot string `json:"docroot"`
 	Node    Node   `json:"node,omitempty"`
+	// Read sets Drupal and Drush to the drupal/core and drush/drush releases
+	// composer.lock names. Parse leaves them empty.
+	Drupal string `json:"drupal"`
+	Drush  string `json:"drush"`
 }
 
 // NodeLTS is the Node value `node: true` parses to.
@@ -248,8 +252,39 @@ func Read(directory string) (Site, error) {
 			return Site{}, fieldError("settings", "%q is not a file in the site", site.Settings)
 		}
 	}
-	site.Docroot, err = docroot(directory)
+	if site.Docroot, err = docroot(directory); err != nil {
+		return Site{}, err
+	}
+	site.Drupal, site.Drush, err = lockedReleases(directory)
 	return site, err
+}
+
+// lockedReleases reads the drupal/core and drush/drush releases from the
+// composer.lock the site author commits, which --version names.
+func lockedReleases(directory string) (drupal, drush string, err error) {
+	content, err := os.ReadFile(filepath.Join(directory, "composer.lock"))
+	if err != nil {
+		return "", "", err
+	}
+	var lock struct {
+		Packages []struct {
+			Name    string `json:"name"`
+			Version string `json:"version"`
+		} `json:"packages"`
+	}
+	if err := json.Unmarshal(content, &lock); err != nil {
+		return "", "", fmt.Errorf("composer.lock: %w", err)
+	}
+	releases := map[string]string{}
+	for _, locked := range lock.Packages {
+		releases[locked.Name] = locked.Version
+	}
+	for _, name := range []string{"drupal/core", "drush/drush"} {
+		if releases[name] == "" {
+			return "", "", fmt.Errorf("composer.lock: packages names no %s release", name)
+		}
+	}
+	return releases["drupal/core"], releases["drush/drush"], nil
 }
 
 // docroot reads the web root drupal/core-composer-scaffold writes to. The site
