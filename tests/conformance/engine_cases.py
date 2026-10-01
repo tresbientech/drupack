@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 from urllib.request import urlopen
 
 import harness
+import version_cases
 
 SETTINGS = """<?php
 $databases['default']['default'] = [
@@ -124,6 +125,12 @@ class EngineExecutable(harness.ConformanceCase):
             for path in self.project.rglob("*")
             if not path.is_relative_to(self.files) and not path.is_dir()
         }
+
+    def test_version_names_the_runtime_components_alone(self):
+        lines = version_cases.version_lines(self.engine)[1:]
+        self.assertEqual([line.split(" ")[0] for line in lines], list(version_cases.RUNTIME_COMPONENTS))
+        for line in lines:
+            self.assertRegex(line, rf" {version_cases.RELEASE}$")
 
     def test_a_start_serves_the_folder_and_writes_only_its_files(self):
         before = self.snapshot()

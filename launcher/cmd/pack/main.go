@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	goruntime "runtime"
+	"strings"
 
 	"github.com/klauspost/compress/zstd"
 
@@ -21,11 +22,13 @@ import (
 )
 
 // site names the packaged site and the release of it this launcher carries.
-// engine marks the engine executable, which carries no site.
+// components lists the site's parts --version names. engine marks the engine
+// executable, which carries no site.
 type site struct {
-	name    string
-	version string
-	engine  bool
+	name       string
+	version    string
+	components []string
+	engine     bool
 }
 
 // embeddedPayloadSource returns the payload.go that replaces
@@ -58,8 +61,10 @@ var siteName = %q
 
 var siteVersion = %q
 
+var siteComponents = %q
+
 var engine = %t
-`, packaged.name, packaged.version, packaged.engine)
+`, packaged.name, packaged.version, strings.Join(packaged.components, "\n"), packaged.engine)
 }
 
 func main() {
@@ -111,7 +116,7 @@ func run() error {
 		if err := json.Unmarshal(content, &described); err != nil {
 			return fmt.Errorf("%s: %w", *siteFile, err)
 		}
-		packaged = site{name: described.Name, version: *siteVersion}
+		packaged = site{name: described.Name, version: *siteVersion, components: siteComponents(described, *nodeArchive != "")}
 		nodeVersion = described.Node
 	}
 
@@ -154,6 +159,16 @@ func run() error {
 	fmt.Printf("runtime payload %d bytes\n", len(payload))
 	fmt.Printf("output %d bytes\n", info.Size())
 	return nil
+}
+
+// siteComponents lists the site's parts --version names: Node when this file
+// carries it, then Drupal core and Drush.
+func siteComponents(described siteconfig.Site, node bool) []string {
+	var lines []string
+	if node {
+		lines = append(lines, "Node "+string(described.Node))
+	}
+	return append(lines, "Drupal "+described.Drupal, "Drush "+described.Drush)
 }
 
 func requireFlags(flags map[string]string) error {

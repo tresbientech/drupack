@@ -27,6 +27,12 @@ if ! php_libraries=$(cd /go/src/app/dist/static-php-cli && ./spc spc-config "$ex
 fi
 php_libraries=${php_libraries//-lstdc++/$(gcc -print-file-name=libstdc++.a)}
 export CGO_LDFLAGS="-L/go/src/app/dist/static-php-cli/buildroot/lib -static-libgcc -Wl,--start-group $php_libraries -Wl,--end-group"
+# --version names the SQLite release static-php-cli compiled into PHP.
+sqlite_version=$(sed -n 's/^#define SQLITE_VERSION *"\(.*\)"$/\1/p' /go/src/app/dist/static-php-cli/buildroot/include/sqlite3.h)
+if [[ -z $sqlite_version ]]; then
+    printf 'sqlite3.h names no SQLITE_VERSION\n' >&2
+    exit 1
+fi
 build_tags=nobadger,nomysql,nopgx
 linker_flags="-Wl,--dynamic-list=/go/src/app/dist/static-php-cli/buildroot/lib/libphp.a.dynsym"
 # The builder image sets SPC_LIBC. A glibc build links a dynamic PIE against the
@@ -56,7 +62,7 @@ export GOTOOLCHAIN=local
 mkdir -p /out
 cd caddy
 "$GOROOT/bin/go" build -mod=readonly -buildmode=pie -tags="$build_tags" \
-    -ldflags="-s -w -linkmode=external -extldflags '$linker_flags' -X 'main.version=${DRUPACK_VERSION:-dev}' -X 'main.libc=$SPC_LIBC' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $($php_config --version) Caddy'" \
+    -ldflags="-s -w -linkmode=external -extldflags '$linker_flags' -X 'main.version=${DRUPACK_VERSION:-dev}' -X 'main.libc=$SPC_LIBC' -X 'main.frankenphpVersion=$frankenphp_version' -X 'main.sqliteVersion=$sqlite_version' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $($php_config --version) Caddy'" \
     -o /out/drupack ./frankenphp
-/out/drupack version
+/out/drupack --version
 

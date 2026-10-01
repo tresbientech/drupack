@@ -136,7 +136,7 @@ A PHP extension that a package in the application's lock file names as a require
 
 - An executable of a **Packaged site** carries one **Runtime**.
 - A Linux release of a **Packaged site** holds an executable per C library, and its **Install script** installs the one for the host.
-- `--version` names the **Runtime** that ran.
+- `--version` names the **Runtime** that ran, and the release of each component the executable carries.
 - A **Runtime** and an **Application root** each unpack to their own cache. The **`clean` command** removes entries from both.
 - A **Packaged site** whose **Site contract** names a **Writable directory** keeps its **Application root** in **Site data**, which the **`clean` command** never touches.
 - An upgrade of such a **Packaged site** lays the new release into **Site data** and carries over each entry of a **Writable directory** that the release does not ship.

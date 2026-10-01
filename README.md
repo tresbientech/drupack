@@ -138,7 +138,7 @@ Useful options:
 - `--host HOST` names the address readers type, `localhost` by default. An IPv6 address works too, such as `--host ::1`.
 - `--site-name NAME` names the site on a first start, `Drupacked Demo` by default. `DRUPACK_SITE_NAME` sets it too. A later start never renames a site.
 - `--no-browser` starts without opening a browser.
-- `drupacked-demo --version` prints the release, `drupacked-demo version` names the FrankenPHP, PHP and Caddy it carries, and `drupacked-demo --help` lists every option.
+- `drupacked-demo --version` prints the release and the release of each component it carries: FrankenPHP, PHP, Caddy, SQLite, Node, Drupal core and Drush. `drupacked-demo --help` lists every option.
 
 [The command line reference](docs/cli.md) covers every option, including the ones this list leaves out.
 

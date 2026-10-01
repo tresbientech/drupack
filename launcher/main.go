@@ -66,6 +66,9 @@ func run() error {
 	if err := os.Setenv("DRUPACK_RUNTIME_SITE_VERSION", siteVersion); err != nil {
 		return err
 	}
+	if err := os.Setenv("DRUPACK_RUNTIME_COMPONENTS", siteComponents); err != nil {
+		return err
+	}
 	// launch.php runs this executable again to lay a site's own application, and to
 	// detach a server, as serve.php does for a folder.
 	launcher, err := os.Executable()
