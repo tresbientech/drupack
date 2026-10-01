@@ -2,8 +2,10 @@
 leaves the server running in the background, and `stop` ends it.
 """
 
+import base64
 import json
 import os
+import shutil
 import socket
 import subprocess
 
@@ -20,10 +22,10 @@ class DetachedCases(harness.ConformanceCase):
         self.port = harness.pick_port()
         self.addCleanup(self._end_server)
 
-    def _start(self, *words, env=None):
+    def _start(self, *words, env=None, binary=None, cwd=None):
         return harness.run(
-            [str(harness.BINARY), *words, "--data-dir", str(self.data), "--listen", f"127.0.0.1:{self.port}"],
-            cwd=self.case_dir, capture_output=True, text=True, timeout=harness.WAITS["start"].seconds, env=env,
+            [str(binary or harness.BINARY), *words, "--data-dir", str(self.data), "--listen", f"127.0.0.1:{self.port}"],
+            cwd=cwd or self.case_dir, capture_output=True, text=True, timeout=harness.WAITS["start"].seconds, env=env,
         )
 
     def _stop(self):
@@ -60,6 +62,32 @@ class DetachedCases(harness.ConformanceCase):
 
     def test_the_start_word_acts_as_no_word(self):
         self._assert_returns_with_a_running_site("start")
+
+    def _assert_powershell_runs_the_printed_stop(self, binary, cwd, word):
+        """PowerShell hands a program its full path, which the harness passes the same way."""
+        if harness.current_platform() != harness.WINDOWS:
+            self.skipTest("only Windows shells read the first word differently")
+        result = self._start(binary=binary, cwd=cwd)
+        self.assertEqual(result.returncode, 0, f"the start exited non-zero: {result.stdout}{result.stderr}")
+        line = next(line.strip() for line in result.stdout.splitlines() if " stop --data-dir " in line)
+        self.assertTrue(line.startswith(f"{word} stop --data-dir "), line)
+        # An encoded command reaches PowerShell without a second round of quoting.
+        stop = harness.run(
+            ["powershell", "-NoProfile", "-EncodedCommand", base64.b64encode(line.encode("utf-16-le")).decode()],
+            cwd=cwd, capture_output=True, text=True, timeout=harness.WAITS["stop"].seconds + 30,
+        )
+        self.assertEqual(stop.returncode, 0, f"{stop.stdout}{stop.stderr}")
+        self.assertIn("stopped", stop.stdout)
+
+    def test_powershell_runs_the_stop_command_of_a_start_from_the_executables_folder(self):
+        self._assert_powershell_runs_the_printed_stop(
+            harness.BINARY, harness.BINARY.parent, f".\\{harness.BINARY.name}")
+
+    def test_powershell_runs_the_stop_command_of_an_executable_under_a_space(self):
+        binary = self.case_dir / "with space" / harness.BINARY.name
+        binary.parent.mkdir()
+        shutil.copy2(harness.BINARY, binary)
+        self._assert_powershell_runs_the_printed_stop(binary, self.case_dir, f'& "{binary}"')
 
     def test_stop_ends_a_detached_site(self):
         self.assertEqual(self._start().returncode, 0)

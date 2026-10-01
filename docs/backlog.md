@@ -202,3 +202,11 @@ as the cache root has, when a reader shares a Windows machine.
 On Windows a valid stop calls `caddy.Stop()` and exits, where a Unix stop runs
 the Ctrl+C path. An exit mid-cron cuts that `drush cron` short. Lean: wait for
 the runner to return before the exit.
+
+## The Windows build's SourceForge downloads
+
+vcpkg fetches pthreads from SourceForge, which on 2026-10-01 served an HTML page
+in place of the zip. A run with no Windows build cache then fails. A tag run reads
+only its own cache and main's, so a release during such an outage fails on
+Windows. Lean: point `X_VCPKG_ASSET_SOURCES` at our own copy of each download,
+keyed by its SHA-512.

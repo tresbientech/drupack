@@ -146,6 +146,10 @@ command that stops the site, and returns 0. A server that exits before it
 answers makes the start exit with its code. Its output after that goes to
 `logs/server.log` in Site data, which each start empties.
 
+On Windows the printed command names the executable as `.\NAME.exe` when the
+start ran in its folder. A path that needs quotes gets PowerShell's `& ` in
+front, which cmd does not accept.
+
 `--foreground` serves in the terminal until Ctrl+C or a signal, as a container
 or a systemd unit needs. A Windows start from a file manager owns its window,
 so it serves in the foreground too.
