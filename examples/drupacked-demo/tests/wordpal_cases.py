@@ -22,7 +22,7 @@ STYLESHEET = re.compile(r'<link rel="stylesheet"[^>]*href="([^"]+)"')
 
 
 class WordPalConversion(harness.ConformanceCase):
-    PLATFORMS = (harness.LINUX,)
+    PLATFORMS = (harness.LINUX, harness.MACOS, harness.WINDOWS)
     WRITABLE = True
 
     @classmethod
