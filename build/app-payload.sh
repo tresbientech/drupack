@@ -12,10 +12,10 @@ contrib=./${3:?$usage}/modules/contrib
 
 mkdir -p "$output"
 cd "$output"
-archive_options=(--mtime=@0 --owner=0 --group=0 --numeric-owner --mode=u+rw,go+rX)
+# A package Composer installs from source holds a .git clone, left out of both archives.
+archive_options=(--mtime=@0 --owner=0 --group=0 --numeric-owner --mode=u+rw,go+rX --exclude='.git')
 # Drupal's cached absolute paths use the full application input identity.
-# A package Composer installs from source holds a .git clone, left out of both.
-tar "${archive_options[@]}" --exclude='.git' -cf - -C "$application" . \
+tar "${archive_options[@]}" -cf - -C "$application" . \
     | sha256sum | cut -d ' ' -f 1 | tr -d '\n' > app_checksum.txt
 # php.ini and cacert.pem ride beside the entry executable in the packed
 # runtime directory instead, which PHPRC names in every hop; nothing reads
@@ -26,7 +26,7 @@ tar "${archive_options[@]}" \
     --exclude='*.js.map' --exclude='*.css.map' --exclude='*.pcss.css' \
     --exclude='package-lock.json' --exclude='yarn.lock' \
     --exclude='pnpm-lock.yaml' --exclude='npm-shrinkwrap.json' \
-    --exclude='.git' --exclude='.github' --exclude='.gitlab' \
+    --exclude='.github' --exclude='.gitlab' \
     --exclude="$contrib/canvas/ui/src" \
     --exclude="$contrib/canvas/ui/lib" \
     --exclude="$contrib/canvas/ui/assets/videos" \
