@@ -59,3 +59,18 @@ project keeps it in its root. The script's errors still reach the terminal.
 
 A project without `.gitignore` gets one when the project root or a parent
 holds `.git`. Outside git, no `.gitignore` is created.
+
+## Amendment, 2026-10-02
+
+The package is `drupal/drupack`, published from the drupal.org general project
+`drupack`. drupal.org staff confirmed that a general project release with a
+valid `composer.json` reaches Packagist under the `drupal/` namespace.
+
+- Each version tag needs a drupal.org release node, created by hand. The
+  release workflow creates none.
+- `drupal/drupack` starts at 1.0.0. Versions 0.5.1 to 0.9.0 stay on
+  `tresbientech/drupack` and get no drupal.org release.
+- Once 1.0.0 reaches Packagist, the Packagist package `tresbientech/drupack`
+  is marked abandoned, with `drupal/drupack` as its replacement. The GitHub
+  repository `tresbientech/drupack` stays: it builds every release and hosts
+  the files `drupack-install` downloads.
