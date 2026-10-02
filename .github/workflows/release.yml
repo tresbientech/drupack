@@ -391,6 +391,9 @@ jobs:
       - name: Run the harness unit tests
         run: python3 -m unittest discover -s tests/conformance -p 'test_harness.py'
 
+      - name: Run the payload archive tests
+        run: python3 -m unittest discover -s tests/conformance -p 'test_app_payload.py'
+
       - name: Run the test scripts
         env:
           DRUPACK_TEST_ENGINE: dist/engine/drupack
