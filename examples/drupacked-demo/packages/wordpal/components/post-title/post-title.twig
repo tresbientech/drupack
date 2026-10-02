@@ -1,2 +1,0 @@
-{% set tag = level is not null and level == 0 ? 'p' : 'h' ~ (level in [1, 2, 3, 4, 5, 6] ? level : 2) %}
-<{{ tag }}{{ attributes.addClass('wp-block-post-title').merge(wordpal_attributes('core/post-title', _context, false)) }}>{% if is_link %}<a href="{{ wordpal_url(url) }}" target="{{ link_target|default('_self') }}"{% if rel %} rel="{{ rel }}"{% endif %}>{{ title }}</a>{% else %}{{ title }}{% endif %}</{{ tag }}>

@@ -1,2 +1,0 @@
-{% set wrapper_tag = tag_name in ['div', 'header', 'main', 'section', 'article', 'aside', 'footer', 'nav'] ? tag_name : 'div' %}
-<{{ wrapper_tag }}{{ attributes.addClass('wp-block-query').merge(wordpal_attributes('core/query', _context)) }}>{% block content %}{% endblock %}</{{ wrapper_tag }}>

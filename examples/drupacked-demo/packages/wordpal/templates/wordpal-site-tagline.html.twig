@@ -1,1 +1,0 @@
-{% if tagline %}{% set tag = level ? 'h' ~ level : 'p' %}<{{ tag }}{{ attributes.addClass('wp-block-site-tagline').merge(wordpal_attributes('core/site-tagline', supports, false)) }}>{{ tagline }}</{{ tag }}>{% endif %}

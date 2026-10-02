@@ -4,23 +4,20 @@
     "type": "project",
     "license": "GPL-2.0-or-later",
     "repositories": [
-        {
-            "type": "path",
-            "url": "packages/wordpal",
-            "options": {"symlink": false, "versions": {"drupal/wordpal": "dev-main"}}
-        },
         {"type": "composer", "url": "https://packages.drupal.org/8"}
     ],
     "require": {
         "php": "~8.5.0",
         "ext-pdo_sqlite": "*",
         "composer/installers": "^2.3",
+        "cweagans/composer-patches": "2.0.0",
         "drupal/agent_access": "1.0.0-alpha2",
         "drupal/canvas": "1.12.0",
         "drupal/core-composer-scaffold": "^11.4",
         "drupal/core-project-message": "^11.4",
         "drupal/core-recommended": "^11.4",
         "drupal/core-vendor-hardening": "^11.4",
+        "drupal/display_builder": "1.0.0-beta8",
         "drupal/drupal_cms_content_type_base": "2.1.6",
         "drupal/drupal_cms_installer": "2.2.0",
         "drupal/drupal_cms_search": "2.2.0",
@@ -30,7 +27,9 @@
         "drupal/mercury_demo": "1.1.0",
         "drupal/tool": "^1.0@dev",
         "drupal/tool_belt": "^1.0@alpha",
-        "drupal/wordpal": "dev-main",
+        "drupal/ui_patterns": "2.0.x-dev#e47d09e482e8689917f94113a5fb6450ea647cdf",
+        "drupal/ui_skins": "1.2.1",
+        "drupal/wordpal": "1.x-dev@dev",
         "drush/drush": "^13.6",
         "twig/twig": "3.29.0"
     },
@@ -39,6 +38,7 @@
     "config": {
         "allow-plugins": {
             "composer/installers": true,
+            "cweagans/composer-patches": true,
             "drupal/core-composer-scaffold": true,
             "drupal/core-project-message": true,
             "drupal/core-vendor-hardening": true,
@@ -50,6 +50,18 @@
         "optimize-autoloader": true
     },
     "extra": {
+        "composer-patches": {
+            "disable-resolvers": ["\\cweagans\\Composer\\Resolver\\Dependencies"]
+        },
+        "patches": {
+            "drupal/display_builder": {
+                "Inject UI Patterns component manager": "patches/display_builder-ui-patterns-component-manager.patch",
+                "Declare the placeholder props schema": "patches/display_builder-placeholder-props-schema.patch"
+            },
+            "drupal/ui_patterns": {
+                "Keep a zero string prop value": "patches/ui_patterns-zero-prop-value.patch"
+            }
+        },
         "drupal-scaffold": {
             "locations": {"web-root": "web/"},
             "file-mapping": {"[web-root]/example.gitignore": false}

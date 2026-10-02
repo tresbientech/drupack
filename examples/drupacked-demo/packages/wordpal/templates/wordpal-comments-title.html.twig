@@ -1,1 +1,0 @@
-{% if count %}{% set tag = 'h' ~ settings.level %}<{{ tag }}{{ create_attribute({'id': 'comments', 'class': ['wp-block-comments-title']}).merge(wordpal_attributes('core/comments-title', settings, false)) }}>{% trans %}{{ count }} response{% plural count %}{{ count }} responses{% endtrans %}{% if settings.show_post_title %} to “{{ node.label }}”{% endif %}</{{ tag }}>{% endif %}

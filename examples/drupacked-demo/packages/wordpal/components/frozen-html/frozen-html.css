@@ -1,5 +1,0 @@
-/* A Frozen block's mark; an outline takes no layout space. */
-[data-wordpal-frozen] {
-  outline: 1px dashed rgb(128 128 128 / 0.5);
-  outline-offset: 2px;
-}

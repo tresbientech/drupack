@@ -1,1 +1,0 @@
-{% if title %}{% set tag = level == 0 ? 'p' : 'h' ~ level %}<{{ tag }}{{ attributes.addClass('wp-block-site-title').merge(wordpal_attributes('core/site-title', supports, false)) }}>{% if is_link %}<a href="{{ front_url }}" target="{{ link_target }}" rel="home"{% if current %} aria-current="page"{% endif %}>{{ title }}</a>{% else %}{{ title }}{% endif %}</{{ tag }}>{% endif %}

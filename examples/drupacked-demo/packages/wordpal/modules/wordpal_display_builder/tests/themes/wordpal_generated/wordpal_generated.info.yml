@@ -1,5 +1,0 @@
-name: Generated
-type: theme
-base theme: false
-core_version_requirement: ^11
-description: 'Test theme for generated components.'

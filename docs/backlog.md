@@ -204,10 +204,3 @@ in place of the zip. A run with no Windows build cache then fails. A tag run rea
 only its own cache and main's, so a release during such an outage fails on
 Windows. Lean: point `X_VCPKG_ASSET_SOURCES` at our own copy of each download,
 keyed by its SHA-512.
-
-## WordPal's source twice in the demo
-
-The build packs every file git tracks, so the demo carries
-`packages/wordpal` beside the installed `web/modules/contrib/wordpal`, about
-5 MB twice. Lean: leave it until Composer takes WordPal from drupal.org and
-the copy goes.

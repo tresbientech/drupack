@@ -1,7 +1,0 @@
-{theme}.settings:
-  type: theme_settings
-  label: 'Theme settings'
-  mapping:
-    {setting}:
-      type: string
-      label: 'Style variation'

@@ -1,7 +1,0 @@
-name: 'WordPal test base'
-type: Content type
-description: 'Stands in for drupal_cms_content_type_base: the shared field storages and the tags vocabulary.'
-install:
-  - node
-  - taxonomy
-  - text
