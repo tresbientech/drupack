@@ -1,5 +1,5 @@
 {
-    "name": "tresbientech/drupack",
+    "name": "drupal/drupack",
     "description": "Installs drupack, which serves a Drupal project with its own PHP and web server, into the project root.",
     "type": "library",
     "license": "GPL-2.0-or-later",

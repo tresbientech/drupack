@@ -22,8 +22,8 @@ function releaseVersion(?string $installed): string
         $release = false;
     }
     if (!$release) {
-        throw new RuntimeException("tresbientech/drupack is installed at $installed, which names no release. "
-            . 'Require a tagged release: composer require --dev tresbientech/drupack');
+        throw new RuntimeException("drupal/drupack is installed at $installed, which names no release. "
+            . 'Require a tagged release: composer require --dev drupal/drupack');
     }
     return $installed;
 }
@@ -123,7 +123,7 @@ require $GLOBALS['_composer_autoload_path'];
 
 try {
     $windows = PHP_OS_FAMILY === 'Windows';
-    $version = releaseVersion(InstalledVersions::getPrettyVersion('tresbientech/drupack'));
+    $version = releaseVersion(InstalledVersions::getPrettyVersion('drupal/drupack'));
     $root = realpath(InstalledVersions::getRootPackage()['install_path']);
     $name = executable($windows);
     if (is_file("$root/$name") && isRelease("$root/$name", download(releaseUrl($version, 'checksums.txt')), $version)) {
