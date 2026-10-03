@@ -7,7 +7,6 @@ cases take their server from harness.DatabaseServer.
 
 import os
 import shutil
-import signal
 import subprocess
 import sys
 import time
@@ -272,8 +271,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
             self.assertNotEqual(os.getpgid(process.pid), os.getpgid(0),
                                  "the interrupted start shares this process group")
         finally:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait(timeout=harness.WAITS["stop"].seconds)
+            harness.kill_group(process, harness.WAITS["stop"].seconds)
         self.assertTrue((data / "settings.php").exists(), "the interrupted start recorded no settings")
         self.assertFalse((data / "site-installed").exists(),
                           "the interrupted start recorded a completed installation")
@@ -303,8 +301,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
         assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
         account = current_administrator(self.case_dir, data)
         self.assertEqual(account.stdout.strip(), "init-admin", "the recovery left the seed administrator")
-        os.killpg(site.process.pid, signal.SIGKILL)
-        site.process.wait(timeout=harness.WAITS["stop"].seconds)
+        harness.kill_group(site.process, harness.WAITS["stop"].seconds)
 
         # Two simultaneous first starts initialize once and the loser names the directory.
         reset_installation_state(data)
