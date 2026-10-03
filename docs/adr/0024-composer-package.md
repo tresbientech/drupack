@@ -74,3 +74,6 @@ valid `composer.json` reaches Packagist under the `drupal/` namespace.
   is marked abandoned, with `drupal/drupack` as its replacement. The GitHub
   repository `tresbientech/drupack` stays: it builds every release and hosts
   the files `drupack-install` downloads.
+- The package carries its own README, `composer/README.md`, which
+  `composer.json` names. It covers `drupack` alone. The repository README,
+  which also covers the Drupacked Demo, stays out of the package.

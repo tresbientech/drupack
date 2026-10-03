@@ -334,6 +334,25 @@ def stop_process(process, timeout, context=""):
         raise AssertionError(f"process {process.pid} ignored SIGTERM and was killed{context}")
 
 
+def kill_group(process, timeout):
+    """SIGKILL process's group and wait until every member has exited. The leader's exit
+    comes first, while a child can still hold the Site data's lock for a moment. A member
+    waiting to be reaped (state Z) holds no lock, and no reaper runs in a container."""
+    os.killpg(process.pid, signal.SIGKILL)
+    process.wait(timeout=timeout)
+    deadline = time.monotonic() + timeout
+    while True:
+        listing = subprocess.run(["ps", "-A", "-o", "pgid=,stat="], capture_output=True, text=True,
+                                 check=True).stdout
+        members = [line for line in listing.splitlines()
+                   if line.split()[0] == str(process.pid) and not line.split()[1].startswith("Z")]
+        if not members:
+            return
+        if time.monotonic() > deadline:
+            raise AssertionError(f"process group {process.pid} outlived SIGKILL by {timeout}s")
+        time.sleep(0.1)
+
+
 # Another place stopping branches on platform: Windows releases a just-exited process's
 # file handles a moment after it exits, so the run cache directory that process unpacked
 # into can still be held when the run tries to remove it; POSIX holds no such handle.
