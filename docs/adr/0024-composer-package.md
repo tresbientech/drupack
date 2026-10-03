@@ -68,9 +68,9 @@ valid `composer.json` reaches Packagist under the `drupal/` namespace.
 
 - Each version tag needs a drupal.org release node, created by hand. The
   release workflow creates none.
-- `drupal/drupack` starts at 1.0.0-alpha1. Versions 0.5.1 to 0.9.0 stay on
+- `drupal/drupack` starts at 1.0.0-alpha2. Versions 0.5.1 to 0.9.0 stay on
   `tresbientech/drupack` and get no drupal.org release.
-- Once 1.0.0-alpha1 reaches Packagist, the Packagist package `tresbientech/drupack`
+- Once 1.0.0-alpha2 reaches Packagist, the Packagist package `tresbientech/drupack`
   is marked abandoned, with `drupal/drupack` as its replacement. The GitHub
   repository `tresbientech/drupack` stays: it builds every release and hosts
   the files `drupack-install` downloads.
