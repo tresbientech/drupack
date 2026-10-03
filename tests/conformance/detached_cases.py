@@ -23,10 +23,14 @@ class DetachedCases(harness.ConformanceCase):
         self.addCleanup(self._end_server)
 
     def _start(self, *words, env=None, binary=None, cwd=None):
-        return harness.run(
-            [str(binary or harness.BINARY), *words, "--data-dir", str(self.data), "--listen", f"127.0.0.1:{self.port}"],
-            cwd=cwd or self.case_dir, capture_output=True, text=True, timeout=harness.WAITS["start"].seconds, env=env,
-        )
+        try:
+            return harness.run(
+                [str(binary or harness.BINARY), *words, "--data-dir", str(self.data), "--listen", f"127.0.0.1:{self.port}"],
+                cwd=cwd or self.case_dir, capture_output=True, text=True, timeout=harness.WAITS["start"].seconds, env=env,
+            )
+        except subprocess.TimeoutExpired as timeout:
+            self.fail(f"the start did not return within {timeout.timeout}s, after printing {timeout.output!r}: "
+                      f"inspect {self.data / 'logs'}")
 
     def _stop(self):
         return harness.run(
