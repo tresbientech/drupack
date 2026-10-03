@@ -1,7 +1,0 @@
-{#
-/**
- * @file
- * WordPress core/quote.
- */
-#}
-<blockquote{{ attributes.addClass('wp-block-quote').merge(wordpal_attributes('core/quote', _context)) }}>{% block content %}{% endblock %}{% if citation %}<cite>{{ wordpal_html(citation) }}</cite>{% endif %}</blockquote>

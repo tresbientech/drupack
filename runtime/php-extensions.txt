@@ -7,7 +7,7 @@
 # runtime/check-extensions.py fails when a site's composer.lock declares an
 # extension this file omits.
 #
-# Not shipped. bcmath, ftp, mbregex, posix, readline and xz reach only guarded
+# Not shipped. bcmath, ftp, mbregex, readline and xz reach only guarded
 # call sites, and the Windows build runs without them today. pathauto asks for
 # mb_eregi_replace and falls back to preg_replace. calendar, exif,
 # shmop, sockets, sysvmsg, sysvsem, sysvshm, tidy and zstd have no call site at
@@ -38,6 +38,7 @@ pdo_pgsql        # PostgreSQL database backend
 pdo_sqlite       # SQLite database backend and the Seed site
 pgsql            # pdo_pgsql needs it
 phar             # composer.phar runs under this PHP during the build
+posix            # WordPal checks a private directory's owner outside Windows
 session          # Drupal core
 simplexml        # Drupal core, project_browser
 sodium           # symfony/uid

@@ -1,8 +1,0 @@
-/* WordPress style.css */
-.wp-block-details {
-  box-sizing: border-box;
-}
-
-.wp-block-details summary {
-  cursor: pointer;
-}

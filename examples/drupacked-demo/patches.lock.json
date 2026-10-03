@@ -1,0 +1,39 @@
+{
+    "_hash": "2624d4c281dabe493a9d2634256dc76a9920abc31859e0d4bdabd818d9c44134",
+    "patches": {
+        "drupal/display_builder": [
+            {
+                "package": "drupal/display_builder",
+                "description": "Inject UI Patterns component manager",
+                "url": "patches/display_builder-ui-patterns-component-manager.patch",
+                "sha256": "f89f9ed9833aa09e660c3d84aae2c8eb6f89e2b824d7b53033c62902a9dea2a6",
+                "depth": 1,
+                "extra": {
+                    "provenance": "root"
+                }
+            },
+            {
+                "package": "drupal/display_builder",
+                "description": "Declare the placeholder props schema",
+                "url": "patches/display_builder-placeholder-props-schema.patch",
+                "sha256": "e28981c7c8da366fb883ab02782de6040b78e5a5676a502a5e53ccd0c6c56f5b",
+                "depth": 1,
+                "extra": {
+                    "provenance": "root"
+                }
+            }
+        ],
+        "drupal/ui_patterns": [
+            {
+                "package": "drupal/ui_patterns",
+                "description": "Keep a zero string prop value",
+                "url": "patches/ui_patterns-zero-prop-value.patch",
+                "sha256": "bf514b6ea88dc60e9a20227108e2313631b4ab4f2f336046b0f55773c47b10fa",
+                "depth": 1,
+                "extra": {
+                    "provenance": "root"
+                }
+            }
+        ]
+    }
+}

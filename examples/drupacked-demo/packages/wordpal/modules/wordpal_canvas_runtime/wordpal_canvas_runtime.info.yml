@@ -1,9 +1,0 @@
-name: 'Wordpal Canvas Runtime'
-type: module
-description: 'Renders converted Canvas Views and field bindings: the Pattern area plugin, the ensure-list adapter and the page variant theme guard.'
-package: 'WordPal'
-core_version_requirement: ^11.4
-dependencies:
-  - wordpal:wordpal
-  - canvas:canvas
-  - drupal:views

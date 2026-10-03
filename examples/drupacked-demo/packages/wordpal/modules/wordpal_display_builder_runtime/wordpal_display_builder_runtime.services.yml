@@ -1,8 +1,0 @@
-services:
-  Drupal\wordpal_display_builder_runtime\EventSubscriber\PageLayoutThemeGuard:
-    autowire: true
-    tags:
-      - { name: event_subscriber }
-  Drupal\wordpal_display_builder_runtime\EventSubscriber\MainContentTitle:
-    tags:
-      - { name: event_subscriber }

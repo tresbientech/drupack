@@ -1,6 +1,0 @@
-name: 'WordPal body classes test'
-type: module
-description: 'Prints the WordPal body classes on every page, as a generated theme does.'
-package: Testing
-dependencies:
-  - wordpal:wordpal

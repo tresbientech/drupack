@@ -12,7 +12,8 @@ contrib=./${3:?$usage}/modules/contrib
 
 mkdir -p "$output"
 cd "$output"
-archive_options=(--mtime=@0 --owner=0 --group=0 --numeric-owner --mode=u+rw,go+rX)
+# A package Composer installs from source holds a .git clone, left out of both archives.
+archive_options=(--mtime=@0 --owner=0 --group=0 --numeric-owner --mode=u+rw,go+rX --exclude='.git')
 # Drupal's cached absolute paths use the full application input identity.
 tar "${archive_options[@]}" -cf - -C "$application" . \
     | sha256sum | cut -d ' ' -f 1 | tr -d '\n' > app_checksum.txt

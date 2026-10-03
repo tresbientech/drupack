@@ -1,1 +1,0 @@
-<div{{ create_attribute().addClass('wp-block-comment-date').merge(wordpal_attributes('core/comment-date', settings, false)) }}><time datetime="{{ comment.datetime }}">{% if settings.is_link %}<a href="{{ comment.permalink }}">{{ comment.date }}</a>{% else %}{{ comment.date }}{% endif %}</time></div>

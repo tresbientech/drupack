@@ -1,6 +1,0 @@
-name: 'WordPal tokens test'
-type: theme
-description: 'A generated theme whose tokens file the inspector form reads.'
-package: Testing
-base theme: false
-core_version_requirement: ^11

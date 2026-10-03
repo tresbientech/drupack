@@ -1,4 +1,0 @@
-name: 'WordPal field access test'
-type: module
-description: 'Denies view access to the fields and files a test lists in state.'
-package: Testing
