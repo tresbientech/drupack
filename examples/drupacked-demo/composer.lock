@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "622fd71bc90f1a8b1ad18e933040951f",
+    "content-hash": "fd54217a6bfd6822699a7ee63d094d0a",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -7145,14 +7145,21 @@
         },
         {
             "name": "drupal/wordpal",
-            "version": "dev-1.x",
+            "version": "1.0.0-alpha1",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/wordpal.git",
-                "reference": "6729427b4e5343491333267262456be221f67c9d"
+                "reference": "1.0.0-alpha1"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://ftp.drupal.org/files/projects/wordpal-1.0.0-alpha1.zip",
+                "reference": "1.0.0-alpha1",
+                "shasum": "716c0f5c8f62f49d981493a396c2701291bbb9b0"
             },
             "require": {
                 "drupal/core": "^11.4",
+                "ext-posix": "*",
                 "ext-zip": "*",
                 "php": ">=8.4"
             },
@@ -7166,7 +7173,7 @@
                 "drupal/search_api": "^1.41",
                 "drupal/search_api_db": "*",
                 "drupal/trash": "^3.1",
-                "drupal/ui_patterns": "^2.0.21",
+                "drupal/ui_patterns": "2.0.x-dev#e47d09e482e8689917f94113a5fb6450ea647cdf",
                 "drupal/ui_patterns-ui_patterns_field_formatters": "*",
                 "drupal/ui_patterns_field": "*",
                 "drupal/ui_patterns_views": "*",
@@ -7188,15 +7195,12 @@
             },
             "type": "drupal-module",
             "extra": {
-                "branch-alias": {
-                    "dev-1.x": "1.x-dev"
-                },
                 "drupal": {
-                    "version": "1.x-dev",
-                    "datestamp": "1790982500",
+                    "version": "1.0.0-alpha1",
+                    "datestamp": "1791033904",
                     "security-coverage": {
                         "status": "not-covered",
-                        "message": "Dev releases are not covered by Drupal security advisories."
+                        "message": "Alpha releases are not covered by Drupal security advisories."
                     }
                 }
             },
@@ -14829,7 +14833,7 @@
         "drupal/tool": 20,
         "drupal/tool_belt": 15,
         "drupal/ui_patterns": 20,
-        "drupal/wordpal": 20
+        "drupal/wordpal": 15
     },
     "prefer-stable": true,
     "prefer-lowest": false,
