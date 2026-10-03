@@ -793,6 +793,7 @@ class DatabaseServer:
         with open(self.log_dir / f"{self.backend}-server.log", "wb") as handle:
             subprocess.run(["docker", "logs", self.container], stdout=handle, stderr=subprocess.STDOUT,
                             timeout=WAITS["docker_admin"].seconds)
-        subprocess.run(["docker", "rm", "-f", self.container], capture_output=True,
+        # The database images declare a VOLUME; -v removes the anonymous one this run created.
+        subprocess.run(["docker", "rm", "-f", "-v", self.container], capture_output=True,
                         timeout=WAITS["docker_admin"].seconds)
         self.container = None
