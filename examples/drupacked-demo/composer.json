@@ -29,7 +29,7 @@
         "drupal/tool_belt": "^1.0@alpha",
         "drupal/ui_patterns": "2.0.x-dev#e47d09e482e8689917f94113a5fb6450ea647cdf",
         "drupal/ui_skins": "1.2.1",
-        "drupal/wordpal": "1.0.0-alpha1",
+        "drupal/wordpal": "1.0.0-alpha2",
         "drush/drush": "^13.6",
         "twig/twig": "3.29.0"
     },
