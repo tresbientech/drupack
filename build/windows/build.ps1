@@ -46,12 +46,12 @@ $downloads = [ordered]@{
     Sha256 = '13b8175e99a884c5ad34249218754b45541a1a63f216e92603aee57a285ac741'
   }
 }
-# runtime/php-extensions.txt names what every platform compiles. Four of its
+# runtime/php-extensions.txt names what every platform compiles. Five of its
 # names this PHP cannot load: apcu and brotli ship as PECL DLLs the php.net zip
 # leaves out, password-argon2 is a static-php-cli build input for a PHP that
-# compiles argon2 into php8ts.dll, and PHP has no pcntl on Windows, where
-# launch.php starts a child process instead of replacing itself.
-$absentExtensions = @('apcu', 'brotli', 'password-argon2', 'pcntl')
+# compiles argon2 into php8ts.dll, and PHP has no pcntl or posix on Windows.
+# launch.php starts a child process there instead of replacing itself.
+$absentExtensions = @('apcu', 'brotli', 'password-argon2', 'pcntl', 'posix')
 # opcache loads with no php.ini line here, and reports itself under another name.
 $preloadedExtensions = @{ 'opcache' = 'zend opcache' }
 $extensions = Get-Content (Join-Path $PSScriptRoot '..\..\runtime\php-extensions.txt') |
