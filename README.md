@@ -29,7 +29,7 @@ The script downloads the build for your system into the current directory and ch
 In a Composer project, pin `drupack` to the project instead:
 
 ```sh
-composer require --dev drupal/drupack
+composer require --dev 'drupal/drupack:^1.0@alpha'
 vendor/bin/drupack-install
 ./drupack
 ```
