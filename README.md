@@ -158,14 +158,14 @@ The site speaks plain HTTP. A listener beyond loopback, such as `--listen 0.0.0.
 
 ## Convert a WordPress theme
 
-The Drupacked Demo carries WordPal, which converts a WordPress block theme into a Drupal theme and Canvas pages. Convert a theme, then start the site:
+The Drupacked Demo carries WordPal, which converts a WordPress block theme into a Drupal theme and Canvas pages. Start the site, then convert a theme:
 
 ```sh
-./drupacked-demo drush wpc twentytwentyfour --target=canvas
 ./drupacked-demo
+./drupacked-demo drush wpc twentytwentyfour --target=canvas
 ```
 
-The argument is a wordpress.org theme slug, a path to a theme zip, or an https URL to one. The next start serves the converted theme as the default theme.
+The argument is a wordpress.org theme slug, a path to a theme zip, or an https URL to one. The running site serves the converted theme as the default theme as soon as the command ends.
 
 The demo also carries WordPal's Display Builder target, not installed. Install it, then convert with it:
 

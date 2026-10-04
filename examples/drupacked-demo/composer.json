@@ -19,7 +19,7 @@
         "drupal/core-vendor-hardening": "^11.4",
         "drupal/display_builder": "1.0.0-beta8",
         "drupal/drupal_cms_content_type_base": "2.1.6",
-        "drupal/drupal_cms_installer": "2.2.0",
+        "drupal/drupal_cms_installer": "2.2.2",
         "drupal/drupal_cms_search": "2.2.0",
         "drupal/mcp_server": "^2.0@beta",
         "drupal/mcp_server_oauth-mcp_server_oauth": "^1.0@alpha",
@@ -27,7 +27,7 @@
         "drupal/mercury_demo": "1.1.0",
         "drupal/tool": "^1.0@dev",
         "drupal/tool_belt": "^1.0@alpha",
-        "drupal/ui_patterns": "2.0.x-dev#e47d09e482e8689917f94113a5fb6450ea647cdf",
+        "drupal/ui_patterns": "2.0.x-dev#b55538e73195f114f8e9db4a6a70766b3c014b8e",
         "drupal/ui_skins": "1.2.1",
         "drupal/wordpal": "1.0.0-alpha2",
         "drush/drush": "^13.6",
@@ -45,7 +45,7 @@
             "php-http/discovery": true,
             "symfony/runtime": true
         },
-        "platform": {"php": "8.5.10"},
+        "platform": {"php": "8.5.11"},
         "sort-packages": true,
         "optimize-autoloader": true
     },

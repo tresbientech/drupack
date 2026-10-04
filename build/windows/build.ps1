@@ -23,7 +23,7 @@ if ($EnginePayloadDirectory) {
 
 $frankenphpVersion = '1.12.7'
 $frankenphpCommit = 'a765b086f5cc56f6b7753117367d56e1b0da948d'
-$phpVersion = '8.5.10'
+$phpVersion = '8.5.11'
 $phpToolset = 'vs17-x64'
 # The newest PHP release lives under releases/, older ones under releases/archives/.
 $phpDownloadBases = @('https://downloads.php.net/~windows/releases', 'https://downloads.php.net/~windows/releases/archives')
@@ -31,11 +31,11 @@ $vcpkgCommit = '9e593bb18ea69cc5095e012465dcd675a822ed0d'
 $downloads = [ordered]@{
   'php.zip' = @{
     Urls = $phpDownloadBases | ForEach-Object { "$_/php-$phpVersion-Win32-$phpToolset.zip" }
-    Sha256 = 'a6bc8b2f3d7bfb397ccb973db2f959e61e530e0986c9cea262dd4a317ec599d8'
+    Sha256 = 'c83d5a1e0d760fb026ce695d8a70a73a4c81ac224b3e5c425406b23a7d53e1de'
   }
   'php-devel.zip' = @{
     Urls = $phpDownloadBases | ForEach-Object { "$_/php-devel-pack-$phpVersion-Win32-$phpToolset.zip" }
-    Sha256 = '0031d279f13f21e81fd62f9a98e919f28b1875ba457916d60daed85586e479dd'
+    Sha256 = '43f610861ced7b943437fe2808cfd720fde3341f461b1d441ea18bcd49ff711d'
   }
   'watcher.tar' = @{
     Urls = @('https://github.com/e-dant/watcher/releases/download/0.14.5/x86_64-pc-windows-msvc.tar')
