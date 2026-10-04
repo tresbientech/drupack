@@ -165,6 +165,16 @@ Every published executable is a launcher carrying the real executable, compresse
 
 A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.0.0-alpha1`, pushed to the Forge, mirrors to GitHub and drupal.org and starts the release workflow. It builds all seven targets and runs the suite on each, except the two musl files, which start a site on Alpine. It then publishes a GitHub Release. `build/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. A drupal.org release node, created by hand for the tag, publishes it to Packagist as a version of the Composer package `drupal/drupack`, which [ADR 0024](docs/adr/0024-composer-package.md) describes.
 
+### Automatic releases
+
+`.github/workflows/upstream.yml` tags a release when an upstream moves inside its line, as [ADR 0029](docs/adr/0029-automatic-upstream-releases.md) describes. `python3 build/upstream.py` runs its bump in your checkout and prints the summary the workflow posts. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed.
+
+To keep a package at its pin, add its name and the breakage to `HOLDS` in `build/upstream.py`. To release it, delete the entry; the next run bumps it.
+
+Each automatic tag still needs its drupal.org release node, which the run summary names.
+
+### Pushes to main
+
 A push to `main` mirrors the same way. It builds and tests Linux amd64 when the push touched a path outside `docs/`, `LICENSE` and the root Markdown files. A documentation commit starts no build.
 
 Documents worth reading before a change: `CONTEXT.md` for the vocabulary, `README.md` for what the product promises, `docs/adr/` for the decisions behind the current shape, `docs/backlog.md` for open questions, `docs/plans/` for work already scheduled and `docs/reviews/` for the reviews a live plan acts on. A decision lands as a short numbered ADR. A plan and the review it acts on are deleted once the work ships, so the tree holds no finished checklists.
