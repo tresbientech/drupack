@@ -5,5 +5,5 @@ languages: [fr, zh-hans, es, hi, ar]
 platforms: [linux-amd64]
 libc: both
 writable: [web/themes/custom, recipes]
-node: true
+node: 24.21.0
 settings: agent-access.php

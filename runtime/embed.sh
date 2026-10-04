@@ -11,7 +11,7 @@ cd /go/src/app
 : > app.tar
 
 php_config=/go/src/app/dist/static-php-cli/buildroot/bin/php-config
-frankenphp_version=1.12.7
+. /build/builder-inputs.sh
 export CGO_ENABLED=1
 export CGO_CFLAGS="-fPIC -O2 -I/go/src/app/dist/static-php-cli/buildroot/include $($php_config --includes) -DFRANKENPHP_VERSION=$frankenphp_version"
 # static-php-cli owns the mapping from extensions to libraries, and the image
