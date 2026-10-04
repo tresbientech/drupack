@@ -63,3 +63,6 @@ The daily upstream run of [ADR 0029](0029-automatic-upstream-releases.md) pushes
 a candidate branch, `upstream/<fingerprint>`, to the Forge and to GitHub. The
 Forge copy keeps the mirror's `--prune` from deleting the GitHub one during the
 candidate build. The push of `main` and the tag deletes the branch.
+
+Gitea starts no workflow for a push made with `gitea.token`. The upstream run
+therefore calls the mirror job itself, and `mirror.yml` accepts `workflow_call`.

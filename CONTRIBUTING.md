@@ -167,11 +167,11 @@ A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.0.0-al
 
 ### Automatic releases
 
-`.github/workflows/upstream.yml` tags a release when an upstream moves inside its line, as [ADR 0029](docs/adr/0029-automatic-upstream-releases.md) describes. `python3 build/upstream.py` runs its bump in your checkout and prints the summary the workflow posts. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed.
+`.gitea/workflows/upstream.yml` tags a release when an upstream moves inside its line, as [ADR 0029](docs/adr/0029-automatic-upstream-releases.md) describes. It runs on the forge's runner. `python3 build/upstream.py` runs its bump in your checkout and prints the summary the workflow logs. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed.
 
 To keep a package at its pin, add its name and the breakage to `HOLDS` in `build/upstream.py`. To release it, delete the entry; the next run bumps it.
 
-Each automatic tag still needs its drupal.org release node, which the run summary names.
+Each automatic tag still needs its drupal.org release node, which the run log names.
 
 ### Pushes to main
 
