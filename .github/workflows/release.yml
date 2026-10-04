@@ -395,6 +395,9 @@ jobs:
       - name: Run the payload archive tests
         run: python3 -m unittest discover -s tests/conformance -p 'test_app_payload.py'
 
+      - name: Run the upstream bumper tests
+        run: python3 -m unittest discover -s tests/upstream
+
       - name: Run the test scripts
         env:
           DRUPACK_TEST_ENGINE: dist/engine/drupack
