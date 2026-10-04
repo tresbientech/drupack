@@ -161,3 +161,9 @@ the automatic path, how to add or lift a hold, and the manual release node.
 
 - [ ] `ls docs/adr/0029-*.md` lists the ADR, and `grep -n 'qa-green\|hold\|release node' docs/adr/0029-*.md` finds each point.
 - [ ] `grep -n 'upstream.py' CONTRIBUTING.md` finds the hold instructions.
+
+---
+
+## Deviations
+
+- D9: the bumper runs no `composer patches-relock`. `patches.lock.json` records the patch definitions and each patch file's SHA-256, never a package version, so a pin bump leaves it unchanged. A patch that no longer applies still turns the candidate red, because the build applies it.

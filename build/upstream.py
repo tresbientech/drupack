@@ -8,7 +8,9 @@ what it did as a Markdown summary. It edits the working tree and never commits.
 import json
 import os
 import re
+import subprocess
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -22,6 +24,19 @@ PHP_RELEASES = "https://www.php.net/releases/index.php?json&version="
 WINDOWS_CHECKSUMS = "https://downloads.php.net/~windows/releases/sha256sum.txt"
 FRANKENPHP_API = "https://api.github.com/repos/php/frankenphp"
 NODE_RELEASES = "https://nodejs.org/dist/index.json"
+DRUPAL_METADATA = "https://packages.drupal.org/files/packages/8/p2/"
+PACKAGIST_METADATA = "https://repo.packagist.org/p2/"
+
+# Exact pins the bumper leaves alone, each with the reason a newer release breaks
+# the demo. Deleting an entry lets the next run bump the package.
+HOLDS = {
+    "twig/twig": "under 3.30 cron fails with a TypeError in easy_email's compiled template",
+    "drupal/ui_patterns": "2.0.x commit bac7f81 removes the ui_patterns_source formatter "
+                          "WordPal's Display Builder target uses",
+}
+
+RELEASE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)(\d+))?", re.IGNORECASE)
+STABILITY = {"alpha": 0, "beta": 1, "rc": 2, None: 3}
 
 
 def fetch(url):
@@ -35,6 +50,15 @@ def fetch(url):
 
 def version_key(version):
     return tuple(int(part) for part in version.split("."))
+
+
+def release_key(version):
+    """Orders a release by number, then stability, then prerelease number; None for any other version."""
+    match = RELEASE.fullmatch(version)
+    if match is None:
+        return None
+    major, minor, patch, stability, number = match.groups()
+    return (int(major), int(minor), int(patch), STABILITY[stability and stability.lower()], int(number or 0))
 
 
 class Summary:
@@ -152,11 +176,85 @@ def node(summary):
     summary.row("Node", current, newest, "bumped")
 
 
+def metadata(name, suffix=""):
+    """`name`'s Composer metadata entries, from drupal.org first and Packagist after, as the demo's
+    repositories order them."""
+    bases = [DRUPAL_METADATA, PACKAGIST_METADATA] if name.startswith("drupal/") else [PACKAGIST_METADATA]
+    for base in bases:
+        try:
+            return json.loads(fetch(f"{base}{name}{suffix}.json"))["packages"][name]
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+    sys.exit(f"{name}: no repository lists it")
+
+
+def releases(name):
+    """Every version Composer metadata lists for `name`, as written there."""
+    return [entry["version"] for entry in metadata(name)]
+
+
+def branch_head(name, constraint):
+    """The newest commit of the branch a `2.0.x-dev#<commit>` constraint names."""
+    branch = constraint.split("#")[0].removesuffix("-dev")
+    for entry in metadata(name, "~dev"):
+        if entry["version"] in (f"dev-{branch}", f"{branch}-dev"):
+            return entry["source"]["reference"][:7]
+    sys.exit(f"{name}: the metadata lists no {branch} branch")
+
+
+def newest_release(current, versions):
+    """The newest of `versions` in `current`'s major at its stability or better, and the newest above that major."""
+    floor = release_key(current)
+    keyed = [(release_key(version), version.removeprefix("v")) for version in versions]
+    eligible = [(key, version) for key, version in keyed if key is not None and key[3] >= floor[3]]
+    newest = max(entry for entry in eligible if entry[0][0] == floor[0])
+    above = [entry for entry in eligible if entry[0][0] > floor[0]]
+    return newest, max(above) if above else None
+
+
+def composer_update():
+    subprocess.run(["composer", "update", "--no-install", "--no-interaction", "--no-progress", "--no-audit"],
+                   cwd=(ROOT / DEMO_COMPOSER).parent, check=True)
+
+
+def locked_versions():
+    lock = json.loads((ROOT / DEMO_COMPOSER).with_name("composer.lock").read_text())
+    return {package["name"]: package["version"] for package in lock["packages"] + lock["packages-dev"]}
+
+
+def composer(summary):
+    for name, constraint in json.loads((ROOT / DEMO_COMPOSER).read_text())["require"].items():
+        if name in HOLDS:
+            newest = branch_head(name, constraint) if "#" in constraint else newest_release(constraint, releases(name))[0][1]
+            summary.notes.append(f"HELD {name} {constraint.split('#')[0]} ({newest}): {HOLDS[name]}")
+            continue
+        # A range moves with composer update; a dev branch pin moves only by hand.
+        if release_key(constraint) is None:
+            continue
+        (key, newest), above = newest_release(constraint, releases(name))
+        if above is not None:
+            summary.notes.append(f"MAJOR {name} {above[1]} is out, outside the {key[0]}.x line")
+        if key <= release_key(constraint):
+            summary.row(name, constraint, newest, "current")
+            continue
+        rewrite(DEMO_COMPOSER, rf'^\s*"{re.escape(name)}": "([^"]+)"', newest)
+        summary.row(name, constraint, newest, "bumped")
+    before = locked_versions()
+    composer_update()
+    after = locked_versions()
+    bumped = {row[0] for row in summary.rows}
+    for name in sorted(after):
+        if before.get(name) != after[name] and name not in bumped:
+            summary.row(name, before.get(name, "none"), after[name], "locked")
+
+
 def main():
     summary = Summary()
     php(summary)
     frankenphp(summary)
     node(summary)
+    composer(summary)
     sys.stdout.write(summary.render())
 
 
