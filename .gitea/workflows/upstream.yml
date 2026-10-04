@@ -1,0 +1,178 @@
+name: Upstream
+
+# Releases Drupack when an upstream it pins has a newer version inside its line.
+# The bump is built and tested on every platform, with build/qa.sh, by GitHub's
+# release.yml before the forge receives main and the tag; the mirror and the tag
+# run of release.yml then publish it as they publish a hand tag.
+#
+# The job runs on the forge because nothing outside the LAN reaches the forge.
+# It writes the forge with gitea.token and reaches GitHub outbound.
+
+on:
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print the bump and stop before any push.
+        type: boolean
+        default: false
+      force:
+        description: Build a bump whose candidate already failed.
+        type: boolean
+        default: false
+
+concurrency:
+  group: upstream
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  GITHUB_API: https://api.github.com/repos/tresbientech/drupack
+  GITHUB_REMOTE: git@github.com:tresbientech/drupack.git
+
+jobs:
+  upstream:
+    runs-on: ubuntu-latest
+    # The runner stops any job at three hours; a release.yml run takes one.
+    timeout-minutes: 180
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: gd, mbstring, sodium, zip
+          tools: composer
+
+      - id: bump
+        name: Bump the pins
+        run: |
+          python3 build/upstream.py | tee "$RUNNER_TEMP/summary.md"
+          if [ -z "$(git status --porcelain)" ]; then
+            echo 'No pin moved.'
+            exit 0
+          fi
+          # The same upstream state rewrites the same diff, so its digest names the candidate.
+          fingerprint=$(git diff | sha256sum | cut -c 1-16)
+          printf 'branch=upstream/%s\n' "$fingerprint" >>"$GITHUB_OUTPUT"
+
+      - id: decide
+        name: Stop at a dry run or a failed candidate
+        if: steps.bump.outputs.branch
+        env:
+          BRANCH: ${{ steps.bump.outputs.branch }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          if [ "$DRY_RUN" = true ]; then
+            git diff -- . ':!*.lock'
+            exit 0
+          fi
+          failed=$(curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "$GITHUB_API/actions/workflows/release.yml/runs?branch=$BRANCH&status=failure" | jq .total_count)
+          if [ "$failed" -gt 0 ] && [ "$FORCE" != true ]; then
+            printf '%s already failed; dispatch with force to build it again.\n' "$BRANCH"
+            exit 0
+          fi
+          echo 'build=true' >>"$GITHUB_OUTPUT"
+
+      - id: candidate
+        name: Commit the candidate
+        if: steps.decide.outputs.build
+        run: |
+          version=$(python3 build/next-version.py)
+          git config user.name 'Drupack upstream'
+          git config user.email 'upstream@tresbien.tech'
+          git commit --quiet --all --file - <<EOF
+          bump upstreams for $version
+
+          $(cat "$RUNNER_TEMP/summary.md")
+          EOF
+          printf 'version=%s\nsha=%s\n' "$version" "$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
+
+      # The mirror deploy key may push to the GitHub repository alone.
+      - name: Reach GitHub
+        if: steps.candidate.outputs.version
+        env:
+          DEPLOY_KEY_BASE64: ${{ secrets.MIRROR_DEPLOY_KEY_BASE64 }}
+        run: |
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s' "$DEPLOY_KEY_BASE64" | base64 -d >"$HOME/.ssh/github_mirror"
+          printf 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n' >"$HOME/.ssh/known_hosts"
+          git config core.sshCommand "ssh -i $HOME/.ssh/github_mirror -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+
+      # The forge holds the branch too, so the mirror's --prune keeps GitHub's copy.
+      - name: Push the candidate branch
+        if: steps.candidate.outputs.version
+        env:
+          BRANCH: ${{ steps.bump.outputs.branch }}
+        run: |
+          git push --quiet origin "HEAD:refs/heads/$BRANCH"
+          git push --quiet "$GITHUB_REMOTE" "HEAD:refs/heads/$BRANCH"
+
+      - name: Build and test the candidate on every platform
+        if: steps.candidate.outputs.version
+        env:
+          BRANCH: ${{ steps.bump.outputs.branch }}
+          SHA: ${{ steps.candidate.outputs.sha }}
+        run: |
+          api() { curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" "$@"; }
+          jq -n --arg ref "$BRANCH" '{ref: $ref, inputs: {platform: "all"}}' \
+            | api -X POST "$GITHUB_API/actions/workflows/release.yml/dispatches" -d @-
+          # The dispatch answers before the run exists. An earlier candidate of the
+          # same bump ran on the same branch name, so the run is found by its commit.
+          for attempt in $(seq 30); do
+            run=$(api "$GITHUB_API/actions/workflows/release.yml/runs?event=workflow_dispatch&head_sha=$SHA" \
+              | jq -r '.workflow_runs[0].id // empty')
+            [ -n "$run" ] && break
+            sleep 10
+          done
+          echo "Candidate run: https://github.com/tresbientech/drupack/actions/runs/$run"
+          while sleep 120; do
+            read -r status conclusion < <(api "$GITHUB_API/actions/runs/$run" | jq -r '"\(.status) \(.conclusion)"')
+            [ "$status" = completed ] && break
+          done
+          echo "Candidate run: $conclusion"
+          [ "$conclusion" = success ]
+
+      # A main that moved since the checkout refuses the fast-forward, and with it the
+      # tag. The same push deletes the candidate branch, so the mirror run below
+      # prunes it from GitHub and drupal.org.
+      - id: release
+        name: Push main and the tag to the forge
+        if: steps.candidate.outputs.version
+        env:
+          BRANCH: ${{ steps.bump.outputs.branch }}
+          VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          git tag "$VERSION"
+          git push --atomic --quiet origin HEAD:refs/heads/main "refs/tags/$VERSION" ":refs/heads/$BRANCH"
+          printf 'version=%s\n' "$VERSION" >>"$GITHUB_OUTPUT"
+          echo "Tagged $VERSION on the forge. Create its drupal.org release node, so Packagist lists drupal/drupack $VERSION."
+
+      - name: Delete the candidate branch
+        if: always() && steps.candidate.outputs.version
+        env:
+          BRANCH: ${{ steps.bump.outputs.branch }}
+        run: |
+          git push --quiet origin --delete "$BRANCH" || true
+          git push --quiet "$GITHUB_REMOTE" --delete "$BRANCH" || true
+
+  # Gitea starts no workflow for a push made with gitea.token, so the mirror
+  # runs from here.
+  mirror:
+    needs: upstream
+    if: needs.upstream.outputs.version
+    uses: ./.gitea/workflows/mirror.yml
+    secrets: inherit
