@@ -49,6 +49,7 @@ jobs:
         run: |
           set -o pipefail
           python3 build/upstream.py | tee "$RUNNER_TEMP/summary.md" >>"$GITHUB_STEP_SUMMARY"
+          sed -n 's/^MAJOR /::notice::MAJOR /p' "$RUNNER_TEMP/summary.md"
           if [ -z "$(git status --porcelain)" ]; then
             echo 'No pin moved.' >>"$GITHUB_STEP_SUMMARY"
             exit 0
@@ -73,7 +74,7 @@ jobs:
           echo 'build=true' >>"$GITHUB_OUTPUT"
 
       - name: Show the dry run's diff
-        if: steps.earlier.outputs.build && inputs.dry_run
+        if: steps.bump.outputs.branch && inputs.dry_run
         run: |
           { printf '```diff\n'; git diff -- . ':!*.lock'; printf '```\n'; } >>"$GITHUB_STEP_SUMMARY"
 
@@ -89,7 +90,7 @@ jobs:
 
           $(cat "$RUNNER_TEMP/summary.md")
           EOF
-          printf 'version=%s\n' "$version" >>"$GITHUB_OUTPUT"
+          printf 'version=%s\nsha=%s\n' "$version" "$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
 
       # The deploy key may push to the forge repository alone. The forge's SSH
       # server answers with this RSA host key.
@@ -117,26 +118,32 @@ jobs:
         if: steps.candidate.outputs.version
         env:
           BRANCH: ${{ steps.bump.outputs.branch }}
+          SHA: ${{ steps.candidate.outputs.sha }}
         run: |
           gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH" -f platform=all
-          # The dispatch answers before the run exists.
+          # The dispatch answers before the run exists. An earlier candidate of the
+          # same bump ran on the same branch name, so the run is found by its commit.
           for attempt in $(seq 30); do
             run=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --branch "$BRANCH" \
-              --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+              --event workflow_dispatch --json databaseId,headSha \
+              --jq "[.[] | select(.headSha == \"$SHA\")][0].databaseId // empty")
             [ -n "$run" ] && break
             sleep 10
           done
           printf 'Candidate run: %s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$run" >>"$GITHUB_STEP_SUMMARY"
           gh run watch "$run" --repo "$GITHUB_REPOSITORY" --exit-status --interval 120 >/dev/null
 
-      # A main that moved since the checkout refuses the fast-forward, and with it the tag.
+      # A main that moved since the checkout refuses the fast-forward, and with it the
+      # tag. The same push deletes the candidate branch, so the mirror run that main
+      # starts finds no branch to copy to GitHub and drupal.org.
       - name: Push main and the tag to the forge
         if: steps.candidate.outputs.version
         env:
+          BRANCH: ${{ steps.bump.outputs.branch }}
           VERSION: ${{ steps.candidate.outputs.version }}
         run: |
           git tag "$VERSION"
-          git push --atomic --quiet "$FORGE" HEAD:refs/heads/main "refs/tags/$VERSION"
+          git push --atomic --quiet "$FORGE" HEAD:refs/heads/main "refs/tags/$VERSION" ":refs/heads/$BRANCH"
           {
             printf 'Tagged %s on the forge; the mirror sends it to GitHub, where release.yml publishes it.\n\n' "$VERSION"
             printf 'Create the drupal.org release node for %s, so Packagist lists drupal/drupack %s.\n' "$VERSION" "$VERSION"

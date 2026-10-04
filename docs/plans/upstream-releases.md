@@ -167,3 +167,7 @@ the automatic path, how to add or lift a hold, and the manual release node.
 ## Deviations
 
 - D9: the bumper runs no `composer patches-relock`. `patches.lock.json` records the patch definitions and each patch file's SHA-256, never a package version, so a pin bump leaves it unchanged. A patch that no longer applies still turns the candidate red, because the build applies it.
+- D17, D21: the fingerprint lives in the candidate branch name, `upstream/<fingerprint>`, not in the run name or a version-named branch. A run name cannot carry a value computed after the run starts, and a run keeps its branch name after the branch is deleted, so `gh run list --branch` finds a failed candidate.
+- D20: the next version comes from `build/next-version.py`, so the bumper keeps D1's no-argument interface.
+- D21: the candidate branch is deleted by the same atomic push that sends `main` and the tag, and by the cleanup step on any other ending.
+- D25: the tag run gains one step, the bumper's unit tests in the Linux job, as every build script's tests run there. `build/qa.sh` runs them too.

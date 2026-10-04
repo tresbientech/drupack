@@ -57,3 +57,10 @@ That comparison lives in a job rather than in a `paths-ignore` filter. GitHub
 documents the effect of a path filter on a branch push and says nothing about a
 tag push. A tag whose build was filtered away would publish no release.
 
+
+## Amendment, 2026-10-04
+
+The daily upstream run of [ADR 0029](0029-automatic-upstream-releases.md) pushes
+a candidate branch, `upstream/<fingerprint>`, to the Forge and to GitHub. The
+Forge copy keeps the mirror's `--prune` from deleting the GitHub one during the
+candidate build. The push of `main` and the tag deletes the branch.

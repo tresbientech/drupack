@@ -21,14 +21,18 @@ PHP security release behind, and nothing had reported it.
 - `HOLDS` in `build/upstream.py` keeps a package at its pin. Each entry names
   the breakage a newer release causes, and every run prints it beside the
   newest version.
-- The bump goes on `main` HEAD, on a candidate branch the forge and GitHub
-  both hold. An all-platform dispatch of `release.yml` builds and tests it.
-  Its `qa` job runs `build/qa.sh`.
-- On green, one atomic push sends `main` and the next version tag to the forge,
-  as a fast-forward. The mirror and the tag run publish it as a hand tag.
+- The bump goes on `main` HEAD, on the candidate branch `upstream/<fingerprint>`
+  that the forge and GitHub both hold. The fingerprint is the SHA-256 of the
+  bump's diff. This amends [ADR 0001](0001-forge-canonical-github-packaging-mirror.md),
+  which pushed only `main` and tags.
+- An all-platform dispatch of `release.yml` builds and tests the candidate. Its
+  `qa` job runs `build/qa.sh`. The run is found by the candidate's commit.
+- On green, one atomic push sends `main` as a fast-forward and the next version
+  tag to the forge, and deletes the candidate branch. The mirror and the tag run
+  publish it as a hand tag.
 - A green candidate run replaces the local `qa-green` record for these tags.
 - A bump whose candidate failed is not built again unless the dispatch sets
-  `force`.
+  `force`. A failed run on its branch name records the failure.
 - The drupal.org release node stays a hand step. The run summary names the tag
   it needs.
 
@@ -49,3 +53,5 @@ PHP security release behind, and nothing had reported it.
 - `FORGE_DEPLOY_KEY_BASE64` on GitHub holds a forge deploy key with write
   access. The forge's RSA host key is pinned in the workflow.
 - Anything merged on `main` ships with the next automatic tag.
+- A push to `main` during a candidate build mirrors the candidate branch to
+  GitHub and drupal.org. The next mirror run after its deletion prunes it.

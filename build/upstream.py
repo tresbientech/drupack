@@ -24,6 +24,17 @@ PHP_RELEASES = "https://www.php.net/releases/index.php?json&version="
 WINDOWS_CHECKSUMS = "https://downloads.php.net/~windows/releases/sha256sum.txt"
 FRANKENPHP_API = "https://api.github.com/repos/php/frankenphp"
 NODE_RELEASES = "https://nodejs.org/dist/index.json"
+
+# Each pin's line in its file, its value captured.
+PHP_PIN = r"^php_version=(.+)$"
+PHP_WINDOWS_PIN = r"^\$phpVersion = '(.+)'$"
+PHP_TOOLSET = r"^\$phpToolset = '(.+)'$"
+FRANKENPHP_PIN = r"^frankenphp_version=(.+)$"
+FRANKENPHP_COMMIT_PIN = r"^frankenphp_commit=(.+)$"
+FRANKENPHP_WINDOWS_PIN = r"^\$frankenphpVersion = '(.+)'$"
+FRANKENPHP_WINDOWS_COMMIT_PIN = r"^\$frankenphpCommit = '(.+)'$"
+NODE_PIN = r"^node: (.+)$"
+STABLE_TAG = re.compile(r"v\d+\.\d+\.\d+")
 DRUPAL_METADATA = "https://packages.drupal.org/files/packages/8/p2/"
 PACKAGIST_METADATA = "https://repo.packagist.org/p2/"
 
@@ -112,7 +123,7 @@ def windows_hashes(version, toolset):
 
 
 def php(summary):
-    current = read(BUILDER_INPUTS, r"^php_version=(.+)$")
+    current = read(BUILDER_INPUTS, PHP_PIN)
     line = ".".join(current.split(".")[:2])
     newest = newest_php(line)
     major = newest_php(line.split(".")[0])
@@ -121,12 +132,12 @@ def php(summary):
     if version_key(newest) <= version_key(current):
         summary.row("PHP", current, newest, "current")
         return
-    hashes = windows_hashes(newest, read(WINDOWS_BUILD, r"^\$phpToolset = '(.+)'$"))
+    hashes = windows_hashes(newest, read(WINDOWS_BUILD, PHP_TOOLSET))
     if hashes is None:
         summary.row("PHP", current, newest, "waits for the Windows zips")
         return
-    rewrite(BUILDER_INPUTS, r"^php_version=(.+)$", newest)
-    rewrite(WINDOWS_BUILD, r"^\$phpVersion = '(.+)'$", newest)
+    rewrite(BUILDER_INPUTS, PHP_PIN, newest)
+    rewrite(WINDOWS_BUILD, PHP_WINDOWS_PIN, newest)
     for name, sha256 in zip(["php.zip", "php-devel.zip"], hashes):
         rewrite(WINDOWS_BUILD, rf"^  '{re.escape(name)}' = @\{{\n.*\n    Sha256 = '([0-9a-f]{{64}})'$", sha256)
     rewrite(DEMO_COMPOSER, r'"platform": \{"php": "([^"]+)"\}', newest)
@@ -134,12 +145,12 @@ def php(summary):
 
 
 def frankenphp(summary):
-    current = read(BUILDER_INPUTS, r"^frankenphp_version=(.+)$")
+    current = read(BUILDER_INPUTS, FRANKENPHP_PIN)
     line = current.split(".")[0]
     releases = [release["tag_name"] for release in json.loads(fetch(f"{FRANKENPHP_API}/releases?per_page=100"))
                 if not release["draft"] and not release["prerelease"]]
     # GitHub release tags are remote input.
-    versions = [tag[1:] for tag in releases if re.fullmatch(r"v\d+\.\d+\.\d+", tag)]
+    versions = [tag[1:] for tag in releases if STABLE_TAG.fullmatch(tag)]
     newest = max((v for v in versions if v.split(".")[0] == line), key=version_key)
     above = max(versions, key=version_key)
     if above.split(".")[0] != line:
@@ -152,19 +163,19 @@ def frankenphp(summary):
         target = json.loads(fetch(f"{FRANKENPHP_API}/git/tags/{target['sha']}"))["object"]
     if target["type"] != "commit" or not re.fullmatch(r"[0-9a-f]{40}", target["sha"]):
         sys.exit(f"FrankenPHP v{newest} names {target!r}, not a commit")
-    rewrite(BUILDER_INPUTS, r"^frankenphp_version=(.+)$", newest)
-    rewrite(BUILDER_INPUTS, r"^frankenphp_commit=(.+)$", target["sha"])
-    rewrite(WINDOWS_BUILD, r"^\$frankenphpVersion = '(.+)'$", newest)
-    rewrite(WINDOWS_BUILD, r"^\$frankenphpCommit = '(.+)'$", target["sha"])
+    rewrite(BUILDER_INPUTS, FRANKENPHP_PIN, newest)
+    rewrite(BUILDER_INPUTS, FRANKENPHP_COMMIT_PIN, target["sha"])
+    rewrite(WINDOWS_BUILD, FRANKENPHP_WINDOWS_PIN, newest)
+    rewrite(WINDOWS_BUILD, FRANKENPHP_WINDOWS_COMMIT_PIN, target["sha"])
     summary.row("FrankenPHP", current, newest, "bumped")
 
 
 def node(summary):
-    current = read(DEMO_SITE, r"^node: (.+)$")
+    current = read(DEMO_SITE, NODE_PIN)
     line = current.split(".")[0]
     # nodejs.org's index is remote input; lts is false or the line's name.
     versions = [release["version"][1:] for release in json.loads(fetch(NODE_RELEASES))
-                if release["lts"] and re.fullmatch(r"v\d+\.\d+\.\d+", release["version"])]
+                if release["lts"] and STABLE_TAG.fullmatch(release["version"])]
     newest = max((v for v in versions if v.split(".")[0] == line), key=version_key)
     above = max(versions, key=version_key)
     if above.split(".")[0] != line:
@@ -172,7 +183,7 @@ def node(summary):
     if version_key(newest) <= version_key(current):
         summary.row("Node", current, newest, "current")
         return
-    rewrite(DEMO_SITE, r"^node: (.+)$", newest)
+    rewrite(DEMO_SITE, NODE_PIN, newest)
     summary.row("Node", current, newest, "bumped")
 
 
@@ -227,7 +238,8 @@ def composer(summary):
     for name, constraint in json.loads((ROOT / DEMO_COMPOSER).read_text())["require"].items():
         if name in HOLDS:
             newest = branch_head(name, constraint) if "#" in constraint else newest_release(constraint, releases(name))[0][1]
-            summary.notes.append(f"HELD {name} {constraint.split('#')[0]} ({newest}): {HOLDS[name]}")
+            summary.notes.append(f"HELD {name} {constraint[:constraint.find('#') + 8] if '#' in constraint else constraint} "
+                                 f"({newest}): {HOLDS[name]}")
             continue
         # A range moves with composer update; a dev branch pin moves only by hand.
         if release_key(constraint) is None:

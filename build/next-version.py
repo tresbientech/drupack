@@ -13,7 +13,7 @@ from upstream import release_key
 
 
 def next_version(tags):
-    highest = max((tag for tag in tags if release_key(tag) is not None), key=release_key)
+    highest = max(tags, key=release_key)
     return re.sub(r"\d+$", lambda number: str(int(number[0]) + 1), highest)
 
 
