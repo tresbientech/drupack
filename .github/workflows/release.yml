@@ -673,6 +673,57 @@ jobs:
           path: dist/engine/drupack
           if-no-files-found: error
 
+  # An all-platform dispatch also runs the full local QA, so a release tagged by
+  # upstream.yml passes what build/qa.sh asks of a hand tag.
+  qa:
+    name: QA
+    needs: linux-runtime
+    if: github.event_name == 'workflow_dispatch' && inputs.platform == 'all'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      # The Dockerfile builds on drupack-builder-{gnu,musl}:local, which the
+      # runtime jobs of this run published under their digest tags.
+      - name: Pull the builder images
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          for libc in gnu musl; do
+            image=ghcr.io/$GITHUB_REPOSITORY-builder:$(bash runtime/builder-tag.sh "$libc")
+            docker pull -q "$image"
+            docker tag "$image" "drupack-builder-$libc:local"
+          done
+
+      - name: Run build/qa.sh
+        run: |
+          set -o pipefail
+          bash build/qa.sh 2>&1 | tee "$RUNNER_TEMP/qa.log"
+
+      - name: Summarize the QA
+        if: always()
+        run: |
+          {
+            printf '### build/qa.sh\n\n```\n'
+            grep -E '^(Ran |OK|FAILED|ok |FAIL)' "$RUNNER_TEMP/qa.log" || true
+            printf '```\n'
+          } >>"$GITHUB_STEP_SUMMARY"
+
   publish:
     needs: [linux, windows, macos, demo]
     if: github.ref_type == 'tag'
