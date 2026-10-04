@@ -8,6 +8,7 @@ import importlib.util
 import json
 import re
 import shutil
+import sys
 import tempfile
 import unittest
 import urllib.error
@@ -248,6 +249,27 @@ class Bumper(unittest.TestCase):
         del self.indexes[f"{upstream.DRUPAL_METADATA}drupal/canvas.json"]
         with self.assertRaises(SystemExit):
             self.run_bumper(upstream.composer)
+
+
+class NextVersion(unittest.TestCase):
+    def setUp(self):
+        sys.path.insert(0, str(ROOT / "build"))
+        self.addCleanup(sys.path.remove, str(ROOT / "build"))
+        spec = importlib.util.spec_from_file_location("next_version", ROOT / "build" / "next-version.py")
+        self.module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.module)
+
+    def test_a_prerelease_raises_its_prerelease_number(self):
+        self.assertEqual(self.module.next_version(["0.9.0", "1.0.0-alpha1", "1.0.0-alpha2"]), "1.0.0-alpha3")
+
+    def test_a_stable_release_raises_its_patch(self):
+        self.assertEqual(self.module.next_version(["1.0.0-rc2", "1.0.0", "0.9.0"]), "1.0.1")
+
+    def test_a_prerelease_number_past_nine_counts_on(self):
+        self.assertEqual(self.module.next_version(["1.0.0-beta9", "1.0.0-beta10"]), "1.0.0-beta11")
+
+    def test_a_tag_that_names_no_release_is_ignored(self):
+        self.assertEqual(self.module.next_version(["1.0.0-alpha2", "v9-test", "latest"]), "1.0.0-alpha3")
 
 
 if __name__ == "__main__":

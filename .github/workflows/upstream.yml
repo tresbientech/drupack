@@ -1,0 +1,151 @@
+name: Upstream
+
+# Releases Drupack when an upstream it pins has a newer version inside its line.
+# The bump is built and tested on every platform, with build/qa.sh, before the
+# forge receives main and the tag; the mirror and the tag run of release.yml
+# then publish it as they publish a hand tag.
+
+on:
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print the bump and stop before any push.
+        type: boolean
+        default: false
+      force:
+        description: Build a bump whose candidate already failed.
+        type: boolean
+        default: false
+
+concurrency:
+  group: upstream
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: write
+
+env:
+  FORGE: ssh://git@git.tresbien.tech:2222/tresbientech/drupack.git
+
+jobs:
+  upstream:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - id: bump
+        name: Bump the pins
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          python3 build/upstream.py | tee "$RUNNER_TEMP/summary.md" >>"$GITHUB_STEP_SUMMARY"
+          if [ -z "$(git status --porcelain)" ]; then
+            echo 'No pin moved.' >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # The same upstream state rewrites the same diff, so its digest names the candidate.
+          fingerprint=$(git diff | sha256sum | cut -c 1-16)
+          printf 'branch=upstream/%s\n' "$fingerprint" >>"$GITHUB_OUTPUT"
+
+      - id: earlier
+        name: Look for a failed candidate of this bump
+        if: steps.bump.outputs.branch
+        env:
+          BRANCH: ${{ steps.bump.outputs.branch }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          failed=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --branch "$BRANCH" \
+            --json conclusion --jq '[.[] | select(.conclusion == "failure")] | length')
+          if [ "$failed" -gt 0 ] && [ "$FORCE" != true ]; then
+            printf '%s already failed; dispatch with force to build it again.\n' "$BRANCH" >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo 'build=true' >>"$GITHUB_OUTPUT"
+
+      - name: Show the dry run's diff
+        if: steps.earlier.outputs.build && inputs.dry_run
+        run: |
+          { printf '```diff\n'; git diff -- . ':!*.lock'; printf '```\n'; } >>"$GITHUB_STEP_SUMMARY"
+
+      - id: candidate
+        name: Commit the candidate
+        if: steps.earlier.outputs.build && !inputs.dry_run
+        run: |
+          version=$(python3 build/next-version.py)
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --quiet --all --file - <<EOF
+          bump upstreams for $version
+
+          $(cat "$RUNNER_TEMP/summary.md")
+          EOF
+          printf 'version=%s\n' "$version" >>"$GITHUB_OUTPUT"
+
+      # The deploy key may push to the forge repository alone. The forge's SSH
+      # server answers with this RSA host key.
+      - name: Reach the forge
+        if: steps.candidate.outputs.version
+        env:
+          FORGE_DEPLOY_KEY_BASE64: ${{ secrets.FORGE_DEPLOY_KEY_BASE64 }}
+        run: |
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s' "$FORGE_DEPLOY_KEY_BASE64" | base64 -d >"$HOME/.ssh/forge"
+          printf '[git.tresbien.tech]:2222 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQClWuGIsvAfox6p3eqxzqYzLxS0UWYlwv1iIv3LH2q5CXt275bLKHFQD1VkWlPOt3N1gXvGk9HE4G6ek5Dz6wgfTxt25q4cOPzA8qG1fJzUCY4sNF3BzbigjOYhgXKR8QfK3kdqZiisgku7k64eN/1XTTw/l098hl5/ufkxOiGVaA3CtFABBSAJoFbsLV6xhJ+UeKSv68SsBepIJ7nVbc6zKFTgQueSHODdQtt7cZ1QL4lnbXVNimaguceSfHmmDhnLZPIFkbA1WlpIOJZNfi8Y9mOiSqOdUPcpZT4ccZmLrouI2MJrk94ws/Uf1NeDccqamiBvDw8QHUE3TGnDkjxizIp5RjdzpyzFTfzvHmc8MGfavpmMe2BiFjYb9tMv1rf0h8nRiDcis3OC05FxUZRTyQlOM97wWhfCIAAdWpAbyMZu8e4QB+w9Qijao2DgKIECatPNaYSJ8bLxe7yjJui/K2u+Fi1uFzsaug6F5ctLjkx41UWa9LIE2tt9E3yjFKD48EEjEnIl+Bsb15GaoKTsqEIujC4t9lsfCivLqo1W56oKYizwscsQ0obybf3B54a9ydXei8RwshO6JKkWD580FeLkcHuG1v69ibEYAReG8OjqqecGnUOsfta2SBEW2TsLhFr4MjU/funLj5pd2abJaieWgOBmR5LQX+7R/mHLCw==\n' >"$HOME/.ssh/known_hosts"
+          git config core.sshCommand "ssh -i $HOME/.ssh/forge -o IdentitiesOnly=yes"
+
+      # The forge holds the branch too, so the mirror's --prune keeps GitHub's copy.
+      - name: Push the candidate branch
+        if: steps.candidate.outputs.version
+        env:
+          BRANCH: ${{ steps.bump.outputs.branch }}
+        run: |
+          git push --quiet "$FORGE" "HEAD:refs/heads/$BRANCH"
+          git push --quiet origin "HEAD:refs/heads/$BRANCH"
+
+      - name: Build and test the candidate on every platform
+        if: steps.candidate.outputs.version
+        env:
+          BRANCH: ${{ steps.bump.outputs.branch }}
+        run: |
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH" -f platform=all
+          # The dispatch answers before the run exists.
+          for attempt in $(seq 30); do
+            run=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --branch "$BRANCH" \
+              --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+            [ -n "$run" ] && break
+            sleep 10
+          done
+          printf 'Candidate run: %s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$run" >>"$GITHUB_STEP_SUMMARY"
+          gh run watch "$run" --repo "$GITHUB_REPOSITORY" --exit-status --interval 120 >/dev/null
+
+      # A main that moved since the checkout refuses the fast-forward, and with it the tag.
+      - name: Push main and the tag to the forge
+        if: steps.candidate.outputs.version
+        env:
+          VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          git tag "$VERSION"
+          git push --atomic --quiet "$FORGE" HEAD:refs/heads/main "refs/tags/$VERSION"
+          {
+            printf 'Tagged %s on the forge; the mirror sends it to GitHub, where release.yml publishes it.\n\n' "$VERSION"
+            printf 'Create the drupal.org release node for %s, so Packagist lists drupal/drupack %s.\n' "$VERSION" "$VERSION"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Delete the candidate branch
+        if: always() && steps.candidate.outputs.version
+        env:
+          BRANCH: ${{ steps.bump.outputs.branch }}
+        run: |
+          git push --quiet "$FORGE" --delete "$BRANCH" || true
+          git push --quiet origin --delete "$BRANCH" || true
