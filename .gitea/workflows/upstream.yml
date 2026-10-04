@@ -40,15 +40,13 @@ jobs:
     timeout-minutes: 180
     outputs:
       version: ${{ steps.release.outputs.version }}
-    env:
-      GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.5'
           extensions: gd, mbstring, sodium, zip
@@ -56,6 +54,8 @@ jobs:
 
       - id: bump
         name: Bump the pins
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
         run: |
           python3 build/upstream.py | tee "$RUNNER_TEMP/summary.md"
           if [ -z "$(git status --porcelain)" ]; then
@@ -73,6 +73,7 @@ jobs:
           BRANCH: ${{ steps.bump.outputs.branch }}
           DRY_RUN: ${{ inputs.dry_run }}
           FORCE: ${{ inputs.force }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
         run: |
           if [ "$DRY_RUN" = true ]; then
             git diff -- . ':!*.lock'
@@ -126,6 +127,7 @@ jobs:
         env:
           BRANCH: ${{ steps.bump.outputs.branch }}
           SHA: ${{ steps.candidate.outputs.sha }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
         run: |
           api() { curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" "$@"; }
           jq -n --arg ref "$BRANCH" '{ref: $ref, inputs: {platform: "all"}}' \
@@ -138,7 +140,8 @@ jobs:
             [ -n "$run" ] && break
             sleep 10
           done
-          echo "Candidate run: https://github.com/tresbientech/drupack/actions/runs/$run"
+          [ -n "$run" ] || { echo "No release.yml run appeared for $SHA."; exit 1; }
+          echo "Candidate run: $(api "$GITHUB_API/actions/runs/$run" | jq -r .html_url)"
           while sleep 120; do
             read -r status conclusion < <(api "$GITHUB_API/actions/runs/$run" | jq -r '"\(.status) \(.conclusion)"')
             [ "$status" = completed ] && break

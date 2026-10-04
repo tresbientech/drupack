@@ -89,12 +89,13 @@ Holds and majors:
   - `drupal/ui_patterns`: commit `bac7f81` removes the `ui_patterns_source`
     formatter WordPal's Display Builder target uses.
 - D15. A version outside the line (PHP 8.6, Drupal 12, FrankenPHP 2, Node 26)
-  is printed as `MAJOR` and a workflow notice. Nothing is written for it.
+  is printed as `MAJOR` in the run log. Nothing is written for it.
 
 Workflow:
 
-- D16. `.github/workflows/upstream.yml` runs daily on cron and on
-  `workflow_dispatch` with two inputs: `dry_run` and `force`.
+- D16. `.gitea/workflows/upstream.yml` runs daily on the forge runner, on cron
+  and on `workflow_dispatch` with two inputs: `dry_run` and `force`. Nothing
+  outside the LAN reaches the forge, so the job runs there.
 - D17. No diff ends the run green. A diff gets a fingerprint, its SHA-256. The
   run name carries it.
 - D18. A fingerprint whose earlier run failed is skipped, unless `force` is set.
@@ -117,9 +118,9 @@ Workflow:
 
 Credentials and records:
 
-- D26. One new GitHub secret, `FORGE_DEPLOY_KEY_BASE64`: a write deploy key on
-  the forge repository, base64 like the mirror's. The owner creates it. The
-  forge host key on port 2222 is pinned in the workflow.
+- D26. One new forge secret, `RELEASE_DISPATCH_TOKEN`: a GitHub fine-grained
+  token with Actions read and write on the repository. The owner creates it.
+  The candidate branch reaches GitHub with `MIRROR_DEPLOY_KEY_BASE64`.
 - D27. A new ADR records three points. CI green, the matrix plus `qa.sh`,
   replaces the local `qa-green` for automatic tags. The holds dict is the way
   to refuse an upstream. The drupal.org release node stays manual.
