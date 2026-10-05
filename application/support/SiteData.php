@@ -59,26 +59,9 @@ final class SiteData
         return "$this->directory/logs";
     }
 
-    // What a background server writes to standard output and error, truncated per start.
-    public function serverLog(): string
-    {
-        return $this->logs() . '/server.log';
-    }
-
     public function runtime(): string
     {
         return "$this->directory/runtime";
-    }
-
-    public function lease(): string
-    {
-        return "$this->directory/serving.lock";
-    }
-
-    // The server writes its stop channel's port, token and PID here once it answers.
-    public function stopRecord(): string
-    {
-        return "$this->directory/stop.json";
     }
 
     public function prepare(): void

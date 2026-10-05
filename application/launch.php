@@ -250,7 +250,7 @@ function stopSite(string $directory): int
         return notRunning();
     }
     $site = new SiteData(canonical($resolved));
-    return stopServer($site->lease(), $site->stopRecord(), 'Site data', $site->directory);
+    return (new Serving($site->directory, $site->logs()))->stop('Site data', $site->directory);
 }
 
 // Splits IP:PORT, an IPv6 address in brackets, into the bare address and the port.
@@ -815,10 +815,10 @@ try {
     // Both questions are asked before the listener record and every install step, so a
     // served site and a taken port each reach their reader as a sentence rather than as
     // a bind error or a corrupted database.
-    $lease = null;
     if (!$drush) {
-        $lease = takeLease($site->lease());
-        if ($lease === null) {
+        // The object holds the lease until the exec into the server.
+        $serving = new Serving($site->directory, $site->logs());
+        if (!$serving->claim()) {
             // The holder is still installing while no completion marker exists, and
             // serving once it does. A handover addresses a site that answers requests,
             // so an installation in progress refuses instead.
@@ -835,7 +835,7 @@ try {
             throw new RuntimeException("Another program is listening on {$options['listen']}. Stop it, or start on"
                 . " a free port: " . executableName() . " --listen $bind:" . ($port + 1));
         }
-        detachStart($lease, $options['foreground'] !== null, $site->stopRecord(), $site->serverLog(),
+        $serving->detach($options['foreground'] !== null,
             stopCommand($written === DEFAULT_DATA_DIR ? '' : ' --data-dir ' . shellWord($written)), array_slice($argv, 1));
         $site->recordListener($options['listen'], $options['host'], $options['files-dir']);
     }
@@ -918,7 +918,7 @@ try {
         // entry point changes to.
         'DRUPACK_RUNTIME_DOCROOT' => application() . '/' . siteSettings()['docroot'],
         'DRUPACK_RUNTIME_LOG_PATH' => $logPath,
-        'DRUPACK_RUNTIME_STOP_RECORD' => $site->stopRecord(),
+        'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
     ]);
     replaceProcess($binary, ['php-server', application() . '/Caddyfile'], application(), 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
