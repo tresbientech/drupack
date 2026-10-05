@@ -137,21 +137,6 @@ function projectFolder(?string $directory): string
     return canonical($project);
 }
 
-function entryLease(string $entry): string
-{
-    return "$entry/serving.lock";
-}
-
-function entryStopRecord(string $entry): string
-{
-    return "$entry/stop.json";
-}
-
-function entryLog(string $entry): string
-{
-    return "$entry/server.log";
-}
-
 // `stop` takes the folder alone. A folder that was never served has no entry, and the
 // lookup creates none.
 function stopFolder(array $arguments): int
@@ -161,7 +146,7 @@ function stopFolder(array $arguments): int
     }
     $project = projectFolder($arguments[0] ?? null);
     $entry = folderEntry($project);
-    return stopServer(entryLease($entry), entryStopRecord($entry), 'folder', $project);
+    return (new Serving($entry, $entry))->stop('folder', $project);
 }
 
 function serve(string $binary, array $arguments): never
@@ -196,11 +181,11 @@ function serve(string $binary, array $arguments): never
     // detaches has nothing left to refuse but the server's own failures.
     $entry = folderEntry($project);
     directory($entry);
-    $lease = takeLease(entryLease($entry));
-    if ($lease === null) {
+    $serving = new Serving($entry, $entry);
+    if (!$serving->claim()) {
         throw new RuntimeException(executableName() . " already serves $project");
     }
-    detachStart($lease, $foreground, entryStopRecord($entry), entryLog($entry),
+    $serving->detach($foreground,
         stopCommand($directory === null ? '' : ' ' . shellWord($directory)), array_merge(['start'], $typed));
 
     $url = "http://$listen";
@@ -228,7 +213,7 @@ function serve(string $binary, array $arguments): never
         'DRUPACK_RUNTIME_DOCROOT' => $docroot,
         'DRUPACK_RUNTIME_ID' => basename($entry),
         'DRUPACK_RUNTIME_URL' => 'http://' . urlHost(probeHost($bind)) . ":$port",
-        'DRUPACK_RUNTIME_STOP_RECORD' => entryStopRecord($entry),
+        'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
     ]);
     replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }

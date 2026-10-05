@@ -153,6 +153,126 @@ function personPresent(): bool
     return stream_isatty(STDIN) || consoleOwned() || environment('DRUPACK_RUNTIME_PERSON') === '1';
 }
 
+// The state one server holds while it serves: the Serving lease, the stop record and the
+// server log. A site keeps them in Site data, a folder in its cache entry.
+final class Serving
+{
+    // How long `stop` waits for the lease to free. runtime/entrypoint.go forces the
+    // server's own exit at 10 seconds.
+    private const STOP_WAIT_SECONDS = 15;
+
+    // The server writes its stop channel's port, token and PID here once it answers.
+    public readonly string $stopRecord;
+    private readonly string $lease;
+    // What a background server writes to standard output and error, truncated per start.
+    private readonly string $log;
+    private $handle;
+
+    public function __construct(string $state, string $logDirectory)
+    {
+        $this->lease = "$state/serving.lock";
+        $this->stopRecord = "$state/stop.json";
+        $this->log = "$logDirectory/server.log";
+    }
+
+    // The lease belongs to the data rather than to a port: two servers over one set of
+    // data would corrupt both, whatever addresses they bind. The lock lives on the open
+    // file description, which survives the exec into the server, so the kernel holds it
+    // for that process and releases it when the process ends, a kill included. On
+    // Windows this process waits for the server it starts, so the handle lives exactly
+    // as long. False means another start serves this data.
+    public function claim(): bool
+    {
+        $this->handle = $this->lock();
+        return $this->handle !== null;
+    }
+
+    // What a start does once it holds the lease. A record from an earlier server names
+    // a port and a token nobody listens on, and `stop` reads a missing record as a start
+    // still preparing, so it goes. A double-click owns its console, which closing the
+    // window would end along with a background server, so it serves where the reader
+    // can stop it. Every other start detaches unless it was asked to serve in the
+    // foreground: it runs again through the launcher's detach word, with the same
+    // arguments and working directory, and relays the server's log until it answers.
+    // The lease is released first, so the server takes it. $stopCommand is what the
+    // relay prints for ending the server.
+    public function detach(bool $foreground, string $stopCommand, array $arguments): void
+    {
+        if (file_exists($this->stopRecord)) {
+            unlink($this->stopRecord);
+        }
+        if ($foreground || consoleOwned()) {
+            return;
+        }
+        fclose($this->handle);
+        if (personPresent()) {
+            putenv('DRUPACK_RUNTIME_PERSON=1');
+        }
+        replaceProcess(getenv('DRUPACK_RUNTIME_LAUNCHER'),
+            array_merge(['detach', $this->log, $stopCommand, '--'], $arguments, ['--foreground']),
+            startDirectory(), 'Cannot start the server in the background');
+    }
+
+    // Ends the server that holds the lease, through the stop channel its record names,
+    // and waits for the lease to free. $what and $named name the state for a message.
+    // Returns the exit code. A free lease means no server runs, whatever a stale record
+    // says.
+    public function stop(string $what, string $named): int
+    {
+        if (!is_file($this->lease) || $this->free()) {
+            return notRunning();
+        }
+        if (!is_file($this->stopRecord)) {
+            throw new RuntimeException('A ' . executableName() . " start is still preparing this $what: $named");
+        }
+        $channel = json_decode((string) file_get_contents($this->stopRecord), true, 512, JSON_THROW_ON_ERROR);
+        $context = stream_context_create(['http' => [
+            'method' => 'POST',
+            'header' => "Authorization: Bearer {$channel['token']}\r\nContent-Length: 0\r\n",
+            'timeout' => 10,
+            'ignore_errors' => true,
+        ]]);
+        @file_get_contents("http://127.0.0.1:{$channel['port']}/stop", false, $context);
+        $status = $http_response_header[0] ?? 'no answer';
+        if (!str_contains($status, ' 204')) {
+            throw new RuntimeException('The stop channel of ' . executableName() . " refused the request ($status): $named");
+        }
+        $deadline = microtime(true) + self::STOP_WAIT_SECONDS;
+        while (!$this->free()) {
+            if (microtime(true) >= $deadline) {
+                throw new RuntimeException(executableName() . ' did not stop within ' . self::STOP_WAIT_SECONDS . " seconds: $named");
+            }
+            usleep(200000);
+        }
+        fwrite(STDOUT, executableName() . " stopped.\n");
+        return 0;
+    }
+
+    // Whether no server holds the lease. Taking it to ask drops it again.
+    private function free(): bool
+    {
+        $handle = $this->lock();
+        if ($handle === null) {
+            return false;
+        }
+        fclose($handle);
+        return true;
+    }
+
+    private function lock()
+    {
+        $handle = fopen($this->lease, 'c');
+        if ($handle === false) {
+            throw new RuntimeException("Cannot open the serving lease: $this->lease");
+        }
+        if (!flock($handle, LOCK_EX | LOCK_NB)) {
+            fclose($handle);
+            return null;
+        }
+        return $handle;
+    }
+}
+
 // The lease one server holds over its state directory, for as long as it serves. Two
 // servers over one set of data would corrupt both, whatever addresses they bind, so the
 // claim belongs to the data rather than to a port.
