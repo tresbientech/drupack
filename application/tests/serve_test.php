@@ -117,13 +117,13 @@ test('a wildcard listener is probed on its own family\'s loopback', function () 
 test('docs/cli.md names every engine command the usage names', function () {
     $page = (string) file_get_contents(__DIR__ . '/../../docs/cli.md');
     $section = substr($page, strpos($page, '## The engine executable'));
-    preg_match_all('/^  ([a-z]+) {2,}/m', USAGE, $commands);
+    preg_match_all('/^  ([a-z-]+) {2,}/m', USAGE, $commands);
     foreach ($commands[1] as $command) {
         if (!str_contains($section, "drupack $command")) {
             throw new RuntimeException("docs/cli.md's engine section omits $command");
         }
     }
-    same(['start', 'stop', 'drush', 'dr', 'php', 'clean'], $commands[1]);
+    same(['start', 'stop', 'drush', 'dr', 'php', 'clean', 'self-update'], $commands[1]);
 });
 
 $status = runCases();

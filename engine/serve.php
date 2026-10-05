@@ -17,6 +17,7 @@ Usage: %1$s [start] [DIR] [--listen IP:PORT] [--foreground]
        %1$s php SCRIPT [ARGUMENTS]
        %1$s php -r CODE
        %1$s clean [--dry-run]
+       %1$s self-update [--check]
 
 Serves the Drupal project in DIR, the working directory by default, with its
 own settings, in the background. --foreground serves in this terminal until a
@@ -29,6 +30,7 @@ Commands:
   dr       Run Drupal core's command line of that project
   php      Run a script or -r CODE on the bundled PHP, with no PHP option
   clean    Remove the unpacked engine files from the cache
+  self-update  Install the newest release over this file, or --check for one
 
 docs/cli.md explains every command.
 TEXT;

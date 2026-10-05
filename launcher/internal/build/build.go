@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/node"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
@@ -58,15 +59,6 @@ type Step struct {
 type Plan struct {
 	Steps    []Step
 	Untested []string
-}
-
-// Target names what one packed file runs on: its platform, with a -musl suffix
-// for the musl runtime.
-func Target(platform, libc string) string {
-	if libc == "musl" {
-		return platform + "-musl"
-	}
-	return platform
 }
 
 // Executable names a site's executable for one target.
@@ -150,7 +142,7 @@ func NewPlan(r Request) (Plan, error) {
 	tested := ""
 	for _, platform := range r.Platforms {
 		for _, libc := range libcs {
-			target := Target(platform, libc)
+			target := runtime.Target(platform, libc == "musl")
 			if tested != "" || platform != r.Host {
 				plan.Untested = append(plan.Untested, target)
 				continue
@@ -182,7 +174,7 @@ func nodeTargets(r Request, libcs []string) []string {
 	var targets []string
 	for _, platform := range r.Platforms {
 		for _, libc := range libcs {
-			targets = append(targets, Target(platform, libc))
+			targets = append(targets, runtime.Target(platform, libc == "musl"))
 		}
 	}
 	return targets
@@ -216,13 +208,16 @@ func packSteps(r Request, libcs []string, resolved map[string]string, step, name
 	var steps []Step
 	for _, platform := range r.Platforms {
 		for _, libc := range libcs {
-			target := Target(platform, libc)
+			target := runtime.Target(platform, libc == "musl")
 			command := append([]string{"go", "run", "./cmd/pack", "-runtime", resolved[platform+"/"+libc],
 				"-entry", "drupack", "-version", r.EngineVersion,
 				"-source", filepath.Join(r.Engine, "launcher"),
 				"-output", filepath.Join(r.Output, Executable(name, target)),
 				"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
 				"-goarch", siteconfig.Platforms[platform]}, extra...)
+			if libc == "musl" {
+				command = append(command, "-musl")
+			}
 			if archive, carried := node.Archive(nodeArchives(r.Work), target); r.Site.Node != "" && carried {
 				command = append(command, "-node", archive)
 			}

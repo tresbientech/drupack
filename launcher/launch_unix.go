@@ -24,3 +24,12 @@ func detachedProcess() *syscall.SysProcAttr {
 // holdConsole does nothing: a terminal stays open on its own once the shell
 // that launched it regains control.
 func holdConsole() {}
+
+// replaceExecutable renames staged over path. A process running the old file
+// keeps its open copy.
+func replaceExecutable(path, staged string) error {
+	return os.Rename(staged, path)
+}
+
+// removeReplaced does nothing: a Unix replacement leaves no old file behind.
+func removeReplaced(string) {}

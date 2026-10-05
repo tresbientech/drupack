@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
+
+	"golang.org/x/term"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
@@ -28,6 +31,24 @@ func run() error {
 	if len(os.Args) > 1 && os.Args[1] == "detach" {
 		return detach(os.Args[2:])
 	}
+	// launch.php runs this executable again to lay a site's own application, and to
+	// detach a server, as serve.php does for a folder.
+	launcher, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	// A self-update renames the file a symlink on PATH names, so the old file it
+	// moves aside sits beside that one.
+	executable := launcher
+	if engine {
+		if executable, err = filepath.EvalSymlinks(launcher); err != nil {
+			return err
+		}
+		removeReplaced(executable)
+	}
+	if len(os.Args) > 1 && os.Args[1] == "self-update" {
+		return selfUpdate(os.Args[2:], releaseURL, executable, os.Stdout)
+	}
 	root, err := runtime.Root(siteName, os.Stderr)
 	if err != nil {
 		return err
@@ -41,6 +62,9 @@ func run() error {
 			return err
 		}
 		return runtime.CleanNode(root, dry, os.Stdout)
+	}
+	if engine {
+		updateNotice(root, executable, os.Stderr, term.IsTerminal(int(os.Stderr.Fd())), time.Now(), func() error { return startCheck(launcher) })
 	}
 	m, err := runtime.ParseManifest(runtimeManifest)
 	if err != nil {
@@ -67,12 +91,6 @@ func run() error {
 		return err
 	}
 	if err := os.Setenv("DRUPACK_RUNTIME_COMPONENTS", siteComponents); err != nil {
-		return err
-	}
-	// launch.php runs this executable again to lay a site's own application, and to
-	// detach a server, as serve.php does for a folder.
-	launcher, err := os.Executable()
-	if err != nil {
 		return err
 	}
 	if err := os.Setenv("DRUPACK_RUNTIME_LAUNCHER", runtime.Canonical(launcher)); err != nil {

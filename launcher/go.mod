@@ -6,6 +6,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.5.2
 	github.com/klauspost/compress v1.20.0
 	golang.org/x/sys v0.47.0
+	golang.org/x/term v0.34.0
 	sigs.k8s.io/yaml v1.6.0
 )
 

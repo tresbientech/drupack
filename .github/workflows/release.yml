@@ -378,14 +378,17 @@ jobs:
             directory=
             # The glibc file carries the payload's Node archive, and the musl file none.
             node=(-node "../dist/payload/node/linux-${{ matrix.arch }}.tar.gz")
-            if [ "$libc" = musl ]; then directory=/musl; node=(); fi
+            # A musl file names its libc, so self-update fetches the musl release.
+            musl=()
+            if [ "$libc" = musl ]; then directory=/musl; node=(); musl=(-musl); fi
             go run ./cmd/pack -runtime "../runtime-$libc/out" \
               -entry drupack -version "$DRUPACK_VERSION" -source . -output "../dist$directory/drupacked-demo" \
               -app ../dist/payload/app-payload.tar -app-checksum ../dist/payload/app_checksum.txt \
-              -site ../dist/payload/site.json -site-version "$DRUPACK_VERSION" ${node[@]+"${node[@]}"}
+              -site ../dist/payload/site.json -site-version "$DRUPACK_VERSION" ${node[@]+"${node[@]}"} ${musl[@]+"${musl[@]}"}
             go run ./cmd/pack -engine -runtime "../runtime-$libc/out" \
               -entry drupack -version "$DRUPACK_VERSION" -source . -output "../dist/engine$directory/drupack" \
-              -app ../dist/engine-payload/app-payload.tar -app-checksum ../dist/engine-payload/app_checksum.txt
+              -app ../dist/engine-payload/app-payload.tar -app-checksum ../dist/engine-payload/app_checksum.txt \
+              ${musl[@]+"${musl[@]}"}
           done
           cp ../dist/payload/site.json ../dist/site.json
 

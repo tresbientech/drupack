@@ -8,7 +8,8 @@ package main
 // and nodeManifest carry the site's Node release, and are empty for a file
 // that carries none. siteComponents lists the site's parts that --version
 // names after the runtime's, one "Name version" line each, and is empty for
-// the engine.
+// the engine. musl marks a file packed over a musl runtime, whose release
+// self-update fetches.
 // launcher/cmd/pack replaces this file before it builds the launcher.
 var (
 	runtimePayload  []byte
@@ -21,4 +22,5 @@ var (
 	siteVersion     string
 	siteComponents  string
 	engine          bool
+	musl            bool
 )
