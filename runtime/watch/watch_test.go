@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -278,6 +280,34 @@ func TestStopRecordHoldsThePortTheTokenAndThePidOwnerOnly(t *testing.T) {
 		if mode := info.Mode().Perm(); mode != 0o600 {
 			t.Fatalf("record mode %o, want 600", mode)
 		}
+	}
+}
+
+// recordKeys reads the JSON object at path and returns its keys in order.
+func recordKeys(t *testing.T, path string) []string {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record map[string]any
+	if err := json.Unmarshal(content, &record); err != nil {
+		t.Fatal(err)
+	}
+	return slices.Sorted(maps.Keys(record))
+}
+
+// application/tests/serving_test.php serves the fixture to the PHP stop client, so a
+// key renamed on either side fails one of the two.
+func TestStopRecordCarriesTheKeysOfItsFixture(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "stop.json")
+	stopping, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := serveStop(stopping, path, func() {}); err != nil {
+		t.Fatal(err)
+	}
+	if written, fixture := recordKeys(t, path), recordKeys(t, filepath.Join("testdata", "stop.json")); !slices.Equal(written, fixture) {
+		t.Fatalf("serveStop writes the keys %q, the fixture holds %q", written, fixture)
 	}
 }
 
