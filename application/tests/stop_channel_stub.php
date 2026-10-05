@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 // The server serving_test.php stops. It claims the lease over the directory it names,
 // writes the stop record fixture with its own port, and answers one request with the
-// status it names. It exits 0 when that request carried the fixture's token.
+// status it names. A request without the fixture's token gets 403.
 
 require __DIR__ . '/../process.php';
 
@@ -20,6 +20,8 @@ file_put_contents($serving->stopRecord, json_encode($record));
 fwrite(STDOUT, "ready\n");
 $connection = stream_socket_accept($socket, 30);
 $request = (string) fread($connection, 8192);
+if (!str_contains($request, "Authorization: Bearer {$record['token']}")) {
+    $status = '403';
+}
 fwrite($connection, "HTTP/1.1 $status Stub\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
 fclose($connection);
-exit(str_contains($request, "Authorization: Bearer {$record['token']}") ? 0 : 3);
