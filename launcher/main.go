@@ -28,17 +28,22 @@ func run() error {
 	if len(os.Args) > 1 && os.Args[1] == "detach" {
 		return detach(os.Args[2:])
 	}
+	// launch.php runs this executable again to lay a site's own application, and to
+	// detach a server, as serve.php does for a folder.
+	launcher, err := os.Executable()
+	if err != nil {
+		return err
+	}
 	if len(os.Args) > 1 && os.Args[1] == "self-update" {
-		executable, err := os.Executable()
-		if err != nil {
-			return err
-		}
 		// The rename lands on the file a symlink on PATH names.
-		executable, err = filepath.EvalSymlinks(executable)
+		executable, err := filepath.EvalSymlinks(launcher)
 		if err != nil {
 			return err
 		}
 		return selfUpdate(os.Args[2:], releaseURL, executable, os.Stdout)
+	}
+	if engine {
+		removeReplaced(launcher)
 	}
 	root, err := runtime.Root(siteName, os.Stderr)
 	if err != nil {
@@ -79,12 +84,6 @@ func run() error {
 		return err
 	}
 	if err := os.Setenv("DRUPACK_RUNTIME_COMPONENTS", siteComponents); err != nil {
-		return err
-	}
-	// launch.php runs this executable again to lay a site's own application, and to
-	// detach a server, as serve.php does for a folder.
-	launcher, err := os.Executable()
-	if err != nil {
 		return err
 	}
 	if err := os.Setenv("DRUPACK_RUNTIME_LAUNCHER", runtime.Canonical(launcher)); err != nil {

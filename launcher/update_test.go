@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -24,18 +26,61 @@ func packedAs(t *testing.T, name, release string, isEngine bool) {
 	t.Setenv("DRUPACK_CACHE_DIR", filepath.Join(t.TempDir(), "cache"))
 }
 
-// publish serves latest as release.json, with each asset's URL on the same server.
-func publish(t *testing.T, latest release) *httptest.Server {
+// publish serves latest as release.json, and body at /asset, which each asset's URL names.
+func publish(t *testing.T, latest release, body ...byte) *httptest.Server {
 	t.Helper()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/release.json" {
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/release.json":
+			for i := range latest.Assets {
+				latest.Assets[i].URL = server.URL + "/asset"
+			}
+			json.NewEncoder(w).Encode(latest)
+		case "/asset":
+			w.Write(body)
+		default:
 			http.NotFound(w, r)
-			return
 		}
-		json.NewEncoder(w).Encode(latest)
 	}))
 	t.Cleanup(server.Close)
 	return server
+}
+
+// built returns a release of newest whose engine asset for this host is body.
+func built(newest string, body []byte) release {
+	digest := sha256.Sum256(body)
+	latest := hostRelease(newest)
+	latest.Assets[0].SHA256 = hex.EncodeToString(digest[:])
+	latest.Assets[0].Size = int64(len(body))
+	latest.Assets[0].Asset = "drupack-" + newest + "-" + latest.Assets[0].Target
+	return latest
+}
+
+// installed writes an executable holding content into a directory of its own.
+func installed(t *testing.T, content string) string {
+	t.Helper()
+	executable := filepath.Join(t.TempDir(), "drupack")
+	if err := os.WriteFile(executable, []byte(content), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return executable
+}
+
+// leftovers lists what sits beside executable other than itself.
+func leftovers(t *testing.T, executable string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Dir(executable))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, entry := range entries {
+		if entry.Name() != filepath.Base(executable) {
+			names = append(names, entry.Name())
+		}
+	}
+	return names
 }
 
 func hostRelease(newest string) release {
@@ -156,10 +201,7 @@ func TestSelfUpdateRefusesBeforeAnyRequest(t *testing.T) {
 func TestCheckNamesANewerReleaseAndRecordsIt(t *testing.T) {
 	packedAs(t, "drupack", "1.0.0-alpha3", true)
 	server := publish(t, hostRelease("1.0.0-alpha10"))
-	executable := filepath.Join(t.TempDir(), "drupack")
-	if err := os.WriteFile(executable, []byte("old"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	executable := installed(t, "old")
 	var out bytes.Buffer
 	if err := selfUpdate([]string{"--check"}, server.URL+"/release.json", executable, &out); err != nil {
 		t.Fatal(err)
@@ -197,5 +239,66 @@ func TestCheckNamesAReleaseThatAnswersNoRelease(t *testing.T) {
 	err := selfUpdate([]string{"--check"}, server.URL+"/release.json", filepath.Join(t.TempDir(), "drupack"), &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "answered 404 Not Found") {
 		t.Fatalf("selfUpdate = %v", err)
+	}
+}
+
+func TestSelfUpdateReplacesTheExecutableWithTheNewerRelease(t *testing.T) {
+	packedAs(t, "drupack", "1.0.0-alpha3", true)
+	server := publish(t, built("1.0.0-alpha4", []byte("new")), []byte("new")...)
+	executable := installed(t, "old")
+	var out bytes.Buffer
+	if err := selfUpdate(nil, server.URL+"/release.json", executable, &out); err != nil {
+		t.Fatal(err)
+	}
+	if want := "Updated drupack 1.0.0-alpha3 to 1.0.0-alpha4.\n"; out.String() != want {
+		t.Fatalf("out = %q; want %q", out.String(), want)
+	}
+	content, err := os.ReadFile(executable)
+	if err != nil || string(content) != "new" {
+		t.Fatalf("the executable holds %q, %v", content, err)
+	}
+	if info, _ := os.Stat(executable); goruntime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
+		t.Fatalf("the new executable has mode %v", info.Mode())
+	}
+	if names := leftovers(t, executable); len(names) != 0 {
+		t.Fatalf("the update left %v", names)
+	}
+}
+
+func TestSelfUpdateKeepsTheExecutableWhenTheDownloadFailsItsChecksum(t *testing.T) {
+	packedAs(t, "drupack", "1.0.0-alpha3", true)
+	server := publish(t, built("1.0.0-alpha4", []byte("new")), []byte("tampered")...)
+	executable := installed(t, "old")
+	err := selfUpdate(nil, server.URL+"/release.json", executable, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "does not match the size and SHA-256 release.json lists") {
+		t.Fatalf("selfUpdate = %v", err)
+	}
+	if content, _ := os.ReadFile(executable); string(content) != "old" {
+		t.Fatalf("the executable holds %q", content)
+	}
+	if names := leftovers(t, executable); len(names) != 0 {
+		t.Fatalf("the failed update left %v", names)
+	}
+}
+
+func TestSelfUpdateRefusesADirectoryItCannotWriteBeforeAnyRequest(t *testing.T) {
+	if goruntime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("a directory mode stops no write here")
+	}
+	packedAs(t, "drupack", "1.0.0-alpha3", true)
+	requested := false
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requested = true }))
+	defer server.Close()
+	executable := installed(t, "old")
+	if err := os.Chmod(filepath.Dir(executable), 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(filepath.Dir(executable), 0o755) })
+	err := selfUpdate(nil, server.URL+"/release.json", executable, &bytes.Buffer{})
+	if err == nil || !strings.HasPrefix(err.Error(), "cannot write "+filepath.Dir(executable)+", which holds this drupack.") {
+		t.Fatalf("selfUpdate = %v", err)
+	}
+	if requested {
+		t.Fatal("the refusal sent a request")
 	}
 }

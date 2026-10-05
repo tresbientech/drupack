@@ -69,3 +69,25 @@ func holdConsole() {
 	fmt.Fprint(os.Stderr, "Press Enter to close this window.")
 	fmt.Fscanln(os.Stdin)
 }
+
+// replaceExecutable moves the running path aside to path.old, which Windows
+// allows while the file runs, then renames staged into place. A failed second
+// rename moves the old file back.
+func replaceExecutable(path, staged string) error {
+	if err := os.Rename(path, path+".old"); err != nil {
+		return err
+	}
+	if err := os.Rename(staged, path); err != nil {
+		if restore := os.Rename(path+".old", path); restore != nil {
+			return fmt.Errorf("%w; %s is now %s.old", err, path, path)
+		}
+		return err
+	}
+	return nil
+}
+
+// removeReplaced removes the file an earlier self-update moved aside. A server
+// still running it keeps it until a later run.
+func removeReplaced(path string) {
+	os.Remove(path + ".old")
+}

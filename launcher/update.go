@@ -1,8 +1,10 @@
 package main
 
 import (
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -39,6 +41,7 @@ type release struct {
 type asset struct {
 	Name   string `json:"name"`
 	Target string `json:"target"`
+	Asset  string `json:"asset"`
 	URL    string `json:"url"`
 	SHA256 string `json:"sha256"`
 	Size   int64  `json:"size"`
@@ -63,6 +66,20 @@ func selfUpdate(arguments []string, url, executable string, out io.Writer) error
 	if !version.MatchString(siteVersion) {
 		return fmt.Errorf("%s %s is a local build. self-update replaces a release alone.", siteName, siteVersion)
 	}
+	check := len(arguments) == 1
+	// The replacement is staged beside the executable, so a directory the reader
+	// cannot write refuses before any download.
+	var staged *os.File
+	if !check {
+		var err error
+		staged, err = os.CreateTemp(filepath.Dir(executable), filepath.Base(executable)+".update-*")
+		if err != nil {
+			return fmt.Errorf("cannot write %s, which holds this %s. Run self-update as the user who can: %w",
+				filepath.Dir(executable), siteName, err)
+		}
+		defer os.Remove(staged.Name())
+		defer staged.Close()
+	}
 	root, err := runtime.Root(siteName, os.Stderr)
 	if err != nil {
 		return err
@@ -86,11 +103,47 @@ func selfUpdate(arguments []string, url, executable string, out io.Writer) error
 		fmt.Fprintf(out, "%s %s is the newest release.\n", siteName, siteVersion)
 		return nil
 	}
-	if _, err := pick(latest, target(goruntime.GOOS, goruntime.GOARCH, musl)); err != nil {
+	chosen, err := pick(latest, target(goruntime.GOOS, goruntime.GOARCH, musl))
+	if err != nil {
 		return err
 	}
-	fmt.Fprintln(out, availableLine(latest.Version))
+	if check {
+		fmt.Fprintln(out, availableLine(latest.Version))
+		return nil
+	}
+	if err := download(client, chosen, staged); err != nil {
+		return err
+	}
+	if err := replaceExecutable(executable, staged.Name()); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "Updated %s %s to %s.\n", siteName, siteVersion, latest.Version)
 	return nil
+}
+
+// download writes chosen into staged, closes it executable, and fails unless
+// its size and SHA-256 match release.json.
+func download(client *http.Client, chosen asset, staged *os.File) error {
+	response, err := client.Get(chosen.URL)
+	if err != nil {
+		return fmt.Errorf("cannot download %s: %w", chosen.URL, err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("cannot download %s: it answered %s", chosen.URL, response.Status)
+	}
+	digest := sha256.New()
+	written, err := io.Copy(io.MultiWriter(staged, digest), response.Body)
+	if err != nil {
+		return fmt.Errorf("cannot download %s: %w", chosen.URL, err)
+	}
+	if err := staged.Close(); err != nil {
+		return err
+	}
+	if written != chosen.Size || hex.EncodeToString(digest.Sum(nil)) != chosen.SHA256 {
+		return fmt.Errorf("the download of %s does not match the size and SHA-256 release.json lists. Nothing was replaced.", chosen.Asset)
+	}
+	return os.Chmod(staged.Name(), 0o755)
 }
 
 // availableLine names a newer release and the word that installs it.
