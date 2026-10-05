@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
 
 // What the relay matches in the server's log. runtime/watch/watch.go prints both, and
@@ -65,11 +67,7 @@ func detach(arguments []string) error {
 		}
 		exited <- code
 	}()
-	info, err := os.Stdout.Stat()
-	if err != nil {
-		return err
-	}
-	colour := info.Mode()&os.ModeCharDevice != 0 && os.Getenv("NO_COLOR") == ""
+	colour := runtime.Terminal(os.Stdout) && os.Getenv("NO_COLOR") == ""
 	code := relay(log, exited, os.Stdout, stop, colour, relayPoll)
 	if code != 0 {
 		os.Exit(code)

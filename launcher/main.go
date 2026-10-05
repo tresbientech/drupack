@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"golang.org/x/term"
-
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
 
@@ -64,7 +62,7 @@ func run() error {
 		return runtime.CleanNode(root, dry, os.Stdout)
 	}
 	if engine {
-		updateNotice(root, executable, os.Stderr, term.IsTerminal(int(os.Stderr.Fd())), time.Now(), func() error { return startCheck(launcher) })
+		updateNotice(root, executable, os.Stderr, runtime.Terminal(os.Stderr), time.Now(), func() error { return startCheck(launcher) })
 	}
 	m, err := runtime.ParseManifest(runtimeManifest)
 	if err != nil {

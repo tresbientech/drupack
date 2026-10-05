@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 // megabyte is the unit progress reports name, decimal so the figures match the
@@ -33,17 +35,14 @@ type progress struct {
 // one bar rewritten in place. Anything else gets one line per step, since a
 // carriage return leaves a redirected log unreadable.
 func newProgress(total int64, notice io.Writer) *progress {
-	return &progress{total: total, notice: notice, bar: characterDevice(notice)}
+	return &progress{total: total, notice: notice, bar: Terminal(notice)}
 }
 
-// characterDevice reports whether w is a terminal rather than a file or a pipe.
-func characterDevice(w io.Writer) bool {
+// Terminal reports whether w is a terminal. A file, a pipe and the null device,
+// which is a character device too, are not.
+func Terminal(w io.Writer) bool {
 	file, ok := w.(*os.File)
-	if !ok {
-		return false
-	}
-	info, err := file.Stat()
-	return err == nil && info.Mode()&os.ModeCharDevice != 0
+	return ok && term.IsTerminal(int(file.Fd()))
 }
 
 // reading returns source wrapped so every read counts toward the reports. A
