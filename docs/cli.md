@@ -185,12 +185,13 @@ entry it runs, and cleanup removes an entry unused for 30 days.
 Ten options read a variable when the option is absent. The table above names
 each one.
 
-Two variables have no option:
+Three variables have no option:
 
 | Variable | Selects |
 |---|---|
 | `DRUPACK_CACHE_DIR` | where a release unpacks, for a disk with more room |
-| `DRUPACK_CA_FILE` | the TLS trust bundle PHP verifies HTTPS against |
+| `DRUPACK_CA_FILE` | the TLS trust bundle PHP and `self-update` verify HTTPS against |
+| `DRUPACK_NO_UPDATE_CHECK` | `1` turns off the engine executable's daily release check |
 
 ## The engine executable
 
@@ -202,6 +203,7 @@ drupack dr DRUPAL_COMMAND
 drupack php SCRIPT [ARGUMENTS]
 drupack php -r CODE
 drupack clean [--dry-run]
+drupack self-update [--check]
 drupack --help
 drupack --version
 ```
@@ -255,10 +257,36 @@ processes reach the same command through the `php` on `PATH`.
 
 `clean` removes the unpacked engine files from the cache.
 
+`self-update` installs the newest release over this file. It reads the
+release's `release.json` from
+`https://github.com/tresbientech/drupack/releases/latest/download/release.json`.
+It downloads this platform's build beside the file, checks its size and SHA-256
+against that list, and renames it over the file. `--check` names the newest
+release and changes nothing.
+
+- A file in a directory the reader cannot write is refused before any download.
+- A copy beside `vendor/drupal/drupack` came from Composer. It names
+  `composer update drupal/drupack`, then `vendor/bin/drupack-install`.
+- A local build, whose version names no release, is refused.
+- A release older than this file is never installed.
+- On Windows the old file moves to `drupack.exe.old`, which a later run removes.
+
+Once a day, a run starts `drupack self-update --check` in the background. While
+the newest release it saw is newer than this file, each run prints one line to
+standard error naming it. The check stays off in these cases:
+
+- `CI` is set.
+- `DRUPACK_NO_UPDATE_CHECK` is `1`.
+- Standard error is no terminal.
+- The file is a local build.
+
 ## Other words
 
 `lay-app` is internal: a start or `drush` runs it to lay or check a site's own
 application.
+
+On a site, `self-update` exits 1 and says the site's publisher ships its new
+release.
 
 On a site, `php-cli` reaches the embedded server's own command line, which
 carries no compatibility promise. Any other word Drupack does not handle answers
