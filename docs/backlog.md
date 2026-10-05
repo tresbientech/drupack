@@ -205,17 +205,6 @@ only its own cache and main's, so a release during such an outage fails on
 Windows. Lean: point `X_VCPKG_ASSET_SOURCES` at our own copy of each download,
 keyed by its SHA-512.
 
-## One serving-state type for sites and folders
-
-A site and an Engine folder each hold a Serving lease, a stop record and a
-server log. `SiteData` names them for a site. `serve.php` restates the same
-getters for a folder as `entryLease`, `entryStopRecord` and `entryLog`. The
-protocol lives in `process.php`: `takeLease`, `leaseFree`, `stopServer` and
-`detachServer`. No PHP test names any of those functions. Go writes `stop.json`
-and PHP reads its `token` and `port`, with no shared check. Lean: one PHP type
-over a root directory owns the three files. Tests on a temporary directory then
-cover a refused second lease, a stale record and a stop by token.
-
 ## One store for the launcher's cache entries
 
 The runtime, the application and the Node release are each staged, held, swept

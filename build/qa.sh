@@ -41,6 +41,7 @@ ln -sfn ../dist/work/app/vendor application/vendor
 "$executable" php-cli "$PWD/application/tests/launch_test.php"
 "$executable" php-cli "$PWD/application/tests/site_data_test.php"
 "$executable" php-cli "$PWD/application/tests/serve_test.php"
+"$executable" php-cli "$PWD/application/tests/serving_test.php"
 "$executable" php-cli "$PWD/application/tests/drupack_install_test.php"
 "$executable" php-cli "$PWD/application/tests/windows_paths_test.php"
 "$executable" php-cli "$PWD/application/tests/site_data_public_stream_test.php"

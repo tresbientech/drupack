@@ -4,7 +4,7 @@
 # or absent. tests/conformance/test_environment.py checks every line against the
 # sources.
 
-APP_DIR        writers=launcher/main.go,application/launch.php,build/seed.sh,build/dev/dev-entry.sh  readers=runtime/entrypoint.go,application/launch.php,application/settings.php
+APP_DIR        writers=launcher/main.go,application/launch.php,build/seed.sh,build/dev/dev-entry.sh  readers=runtime/entrypoint.go,application/launch.php,application/settings.php,build/dev/dev-entry.sh
 BIND           writers=application/launch.php,engine/serve.php  readers=application/Caddyfile,engine/Caddyfile
 BINARY         writers=runtime/entrypoint.go  readers=application/launch.php,engine/serve.php
 CACHE_ROOT     writers=launcher/main.go  readers=engine/serve.php
