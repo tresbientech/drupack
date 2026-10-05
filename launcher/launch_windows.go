@@ -75,7 +75,7 @@ func holdConsole() {
 // rename moves the old file back.
 func replaceExecutable(path, staged string) error {
 	if err := os.Rename(path, path+".old"); err != nil {
-		return err
+		return fmt.Errorf("cannot move %s aside to %s.old, which a server it started may still run. Stop that server, then run self-update again: %w", path, path, err)
 	}
 	if err := os.Rename(staged, path); err != nil {
 		if restore := os.Rename(path+".old", path); restore != nil {

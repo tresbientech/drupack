@@ -26,7 +26,7 @@ size and SHA-256.
   `update-check` file in the cache root holds the newest version, and its
   modification time is the last check. Each run prints one line while that
   version is newer. The check stays off in CI, without a terminal, with
-  `DRUPACK_NO_UPDATE_CHECK=1` and on a local build.
+  `DRUPACK_NO_UPDATE_CHECK=1`, on a local build and on a Composer copy.
 
 ## Considered options
 

@@ -279,6 +279,7 @@ standard error naming it. The check stays off in these cases:
 - `DRUPACK_NO_UPDATE_CHECK` is `1`.
 - Standard error is no terminal.
 - The file is a local build.
+- The file is a Composer copy.
 
 ## Other words
 

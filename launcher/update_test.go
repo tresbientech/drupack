@@ -119,6 +119,9 @@ func TestNewerOrdersReleaseVersions(t *testing.T) {
 		{"1.0.1", "1.0.0", true},
 		{"1.10.0", "1.9.0", true},
 		{"2.0.0", "1.99.99", true},
+		{"1.0.0-alpha100000000000000000000", "1.0.0-alpha99999999999999999999", true},
+		{"100000000000000000000.0.0", "99999999999999999999.0.0", true},
+		{"1.0.0-alpha03", "1.0.0-alpha3", false},
 	} {
 		got, err := newer(c.candidate, c.current)
 		if err != nil || got != c.want {
@@ -343,7 +346,7 @@ func TestUpdateNoticeNamesANewerReleaseAndChecksOnceADay(t *testing.T) {
 			root := noticeRoot(t, c.newest, c.checked)
 			var notice bytes.Buffer
 			checked := false
-			updateNotice(root, &notice, true, now, func() error { checked = true; return nil })
+			updateNotice(root, installed(t, "current"), &notice, true, now, func() error { checked = true; return nil })
 			line := "drupack " + c.newest + " is available, this is 1.0.0-alpha3. Run: drupack self-update\n"
 			if got := notice.String() == line; got != c.line {
 				t.Errorf("notice = %q; want the line: %t", notice.String(), c.line)
@@ -361,26 +364,52 @@ func TestUpdateNoticeNamesANewerReleaseAndChecksOnceADay(t *testing.T) {
 
 func TestUpdateNoticeStaysOffInCIScriptsLocalBuildsAndOnRequest(t *testing.T) {
 	now := time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)
+	composer := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(composer, "vendor", "drupal", "drupack"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	for _, c := range []struct {
 		case_, ci, off, release string
-		terminal               bool
+		terminal                bool
+		executable              string
 	}{
-		{"CI", "true", "", "1.0.0-alpha3", true},
-		{"DRUPACK_NO_UPDATE_CHECK", "", "1", "1.0.0-alpha3", true},
-		{"no terminal", "", "", "1.0.0-alpha3", false},
-		{"a local build", "", "", "dev", true},
+		{"CI", "true", "", "1.0.0-alpha3", true, ""},
+		{"DRUPACK_NO_UPDATE_CHECK", "", "1", "1.0.0-alpha3", true, ""},
+		{"no terminal", "", "", "1.0.0-alpha3", false, ""},
+		{"a local build", "", "", "dev", true, ""},
+		{"a Composer copy", "", "", "1.0.0-alpha3", true, filepath.Join(composer, "drupack")},
 	} {
 		t.Run(c.case_, func(t *testing.T) {
 			packedAs(t, "drupack", c.release, true)
 			t.Setenv("CI", c.ci)
 			t.Setenv("DRUPACK_NO_UPDATE_CHECK", c.off)
 			root := noticeRoot(t, "1.0.0-alpha4", now.Add(-48*time.Hour))
+			executable := c.executable
+			if executable == "" {
+				executable = installed(t, "current")
+			}
 			var notice bytes.Buffer
 			checked := false
-			updateNotice(root, &notice, c.terminal, now, func() error { checked = true; return nil })
+			updateNotice(root, executable, &notice, c.terminal, now, func() error { checked = true; return nil })
 			if notice.Len() != 0 || checked {
 				t.Fatalf("notice = %q, checked = %t; want neither", notice.String(), checked)
 			}
 		})
+	}
+}
+
+func TestCheckRecordsNoReleaseThatLacksThisBuild(t *testing.T) {
+	packedAs(t, "drupack", "1.0.0-alpha3", true)
+	server := publish(t, release{Version: "1.0.0-alpha4", Assets: []asset{{Name: "drupack", Target: "plan9-amd64"}}})
+	err := selfUpdate([]string{"--check"}, server.URL+"/release.json", installed(t, "old"), &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "It has: plan9-amd64") {
+		t.Fatalf("selfUpdate = %v", err)
+	}
+	root, err := runtime.Root(siteName, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, updateCheckName)); !os.IsNotExist(err) {
+		t.Fatalf("update-check exists: %v", err)
 	}
 }

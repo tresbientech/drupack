@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"golang.org/x/term"
+
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
 
@@ -35,16 +37,17 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if len(os.Args) > 1 && os.Args[1] == "self-update" {
-		// The rename lands on the file a symlink on PATH names.
-		executable, err := filepath.EvalSymlinks(launcher)
-		if err != nil {
+	// A self-update renames the file a symlink on PATH names, so the old file it
+	// moves aside sits beside that one.
+	executable := launcher
+	if engine {
+		if executable, err = filepath.EvalSymlinks(launcher); err != nil {
 			return err
 		}
-		return selfUpdate(os.Args[2:], releaseURL, executable, os.Stdout)
+		removeReplaced(executable)
 	}
-	if engine {
-		removeReplaced(launcher)
+	if len(os.Args) > 1 && os.Args[1] == "self-update" {
+		return selfUpdate(os.Args[2:], releaseURL, executable, os.Stdout)
 	}
 	root, err := runtime.Root(siteName, os.Stderr)
 	if err != nil {
@@ -61,7 +64,7 @@ func run() error {
 		return runtime.CleanNode(root, dry, os.Stdout)
 	}
 	if engine {
-		updateNotice(root, os.Stderr, runtime.CharacterDevice(os.Stderr), time.Now(), func() error { return startCheck(launcher) })
+		updateNotice(root, executable, os.Stderr, term.IsTerminal(int(os.Stderr.Fd())), time.Now(), func() error { return startCheck(launcher) })
 	}
 	m, err := runtime.ParseManifest(runtimeManifest)
 	if err != nil {

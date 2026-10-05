@@ -87,7 +87,8 @@ The background check:
 
 - D11. An Engine run that reaches the runtime calls `updateNotice` after
   `runtime.Root`. It returns at once when `CI` is set, when
-  `DRUPACK_NO_UPDATE_CHECK=1`, or when stderr is no terminal.
+  `DRUPACK_NO_UPDATE_CHECK=1`, when stderr is no terminal, on a local build, and
+  on a Composer copy, which D3 refuses.
 - D12. `<cache root>/update-check` holds the newest version seen. Its mtime is
   the last check. A version newer than this file's prints one stderr line:
   the new version, this version, and `Run: drupack self-update`. The line

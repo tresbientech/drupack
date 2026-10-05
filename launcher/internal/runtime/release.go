@@ -37,3 +37,12 @@ func (r Release) failure(step string, err error) error {
 	return fmt.Errorf("could not prepare runtime %s with application %s, at the %s step: %w",
 		Key(r.Manifest.Version, r.Payload), r.AppChecksum, step, err)
 }
+
+// Target names what one packed file runs on, as a release asset does: its
+// platform, with a -musl suffix for the musl runtime.
+func Target(platform string, musl bool) string {
+	if musl {
+		return platform + "-musl"
+	}
+	return platform
+}

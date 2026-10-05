@@ -33,11 +33,11 @@ type progress struct {
 // one bar rewritten in place. Anything else gets one line per step, since a
 // carriage return leaves a redirected log unreadable.
 func newProgress(total int64, notice io.Writer) *progress {
-	return &progress{total: total, notice: notice, bar: CharacterDevice(notice)}
+	return &progress{total: total, notice: notice, bar: characterDevice(notice)}
 }
 
-// CharacterDevice reports whether w is a terminal rather than a file or a pipe.
-func CharacterDevice(w io.Writer) bool {
+// characterDevice reports whether w is a terminal rather than a file or a pipe.
+func characterDevice(w io.Writer) bool {
 	file, ok := w.(*os.File)
 	if !ok {
 		return false

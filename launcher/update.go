@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"regexp"
 	goruntime "runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -63,8 +62,7 @@ func selfUpdate(arguments []string, url, executable string, out io.Writer) error
 	if !engine {
 		return fmt.Errorf("self-update covers the Drupack engine alone. The new release of %s comes from its publisher.", siteName)
 	}
-	// composer/drupack-install writes the executable into the project root.
-	if _, err := os.Stat(filepath.Join(filepath.Dir(executable), "vendor", "drupal", "drupack")); err == nil {
+	if composerCopy(executable) {
 		return fmt.Errorf("Composer installed this %s. Run composer update drupal/drupack, then vendor/bin/drupack-install.", siteName)
 	}
 	if !version.MatchString(siteVersion) {
@@ -96,20 +94,23 @@ func selfUpdate(arguments []string, url, executable string, out io.Writer) error
 	if err != nil {
 		return err
 	}
-	if err := recordCheck(root, latest.Version); err != nil {
-		return err
-	}
 	later, err := newer(latest.Version, siteVersion)
 	if err != nil {
+		return err
+	}
+	// A release lacking this file's build is recorded as none, so no run names it.
+	var chosen asset
+	if later {
+		if chosen, err = pick(latest, target(goruntime.GOOS, goruntime.GOARCH, musl)); err != nil {
+			return err
+		}
+	}
+	if err := recordCheck(root, latest.Version); err != nil {
 		return err
 	}
 	if !later {
 		fmt.Fprintf(out, "%s %s is the newest release.\n", siteName, siteVersion)
 		return nil
-	}
-	chosen, err := pick(latest, target(goruntime.GOOS, goruntime.GOARCH, musl))
-	if err != nil {
-		return err
 	}
 	if check {
 		fmt.Fprintln(out, availableLine(latest.Version))
@@ -148,6 +149,13 @@ func download(client *http.Client, chosen asset, staged *os.File) error {
 		return fmt.Errorf("the download of %s does not match the size and SHA-256 release.json lists. Nothing was replaced.", chosen.Asset)
 	}
 	return os.Chmod(staged.Name(), 0o755)
+}
+
+// composerCopy reports whether composer/drupack-install laid executable, which it
+// writes into the project root beside vendor/.
+func composerCopy(executable string) bool {
+	_, err := os.Stat(filepath.Join(filepath.Dir(executable), "vendor", "drupal", "drupack"))
+	return err == nil
 }
 
 // availableLine names a newer release and the word that installs it.
@@ -215,16 +223,12 @@ func recordCheck(root, newest string) error {
 	return os.Rename(staged.Name(), filepath.Join(root, updateCheckName))
 }
 
-// target names the release asset built for goos and goarch, as build.Target does.
+// target names the release asset built for goos and goarch.
 func target(goos, goarch string, musl bool) string {
 	if goos == "darwin" {
 		goos = "macos"
 	}
-	name := goos + "-" + goarch
-	if musl {
-		name += "-musl"
-	}
-	return name
+	return runtime.Target(goos+"-"+goarch, musl)
 }
 
 // pick returns the engine's asset for target.
@@ -252,10 +256,8 @@ func newer(candidate, current string) (bool, error) {
 	}
 	b := version.FindStringSubmatch(current)
 	for i := 1; i <= 3; i++ {
-		x, _ := strconv.Atoi(a[i])
-		y, _ := strconv.Atoi(b[i])
-		if x != y {
-			return x > y, nil
+		if order := compareDigits(a[i], b[i]); order != 0 {
+			return order > 0, nil
 		}
 	}
 	switch {
@@ -269,29 +271,45 @@ func newer(candidate, current string) (bool, error) {
 	return comparePrerelease(a[4], b[4]) > 0, nil
 }
 
+// prereleaseRun splits a prerelease into runs of digits and runs of anything else.
 var prereleaseRun = regexp.MustCompile(`\d+|\D+`)
 
 func comparePrerelease(a, b string) int {
 	x := prereleaseRun.FindAllString(a, -1)
 	y := prereleaseRun.FindAllString(b, -1)
 	for i := 0; i < len(x) && i < len(y); i++ {
-		m, errM := strconv.Atoi(x[i])
-		n, errN := strconv.Atoi(y[i])
-		switch {
-		case errM == nil && errN == nil && m != n:
-			return m - n
-		case (errM != nil || errN != nil) && x[i] != y[i]:
-			return strings.Compare(x[i], y[i])
+		if isDigit(x[i][0]) && isDigit(y[i][0]) {
+			if order := compareDigits(x[i], y[i]); order != 0 {
+				return order
+			}
+		} else if order := strings.Compare(x[i], y[i]); order != 0 {
+			return order
 		}
 	}
 	return len(x) - len(y)
 }
 
+func isDigit(c byte) bool {
+	return '0' <= c && c <= '9'
+}
+
+// compareDigits orders two digit runs as numbers of any length, which release.json
+// can carry past an int's range.
+func compareDigits(a, b string) int {
+	a, b = strings.TrimLeft(a, "0"), strings.TrimLeft(b, "0")
+	if len(a) != len(b) {
+		return len(a) - len(b)
+	}
+	return strings.Compare(a, b)
+}
+
 // updateNotice prints the newer release the last check under root saw, and calls
 // check once the last check is a day old. It stays silent in CI, with
-// DRUPACK_NO_UPDATE_CHECK=1, without a terminal, and on a local build.
-func updateNotice(root string, notice io.Writer, terminal bool, now time.Time, check func() error) {
-	if os.Getenv("CI") != "" || os.Getenv("DRUPACK_NO_UPDATE_CHECK") == "1" || !terminal || !version.MatchString(siteVersion) {
+// DRUPACK_NO_UPDATE_CHECK=1, without a terminal, on a local build, and on a
+// Composer copy, which self-update refuses.
+func updateNotice(root, executable string, notice io.Writer, terminal bool, now time.Time, check func() error) {
+	if os.Getenv("CI") != "" || os.Getenv("DRUPACK_NO_UPDATE_CHECK") == "1" || !terminal ||
+		!version.MatchString(siteVersion) || composerCopy(executable) {
 		return
 	}
 	path := filepath.Join(root, updateCheckName)
