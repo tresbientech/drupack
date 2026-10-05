@@ -266,6 +266,14 @@ def _quoted_args(*args):
     return " ".join('"' + arg.replace("\\", "\\\\") + '"' for arg in args)
 
 
+def _launch_args(cache, *args):
+    """The words a site's launcher hands its runtime for args: php-cli and the site's
+    launch.php, from the one application a fixture unpacks under cache, then args.
+    """
+    (application,) = (cache / APPLICATIONS).glob("r*")
+    return _quoted_args("php-cli", str(application / "launch.php"), *args)
+
+
 # Win32 CreateFileW constants for _open_locked: GENERIC_READ and OPEN_EXISTING match an
 # already-running process reading its own executable; the share mode varies per case.
 _GENERIC_READ = 0x80000000
@@ -317,7 +325,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
         self.assertEqual(code, 0, f"a first start exited non-zero: inspect {err}")
         entry1 = _active_entry(cache)
         expected_first = (
-            f'fixture test-v1 args=[{_quoted_args("--data-dir", str(data), "alpha", "beta")}] '
+            f'fixture test-v1 args=[{_launch_args(cache, "--data-dir", str(data), "alpha", "beta")}] '
             f"env=forwarded phprc={entry1}"
         )
         self.assertEqual(
@@ -331,7 +339,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
 
         code, out, err = run(self.case_dir, fixture, "second", "restart", env=env)
         self.assertEqual(code, 0, f"a second start exited non-zero: inspect {err}")
-        expected_second = f'fixture test-v1 args=[{_quoted_args("restart")}] env=forwarded phprc={entry1}'
+        expected_second = f'fixture test-v1 args=[{_launch_args(cache, "restart")}] env=forwarded phprc={entry1}'
         self.assertEqual(
             out.read_text(errors="replace"), expected_second, "a second start did not use the same entry"
         )
@@ -343,7 +351,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
         stray_pending.write_text("stale")
         code, out, err = run(self.case_dir, fixture, "third", "stray", env=env)
         self.assertEqual(code, 0, f"a start with a stray pending file exited non-zero: inspect {err}")
-        expected_third = f'fixture test-v1 args=[{_quoted_args("stray")}] env=forwarded phprc={entry1}'
+        expected_third = f'fixture test-v1 args=[{_launch_args(cache, "stray")}] env=forwarded phprc={entry1}'
         self.assertEqual(
             out.read_text(errors="replace"), expected_third,
             "a start with a stray pending file did not use the active entry",
@@ -359,7 +367,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
         self.assertEqual(code, 0, f"a start past a resized entry exited non-zero: inspect {err}")
         entry2 = _active_entry(cache)
         self.assertNotEqual(entry2, entry1, "a re-stage wrote over the entry that was there")
-        expected_resized = f'fixture test-v1 args=[{_quoted_args("resized")}] env=forwarded phprc={entry2}'
+        expected_resized = f'fixture test-v1 args=[{_launch_args(cache, "resized")}] env=forwarded phprc={entry2}'
         self.assertEqual(
             out.read_text(errors="replace"), expected_resized,
             "a changed file size did not force a working re-stage",
@@ -376,7 +384,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
             self.assertEqual(code, 0, f"a start past a held entry exited non-zero: inspect {err}")
             entry3 = _active_entry(cache)
             self.assertNotEqual(entry3, entry2, "a re-stage wrote over the entry a handle held")
-            expected_held = f'fixture test-v1 args=[{_quoted_args("held")}] env=forwarded phprc={entry3}'
+            expected_held = f'fixture test-v1 args=[{_launch_args(cache, "held")}] env=forwarded phprc={entry3}'
             self.assertEqual(
                 out.read_text(errors="replace"), expected_held, "a re-stage with an open file did not run"
             )
@@ -394,7 +402,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
             entry4 = _active_entry(cache)
             self.assertNotEqual(entry4, entry3, "a re-stage wrote over the entry an exclusive handle held")
             expected_exclusive = (
-                f'fixture test-v1 args=[{_quoted_args("exclusive")}] env=forwarded phprc={entry4}'
+                f'fixture test-v1 args=[{_launch_args(cache, "exclusive")}] env=forwarded phprc={entry4}'
             )
             self.assertEqual(
                 out.read_text(errors="replace"), expected_exclusive,
