@@ -36,6 +36,8 @@ vendor/bin/drupack-install
 
 `drupack-install` runs the install script of the release matching the package's version, in the project root. `DRUPACK_LIBC` reaches that script, as the Linux section below describes. It adds `/drupack` to the project's `.gitignore`, and creates that file in a git project without one. Run it again after `composer update` changes the package's version.
 
+`drupack self-update` replaces an install-script copy with the newest release, after checking its SHA-256. `drupack self-update --check` reports the newest release and changes nothing. A run names a newer release in one line, from a check made once a day in the background. `DRUPACK_NO_UPDATE_CHECK=1` turns that check off. A Composer copy updates through `composer update drupal/drupack`, then `vendor/bin/drupack-install`.
+
 `drupack` serves the project in the working directory, or in the directory you name after it. It serves Drupal alone, and refuses a folder without Drupal core. It reads the docroot from the scaffold web root in `composer.json`, `web` by default. It prints a one-time login link through the project's Drush, returns the prompt once the project answers on `http://127.0.0.1:8888`, and keeps serving in the background. `drupack stop` ends it, and `--foreground` serves in the terminal instead. A project without Drush serves with no link. `--listen IP:PORT` picks another address.
 
 The project's own `settings.php` names the database, the files paths and the hash salt. Drupack writes nothing into the project, and Drupal writes files where those settings put them. For a ddev project, point `settings.local.php` at the database's published port on `127.0.0.1`. The ddev host name `db` resolves only inside ddev.
