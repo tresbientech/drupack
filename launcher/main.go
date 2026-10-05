@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
@@ -58,6 +59,9 @@ func run() error {
 			return err
 		}
 		return runtime.CleanNode(root, dry, os.Stdout)
+	}
+	if engine {
+		updateNotice(root, os.Stderr, runtime.CharacterDevice(os.Stderr), time.Now(), func() error { return startCheck(launcher) })
 	}
 	m, err := runtime.ParseManifest(runtimeManifest)
 	if err != nil {

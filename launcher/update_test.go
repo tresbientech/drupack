@@ -12,6 +12,7 @@ import (
 	goruntime "runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
@@ -300,5 +301,86 @@ func TestSelfUpdateRefusesADirectoryItCannotWriteBeforeAnyRequest(t *testing.T) 
 	}
 	if requested {
 		t.Fatal("the refusal sent a request")
+	}
+}
+
+// noticeRoot returns a cache root whose update-check file holds newest, last
+// written at checked, or no file when newest is "absent".
+func noticeRoot(t *testing.T, newest string, checked time.Time) string {
+	t.Helper()
+	root := t.TempDir()
+	if newest == "absent" {
+		return root
+	}
+	path := filepath.Join(root, updateCheckName)
+	if err := os.WriteFile(path, []byte(newest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(path, checked, checked); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+func TestUpdateNoticeNamesANewerReleaseAndChecksOnceADay(t *testing.T) {
+	now := time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)
+	for _, c := range []struct {
+		case_, newest string
+		checked       time.Time
+		line, check   bool
+	}{
+		{"a fresh newer release", "1.0.0-alpha4", now.Add(-time.Hour), true, false},
+		{"a stale newer release", "1.0.0-alpha4", now.Add(-25 * time.Hour), true, true},
+		{"a fresh equal release", "1.0.0-alpha3", now.Add(-time.Hour), false, false},
+		{"an older latest release", "0.9.0", now.Add(-time.Hour), false, false},
+		{"a file no check filled", "", now.Add(-time.Hour), false, false},
+		{"no file", "absent", time.Time{}, false, true},
+	} {
+		t.Run(c.case_, func(t *testing.T) {
+			packedAs(t, "drupack", "1.0.0-alpha3", true)
+			t.Setenv("CI", "")
+			t.Setenv("DRUPACK_NO_UPDATE_CHECK", "")
+			root := noticeRoot(t, c.newest, c.checked)
+			var notice bytes.Buffer
+			checked := false
+			updateNotice(root, &notice, true, now, func() error { checked = true; return nil })
+			line := "drupack " + c.newest + " is available, this is 1.0.0-alpha3. Run: drupack self-update\n"
+			if got := notice.String() == line; got != c.line {
+				t.Errorf("notice = %q; want the line: %t", notice.String(), c.line)
+			}
+			if checked != c.check {
+				t.Errorf("checked = %t; want %t", checked, c.check)
+			}
+			info, err := os.Stat(filepath.Join(root, updateCheckName))
+			if c.check && (err != nil || !info.ModTime().Equal(now)) {
+				t.Errorf("the check did not touch update-check first: %v, %v", info, err)
+			}
+		})
+	}
+}
+
+func TestUpdateNoticeStaysOffInCIScriptsLocalBuildsAndOnRequest(t *testing.T) {
+	now := time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)
+	for _, c := range []struct {
+		case_, ci, off, release string
+		terminal               bool
+	}{
+		{"CI", "true", "", "1.0.0-alpha3", true},
+		{"DRUPACK_NO_UPDATE_CHECK", "", "1", "1.0.0-alpha3", true},
+		{"no terminal", "", "", "1.0.0-alpha3", false},
+		{"a local build", "", "", "dev", true},
+	} {
+		t.Run(c.case_, func(t *testing.T) {
+			packedAs(t, "drupack", c.release, true)
+			t.Setenv("CI", c.ci)
+			t.Setenv("DRUPACK_NO_UPDATE_CHECK", c.off)
+			root := noticeRoot(t, "1.0.0-alpha4", now.Add(-48*time.Hour))
+			var notice bytes.Buffer
+			checked := false
+			updateNotice(root, &notice, c.terminal, now, func() error { checked = true; return nil })
+			if notice.Len() != 0 || checked {
+				t.Fatalf("notice = %q, checked = %t; want neither", notice.String(), checked)
+			}
+		})
 	}
 }

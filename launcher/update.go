@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	goruntime "runtime"
@@ -26,6 +27,9 @@ const releaseURL = "https://github.com/tresbientech/drupack/releases/latest/down
 // updateCheckName is the cache root file holding the newest version a check saw.
 // Its modification time is the last check.
 const updateCheckName = "update-check"
+
+// checkInterval spaces the background checks a run starts.
+const checkInterval = 24 * time.Hour
 
 // fetchTimeout bounds the release.json request, which the background check makes
 // without the reader waiting on it.
@@ -281,4 +285,42 @@ func comparePrerelease(a, b string) int {
 		}
 	}
 	return len(x) - len(y)
+}
+
+// updateNotice prints the newer release the last check under root saw, and calls
+// check once the last check is a day old. It stays silent in CI, with
+// DRUPACK_NO_UPDATE_CHECK=1, without a terminal, and on a local build.
+func updateNotice(root string, notice io.Writer, terminal bool, now time.Time, check func() error) {
+	if os.Getenv("CI") != "" || os.Getenv("DRUPACK_NO_UPDATE_CHECK") == "1" || !terminal || !version.MatchString(siteVersion) {
+		return
+	}
+	path := filepath.Join(root, updateCheckName)
+	// A file a check has not filled yet holds no version, which names no release.
+	if newest, err := os.ReadFile(path); err == nil {
+		if later, err := newer(string(newest), siteVersion); err == nil && later {
+			fmt.Fprintln(notice, availableLine(string(newest)))
+		}
+	}
+	info, err := os.Stat(path)
+	if err == nil && now.Sub(info.ModTime()) < checkInterval {
+		return
+	}
+	// The touch comes first, so a failing check and concurrent runs wait a day too.
+	if err != nil && os.WriteFile(path, nil, 0o600) != nil {
+		return
+	}
+	if os.Chtimes(path, now, now) == nil {
+		check()
+	}
+}
+
+// startCheck runs self-update --check from launcher in a session of its own, with
+// no terminal, and leaves it running.
+func startCheck(launcher string) error {
+	command := exec.Command(launcher, "self-update", "--check")
+	command.SysProcAttr = detachedProcess()
+	if err := command.Start(); err != nil {
+		return err
+	}
+	return command.Process.Release()
 }
