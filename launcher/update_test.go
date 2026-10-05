@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	goruntime "runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -264,8 +265,13 @@ func TestSelfUpdateReplacesTheExecutableWithTheNewerRelease(t *testing.T) {
 	if info, _ := os.Stat(executable); goruntime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
 		t.Fatalf("the new executable has mode %v", info.Mode())
 	}
-	if names := leftovers(t, executable); len(names) != 0 {
-		t.Fatalf("the update left %v", names)
+	// Windows moves the running file aside, and a later run removes it.
+	var want []string
+	if goruntime.GOOS == "windows" {
+		want = []string{"drupack.old"}
+	}
+	if names := leftovers(t, executable); !slices.Equal(names, want) {
+		t.Fatalf("the update left %v; want %v", names, want)
 	}
 }
 
