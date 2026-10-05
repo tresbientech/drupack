@@ -87,6 +87,8 @@ replace /dev-build/site-templates.php "$docroot/sites/default/site-templates.php
 export DRUPACK_RUNTIME_APP_DIR=/data/runtime/app
 # The lay-app word above; a release start's launcher names itself here.
 export DRUPACK_RUNTIME_LAUNCHER=/dev-entry.sh
+# A start names the command that stops it in the words its reader typed.
+export DRUPACK_RUNTIME_INVOKED=/dev-entry.sh
 DRUPACK_RUNTIME_NAME=$(python3 -c 'import json; print(json.load(open("site.json"))["name"])')
 export DRUPACK_RUNTIME_NAME
 export PHPRC=/data/runtime/app
@@ -94,4 +96,4 @@ export DRUPACK_CA_FILE=${DRUPACK_CA_FILE-/data/runtime/app/cacert.pem}
 
 # launch.php sets up the site, then replaces itself with the server. The container's
 # process is the server, so it serves in the foreground rather than detaching.
-exec "$DRUPACK_PHP" --foreground --data-dir /data --listen "0.0.0.0:$listen" "$@"
+exec "$DRUPACK_PHP" php-cli /data/runtime/app/launch.php --foreground --data-dir /data --listen "0.0.0.0:$listen" "$@"

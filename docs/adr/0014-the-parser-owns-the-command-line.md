@@ -1,6 +1,9 @@
 # The parser owns the command line
 
-Accepted on 2026-09-22.
+Accepted on 2026-09-22. Amended on 2026-10-05 by
+[ADR 0030](0030-the-launcher-routes-the-readers-words.md): the entry point lost
+its usage text, so `launch.php`'s `HELP` is the one usage, and the command line is
+described in three places.
 
 ## Context
 

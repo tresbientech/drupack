@@ -94,17 +94,17 @@ func run() error {
 		if err := os.Setenv("DRUPACK_RUNTIME_CACHE_ROOT", runtime.Canonical(root)); err != nil {
 			return err
 		}
-		return launch(filepath.Join(directory, m.Entry), engineArguments(application))
-	}
-	// The server resolves the site from its working directory, which the entry
-	// point sets from this variable once it starts. PHP, Caddy and the reader's
-	// terminal read the exported value, so it takes Drupack's canonical form;
-	// application itself stays native for the join below.
-	if err := os.Setenv("DRUPACK_RUNTIME_APP_DIR", runtime.Canonical(application)); err != nil {
-		return err
+	} else {
+		// The server resolves the site from its working directory, which the entry
+		// point sets from this variable once it starts. PHP, Caddy and the reader's
+		// terminal read the exported value, so it takes Drupack's canonical form;
+		// application itself stays native for the join below.
+		if err := os.Setenv("DRUPACK_RUNTIME_APP_DIR", runtime.Canonical(application)); err != nil {
+			return err
+		}
 	}
 	// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.
-	return launch(filepath.Join(directory, m.Entry), os.Args)
+	return launch(filepath.Join(directory, m.Entry), runtimeArguments(os.Args, application, engine, len(nodeManifest) > 0))
 }
 
 // prepareNode unpacks the Node release this file carries and puts its
@@ -129,18 +129,6 @@ func prepareNode(root string) error {
 		return err
 	}
 	return os.Setenv("DRUPACK_RUNTIME_NODE", runtime.Canonical(executables))
-}
-
-// engineArguments turns the reader's words into the runtime's: `php` and the
-// version flags reach the runtime, and every other word reaches serve.php.
-func engineArguments(application string) []string {
-	if len(os.Args) > 1 && os.Args[1] == "php" {
-		return os.Args
-	}
-	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
-		return os.Args
-	}
-	return append([]string{os.Args[0], "php-cli", filepath.Join(application, "serve.php")}, os.Args[1:]...)
 }
 
 // cleanArguments reads what follows the clean command, which a reader types.

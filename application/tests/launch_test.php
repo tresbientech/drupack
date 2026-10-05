@@ -408,11 +408,11 @@ test('the public files template loader resolves the files address in the files d
         'a name climbing out of the files directory');
 });
 
-// The command line is described in four places. options() is the contract, and the
-// other three are asserted against it here. docs/adr/0014 records the decision.
+// The command line is described in three places. options() is the contract, and the
+// other two are asserted against it here. docs/adr/0014 records the decision.
 const REPOSITORY = __DIR__ . '/../..';
 
-// runtime/entrypoint.go answers these two itself, so neither reaches an option key.
+// command() and the runtime answer these two, so neither reaches an option key.
 const USAGE_NON_OPTIONS = ['help', 'version'];
 
 function optionNames(string $text): array
@@ -430,12 +430,11 @@ function parserOptions(): array
     return $names;
 }
 
-function entrypointOptions(): array
+// The Options: block alone. The examples under it repeat options and add --dry-run.
+function helpOptions(): array
 {
-    $source = (string) file_get_contents(REPOSITORY . '/runtime/entrypoint.go');
-    // The Options: block alone. The examples under it repeat options and add --dry-run.
-    if (!preg_match('/\nOptions:\n(.*?)\nCommands:\n/s', $source, $block)) {
-        throw new RuntimeException('entrypoint.go has no Options: block ending at Commands:');
+    if (!preg_match('/\nOptions:\n(.*?)\nCommands:\n/s', HELP, $block)) {
+        throw new RuntimeException('HELP has no Options: block ending at Commands:');
     }
     return optionNames($block[1]);
 }
@@ -449,15 +448,44 @@ function referenceOptions(): array
 }
 
 test('the help constant names every option the parser accepts', function () {
-    same(parserOptions(), optionNames(HELP));
-});
-
-test('the entrypoint usage names every option the parser accepts', function () {
-    same(parserOptions(), entrypointOptions());
+    same(parserOptions(), helpOptions());
 });
 
 test('docs/cli.md names every option the parser accepts', function () {
     same(parserOptions(), referenceOptions());
+});
+
+test('no word starts the site', function () {
+    same(['start', []], command([], FIXTURE_SITE));
+});
+
+test('a line opening with an option starts the site with every word', function () {
+    same(['start', ['--listen', '127.0.0.1:9000']], command(['--listen', '127.0.0.1:9000'], FIXTURE_SITE));
+});
+
+test('a command word names the mode and leaves the rest', function () {
+    same(['start', ['--foreground']], command(['start', '--foreground'], FIXTURE_SITE));
+    same(['drush', ['status']], command(['drush', 'status'], FIXTURE_SITE));
+    same(['stop', ['--data-dir', 'site']], command(['stop', '--data-dir', 'site'], FIXTURE_SITE));
+});
+
+test('a first -h or --help asks for the usage', function () {
+    same(['help', []], command(['-h'], FIXTURE_SITE));
+    same(['help', []], command(['--help', '--listen', 'x'], FIXTURE_SITE));
+});
+
+test('an unknown word names itself above the usage', function () {
+    throws('Unknown command: frobnicate', fn () => command(['frobnicate'], FIXTURE_SITE));
+    throws('Usage: ' . FIXTURE_NAME . ' [start] [OPTIONS]', fn () => command(['frobnicate'], FIXTURE_SITE));
+});
+
+test('a Node word on a site without Node is an unknown command', function () {
+    throws('Unknown command: npm', fn () => command(['npm', 'ci'], FIXTURE_SITE));
+});
+
+test('a Node word on a site with Node names the glibc build', function () {
+    throws('npx: this musl build of ' . FIXTURE_NAME . ' carries no Node. Run the glibc build',
+        fn () => command(['npx', 'cowsay'], FIXTURE_SITE + ['node' => '24.21.0']));
 });
 
 $status = runCases();

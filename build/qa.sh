@@ -44,6 +44,7 @@ ln -sfn ../dist/work/app/vendor application/vendor
 "$executable" php-cli "$PWD/application/tests/drupack_install_test.php"
 "$executable" php-cli "$PWD/application/tests/windows_paths_test.php"
 "$executable" php-cli "$PWD/application/tests/site_data_public_stream_test.php"
+"$executable" php-cli "$PWD/application/tests/argv_test.php" a b
 (cd launcher && go test ./...)
 (cd runtime/watch && go test ./...)
 python3 -m unittest discover -s tests/conformance -p test_harness.py

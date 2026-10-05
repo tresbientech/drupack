@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -80,66 +79,16 @@ func caddyVersion() string {
 	panic("the build information names no " + caddy.ImportPath)
 }
 
-const usage = `Usage: %[1]s [start] [OPTIONS]
-       %[1]s drush [OPTIONS] DRUSH_COMMAND
-       %[1]s node|npm|npx [ARGUMENTS]
-       %[1]s stop [--data-dir PATH]
-       %[1]s clean [--dry-run]
-
-Options:
-  --data-dir PATH            Site data directory, ./data by default
-  --listen IP:PORT           Listener address, 127.0.0.1 on the site's port by default
-  --host HOST                Permitted request host, localhost by default
-  --files-dir PATH           Public files directory, files in Site data by default
-  --database sqlite|mysql|pgsql
-                             Database backend for a first start, sqlite by default
-  --db-host, --db-port, --db-name, --db-user, --db-password
-                             Connection details for mysql and pgsql
-  --admin-user, --admin-password
-                             Administrator account for a first start. Without them
-                             a first start creates admin and prints a one-time
-                             login link.
-  --site-name NAME           Site name for a first start, the packaged site's name by default
-  --no-browser               Do not open a browser
-  --foreground               Serve in this terminal until a signal stops the site
-  --version, --help
-
-Commands:
-  start                      Start the site, which a bare command does too
-  drush                      Run a Drush command against the site
-  stop                       Stop the site serving the Site data, for a site
-                             another terminal started
-  node, npm, npx             Run the site's bundled Node release, for a site
-                             that carries one
-  clean                      Remove the unpacked applications from the cache.
-                             --dry-run lists them and removes nothing.
-
-Examples:
-  %[1]s
-  %[1]s --data-dir ./site --listen 127.0.0.1:9000
-  %[1]s --admin-user admin --admin-password 'choose-a-password'
-  %[1]s drush --data-dir ./site status
-  %[1]s drush --data-dir ./site user:login
-  %[1]s clean --dry-run`
-
 // nodeCommands names the programs of a site's bundled Node release that its
 // command line runs, with each one's file on Windows, where npm and npx are
 // batch files.
 var nodeCommands = map[string]string{"node": "node.exe", "npm": "npm.cmd", "npx": "npx.cmd"}
 
 // runNode runs program from the Node release the launcher unpacked, in the
-// reader's directory, and exits with its status. It returns for a site that
-// carries no Node, whose command line has no such word.
+// reader's directory, and exits with its status. The launcher sends a Node word
+// here only from a file that carries Node.
 func runNode(program string, arguments []string) {
 	directory := os.Getenv("DRUPACK_RUNTIME_NODE")
-	if directory == "" {
-		if !siteCarriesNode() {
-			return
-		}
-		fmt.Fprintf(os.Stderr, "%s: this musl build of %s carries no Node. Run the glibc build, the file without -musl in its name.\n",
-			program, siteName())
-		os.Exit(1)
-	}
 	file := program
 	if runtime.GOOS == "windows" {
 		file = nodeCommands[program]
@@ -169,22 +118,6 @@ func runNode(program string, arguments []string) {
 		code = 1
 	}
 	os.Exit(code)
-}
-
-// siteCarriesNode reads the site.json of the application this process runs
-// from, the working directory by now, for the Node release the build recorded.
-func siteCarriesNode() bool {
-	content, err := os.ReadFile("site.json")
-	if err != nil {
-		panic(err)
-	}
-	var site struct {
-		Node string `json:"node"`
-	}
-	if err := json.Unmarshal(content, &site); err != nil {
-		panic(err)
-	}
-	return site.Node != ""
 }
 
 const phpUsage = `Usage: %[1]s php SCRIPT [ARGUMENTS]
@@ -376,47 +309,14 @@ func init() {
 		openBrowser(os.Getenv("DRUPACK_RUNTIME_OPEN"))
 		os.Exit(0)
 	}
-	launchScript := filepath.Join(application, "launch.php")
-	if len(os.Args) > 1 && os.Args[1] == "drush" {
-		if err := os.Setenv("DRUPACK_RUNTIME_DRUSH", "1"); err != nil {
-			panic(err)
-		}
-		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[2:]...)
-		return
-	}
-	// start is the bare command; the word is dropped before launch.php runs.
-	if len(os.Args) > 1 && os.Args[1] == "start" {
-		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[2:]...)
-		return
-	}
-	if len(os.Args) > 1 && os.Args[1] == "stop" {
-		if err := os.Setenv("DRUPACK_RUNTIME_STOP", "1"); err != nil {
-			panic(err)
-		}
-		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[2:]...)
-		return
-	}
 	if len(os.Args) > 1 && nodeCommands[os.Args[1]] != "" {
 		runNode(os.Args[1], os.Args[2:])
-	}
-	if len(os.Args) == 2 && (os.Args[1] == "--help" || os.Args[1] == "-h") {
-		fmt.Printf(usage+"\n", siteName())
-		os.Exit(0)
 	}
 	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
 		fmt.Println(release())
 		fmt.Println(strings.Join(components(), "\n"))
 		os.Exit(0)
 	}
-	if len(os.Args) == 1 || strings.HasPrefix(os.Args[1], "-") {
-		os.Args = append([]string{os.Args[0], "php-cli", launchScript}, os.Args[1:]...)
-		return
-	}
-	// FrankenPHP's own command line takes every remaining word. Drupack uses php-cli
-	// there, and any other word would answer with Caddy's usage.
-	if os.Args[1] != "php-cli" {
-		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", os.Args[1])
-		fmt.Fprintf(os.Stderr, usage+"\n", siteName())
-		os.Exit(1)
-	}
+	// FrankenPHP's own command line takes every other line. The launcher sends the
+	// reader's words to launch.php or serve.php through its php-cli.
 }

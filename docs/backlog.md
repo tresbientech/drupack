@@ -153,11 +153,11 @@ those targets.
 
 ## A cold `--help` unpacks the release
 
-A cold `drupack --help` unpacks the whole release before it prints usage.
-argv reaches the entry point only after preparation, and moving the decision
-into the launcher puts the option contract in a fourth place, against
-[ADR 0014](adr/0014-the-parser-owns-the-command-line.md). Lean: leave it as it
-is.
+A cold `drupack --help` unpacks the whole release before it prints usage. The
+launcher routes the words, but `launch.php` holds the usage and runs only after
+preparation. A usage in the launcher would put the option contract in a fourth
+place, against [ADR 0014](adr/0014-the-parser-owns-the-command-line.md). Lean:
+leave it as it is.
 
 ## When `drupack php` takes PHP's own options
 
@@ -204,3 +204,55 @@ in place of the zip. A run with no Windows build cache then fails. A tag run rea
 only its own cache and main's, so a release during such an outage fails on
 Windows. Lean: point `X_VCPKG_ASSET_SOURCES` at our own copy of each download,
 keyed by its SHA-512.
+
+## One serving-state type for sites and folders
+
+A site and an Engine folder each hold a Serving lease, a stop record and a
+server log. `SiteData` names them for a site. `serve.php` restates the same
+getters for a folder as `entryLease`, `entryStopRecord` and `entryLog`. The
+protocol lives in `process.php`: `takeLease`, `leaseFree`, `stopServer` and
+`detachServer`. No PHP test names any of those functions. Go writes `stop.json`
+and PHP reads its `token` and `port`, with no shared check. Lean: one PHP type
+over a root directory owns the three files. Tests on a temporary directory then
+cover a refused second lease, a stale record and a stop by token.
+
+## One store for the launcher's cache entries
+
+The runtime, the application and the Node release are each staged, held, swept
+and cleaned under their own marker files: `active`, `.complete`, `.used` and
+`.release`. `CleanApps` and `CleanNode` are the same loop with different words.
+`unpackApp` and `LaySiteApp` copy the staging rename-swap. A `hold` parameter
+crosses four signatures only so tests can swap it. Lean: one store parameterised
+by kind, with the three clean tests merged into one table over kinds. The file
+locks themselves would come from a maintained package, such as `lockedfile` or
+`gofrs/flock`.
+
+## One table of build targets
+
+A target's name lives in five forms:
+
+- `Target()` and `payloadTargets` in `build.go`
+- `siteconfig.Platforms` and `Libcs`
+- the `BUILD` regex in `build/release-files.py`
+- the jq matrix in `release.yml`
+- the `gnu` to `glibc` rename in `release.yml`
+
+No test ties the workflow's artifact names to the Go table. Lean: Go owns one
+table and prints it as JSON, and the workflow and `release-files.py` read that
+output. A source-scan test, like `test_environment.py`, checks the workflow.
+
+## One parser for the extension allowlist
+
+Five places parse `runtime/php-extensions.txt`:
+
+- `extensions-list.sh`
+- `check-extensions.py`
+- `build.ps1`
+- `harness.py`
+- the Dockerfile
+
+`build.ps1` and `harness.py` each list the Windows exclusions. `ALWAYS_COMPILED`
+is `{"date"}` in `check-extensions.py` and eleven names in `harness.py`. Neither
+`expected_extensions()` nor `check-extensions.py` has a unit test. Lean: put the
+per-platform exclusions in the allowlist file. One parser takes a platform and
+prints the list, and the others call it.

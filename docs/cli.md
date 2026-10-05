@@ -260,5 +260,6 @@ processes reach the same command through the `php` on `PATH`.
 `lay-app` is internal: a start or `drush` runs it to lay or check a site's own
 application.
 
-Any first word Drupack does not handle reaches the embedded server's own
-command line. Nothing there carries a compatibility promise.
+On a site, `php-cli` reaches the embedded server's own command line, which
+carries no compatibility promise. Any other word Drupack does not handle answers
+`Unknown command`.
