@@ -23,12 +23,13 @@ import (
 
 // site names the packaged site and the release of it this launcher carries.
 // components lists the site's parts --version names. engine marks the engine
-// executable, which carries no site.
+// executable, which carries no site. musl marks a file packed over a musl runtime.
 type site struct {
 	name       string
 	version    string
 	components []string
 	engine     bool
+	musl       bool
 }
 
 // embeddedPayloadSource returns the payload.go that replaces
@@ -64,7 +65,9 @@ var siteVersion = %q
 var siteComponents = %q
 
 var engine = %t
-`, packaged.name, packaged.version, strings.Join(packaged.components, "\n"), packaged.engine)
+
+var musl = %t
+`, packaged.name, packaged.version, strings.Join(packaged.components, "\n"), packaged.engine, packaged.musl)
 }
 
 func main() {
@@ -87,6 +90,7 @@ func run() error {
 	appChecksum := flag.String("app-checksum", "", "file holding the application checksum")
 	engine := flag.Bool("engine", false, "pack the engine executable, whose -app holds the engine's files and whose release is -version")
 	nodeArchive := flag.String("node", "", "a Node archive the build verified, carried as the release site.json names")
+	musl := flag.Bool("musl", false, "the runtime is a musl build, so self-update fetches the musl release")
 	flag.Parse()
 	required := map[string]string{
 		"runtime":      *directory,
@@ -104,7 +108,7 @@ func run() error {
 	if err := requireFlags(required); err != nil {
 		return err
 	}
-	packaged := site{name: build.EngineName, version: *version, engine: true}
+	packaged := site{name: build.EngineName, version: *version, engine: true, musl: *musl}
 	var nodeVersion siteconfig.Node
 	if !*engine {
 		// The build wrote site.json from a validated drupack.yml.
@@ -116,7 +120,7 @@ func run() error {
 		if err := json.Unmarshal(content, &described); err != nil {
 			return fmt.Errorf("%s: %w", *siteFile, err)
 		}
-		packaged = site{name: described.Name, version: *siteVersion, components: siteComponents(described, *nodeArchive != "")}
+		packaged = site{name: described.Name, version: *siteVersion, components: siteComponents(described, *nodeArchive != ""), musl: *musl}
 		nodeVersion = described.Node
 	}
 

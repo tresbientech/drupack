@@ -331,6 +331,24 @@ class EngineExecutable(harness.ConformanceCase):
             self.assertLess(time.monotonic(), deadline, f"the start did not answer /: inspect {log}")
             time.sleep(0.25)
 
+    def test_self_update_on_a_site_executable_names_its_publisher(self):
+        result = harness.run([str(harness.BINARY), "self-update"], capture_output=True, text=True,
+                             timeout=harness.WAITS["php_cli"].seconds)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn(f"The new release of {harness.SITE['name']} comes from its publisher.", result.stderr)
+
+    def test_self_update_on_a_composer_copy_names_the_composer_commands(self):
+        # composer/drupack-install lays the executable beside the project's vendor/.
+        project = self.class_dir / "composer-copy"
+        (project / "vendor" / "drupal" / "drupack").mkdir(parents=True, exist_ok=True)
+        copy = project / self.engine.name
+        shutil.copyfile(self.engine, copy)
+        copy.chmod(0o755)
+        result = harness.run([str(copy), "self-update", "--check"], capture_output=True, text=True,
+                             timeout=harness.WAITS["php_cli"].seconds)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("Run composer update drupal/drupack, then vendor/bin/drupack-install.", result.stderr)
+
     def test_php_runs_code(self):
         result = self.engine_run("php", "-r", "echo 1;")
         self.assertEqual(result.returncode, 0, result.stderr)

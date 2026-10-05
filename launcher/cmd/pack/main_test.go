@@ -106,6 +106,15 @@ func TestTheEngineExecutableCarriesTheEngineMark(t *testing.T) {
 	}
 }
 
+func TestAMuslFileCarriesTheMuslMark(t *testing.T) {
+	for _, musl := range []bool{false, true} {
+		generated := embeddedPayloadSource(site{name: build.EngineName, version: "0.5.0", engine: true, musl: musl})
+		if want := fmt.Sprintf("var musl = %t", musl); !strings.Contains(generated, want) {
+			t.Fatalf("payload.go does not carry %q:\n%s", want, generated)
+		}
+	}
+}
+
 func TestWriteNodePayloadCarriesTheReleaseOrNothing(t *testing.T) {
 	archive := filepath.Join(t.TempDir(), "linux-amd64.tar.gz")
 	writeNodeArchive(t, archive)

@@ -99,6 +99,11 @@ func TestEachFileCarriesTheRuntimeOfItsLibc(t *testing.T) {
 			t.Errorf("%s packs %s to %s; want %s to %s", name, runtime, output, want[0], want[1])
 		}
 	}
+	for name, want := range map[string]bool{"pack linux-arm64": false, "pack linux-arm64-musl": true} {
+		if got := slices.Contains(step(t, plan, name).Command, "-musl"); got != want {
+			t.Errorf("%s passes -musl: %t; want %t", name, got, want)
+		}
+	}
 }
 
 func TestEveryFileIsPackedAndOnlyTheHostGlibcFileIsTested(t *testing.T) {

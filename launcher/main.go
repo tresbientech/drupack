@@ -28,6 +28,18 @@ func run() error {
 	if len(os.Args) > 1 && os.Args[1] == "detach" {
 		return detach(os.Args[2:])
 	}
+	if len(os.Args) > 1 && os.Args[1] == "self-update" {
+		executable, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		// The rename lands on the file a symlink on PATH names.
+		executable, err = filepath.EvalSymlinks(executable)
+		if err != nil {
+			return err
+		}
+		return selfUpdate(os.Args[2:], releaseURL, executable, os.Stdout)
+	}
 	root, err := runtime.Root(siteName, os.Stderr)
 	if err != nil {
 		return err

@@ -223,6 +223,9 @@ func packSteps(r Request, libcs []string, resolved map[string]string, step, name
 				"-output", filepath.Join(r.Output, Executable(name, target)),
 				"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
 				"-goarch", siteconfig.Platforms[platform]}, extra...)
+			if libc == "musl" {
+				command = append(command, "-musl")
+			}
 			if archive, carried := node.Archive(nodeArchives(r.Work), target); r.Site.Node != "" && carried {
 				command = append(command, "-node", archive)
 			}
