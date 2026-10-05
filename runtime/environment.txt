@@ -14,7 +14,6 @@ CWD            writers=runtime/entrypoint.go  readers=application/launch.php,app
 DATA_DIR       writers=application/launch.php,build/seed.sh  readers=application/settings.php,build/site-settings.php
 DETACHED       writers=launcher/detach.go  readers=launcher/launch_windows.go,runtime/entrypoint.go
 DOCROOT        writers=application/launch.php,engine/serve.php  readers=application/Caddyfile,engine/Caddyfile
-DRUSH          writers=runtime/entrypoint.go  readers=application/launch.php
 FILES_DIR      writers=application/launch.php  readers=application/Caddyfile,application/launch.php,application/support/PublicFilesTemplateLoader.php,application/support/SiteDataPublicStream.php
 HOST           writers=application/launch.php  readers=application/settings.php
 ID             writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go,application/Caddyfile,engine/Caddyfile
@@ -27,6 +26,5 @@ OPEN           writers=application/launch.php,engine/serve.php  readers=runtime/
 PERSON         writers=application/process.php  readers=application/process.php
 PORT           writers=application/launch.php,engine/serve.php  readers=application/Caddyfile,engine/Caddyfile
 SITE_VERSION   writers=launcher/main.go  readers=runtime/entrypoint.go
-STOP           writers=runtime/entrypoint.go  readers=application/launch.php
 STOP_RECORD    writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go
 URL            writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go

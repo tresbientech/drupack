@@ -10,12 +10,14 @@ require __DIR__ . '/process.php';
 use Drupack\Support\SiteData;
 use Symfony\Component\Filesystem\Path;
 
-// The option set also reaches a reader through runtime/entrypoint.go's usage and
-// docs/cli.md. application/tests/launch_test.php asserts all three against options().
+// The option set also reaches a reader through docs/cli.md.
+// application/tests/launch_test.php asserts both against options().
 const HELP = <<<'TEXT'
 Usage: %1$s [start] [OPTIONS]
        %1$s drush [OPTIONS] DRUSH_COMMAND
+       %1$s node|npm|npx [ARGUMENTS]
        %1$s stop [--data-dir PATH]
+       %1$s clean [--dry-run]
 
 Options:
   --data-dir PATH            Site data directory, ./data by default
@@ -34,9 +36,33 @@ Options:
   --site-name NAME           Site name for a first start, the packaged site's name by default
   --no-browser               Do not open a browser
   --foreground               Serve in this terminal until a signal stops the site
+  --version, --help
+
+Commands:
+  start                      Start the site, which a bare command does too
+  drush                      Run a Drush command against the site
+  stop                       Stop the site serving the Site data, for a site
+                             another terminal started
+  node, npm, npx             Run the site's bundled Node release, for a site
+                             that carries one
+  clean                      Remove the unpacked applications from the cache.
+                             --dry-run lists them and removes nothing.
+
+Examples:
+  %1$s
+  %1$s --data-dir ./site --listen 127.0.0.1:9000
+  %1$s --admin-user admin --admin-password 'choose-a-password'
+  %1$s drush --data-dir ./site status
+  %1$s drush --data-dir ./site user:login
+  %1$s clean --dry-run
 
 docs/cli.md explains every option.
 TEXT;
+
+// The commands this script runs. The executable runs clean, and node, npm and npx where
+// it carries Node, before this script starts.
+const COMMANDS = ['start', 'drush', 'stop'];
+const NODE_COMMANDS = ['node', 'npm', 'npx'];
 
 // The server runs from the application directory, which every site of a release
 // shares, so a path the reader wrote relative to their own directory resolves
@@ -84,6 +110,28 @@ function siteSettings(): array
 {
     static $site;
     return $site ??= json_decode((string) file_get_contents(__DIR__ . '/site.json'), true, 512, JSON_THROW_ON_ERROR);
+}
+
+// The launcher hands this script the reader's whole line. Its first word names the
+// command, and a line with none, or opening with an option, starts the site. A Node
+// word arrives only from a file that carries no Node.
+function command(array $arguments, array $site): array
+{
+    $word = $arguments[0] ?? null;
+    if ($word === '-h' || $word === '--help') {
+        return ['help', []];
+    }
+    if ($word === null || str_starts_with($word, '-')) {
+        return ['start', $arguments];
+    }
+    if (in_array($word, COMMANDS, true)) {
+        return [$word, array_slice($arguments, 1)];
+    }
+    if (in_array($word, NODE_COMMANDS, true) && isset($site['node'])) {
+        throw new RuntimeException("$word: this musl build of " . executableName()
+            . ' carries no Node. Run the glibc build, the file without -musl in its name.');
+    }
+    throw new InvalidArgumentException("Unknown command: $word\n\n" . sprintf(HELP, executableName()));
 }
 
 function options(array $arguments, bool $drush, array $site): array
@@ -655,11 +703,16 @@ if (defined('DRUPACK_LAUNCH_LIBRARY')) {
 }
 
 try {
-    if (environment('DRUPACK_RUNTIME_STOP') === '1') {
-        exit(stopSite(fromStartDirectory(stopDataDirectory(array_slice($argv, 1)))));
+    [$mode, $arguments] = command(array_slice($argv, 1), siteSettings());
+    if ($mode === 'help') {
+        printf(HELP . "\n", executableName());
+        exit(0);
     }
-    $drush = environment('DRUPACK_RUNTIME_DRUSH') === '1';
-    [$options, $command] = options(array_slice($argv, 1), $drush, siteSettings());
+    if ($mode === 'stop') {
+        exit(stopSite(fromStartDirectory(stopDataDirectory($arguments))));
+    }
+    $drush = $mode === 'drush';
+    [$options, $command] = options($arguments, $drush, siteSettings());
     $written = $options['data-dir'];
     $options['data-dir'] = fromStartDirectory($written);
     if ($options['files-dir'] !== null) {
