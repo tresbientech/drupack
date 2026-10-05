@@ -14,14 +14,15 @@ second usage text.
 ## Decision
 
 - The launcher's `runtimeArguments` routes the reader's words for both
-  executables. `php-cli`, the version flags, a Node word where the file carries
-  Node, and the Engine's `php` pass unchanged. Every other line reaches
+  executables. A site's `php-cli`, the version flags, a Node word where the file
+  carries Node, and the Engine's `php` pass unchanged. Every other line reaches
   `launch.php` or `serve.php` through `php-cli`, with its words.
 - `launch.php`'s `command()` reads `start`, `drush` or `stop` from its argv, as
   `serve.php` does. It answers help, an unknown word and a Node word on a musl
   build.
-- The entry point answers only the words other programs send it: `php-cli`,
-  `php-server`, `browser-open`, the Engine's `php`, the version flags and Node.
+- The entry point handles `php-server`, `browser-open`, the Engine's `php`, the
+  version flags and Node. FrankenPHP's own command line takes `php-cli` and every
+  other line.
 - `launch.php`'s `HELP` is the one usage text. The command line is described in
   three places: `options()`, `HELP` and `docs/cli.md`.
 - `build/qa.sh` asserts the `$argv` that `php-cli` hands a script.
@@ -41,4 +42,4 @@ second usage text.
 - A routing change fails `go test` in the launcher, or `launch_test.php`.
 - A direct call of the runtime with a reader word reaches FrankenPHP's own
   command line. The dev server's entry script names `launch.php` for that reason.
-- The launcher and the entry point each list the Node words.
+- The launcher, the entry point and `launch.php` each list the Node words.

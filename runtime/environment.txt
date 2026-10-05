@@ -17,7 +17,7 @@ DOCROOT        writers=application/launch.php,engine/serve.php  readers=applicat
 FILES_DIR      writers=application/launch.php  readers=application/Caddyfile,application/launch.php,application/support/PublicFilesTemplateLoader.php,application/support/SiteDataPublicStream.php
 HOST           writers=application/launch.php  readers=application/settings.php
 ID             writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go,application/Caddyfile,engine/Caddyfile
-INVOKED        writers=launcher/main.go  readers=application/process.php
+INVOKED        writers=launcher/main.go,build/dev/dev-entry.sh  readers=application/process.php
 LAUNCHER       writers=launcher/main.go,build/dev/dev-entry.sh  readers=application/launch.php,application/process.php
 LOG_PATH       writers=application/launch.php  readers=application/Caddyfile
 NAME           writers=launcher/main.go,build/dev/dev-entry.sh  readers=runtime/entrypoint.go,application/process.php

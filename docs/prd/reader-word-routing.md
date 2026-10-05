@@ -48,7 +48,7 @@ Launcher:
   launcher's main package replaces `engineArguments`. It reads no file and
   writes no environment. `node` is true when the file carries a Node manifest.
 - D2. These pass to the runtime unchanged:
-  - `php-cli …`
+  - `php-cli …`, for a site alone
   - exactly `--version` or `-v`
   - `node`, `npm` or `npx`, when the file carries Node
   - `php …`, for the Engine alone
@@ -58,8 +58,8 @@ Launcher:
 
 `launch.php`:
 
-- D4. `command(array $arguments): array` returns the mode and the remaining
-  arguments. `start`, `drush` and `stop` set the mode. No word, or a leading
+- D4. `command(array $arguments, array $site): array` returns the mode and the
+  remaining arguments. `$site` is the decoded `site.json`, for D6. `start`, `drush` and `stop` set the mode. No word, or a leading
   option, means `start`.
 - D5. `-h` or `--help` as the first argument prints `HELP` and exits 0.
 - D6. A Node word prints the musl message when `site.json` names `node`, and

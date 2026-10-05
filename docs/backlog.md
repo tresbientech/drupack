@@ -153,11 +153,11 @@ those targets.
 
 ## A cold `--help` unpacks the release
 
-A cold `drupack --help` unpacks the whole release before it prints usage.
-argv reaches the entry point only after preparation, and moving the decision
-into the launcher puts the option contract in a fourth place, against
-[ADR 0014](adr/0014-the-parser-owns-the-command-line.md). Lean: leave it as it
-is.
+A cold `drupack --help` unpacks the whole release before it prints usage. The
+launcher routes the words, but `launch.php` holds the usage and runs only after
+preparation. A usage in the launcher would put the option contract in a fourth
+place, against [ADR 0014](adr/0014-the-parser-owns-the-command-line.md). Lean:
+leave it as it is.
 
 ## When `drupack php` takes PHP's own options
 

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-// The engine executable's entry script. The launcher runs it for every word but
-// `php` and `clean`, from the directory the reader started in. `start` and `stop` are
-// reserved, so a folder with either name takes ./start or ./stop. Any other first word
-// that names no command starts the server.
+// The engine executable's entry script. The launcher runs it for every line but
+// `php`, `clean` and a bare `--version`, from the directory the reader started in.
+// `start` and `stop` are reserved, so a folder with either name takes ./start or
+// ./stop. Any other first word that names no command starts the server.
 
 require_once __DIR__ . '/process.php';
 

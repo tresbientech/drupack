@@ -25,6 +25,8 @@ func TestRuntimeArguments(t *testing.T) {
 			[]string{"drupack", "-v"}},
 		{"the Engine sends a version flag with company to serve.php", []string{"drupack", "--version", "x"}, true, false,
 			[]string{"drupack", "php-cli", serve, "--version", "x"}},
+		{"the Engine sends php-cli to serve.php", []string{"drupack", "php-cli", "x.php"}, true, false,
+			[]string{"drupack", "php-cli", serve, "php-cli", "x.php"}},
 		{"the Engine sends a bare start to serve.php", []string{"drupack"}, true, false,
 			[]string{"drupack", "php-cli", serve}},
 		{"the Engine sends a word to serve.php", []string{"drupack", "stop", "--data-dir", "d"}, true, false,
