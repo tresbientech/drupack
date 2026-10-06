@@ -29,7 +29,7 @@
         "drupal/tool_belt": "^1.0@alpha",
         "drupal/ui_patterns": "2.0.x-dev#b55538e73195f114f8e9db4a6a70766b3c014b8e",
         "drupal/ui_skins": "1.2.1",
-        "drupal/wordpal": "1.0.0-alpha2",
+        "drupal/wordpal": "1.0.0-alpha4",
         "drush/drush": "^13.6",
         "twig/twig": "3.29.0"
     },
@@ -54,9 +54,13 @@
             "disable-resolvers": ["\\cweagans\\Composer\\Resolver\\Dependencies"]
         },
         "patches": {
+            "drupal/canvas": {
+                "Name a layer after its label": "patches/canvas-layer-node-name.patch"
+            },
             "drupal/display_builder": {
                 "Inject UI Patterns component manager": "patches/display_builder-ui-patterns-component-manager.patch",
-                "Declare the placeholder props schema": "patches/display_builder-placeholder-props-schema.patch"
+                "Declare the placeholder props schema": "patches/display_builder-placeholder-props-schema.patch",
+                "Accept and show a node label": "patches/display_builder-node-label.patch"
             },
             "drupal/ui_patterns": {
                 "Keep a zero string prop value": "patches/ui_patterns-zero-prop-value.patch"

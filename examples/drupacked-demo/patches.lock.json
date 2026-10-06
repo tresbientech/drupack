@@ -1,6 +1,18 @@
 {
-    "_hash": "2624d4c281dabe493a9d2634256dc76a9920abc31859e0d4bdabd818d9c44134",
+    "_hash": "2ca5c7730aeded22621122fe0cdb9ccc207060cb51bf975258eab0ed0092b666",
     "patches": {
+        "drupal/canvas": [
+            {
+                "package": "drupal/canvas",
+                "description": "Name a layer after its label",
+                "url": "patches/canvas-layer-node-name.patch",
+                "sha256": "a43ed7bbbb342dcf1c22a56ab89ddbbb463b23767e4e86c8f49de3d21a773081",
+                "depth": 1,
+                "extra": {
+                    "provenance": "root"
+                }
+            }
+        ],
         "drupal/display_builder": [
             {
                 "package": "drupal/display_builder",
@@ -17,6 +29,16 @@
                 "description": "Declare the placeholder props schema",
                 "url": "patches/display_builder-placeholder-props-schema.patch",
                 "sha256": "e28981c7c8da366fb883ab02782de6040b78e5a5676a502a5e53ccd0c6c56f5b",
+                "depth": 1,
+                "extra": {
+                    "provenance": "root"
+                }
+            },
+            {
+                "package": "drupal/display_builder",
+                "description": "Accept and show a node label",
+                "url": "patches/display_builder-node-label.patch",
+                "sha256": "6e25e6c6d606acb938935688b802c561e616e73a6deb3a8337e27c5a9705cfa4",
                 "depth": 1,
                 "extra": {
                     "provenance": "root"

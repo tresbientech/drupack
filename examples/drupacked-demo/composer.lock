@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "673d8580a14eb20459021b7ab77f142d",
+    "content-hash": "1b857057fae20ebfd9aeabde4dd6f1c6",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -6902,8 +6902,8 @@
                     "dev-2.0.x": "2.0.x-dev"
                 },
                 "drupal": {
-                    "version": "2.0.21+8-dev",
-                    "datestamp": "1790801593",
+                    "version": "2.0.21+13-dev",
+                    "datestamp": "1791271766",
                     "security-coverage": {
                         "status": "not-covered",
                         "message": "Dev releases are not covered by Drupal security advisories."
@@ -7209,17 +7209,17 @@
         },
         {
             "name": "drupal/wordpal",
-            "version": "1.0.0-alpha2",
+            "version": "1.0.0-alpha4",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/wordpal.git",
-                "reference": "1.0.0-alpha2"
+                "reference": "1.0.0-alpha4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/wordpal-1.0.0-alpha2.zip",
-                "reference": "1.0.0-alpha2",
-                "shasum": "183bb04031f5ca6608e6940494b1c369c331b16a"
+                "url": "https://ftp.drupal.org/files/projects/wordpal-1.0.0-alpha4.zip",
+                "reference": "1.0.0-alpha4",
+                "shasum": "cc49cdede76f5eae4d447ecc0d837910c0f79706"
             },
             "require": {
                 "drupal/core": "^11.4",
@@ -7259,8 +7259,8 @@
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "1.0.0-alpha2",
-                    "datestamp": "1791042938",
+                    "version": "1.0.0-alpha4",
+                    "datestamp": "1791273957",
                     "security-coverage": {
                         "status": "not-covered",
                         "message": "Alpha releases are not covered by Drupal security advisories."
@@ -14826,16 +14826,16 @@
         },
         {
             "name": "webmozart/assert",
-            "version": "2.4.1",
+            "version": "2.5.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/webmozarts/assert.git",
-                "reference": "2ccb7c2e821038c03a3e6e1700c570c158c55f70"
+                "reference": "8a163706bbcac613733dba03f51e13b5eb1bb819"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/webmozarts/assert/zipball/2ccb7c2e821038c03a3e6e1700c570c158c55f70",
-                "reference": "2ccb7c2e821038c03a3e6e1700c570c158c55f70",
+                "url": "https://api.github.com/repos/webmozarts/assert/zipball/8a163706bbcac613733dba03f51e13b5eb1bb819",
+                "reference": "8a163706bbcac613733dba03f51e13b5eb1bb819",
                 "shasum": ""
             },
             "require": {
@@ -14886,9 +14886,9 @@
             ],
             "support": {
                 "issues": "https://github.com/webmozarts/assert/issues",
-                "source": "https://github.com/webmozarts/assert/tree/2.4.1"
+                "source": "https://github.com/webmozarts/assert/tree/2.5.0"
             },
-            "time": "2026-06-15T15:31:57+00:00"
+            "time": "2026-10-05T23:14:19+00:00"
         }
     ],
     "packages-dev": [],
