@@ -174,6 +174,13 @@ class Bumper(unittest.TestCase):
         self.assertEqual(summary.rows, [("FrankenPHP", current, current, "current")])
         self.assertEqual(summary.notes, ["MAJOR FrankenPHP 2.0.0 is out, outside the 1 line"])
 
+    def test_a_skipped_frankenphp_is_reported_and_not_taken(self):
+        current = upstream.read(upstream.BUILDER_INPUTS, r"^frankenphp_version=(.+)$")
+        self.serve_frankenphp("v1.13.0", f"v{current}")
+        summary = self.run_bumper(upstream.frankenphp)
+        self.assertEqual(summary.rows, [("FrankenPHP", current, current, "current")])
+        self.assertEqual(summary.notes, [f"SKIPPED FrankenPHP 1.13.0: {upstream.FRANKENPHP_SKIPS['1.13.0']}"])
+
     def test_a_newer_node_lts_rewrites_the_demo_pin(self):
         self.serve_node(("25.9.0", False), ("24.99.1", "Krypton"), ("24.21.0", "Krypton"))
         summary = self.run_bumper(upstream.node)
@@ -188,9 +195,10 @@ class Bumper(unittest.TestCase):
 
 
     def test_an_alpha_moves_to_a_newer_beta(self):
-        self.serve_composer(**{"drupal/wordpal": ["1.0.0-beta1", "1.0.0-alpha3", "1.0.0-alpha2"]})
+        current = self.pin("drupal/wordpal")
+        self.serve_composer(**{"drupal/wordpal": ["1.0.0-beta1", current]})
         summary = self.run_bumper(upstream.composer)
-        self.assertIn(("drupal/wordpal", "1.0.0-alpha2", "1.0.0-beta1", "bumped"), summary.rows)
+        self.assertIn(("drupal/wordpal", current, "1.0.0-beta1", "bumped"), summary.rows)
         self.assertEqual(self.pin("drupal/wordpal"), "1.0.0-beta1")
         self.assertTrue(self.updated)
 
