@@ -27,7 +27,7 @@ permissions:
 env:
   # setup-go sets GOTOOLCHAIN=local from v6 on, so go fetches no newer toolchain of
   # its own: this version must stay at or above the go line in launcher/go.mod.
-  GO_VERSION: '1.27.0'
+  GO_VERSION: '1.27.1'
 
 jobs:
   # What a run covers. A tag and a dispatch cover every platform, and a dispatch

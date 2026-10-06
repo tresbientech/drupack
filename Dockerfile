@@ -20,7 +20,7 @@ ARG EXTENSIONS=engine-extensions
 # a glibc host, the only kind that runs both runtimes, so a file of either libc
 # is tested where it was built.
 # docker buildx imagetools inspect golang:1.26-bookworm --format '{{.Manifest.Digest}}'
-ARG JOB_BASE=golang:1.26-bookworm@sha256:a688600ca24f8a4d3ca77f95b0dd40704a9fc787c826660eb7ba0b641b8b175d
+ARG JOB_BASE=golang:1.26-bookworm@sha256:5314eb22361f736de0720087458a32c57893bf4e3b513d92ed880572b1b69e84
 # act_runner, which Gitea and Forgejo run, starts JavaScript actions with the job
 # container's own node.
 # docker buildx imagetools inspect node:24-bookworm-slim --format '{{.Manifest.Digest}}'
