@@ -54,9 +54,13 @@
             "disable-resolvers": ["\\cweagans\\Composer\\Resolver\\Dependencies"]
         },
         "patches": {
+            "drupal/canvas": {
+                "Name a layer after its label": "patches/canvas-layer-node-name.patch"
+            },
             "drupal/display_builder": {
                 "Inject UI Patterns component manager": "patches/display_builder-ui-patterns-component-manager.patch",
-                "Declare the placeholder props schema": "patches/display_builder-placeholder-props-schema.patch"
+                "Declare the placeholder props schema": "patches/display_builder-placeholder-props-schema.patch",
+                "Accept and show a node label": "patches/display_builder-node-label.patch"
             },
             "drupal/ui_patterns": {
                 "Keep a zero string prop value": "patches/ui_patterns-zero-prop-value.patch"

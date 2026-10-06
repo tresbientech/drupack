@@ -1,0 +1,260 @@
+--- a/config/schema/display_builder.schema.yml
++++ b/config/schema/display_builder.schema.yml
+@@ -165,3 +165,11 @@
+   mapping:
+     styles:
+       type: ui_styles.selected_mapping
++
++ui_patterns_slot_source.third_party_setting.display_builder:
++  label: 'Display Builder node settings'
++  type: mapping
++  mapping:
++    label:
++      type: label
++      label: 'Node label shown in the Navigator and the history log'
+--- a/src/Entity/Instance.php
++++ b/src/Entity/Instance.php
+@@ -758,8 +758,14 @@
+ 
+   /**
+    * Returns the human-readable label for a node, falling back to source_id.
++   *
++   * A node's own label wins over the one its source computes.
+    */
+   private function nodeLabel(array $data): string {
++    if (isset($data['third_party_settings']['display_builder']['label'])) {
++      return $data['third_party_settings']['display_builder']['label'];
++    }
++
+     $label = $this->slotSourceProxy()->getLabelWithSummary($data, [], TRUE)['label'];
+ 
+     return $label !== '' ? $label : ($data['source_id'] ?? '');
+--- a/src/Plugin/display_builder/Island/ViewPanelBase.php
++++ b/src/Plugin/display_builder/Island/ViewPanelBase.php
+@@ -480,6 +480,8 @@
+       $label = $result['label'] ?? $source->label();
+     }
+ 
++    // A node's own label wins over the component's.
++    $label = $data['third_party_settings']['display_builder']['label'] ?? $label;
+     $instance_id = $instance_id ?: $data['node_id'] ?? NULL;
+ 
+     if (!$instance_id || !$component_id) {
+--- a/tests/src/Kernel/InstanceTest.php
++++ b/tests/src/Kernel/InstanceTest.php
+@@ -150,6 +150,26 @@
+   }
+ 
+   /**
++   * The history log names a labelled node by its label.
++   */
++  public function testAttachToSlotLogNamesLabelledParent(): void {
++    $instance = $this->createDisplayBuilderInstance();
++    $instance->setNewPresent([
++      [
++        'node_id' => 'parent',
++        'source_id' => 'component',
++        'third_party_settings' => ['display_builder' => ['label' => 'Hero']],
++        'source' => [
++          'component' => ['component_id' => 'display_builder_test:test_1'],
++        ],
++      ],
++    ]);
++    $instance->attachToSlot('parent', 'slot_1', 0, 'test_group_source', ['value' => 'child']);
++
++    self::assertStringContainsString('in Hero', $instance->getRevisionLogMessage());
++  }
++
++  /**
+    * Test moveToSlot.
+    */
+   public function testMoveToSlot(): void {
+--- /dev/null
++++ b/tests/src/Kernel/SlotSourceLabelSchemaTest.php
+@@ -0,0 +1,80 @@
++<?php
++
++declare(strict_types=1);
++
++namespace Drupal\Tests\display_builder\Kernel;
++
++use PHPUnit\Framework\Attributes\Group;
++use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
++use Symfony\Component\Validator\ConstraintViolationListInterface;
++
++/**
++ * Tests the schema of a node's Display Builder settings.
++ *
++ * @internal
++ */
++#[Group('display_builder')]
++#[RunTestsInSeparateProcesses]
++final class SlotSourceLabelSchemaTest extends DisplayBuilderKernelTestBase {
++
++  /**
++   * {@inheritdoc}
++   */
++  protected static $modules = [
++    'system',
++    'user',
++    'ui_patterns',
++    'ui_patterns_field',
++    'display_builder',
++  ];
++
++  /**
++   * A layout source holding a labelled node passes schema validation.
++   */
++  public function testLabelledNodeIsValid(): void {
++    self::assertCount(0, $this->validateRegionNodes([
++      [
++        'node_id' => 'node_1',
++        'source_id' => 'textfield',
++        'source' => ['value' => 'text'],
++        'third_party_settings' => ['display_builder' => ['label' => 'Hero']],
++      ],
++    ]));
++  }
++
++  /**
++   * A Display Builder setting the schema does not declare is rejected.
++   */
++  public function testUnknownSettingIsInvalid(): void {
++    self::assertCount(1, $this->validateRegionNodes([
++      [
++        'node_id' => 'node_1',
++        'source_id' => 'textfield',
++        'source' => ['value' => 'text'],
++        'third_party_settings' => ['display_builder' => ['title' => 'Hero']],
++      ],
++    ]));
++  }
++
++  /**
++   * Validates a layout source whose only region holds the given nodes.
++   *
++   * @param array $nodes
++   *   The nodes of the region.
++   *
++   * @return \Symfony\Component\Validator\ConstraintViolationListInterface
++   *   The violations.
++   */
++  private function validateRegionNodes(array $nodes): ConstraintViolationListInterface {
++    $data = [
++      'layout_id' => 'layout_onecol',
++      'settings' => [],
++      'regions' => ['content' => $nodes],
++    ];
++    $typed_config = $this->container->get('config.typed');
++    $definition = $typed_config->buildDataDefinition($typed_config->getDefinition('ui_patterns_source.layout'), $data);
++
++    return $typed_config->create($definition, $data)->validate();
++  }
++
++}
+--- a/tests/src/Kernel/SourceTreeTest.php
++++ b/tests/src/Kernel/SourceTreeTest.php
+@@ -303,6 +303,24 @@
+   }
+ 
+   /**
++   * Replacing a node's source keeps its label.
++   */
++  public function testSetSourceKeepsLabel(): void {
++    $data_tree = new SourceTree([
++      [
++        'node_id' => 'node_1',
++        'source_id' => 'textfield',
++        'source' => ['value' => 'old'],
++        'third_party_settings' => ['display_builder' => ['label' => 'Hero']],
++      ],
++    ], $this->sourceManager);
++
++    self::assertTrue($data_tree->setSource('node_1', 'textfield', ['value' => 'new']));
++    self::assertSame('Hero', $data_tree->getNode('node_1')['third_party_settings']['display_builder']['label']);
++    self::assertSame('Hero', $data_tree->getTree()[0]['third_party_settings']['display_builder']['label']);
++  }
++
++  /**
+    * Test setThirdPartySettings.
+    */
+   public function testSetThirdPartySettings(): void {
+--- a/tests/src/Kernel/TreePanelTest.php
++++ b/tests/src/Kernel/TreePanelTest.php
+@@ -50,6 +50,7 @@
+     $this->installConfig(['system', 'display_builder', 'ui_patterns', 'display_builder_test']);
+     $this->installEntitySchema('user');
+     $this->installEntitySchema('display_builder_profile');
++    $this->installEntitySchema('display_builder_instance');
+   }
+ 
+   /**
+@@ -118,6 +119,33 @@
+   }
+ 
+   /**
++   * A saved root node with a label shows it as its Navigator title.
++   *
++   * An Instance stores each root node in fixed field columns, so the label
++   * has to survive a save and a reload.
++   */
++  public function testNodeLabelIsTheTitle(): void {
++    $this->createDisplayBuilderInstance(NULL, 'test_instance')->setNewPresent($this->treeData('Hero'));
++    $instance = Instance::load('test_instance');
++    $build = $this->createIslandPlugin('tree')->build($instance, $instance->getSources(), []);
++    $component = $this->findByAttribute($build, 'data-menu-type', 'component');
++
++    self::assertNotNull($component, 'A component tree node is present.');
++    self::assertSame('Hero', (string) $component['#attributes']['data-node-title']);
++  }
++
++  /**
++   * A node without a label shows the component name as its Navigator title.
++   */
++  public function testNodeWithoutLabelShowsTheComponentName(): void {
++    $build = $this->buildTree();
++    $component = $this->findByAttribute($build, 'data-menu-type', 'component');
++
++    self::assertNotNull($component, 'A component tree node is present.');
++    self::assertSame('Test 1', (string) $component['#attributes']['data-node-title']);
++  }
++
++  /**
+    * Build the Navigator over a component holding one block in a slot.
+    *
+    * @return array
+@@ -129,10 +157,24 @@
+       'label' => 'Test Instance',
+     ]);
+ 
+-    $data = [
++    return $this->createIslandPlugin('tree')->build($instance, $this->treeData(), []);
++  }
++
++  /**
++   * Returns a tree of one component holding one block in a slot.
++   *
++   * @param string|null $label
++   *   The component node's label, or NULL for a node without one.
++   *
++   * @return array
++   *   The tree data.
++   */
++  private function treeData(?string $label = NULL): array {
++    return [
+       [
+         'node_id' => 'component_1',
+         'source_id' => 'component',
++        ...($label === NULL ? [] : ['third_party_settings' => ['display_builder' => ['label' => $label]]]),
+         'source' => [
+           'component' => [
+             'component_id' => 'display_builder_test:test_1',
+@@ -151,8 +193,6 @@
+         ],
+       ],
+     ];
+-
+-    return $this->createIslandPlugin('tree')->build($instance, $data, []);
+   }
+ 
+   /**

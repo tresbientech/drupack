@@ -72,9 +72,14 @@ That writes `app-payload.tar`, `app_checksum.txt` and `site.json` to `dist/paylo
 
 The Windows executable is the same launcher as Linux and macOS. It carries the PHP and FrankenPHP tree compressed with zstd, and unpacks under `%LOCALAPPDATA%\<name>\runtime` on first start, `<name>` being the site's `name`. Later starts compare a stored manifest and file sizes. Windows has no `exec`, so the launcher starts a child process instead of replacing itself.
 
-### Display Builder in the demo
+### WordPal's patches in the demo
 
-The demo carries WordPal's Display Builder target, not installed. `examples/drupacked-demo/patches` holds the three patches WordPal's usage guide names for Display Builder and UI Patterns, copied from WordPal's `patches` directory. composer-patches applies them, and `patches.lock.json` records each one's SHA-256. Patches that dependencies declare stay unapplied.
+The demo carries WordPal's Display Builder target, not installed. `examples/drupacked-demo/patches` holds the patches WordPal's usage guide names, copied from WordPal's `patches` directory:
+
+- four for Display Builder and UI Patterns, which the Display Builder target needs
+- one for Canvas, which shows each layer's label in the Layers panel
+
+composer-patches applies them, and `patches.lock.json` records each one's SHA-256. Patches that dependencies declare stay unapplied.
 
 When WordPal changes its patches, copy them again and run `composer patches-relock` in the demo.
 
