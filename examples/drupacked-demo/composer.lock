@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "673d8580a14eb20459021b7ab77f142d",
+    "content-hash": "7a81206c2e3783558f9d0561af243bfd",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -7209,17 +7209,17 @@
         },
         {
             "name": "drupal/wordpal",
-            "version": "1.0.0-alpha2",
+            "version": "1.0.0-alpha3",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/wordpal.git",
-                "reference": "1.0.0-alpha2"
+                "reference": "1.0.0-alpha3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/wordpal-1.0.0-alpha2.zip",
-                "reference": "1.0.0-alpha2",
-                "shasum": "183bb04031f5ca6608e6940494b1c369c331b16a"
+                "url": "https://ftp.drupal.org/files/projects/wordpal-1.0.0-alpha3.zip",
+                "reference": "1.0.0-alpha3",
+                "shasum": "e6dc1a595d09800593621a4be435230a6fa88763"
             },
             "require": {
                 "drupal/core": "^11.4",
@@ -7259,8 +7259,8 @@
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "1.0.0-alpha2",
-                    "datestamp": "1791042938",
+                    "version": "1.0.0-alpha3",
+                    "datestamp": "1791271238",
                     "security-coverage": {
                         "status": "not-covered",
                         "message": "Alpha releases are not covered by Drupal security advisories."
