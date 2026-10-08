@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0e53d9a2995dae2bb73ce78fa0d346fd",
+    "content-hash": "b68e9e0796949506f4632d2b3189802e",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -3412,27 +3412,27 @@
         },
         {
             "name": "drupal/drupal_cms_helper",
-            "version": "2.2.2",
+            "version": "2.2.3",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/drupal_cms_helper.git",
-                "reference": "2.2.2"
+                "reference": "2.2.3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/drupal_cms_helper-2.2.2.zip",
-                "reference": "2.2.2",
-                "shasum": "a4e747f2307732ec9ae1cf3b062fdf61c94910ff"
+                "url": "https://ftp.drupal.org/files/projects/drupal_cms_helper-2.2.3.zip",
+                "reference": "2.2.3",
+                "shasum": "87af891e13af017f3409e9063cca993b4c692585"
             },
             "require": {
                 "davereid/drupal-environment": "^1.2",
-                "drupal/core": "^11.4"
+                "drupal/core": "^11.4.8"
             },
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "2.2.2",
-                    "datestamp": "1790784970",
+                    "version": "2.2.3",
+                    "datestamp": "1791374818",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"
@@ -3462,16 +3462,16 @@
         },
         {
             "name": "drupal/drupal_cms_installer",
-            "version": "2.2.2",
+            "version": "2.2.3",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/drupal_cms_installer.git",
-                "reference": "917c6495749be6d11eb92a9b78a554ea66336dde"
+                "reference": "119e9a5ced7f936c75fadbba66356c53ccc5987a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.drupalcode.org/api/v4/projects/project%2Fdrupal_cms_installer/repository/archive.zip?sha=917c6495749be6d11eb92a9b78a554ea66336dde",
-                "reference": "917c6495749be6d11eb92a9b78a554ea66336dde",
+                "url": "https://git.drupalcode.org/api/v4/projects/project%2Fdrupal_cms_installer/repository/archive.zip?sha=119e9a5ced7f936c75fadbba66356c53ccc5987a",
+                "reference": "119e9a5ced7f936c75fadbba66356c53ccc5987a",
                 "shasum": ""
             },
             "require": {
@@ -3486,9 +3486,9 @@
             ],
             "description": "Provides install-time tweaks for Drupal CMS. Not to be used in production.",
             "support": {
-                "source": "https://git.drupalcode.org/project/drupal_cms_installer/-/tree/2.2.2"
+                "source": "https://git.drupalcode.org/project/drupal_cms_installer/-/tree/2.2.3"
             },
-            "time": "2026-09-30T17:48:43+00:00"
+            "time": "2026-10-07T07:52:10+00:00"
         },
         {
             "name": "drupal/drupal_cms_search",
@@ -3656,29 +3656,31 @@
         },
         {
             "name": "drupal/easy_breadcrumb",
-            "version": "2.0.10",
+            "version": "2.0.11",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/easy_breadcrumb.git",
-                "reference": "2.0.10"
+                "reference": "2.0.11"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/easy_breadcrumb-2.0.10.zip",
-                "reference": "2.0.10",
-                "shasum": "a55c793c1f59be1a4866972998b50ced21bfbcb0"
+                "url": "https://ftp.drupal.org/files/projects/easy_breadcrumb-2.0.11.zip",
+                "reference": "2.0.11",
+                "shasum": "02ff0687f1d6d94238d3e47fdb6cb240fecf2626"
             },
             "require": {
                 "drupal/core": "^9.2 || ^10 || ^11"
             },
             "require-dev": {
+                "drupal/cva": "^1",
+                "drupal/mercury": "^1.0.5",
                 "drush/drush": "^13"
             },
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "2.0.10",
-                    "datestamp": "1787942208",
+                    "version": "2.0.11",
+                    "datestamp": "1791390966",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"
@@ -4590,27 +4592,28 @@
         },
         {
             "name": "drupal/klaro",
-            "version": "3.1.1",
+            "version": "3.1.2",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/klaro.git",
-                "reference": "3.1.1"
+                "reference": "3.1.2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/klaro-3.1.1.zip",
-                "reference": "3.1.1",
-                "shasum": "d6bb6fed0d7e6f2e5bb47eb9e7043613ec182041"
+                "url": "https://ftp.drupal.org/files/projects/klaro-3.1.2.zip",
+                "reference": "3.1.2",
+                "shasum": "a7c65a7c9ffb4ccc232d5e1180b7eab0ab1d6db8"
             },
             "require": {
                 "drupal/core": "^10.2 || ^11",
-                "drupal/klaro_js": "~3.1.0"
+                "drupal/klaro_js": "~3.1.0",
+                "masterminds/html5": "^2.8"
             },
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "3.1.1",
-                    "datestamp": "1782906912",
+                    "version": "3.1.2",
+                    "datestamp": "1791367970",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"
@@ -5195,17 +5198,17 @@
         },
         {
             "name": "drupal/menu_link_attributes",
-            "version": "1.7.0",
+            "version": "1.8.0",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/menu_link_attributes.git",
-                "reference": "8.x-1.7"
+                "reference": "8.x-1.8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/menu_link_attributes-8.x-1.7.zip",
-                "reference": "8.x-1.7",
-                "shasum": "ae473541208cbe18130cb4b75104b55a9b80d073"
+                "url": "https://ftp.drupal.org/files/projects/menu_link_attributes-8.x-1.8.zip",
+                "reference": "8.x-1.8",
+                "shasum": "fa43877ea827230cf02b3e7284b21746e0188b7f"
             },
             "require": {
                 "drupal/core": "^8 || ^9 || ^10 || ^11"
@@ -5213,8 +5216,8 @@
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "8.x-1.7",
-                    "datestamp": "1774255144",
+                    "version": "8.x-1.8",
+                    "datestamp": "1791390832",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"
@@ -6516,17 +6519,17 @@
         },
         {
             "name": "drupal/tagify",
-            "version": "1.2.54",
+            "version": "1.2.55",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/tagify.git",
-                "reference": "1.2.54"
+                "reference": "1.2.55"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/tagify-1.2.54.zip",
-                "reference": "1.2.54",
-                "shasum": "106203b6afe4a73c71da9e57d6e7855a56c6d1ec"
+                "url": "https://ftp.drupal.org/files/projects/tagify-1.2.55.zip",
+                "reference": "1.2.55",
+                "shasum": "ebae0bd1cdee2ad49afcd921e0f09d3e23b7efab"
             },
             "require": {
                 "drupal/core": "^8.8 || ^9 || ^10 || ^11"
@@ -6542,8 +6545,8 @@
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "1.2.54",
-                    "datestamp": "1789394526",
+                    "version": "1.2.55",
+                    "datestamp": "1791358129",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"
@@ -6902,8 +6905,8 @@
                     "dev-2.0.x": "2.0.x-dev"
                 },
                 "drupal": {
-                    "version": "2.0.21+16-dev",
-                    "datestamp": "1791316928",
+                    "version": "2.0.21+20-dev",
+                    "datestamp": "1791357940",
                     "security-coverage": {
                         "status": "not-covered",
                         "message": "Dev releases are not covered by Drupal security advisories."
@@ -6964,7 +6967,7 @@
         },
         {
             "name": "drupal/ui_patterns_field",
-            "version": "2.0.21",
+            "version": "2.0.22",
             "require": {
                 "drupal/core": "^10.6 || ^11.3 || ^12",
                 "drupal/ui_patterns": "*"
@@ -6972,8 +6975,8 @@
             "type": "metapackage",
             "extra": {
                 "drupal": {
-                    "version": "2.0.21",
-                    "datestamp": "1788535898",
+                    "version": "2.0.22",
+                    "datestamp": "1791358239",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"
@@ -7034,7 +7037,7 @@
         },
         {
             "name": "drupal/ui_patterns_library",
-            "version": "2.0.21",
+            "version": "2.0.22",
             "require": {
                 "drupal/core": "^10.6 || ^11.3 || ^12",
                 "drupal/ui_patterns": "*"
@@ -7042,8 +7045,8 @@
             "type": "metapackage",
             "extra": {
                 "drupal": {
-                    "version": "2.0.21",
-                    "datestamp": "1788535898",
+                    "version": "2.0.22",
+                    "datestamp": "1791358239",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"

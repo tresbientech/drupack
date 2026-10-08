@@ -19,7 +19,7 @@
         "drupal/core-vendor-hardening": "^11.4",
         "drupal/display_builder": "1.0.0-beta8",
         "drupal/drupal_cms_content_type_base": "2.1.6",
-        "drupal/drupal_cms_installer": "2.2.2",
+        "drupal/drupal_cms_installer": "2.2.3",
         "drupal/drupal_cms_search": "2.2.0",
         "drupal/mcp_server": "^2.0@beta",
         "drupal/mcp_server_oauth-mcp_server_oauth": "^1.0@alpha",
