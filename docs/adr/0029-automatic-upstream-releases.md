@@ -63,3 +63,31 @@ PHP security release behind, and nothing had reported it.
 - Anything merged on `main` ships with the next automatic tag.
 - A push to `main` during a candidate build mirrors the candidate branch to
   GitHub and drupal.org. The next mirror run after its deletion prunes it.
+
+## Amendment, 2026-10-13
+
+A hand tag waited on a local `build/qa.sh` run and its `qa-green` record. The
+record was checked by a hook that not every machine carried, and the run
+covered Linux alone. `1.0.0-alpha4` failed its Windows job after such a tag.
+
+- A release by hand is a dispatch of `upstream.yml` with `version`. It runs no
+  bump, and the failed-candidate skip does not apply to it.
+- Its candidate is `main` plus the guide's pin, on the branch
+  `candidate/<version>`.
+- `build/next-version.py` refuses a `version` without a tag's form, and one that
+  does not sort above every tag.
+- Every candidate commit rewrites the version `docs/build-your-site.md` names,
+  through `build/pin-docs.py`. The fingerprint is taken before that rewrite.
+- No person pushes a version tag, and no tag waits on a `qa-green` record. The
+  forge still accepts such a push; `docs/backlog.md` holds that question.
+- `.gitea/workflows/release-node.yml` runs each day before the upstream run. It
+  fails while Packagist lists no `drupal/drupack` release for the highest tag.
+- [ADR 0032](0032-drupacked-demo-own-repository.md) takes Drupacked Demo out of
+  this run.
+
+Consequences:
+
+- A hand release costs two full matrices, as an automatic one does.
+- The guide on `main` names a version before its tag run publishes it. A red tag
+  run leaves that pin on an unpublished version until the next one ships.
+- The node check is red on each day a tag waits for its node.
