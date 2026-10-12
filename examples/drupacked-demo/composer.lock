@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b68e9e0796949506f4632d2b3189802e",
+    "content-hash": "a8a2117a73ce784ff868baff10e71ed6",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -6081,20 +6081,20 @@
         },
         {
             "name": "drupal/search_api",
-            "version": "1.41.0",
+            "version": "1.42.0",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/search_api.git",
-                "reference": "8.x-1.41"
+                "reference": "8.x-1.42"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/search_api-8.x-1.41.zip",
-                "reference": "8.x-1.41",
-                "shasum": "bb030951ee9a09fac67e8cde5b495c3b67e2949d"
+                "url": "https://ftp.drupal.org/files/projects/search_api-8.x-1.42.zip",
+                "reference": "8.x-1.42",
+                "shasum": "a8f18e5873f50551eadfe03c4454bcb8e85eacce"
             },
             "require": {
-                "drupal/core": "^10.3 || ^11"
+                "drupal/core": "^10.3 || ^11 || ^12"
             },
             "conflict": {
                 "drupal/search_api_solr": "2.* || 3.0 || 3.1"
@@ -6113,8 +6113,8 @@
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "8.x-1.41",
-                    "datestamp": "1780907071",
+                    "version": "8.x-1.42",
+                    "datestamp": "1791743454",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"
@@ -6911,8 +6911,8 @@
                     "dev-2.0.x": "2.0.x-dev"
                 },
                 "drupal": {
-                    "version": "2.0.21+20-dev",
-                    "datestamp": "1791357940",
+                    "version": "2.0.22+2-dev",
+                    "datestamp": "1791748218",
                     "security-coverage": {
                         "status": "not-covered",
                         "message": "Dev releases are not covered by Drupal security advisories."
@@ -7218,17 +7218,17 @@
         },
         {
             "name": "drupal/wordpal",
-            "version": "1.0.0-alpha5",
+            "version": "1.0.0-alpha6",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/wordpal.git",
-                "reference": "1.0.0-alpha5"
+                "reference": "1.0.0-alpha6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/wordpal-1.0.0-alpha5.zip",
-                "reference": "1.0.0-alpha5",
-                "shasum": "8766bd417e52f4e8204541ad6e353c678a09280b"
+                "url": "https://ftp.drupal.org/files/projects/wordpal-1.0.0-alpha6.zip",
+                "reference": "1.0.0-alpha6",
+                "shasum": "b458f404e632bc4215d845c2b3dee881a2c7646a"
             },
             "require": {
                 "drupal/core": "^11.4",
@@ -7245,6 +7245,7 @@
                 "drupal/pathauto": "^1.13",
                 "drupal/search_api": "^1.41",
                 "drupal/search_api_db": "*",
+                "drupal/tool": "^1.0.0-beta11",
                 "drupal/trash": "^3.1",
                 "drupal/ui_patterns": "2.0.x-dev#e47d09e482e8689917f94113a5fb6450ea647cdf",
                 "drupal/ui_patterns-ui_patterns_field_formatters": "*",
@@ -7263,14 +7264,15 @@
                 "drupal/canvas": "Required by wordpal_canvas and wordpal_canvas_runtime, the Canvas target.",
                 "drupal/display_builder": "Required by wordpal_display_builder and wordpal_display_builder_runtime, the Display Builder target.",
                 "drupal/pathauto": "Installed by every Site recipe a conversion writes.",
+                "drupal/tool": "Required by wordpal_tool, which offers the conversion as a Tool API tool.",
                 "drupal/ui_patterns": "Required by the Display Builder target.",
                 "drupal/ui_skins": "Required by the Display Builder target."
             },
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "1.0.0-alpha5",
-                    "datestamp": "1791371152",
+                    "version": "1.0.0-alpha6",
+                    "datestamp": "1791772528",
                     "security-coverage": {
                         "status": "not-covered",
                         "message": "Alpha releases are not covered by Drupal security advisories."
