@@ -1,9 +1,9 @@
 name: Upstream
 
-# Releases Drupack when an upstream it pins has a newer version inside its line.
-# The bump is built and tested on every platform, with build/qa.sh, by GitHub's
-# release.yml before the forge receives main and the tag; the mirror and the tag
-# run of release.yml then publish it as they publish a hand tag.
+# Releases Drupack when an upstream it pins has a newer version inside its line,
+# or when a dispatch names a version. The candidate is built and tested on every
+# platform, with build/qa.sh, by GitHub's release.yml before the forge receives
+# main and the tag; the mirror and the tag run of release.yml then publish it.
 #
 # The job runs on the forge because nothing outside the LAN reaches the forge.
 # It writes the forge with gitea.token and reaches GitHub outbound.
@@ -13,8 +13,12 @@ on:
     - cron: '17 5 * * *'
   workflow_dispatch:
     inputs:
+      version:
+        description: Release main under this version, with no bump.
+        type: string
+        default: ''
       dry_run:
-        description: Print the bump and stop before any push.
+        description: Print the candidate's diff and stop before any push.
         type: boolean
         default: false
       force:
@@ -53,18 +57,28 @@ jobs:
           tools: composer
 
       - id: bump
-        name: Bump the pins
+        name: Bump the pins, or take the version the dispatch names
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
+          NAMED: ${{ inputs.version }}
         run: |
-          python3 build/upstream.py | tee "$RUNNER_TEMP/summary.md"
-          if [ -z "$(git status --porcelain)" ]; then
-            echo 'No pin moved.'
-            exit 0
+          if [ -n "$NAMED" ]; then
+            version=$(python3 build/next-version.py "$NAMED")
+            branch=candidate/$version
+            : >"$RUNNER_TEMP/summary.md"
+          else
+            python3 build/upstream.py | tee "$RUNNER_TEMP/summary.md"
+            if [ -z "$(git status --porcelain)" ]; then
+              echo 'No pin moved.'
+              exit 0
+            fi
+            # The same upstream state rewrites the same diff, so its digest names the
+            # candidate. The guide's pin joins the diff after the digest is taken.
+            branch=upstream/$(git diff | sha256sum | cut -c 1-16)
+            version=$(python3 build/next-version.py)
           fi
-          # The same upstream state rewrites the same diff, so its digest names the candidate.
-          fingerprint=$(git diff | sha256sum | cut -c 1-16)
-          printf 'branch=upstream/%s\n' "$fingerprint" >>"$GITHUB_OUTPUT"
+          python3 build/pin-docs.py "$version"
+          printf 'branch=%s\nversion=%s\n' "$branch" "$version" >>"$GITHUB_OUTPUT"
 
       - id: decide
         name: Stop at a dry run or a failed candidate
@@ -73,33 +87,43 @@ jobs:
           BRANCH: ${{ steps.bump.outputs.branch }}
           DRY_RUN: ${{ inputs.dry_run }}
           FORCE: ${{ inputs.force }}
+          NAMED: ${{ inputs.version }}
           GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
         run: |
           if [ "$DRY_RUN" = true ]; then
             git diff -- . ':!*.lock'
             exit 0
           fi
-          failed=$(curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "$GITHUB_API/actions/workflows/release.yml/runs?branch=$BRANCH&status=failure" | jq .total_count)
-          if [ "$failed" -gt 0 ] && [ "$FORCE" != true ]; then
-            printf '%s already failed; dispatch with force to build it again.\n' "$BRANCH"
-            exit 0
+          # A named version is built whatever an earlier run on its branch did.
+          if [ -z "$NAMED" ] && [ "$FORCE" != true ]; then
+            failed=$(curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "$GITHUB_API/actions/workflows/release.yml/runs?branch=$BRANCH&status=failure" | jq .total_count)
+            if [ "$failed" -gt 0 ]; then
+              printf '%s already failed; dispatch with force to build it again.\n' "$BRANCH"
+              exit 0
+            fi
           fi
           echo 'build=true' >>"$GITHUB_OUTPUT"
 
       - id: candidate
         name: Commit the candidate
         if: steps.decide.outputs.build
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+          NAMED: ${{ inputs.version }}
         run: |
-          version=$(python3 build/next-version.py)
+          subject="bump upstreams for $VERSION"
+          if [ -n "$NAMED" ]; then
+            subject="pin docs to $VERSION"
+          fi
           git config user.name 'Drupack upstream'
           git config user.email 'upstream@tresbien.tech'
           git commit --quiet --all --file - <<EOF
-          bump upstreams for $version
+          $subject
 
           $(cat "$RUNNER_TEMP/summary.md")
           EOF
-          printf 'version=%s\nsha=%s\n' "$version" "$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
+          printf 'version=%s\nsha=%s\n' "$VERSION" "$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
 
       # The mirror deploy key may push to the GitHub repository alone.
       - name: Reach GitHub

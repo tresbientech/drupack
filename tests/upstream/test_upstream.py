@@ -259,13 +259,19 @@ class Bumper(unittest.TestCase):
             self.run_bumper(upstream.composer)
 
 
+def build_script(case, name):
+    """build/NAME.py as a module. Its own imports find build/ on sys.path."""
+    sys.path.insert(0, str(ROOT / "build"))
+    case.addCleanup(sys.path.remove, str(ROOT / "build"))
+    spec = importlib.util.spec_from_file_location(name.replace("-", "_"), ROOT / "build" / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class NextVersion(unittest.TestCase):
     def setUp(self):
-        sys.path.insert(0, str(ROOT / "build"))
-        self.addCleanup(sys.path.remove, str(ROOT / "build"))
-        spec = importlib.util.spec_from_file_location("next_version", ROOT / "build" / "next-version.py")
-        self.module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(self.module)
+        self.module = build_script(self, "next-version")
 
     def test_a_prerelease_raises_its_prerelease_number(self):
         self.assertEqual(self.module.next_version(["0.9.0", "1.0.0-alpha1", "1.0.0-alpha2"]), "1.0.0-alpha3")
@@ -275,6 +281,53 @@ class NextVersion(unittest.TestCase):
 
     def test_a_prerelease_number_past_nine_counts_on(self):
         self.assertEqual(self.module.next_version(["1.0.0-beta9", "1.0.0-beta10"]), "1.0.0-beta11")
+
+    def test_a_named_version_above_every_tag_is_taken(self):
+        self.assertEqual(self.module.named_version("1.0.0-beta1", ["0.9.0", "1.0.0-alpha11"]), "1.0.0-beta1")
+
+    def test_a_named_version_at_or_below_a_tag_stops_the_run(self):
+        for version in ("1.0.0-alpha11", "1.0.0-alpha2", "0.9.1"):
+            with self.subTest(version), self.assertRaises(SystemExit):
+                self.module.named_version(version, ["0.9.0", "1.0.0-alpha11"])
+
+    def test_a_named_version_no_tag_run_would_publish_stops_the_run(self):
+        for version in ("v1.0.0", "1.0", "1.0.0-ALPHA12", "1.0.0-dev", "1.0.0-alpha", "1.0.0 "):
+            with self.subTest(version), self.assertRaises(SystemExit):
+                self.module.named_version(version, ["0.9.0"])
+
+
+class PinDocs(unittest.TestCase):
+    def setUp(self):
+        self.module = build_script(self, "pin-docs")
+        self.guide = (ROOT / self.module.GUIDE).read_text()
+
+    def test_every_line_naming_the_version_takes_the_new_one(self):
+        current = re.search(self.module.PIN, self.guide, re.MULTILINE)[1]
+        pinned = self.module.pin(self.guide, "9.8.7")
+        self.assertNotIn(current, pinned)
+        for line in ("drupack-build:9.8.7", "build.yml@9.8.7", "ref: 9.8.7", "version: 9.8.7"):
+            self.assertIn(line, pinned)
+        self.assertEqual(pinned.count("9.8.7"), self.guide.count(current))
+
+    def test_a_guide_without_the_workflow_ref_stops_the_run(self):
+        with self.assertRaises(SystemExit):
+            self.module.pin("no pin here\n", "9.8.7")
+
+
+class ReleaseNode(unittest.TestCase):
+    def setUp(self):
+        self.module = build_script(self, "release-node")
+
+    def test_the_highest_tag_missing_from_packagist_is_named(self):
+        self.assertEqual(self.module.unlisted(["1.0.0-alpha5", "1.0.0-alpha10", "0.9.0"], ["0.9.0", "1.0.0-alpha5"]),
+                         "1.0.0-alpha10")
+
+    def test_a_listed_highest_tag_names_nothing(self):
+        self.assertIsNone(self.module.unlisted(["1.0.0-alpha5", "1.0.0-alpha6"], ["1.0.0-alpha6", "1.0.0-alpha5"]))
+
+    def test_an_older_tag_without_a_node_names_nothing(self):
+        self.assertIsNone(self.module.unlisted(["1.0.0-alpha5", "1.0.0-alpha6"], ["1.0.0-alpha6"]))
+
 
 if __name__ == "__main__":
     unittest.main()
