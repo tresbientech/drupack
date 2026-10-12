@@ -1,12 +1,12 @@
 # PRD: A site builds for macOS and Windows
 
-Source: the design session of 2026-09-27. Shelved: `docs/backlog.md` holds the open question. An ADR records the decision once work starts.
+Source: the design session of 2026-09-27. Taken up on 2026-10-13: [ADR 0032](../adr/0032-drupacked-demo-own-repository.md) makes Drupacked Demo's own repository the first site to build this way.
 
 ## Problem Statement
 
 A site owner builds executables with Drupack's reusable GitHub workflow. That
-workflow builds Linux targets only. The Mercury Demo that Drupack releases runs
-on Linux, macOS and Windows. A site built on the same engine cannot reach a
+workflow builds Linux targets only. Drupacked Demo, which Drupack's own release
+builds, runs on Linux, macOS and Windows. A site built on the same engine cannot reach a
 reader on macOS or Windows.
 
 Drupack's own release compiles each macOS and Windows runtime on a runner of
@@ -42,14 +42,14 @@ and local builds keep building Linux only.
 10. As a site owner, I want the release to list each executable as `NAME-VERSION-TARGET`, with `install-NAME.sh` and `install-NAME.ps1`, so that readers install with one line on any system.
 11. As a site owner, I want `checksums.txt`, `release.json`, the SBOM and the provenance to cover every target, so that readers can verify any download.
 12. As a reader on macOS, I want the install script to pick my architecture's build, so that I download the one that runs.
-13. As a reader on Windows, I want the PowerShell install script to install the site's Windows build, so that I start it the way Mercury Demo readers do.
+13. As a reader on Windows, I want the PowerShell install script to install the site's Windows build, so that I start it the way Drupacked Demo readers do.
 14. As a site owner on GitLab or Gitea, I want a macOS or Windows target refused with a message naming the GitHub workflow, so that I know where those targets build.
 15. As a site owner building on my own machine, I want the same refusal, so that the rule holds everywhere.
 16. As an engine maintainer, I want the runtime files taken from the jobs that already compile these runtimes, so that no runtime compiles twice.
 17. As an engine maintainer, I want the runtime files covered by the release's attestation, so that their origin is provable.
 18. As an engine maintainer, I want the pack tool and the conformance suite taken at the engine commit the caller pinned, so that every piece of a build matches.
 19. As an engine maintainer, I want Drupack's own call of the site workflow to stay Linux-only, so that a release run never waits on files it has not published.
-20. As an engine maintainer, I want the example repository to build every target after each engine release, so that the native path runs against published files.
+20. As an engine maintainer, I want the Drupacked Demo repository to build every target after each engine release, so that the native path runs against published files.
 21. As an engine maintainer, I want the target split tested without a runner, so that its rules are proven in seconds.
 22. As a reader of the site-building guide, I want the target list and the extension limit stated there, so that I learn them before my first build.
 
@@ -121,8 +121,8 @@ sees: files written, exit codes and messages. It never checks a helper.
   runtime file. One alters a byte and expects a refusal naming the file.
 - Native conformance: each native job runs the suite with the site's tests, as
   the engine's macOS and Windows jobs do.
-- Workflow wiring: the example repository's release after each engine tag. Its
-  asset list is the check.
+- Workflow wiring: the Drupacked Demo repository's release after each engine
+  tag. Its asset list is the check.
 
 ## Out of Scope
 
@@ -135,6 +135,6 @@ sees: files written, exit codes and messages. It never checks a helper.
 ## Further Notes
 
 - The macOS and Windows runtimes do not depend on the payload. Drupack's release
-  packs Mercury and the engine executable from one compiled runtime.
-- The feature ships in an engine release after 0.5.4. The example repository
-  then moves its pin and adds the three targets.
+  packs Drupacked Demo and the engine executable from one compiled runtime.
+- The feature ships in one engine release. The Drupacked Demo repository then
+  pins that release and lists the five targets.

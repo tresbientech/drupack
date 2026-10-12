@@ -1,0 +1,23 @@
+name: Release node
+
+# Goes red while Packagist lists no drupal/drupack release for the highest
+# version tag: that tag still waits for its drupal.org release node, which is
+# created by hand. The run starts before the day's upstream run, so a tag that
+# run pushes is checked the next morning.
+
+on:
+  schedule:
+    - cron: '7 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - run: python3 build/release-node.py

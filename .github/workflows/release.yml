@@ -676,8 +676,8 @@ jobs:
           path: dist/engine/drupack
           if-no-files-found: error
 
-  # An all-platform dispatch also runs the full local QA, so a release tagged by
-  # upstream.yml passes what build/qa.sh asks of a hand tag.
+  # An all-platform dispatch also runs build/qa.sh. upstream.yml dispatches one
+  # for each release candidate.
   qa:
     name: QA
     needs: linux-runtime

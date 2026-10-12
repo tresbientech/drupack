@@ -141,15 +141,14 @@ manifests live in `microsoft/winget-pkgs`, and a first package waits days for
 review. Lean: submit `drupack` with `wingetcreate new` after a release with
 versioned names, then update it from the release workflow.
 
-## Site builds for macOS and Windows
+## Whether the forge refuses a version tag pushed by a person
 
-The site workflow builds Linux targets only. Drupack's own release already
-ships Drupacked Demo for all five targets, so only a third-party site misses
-macOS and Windows. `docs/prd/native-site-builds.md` holds the design: engine
-releases publish their runtimes, and native jobs pack them with the site's
-payload. It adds code in both workflows, the release step, `drupack-build` and
-a new pack script, and removes none. Lean: wait for a site owner who needs
-those targets.
+`upstream.yml` pushes every version tag with `gitea.token`, after a green
+candidate run. The forge accepts the same push from a person, and that push
+skips the candidate. A protected-tag rule on the version patterns would refuse
+it. Whether `gitea.token` passes such a rule's allowlist is untested. A bot
+account in its place also changes how the mirror run starts. Lean: test the
+allowlist on a scratch repository before any change here.
 
 ## A cold `--help` unpacks the release
 

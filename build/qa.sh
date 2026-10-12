@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# The full QA a release tag waits on. It builds the job image, which compiles both
-# runtimes from this checkout. It builds Drupacked Demo, and a copy of it asking
-# for Node, with drupack-build inside
+# The full QA, which release.yml's qa job runs on a release candidate. It builds
+# the job image, which compiles both runtimes from this checkout. It builds
+# Drupacked Demo, and a copy of it asking for Node, with drupack-build inside
 # that image, where no Docker daemon answers, and the engine executable beside
 # it. It then runs the cases that need a daemon on this host, and the engine
 # executable's cases against the Drupacked Demo application.

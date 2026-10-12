@@ -168,15 +168,22 @@ Every published executable is a launcher carrying the real executable, compresse
 
 ## Releases
 
+`.gitea/workflows/upstream.yml` pushes every version tag, as [ADR 0029](docs/adr/0029-automatic-upstream-releases.md) describes. Never push one yourself. To release `main`, dispatch that workflow on the Forge with `version`, such as `1.0.0-beta1`. The run then does four things:
+
+- refuses a version without a tag's form, or one that does not sort above every tag
+- commits the version to the pinned lines of `docs/build-your-site.md`
+- builds and tests that commit on every platform, `build/qa.sh` included
+- pushes `main` and the tag once the run is green
+
 A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.0.0-alpha1`, pushed to the Forge, mirrors to GitHub and drupal.org and starts the release workflow. It builds all seven targets and runs the suite on each, except the two musl files, which start a site on Alpine. It then publishes a GitHub Release. `build/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. A drupal.org release node, created by hand for the tag, publishes it to Packagist as a version of the Composer package `drupal/drupack`, which [ADR 0024](docs/adr/0024-composer-package.md) describes.
 
 ### Automatic releases
 
-`.gitea/workflows/upstream.yml` tags a release when an upstream moves inside its line, as [ADR 0029](docs/adr/0029-automatic-upstream-releases.md) describes. It runs on the forge's runner. `python3 build/upstream.py` runs its bump in your checkout and prints the summary the workflow logs. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed.
+The same workflow runs daily on the forge's runner, and tags a release when an upstream moves inside its line. `python3 build/upstream.py` runs its bump in your checkout and prints the summary the workflow logs. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed.
 
 To keep a package at its pin, add its name and the breakage to `HOLDS` in `build/upstream.py`. To release it, delete the entry; the next run bumps it.
 
-Each automatic tag still needs its drupal.org release node, which the run log names.
+Each tag needs its drupal.org release node, created by hand. `.gitea/workflows/release-node.yml` runs each morning and fails while Packagist lists no `drupal/drupack` release for the highest tag.
 
 ### Pushes to main
 
