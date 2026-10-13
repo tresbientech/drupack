@@ -1,9 +1,11 @@
 name: Build a site
 
 # A site repository calls this workflow at an engine tag. It builds the site's
-# executables in the engine's job image and uploads them, and with `publish` a tag
-# run releases them in the caller's repository. The jobs declare no permissions
-# and run with the ones the calling job grants.
+# Linux executables in the engine's job image. Each macOS and Windows target
+# packs on a runner of its own system, from the runtime files of an engine
+# release. It uploads the executables, and with `publish` a tag run releases them
+# in the caller's repository. The jobs declare no permissions and run with the
+# ones the calling job grants.
 on:
   workflow_call:
     inputs:
@@ -12,10 +14,13 @@ on:
         type: string
         default: .
       platforms:
-        description: "Comma-separated targets: linux-amd64, linux-arm64. Unset, drupack.yml's platforms."
+        description: "Comma-separated targets: linux-amd64, linux-arm64, macos-amd64, macos-arm64, windows-amd64. Unset, drupack.yml's platforms."
         type: string
       libc:
         description: "The Linux files to build, one per C library: both, glibc or musl. Unset, drupack.yml's libc."
+        type: string
+      runtime-release:
+        description: "The Drupack release whose macOS and Windows runtime files the native targets pack. A caller pinned to a tag uses that tag. A caller pinned to a branch or a commit must set it to build those targets."
         type: string
       publish:
         description: On a tag run, release the executables in the calling repository.
@@ -34,8 +39,13 @@ jobs:
     timeout-minutes: 5
     outputs:
       image: ${{ steps.image.outputs.image }}
+      repository: ${{ steps.image.outputs.repository }}
+      commit: ${{ steps.image.outputs.commit }}
+      runtime-release: ${{ steps.image.outputs.runtime_release }}
     steps:
       - id: image
+        env:
+          RUNTIME_RELEASE: ${{ inputs.runtime-release }}
         run: |
           if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
             echo 'The calling job must grant id-token: write, which names the engine ref.' >&2
@@ -53,6 +63,7 @@ jobs:
           # A caller pinned to an annotated tag gets the tag object's SHA in the token,
           # and an image carries the commit's. The tag must still name the signed SHA.
           prefix=dev
+          runtime_release=$RUNTIME_RELEASE
           if [[ $workflow_ref == *@refs/tags/* ]]; then
             prefix=sha
             tag=refs/tags/${workflow_ref##*@refs/tags/}
@@ -65,23 +76,34 @@ jobs:
               exit 1
             fi
             workflow_sha=$commit
+            runtime_release=${tag#refs/tags/}
           fi
           # Every engine release run pushes its job image under the commit, a tag run
           # before any image carries the version: sha-COMMIT from a tag run,
           # dev-COMMIT from any other.
           image=ghcr.io/$repository-build:$prefix-$workflow_sha
           echo "Engine: $workflow_ref ($workflow_sha), image $image"
-          printf 'image=%s\n' "$image" >>"$GITHUB_OUTPUT"
+          {
+            printf 'image=%s\n' "$image"
+            printf 'repository=%s\n' "$repository"
+            printf 'commit=%s\n' "$workflow_sha"
+            printf 'runtime_release=%s\n' "$runtime_release"
+          } >>"$GITHUB_OUTPUT"
 
-  # The job image carries the engine, its runtimes and drupack-build. No Docker
-  # daemon answers inside it, so the suite skips the cases that need one. The
-  # build writes under /tmp: runner.temp names the host's path, not the container's.
+  # The job image carries the engine, its Linux runtimes and drupack-build. No
+  # Docker daemon answers inside it, so the suite skips the cases that need one.
+  # The build writes under /tmp: runner.temp names the host's path, not the
+  # container's. It also exports the payload and lists the native targets for
+  # the native jobs.
   build:
     needs: engine
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     container:
       image: ${{ needs.engine.outputs.image }}
+    outputs:
+      native: ${{ steps.build.outputs.native }}
+      version: ${{ steps.build.outputs.version }}
     # A container job runs steps with sh unless told otherwise.
     defaults:
       run:
@@ -93,11 +115,13 @@ jobs:
           persist-credentials: false
 
       - name: Build the executables
+        id: build
         env:
           SITE: ${{ inputs.site }}
           PLATFORMS: ${{ inputs.platforms }}
           LIBC: ${{ inputs.libc }}
           SHA: ${{ github.sha }}
+          RUNTIME_RELEASE: ${{ needs.engine.outputs.runtime-release }}
           # composer install reads it, and an unset secret leaves it empty, which Composer ignores.
           COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
         run: |
@@ -112,8 +136,21 @@ jobs:
           targets=()
           if [ -n "$PLATFORMS" ]; then targets+=(--platform "$PLATFORMS"); fi
           if [ -n "$LIBC" ]; then targets+=(--libc "$LIBC"); fi
-          drupack-build --site "$SITE" "${targets[@]}" \
+          # A native target packs a published runtime, so a build that names none is refused before it starts.
+          if [ -z "$RUNTIME_RELEASE" ]; then
+            requested=${PLATFORMS:-$(drupack-build --site "$SITE" --describe \
+              | python3 -c 'import json, sys; print(",".join(json.load(sys.stdin)["platforms"]))')}
+            case ",$requested," in
+              *,macos-*|*,windows-*)
+                echo "The platforms $requested name a macOS or Windows target. A caller pinned to a branch or a commit sets the runtime-release input to the Drupack release whose runtime files those targets pack." >&2
+                exit 1
+                ;;
+            esac
+          fi
+          drupack-build --site "$SITE" "${targets[@]}" --native \
             --site-version "$version" --output /tmp/drupack/dist --work /tmp/drupack/work
+          printf 'version=%s\n' "$version" >>"$GITHUB_OUTPUT"
+          printf 'native=%s\n' "$(cat /tmp/drupack/dist/payload/native-targets.json)" >>"$GITHUB_OUTPUT"
 
       - name: Upload test results
         if: failure()
@@ -122,33 +159,116 @@ jobs:
           name: test-results
           path: /tmp/drupack/work/test-results
 
+      # The payload stays out of the executables, and goes up only for the native jobs.
       - uses: actions/upload-artifact@v7
         with:
           name: executables
-          path: /tmp/drupack/dist
+          path: |
+            /tmp/drupack/dist
+            !/tmp/drupack/dist/payload
           if-no-files-found: error
-
-      # The job image carries release-files.py at the engine version the caller pinned.
-      - name: Write the release files
-        if: inputs.publish && github.ref_type == 'tag'
-        env:
-          VERSION: ${{ github.ref_name }}
-        run: |
-          python3 "$DRUPACK_ENGINE/build/release-files.py" --output /tmp/drupack/release --version "$VERSION" \
-            --base-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$VERSION" \
-            --commit "$GITHUB_SHA" /tmp/drupack/dist/*-linux-*
 
       - uses: actions/upload-artifact@v7
-        if: inputs.publish && github.ref_type == 'tag'
+        if: steps.build.outputs.native != '[]'
         with:
-          name: release
-          path: /tmp/drupack/release
+          name: payload
+          path: /tmp/drupack/dist/payload
           if-no-files-found: error
+
+  # One job per macOS or Windows target, on a runner of that system. It packs the
+  # payload with the runtime file of the engine release, and runs the conformance
+  # suite on the result with the site's tests. The pack tool, the pack script and
+  # the suite come from the engine commit the caller pinned.
+  native:
+    needs: [engine, build]
+    if: needs.build.outputs.native != '[]'
+    runs-on: ${{ matrix.target == 'macos-arm64' && 'macos-15' || matrix.target == 'macos-amd64' && 'macos-15-intel' || 'windows-2025' }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.build.outputs.native) }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ needs.engine.outputs.repository }}
+          ref: ${{ needs.engine.outputs.commit }}
+          path: drupack-engine
+          persist-credentials: false
+
+      # The release workflow names the Go version the launcher builds with.
+      - id: go
+        run: |
+          version=$(sed -n "s/^  GO_VERSION: '\(.*\)'$/\1/p" drupack-engine/.github/workflows/release.yml)
+          [ -n "$version" ] || { echo 'release.yml names no GO_VERSION.' >&2; exit 1; }
+          printf 'version=%s\n' "$version" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ steps.go.outputs.version }}
+          cache: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: payload
+          path: payload
+
+      - name: Pack the site
+        env:
+          TARGET: ${{ matrix.target }}
+          RUNTIME_RELEASE: ${{ needs.engine.outputs.runtime-release }}
+          ENGINE_REPOSITORY: ${{ needs.engine.outputs.repository }}
+          SITE_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          name=$(jq -r .name payload/site.json)
+          extension=
+          if [ "$RUNNER_OS" = Windows ]; then extension=.exe; fi
+          bash drupack-engine/build/native-pack.sh \
+            --base-url "$GITHUB_SERVER_URL/$ENGINE_REPOSITORY/releases/download/$RUNTIME_RELEASE" \
+            --target "$TARGET" --payload payload --output "dist/$name-$TARGET$extension" \
+            --site-version "$SITE_VERSION"
+          cp payload/site.json dist/site.json
+          printf 'EXECUTABLE=dist/%s\n' "$name-$TARGET$extension" >>"$GITHUB_ENV"
+
+      # The executable uploads before the suite, so a run the suite hangs still keeps it.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: executable-${{ matrix.target }}
+          path: ${{ env.EXECUTABLE }}
+          if-no-files-found: error
+
+      - name: Run the conformance suite
+        env:
+          SITE: ${{ inputs.site }}
+        run: |
+          python=python3
+          if [ "$RUNNER_OS" = Windows ]; then python=python; fi
+          tests=()
+          if [ -d "$SITE/tests" ]; then tests=(--site-tests "$SITE/tests"); fi
+          "$python" drupack-engine/tests/conformance "$EXECUTABLE" test-results/conformance ${tests[@]+"${tests[@]}"}
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-${{ matrix.target }}
+          path: test-results
 
   # The calling job grants contents: write, id-token: write and attestations: write.
   publish:
-    needs: build
-    if: inputs.publish && github.ref_type == 'tag'
+    needs: [engine, build, native]
+    # The native jobs are skipped when the build lists no native target.
+    if: >-
+      !cancelled() && inputs.publish && github.ref_type == 'tag'
+      && needs.build.result == 'success'
+      && (needs.native.result == 'success' || needs.native.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -157,17 +277,35 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v8
-        with:
-          name: release
-          path: release
-
+      # The SBOM scans the site before the engine and the executables join the workspace.
       - name: Generate the SBOM
         uses: anchore/sbom-action@v0
         with:
           path: ${{ inputs.site }}
           format: cyclonedx-json
-          output-file: release/sbom.cdx.json
+          output-file: ${{ runner.temp }}/sbom.cdx.json
+
+      # The engine at the pinned commit holds the script that writes the release files.
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ needs.engine.outputs.repository }}
+          ref: ${{ needs.engine.outputs.commit }}
+          path: drupack-engine
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: executable*
+          path: executables
+          merge-multiple: true
+
+      - name: Write the release files
+        run: |
+          shopt -s nullglob
+          python3 drupack-engine/build/release-files.py --output release --version "$VERSION" \
+            --base-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$VERSION" \
+            --commit "$GITHUB_SHA" executables/*-linux-* executables/*-macos-* executables/*-windows-*
+          mv "$RUNNER_TEMP/sbom.cdx.json" release/
 
       - name: Attest the release files
         uses: actions/attest-build-provenance@v2

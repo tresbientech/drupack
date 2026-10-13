@@ -313,6 +313,8 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       site: examples/drupacked-demo
+      # The macOS and Windows runtime files of this run are not published yet.
+      platforms: linux-amd64
 
   linux:
     name: Linux ${{ matrix.arch }}
