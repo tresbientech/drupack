@@ -362,3 +362,64 @@ A CI that runs jobs in a container image uses the image and runs the
 
 The build runs the conformance suite on the executable for its own platform. The
 cases that need a Docker daemon skip inside the job image.
+
+## Keeping the pins current
+
+A site repository pins three things:
+
+- the engine version, in its workflow
+- its Composer packages, in `composer.json` and `composer.lock`
+- its Node release, when `drupack.yml` names an exact version
+
+[Renovate](https://docs.renovatebot.com/) bumps all three. It opens a pull
+request per bump and pushes no tag, so a release stays a tag push. On GitHub
+the Mend Renovate app runs it. A Gitea site
+[runs it self-hosted](https://docs.renovatebot.com/getting-started/running/).
+
+`renovate.json`, at the repository root:
+
+```json
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^drupack\\.yml$/"],
+      "matchStrings": ["node: (?<currentValue>\\d+\\.\\d+\\.\\d+)\\n"],
+      "depNameTemplate": "node",
+      "datasourceTemplate": "node-version"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": ["tresbientech/drupack", "ghcr.io/tresbientech/drupack-build"],
+      "versioning": "composer"
+    }
+  ]
+}
+```
+
+Renovate then reads:
+
+- the engine version, from the tag after `build.yml@` in a GitHub workflow and
+  from the job image's tag in a Gitea workflow
+- the Composer packages, from `composer.json` and `composer.lock`, with
+  `packages.drupal.org` taken from the `repositories` entry
+- the Node release, from the `node:` line of `drupack.yml`
+
+The custom manager matches an exact Node version. `node: true` and a major line
+such as `node: 24` match nothing.
+
+The package rule orders Drupack's tags as Composer does, where `alpha10` follows
+`alpha9`. Semver ordering places `alpha10` before `alpha9`.
+
+Two kinds of pin need more:
+
+- A branch commit pin such as `2.0.x-dev#b55538e` is left alone. It moves by
+  hand.
+- A package held below a version takes a rule of its own in `packageRules`:
+
+  ```json
+  {"matchPackageNames": ["twig/twig"], "allowedVersions": "<3.30"}
+  ```
