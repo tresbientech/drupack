@@ -136,5 +136,7 @@ sees: files written, exit codes and messages. It never checks a helper.
 
 - The macOS and Windows runtimes do not depend on the payload. Drupack's release
   packs Drupacked Demo and the engine executable from one compiled runtime.
-- The feature ships in one engine release. The Drupacked Demo repository then
-  pins that release and lists the five targets.
+- The feature ships in two engine releases. The first publishes the runtime
+  Release files. The second carries the target split and the native jobs, after
+  the Drupacked Demo repository ran them from a branch pin with
+  `runtime-release`. The demo then pins that release and lists the five targets.

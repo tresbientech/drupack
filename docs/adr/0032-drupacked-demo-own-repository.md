@@ -1,7 +1,7 @@
 # Drupacked Demo releases from its own repository
 
-Accepted on 2026-10-13. Nothing here is built yet. The first step is
-[the native site builds PRD](../prd/native-site-builds.md).
+Accepted on 2026-10-13. Nothing here is built yet. Steps 1 and 3 of the order
+below build [the native site builds PRD](../prd/native-site-builds.md).
 
 ## Context
 
@@ -21,8 +21,10 @@ any pin move.
 ## Decision
 
 - Drupacked Demo moves to its own repository, canonical on the Forge and
-  mirrored to GitHub. It is a site repository: its workflow calls `build.yml` at
+  mirrored to GitHub. It is a Site repository: its workflow calls `build.yml` at
   a Drupack tag.
+- The repository is new, `tresbientech/drupacked-demo`. The earlier example,
+  `drupack-mercury-example`, is archived when the guide's link moves.
 - The demo takes its own version, `YYYY.MM.N`: the year, the month, and a
   counter that starts at 1 each month. `2026.10.1` sorts above every demo
   version already installed.
@@ -30,15 +32,34 @@ any pin move.
   packs them in native jobs. The demo keeps its five targets.
 - The demo's daily run bumps its Composer pins, its lock, its Node pin and the
   Drupack tag its workflow names. Any move tags the demo.
+- The demo repository holds its bumper: the Composer, Node and hold code of
+  `build/upstream.py`, and the bump of the Drupack tag.
+- A demo tag follows a green candidate run of the demo's workflow on its five
+  targets, as a Drupack tag follows one of `release.yml`.
 - This repository's daily run bumps PHP and FrankenPHP alone. A Drupack tag
   comes from one of those moves, or from a `version` dispatch.
 - A Drupack release publishes no demo file.
 - `release.yml` and `build/qa.sh` build the demo repository at a tag this
   repository pins, and run its site tests. Each Drupack candidate moves that pin.
+- `build.yml` takes a site's repository and ref as inputs. `release.yml` calls it
+  with the demo repository at the pinned tag.
 - `drupack.tresbien.tech/demo.sh` and `/demo.ps1` redirect to the `latest`
   release of the demo repository.
 - `docs/build-your-site.md` names the demo repository as its worked example.
 - Until the demo repository releases, the daily run here tags on any move.
+
+## Order
+
+Each step ships alone.
+
+1. A Drupack release publishes its macOS and Windows runtimes.
+2. The demo repository is created: Linux only, no schedule, no public link.
+3. The native jobs of `build.yml` are written on a branch here. The demo
+   repository, pinned to that branch, runs them.
+4. A Drupack release carries those jobs. The demo lists five targets, turns its
+   schedule on and releases. The redirection host and the guide's link move.
+5. This repository builds the demo from its pinned tag and deletes
+   `examples/drupacked-demo`. Its daily run then bumps PHP and FrankenPHP alone.
 
 ## Considered options
 
@@ -52,6 +73,18 @@ any pin move.
 - The Drupack tag checked out, with the demo directory from `main` laid over
   it. The workflow file from `main` would then drive scripts from the tag.
 - A semver line for the demo. Two products would carry look-alike numbers.
+- Renovate as the demo's bumper. It opens a pull request per bump and pushes no
+  tag, so the forge would still run a job that merges and tags.
+  [The site guide](../build-your-site.md#keeping-the-pins-current) gives it to
+  site owners.
+- The demo laid over `drupack-mercury-example`. The mirror's pruning push would
+  delete its `0.1.x` tags and rewrite its `main`.
+- The bumper kept here and carried by the job image. A bumper fix would wait on
+  a Drupack tag before the demo got it.
+- A demo tag pushed before any build. `main` would keep a bump that failed, and
+  the next daily run would find no pin to move.
+- No call of `build.yml` from this repository. A fault in it would first show
+  in the demo's run, after its Drupack tag was frozen.
 - A frozen copy of the demo here as the site under test. The two copies drift,
   and the engine is tested on an ageing Drupal.
 
