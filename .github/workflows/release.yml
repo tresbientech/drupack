@@ -401,6 +401,9 @@ jobs:
       - name: Run the release file tests
         run: python3 -m unittest discover -s tests/conformance -p 'test_release_files.py'
 
+      - name: Run the native pack script tests
+        run: python3 -m unittest discover -s tests/conformance -p 'test_native_pack.py'
+
       - name: Run the upstream bumper tests
         run: python3 -m unittest discover -s tests/upstream
 
