@@ -3,6 +3,7 @@
 package build
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -43,7 +44,14 @@ type Request struct {
 	// PayloadOnly stops after the application payload, for a build that packs
 	// the payload elsewhere, such as macOS and Windows.
 	PayloadOnly bool
+	// Native accepts macOS and Windows targets. The plan packs the Linux ones,
+	// exports the payload to OUTPUT/payload, and lists the others there.
+	Native bool
 }
+
+// NativeList is the file in the exported payload that lists the macOS and
+// Windows targets the caller packs, as a JSON array.
+const NativeList = "native-targets.json"
 
 // Step is one unit of a build: a command to run, or a function for the steps
 // that only copy files, which writes what it reports to the build log.
@@ -81,6 +89,20 @@ func NewPlan(r Request) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
+	natives := []string{}
+	if r.Native {
+		if err := siteconfig.CheckNative(r.Platforms, r.Site.Extensions); err != nil {
+			return Plan{}, err
+		}
+		// Without Native, resolveRuntimes refuses these.
+		r.Platforms = slices.DeleteFunc(slices.Clone(r.Platforms), func(platform string) bool {
+			if siteconfig.Native(platform) {
+				natives = append(natives, platform)
+				return true
+			}
+			return false
+		})
+	}
 	resolved, err := resolveRuntimes(r, libcs)
 	if err != nil {
 		return Plan{}, err
@@ -117,7 +139,7 @@ func NewPlan(r Request) (Plan, error) {
 		{Name: "lay the engine over the site", Func: func(io.Writer) error { return layEngine(r.Engine, application, r.Site.Docroot) }},
 	}}
 	if r.Site.Node != "" {
-		plan.Steps = slices.Insert(plan.Steps, 0, resolveNode(&r.Site, nodeTargets(r, libcs), r.Work))
+		plan.Steps = slices.Insert(plan.Steps, 0, resolveNode(&r.Site, nodeTargets(r, libcs, natives), r.Work))
 	}
 	// A site without a recipe ships no seed, and serves only a database that holds it.
 	if r.Site.Recipe != "" {
@@ -126,11 +148,30 @@ func NewPlan(r Request) (Plan, error) {
 	}
 	plan.Steps = append(plan.Steps, Step{Name: "archive the application",
 		Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload, r.Site.Docroot}})
-	if r.PayloadOnly {
+	destination := filepath.Join(r.Output, "payload")
+	if r.PayloadOnly || len(natives) > 0 {
+		exported := natives
+		if r.PayloadOnly {
+			exported = payloadTargets
+		}
 		plan.Steps = append(plan.Steps, Step{Name: "export the payload", Func: func(io.Writer) error {
-			return exportPayload(payload, application, filepath.Join(r.Output, "payload"), r.Site.Node != "", r.Work)
+			return exportPayload(payload, application, destination, r.Site.Node != "", r.Work, exported)
 		}})
+	}
+	if r.PayloadOnly {
 		return plan, nil
+	}
+	if r.Native {
+		plan.Steps = append(plan.Steps, Step{Name: "list the native targets", Func: func(io.Writer) error {
+			content, err := json.Marshal(natives)
+			if err != nil {
+				return err
+			}
+			if err := os.MkdirAll(destination, 0o755); err != nil {
+				return err
+			}
+			return os.WriteFile(filepath.Join(destination, NativeList), append(content, '\n'), 0o644)
+		}})
 	}
 
 	plan.Steps = append(plan.Steps, Step{Name: "write site.json beside the executables", Func: func(io.Writer) error {
@@ -163,15 +204,16 @@ func NewPlan(r Request) (Plan, error) {
 
 // payloadTargets are the builds that pack an exported payload: the release
 // workflow's Linux jobs, and the macOS and Windows builds on their own hosts.
-var payloadTargets = []string{"linux-amd64", "linux-arm64", "macos-amd64", "macos-arm64", "windows-amd64"}
+var payloadTargets = siteconfig.PlatformNames()
 
 // nodeTargets lists the targets the resolve step fetches Node for: the payload
-// targets for a payload-only build, otherwise each file the build packs.
-func nodeTargets(r Request, libcs []string) []string {
+// targets for a payload-only build, otherwise each file the build packs and
+// each native target the caller packs.
+func nodeTargets(r Request, libcs, natives []string) []string {
 	if r.PayloadOnly {
 		return payloadTargets
 	}
-	var targets []string
+	targets := slices.Clone(natives)
 	for _, platform := range r.Platforms {
 		for _, libc := range libcs {
 			targets = append(targets, runtime.Target(platform, libc == "musl"))
@@ -242,8 +284,8 @@ func requestLibcs(libc string) ([]string, error) {
 func resolveRuntimes(r Request, libcs []string) (map[string]string, error) {
 	resolved := map[string]string{}
 	for _, platform := range r.Platforms {
-		if _, ok := siteconfig.Platforms[platform]; !ok {
-			return nil, fmt.Errorf("--platform %q is not built by this release, which builds linux-amd64 and linux-arm64", platform)
+		if _, ok := siteconfig.Platforms[platform]; !ok || siteconfig.Native(platform) {
+			return nil, fmt.Errorf("target %q is not built by drupack-build, which packs the Linux targets; a macOS or Windows target builds in the GitHub workflow build.yml, called at a tag or with its runtime-release input", platform)
 		}
 		if r.PayloadOnly {
 			continue
@@ -440,15 +482,15 @@ func layEngine(engine, application, docroot string) error {
 }
 
 // exportPayload puts the payload and its site.json where a later platform build
-// reads them, with each payload target's Node archive in node/ for a site
+// reads them, with the Node archive of each of targets in node/ for a site
 // carrying Node.
-func exportPayload(payload, application, destination string, carriesNode bool, work string) error {
+func exportPayload(payload, application, destination string, carriesNode bool, work string, targets []string) error {
 	err := copyInto(destination, filepath.Join(payload, "app-payload.tar"),
 		filepath.Join(payload, "app_checksum.txt"), filepath.Join(application, siteconfig.OutputName))
 	if err != nil || !carriesNode {
 		return err
 	}
-	for _, target := range payloadTargets {
+	for _, target := range targets {
 		archive, _ := node.Archive(nodeArchives(work), target)
 		if err := copyInto(filepath.Join(destination, "node"), archive); err != nil {
 			return err

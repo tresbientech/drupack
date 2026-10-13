@@ -313,6 +313,8 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       site: examples/drupacked-demo
+      # The macOS and Windows runtime files of this run are not published yet.
+      platforms: linux-amd64
 
   linux:
     name: Linux ${{ matrix.arch }}
@@ -400,6 +402,9 @@ jobs:
 
       - name: Run the release file tests
         run: python3 -m unittest discover -s tests/conformance -p 'test_release_files.py'
+
+      - name: Run the native pack script tests
+        run: python3 -m unittest discover -s tests/conformance -p 'test_native_pack.py'
 
       - name: Run the upstream bumper tests
         run: python3 -m unittest discover -s tests/upstream

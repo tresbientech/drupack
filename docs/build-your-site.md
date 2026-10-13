@@ -36,7 +36,8 @@ settings: acme.php         # PHP the generated settings.php requires last
 port: 7225                 # the port the site listens on
 languages: [fr, de]        # translations the build fetches
 smoke_paths: [/, /about]   # paths the suite expects a 200 from, / by default
-platforms: [linux-amd64]   # targets: linux-amd64, linux-arm64
+platforms: [linux-amd64]   # targets: linux-amd64, linux-arm64,
+                           # macos-amd64, macos-arm64, windows-amd64
 libc: both                 # Linux files, one per C library: both, glibc or musl
 extensions: [gmp]          # PHP extensions the site adds to the engine's
 writable: [recipes]        # directories the site writes at runtime
@@ -52,6 +53,12 @@ files per platform: `acme-linux-amd64` with a glibc runtime and
 the one for the host. The
 `drupack-build` flags `--platform` and `--libc` override the file, and so do
 the GitHub workflow's inputs.
+
+`macos-amd64`, `macos-arm64` and `windows-amd64` build in the GitHub workflow
+alone. `drupack-build`, the Gitea and GitLab examples and a local build refuse
+them and name that workflow. A site that adds PHP extensions cannot list them:
+the build stops and names the extensions and the targets. The section on the
+GitHub workflow shows how the native targets build.
 
 `writable` lists directories relative to the project root, such as
 `web/themes/custom`. Each is a clean relative path with no `..` segment, and no two
@@ -114,7 +121,8 @@ declares an extension that neither list names, and names the packages behind
 it.
 
 The published runtimes carry the engine list alone, so a site with additions
-compiles its own on a Docker host, from an engine checkout:
+builds Linux targets only, and compiles its own runtimes on a Docker host from
+an engine checkout:
 
 ```sh
 bash build/site-runtimes.sh ../acme runtimes
@@ -217,6 +225,26 @@ jobs:
 The workflow reads the engine commit from the ref after `@`, so an engine
 upgrade changes that one line. It needs `id-token: write` to read that ref.
 
+A job in the Linux container builds the site once and builds the Linux targets.
+Each macOS or Windows target in `platforms` then gets a job on a runner of that
+system: `macos-15` for `macos-arm64`, `macos-15-intel` for `macos-amd64` and
+`windows-2025` for `windows-amd64`. The job downloads the runtime file of the
+engine release, checks its SHA-256 against that release's `checksums.txt`, and
+packs it with the site. The conformance suite then runs on the result, with the
+site's tests. A failed native job uploads its test results as
+`test-results-TARGET`.
+
+A caller pinned to a tag packs the runtimes of that tag. A caller pinned to a
+branch or a commit sets `runtime-release` to the engine release whose runtimes
+it packs. Without it, the workflow refuses the macOS and Windows targets before
+it builds:
+
+```yaml
+    uses: tresbientech/drupack/.github/workflows/build.yml@main
+    with:
+      runtime-release: 1.0.0-alpha7
+```
+
 [drupack-mercury-example](https://github.com/tresbientech/drupack-mercury-example)
 builds and releases the Mercury Demo site this way.
 
@@ -224,7 +252,10 @@ Inputs:
 
 - `site`: the site's directory, `.` by default.
 - `platforms`: comma-separated targets, `drupack.yml`'s `platforms` when unset.
+  It overrides the native targets too, so one run can build a subset.
 - `libc`: `both`, `glibc` or `musl`, `drupack.yml`'s `libc` when unset.
+- `runtime-release`: the engine release whose macOS and Windows runtime files
+  the native targets pack. A tag pin uses its own tag.
 - `publish`: on a tag run, create a release.
 
 Every run uploads the executables as the `executables` artifact. With `publish`,
@@ -232,8 +263,7 @@ a tag run creates a release in the site repository. It holds:
 
 - each executable as `NAME-VERSION-TARGET`
 - `install-NAME.sh`, which installs the build for the reader's system into the
-  current directory. The workflow builds Linux targets only, so a release
-  carries no `install-NAME.ps1`.
+  current directory, and `install-NAME.ps1` when the site has a Windows build
 - `checksums.txt` and `release.json`
 - a CycloneDX SBOM and build provenance
 
@@ -241,6 +271,12 @@ A reader installs the latest release with one line:
 
 ```sh
 curl -fsSL https://github.com/OWNER/REPO/releases/latest/download/install-NAME.sh | sh
+```
+
+On Windows, a reader runs the PowerShell script:
+
+```powershell
+irm https://github.com/OWNER/REPO/releases/latest/download/install-NAME.ps1 | iex
 ```
 
 A build without `publish` needs `contents: read` and `id-token: write` only.

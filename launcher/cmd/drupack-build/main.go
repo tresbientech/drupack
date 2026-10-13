@@ -40,13 +40,14 @@ func run() error {
 	runtimes := runtimeFlags{}
 	host := "linux-" + goruntime.GOARCH
 	site := flag.String("site", "", "the site's directory, holding composer.json and drupack.yml")
-	platforms := flag.String("platform", "", "comma-separated targets: linux-amd64, linux-arm64, overriding drupack.yml's platforms")
+	platforms := flag.String("platform", "", "comma-separated targets: linux-amd64, linux-arm64, and with --native macos-amd64, macos-arm64, windows-amd64, overriding drupack.yml's platforms")
 	libc := flag.String("libc", "", "the Linux files to pack, one per C library: both, glibc or musl, overriding drupack.yml's libc")
 	flag.Var(runtimes, "runtime", "a runtime directory, as PLATFORM/LIBC=DIRECTORY, repeated")
 	output := flag.String("output", "dist", "where the executables and site.json land")
 	work := flag.String("work", "", "where the application is built, a new temporary directory when unset")
 	siteVersion := flag.String("site-version", "dev", "the site's release, which --version prints")
 	payloadOnly := flag.Bool("payload-only", false, "stop after the application payload, written to OUTPUT/payload")
+	native := flag.Bool("native", false, "accept macOS and Windows targets: pack the Linux ones, export the payload to OUTPUT/payload and list the others there")
 	describe := flag.Bool("describe", false, "print the site's site.json and build nothing")
 	engineExecutable := flag.Bool("engine-executable", false, "pack the engine executable, which serves a project folder, and read no site")
 	// The job image names its own copies of these in the environment.
@@ -89,7 +90,7 @@ func run() error {
 	}
 	request := build.Request{
 		Site: described, Libc: *libc, Runtimes: runtimes,
-		Host: host, EngineVersion: *engineVersion, SiteVersion: *siteVersion, PayloadOnly: *payloadOnly,
+		Host: host, EngineVersion: *engineVersion, SiteVersion: *siteVersion, PayloadOnly: *payloadOnly, Native: *native,
 	}
 	if *platforms != "" {
 		request.Platforms = strings.Split(*platforms, ",")

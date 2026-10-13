@@ -52,6 +52,7 @@ python3 -m unittest discover -s tests/conformance -p test_harness.py
 python3 -m unittest discover -s tests/conformance -p test_environment.py
 python3 -m unittest discover -s tests/conformance -p test_app_payload.py
 python3 -m unittest discover -s tests/conformance -p test_release_files.py
+python3 -m unittest discover -s tests/conformance -p test_native_pack.py
 python3 -m unittest discover -s tests/upstream
 DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" "$work/results/conformance" --site-tests examples/drupacked-demo/tests \
     -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \
