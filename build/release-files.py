@@ -23,11 +23,12 @@ import shutil
 import subprocess
 from pathlib import Path
 
+NATIVE = r"(?:macos|windows)-(?:amd64|arm64)"
 # A Linux target names a musl build with a -musl suffix, and a glibc build with none.
 BUILD = re.compile(r"(?P<name>[a-z0-9][a-z0-9-]*)"
-                   r"-(?P<target>linux-(?:amd64|arm64)(?:-musl)?|(?:macos|windows)-(?:amd64|arm64))(?P<extension>\.exe)?")
+                   rf"-(?P<target>linux-(?:amd64|arm64)(?:-musl)?|{NATIVE})(?P<extension>\.exe)?")
 # The job image carries the Linux runtimes, so a release publishes none of them.
-RUNTIME = re.compile(r"runtime-(?P<target>(?:macos|windows)-(?:amd64|arm64))")
+RUNTIME = re.compile(rf"runtime-(?P<target>{NATIVE})")
 # The scripts carry these values inside quoted shell and PowerShell strings, so a
 # value holding a character either language reads there is refused. The version
 # also names files, so it holds no path separator.
