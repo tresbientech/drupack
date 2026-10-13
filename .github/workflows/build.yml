@@ -299,12 +299,13 @@ jobs:
           path: executables
           merge-multiple: true
 
+      # The build job's artifact also holds site.json, which names no target.
       - name: Write the release files
         run: |
-          shopt -s nullglob
+          rm executables/site.json
           python3 drupack-engine/build/release-files.py --output release --version "$VERSION" \
             --base-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$VERSION" \
-            --commit "$GITHUB_SHA" executables/*-linux-* executables/*-macos-* executables/*-windows-*
+            --commit "$GITHUB_SHA" executables/*
           mv "$RUNNER_TEMP/sbom.cdx.json" release/
 
       - name: Attest the release files

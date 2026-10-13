@@ -285,7 +285,7 @@ func resolveRuntimes(r Request, libcs []string) (map[string]string, error) {
 	resolved := map[string]string{}
 	for _, platform := range r.Platforms {
 		if _, ok := siteconfig.Platforms[platform]; !ok || siteconfig.Native(platform) {
-			return nil, fmt.Errorf("--platform %q is not built by drupack-build, which packs the Linux targets; a macOS or Windows target builds in the GitHub workflow build.yml", platform)
+			return nil, fmt.Errorf("target %q is not built by drupack-build, which packs the Linux targets; a macOS or Windows target builds in the GitHub workflow build.yml", platform)
 		}
 		if r.PayloadOnly {
 			continue

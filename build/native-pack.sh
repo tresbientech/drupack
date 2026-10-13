@@ -67,8 +67,9 @@ expected=$(awk -v file="$file" '$2 == file { print $1 }' "$work/checksums.txt")
 actual=$(sha256 "$work/$file")
 [ "$actual" = "$expected" ] || fail "$file has SHA-256 $actual, and checksums.txt lists $expected"
 
+# Each runner's tar reads a plain archive, whatever compression it was built with.
 mkdir "$work/runtime"
-tar --zstd -C "$work/runtime" -xf "$work/$file"
+zstd -dc "$work/$file" | tar -C "$work/runtime" -xf -
 
 # bash 3.2 calls an empty array unset, hence the guarded expansion below.
 node=()
