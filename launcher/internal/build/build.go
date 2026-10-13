@@ -148,21 +148,26 @@ func NewPlan(r Request) (Plan, error) {
 	}
 	plan.Steps = append(plan.Steps, Step{Name: "archive the application",
 		Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload, r.Site.Docroot}})
-	if r.PayloadOnly || r.Native {
+	destination := filepath.Join(r.Output, "payload")
+	if r.PayloadOnly || len(natives) > 0 {
 		exported := natives
 		if r.PayloadOnly {
 			exported = payloadTargets
 		}
-		destination := filepath.Join(r.Output, "payload")
 		plan.Steps = append(plan.Steps, Step{Name: "export the payload", Func: func(io.Writer) error {
 			return exportPayload(payload, application, destination, r.Site.Node != "", r.Work, exported)
 		}})
-		if r.PayloadOnly {
-			return plan, nil
-		}
+	}
+	if r.PayloadOnly {
+		return plan, nil
+	}
+	if r.Native {
 		plan.Steps = append(plan.Steps, Step{Name: "list the native targets", Func: func(io.Writer) error {
 			content, err := json.Marshal(natives)
 			if err != nil {
+				return err
+			}
+			if err := os.MkdirAll(destination, 0o755); err != nil {
 				return err
 			}
 			return os.WriteFile(filepath.Join(destination, NativeList), append(content, '\n'), 0o644)

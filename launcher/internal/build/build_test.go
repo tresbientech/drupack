@@ -721,7 +721,7 @@ func TestAPayloadOnlyBuildExportsTheNodeArchiveOfEachPayloadTarget(t *testing.T)
 }
 
 // listed runs the plan's export and list steps over a written payload and
-// returns the list of native targets.
+// returns the list of native targets. A plan with no native target exports nothing.
 func listed(t *testing.T, r build.Request, plan build.Plan) string {
 	t.Helper()
 	for _, name := range []string{"payload/app-payload.tar", "payload/app_checksum.txt", "app/site.json"} {
@@ -733,9 +733,11 @@ func listed(t *testing.T, r build.Request, plan build.Plan) string {
 			t.Fatal(err)
 		}
 	}
-	for _, name := range []string{"export the payload", "list the native targets"} {
-		if err := step(t, plan, name).Func(io.Discard); err != nil {
-			t.Fatal(err)
+	for _, planned := range plan.Steps {
+		if planned.Name == "export the payload" || planned.Name == "list the native targets" {
+			if err := planned.Func(io.Discard); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	content, err := os.ReadFile(filepath.Join(r.Output, "payload", build.NativeList))
@@ -798,11 +800,14 @@ func TestANativeBuildFromTheContractListsTheContractsNativeTargets(t *testing.T)
 	}
 }
 
-func TestANativeBuildOfLinuxTargetsListsNone(t *testing.T) {
+func TestANativeBuildOfLinuxTargetsListsNoneAndExportsNothing(t *testing.T) {
 	r := nativeRequest(t, "linux-amd64")
 	plan, err := build.NewPlan(r)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if slices.Contains(names(plan), "export the payload") {
+		t.Error("a build with no native target exports the payload")
 	}
 	if got := listed(t, r, plan); got != `[]` {
 		t.Errorf("%s = %s", build.NativeList, got)
