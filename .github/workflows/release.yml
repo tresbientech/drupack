@@ -398,6 +398,9 @@ jobs:
       - name: Run the payload archive tests
         run: python3 -m unittest discover -s tests/conformance -p 'test_app_payload.py'
 
+      - name: Run the release file tests
+        run: python3 -m unittest discover -s tests/conformance -p 'test_release_files.py'
+
       - name: Run the upstream bumper tests
         run: python3 -m unittest discover -s tests/upstream
 
@@ -530,6 +533,13 @@ jobs:
           path: dist/engine/drupack.exe
           if-no-files-found: error
 
+      # The runtime both executables carry, which the publish job archives as a Release file.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: runtime-windows-amd64
+          path: ${{ runner.temp }}\drupack\runtime
+          if-no-files-found: error
+
       - name: Run the conformance suite
         env:
           DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
@@ -624,6 +634,13 @@ jobs:
             ${{ runner.temp }}/drupack/buildroot
             ${{ runner.temp }}/drupack/pkgroot
           key: macos-${{ matrix.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder-inputs.sh', 'runtime/php-extensions.txt', 'runtime/php-extension-libs.txt') }}
+
+      # The runtime both executables carry, which the publish job archives as a Release file.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: runtime-macos-${{ matrix.arch }}
+          path: ${{ runner.temp }}/drupack/runtime
+          if-no-files-found: error
 
       - name: Run the test scripts
         env:
@@ -752,6 +769,19 @@ jobs:
           pattern: drupacked-demo-*
           path: candidates
 
+      # A tag run builds both macOS runtimes, so each lands in a directory named
+      # after its artifact. A lone match would land in the path itself, hence the
+      # Windows runtime's own step.
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: runtime-macos-*
+          path: runtimes
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: runtime-windows-amd64
+          path: runtimes/runtime-windows-amd64
+
       # Each artifact is NAME-TARGET holding one file, NAME or NAME.exe. The loop
       # names each file NAME-TARGET, keeping .exe, as release-files.py reads it.
       - name: Write the release files
@@ -762,9 +792,13 @@ jobs:
             file=${candidate##*/}
             cp "$candidate" "built/${directory##*/}${file#"${file%.exe}"}"
           done
+          runtimes=()
+          for runtime in runtimes/*; do
+            runtimes+=(--runtime "$runtime")
+          done
           python3 build/release-files.py --output release --version "$VERSION" \
             --base-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$VERSION" \
-            --commit "$GITHUB_SHA" built/*
+            --commit "$GITHUB_SHA" "${runtimes[@]}" built/*
 
       - name: Generate the SBOM
         uses: anchore/sbom-action@v0
