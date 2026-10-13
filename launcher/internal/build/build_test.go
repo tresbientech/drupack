@@ -782,6 +782,9 @@ func TestANativeBuildTakesThePlatformOverride(t *testing.T) {
 	if got := packSteps(plan); len(got) != 0 {
 		t.Errorf("pack steps = %v; want none", got)
 	}
+	if !slices.Contains(names(plan), "export the payload") {
+		t.Error("a build of native targets alone exports no payload")
+	}
 	if got := listed(t, r, plan); got != `["macos-amd64"]` {
 		t.Errorf("%s = %s", build.NativeList, got)
 	}

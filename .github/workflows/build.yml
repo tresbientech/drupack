@@ -136,21 +136,14 @@ jobs:
           targets=()
           if [ -n "$PLATFORMS" ]; then targets+=(--platform "$PLATFORMS"); fi
           if [ -n "$LIBC" ]; then targets+=(--libc "$LIBC"); fi
-          # A native target packs a published runtime, so a build that names none is refused before it starts.
-          if [ -z "$RUNTIME_RELEASE" ]; then
-            requested=${PLATFORMS:-$(drupack-build --site "$SITE" --describe \
-              | python3 -c 'import json, sys; print(",".join(json.load(sys.stdin)["platforms"]))')}
-            case ",$requested," in
-              *,macos-*|*,windows-*)
-                echo "The platforms $requested name a macOS or Windows target. A caller pinned to a branch or a commit sets the runtime-release input to the Drupack release whose runtime files those targets pack." >&2
-                exit 1
-                ;;
-            esac
-          fi
-          drupack-build --site "$SITE" "${targets[@]}" --native \
+          # A native target packs a published runtime. A run that names no release
+          # leaves --native out, and drupack-build then refuses such a target.
+          native='[]'
+          if [ -n "$RUNTIME_RELEASE" ]; then targets+=(--native); fi
+          drupack-build --site "$SITE" "${targets[@]}" \
             --site-version "$version" --output /tmp/drupack/dist --work /tmp/drupack/work
-          printf 'version=%s\n' "$version" >>"$GITHUB_OUTPUT"
-          printf 'native=%s\n' "$(cat /tmp/drupack/dist/payload/native-targets.json)" >>"$GITHUB_OUTPUT"
+          if [ -n "$RUNTIME_RELEASE" ]; then native=$(cat /tmp/drupack/dist/payload/native-targets.json); fi
+          printf 'version=%s\nnative=%s\n' "$version" "$native" >>"$GITHUB_OUTPUT"
 
       - name: Upload test results
         if: failure()
@@ -234,6 +227,7 @@ jobs:
             --base-url "$GITHUB_SERVER_URL/$ENGINE_REPOSITORY/releases/download/$RUNTIME_RELEASE" \
             --target "$TARGET" --payload payload --output "dist/$name-$TARGET$extension" \
             --site-version "$SITE_VERSION"
+          # The suite reads the site.json beside the executable it tests.
           cp payload/site.json dist/site.json
           printf 'EXECUTABLE=dist/%s\n' "$name-$TARGET$extension" >>"$GITHUB_ENV"
 

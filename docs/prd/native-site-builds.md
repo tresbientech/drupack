@@ -82,7 +82,8 @@ Native pack script:
 
 - One bash script. It runs on the macOS runners, and through Git Bash on the
   Windows runner.
-- Inputs: the release base URL, the target, the payload directory and the output.
+- Inputs: the release base URL, the target, the payload directory, the output and
+  the site's version.
 - It fetches the runtime file and `checksums.txt`, and checks the SHA-256. It
   then unpacks the runtime and runs the pack tool, with the entry `drupack` on
   macOS and `frankenphp.exe` on Windows.
