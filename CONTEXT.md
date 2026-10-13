@@ -22,6 +22,9 @@ The Drupal CMS recipe that gives a new site its starting configuration and conte
 **Site contract**:
 The `drupack.yml` beside a site's `composer.json`, naming its executable, port, Site template, default site name, translations, settings file, build targets, added PHP extensions, Writable directories, and whether it carries Bundled Node. A build writes it out as `site.json`, with the docroot `composer.json` names, and every other reader takes that file.
 
+**Site repository**:
+A repository holding one site's Composer project and Site contract. Its releases publish that Packaged site.
+
 **Seed site**:
 A preconfigured Drupal site state included in a Packaged site, installed from the Site template.
 
