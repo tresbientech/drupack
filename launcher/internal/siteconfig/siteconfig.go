@@ -34,10 +34,36 @@ var Libcs = map[string][]string{
 	"musl":  {"musl"},
 }
 
-// Platforms lists the targets this release builds, and each one's GOARCH.
+// Platforms lists the targets a site names, and each one's GOARCH.
 var Platforms = map[string]string{
-	"linux-amd64": "amd64",
-	"linux-arm64": "arm64",
+	"linux-amd64":   "amd64",
+	"linux-arm64":   "arm64",
+	"macos-amd64":   "amd64",
+	"macos-arm64":   "arm64",
+	"windows-amd64": "amd64",
+}
+
+// PlatformNames lists every target in Platforms, sorted.
+func PlatformNames() []string {
+	return slices.Sorted(maps.Keys(Platforms))
+}
+
+// Native reports whether platform is a macOS or Windows target, which builds on
+// a runner of its own system with a runtime Drupack's release publishes.
+func Native(platform string) bool {
+	_, listed := Platforms[platform]
+	return listed && !strings.HasPrefix(platform, "linux-")
+}
+
+// CheckNative refuses a site that adds PHP extensions and names a macOS or
+// Windows target: the published runtimes carry the engine's extensions alone.
+func CheckNative(platforms, extensions []string) error {
+	natives := slices.DeleteFunc(slices.Clone(platforms), func(platform string) bool { return !Native(platform) })
+	if len(natives) == 0 || len(extensions) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s cannot carry the added extensions %s: Drupack's macOS and Windows runtimes hold the engine's extensions alone",
+		strings.Join(natives, ", "), strings.Join(extensions, ", "))
 }
 
 // Site is one site's contract. Its JSON tags are the site.json shape.
@@ -200,8 +226,11 @@ func validate(site Site) error {
 	}
 	for _, platform := range site.Platforms {
 		if _, ok := Platforms[platform]; !ok {
-			return fieldError("platforms", "%q is not one of %s", platform, strings.Join(slices.Sorted(maps.Keys(Platforms)), ", "))
+			return fieldError("platforms", "%q is not one of %s", platform, strings.Join(PlatformNames(), ", "))
 		}
+	}
+	if err := CheckNative(site.Platforms, site.Extensions); err != nil {
+		return fieldError("platforms", "%v", err)
 	}
 	if _, ok := Libcs[site.Libc]; !ok {
 		return fieldError("libc", "%q is not one of %s", site.Libc, strings.Join(slices.Sorted(maps.Keys(Libcs)), ", "))

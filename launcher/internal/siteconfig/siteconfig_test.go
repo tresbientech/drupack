@@ -60,38 +60,40 @@ func TestParseNamesTheRejectedField(t *testing.T) {
 		content string
 		field   string
 	}{
-		"missing name":        {"recipe: r\nsite_name: S\n", "name:"},
-		"uppercase name":      {"name: MySite\nrecipe: r\nsite_name: S\n", "name:"},
-		"name with slash":     {"name: my/site\nrecipe: r\nsite_name: S\n", "name:"},
-		"port too high":       {minimal + "port: 70000\n", "port:"},
-		"negative port":       {minimal + "port: -1\n", "port:"},
-		"absolute recipe":     {"name: mysite\nrecipe: /etc\nsite_name: S\n", "recipe:"},
-		"escaping recipe":     {"name: mysite\nrecipe: recipes/../..\nsite_name: S\n", "recipe:"},
-		"recipe with space":   {"name: mysite\nrecipe: 'my recipe'\nsite_name: S\n", "recipe:"},
-		"missing site name":   {"name: mysite\nrecipe: r\n", "site_name:"},
-		"blank site name":     {"name: mysite\nrecipe: r\nsite_name: '  '\n", "site_name:"},
-		"two-line site name":  {"name: mysite\nrecipe: r\nsite_name: \"a\\nb\"\n", "site_name:"},
-		"english":             {minimal + "languages: [en]\n", "languages:"},
-		"language path":       {minimal + "languages: ['../fr']\n", "languages:"},
-		"relative smoke path": {minimal + "smoke_paths: [about]\n", "smoke_paths:"},
-		"escaping smoke path": {minimal + "smoke_paths: [/a/../../b]\n", "smoke_paths:"},
-		"extension path":      {minimal + "extensions: [../gmp]\n", "extensions:"},
-		"extension list":      {minimal + "extensions: ['gmp,intl']\n", "extensions:"},
-		"uppercase extension": {minimal + "extensions: [GMP]\n", "extensions:"},
-		"absolute settings":   {minimal + "settings: /etc/acme.php\n", "settings:"},
-		"escaping settings":   {minimal + "settings: ../acme.php\n", "settings:"},
-		"no platform":         {minimal + "platforms: []\n", "platforms:"},
-		"macOS platform":      {minimal + "platforms: [linux-amd64, macos-arm64]\n", "platforms:"},
-		"comma platforms":     {minimal + "platforms: linux-amd64,linux-arm64\n", "platforms"},
-		"unknown libc":        {minimal + "libc: gnu\n", "libc:"},
-		"unknown field":       {minimal + "colour: blue\n", "colour"},
-		"absolute writable":   {minimal + "writable: [/var/www]\n", "writable:"},
-		"escaping writable":   {minimal + "writable: [web/../..]\n", "writable:"},
-		"unclean writable":    {minimal + "writable: [web/themes/]\n", "writable:"},
-		"dot writable":        {minimal + "writable: [web/./themes]\n", "writable:"},
-		"backslash writable":  {minimal + "writable: ['web\\\\themes']\n", "writable:"},
-		"duplicate writable":  {minimal + "writable: [recipes, recipes]\n", "writable:"},
-		"nested writable":     {minimal + "writable: [web/themes, web/themes/custom]\n", "writable:"},
+		"missing name":         {"recipe: r\nsite_name: S\n", "name:"},
+		"uppercase name":       {"name: MySite\nrecipe: r\nsite_name: S\n", "name:"},
+		"name with slash":      {"name: my/site\nrecipe: r\nsite_name: S\n", "name:"},
+		"port too high":        {minimal + "port: 70000\n", "port:"},
+		"negative port":        {minimal + "port: -1\n", "port:"},
+		"absolute recipe":      {"name: mysite\nrecipe: /etc\nsite_name: S\n", "recipe:"},
+		"escaping recipe":      {"name: mysite\nrecipe: recipes/../..\nsite_name: S\n", "recipe:"},
+		"recipe with space":    {"name: mysite\nrecipe: 'my recipe'\nsite_name: S\n", "recipe:"},
+		"missing site name":    {"name: mysite\nrecipe: r\n", "site_name:"},
+		"blank site name":      {"name: mysite\nrecipe: r\nsite_name: '  '\n", "site_name:"},
+		"two-line site name":   {"name: mysite\nrecipe: r\nsite_name: \"a\\nb\"\n", "site_name:"},
+		"english":              {minimal + "languages: [en]\n", "languages:"},
+		"language path":        {minimal + "languages: ['../fr']\n", "languages:"},
+		"relative smoke path":  {minimal + "smoke_paths: [about]\n", "smoke_paths:"},
+		"escaping smoke path":  {minimal + "smoke_paths: [/a/../../b]\n", "smoke_paths:"},
+		"extension path":       {minimal + "extensions: [../gmp]\n", "extensions:"},
+		"extension list":       {minimal + "extensions: ['gmp,intl']\n", "extensions:"},
+		"uppercase extension":  {minimal + "extensions: [GMP]\n", "extensions:"},
+		"absolute settings":    {minimal + "settings: /etc/acme.php\n", "settings:"},
+		"escaping settings":    {minimal + "settings: ../acme.php\n", "settings:"},
+		"no platform":          {minimal + "platforms: []\n", "platforms:"},
+		"unknown platform":     {minimal + "platforms: [linux-amd64, freebsd-amd64]\n", "platforms:"},
+		"extension on macOS":   {minimal + "platforms: [macos-arm64]\nextensions: [gmp]\n", "gmp"},
+		"extension on Windows": {minimal + "platforms: [linux-amd64, windows-amd64]\nextensions: [gmp, intl]\n", "windows-amd64"},
+		"comma platforms":      {minimal + "platforms: linux-amd64,linux-arm64\n", "platforms"},
+		"unknown libc":         {minimal + "libc: gnu\n", "libc:"},
+		"unknown field":        {minimal + "colour: blue\n", "colour"},
+		"absolute writable":    {minimal + "writable: [/var/www]\n", "writable:"},
+		"escaping writable":    {minimal + "writable: [web/../..]\n", "writable:"},
+		"unclean writable":     {minimal + "writable: [web/themes/]\n", "writable:"},
+		"dot writable":         {minimal + "writable: [web/./themes]\n", "writable:"},
+		"backslash writable":   {minimal + "writable: ['web\\\\themes']\n", "writable:"},
+		"duplicate writable":   {minimal + "writable: [recipes, recipes]\n", "writable:"},
+		"nested writable":      {minimal + "writable: [web/themes, web/themes/custom]\n", "writable:"},
 	}
 	for label, c := range cases {
 		_, err := siteconfig.Parse([]byte(c.content))
@@ -278,5 +280,36 @@ func TestSiteJSONCarriesNodeInTheFormItWasGiven(t *testing.T) {
 		if err := json.Unmarshal(content, &read); err != nil || read.Node != site.Node {
 			t.Errorf("%q: site.json reads back as %q, %v; want %q", field, read.Node, err, site.Node)
 		}
+	}
+}
+
+func TestParseAcceptsEveryNativeTarget(t *testing.T) {
+	site, err := siteconfig.Parse([]byte(minimal + "platforms: [linux-amd64, macos-amd64, macos-arm64, windows-amd64]\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"linux-amd64", "macos-amd64", "macos-arm64", "windows-amd64"}; !reflect.DeepEqual(site.Platforms, want) {
+		t.Fatalf("Platforms = %v; want %v", site.Platforms, want)
+	}
+}
+
+func TestParseKeepsExtensionsOnLinuxTargets(t *testing.T) {
+	if _, err := siteconfig.Parse([]byte(minimal + "platforms: [linux-amd64, linux-arm64]\nextensions: [gmp]\n")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTheExtensionRefusalNamesTheExtensionsAndTheTargets(t *testing.T) {
+	_, err := siteconfig.Parse([]byte(minimal + "platforms: [linux-amd64, macos-arm64, windows-amd64]\nextensions: [gmp, intl]\n"))
+	if err == nil {
+		t.Fatal("Parse accepted added extensions with native targets")
+	}
+	for _, want := range []string{"macos-arm64, windows-amd64", "gmp, intl"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not name %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "linux-amd64") {
+		t.Errorf("error %q names a Linux target", err)
 	}
 }

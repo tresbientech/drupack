@@ -719,3 +719,144 @@ func TestAPayloadOnlyBuildExportsTheNodeArchiveOfEachPayloadTarget(t *testing.T)
 		}
 	}
 }
+
+// listed runs the plan's export and list steps over a written payload and
+// returns the list of native targets.
+func listed(t *testing.T, r build.Request, plan build.Plan) string {
+	t.Helper()
+	for _, name := range []string{"payload/app-payload.tar", "payload/app_checksum.txt", "app/site.json"} {
+		path := filepath.Join(r.Work, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(name), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"export the payload", "list the native targets"} {
+		if err := step(t, plan, name).Func(io.Discard); err != nil {
+			t.Fatal(err)
+		}
+	}
+	content, err := os.ReadFile(filepath.Join(r.Output, "payload", build.NativeList))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.TrimSpace(string(content))
+}
+
+func nativeRequest(t *testing.T, platforms ...string) build.Request {
+	t.Helper()
+	r := request(platforms, "glibc")
+	r.Native = true
+	r.Work, r.Output = t.TempDir(), t.TempDir()
+	return r
+}
+
+func TestANativeBuildPacksTheLinuxTargetsAndLeavesTheOthers(t *testing.T) {
+	r := nativeRequest(t, "linux-amd64", "macos-arm64", "windows-amd64")
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := packSteps(plan); !reflect.DeepEqual(got, []string{"pack linux-amd64"}) {
+		t.Errorf("pack steps = %v; want the Linux target alone", got)
+	}
+	if got := plan.Untested; len(got) != 0 {
+		t.Errorf("Untested = %v; the native targets belong to other jobs", got)
+	}
+	if got := listed(t, r, plan); got != `["macos-arm64","windows-amd64"]` {
+		t.Errorf("%s = %s", build.NativeList, got)
+	}
+}
+
+func TestANativeBuildTakesThePlatformOverride(t *testing.T) {
+	r := nativeRequest(t, "macos-amd64")
+	r.Site.Platforms = []string{"linux-amd64", "macos-arm64", "windows-amd64"}
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := packSteps(plan); len(got) != 0 {
+		t.Errorf("pack steps = %v; want none", got)
+	}
+	if got := listed(t, r, plan); got != `["macos-amd64"]` {
+		t.Errorf("%s = %s", build.NativeList, got)
+	}
+}
+
+func TestANativeBuildFromTheContractListsTheContractsNativeTargets(t *testing.T) {
+	r := nativeRequest(t)
+	r.Site.Platforms = []string{"linux-amd64", "windows-amd64"}
+	r.Libc = "glibc"
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := listed(t, r, plan); got != `["windows-amd64"]` {
+		t.Errorf("%s = %s", build.NativeList, got)
+	}
+}
+
+func TestANativeBuildOfLinuxTargetsListsNone(t *testing.T) {
+	r := nativeRequest(t, "linux-amd64")
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := listed(t, r, plan); got != `[]` {
+		t.Errorf("%s = %s", build.NativeList, got)
+	}
+}
+
+func TestABuildWithoutTheNativeFlagRefusesNativeTargetsNamingTheWorkflow(t *testing.T) {
+	_, err := build.NewPlan(request([]string{"linux-amd64", "macos-arm64"}, "glibc"))
+	if err == nil || !strings.Contains(err.Error(), `"macos-arm64"`) || !strings.Contains(err.Error(), "GitHub workflow build.yml") {
+		t.Errorf("NewPlan error = %v; want one naming the target and the GitHub workflow", err)
+	}
+	r := request([]string{"linux-amd64"}, "glibc")
+	r.Site.Platforms = []string{"linux-amd64", "windows-amd64"}
+	r.Platforms = nil
+	if _, err := build.NewPlan(r); err == nil || !strings.Contains(err.Error(), `"windows-amd64"`) {
+		t.Errorf("a contract naming Windows: NewPlan error = %v; want one naming the target", err)
+	}
+}
+
+func TestANativeBuildRefusesAddedExtensionsNamingBoth(t *testing.T) {
+	r := nativeRequest(t, "macos-arm64")
+	r.Site.Extensions = []string{"gmp"}
+	_, err := build.NewPlan(r)
+	if err == nil || !strings.Contains(err.Error(), "macos-arm64") || !strings.Contains(err.Error(), "gmp") {
+		t.Errorf("NewPlan error = %v; want one naming the target and the extension", err)
+	}
+}
+
+func TestANativeBuildExportsTheNodeArchiveOfEachNativeTarget(t *testing.T) {
+	r := nativeRequest(t, "linux-amd64", "macos-arm64", "windows-amd64")
+	r.Site.Node = "24"
+	for _, name := range []string{"payload/app-payload.tar", "payload/app_checksum.txt", "app/site.json",
+		"node/linux-amd64.tar.gz", "node/macos-arm64.tar.gz", "node/windows-amd64.zip"} {
+		path := filepath.Join(r.Work, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(name), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := step(t, plan, "export the payload").Func(io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"macos-arm64.tar.gz", "windows-amd64.zip"} {
+		if _, err := os.Stat(filepath.Join(r.Output, "payload", "node", name)); err != nil {
+			t.Errorf("payload/node/%s: %v", name, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(r.Output, "payload", "node", "linux-amd64.tar.gz")); err == nil {
+		t.Error("the payload holds a Linux Node archive, which this build packs itself")
+	}
+}
