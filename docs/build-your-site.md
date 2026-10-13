@@ -242,7 +242,7 @@ it builds:
 ```yaml
     uses: tresbientech/drupack/.github/workflows/build.yml@main
     with:
-      runtime-release: 1.0.0-alpha7
+      runtime-release: 1.0.0-alpha12
 ```
 
 [drupack-mercury-example](https://github.com/tresbientech/drupack-mercury-example)
