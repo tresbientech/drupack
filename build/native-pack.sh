@@ -17,9 +17,7 @@ fail() {
     exit 1
 }
 
-base_url= target= payload= output= site_version=
 while [ $# -gt 0 ]; do
-    [ $# -ge 2 ] || fail "$1 takes a value"
     case $1 in
         --base-url) base_url=${2%/} ;;
         --target) target=$2 ;;
@@ -29,9 +27,6 @@ while [ $# -gt 0 ]; do
         *) fail "unknown option $1" ;;
     esac
     shift 2
-done
-for option in base_url target payload output site_version; do
-    [ -n "${!option}" ] || fail "--${option//_/-} is required"
 done
 
 # Every runtime but the Windows one starts from an executable named drupack.
