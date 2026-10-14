@@ -11,7 +11,7 @@ The name of this project and of its Engine executable.
 _Avoid_: Portable Drupal, portable-drupal
 
 **Drupacked Demo**:
-The Packaged site each Drupack release publishes. Its Site template applies Drupal CMS's Mercury Demo recipe and Agent Access, and enables WordPal.
+The Packaged site that is Drupack's worked example, published from its own Site repository. Its Site template applies Drupal CMS's Mercury Demo recipe and Agent Access, and enables WordPal.
 
 **Packaged site**:
 A distributable Drupal application. One built from a Site template carries a Seed site. One built without serves a database that already holds its site.

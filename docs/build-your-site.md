@@ -245,8 +245,8 @@ it builds:
       runtime-release: 1.0.0-beta2
 ```
 
-[drupack-mercury-example](https://github.com/tresbientech/drupack-mercury-example)
-builds and releases the Mercury Demo site this way.
+[drupacked-demo](https://github.com/tresbientech/drupacked-demo) builds and
+releases Drupacked Demo this way, on the five targets.
 
 Inputs:
 
