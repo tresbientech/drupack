@@ -272,12 +272,10 @@ jobs:
           docker build --target job --build-arg RUNTIMES=release-runtimes --build-context release-runtimes=runtimes \
             --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-job .
 
-      # The demo lists macOS and Windows targets, which drupack-build refuses
-      # without --native. A payload serves every target, whichever one is named.
       - name: Export the application payload
         run: |
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
-            drupack-build --site demo --platform linux-amd64 --payload-only --output dist
+            drupack-build --site demo --payload-only --output dist
 
       # The engine executable carries the engine's files in place of an application.
       - name: Export the engine payload
@@ -291,7 +289,7 @@ jobs:
         run: |
           bash build/node-fixture.sh demo "$RUNNER_TEMP/node-site"
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$RUNNER_TEMP/node-site:/node-site" -w /src drupack-job \
-            drupack-build --site /node-site --platform linux-amd64 --payload-only --output dist/node
+            drupack-build --site /node-site --payload-only --output dist/node
 
       # A main push and a tag push of one commit run at once. Each ref type pushes
       # its own image tag, so a main run never replaces a release's image.

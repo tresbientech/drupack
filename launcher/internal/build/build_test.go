@@ -278,6 +278,15 @@ func TestAPayloadOnlyBuildNeedsNoRuntimeAndPacksNothing(t *testing.T) {
 	}
 }
 
+func TestAPayloadOnlyBuildAcceptsTheNativeTargetsOfItsContract(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Site.Platforms = []string{"linux-amd64", "macos-arm64", "windows-amd64"}
+	r.Platforms, r.Runtimes, r.PayloadOnly = nil, nil, true
+	if _, err := build.NewPlan(r); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestTheRuntimeRootSuppliesTheTargetsNoRuntimeNames(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, "linux-amd64-musl"), 0o755); err != nil {

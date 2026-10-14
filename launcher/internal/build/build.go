@@ -280,11 +280,12 @@ func requestLibcs(libc string) ([]string, error) {
 }
 
 // resolveRuntimes checks each of r.Platforms and maps its "PLATFORM/LIBC" targets
-// to runtime directories. A payload-only build packs nothing and maps none.
+// to runtime directories. A payload-only build packs nothing and maps none, so
+// it accepts the macOS and Windows targets.
 func resolveRuntimes(r Request, libcs []string) (map[string]string, error) {
 	resolved := map[string]string{}
 	for _, platform := range r.Platforms {
-		if _, ok := siteconfig.Platforms[platform]; !ok || siteconfig.Native(platform) {
+		if _, ok := siteconfig.Platforms[platform]; !ok || siteconfig.Native(platform) && !r.PayloadOnly {
 			return nil, fmt.Errorf("target %q is not built by drupack-build, which packs the Linux targets; a macOS or Windows target builds in the GitHub workflow build.yml, called at a tag or with its runtime-release input", platform)
 		}
 		if r.PayloadOnly {
