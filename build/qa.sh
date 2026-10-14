@@ -5,8 +5,9 @@ set -euo pipefail
 # the job image, which compiles both runtimes from this checkout. It builds
 # Drupacked Demo at the commit build/demo-pin.sh names, and a copy of it asking
 # for Node, with drupack-build inside that image, where no Docker daemon
-# answers, and the engine executable beside it. It then runs the cases that need a daemon on this host, and the engine
-# executable's cases against the Drupacked Demo application.
+# answers, and the engine executable beside it. It then runs the cases that
+# need a daemon on this host, and the engine executable's cases against the
+# Drupacked Demo application.
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 platform=linux-$(go env GOARCH)
 executable=dist/drupacked-demo-$platform

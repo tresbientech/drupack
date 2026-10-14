@@ -1,5 +1,6 @@
-# Drupacked Demo cloned at build/demo-ref, for a local build. application/vendor
-# links to a built site's vendor directory for the PHP unit files.
+# A hand build clones Drupacked Demo into demo/, at the ref build/demo-pin.sh
+# names. application/vendor links to a built site's vendor directory for the
+# PHP unit files.
 /demo/
 /application/vendor
 /dist/
