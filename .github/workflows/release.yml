@@ -823,12 +823,15 @@ jobs:
             --base-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$VERSION" \
             --commit "$GITHUB_SHA" "${runtimes[@]}" built/*
 
+      # The action's own artifact, drupack-publish.cyclonedx.json, would match the
+      # drupack-* download above on a rerun of this job.
       - name: Generate the SBOM
         uses: anchore/sbom-action@v0
         with:
           path: .
           format: cyclonedx-json
           output-file: release/drupack.cdx.json
+          upload-artifact: false
 
       - name: Attest the release files
         uses: actions/attest-build-provenance@v2
