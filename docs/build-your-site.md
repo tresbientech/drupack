@@ -17,7 +17,7 @@ The site repository can be private. The examples use a site named `acme`.
 - `drupack.yml`, the site contract.
 - `tests/`, optional conformance cases the suite runs after the engine's own.
 
-[`examples/drupacked-demo`](../examples/drupacked-demo) is a complete site repository.
+[drupacked-demo](https://github.com/tresbientech/drupacked-demo) is a complete site repository.
 
 The build copies into the executable every file git tracks or would track,
 except its own output and work directories. List credentials such as

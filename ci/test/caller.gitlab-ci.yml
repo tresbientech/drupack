@@ -1,8 +1,10 @@
-# A caller of the template, run with gitlab-ci-local from the repository root.
-# The version names the job image build/qa.sh builds, tagged under the name the
-# template pulls.
+# A caller of the template, run with gitlab-ci-local from the repository root,
+# with Drupacked Demo cloned into demo/ as CONTRIBUTING.md shows. The version
+# names the job image build/qa.sh builds, tagged under the name the template
+# pulls. The demo lists macOS and Windows targets, which the template refuses.
 include:
   - local: /ci/drupack.gitlab-ci.yml
     inputs:
       version: local
-      site: examples/drupacked-demo
+      site: demo
+      platforms: linux-amd64

@@ -45,8 +45,23 @@ jobs:
       linux_runtime: ${{ steps.targets.outputs.linux_runtime }}
       macos: ${{ steps.targets.outputs.macos }}
       windows: ${{ steps.targets.outputs.windows }}
+      demo_repository: ${{ steps.demo.outputs.repository }}
+      demo_ref: ${{ steps.demo.outputs.ref }}
     steps:
       - uses: actions/checkout@v7
+
+      - id: demo
+        name: Name the demo commit
+        run: |
+          . build/demo-pin.sh
+          printf 'repository=%s\nref=%s\n' "$demo_repository" "$demo_ref" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.demo.outputs.repository }}
+          ref: ${{ steps.demo.outputs.ref }}
+          path: demo
+          persist-credentials: false
 
       - id: targets
         env:
@@ -119,7 +134,7 @@ jobs:
       # Every builder compiles the extensions runtime/php-extensions.txt names, so
       # a lock that declares one the file omits stops the release here.
       - name: Check the allowlist against the lock
-        run: python3 runtime/check-extensions.py examples/drupacked-demo
+        run: python3 runtime/check-extensions.py demo
 
   # A builder image carries the PHP its own build compiled, so one image serves
   # one libc on one architecture. Its content follows the inputs
@@ -219,6 +234,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ needs.gate.outputs.demo_repository }}
+          ref: ${{ needs.gate.outputs.demo_ref }}
+          path: demo
+          persist-credentials: false
+
       - uses: actions/download-artifact@v7
         with:
           pattern: runtime-linux-*
@@ -250,10 +272,12 @@ jobs:
           docker build --target job --build-arg RUNTIMES=release-runtimes --build-context release-runtimes=runtimes \
             --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-job .
 
+      # The demo lists macOS and Windows targets, which drupack-build refuses
+      # without --native. A payload serves every target, whichever one is named.
       - name: Export the application payload
         run: |
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
-            drupack-build --site examples/drupacked-demo --payload-only --output dist
+            drupack-build --site demo --platform linux-amd64 --payload-only --output dist
 
       # The engine executable carries the engine's files in place of an application.
       - name: Export the engine payload
@@ -265,9 +289,9 @@ jobs:
       # holds each of their targets' Node archives.
       - name: Export the Node fixture payload
         run: |
-          bash build/node-fixture.sh "$RUNNER_TEMP/node-site"
+          bash build/node-fixture.sh demo "$RUNNER_TEMP/node-site"
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$RUNNER_TEMP/node-site:/node-site" -w /src drupack-job \
-            drupack-build --site /node-site --payload-only --output dist/node
+            drupack-build --site /node-site --platform linux-amd64 --payload-only --output dist/node
 
       # A main push and a tag push of one commit run at once. Each ref type pushes
       # its own image tag, so a main run never replaces a release's image.
@@ -312,7 +336,8 @@ jobs:
       id-token: write
     uses: ./.github/workflows/build.yml
     with:
-      site: examples/drupacked-demo
+      repository: ${{ needs.gate.outputs.demo_repository }}
+      ref: ${{ needs.gate.outputs.demo_ref }}
       # The macOS and Windows runtime files of this run are not published yet.
       platforms: linux-amd64
 
@@ -331,6 +356,13 @@ jobs:
         include: ${{ fromJSON(needs.gate.outputs.linux) }}
     steps:
       - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ needs.gate.outputs.demo_repository }}
+          ref: ${{ needs.gate.outputs.demo_ref }}
+          path: demo
+          persist-credentials: false
 
       - uses: actions/setup-go@v7
         with:
@@ -413,7 +445,7 @@ jobs:
         env:
           DRUPACK_TEST_ENGINE: dist/engine/drupack
         run: |
-          python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests examples/drupacked-demo/tests
+          python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests demo/tests
 
       - name: Check each file's runtime and size
         run: |
@@ -452,20 +484,8 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: drupacked-demo-linux-${{ matrix.arch }}
-          path: dist/drupacked-demo
-          if-no-files-found: error
-
-      - uses: actions/upload-artifact@v7
-        with:
           name: drupack-linux-${{ matrix.arch }}
           path: dist/engine/drupack
-          if-no-files-found: error
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: drupacked-demo-linux-${{ matrix.arch }}-musl
-          path: dist/musl/drupacked-demo
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v7
@@ -485,6 +505,13 @@ jobs:
         shell: pwsh
     steps:
       - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ needs.gate.outputs.demo_repository }}
+          ref: ${{ needs.gate.outputs.demo_ref }}
+          path: demo
+          persist-credentials: false
 
       - uses: actions/setup-go@v7
         with:
@@ -525,13 +552,7 @@ jobs:
         run: |
           ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupacked-demo.exe -EnginePayloadDirectory dist\engine-payload -EngineOutput dist\engine\drupack.exe
 
-      # The executables upload before the suite, so a run the suite hangs still keeps them.
-      - uses: actions/upload-artifact@v7
-        with:
-          name: drupacked-demo-windows-amd64
-          path: dist/drupacked-demo.exe
-          if-no-files-found: error
-
+      # The engine uploads before the suite, so a run the suite hangs still keeps it.
       - uses: actions/upload-artifact@v7
         with:
           name: drupack-windows-amd64
@@ -550,7 +571,7 @@ jobs:
           DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
         run: |
           Copy-Item dist\payload\site.json dist\site.json
-          python tests/conformance dist\drupacked-demo.exe test-results\conformance --site-tests examples\drupacked-demo\tests
+          python tests/conformance dist\drupacked-demo.exe test-results\conformance --site-tests demo\tests
 
       - uses: actions/download-artifact@v8
         with:
@@ -588,6 +609,13 @@ jobs:
         include: ${{ fromJSON(needs.gate.outputs.macos) }}
     steps:
       - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ needs.gate.outputs.demo_repository }}
+          ref: ${{ needs.gate.outputs.demo_ref }}
+          path: demo
+          persist-credentials: false
 
       - uses: actions/setup-go@v7
         with:
@@ -651,7 +679,7 @@ jobs:
         env:
           DRUPACK_TEST_ENGINE: dist/engine/drupack
         run: |
-          python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests examples/drupacked-demo/tests
+          python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests demo/tests
 
       - uses: actions/download-artifact@v8
         with:
@@ -685,12 +713,6 @@ jobs:
         with:
           name: test-results-macos-${{ matrix.arch }}
           path: test-results
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: drupacked-demo-macos-${{ matrix.arch }}
-          path: dist/drupacked-demo
-          if-no-files-found: error
 
       - uses: actions/upload-artifact@v7
         with:
@@ -767,11 +789,6 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           pattern: drupack-*
-          path: candidates
-
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: drupacked-demo-*
           path: candidates
 
       # A tag run builds both macOS runtimes, so each lands in a directory named

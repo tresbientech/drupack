@@ -1,10 +1,6 @@
-# composer install --working-dir=examples/<site> writes these three, and
-# application/vendor links to one of them for the PHP unit files. Drupacked
-# Demo's site recipe sits among the recipes Composer installs.
-/examples/*/vendor/
-/examples/*/web/
-/examples/*/recipes/*
-!/examples/drupacked-demo/recipes/drupacked_demo_site/
+# Drupacked Demo cloned at build/demo-ref, for a local build. application/vendor
+# links to a built site's vendor directory for the PHP unit files.
+/demo/
 /application/vendor
 /dist/
 /dist-phase1/

@@ -50,12 +50,6 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
-        with:
-          php-version: '8.5'
-          extensions: gd, mbstring, sodium, zip
-          tools: composer
-
       - id: bump
         name: Bump the pins, or take the version the dispatch names
         env:
@@ -78,6 +72,16 @@ jobs:
             version=$(python3 build/next-version.py)
           fi
           python3 build/pin-docs.py "$version"
+          # Each candidate builds the demo's latest release, a pin outside the digest.
+          . build/demo-pin.sh
+          demo=$(curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$demo_repository/releases/latest" | jq -r .tag_name)
+          # The tag is remote input, written into a file the build sources.
+          [[ $demo =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]+$ ]] || { echo "The demo's latest release is named '$demo'." >&2; exit 1; }
+          if [ "$demo" != "$demo_ref" ]; then
+            sed -i "s/^demo_ref=.*/demo_ref=$demo/" build/demo-pin.sh
+            printf '\nDrupacked Demo: %s to %s\n' "$demo_ref" "$demo" >>"$RUNNER_TEMP/summary.md"
+          fi
           printf 'branch=%s\nversion=%s\n' "$branch" "$version" >>"$GITHUB_OUTPUT"
 
       - id: decide
@@ -91,7 +95,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
         run: |
           if [ "$DRY_RUN" = true ]; then
-            git diff -- . ':!*.lock'
+            git diff
             exit 0
           fi
           # A named version is built whatever an earlier run on its branch did.

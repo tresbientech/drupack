@@ -1,9 +1,9 @@
 # Drupack
 
-Drupack runs Drupal from a single executable. Each release publishes two:
+Drupack runs Drupal from a single executable. Two are published:
 
-- `drupack` serves a Drupal project you already have, with its own settings.
-- `drupacked-demo` is a Drupal CMS site built on the Mercury Demo recipe, with WordPal and Agent Access. It carries Drupal CMS, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers and Drush, and needs nothing else to serve a site.
+- `drupack` serves a Drupal project you already have, with its own settings. Each Drupack release publishes it.
+- `drupacked-demo` is a Drupal CMS site built on the Mercury Demo recipe, with WordPal and Agent Access. It carries Drupal CMS, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers and Drush, and needs nothing else to serve a site. [Its own repository](https://github.com/tresbientech/drupacked-demo) releases it.
 
 The first section covers `drupack`. Every later section covers the Drupacked Demo.
 
@@ -64,7 +64,7 @@ mkdir my-site; cd my-site
 irm https://drupack.tresbien.tech/demo.ps1 | iex
 ```
 
-The script picks the build for your system and processor, and checks its SHA-256. Each short URL redirects to the latest release's `install-drupacked-demo.sh` or `install-drupack.sh` on GitHub. `https://github.com/tresbientech/drupack/releases/download/VERSION/install-drupacked-demo.sh` installs one release instead.
+The script picks the build for your system and processor, and checks its SHA-256. `demo.sh` redirects to the latest Drupacked Demo release's `install-drupacked-demo.sh` on GitHub, and `install.sh` to the latest Drupack release's `install-drupack.sh`. `https://github.com/tresbientech/drupacked-demo/releases/download/VERSION/install-drupacked-demo.sh` installs one release instead.
 
 ### Linux
 
@@ -90,7 +90,7 @@ library of the build you run.
 
 ### Downloading by hand
 
-The [releases page](https://github.com/tresbientech/drupack/releases) lists every build as `NAME-VERSION-TARGET`, such as `drupacked-demo-0.5.1-macos-arm64`. A Linux target without a suffix names the glibc build, and `-musl` the musl one. A browser marks what it downloads, and the scripts avoid both marks below.
+The [Drupacked Demo releases page](https://github.com/tresbientech/drupacked-demo/releases) lists every build as `NAME-VERSION-TARGET`, such as `drupacked-demo-2026.10.2-macos-arm64`, and [Drupack's](https://github.com/tresbientech/drupack/releases) lists `drupack` the same way. A Linux target without a suffix names the glibc build, and `-musl` the musl one. A browser marks what it downloads, and the scripts avoid both marks below.
 
 - macOS Gatekeeper blocks a marked executable that carries no Apple signature. `xattr -d com.apple.quarantine drupacked-demo` clears the mark.
 - Windows SmartScreen shows "Windows protected your PC" the first time. Choose "More info", then "Run anyway".
@@ -286,7 +286,7 @@ sha256sum --ignore-missing -c checksums.txt
 On Windows, compare your file against the entry in `checksums.txt`:
 
 ```powershell
-(Get-FileHash drupacked-demo-0.5.1-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
+(Get-FileHash drupacked-demo-2026.10.2-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
 ```
 
 GitHub records where each file was built. The GitHub CLI checks that record:
@@ -295,7 +295,9 @@ GitHub records where each file was built. The GitHub CLI checks that record:
 gh attestation verify drupack-0.5.1-linux-amd64 --repo tresbientech/drupack
 ```
 
-A release also carries `release.json`, listing every executable with its target, URL, SHA-256 value and size, and `drupack.cdx.json`, a CycloneDX inventory of everything inside the executable.
+A Drupacked Demo file takes `--repo tresbientech/drupacked-demo`.
+
+A release also carries `release.json`, listing every executable with its target, URL, SHA-256 value and size, and a CycloneDX inventory of everything inside the executable: `drupack.cdx.json` in a Drupack release, `sbom.cdx.json` in a Drupacked Demo one.
 
 ## Build your own site
 
