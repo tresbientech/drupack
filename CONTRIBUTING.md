@@ -178,7 +178,7 @@ A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.0.0-al
 
 ### Automatic releases
 
-The same workflow runs daily on the forge's runner, and tags a release when PHP or FrankenPHP moves inside its line. Each candidate also moves `build/demo-pin.sh` forward to the demo's latest release, and holds a commit set by hand until a release contains it. `python3 build/upstream.py` runs its bump in your checkout and prints the summary the workflow logs. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed.
+The same workflow runs daily on the forge's runner, and tags a release when PHP or FrankenPHP moves inside its line. Each candidate also moves `build/demo-pin.sh` forward to the demo's latest release, and holds a commit set by hand until a release contains it. `python3 build/upstream.py` runs its bump in your checkout and prints the summary the workflow logs. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed. After the tag, the workflow waits for the release run the tag starts. A failed run gets one rerun of its failed jobs, and the workflow fails if that rerun fails too.
 
 Each tag needs its drupal.org release node, created by hand. `.gitea/workflows/release-node.yml` runs each morning and fails while Packagist lists no `drupal/drupack` release for the highest tag.
 

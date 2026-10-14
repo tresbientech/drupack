@@ -184,12 +184,7 @@ jobs:
           done
           [ -n "$run" ] || { echo "No release.yml run appeared for $SHA."; exit 1; }
           echo "Candidate run: $(api "$GITHUB_API/actions/runs/$run" | jq -r .html_url)"
-          while sleep 120; do
-            read -r status conclusion < <(api "$GITHUB_API/actions/runs/$run" | jq -r '"\(.status) \(.conclusion)"')
-            [ "$status" = completed ] && break
-          done
-          echo "Candidate run: $conclusion"
-          [ "$conclusion" = success ]
+          bash build/wait-for-run.sh "$run"
 
       # A main that moved since the checkout refuses the fast-forward, and with it the
       # tag. The same push deletes the candidate branch, so the mirror run below
@@ -221,3 +216,31 @@ jobs:
     if: needs.upstream.outputs.version
     uses: ./.gitea/workflows/mirror.yml
     secrets: inherit
+
+  # The mirror's tag push runs release.yml, which publishes the release. A failed
+  # run gets one rerun of its failed jobs, and fails this job if it fails again.
+  tag:
+    needs: [upstream, mirror]
+    if: needs.upstream.outputs.version
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Watch the tag's release run
+        env:
+          VERSION: ${{ needs.upstream.outputs.version }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
+        run: |
+          api() { curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" "$@"; }
+          for attempt in $(seq 30); do
+            run=$(api "$GITHUB_API/actions/workflows/release.yml/runs?event=push&branch=$VERSION" \
+              | jq -r '.workflow_runs[0].id // empty')
+            [ -n "$run" ] && break
+            sleep 10
+          done
+          [ -n "$run" ] || { echo "No release.yml run appeared for $VERSION."; exit 1; }
+          echo "Tag run: $(api "$GITHUB_API/actions/runs/$run" | jq -r .html_url)"
+          bash build/wait-for-run.sh "$run" && exit 0
+          api -X POST "$GITHUB_API/actions/runs/$run/rerun-failed-jobs"
+          bash build/wait-for-run.sh "$run"
