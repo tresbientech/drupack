@@ -250,6 +250,8 @@ releases Drupacked Demo this way, on the five targets.
 
 Inputs:
 
+- `repository` and `ref`: the site repository and the ref to build, the
+  calling run's when unset. Drupack's release run builds Drupacked Demo this way.
 - `site`: the site's directory, `.` by default.
 - `platforms`: comma-separated targets, `drupack.yml`'s `platforms` when unset.
   It overrides the native targets too, so one run can build a subset.

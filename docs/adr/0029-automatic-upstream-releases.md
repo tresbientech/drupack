@@ -91,3 +91,13 @@ Consequences:
 - The guide on `main` names a version before its tag run publishes it. A red tag
   run leaves that pin on an unpublished version until the next one ships.
 - The node check is red on each day a tag waits for its node.
+
+## Amendment, 2026-10-14
+
+[ADR 0032](0032-drupacked-demo-own-repository.md) moved Drupacked Demo to its
+own repository, with its bumper.
+
+- The daily run here bumps PHP and FrankenPHP alone. The Node, Composer and
+  `HOLDS` bumps run in the demo repository.
+- Each candidate moves `build/demo-pin.sh` to the demo's latest release. The
+  fingerprint is taken before that move, so a demo release alone tags nothing.
