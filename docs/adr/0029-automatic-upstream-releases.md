@@ -103,3 +103,19 @@ own repository, with its bumper.
   latest release. A demo release alone tags nothing, because the run stops
   first when PHP and FrankenPHP stay put. The fingerprint covers the demo pin
   since the 2026-10-15 amendment of ADR 0032.
+
+## Amendment, 2026-10-15
+
+The 1.0.0-beta2 tag run failed on 2026-10-14 when proxy.golang.org dropped a
+module download. No one saw it, and beta2 stayed unpublished.
+
+- A `tag` job runs after `mirror`. It waits for the tag's `release.yml` run,
+  reruns its failed jobs once, and fails if that rerun fails too.
+- `build/wait-for-run.sh` holds the wait, which the candidate step also calls.
+- Every Go module fetch in CI gets a second attempt through `GOPROXY`.
+
+Consequences:
+
+- A tag run costs up to two runs of its failed jobs.
+- A red tag run in the consequences above now means two failed attempts, and a
+  red `tag` job on the forge reports it.
