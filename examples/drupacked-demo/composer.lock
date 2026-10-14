@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "68883a30862292aa503972be20a33c54",
+    "content-hash": "a6cc95db071fd6dacb85566017612cf7",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -3494,16 +3494,16 @@
         },
         {
             "name": "drupal/drupal_cms_search",
-            "version": "2.2.0",
+            "version": "2.2.4",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/drupal_cms_search.git",
-                "reference": "34f1c47f8508c812fda72177dea6ac0b59d1a1ff"
+                "reference": "82624461a322e571364d00bff0e29ebc81d509ac"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://git.drupalcode.org/api/v4/projects/project%2Fdrupal_cms_search/repository/archive.zip?sha=34f1c47f8508c812fda72177dea6ac0b59d1a1ff",
-                "reference": "34f1c47f8508c812fda72177dea6ac0b59d1a1ff",
+                "url": "https://git.drupalcode.org/api/v4/projects/project%2Fdrupal_cms_search/repository/archive.zip?sha=82624461a322e571364d00bff0e29ebc81d509ac",
+                "reference": "82624461a322e571364d00bff0e29ebc81d509ac",
                 "shasum": ""
             },
             "require": {
@@ -3521,9 +3521,9 @@
             ],
             "description": "Adds a search to help visitors find content.",
             "support": {
-                "source": "https://git.drupalcode.org/project/drupal_cms_search/-/tree/2.2.0"
+                "source": "https://git.drupalcode.org/project/drupal_cms_search/-/tree/2.2.4"
             },
-            "time": "2026-09-25T18:09:39+00:00"
+            "time": "2026-10-12T06:15:12+00:00"
         },
         {
             "name": "drupal/drupal_cms_site_template_base",
@@ -6834,17 +6834,17 @@
         },
         {
             "name": "drupal/trash",
-            "version": "3.1.0",
+            "version": "3.1.1",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/trash.git",
-                "reference": "3.1.0"
+                "reference": "3.1.1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/trash-3.1.0.zip",
-                "reference": "3.1.0",
-                "shasum": "f3520fbbc847a140134fdc719ae4054e802bf31e"
+                "url": "https://ftp.drupal.org/files/projects/trash-3.1.1.zip",
+                "reference": "3.1.1",
+                "shasum": "d7b28419ca204732df10d2a166fdfcb0f17faa1a"
             },
             "require": {
                 "drupal/core": "^11.3.3 | ^12"
@@ -6853,6 +6853,8 @@
                 "drush/drush": "<12.5.1"
             },
             "require-dev": {
+                "amateescu/mago-drupal": "^0.5",
+                "carthage-software/mago": "^1.50",
                 "drupal/pathauto": "*",
                 "drupal/redirect": "*",
                 "drupal/search_api": "*",
@@ -6864,8 +6866,8 @@
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "3.1.0",
-                    "datestamp": "1789745537",
+                    "version": "3.1.1",
+                    "datestamp": "1791893108",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"
@@ -6973,7 +6975,7 @@
         },
         {
             "name": "drupal/ui_patterns_field",
-            "version": "2.0.22",
+            "version": "2.0.23",
             "require": {
                 "drupal/core": "^10.6 || ^11.3 || ^12",
                 "drupal/ui_patterns": "*"
@@ -6981,8 +6983,8 @@
             "type": "metapackage",
             "extra": {
                 "drupal": {
-                    "version": "2.0.22",
-                    "datestamp": "1791358239",
+                    "version": "2.0.23",
+                    "datestamp": "1791918588",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"
@@ -7043,7 +7045,7 @@
         },
         {
             "name": "drupal/ui_patterns_library",
-            "version": "2.0.22",
+            "version": "2.0.23",
             "require": {
                 "drupal/core": "^10.6 || ^11.3 || ^12",
                 "drupal/ui_patterns": "*"
@@ -7051,8 +7053,8 @@
             "type": "metapackage",
             "extra": {
                 "drupal": {
-                    "version": "2.0.22",
-                    "datestamp": "1791358239",
+                    "version": "2.0.23",
+                    "datestamp": "1791918588",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"
@@ -8254,16 +8256,16 @@
         },
         {
             "name": "laravel/prompts",
-            "version": "v0.3.25",
+            "version": "v0.3.26",
             "source": {
                 "type": "git",
                 "url": "https://github.com/laravel/prompts.git",
-                "reference": "21b7b49d60fcb700016dd27b582ae739c75de816"
+                "reference": "2d1e9bf6bab8d3f383c254db7f2b4ea8816d55e0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/laravel/prompts/zipball/21b7b49d60fcb700016dd27b582ae739c75de816",
-                "reference": "21b7b49d60fcb700016dd27b582ae739c75de816",
+                "url": "https://api.github.com/repos/laravel/prompts/zipball/2d1e9bf6bab8d3f383c254db7f2b4ea8816d55e0",
+                "reference": "2d1e9bf6bab8d3f383c254db7f2b4ea8816d55e0",
                 "shasum": ""
             },
             "require": {
@@ -8306,9 +8308,9 @@
             ],
             "description": "Add beautiful and user-friendly forms to your command-line applications.",
             "support": {
-                "source": "https://github.com/laravel/prompts/tree/v0.3.25"
+                "source": "https://github.com/laravel/prompts/tree/v0.3.26"
             },
-            "time": "2026-10-06T02:25:49+00:00"
+            "time": "2026-10-09T14:45:13+00:00"
         },
         {
             "name": "lcobucci/jwt",
