@@ -94,7 +94,7 @@ func NewPlan(r Request) (Plan, error) {
 		if err := siteconfig.CheckNative(r.Platforms, r.Site.Extensions); err != nil {
 			return Plan{}, err
 		}
-		// Without Native, resolveRuntimes refuses these.
+		// Without Native, resolveRuntimes refuses these outside a payload-only build.
 		r.Platforms = slices.DeleteFunc(slices.Clone(r.Platforms), func(platform string) bool {
 			if siteconfig.Native(platform) {
 				natives = append(natives, platform)
