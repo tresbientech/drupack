@@ -66,22 +66,34 @@ jobs:
               echo 'No pin moved.'
               exit 0
             fi
+          fi
+          # Each candidate builds the demo's latest release, when that release
+          # descends from the pinned commit.
+          . build/demo-pin.sh
+          demo_api=https://api.github.com/repos/$demo_repository
+          get() { curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" "$demo_api/$1"; }
+          # The tag and its commit are remote input, written into a file the build sources.
+          release=$(get releases/latest | jq -r .tag_name)
+          [[ $release =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]+$ ]] || { echo "The demo's latest release is named '$release'." >&2; exit 1; }
+          commit=$(get "commits/$release" | jq -r .sha)
+          [[ $commit =~ ^[0-9a-f]{40}$ ]] || { echo "The demo's release $release names commit '$commit'." >&2; exit 1; }
+          status=$(get "compare/$demo_ref...$commit" | jq -r .status)
+          case $status in
+            identical) ;;
+            ahead)
+              sed -i "s/^demo_release=.*/demo_release=$release/; s/^demo_ref=.*/demo_ref=$commit/" build/demo-pin.sh
+              printf '\nDrupacked Demo: %s to %s\n' "${demo_release:-$demo_ref}" "$release" >>"$RUNNER_TEMP/summary.md"
+              ;;
+            *) printf 'The demo pin holds %s: compared with it, release %s is %s.\n' "$demo_ref" "$release" "$status" ;;
+          esac
+          if [ -z "$NAMED" ]; then
             # The same upstream state rewrites the same diff, so its digest names the
-            # candidate. The guide's pin joins the diff after the digest is taken.
+            # candidate. The demo pin is in the diff, and the guide's pin joins it
+            # after the digest is taken.
             branch=upstream/$(git diff | sha256sum | cut -c 1-16)
             version=$(python3 build/next-version.py)
           fi
           python3 build/pin-docs.py "$version"
-          # Each candidate builds the demo's latest release, a pin outside the digest.
-          . build/demo-pin.sh
-          demo=$(curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$demo_repository/releases/latest" | jq -r .tag_name)
-          # The tag is remote input, written into a file the build sources.
-          [[ $demo =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]+$ ]] || { echo "The demo's latest release is named '$demo'." >&2; exit 1; }
-          if [ "$demo" != "$demo_ref" ]; then
-            sed -i "s/^demo_ref=.*/demo_ref=$demo/" build/demo-pin.sh
-            printf '\nDrupacked Demo: %s to %s\n' "$demo_ref" "$demo" >>"$RUNNER_TEMP/summary.md"
-          fi
           printf 'branch=%s\nversion=%s\n' "$branch" "$version" >>"$GITHUB_OUTPUT"
 
       - id: decide

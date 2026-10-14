@@ -34,7 +34,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
 
 `build/qa.sh` keeps its work directories and test results under `/tmp/drupack-qa/CHECKOUT`, or under the directory `DRUPACK_QA_WORK` names. It links `dist/work` to the site's work directory there. After a `build/qa.sh` run, a hand run with `--work dist/work` also needs `-v "$(readlink dist/work):$(readlink dist/work)"`.
 
-The build packs one file per platform and C library. The demo's `drupack.yml` also names macOS and Windows targets, which `drupack-build` refuses, so `--platform` names the Linux one. `--libc glibc` or `--libc musl` packs that file alone instead of both, and `--runtime PLATFORM/LIBC=DIRECTORY` replaces one runtime with a local one. `drupack-build -help` lists every option.
+The build packs one file per platform and C library. The demo's `drupack.yml` also names macOS and Windows targets, which a full build refuses, so `--platform` names the Linux one. A `--payload-only` build accepts them. `--libc glibc` or `--libc musl` packs that file alone instead of both, and `--runtime PLATFORM/LIBC=DIRECTORY` replaces one runtime with a local one. `drupack-build -help` lists every option.
 
 A release tag publishes the image as `ghcr.io/tresbientech/drupack-build:VERSION`, carrying all four Linux runtimes. The image itself runs on amd64 only.
 
@@ -69,7 +69,7 @@ The Windows build runs on a Windows host with Visual Studio Build Tools 2022 and
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
-    drupack-build --site demo --platform linux-amd64 --payload-only --output dist
+    drupack-build --site demo --payload-only --output dist
 ```
 
 That writes `app-payload.tar`, `app_checksum.txt` and `site.json` to `dist/payload`. A site asking for Node also gets `node/`, holding the verified Linux glibc, macOS and Windows archives the release workflow's builds pack.
@@ -178,7 +178,7 @@ A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.0.0-al
 
 ### Automatic releases
 
-The same workflow runs daily on the forge's runner, and tags a release when PHP or FrankenPHP moves inside its line. Each candidate also moves `build/demo-pin.sh` to the demo's latest release. `python3 build/upstream.py` runs its bump in your checkout and prints the summary the workflow logs. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed.
+The same workflow runs daily on the forge's runner, and tags a release when PHP or FrankenPHP moves inside its line. Each candidate also moves `build/demo-pin.sh` forward to the demo's latest release, and holds a commit set by hand until a release contains it. `python3 build/upstream.py` runs its bump in your checkout and prints the summary the workflow logs. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed.
 
 Each tag needs its drupal.org release node, created by hand. `.gitea/workflows/release-node.yml` runs each morning and fails while Packagist lists no `drupal/drupack` release for the highest tag.
 

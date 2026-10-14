@@ -99,5 +99,7 @@ own repository, with its bumper.
 
 - The daily run here bumps PHP and FrankenPHP alone. The Node, Composer and
   `HOLDS` bumps run in the demo repository.
-- Each candidate moves `build/demo-pin.sh` to the demo's latest release. The
-  fingerprint is taken before that move, so a demo release alone tags nothing.
+- Each candidate moves `build/demo-pin.sh` forward to the commit of the demo's
+  latest release. A demo release alone tags nothing, because the run stops
+  first when PHP and FrankenPHP stay put. The fingerprint covers the demo pin
+  since the 2026-10-15 amendment of ADR 0032.

@@ -103,3 +103,21 @@ Each step ships alone.
 - `CONTEXT.md` defines Drupacked Demo as the Packaged site each Drupack release
   publishes. That entry changes when the demo repository first releases.
 - The redirection host of INFRA ADR 0004 changes by hand, once.
+
+## Amendment, 2026-10-15
+
+A review after step 5 found that this repository could not control the pin.
+
+- `build/demo-pin.sh` pins a commit, `demo_ref`, and names its release in
+  `demo_release`. A moved tag no longer changes what an engine release tested.
+- Each candidate moves the pin to the latest demo release only when that
+  release descends from the pinned commit. A commit set by hand stays until a
+  release contains it.
+- The candidate's fingerprint covers the demo pin. A demo release that fixes a
+  failed candidate gives the next run a new candidate.
+- `drupack-build --payload-only` accepts macOS and Windows targets, since the
+  payload serves every target. The release workflow's exports name no platform.
+
+The demo's site tests stay in the demo repository. Two of them need Mercury's
+components and the demo recipe's content, and the third tests the demo's own
+settings file.
