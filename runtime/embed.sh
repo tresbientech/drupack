@@ -59,6 +59,9 @@ esac
 export GOROOT="/go/src/app/dist/static-php-cli/pkgroot/$static_php_arch/go-xcaddy"
 export GOPATH="/go/src/app/dist/static-php-cli/pkgroot/$static_php_arch/go"
 export GOTOOLCHAIN=local
+# Go moves to the next entry after a "|" on any error, so a module fetch the
+# proxy drops mid-stream gets a second attempt. go.sum checks either answer.
+export GOPROXY='https://proxy.golang.org|https://proxy.golang.org,direct'
 mkdir -p /out
 cd caddy
 "$GOROOT/bin/go" build -mod=readonly -buildmode=pie -tags="$build_tags" \

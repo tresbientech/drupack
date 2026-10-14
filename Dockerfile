@@ -88,6 +88,9 @@ FROM ${NODE_IMAGE} AS node
 FROM ${JOB_BASE} AS job
 ARG DRUPACK_VERSION
 ARG TARGETARCH
+# Go moves to the next entry after a "|" on any error, so a module fetch the
+# proxy drops mid-stream gets a second attempt. go.sum checks either answer.
+ENV GOPROXY="https://proxy.golang.org|https://proxy.golang.org,direct"
 # The conformance suite reads process arguments with procps' ps. cweagans/composer-patches
 # 1.x applies a patch to a dist install with GNU patch alone.
 RUN apt-get update && apt-get install -y --no-install-recommends patch procps python3 \

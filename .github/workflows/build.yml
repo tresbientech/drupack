@@ -37,6 +37,11 @@ on:
         description: Composer's auth.json content, for private packages the site requires.
         required: false
 
+env:
+  # Go moves to the next entry after a "|" on any error, so a module fetch the
+  # proxy drops mid-stream gets a second attempt. go.sum checks either answer.
+  GOPROXY: https://proxy.golang.org|https://proxy.golang.org,direct
+
 jobs:
   # The github context of a called workflow names the caller. The OIDC token names
   # this file at the ref the caller pinned, so the calling job grants id-token: write.
