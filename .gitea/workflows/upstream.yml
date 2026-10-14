@@ -79,10 +79,12 @@ jobs:
           [[ $commit =~ ^[0-9a-f]{40}$ ]] || { echo "The demo's release $release names commit '$commit'." >&2; exit 1; }
           status=$(get "compare/$demo_ref...$commit" | jq -r .status)
           case $status in
-            identical) ;;
-            ahead)
+            # A commit set by hand gets its release name once a release holds it.
+            identical | ahead)
               sed -i "s/^demo_release=.*/demo_release=$release/; s/^demo_ref=.*/demo_ref=$commit/" build/demo-pin.sh
-              printf '\nDrupacked Demo: %s to %s\n' "${demo_release:-$demo_ref}" "$release" >>"$RUNNER_TEMP/summary.md"
+              if [ "$status" = ahead ]; then
+                printf '\nDrupacked Demo: %s to %s\n' "${demo_release:-${demo_ref:0:12}}" "$release" >>"$RUNNER_TEMP/summary.md"
+              fi
               ;;
             *) printf 'The demo pin holds %s: compared with it, release %s is %s.\n' "$demo_ref" "$release" "$status" ;;
           esac
