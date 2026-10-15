@@ -134,15 +134,15 @@ release took two full matrices, about three hours.
 - The tag run's gate looks for a successful dispatch run of that name at the
   tag's commit. When it finds one, every build job skips, and `publish`
   downloads that run's artifacts.
-- The candidate's payload job pushes the job image as `sha-COMMIT` beside
-  `dev-COMMIT`, so the tag run can name it after the version.
-- A tag with no such run builds every platform, as before.
+- The candidate pushes the job image as `sha-COMMIT` beside `dev-COMMIT`, so
+  the tag run can name it after the version.
+- A tag with no such run, or one whose artifacts expired after 90 days, builds
+  every platform, as before.
 
 Consequences:
 
-- A release costs one full matrix, which replaces the two the consequences
-  above name.
+- A release, automatic or by hand, costs one full matrix. This replaces the two
+  matrices the consequences above name.
+- A tag run with a candidate publishes its files, where a hand tag builds.
 - The provenance attestation names the tag run, while the candidate run built
   the files from the same workflow at the same commit.
-- Artifacts expire after 90 days. A tag run started later than that finds the
-  candidate run but no files, and fails.

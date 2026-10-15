@@ -114,7 +114,8 @@ Workflow:
   fast-forward, plus the tag. A moved `main` rejects the push, and the run fails
   with no tag.
 - D25. The mirror and the tag run of `release.yml` stay unchanged. They publish
-  as they do for a hand tag.
+  as they do for a hand tag. ADR 0029's amendment of 2026-10-15 replaces this:
+  the tag run publishes the candidate's files.
 
 Credentials and records:
 
@@ -164,11 +165,10 @@ Credentials and records:
 - Lifting a hold or shipping a major.
 - Caddy apart from FrankenPHP, and SQLite apart from the builder image.
 - The Dockerfile's tooling images and the GitHub Actions versions.
-- Reusing the candidate's artifacts in the tag run.
 
 ## Further Notes
 
-- A release costs two full matrices, about 67 minutes each, plus `qa.sh`. The
-  candidate run spends the first, and the tag run the second.
+- A release costs one full matrix, about 67 minutes, plus `qa.sh`. The
+  candidate run spends it.
 - The first automatic release needs the deploy key secret, and a forge `main`
   that the key may push to.

@@ -89,8 +89,8 @@ all.
 ## How long the registry keeps job images
 
 Every `release.yml` run pushes the job image under its commit, so a caller of
-`build.yml` finds the image of its own commit. A tag run pushes
-`drupack-build:sha-<commit>`, and any other run `drupack-build:dev-<commit>`.
+`build.yml` finds the image of its own commit. A tag run or its candidate run
+pushes `drupack-build:sha-<commit>`, and any other run `drupack-build:dev-<commit>`.
 Each image is about 1.4 GB, and nothing deletes one. A tag also adds
 `drupack-build:<version>`. Lean: keep every version tag, and delete `dev-` tags
 older than a few weeks.
@@ -199,8 +199,8 @@ the runner to return before the exit.
 ## The Windows build's SourceForge downloads
 
 vcpkg fetches pthreads from SourceForge, which on 2026-10-01 served an HTML page
-in place of the zip. A run with no Windows build cache then fails. A tag run reads
-only its own cache and main's, so a release during such an outage fails on
+in place of the zip. A run with no Windows build cache then fails. A candidate run
+reads only its own cache and main's, so a release during such an outage fails on
 Windows. Lean: point `X_VCPKG_ASSET_SOURCES` at our own copy of each download,
 keyed by its SHA-512.
 

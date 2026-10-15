@@ -89,9 +89,9 @@ jobs:
             workflow_sha=$commit
             runtime_release=${tag#refs/tags/}
           fi
-          # Every engine release run pushes its job image under the commit, a tag run
-          # before any image carries the version: sha-COMMIT from a tag run,
-          # dev-COMMIT from any other.
+          # Every engine release run pushes its job image under the commit, before
+          # any image carries the version: sha-COMMIT from a tag run or a candidate,
+          # dev-COMMIT from any other run.
           image=ghcr.io/$repository-build:$prefix-$workflow_sha
           echo "Engine: $workflow_ref ($workflow_sha), image $image"
           {

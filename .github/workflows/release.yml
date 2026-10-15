@@ -55,6 +55,7 @@ jobs:
     outputs:
       build: ${{ steps.targets.outputs.build }}
       candidate: ${{ steps.targets.outputs.candidate }}
+      image_tags: ${{ steps.targets.outputs.image_tags }}
       version: ${{ steps.targets.outputs.version }}
       linux: ${{ steps.targets.outputs.linux }}
       linux_runtime: ${{ steps.targets.outputs.linux_runtime }}
@@ -98,10 +99,24 @@ jobs:
           macos='[]'
           windows='[]'
           candidate=
+          # The job image's tags: build.yml reads sha-COMMIT at a tag and dev-COMMIT
+          # on a branch, and a tag run publishes its candidate's sha-COMMIT.
+          image_tags=dev
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            image_tags=sha
+          elif [ -n "$NAMED" ] && [ "$PLATFORM" = all ]; then
+            image_tags='dev sha'
+          fi
           # The forge tags the commit its candidate run built, under the same version.
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             candidate=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/release.yml/runs?head_sha=$SHA&event=workflow_dispatch&status=success" \
               | jq -r --arg title "Release candidate $version" '[.workflow_runs[] | select(.display_title == $title)][0].id // empty')
+          fi
+          # Artifacts expire after 90 days, and a candidate without them is rebuilt.
+          if [ -n "$candidate" ] && [ "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$candidate/artifacts?per_page=100" \
+            --jq 'any(.artifacts[]; .expired)')" = true ]; then
+            echo "The files of candidate run $candidate expired."
+            candidate=
           fi
           if [ -n "$candidate" ]; then
             echo "Publishing the files of candidate run $candidate."
@@ -151,6 +166,7 @@ jobs:
             printf 'version=%s\n' "$version"
             printf 'build=%s\n' "$build"
             printf 'candidate=%s\n' "$candidate"
+            printf 'image_tags=%s\n' "$image_tags"
             printf 'linux=%s\n' "$linux"
             printf 'linux_runtime=%s\n' "$linux_runtime"
             printf 'macos=%s\n' "$macos"
@@ -320,21 +336,13 @@ jobs:
 
       # A main push and a tag push of one commit run at once. A release's image is
       # sha-COMMIT and a main run pushes dev-COMMIT, so a main run never replaces it.
-      # A candidate pushes both: build.yml reads dev-COMMIT on a branch, and the tag
-      # run publishes sha-COMMIT.
       - name: Push the job image under this commit
         env:
           GH_TOKEN: ${{ github.token }}
-          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+          IMAGE_TAGS: ${{ needs.gate.outputs.image_tags }}
         run: |
-          prefixes=(dev)
-          if [ "$GITHUB_REF_TYPE" = tag ]; then
-            prefixes=(sha)
-          elif [[ $DRUPACK_VERSION != dev-* ]]; then
-            prefixes+=(sha)
-          fi
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          for prefix in "${prefixes[@]}"; do
+          for prefix in $IMAGE_TAGS; do
             docker tag drupack-job "ghcr.io/$GITHUB_REPOSITORY-build:$prefix-$GITHUB_SHA"
             docker push "ghcr.io/$GITHUB_REPOSITORY-build:$prefix-$GITHUB_SHA"
           done
