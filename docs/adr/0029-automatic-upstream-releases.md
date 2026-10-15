@@ -113,6 +113,10 @@ module download. No one saw it, and beta2 stayed unpublished.
   reruns its failed jobs once, and fails if that rerun fails too.
 - `build/wait-for-run.sh` holds the wait, which the candidate step also calls.
 - Every Go module fetch in CI gets a second attempt through `GOPROXY`.
+- `RELEASE_PUBLISH_TOKEN`, a GitHub Actions secret, creates the GitHub Release.
+  It is a fine-grained token on this repository with Contents and Workflows
+  write. GitHub refuses `github.token` a release whose commit has other
+  `.github/workflows` files than main. Main had moved by beta2's rerun.
 
 Consequences:
 

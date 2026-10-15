@@ -845,7 +845,11 @@ jobs:
           docker buildx imagetools create --tag "ghcr.io/$GITHUB_REPOSITORY-build:$VERSION" \
             "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA"
 
+      # GitHub refuses github.token a release whose commit differs from main in
+      # .github/workflows, which happens once main moves during a tag run.
       - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
         run: |
           gh release create "$VERSION" release/* \
             --repo "$GITHUB_REPOSITORY" \
