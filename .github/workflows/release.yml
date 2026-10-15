@@ -1,4 +1,6 @@
 name: Release
+# A tag run finds its candidate run by this name.
+run-name: ${{ inputs.version != '' && inputs.platform == 'all' && format('Release candidate {0}', inputs.version) || '' }}
 
 on:
   push:
@@ -10,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       platform:
-        description: Target to build and test; a tag push always builds every platform.
+        description: Target to build and test; a tag push builds every platform unless its candidate run did.
         type: choice
         default: all
         options:
@@ -20,6 +22,10 @@ on:
           - macos-arm64
           - macos-amd64
           - windows-amd64
+      version:
+        description: The version a forge candidate run builds, which its tag run then publishes.
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -33,16 +39,22 @@ env:
   GOPROXY: https://proxy.golang.org|https://proxy.golang.org,direct
 
 jobs:
-  # What a run covers. A tag and a dispatch cover every platform, and a dispatch
-  # can name one. A main push covers Linux amd64, and only when it touched
-  # something an executable carries. GitHub leaves the effect of a path filter on
-  # a tag push undocumented, so the comparison happens here rather than under `on:`.
+  # What a run covers. A tag whose candidate run succeeded builds nothing and
+  # publishes that run's files. Any other tag, and a dispatch, cover every
+  # platform, and a dispatch can name one. A main push covers Linux amd64, and only
+  # when it touched something an executable carries. GitHub leaves the effect of a
+  # path filter on a tag push undocumented, so the comparison happens here rather
+  # than under `on:`.
   gate:
     name: gate
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
     outputs:
       build: ${{ steps.targets.outputs.build }}
+      candidate: ${{ steps.targets.outputs.candidate }}
       version: ${{ steps.targets.outputs.version }}
       linux: ${{ steps.targets.outputs.linux }}
       linux_runtime: ${{ steps.targets.outputs.linux_runtime }}
@@ -72,17 +84,28 @@ jobs:
           BEFORE: ${{ github.event.before }}
           SHA: ${{ github.sha }}
           PLATFORM: ${{ inputs.platform || 'all' }}
+          NAMED: ${{ inputs.version }}
         run: |
           # Every job that builds a runtime or packs one names the same version.
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             version=$GITHUB_REF_NAME
+          elif [ -n "$NAMED" ]; then
+            version=$NAMED
           else
             version=dev-${SHA:0:12}
           fi
           linux='[]'
           macos='[]'
           windows='[]'
-          if [ "$GITHUB_REF_TYPE" = tag ] || [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+          candidate=
+          # The forge tags the commit its candidate run built, under the same version.
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            candidate=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/release.yml/runs?head_sha=$SHA&event=workflow_dispatch&status=success" \
+              | jq -r --arg title "Release candidate $version" '[.workflow_runs[] | select(.display_title == $title)][0].id // empty')
+          fi
+          if [ -n "$candidate" ]; then
+            echo "Publishing the files of candidate run $candidate."
+          elif [ "$GITHUB_REF_TYPE" = tag ] || [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
             case "$PLATFORM" in
               all)
                 linux='[{"arch":"amd64"},{"arch":"arm64"}]'
@@ -127,6 +150,7 @@ jobs:
           {
             printf 'version=%s\n' "$version"
             printf 'build=%s\n' "$build"
+            printf 'candidate=%s\n' "$candidate"
             printf 'linux=%s\n' "$linux"
             printf 'linux_runtime=%s\n' "$linux_runtime"
             printf 'macos=%s\n' "$macos"
@@ -250,7 +274,7 @@ jobs:
           path: runtime-artifacts
 
       # The runtime jobs' exports stand in for the runtimes stage, so no builder
-      # image is pulled here. A tag run built all four.
+      # image is pulled here. A run of every platform built all four.
       - name: Build the job image
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
@@ -294,18 +318,26 @@ jobs:
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$RUNNER_TEMP/node-site:/node-site" -w /src drupack-job \
             drupack-build --site /node-site --payload-only --output dist/node
 
-      # A main push and a tag push of one commit run at once. Each ref type pushes
-      # its own image tag, so a main run never replaces a release's image.
+      # A main push and a tag push of one commit run at once. A release's image is
+      # sha-COMMIT and a main run pushes dev-COMMIT, so a main run never replaces it.
+      # A candidate pushes both: build.yml reads dev-COMMIT on a branch, and the tag
+      # run publishes sha-COMMIT.
       - name: Push the job image under this commit
         env:
           GH_TOKEN: ${{ github.token }}
+          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
-          prefix=dev
-          if [ "$GITHUB_REF_TYPE" = tag ]; then prefix=sha; fi
-          image=ghcr.io/$GITHUB_REPOSITORY-build:$prefix-$GITHUB_SHA
+          prefixes=(dev)
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            prefixes=(sha)
+          elif [[ $DRUPACK_VERSION != dev-* ]]; then
+            prefixes+=(sha)
+          fi
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          docker tag drupack-job "$image"
-          docker push "$image"
+          for prefix in "${prefixes[@]}"; do
+            docker tag drupack-job "ghcr.io/$GITHUB_REPOSITORY-build:$prefix-$GITHUB_SHA"
+            docker push "ghcr.io/$GITHUB_REPOSITORY-build:$prefix-$GITHUB_SHA"
+          done
 
       - uses: actions/upload-artifact@v7
         with:
@@ -772,11 +804,13 @@ jobs:
             printf '```\n'
           } >>"$GITHUB_STEP_SUMMARY"
 
+  # A tag run that publishes its candidate's files skips every build job.
   publish:
-    needs: [linux, windows, macos, demo]
-    if: github.ref_type == 'tag'
+    needs: [gate, linux, windows, macos, demo]
+    if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' }}
     runs-on: ubuntu-24.04
     permissions:
+      actions: read
       attestations: write
       contents: write
       id-token: write
@@ -787,23 +821,31 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # download-artifact reads another run only when it has a token, and its own
+      # run when the token is empty.
       - uses: actions/download-artifact@v8
         with:
           pattern: drupack-*
           path: candidates
+          run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
+          github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
 
-      # A tag run builds both macOS runtimes, so each lands in a directory named
-      # after its artifact. A lone match would land in the path itself, hence the
-      # Windows runtime's own step.
+      # A tag's files come from a run of every platform, so each macOS runtime lands
+      # in a directory named after its artifact. A lone match would land in the path
+      # itself, hence the Windows runtime's own step.
       - uses: actions/download-artifact@v8
         with:
           pattern: runtime-macos-*
           path: runtimes
+          run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
+          github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
 
       - uses: actions/download-artifact@v8
         with:
           name: runtime-windows-amd64
           path: runtimes/runtime-windows-amd64
+          run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
+          github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
 
       # Each artifact is NAME-TARGET holding one file, NAME or NAME.exe. The loop
       # names each file NAME-TARGET, keeping .exe, as release-files.py reads it.

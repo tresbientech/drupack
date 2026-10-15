@@ -169,10 +169,12 @@ jobs:
         env:
           BRANCH: ${{ steps.bump.outputs.branch }}
           SHA: ${{ steps.candidate.outputs.sha }}
+          VERSION: ${{ steps.candidate.outputs.version }}
           GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
         run: |
           api() { curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" "$@"; }
-          jq -n --arg ref "$BRANCH" '{ref: $ref, inputs: {platform: "all"}}' \
+          # The run builds under the tag's version, so the tag run publishes its files.
+          jq -n --arg ref "$BRANCH" --arg version "$VERSION" '{ref: $ref, inputs: {platform: "all", version: $version}}' \
             | api -X POST "$GITHUB_API/actions/workflows/release.yml/dispatches" -d @-
           # The dispatch answers before the run exists. An earlier candidate of the
           # same bump ran on the same branch name, so the run is found by its commit.

@@ -123,3 +123,26 @@ Consequences:
 - A tag run costs up to two runs of its failed jobs.
 - A red tag run in the consequences above now means two failed attempts, and a
   red `tag` job on the forge reports it.
+
+## Amendment, 2026-10-15: the tag run publishes the candidate
+
+A tag run rebuilt and retested the commit its candidate run had built. Each
+release took two full matrices, about three hours.
+
+- The candidate dispatch passes `version`, so the candidate builds under the
+  tag's version. Its run name is `Release candidate VERSION`.
+- The tag run's gate looks for a successful dispatch run of that name at the
+  tag's commit. When it finds one, every build job skips, and `publish`
+  downloads that run's artifacts.
+- The candidate's payload job pushes the job image as `sha-COMMIT` beside
+  `dev-COMMIT`, so the tag run can name it after the version.
+- A tag with no such run builds every platform, as before.
+
+Consequences:
+
+- A release costs one full matrix, which replaces the two the consequences
+  above name.
+- The provenance attestation names the tag run, while the candidate run built
+  the files from the same workflow at the same commit.
+- Artifacts expire after 90 days. A tag run started later than that finds the
+  candidate run but no files, and fails.
