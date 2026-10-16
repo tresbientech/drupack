@@ -46,12 +46,26 @@ $downloads = [ordered]@{
     Sha256 = '13b8175e99a884c5ad34249218754b45541a1a63f216e92603aee57a285ac741'
   }
 }
-# runtime/php-extensions.txt names what every platform compiles. Five of its
-# names this PHP cannot load: apcu and brotli ship as PECL DLLs the php.net zip
-# leaves out, password-argon2 is a static-php-cli build input for a PHP that
-# compiles argon2 into php8ts.dll, and PHP has no pcntl or posix on Windows.
-# launch.php starts a child process there instead of replacing itself.
-$absentExtensions = @('apcu', 'brotli', 'password-argon2', 'pcntl', 'posix')
+# The php.net zip leaves these out. PECL publishes a DLL per PHP minor release
+# and thread-safety build.
+$phpMinor = ($phpVersion -split '\.')[0..1] -join '.'
+$peclExtensions = [ordered]@{
+  'apcu' = @{ Version = '5.1.28'; Sha256 = 'ade68cbc6ace5002a2ecac3fda9ab38ec188d4322dd83d6867213ab8411951f0' }
+  'brotli' = @{ Version = '0.21.0'; Sha256 = '5615f4e6b808dc09cd54799f068ac9ff27763317306f03a35cafef77d01a541f' }
+  'yaml' = @{ Version = '2.3.0'; Sha256 = 'def9671417f65c830d0c2475012f37a1866edbfbe2c754befb32fdec6b41b666' }
+}
+foreach ($name in $peclExtensions.Keys) {
+  $release = $peclExtensions[$name].Version
+  $downloads["php_$name.zip"] = @{
+    Urls = @("https://downloads.php.net/~windows/pecl/releases/$name/$release/php_$name-$release-$phpMinor-ts-$phpToolset.zip")
+    Sha256 = $peclExtensions[$name].Sha256
+  }
+}
+# runtime/php-extensions.txt names what every platform compiles. Three of its
+# names this PHP cannot load: password-argon2 is a static-php-cli build input
+# for a PHP that compiles argon2 into php8ts.dll, and PHP has no pcntl or posix
+# on Windows. launch.php starts a child process there instead of replacing itself.
+$absentExtensions = @('password-argon2', 'pcntl', 'posix')
 # opcache loads with no php.ini line here, and reports itself under another name.
 $preloadedExtensions = @{ 'opcache' = 'zend opcache' }
 $extensions = Get-Content (Join-Path $PSScriptRoot '..\..\runtime\php-extensions.txt') |
@@ -101,6 +115,14 @@ $frankenphpExecutable = Join-Path $runtime 'frankenphp.exe'
 foreach ($directory in $php, $phpDevel, $watcher, $runtime) { Reset-Directory $directory }
 Expand-Archive -Path $files['php.zip'] -DestinationPath $php
 Expand-Archive -Path $files['php-devel.zip'] -DestinationPath $phpDevel
+# Only the extension DLL joins ext. brotli's zip also carries brotlienc.dll, and
+# php_brotli loads the vcpkg brotli libraries the runtime ships instead.
+foreach ($name in $peclExtensions.Keys) {
+  $pecl = Join-Path $work "pecl-$name"
+  Reset-Directory $pecl
+  Expand-Archive -Path $files["php_$name.zip"] -DestinationPath $pecl
+  Copy-Item (Join-Path $pecl "php_$name.dll") (Join-Path $php 'ext')
+}
 tar -xf $files['watcher.tar'] -C $watcher
 $phpDevelRoot = Join-Path $phpDevel "php-$phpVersion-devel-$phpToolset"
 $watcherRoot = Join-Path $watcher 'x86_64-pc-windows-msvc'

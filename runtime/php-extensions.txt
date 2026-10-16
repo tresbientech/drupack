@@ -1,8 +1,8 @@
 # Every PHP extension a Drupack build compiles, one per line, with what needs
 # it. static-php-cli owns the names: Linux and macOS pass this list to
 # PHP_EXTENSIONS and spc resolves the libraries behind it. Windows maps each
-# name to a DLL in the PHP zip, or to an extension its php8ts.dll already
-# carries.
+# name to a DLL in the PHP zip or a PECL zip build.ps1 pins, or to an
+# extension its php8ts.dll already carries.
 #
 # runtime/check-extensions.py fails when a site's composer.lock declares an
 # extension this file omits.
@@ -12,11 +12,12 @@
 # mb_eregi_replace and falls back to preg_replace. calendar, exif,
 # shmop, sockets, sysvmsg, sysvsem, sysvshm, tidy and zstd have no call site at
 # all. amqp, ast, dba, gettext, gmp, igbinary, imagick, ldap, lz4, memcached,
-# mysqli, parallel, protobuf, redis, soap, ssh2, xlswriter, xmlreader, xsl
-# and yaml serve modules or database drivers Drupack does not ship.
+# mysqli, parallel, protobuf, redis, soap, ssh2, xlswriter, xmlreader and
+# xsl serve modules or database drivers Drupack does not ship.
 
 apcu             # Drupal file cache and class loader cache
 brotli           # Caddy's brotli module; core AssetDumper writes .br assets
+bz2              # core Tar archiver and config import read .tar.bz2
 ctype            # Drupal core, webmozart/assert
 curl             # Drupal HTTP client; the build fetches translations with it
 dom              # Drupal core, Drush, svg-sanitize, html5
@@ -46,5 +47,6 @@ sqlite3          # pdo_sqlite needs it
 tokenizer        # Drupal core, nikic/php-parser, psysh
 xml              # Drupal core
 xmlwriter        # simple_sitemap, which Drupal CMS site templates require
+yaml             # core InfoParserDynamic parses .info.yml with it, Symfony otherwise
 zip              # core Archiver; composer --prefer-dist during the build
 zlib             # Drupal core
