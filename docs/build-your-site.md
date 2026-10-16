@@ -1,9 +1,10 @@
 # Build your own site
 
-Drupack builds a Linux executable of any Drupal site from its Composer project and
-a recipe. The build runs `drupack-build` inside the engine's job image,
-`ghcr.io/tresbientech/drupack-build:VERSION`. The image carries the engine, PHP,
-Composer, Go, Python and all four Linux runtimes, and needs no Docker daemon.
+Drupack builds an executable of any Drupal site from its Composer project, for
+Linux, macOS and Windows. A Linux build runs `drupack-build` inside the engine's
+job image, `ghcr.io/tresbientech/drupack-build:VERSION`. The image carries the
+engine, PHP, Composer, Go, Python and all four Linux runtimes, and needs no
+Docker daemon.
 
 The site repository can be private. The examples use a site named `acme`.
 
