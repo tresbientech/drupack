@@ -35,7 +35,7 @@ Commands:
 docs/cli.md explains every command.
 TEXT;
 
-const DEFAULT_LISTEN = '127.0.0.1:8888';
+const DEFAULT_LISTEN = '127.0.0.1:3787';
 
 // composer.json is the reader's file, so a docroot it names is checked before use.
 // The Caddyfile's guards and front controller are Drupal's, so a docroot without

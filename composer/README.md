@@ -20,7 +20,7 @@ Run `vendor/bin/drupack-install` again after `composer update` changes the packa
 
 `./drupack` serves the project in the working directory, or in the directory you name after it. It refuses a folder without Drupal core. It reads the docroot from the scaffold web root in `composer.json`, `web` by default.
 
-The start prints a one-time login link through the project's Drush. It returns the prompt once the project answers on `http://127.0.0.1:8888`, and keeps serving in the background. A project without Drush serves with no link.
+The start prints a one-time login link through the project's Drush. It returns the prompt once the project answers on `http://127.0.0.1:3787`, and keeps serving in the background. A project without Drush serves with no link.
 
 - `./drupack stop` ends it.
 - `--foreground` serves in the terminal instead.

@@ -231,7 +231,7 @@ and says it already serves.
   names none.
 - The start refuses a docroot without `core/lib/Drupal.php`. The Caddyfile's
   guards and front controller are Drupal's, and would not suit a WordPress site.
-- `--listen` defaults to `127.0.0.1:8888`.
+- `--listen` defaults to `127.0.0.1:3787`.
 - The start refuses a folder whose PHP version or `composer.lock` extensions
   the bundled PHP does not meet, and names what is missing.
 - The start prints a one-time login link for uid 1, through the folder's Drush.
