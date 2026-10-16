@@ -271,14 +271,80 @@ jobs:
           name: test-results-${{ matrix.target }}
           path: test-results
 
+  # php.net publishes no arm64 PHP, so Windows on Arm runs the windows-amd64
+  # executable under emulation. This job runs the suite on it there.
+  windows-arm:
+    name: Windows arm64 (amd64 emulated)
+    needs: [engine, build, native]
+    if: contains(fromJSON(needs.build.outputs.native), 'windows-amd64')
+    runs-on: windows-11-arm
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ needs.engine.outputs.repository }}
+          ref: ${{ needs.engine.outputs.commit }}
+          path: drupack-engine
+          persist-credentials: false
+
+      # The suite packs its fixture launchers with the Go version the release workflow names.
+      - id: go
+        run: |
+          $version = (Select-String -Path drupack-engine\.github\workflows\release.yml -Pattern "^  GO_VERSION: '(.*)'$").Matches.Groups[1].Value
+          if (-not $version) { throw 'release.yml names no GO_VERSION.' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ steps.go.outputs.version }}
+          cache: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: executable-windows-amd64
+          path: dist
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: payload
+          path: payload
+
+      # The suite reads the site.json beside the executable it tests.
+      - name: Run the conformance suite
+        env:
+          SITE: ${{ inputs.site }}
+        run: |
+          Copy-Item payload\site.json dist\site.json
+          $executable = (Get-ChildItem dist\*.exe).FullName
+          $tests = if (Test-Path (Join-Path $env:SITE 'tests')) { @('--site-tests', (Join-Path $env:SITE 'tests')) } else { @() }
+          python drupack-engine\tests\conformance $executable test-results\conformance @tests
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-windows-arm64
+          path: test-results
+
   # The calling job grants contents: write, id-token: write and attestations: write.
   publish:
-    needs: [engine, build, native]
-    # The native jobs are skipped when the build lists no native target.
+    needs: [engine, build, native, windows-arm]
+    # The native jobs are skipped when the build lists no native target, and the
+    # Windows on Arm job when it lists no windows-amd64.
     if: >-
       !cancelled() && inputs.publish && github.ref_type == 'tag'
       && needs.build.result == 'success'
       && (needs.native.result == 'success' || needs.native.result == 'skipped')
+      && (needs.windows-arm.result == 'success' || needs.windows-arm.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:

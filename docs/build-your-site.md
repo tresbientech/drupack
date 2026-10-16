@@ -235,6 +235,11 @@ packs it with the site. The conformance suite then runs on the result, with the
 site's tests. A failed native job uploads its test results as
 `test-results-TARGET`.
 
+Windows on Arm runs the `windows-amd64` executable under emulation, since
+php.net publishes no arm64 PHP. A `windows-11-arm` runner runs the suite on that
+executable after the `windows-amd64` job. A failure there uploads
+`test-results-windows-arm64` and blocks the release.
+
 A caller pinned to a tag packs the runtimes of that tag. A caller pinned to a
 branch or a commit sets `runtime-release` to the engine release whose runtimes
 it packs. Without it, the workflow refuses the macOS and Windows targets before
