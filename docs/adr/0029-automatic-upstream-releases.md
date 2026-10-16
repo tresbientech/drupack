@@ -111,7 +111,8 @@ module download. No one saw it, and beta2 stayed unpublished.
 
 - A `tag` job runs after `mirror`. It waits for the tag's `release.yml` run,
   reruns its failed jobs once, and fails if that rerun fails too.
-- `build/wait-for-run.sh` holds the wait, which the candidate step also calls.
+- `build/wait-for-run.sh` finds and waits for a run, and reruns it on request.
+  The candidate step and the `tag` job both call it.
 - Every Go module fetch in CI gets a second attempt through `GOPROXY`.
 - `RELEASE_PUBLISH_TOKEN`, a GitHub Actions secret, creates the GitHub Release.
   It is a fine-grained token on this repository with Contents and Workflows

@@ -172,21 +172,13 @@ jobs:
           VERSION: ${{ steps.candidate.outputs.version }}
           GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
         run: |
-          api() { curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" "$@"; }
           # The run builds under the tag's version, so the tag run publishes its files.
           jq -n --arg ref "$BRANCH" --arg version "$VERSION" '{ref: $ref, inputs: {platform: "all", version: $version}}' \
-            | api -X POST "$GITHUB_API/actions/workflows/release.yml/dispatches" -d @-
-          # The dispatch answers before the run exists. An earlier candidate of the
-          # same bump ran on the same branch name, so the run is found by its commit.
-          for attempt in $(seq 30); do
-            run=$(api "$GITHUB_API/actions/workflows/release.yml/runs?event=workflow_dispatch&head_sha=$SHA" \
-              | jq -r '.workflow_runs[0].id // empty')
-            [ -n "$run" ] && break
-            sleep 10
-          done
-          [ -n "$run" ] || { echo "No release.yml run appeared for $SHA."; exit 1; }
-          echo "Candidate run: $(api "$GITHUB_API/actions/runs/$run" | jq -r .html_url)"
-          bash build/wait-for-run.sh "$run"
+            | curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -X POST "$GITHUB_API/actions/workflows/release.yml/dispatches" -d @-
+          # An earlier candidate of the same bump ran on the same branch name, so the
+          # run is found by its commit.
+          bash build/wait-for-run.sh "event=workflow_dispatch&head_sha=$SHA"
 
       # A main that moved since the checkout refuses the fast-forward, and with it the
       # tag. The same push deletes the candidate branch, so the mirror run below
@@ -233,16 +225,4 @@ jobs:
         env:
           VERSION: ${{ needs.upstream.outputs.version }}
           GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
-        run: |
-          api() { curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" "$@"; }
-          for attempt in $(seq 30); do
-            run=$(api "$GITHUB_API/actions/workflows/release.yml/runs?event=push&branch=$VERSION" \
-              | jq -r '.workflow_runs[0].id // empty')
-            [ -n "$run" ] && break
-            sleep 10
-          done
-          [ -n "$run" ] || { echo "No release.yml run appeared for $VERSION."; exit 1; }
-          echo "Tag run: $(api "$GITHUB_API/actions/runs/$run" | jq -r .html_url)"
-          bash build/wait-for-run.sh "$run" && exit 0
-          api -X POST "$GITHUB_API/actions/runs/$run/rerun-failed-jobs"
-          bash build/wait-for-run.sh "$run"
+        run: bash build/wait-for-run.sh "event=push&branch=$VERSION" --rerun
