@@ -479,6 +479,9 @@ jobs:
       - name: Run the native pack script tests
         run: python3 -m unittest discover -s tests/conformance -p 'test_native_pack.py'
 
+      - name: Run the SBOM script tests
+        run: python3 -m unittest discover -s tests/conformance -p 'test_sbom.py'
+
       - name: Run the upstream bumper tests
         run: python3 -m unittest discover -s tests/upstream
 
@@ -958,15 +961,37 @@ jobs:
             --base-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$VERSION" \
             --commit "$GITHUB_SHA" "${runtimes[@]}" built/*
 
-      # The action's own artifact, drupack-publish.cyclonedx.json, would match the
-      # drupack-* download above on a rerun of this job.
-      - name: Generate the SBOM
+      # syft reads the launcher's Go modules from the executables, and FrankenPHP's
+      # from the macOS and Windows runtimes. The action's own artifact,
+      # drupack-publish.cyclonedx.json, would match the drupack-* download above
+      # on a rerun of this job.
+      - name: Scan the executables
         uses: anchore/sbom-action@v0
         with:
-          path: .
+          path: built
           format: cyclonedx-json
-          output-file: release/drupack.cdx.json
+          output-file: ${{ runner.temp }}/executables.cdx.json
           upload-artifact: false
+
+      - name: Scan the runtimes
+        uses: anchore/sbom-action@v0
+        with:
+          path: runtimes
+          format: cyclonedx-json
+          output-file: ${{ runner.temp }}/runtimes.cdx.json
+          upload-artifact: false
+
+      - name: Log in to the registry
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      # The job image's runtime reports what the executables carry compressed.
+      - name: Write the SBOM
+        run: |
+          docker run --rm "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA" \
+            sh -c 'python3 "$DRUPACK_ENGINE/build/sbom.py" runtime "$DRUPACK_PHP"' >"$RUNNER_TEMP/runtime.json"
+          python3 build/sbom.py merge --name drupack --version "$VERSION" \
+            --runtime-components "$RUNNER_TEMP/runtime.json" --output release/drupack.cdx.json \
+            "$RUNNER_TEMP/executables.cdx.json" "$RUNNER_TEMP/runtimes.cdx.json"
 
       - name: Attest the release files
         uses: actions/attest-build-provenance@v2
@@ -976,7 +1001,6 @@ jobs:
       # Site builds pull the job image by the engine's version.
       - name: Name the job image after the version
         run: |
-          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker buildx imagetools create --tag "ghcr.io/$GITHUB_REPOSITORY-build:$VERSION" \
             "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA"
 

@@ -268,7 +268,9 @@ a tag run creates a release in the site repository. It holds:
 - `install-NAME.sh`, which installs the build for the reader's system into the
   current directory, and `install-NAME.ps1` when the site has a Windows build
 - `checksums.txt` and `release.json`
-- a CycloneDX SBOM and build provenance
+- `sbom.cdx.json`, a CycloneDX SBOM, and build provenance. The SBOM lists the
+  site's Composer packages, Node, the launcher's Go modules, and the FrankenPHP,
+  PHP, Caddy, SQLite and PHP extension releases of the Linux runtime.
 
 A reader installs the latest release with one line:
 

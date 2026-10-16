@@ -290,13 +290,14 @@ jobs:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
 
-      # The SBOM scans the site before the engine and the executables join the workspace.
-      - name: Generate the SBOM
+      # syft scans the site before the engine and the executables join the workspace.
+      - name: Scan the site
         uses: anchore/sbom-action@v0
         with:
           path: ${{ inputs.site }}
           format: cyclonedx-json
-          output-file: ${{ runner.temp }}/sbom.cdx.json
+          output-file: ${{ runner.temp }}/site.cdx.json
+          upload-artifact: false
 
       # The engine at the pinned commit holds the script that writes the release files.
       - uses: actions/checkout@v7
@@ -311,6 +312,26 @@ jobs:
           pattern: executable*
           path: executables
           merge-multiple: true
+
+      # syft reads the launcher's Go modules from the executables.
+      - name: Scan the executables
+        uses: anchore/sbom-action@v0
+        with:
+          path: executables
+          format: cyclonedx-json
+          output-file: ${{ runner.temp }}/executables.cdx.json
+          upload-artifact: false
+
+      # The job image's runtime reports what the executables carry compressed.
+      - name: Write the SBOM
+        env:
+          IMAGE: ${{ needs.engine.outputs.image }}
+        run: |
+          docker run --rm "$IMAGE" \
+            sh -c 'python3 "$DRUPACK_ENGINE/build/sbom.py" runtime "$DRUPACK_PHP"' >"$RUNNER_TEMP/runtime.json"
+          python3 drupack-engine/build/sbom.py merge --name "$(jq -r .name executables/site.json)" --version "$VERSION" \
+            --runtime-components "$RUNNER_TEMP/runtime.json" --site executables/site.json \
+            --output "$RUNNER_TEMP/sbom.cdx.json" "$RUNNER_TEMP/site.cdx.json" "$RUNNER_TEMP/executables.cdx.json"
 
       # The build job's artifact also holds site.json, which names no target.
       - name: Write the release files
