@@ -84,3 +84,13 @@ records the detached start and the stop channel.
 The demo executable becomes `drupacked-demo`, and its cache moves to a
 `drupacked-demo` directory. Its release assets and `latest` links change name
 again. Nothing reads the `mercury-demo` caches of releases 0.5.0 to 0.8.0.
+
+## Amendment, 2026-10-16
+
+A folder mode start listens on `127.0.0.1:3787` by default, in place of
+`127.0.0.1:8888`. Jupyter and MAMP's Apache both default to 8888, so a start
+often found the port taken. 3787 spells DRUP on a phone keypad, as the demo's
+7225 spells PACK in ADR 0004. IANA lists 3787 for Fintrx, a 2003 registration
+that no known software uses.
+
+A project started with no `--listen` answers on the new port after an upgrade.
