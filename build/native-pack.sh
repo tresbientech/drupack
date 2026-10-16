@@ -72,7 +72,9 @@ if [ -f "$payload/node/$target.$node_extension" ]; then
     node=(-node "$payload/node/$target.$node_extension")
 fi
 cd -- "$engine/launcher"
-CGO_ENABLED=0 go run ./cmd/pack -runtime "$work/runtime" -entry "$entry" \
+# The launcher matches the target, whatever the host runs: a Windows on Arm or an
+# Apple silicon host packs amd64 too.
+CGO_ENABLED=0 go run ./cmd/pack -goarch "${target##*-}" -runtime "$work/runtime" -entry "$entry" \
     -version "$version" -source "$engine/launcher" -output "$output" \
     -app "$payload/app-payload.tar" -app-checksum "$payload/app_checksum.txt" \
     -site "$payload/site.json" -site-version "$site_version" ${node[@]+"${node[@]}"}

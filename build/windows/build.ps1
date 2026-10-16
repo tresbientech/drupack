@@ -98,8 +98,8 @@ function Reset-Directory([string] $Path) {
   New-Item -ItemType Directory -Path $Path | Out-Null
 }
 
-$buildTools = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Llvm.Clang -property installationPath
-if (-not $buildTools) { throw 'Visual Studio Build Tools with the C++ Clang component are required' }
+$buildTools = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Llvm.Clang Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+if (-not $buildTools) { throw 'Visual Studio Build Tools with the C++ Clang and x64 build tools components are required' }
 
 $work = New-Item -ItemType Directory -Force -Path $WorkDirectory
 $downloadDirectory = New-Item -ItemType Directory -Force -Path (Join-Path $work 'downloads')
@@ -154,9 +154,16 @@ Copy-Item (Join-Path $payload 'app_checksum.txt') (Join-Path $frankenphp 'app_ch
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\entrypoint.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack.go')
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\watch\watch.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_watch.go')
 
-$env:PATH = @("$buildTools\VC\Tools\Llvm\x64\bin", "$vcpkgRoot\bin", $watcherRoot, $php, $env:PATH) -join ';'
-$env:CC = 'clang'
-$env:CXX = 'clang++'
+# php.net publishes x64 builds alone, so a Windows on Arm host builds the amd64
+# runtime too, with its own clang. cmd/pack builds the launcher for its own
+# architecture, which GOARCH also sets for go run below.
+$clangHost = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'ARM64' } else { 'x64' }
+$env:PATH = @("$buildTools\VC\Tools\Llvm\$clangHost\bin", "$vcpkgRoot\bin", $watcherRoot, $php, $env:PATH) -join ';'
+$env:GOARCH = 'amd64'
+# Go turns cgo off by default when GOARCH differs from the host's.
+$env:CGO_ENABLED = '1'
+$env:CC = 'clang --target=x86_64-pc-windows-msvc'
+$env:CXX = 'clang++ --target=x86_64-pc-windows-msvc'
 $env:CGO_CFLAGS = "-DFRANKENPHP_VERSION=$frankenphpVersion -I$vcpkgRoot\include -I$watcherRoot -I$phpDevelRoot\include -I$phpDevelRoot\include\main -I$phpDevelRoot\include\TSRM -I$phpDevelRoot\include\Zend -I$phpDevelRoot\include\ext"
 $env:CGO_LDFLAGS = "-L$vcpkgRoot\lib -lbrotlienc -L$watcherRoot -llibwatcher-c -L$php -L$phpDevelRoot\lib -lphp8ts -lphp8embed"
 # --version names the SQLite release the zip's PHP loads, the library the runtime ships.

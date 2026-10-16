@@ -600,13 +600,6 @@ jobs:
           path: dist/engine/drupack.exe
           if-no-files-found: error
 
-      # The Windows on Arm job runs the suite on this executable.
-      - uses: actions/upload-artifact@v7
-        with:
-          name: demo-windows-amd64
-          path: dist/drupacked-demo.exe
-          if-no-files-found: error
-
       # The runtime both executables carry, which the publish job archives as a Release file.
       - uses: actions/upload-artifact@v7
         with:
@@ -646,12 +639,14 @@ jobs:
           path: test-results
 
   # install.ps1 installs the amd64 build on Windows on Arm, which runs it under
-  # the system's x64 emulation. This job runs the Windows job's builds there.
+  # the system's x64 emulation. This job builds the amd64 executables on an Arm
+  # host and runs the suite on them there.
   windows-arm:
     name: Windows arm64 (amd64 emulated)
-    needs: [gate, windows]
+    needs: [gate, payload]
+    if: needs.gate.outputs.windows != '[]'
     runs-on: windows-11-arm
-    timeout-minutes: 90
+    timeout-minutes: 120
     defaults:
       run:
         shell: pwsh
@@ -672,28 +667,29 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          name: drupack-windows-amd64
-          path: dist/engine
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: demo-windows-amd64
-          path: dist
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: runtime-windows-amd64
-          path: runtime-windows-amd64
-
-      - uses: actions/download-artifact@v8
-        with:
           name: payload-archive
           path: dist/payload
 
       - uses: actions/download-artifact@v8
         with:
-          name: node-payload-archive
-          path: dist/node-payload
+          name: engine-payload-archive
+          path: dist/engine-payload
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ${{ runner.temp }}\drupack\downloads
+            ${{ runner.temp }}\drupack\vcpkg
+            ~\AppData\Local\vcpkg\archives
+            ~\go\pkg\mod
+            ~\AppData\Local\go-build
+          key: windows-arm-build-${{ hashFiles('build/windows/build.ps1') }}
+
+      - name: Build the executables
+        env:
+          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupacked-demo.exe -EnginePayloadDirectory dist\engine-payload -EngineOutput dist\engine\drupack.exe
 
       - name: Run the conformance suite
         env:
@@ -702,13 +698,20 @@ jobs:
           Copy-Item dist\payload\site.json dist\site.json
           python tests/conformance dist\drupacked-demo.exe test-results\conformance --site-tests demo\tests
 
+      - uses: actions/download-artifact@v8
+        with:
+          name: node-payload-archive
+          path: dist/node-payload
+
+      # The Node fixture packs on the runtime the build above left in its work
+      # directory, with the amd64 launcher the release ships.
       - name: Run the Node fixture cases
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
           New-Item -ItemType Directory -Force -Path dist\node | Out-Null
           Push-Location launcher
-          go run ./cmd/pack -runtime ..\runtime-windows-amd64 -entry frankenphp.exe -version $env:DRUPACK_VERSION -source . -output ..\dist\node\node-demo.exe -app ..\dist\node-payload\app-payload.tar -app-checksum ..\dist\node-payload\app_checksum.txt -site ..\dist\node-payload\site.json -site-version $env:DRUPACK_VERSION -node ..\dist\node-payload\node\windows-amd64.zip
+          go run ./cmd/pack -goarch amd64 -runtime "$env:RUNNER_TEMP\drupack\runtime" -entry frankenphp.exe -version $env:DRUPACK_VERSION -source . -output ..\dist\node\node-demo.exe -app ..\dist\node-payload\app-payload.tar -app-checksum ..\dist\node-payload\app_checksum.txt -site ..\dist\node-payload\site.json -site-version $env:DRUPACK_VERSION -node ..\dist\node-payload\node\windows-amd64.zip
           Pop-Location
           Copy-Item dist\node-payload\site.json dist\node\site.json
           python tests/conformance dist\node\node-demo.exe test-results\node -k Node

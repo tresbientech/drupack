@@ -70,6 +70,22 @@ class NativePack(unittest.TestCase):
         self.assertTrue(self.output.stat().st_size > 0)
         self.assertEqual(self.output.read_bytes()[:4], b"\x7fELF")
 
+    @unittest.skipUnless(shutil.which("go"), "packing builds the launcher with Go")
+    def test_the_launcher_takes_the_architecture_the_target_names(self):
+        # ELF stores the machine at byte 18: 62 is x86-64, 183 is AArch64.
+        lines = []
+        for target in ("linux-amd64", "linux-arm64"):
+            file = f"runtime-{VERSION}-{target}.tar.zst"
+            if target != TARGET:
+                shutil.copyfile(self.release / FILE, self.release / file)
+            lines.append(f"{hashlib.sha256((self.release / file).read_bytes()).hexdigest()}  {file}\n")
+        (self.release / "checksums.txt").write_text("".join(lines))
+        for target, machine in (("linux-amd64", 62), ("linux-arm64", 183)):
+            with self.subTest(target=target):
+                result = self.pack(target)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(int.from_bytes(self.output.read_bytes()[18:20], "little"), machine)
+
     def test_an_altered_byte_stops_the_build_naming_the_file(self):
         content = bytearray((self.release / FILE).read_bytes())
         content[-1] ^= 1
