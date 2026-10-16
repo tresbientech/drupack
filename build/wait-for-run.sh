@@ -20,16 +20,19 @@ done
 [ -n "$run" ] || { echo "No release.yml run matches $query."; exit 1; }
 echo "Run: $(api "$GITHUB_API/actions/runs/$run" | jq -r .html_url)"
 
+# A plain call keeps set -e, so a failed status read ends the script.
 wait_for_run() {
     while sleep 120; do
-        read -r status conclusion < <(api "$GITHUB_API/actions/runs/$run" | jq -r '"\(.status) \(.conclusion)"')
+        state=$(api "$GITHUB_API/actions/runs/$run" | jq -r '"\(.status) \(.conclusion)"')
+        read -r status conclusion <<<"$state"
         [ "$status" = completed ] && break
     done
     echo "Run $run: $conclusion"
-    [ "$conclusion" = success ]
 }
 
-wait_for_run && exit 0
+wait_for_run
+[ "$conclusion" = success ] && exit 0
 [ "$rerun" = --rerun ] || exit 1
 api -X POST "$GITHUB_API/actions/runs/$run/rerun-failed-jobs"
 wait_for_run
+[ "$conclusion" = success ]
