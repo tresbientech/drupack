@@ -9,7 +9,6 @@
 /.phpunit.cache/
 /application/.editorconfig
 /application/.gitattributes
-.superpowers/
 .idea
 __pycache__/
 /test-results/
