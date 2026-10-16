@@ -600,6 +600,13 @@ jobs:
           path: dist/engine/drupack.exe
           if-no-files-found: error
 
+      # The Windows on Arm job runs the suite on this executable.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: demo-windows-amd64
+          path: dist/drupacked-demo.exe
+          if-no-files-found: error
+
       # The runtime both executables carry, which the publish job archives as a Release file.
       - uses: actions/upload-artifact@v7
         with:
@@ -636,6 +643,81 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: test-results-windows-amd64
+          path: test-results
+
+  # install.ps1 installs the amd64 build on Windows on Arm, which runs it under
+  # the system's x64 emulation. This job runs the Windows job's builds there.
+  windows-arm:
+    name: Windows arm64 (amd64 emulated)
+    needs: [gate, windows]
+    runs-on: windows-11-arm
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ needs.gate.outputs.demo_repository }}
+          ref: ${{ needs.gate.outputs.demo_ref }}
+          path: demo
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: drupack-windows-amd64
+          path: dist/engine
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: demo-windows-amd64
+          path: dist
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: runtime-windows-amd64
+          path: runtime-windows-amd64
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: payload-archive
+          path: dist/payload
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: node-payload-archive
+          path: dist/node-payload
+
+      - name: Run the conformance suite
+        env:
+          DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
+        run: |
+          Copy-Item dist\payload\site.json dist\site.json
+          python tests/conformance dist\drupacked-demo.exe test-results\conformance --site-tests demo\tests
+
+      - name: Run the Node fixture cases
+        env:
+          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          New-Item -ItemType Directory -Force -Path dist\node | Out-Null
+          Push-Location launcher
+          go run ./cmd/pack -runtime ..\runtime-windows-amd64 -entry frankenphp.exe -version $env:DRUPACK_VERSION -source . -output ..\dist\node\node-demo.exe -app ..\dist\node-payload\app-payload.tar -app-checksum ..\dist\node-payload\app_checksum.txt -site ..\dist\node-payload\site.json -site-version $env:DRUPACK_VERSION -node ..\dist\node-payload\node\windows-amd64.zip
+          Pop-Location
+          Copy-Item dist\node-payload\site.json dist\node\site.json
+          python tests/conformance dist\node\node-demo.exe test-results\node -k Node
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-windows-arm64
           path: test-results
 
   macos:
@@ -814,7 +896,7 @@ jobs:
 
   # A tag run that publishes its candidate's files skips every build job.
   publish:
-    needs: [gate, linux, windows, macos, demo]
+    needs: [gate, linux, windows, windows-arm, macos, demo]
     if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' }}
     runs-on: ubuntu-24.04
     permissions:

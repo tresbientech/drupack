@@ -48,7 +48,9 @@ class InstallScript(harness.ConformanceCase):
         cls.name = harness.SITE["name"]
         cls.windows = harness.current_platform() == harness.WINDOWS
         cls.extension = ".exe" if cls.windows else ""
-        cls.target = f"{harness.current_platform()}-{ARCHITECTURES[platform.machine().lower()]}"
+        # install.ps1 installs the amd64 build on Windows on Arm too.
+        cls.target = "windows-amd64" if cls.windows \
+            else f"{harness.current_platform()}-{ARCHITECTURES[platform.machine().lower()]}"
         cls.releases = harness.fresh_dir(cls.class_dir / "releases")
         server = http.server.ThreadingHTTPServer(
             ("127.0.0.1", 0), functools.partial(QuietHandler, directory=str(cls.releases)))
@@ -177,8 +179,7 @@ class InstallScript(harness.ConformanceCase):
 
     def test_the_script_names_the_builds_of_a_release_without_one_for_the_host(self):
         # A Windows host runs the PowerShell script, which only a release with a Windows build carries.
-        other = ("windows-arm64" if self.target == "windows-amd64" else "windows-amd64") if self.windows \
-            else "windows-amd64"
+        other = "windows-arm64" if self.windows else "windows-amd64"
         build = harness.fresh_dir(self.class_dir / "other-build") / f"{self.name}-{other}"
         build.write_bytes(b"another platform's build")
         result, directory = self.install(self.release("elsewhere", build))
