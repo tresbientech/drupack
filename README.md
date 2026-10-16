@@ -301,7 +301,7 @@ A release also carries `release.json`, listing every executable with its target,
 
 ## Build your own site
 
-Drupack builds a Linux executable of any Drupal site from its Composer project and a recipe, on GitHub, Gitea or any CI that runs a container. [docs/build-your-site.md](docs/build-your-site.md) has the setup for each.
+Drupack builds an executable of any Drupal site from its Composer project, for Linux, macOS and Windows. Linux builds run on GitHub, Gitea or any CI that runs a container, and macOS and Windows builds on GitHub's runners. A site that adds PHP extensions builds for Linux only. [docs/build-your-site.md](docs/build-your-site.md) has the setup for each.
 
 ## Contributing
 
