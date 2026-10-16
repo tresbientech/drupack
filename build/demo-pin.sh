@@ -6,5 +6,5 @@
 # demo_ref, and stays empty for a commit set by hand.
 
 demo_repository=tresbientech/drupacked-demo
-demo_release=2026.10.2
-demo_ref=6c7a8f84083e3103b0e32ad1039848906c9b5c6d
+demo_release=2026.10.4
+demo_ref=7d1da4b1e0095d494bc69a862a6e1a53e1597922
