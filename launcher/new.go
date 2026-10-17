@@ -20,17 +20,20 @@ const archiveURL = "https://github.com/tresbientech/drupal-cms-archive/releases/
 // platform under the target "any".
 const archiveName = "drupal-cms"
 
+// databaseDirectory holds the project's SQLite database, beside the docroot.
+const databaseDirectory = "db"
+
 // projectSettings follows the archive's default.settings.php. The database sits
 // beside the docroot, which the server and Drush resolve from different working
 // directories, so its path starts at DRUPAL_ROOT.
 const projectSettings = `
 $databases['default']['default'] = [
   'driver' => 'sqlite',
-  'database' => dirname(DRUPAL_ROOT) . '/db/site.sqlite',
+  'database' => dirname(DRUPAL_ROOT) . '/%[2]s/site.sqlite',
   'namespace' => 'Drupal\\sqlite\\Driver\\Database\\sqlite',
   'autoload' => 'core/modules/sqlite/src/Driver/Database/sqlite/',
 ];
-$settings['hash_salt'] = '%s';
+$settings['hash_salt'] = '%[1]s';
 $settings['config_sync_directory'] = '../config';
 $settings['package_manager_allow_direct_write'] = TRUE;
 $settings['testing_package_manager'] = TRUE;
@@ -186,11 +189,11 @@ func writeSettings(project string) error {
 	// Drupal's installer draws 55 bytes for a salt.
 	salt := make([]byte, 55)
 	rand.Read(salt)
-	settings := append(defaults, fmt.Sprintf(projectSettings, base64.RawURLEncoding.EncodeToString(salt))...)
+	settings := append(defaults, fmt.Sprintf(projectSettings, base64.RawURLEncoding.EncodeToString(salt), databaseDirectory)...)
 	if err := os.WriteFile(filepath.Join(site, "settings.php"), settings, 0o644); err != nil {
 		return err
 	}
-	for _, directory := range []string{filepath.Join(project, "db"), filepath.Join(site, "files")} {
+	for _, directory := range []string{filepath.Join(project, databaseDirectory), filepath.Join(site, "files")} {
 		if err := os.MkdirAll(directory, 0o755); err != nil {
 			return err
 		}
