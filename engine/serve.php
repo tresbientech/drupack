@@ -3,15 +3,16 @@
 declare(strict_types=1);
 
 // The engine executable's entry script. The launcher runs it for every line but
-// `php`, `clean` and a bare `--version`, from the directory the reader started in.
-// `start` and `stop` are reserved, so a folder with either name takes ./start or
-// ./stop. Any other first word that names no command starts the server.
+// `php`, `clean`, `new`, `self-update` and a bare `--version`, from the directory the
+// reader started in. `start`, `stop` and `new` are reserved, so a folder with one of
+// those names takes ./start, ./stop or ./new. Any other first word that names no command starts the server.
 
 require_once __DIR__ . '/process.php';
 
 const USAGE = <<<'TEXT'
 Usage: %1$s [start] [DIR] [--listen IP:PORT] [--foreground]
        %1$s stop [DIR]
+       %1$s new DIR
        %1$s drush DRUSH_COMMAND
        %1$s dr DRUPAL_COMMAND
        %1$s php SCRIPT [ARGUMENTS]
@@ -26,6 +27,7 @@ signal stops it. --listen defaults to %2$s.
 Commands:
   start    Serve the project, which a bare command does too
   stop     Stop the server of the project in DIR
+  new      Create a Drupal CMS project in DIR, then serve it
   drush    Run the Drush of the project holding the working directory
   dr       Run Drupal core's command line of that project
   php      Run a script or -r CODE on the bundled PHP, with no PHP option
@@ -257,7 +259,7 @@ function siteInstalled(string $binary, string $project, string $docroot): ?bool
     $answer = trim((string) stream_get_contents($pipes[1]));
     fclose($pipes[1]);
     $status = proc_close($child);
-    return $status === 0 && in_array($answer, ['yes', 'no'], true) ? $answer === 'yes' : null;
+    return $status === 0 ? $answer === 'yes' : null;
 }
 
 // Drush, core's command line, the installer and Package Manager start Composer and their
