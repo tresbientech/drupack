@@ -274,8 +274,10 @@ a tag run creates a release in the site repository. It holds:
   current directory, and `install-NAME.ps1` when the site has a Windows build
 - `checksums.txt` and `release.json`
 - `sbom.cdx.json`, a CycloneDX SBOM, and build provenance. The SBOM lists the
-  site's Composer packages, Node, the launcher's Go modules, and the FrankenPHP,
-  PHP, Caddy, SQLite and PHP extension releases of the Linux runtime.
+  site's Composer packages, Node and the launcher's Go modules. It also lists
+  each runtime's FrankenPHP, PHP, Caddy and SQLite releases, its PHP extensions
+  and the C libraries PHP names, such as OpenSSL and curl. A
+  `drupack:target` property on each of these names the targets that ship it.
 
 A reader installs the latest release with one line:
 

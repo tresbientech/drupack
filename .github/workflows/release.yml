@@ -260,6 +260,24 @@ jobs:
           path: runtime-${{ matrix.libc }}
           if-no-files-found: error
 
+      # The runtime reports on a runner of its own architecture. The job image
+      # carries the report for site builds, and the publish job merges it.
+      - name: Report the runtime's components
+        env:
+          ARCH: ${{ matrix.arch }}
+          LIBC: ${{ matrix.libc }}
+        run: |
+          target=linux-$ARCH
+          if [ "$LIBC" = musl ]; then target=$target-musl; fi
+          mkdir runtime-components
+          python3 build/sbom.py runtime --target "$target" "runtime-$LIBC/out/drupack" >"runtime-components/$target.json"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: runtime-components-linux-${{ matrix.arch }}-${{ matrix.libc }}
+          path: runtime-components
+          if-no-files-found: error
+
   # The application is PHP source, vendor, translations and a seeded database.
   # None of it depends on a platform, so every executable packs this one build.
   # drupack-build makes it in the job image, whose PHP is the amd64 musl runtime.
@@ -289,6 +307,12 @@ jobs:
           pattern: runtime-linux-*
           path: runtime-artifacts
 
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: runtime-components-linux-*
+          path: runtime-components
+          merge-multiple: true
+
       # The runtime jobs' exports stand in for the runtimes stage, so no builder
       # image is pulled here. A run of every platform built all four.
       - name: Build the job image
@@ -313,6 +337,8 @@ jobs:
           chmod +x runtimes/*/drupack
           ls runtimes
           docker build --target job --build-arg RUNTIMES=release-runtimes --build-context release-runtimes=runtimes \
+            --build-arg RUNTIME_COMPONENTS=release-runtime-components \
+            --build-context release-runtime-components=runtime-components \
             --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-job .
 
       - name: Export the application payload
@@ -610,6 +636,17 @@ jobs:
           path: ${{ runner.temp }}\drupack\runtime
           if-no-files-found: error
 
+      - name: Report the runtime's components
+        run: |
+          New-Item -ItemType Directory -Path runtime-components | Out-Null
+          python build/sbom.py runtime --target windows-amd64 "$env:RUNNER_TEMP\drupack\runtime\frankenphp.exe" >runtime-components\windows-amd64.json
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: runtime-components-windows-amd64
+          path: runtime-components
+          if-no-files-found: error
+
       - name: Run the conformance suite
         env:
           DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
@@ -804,6 +841,19 @@ jobs:
           path: ${{ runner.temp }}/drupack/runtime
           if-no-files-found: error
 
+      - name: Report the runtime's components
+        env:
+          TARGET: macos-${{ matrix.arch }}
+        run: |
+          mkdir runtime-components
+          python3 build/sbom.py runtime --target "$TARGET" "$RUNNER_TEMP/drupack/runtime/drupack" >"runtime-components/$TARGET.json"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: runtime-components-macos-${{ matrix.arch }}
+          path: runtime-components
+          if-no-files-found: error
+
       - name: Run the test scripts
         env:
           DRUPACK_TEST_ENGINE: dist/engine/drupack
@@ -943,6 +993,14 @@ jobs:
           run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
           github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
 
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: runtime-components-*
+          path: runtime-components
+          merge-multiple: true
+          run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
+          github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
+
       # Each artifact is NAME-TARGET holding one file, NAME or NAME.exe. The loop
       # names each file NAME-TARGET, keeping .exe, as release-files.py reads it.
       - name: Write the release files
@@ -981,17 +1039,14 @@ jobs:
           output-file: ${{ runner.temp }}/runtimes.cdx.json
           upload-artifact: false
 
-      - name: Log in to the registry
-        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-
-      # The job image's runtime reports what the executables carry compressed.
+      # Each runtime's report names what the executables carry compressed. A site
+      # build reads the macOS and Windows reports from runtime-components.json.
       - name: Write the SBOM
         run: |
-          docker run --rm "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA" \
-            sh -c 'python3 "$DRUPACK_ENGINE/build/sbom.py" runtime "$DRUPACK_PHP"' >"$RUNNER_TEMP/runtime.json"
           python3 build/sbom.py merge --name drupack --version "$VERSION" \
-            --runtime-components "$RUNNER_TEMP/runtime.json" --output release/drupack.cdx.json \
+            --runtime-components runtime-components/*.json --output release/drupack.cdx.json \
             "$RUNNER_TEMP/executables.cdx.json" "$RUNNER_TEMP/runtimes.cdx.json"
+          jq -s add runtime-components/*.json >release/runtime-components.json
 
       - name: Attest the release files
         uses: actions/attest-build-provenance@v2
@@ -1001,6 +1056,7 @@ jobs:
       # Site builds pull the job image by the engine's version.
       - name: Name the job image after the version
         run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker buildx imagetools create --tag "ghcr.io/$GITHUB_REPOSITORY-build:$VERSION" \
             "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA"
 

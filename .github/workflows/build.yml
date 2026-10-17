@@ -182,6 +182,14 @@ jobs:
           path: /tmp/drupack/dist/payload
           if-no-files-found: error
 
+      # The engine's report of each Linux runtime the image carries, which the
+      # publish job reads for the Linux executables.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: runtime-components
+          path: /opt/drupack/runtime-components
+          if-no-files-found: error
+
   # One job per macOS or Windows target, on a runner of that system. It packs the
   # payload with the runtime file of the engine release, and runs the conformance
   # suite on the result with the site's tests. The pack tool, the pack script and
@@ -388,15 +396,38 @@ jobs:
           output-file: ${{ runner.temp }}/executables.cdx.json
           upload-artifact: false
 
-      # The job image's runtime reports what the executables carry compressed.
+      - uses: actions/download-artifact@v8
+        with:
+          name: runtime-components
+          path: runtime-components
+
+      # Each runtime's report names what the executables carry compressed: the job
+      # image's for a Linux target, the engine release's for a macOS or Windows one.
       - name: Write the SBOM
         env:
-          IMAGE: ${{ needs.engine.outputs.image }}
+          ENGINE_REPOSITORY: ${{ needs.engine.outputs.repository }}
+          RUNTIME_RELEASE: ${{ needs.engine.outputs.runtime-release }}
+          NATIVE: ${{ needs.build.outputs.native }}
         run: |
-          docker run --rm "$IMAGE" \
-            sh -c 'python3 "$DRUPACK_ENGINE/build/sbom.py" runtime "$DRUPACK_PHP"' >"$RUNNER_TEMP/runtime.json"
-          python3 drupack-engine/build/sbom.py merge --name "$(jq -r .name executables/site.json)" --version "$VERSION" \
-            --runtime-components "$RUNNER_TEMP/runtime.json" --site executables/site.json \
+          if [ "$NATIVE" != '[]' ]; then
+            gh release download "$RUNTIME_RELEASE" --repo "$ENGINE_REPOSITORY" --pattern runtime-components.json --dir "$RUNNER_TEMP"
+          fi
+          name=$(jq -r .name executables/site.json)
+          reports=()
+          for executable in executables/"$name"-*; do
+            target=${executable#"executables/$name-"}
+            target=${target%.exe}
+            report=runtime-components/$target.json
+            case "$target" in
+              linux-*) ;;
+              *) jq --arg target "$target" \
+                   'map(select(.target == $target)) | if length == 1 then . else error("the release reports no \($target)") end' \
+                   "$RUNNER_TEMP/runtime-components.json" >"$report" ;;
+            esac
+            reports+=("$report")
+          done
+          python3 drupack-engine/build/sbom.py merge --name "$name" --version "$VERSION" \
+            --runtime-components "${reports[@]}" --site executables/site.json \
             --output "$RUNNER_TEMP/sbom.cdx.json" "$RUNNER_TEMP/site.cdx.json" "$RUNNER_TEMP/executables.cdx.json"
 
       # The build job's artifact also holds site.json, which names no target.

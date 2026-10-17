@@ -297,7 +297,7 @@ gh attestation verify drupack-0.5.1-linux-amd64 --repo tresbientech/drupack
 
 A Drupacked Demo file takes `--repo tresbientech/drupacked-demo`.
 
-A release also carries `release.json`, listing every executable with its target, URL, SHA-256 value and size, and a CycloneDX inventory of everything inside the executable: `drupack.cdx.json` in a Drupack release, `sbom.cdx.json` in a Drupacked Demo one.
+A release also carries `release.json`, listing every executable with its target, URL, SHA-256 value and size, and a CycloneDX inventory of everything inside the executable: `drupack.cdx.json` in a Drupack release, `sbom.cdx.json` in a Drupacked Demo one. A Drupack release also carries `runtime-components.json`, the report of each target's runtime that site builds add to their SBOM.
 
 ## Build your own site
 

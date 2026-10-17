@@ -12,6 +12,9 @@ ARG GNU_BUILDER=drupack-builder-gnu:local
 # context, so the release sets this to a name no stage has and passes that name
 # as --build-context NAME=DIRECTORY.
 ARG RUNTIMES=local-runtimes
+# The build/sbom.py runtime reports of those runtimes, one TARGET.json each, which
+# the release passes the same way. A local image carries none.
+ARG RUNTIME_COMPONENTS=no-runtime-components
 # The extension list a runtime links. build/site-runtimes.sh sets this to a build
 # context holding the engine list merged with a site's additions, as RUNTIMES does.
 ARG EXTENSIONS=engine-extensions
@@ -81,6 +84,10 @@ COPY --from=runtime-gnu /out /linux-${TARGETARCH}-glibc
 
 FROM ${RUNTIMES} AS runtimes
 
+FROM scratch AS no-runtime-components
+
+FROM ${RUNTIME_COMPONENTS} AS runtime-components
+
 # drupack-build runs here on any CI host, with no Docker daemon. The musl runtime
 # is its PHP: a static executable carrying every extension the site runs with.
 FROM ${NODE_IMAGE} AS node
@@ -98,6 +105,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends patch procps py
 RUN wget -q -O /opt/composer.phar https://getcomposer.org/download/2.8.12/composer.phar \
     && echo 'f446ea719708bb85fcbf4ef18def5d0515f1f9b4d703f6d820c9c1656e10a2f2  /opt/composer.phar' | sha256sum -c -
 COPY --from=runtimes / /opt/drupack/runtimes/
+COPY --from=runtime-components / /opt/drupack/runtime-components/
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY application /opt/drupack/engine/application
 COPY build /opt/drupack/engine/build
@@ -116,6 +124,7 @@ ENV DRUPACK_ENGINE=/opt/drupack/engine \
     DRUPACK_ENGINE_VERSION=${DRUPACK_VERSION:-dev} \
     DRUPACK_PHP=/opt/drupack/runtimes/linux-${TARGETARCH}-musl/drupack \
     DRUPACK_RUNTIMES=/opt/drupack/runtimes \
+    DRUPACK_RUNTIME_COMPONENTS=/opt/drupack/runtime-components \
     DRUPACK_SPC=/opt/drupack/spc \
     DRUPACK_COMPOSER=/opt/composer.phar \
     HOME=/tmp \
