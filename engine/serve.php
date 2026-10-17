@@ -3,16 +3,15 @@
 declare(strict_types=1);
 
 // The engine executable's entry script. The launcher runs it for every line but
-// `php`, `clean`, `new`, `self-update` and a bare `--version`, from the directory the
-// reader started in. `start`, `stop` and `new` are reserved, so a folder with one of
-// those names takes ./start, ./stop or ./new. Any other first word that names no command starts the server.
+// `php`, `clean`, `self-update` and a bare `--version`, from the directory the reader
+// started in. `start` and `stop` are reserved, so a folder with either name takes
+// ./start or ./stop. Any other first word that names no command starts the server.
 
 require_once __DIR__ . '/process.php';
 
 const USAGE = <<<'TEXT'
 Usage: %1$s [start] [DIR] [--listen IP:PORT] [--foreground]
        %1$s stop [DIR]
-       %1$s new DIR
        %1$s drush DRUSH_COMMAND
        %1$s dr DRUPAL_COMMAND
        %1$s php SCRIPT [ARGUMENTS]
@@ -27,7 +26,6 @@ signal stops it. --listen defaults to %2$s.
 Commands:
   start    Serve the project, which a bare command does too
   stop     Stop the server of the project in DIR
-  new      Create a Drupal CMS project in DIR, then serve it
   drush    Run the Drush of the project holding the working directory
   dr       Run Drupal core's command line of that project
   php      Run a script or -r CODE on the bundled PHP, with no PHP option
@@ -212,14 +210,9 @@ function serve(string $binary, array $arguments): never
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n")
         . ($install === null ? '' : "  Install: $install\n") . "  Project: $project\n");
     fwrite(STDOUT, "Starting the web server.\n");
-    // `new` sets this for the start that serves the project it created, and no request reads it.
-    $created = environment('DRUPACK_NEW_PROJECT') === '1';
-    putenv('DRUPACK_NEW_PROJECT');
     // The Caddyfile beside this file is fixed, and Caddy fills its values from this environment.
-    // The server opens a browser on the installer of a project `new` created alone, so a value
-    // inherited from an earlier start is cleared.
-    $open = $created && $install !== null && personPresent() && loopback($bind);
-    putenv($open ? "DRUPACK_RUNTIME_OPEN=$install" : 'DRUPACK_RUNTIME_OPEN');
+    // The server opens no browser, so a value inherited from an earlier start is cleared.
+    putenv('DRUPACK_RUNTIME_OPEN');
     exportServerEnvironment([
         'DRUPACK_RUNTIME_PORT' => $port,
         'DRUPACK_RUNTIME_BIND' => $bind,

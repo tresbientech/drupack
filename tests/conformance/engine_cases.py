@@ -305,37 +305,6 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertNotIn("  Login:", output)
         self.assertNotIn("Cannot mint", output)
 
-    def test_a_start_for_a_new_project_opens_the_installer_for_a_person(self):
-        if harness.current_platform() == harness.WINDOWS:
-            self.skipTest("the recorder posing as the browser opener is a shell script")
-        self.uninstall()
-        script, recorded = harness.install_recorder(self.class_dir / "recorder-person")
-        env = dict(os.environ, PATH=f"{script.parent}{os.pathsep}{os.environ['PATH']}",
-                   DRUPACK_NEW_PROJECT="1", DRUPACK_RUNTIME_PERSON="1")
-        port, log = self.start("new-person", str(self.project), env=env)
-        self.assertEqual(harness.wait_for_recorded_url(recorded, harness.WAITS["browser_open"].seconds),
-                         f"http://127.0.0.1:{port}/core/install.php", f"inspect {log}")
-
-    def test_a_start_for_a_new_project_opens_nothing_with_no_person(self):
-        if harness.current_platform() == harness.WINDOWS:
-            self.skipTest("the recorder posing as the browser opener is a shell script")
-        self.uninstall()
-        script, recorded = harness.install_recorder(self.class_dir / "recorder-nobody")
-        env = dict(os.environ, PATH=f"{script.parent}{os.pathsep}{os.environ['PATH']}", DRUPACK_NEW_PROJECT="1")
-        env.pop("DRUPACK_RUNTIME_PERSON", None)
-        _, log = self.start("new-nobody", str(self.project), env=env)
-        time.sleep(harness.WAITS["browser_open"].seconds)
-        self.assertFalse(recorded.exists(), f"a start with no person opened a browser: inspect {log}")
-
-    def test_a_request_reads_no_new_project_marker(self):
-        script = self.docroot / "engine-case-marker.php"
-        script.write_text("<?php var_export(getenv('DRUPACK_NEW_PROJECT'));")
-        self.addCleanup(script.unlink)
-        port, log = self.start("marker", str(self.project), env=dict(os.environ, DRUPACK_NEW_PROJECT="1"))
-        with urlopen(f"http://127.0.0.1:{port}/engine-case-marker.php",
-                     timeout=harness.WAITS["http_request"].seconds) as response:
-            self.assertEqual(response.read().decode(), "false", f"inspect {log}")
-
     def test_dr_runs_drupal_cores_command_line(self):
         result = self.engine_run("dr", "list", cwd=self.project)
         self.assertEqual(result.returncode, 0, result.stderr)

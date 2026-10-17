@@ -2,7 +2,7 @@
 
 Drupack runs Drupal from a single executable. Two are published:
 
-- `drupack` serves a Drupal project you already have, with its own settings, and `drupack new` creates a Drupal CMS one. Each Drupack release publishes it.
+- `drupack` serves a Drupal project you already have, with its own settings. Each Drupack release publishes it.
 - `drupacked-demo` is a Drupal CMS site built on the Mercury Demo recipe, with WordPal and Agent Access. It carries Drupal CMS, PHP, Caddy, SQLite, MySQL and PostgreSQL drivers and Drush, and needs nothing else to serve a site. [Its own repository](https://github.com/tresbientech/drupacked-demo) releases it.
 
 The first section covers `drupack`. Every later section covers the Drupacked Demo.
@@ -45,18 +45,6 @@ The project's own `settings.php` names the database, the files paths and the has
 `drupack drush COMMAND` runs the project's own Drush on the bundled PHP, from any directory inside the project. Drush's own child processes run on that PHP too. `drupack dr COMMAND` runs Drupal core's own command line the same way, on Drupal 11.4 and later. `drupack php SCRIPT [ARGUMENTS]` and `drupack php -r CODE` run the bundled PHP. Any other PHP option stops with a message naming it.
 
 A project whose `composer.lock` needs a PHP extension the bundled PHP lacks is refused, with the extension and the packages that need it.
-
-## Create a Drupal CMS site
-
-`drupack new DIR` creates a Drupal CMS project in `DIR` and serves it:
-
-```sh
-drupack new my-site
-```
-
-It downloads the latest [Drupal CMS archive](https://github.com/tresbientech/drupal-cms-archive/releases), a prebuilt `composer create-project drupal/cms`, and checks its size and SHA-256. It writes `web/sites/default/settings.php` with a SQLite database in `db/site.sqlite`, a hash salt of its own and Package Manager turned on. The browser then opens on the Drupal CMS installer, where you pick a site template. The installer downloads the template with the project's own Composer, and Project Browser installs modules the same way. Both need the network.
-
-`DIR` must be missing or empty, and a failed download leaves `DIR` as it was. After `new` the folder is yours: `drupack my-site` serves it like any project, and Drupack never changes its code. A start on a project whose installer never finished prints the installer's address instead of a login link.
 
 ## Install the Drupacked Demo
 

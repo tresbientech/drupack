@@ -42,14 +42,11 @@ and show a notification icon, which needs a second GUI executable built from the
 same source. Parked in favour of a clearer command line first. The console
 detection and the browser open have since removed the worst of it.
 
-## Signing, and a double-click that creates a site
+## Signing
 
-`drupack new` serves readers with a terminal. A reader without one would
-double-click a downloaded file, which Gatekeeper and SmartScreen stop while it
-carries no signature. The Drupal CMS Launcher's budget pays for Apple and Azure
-signing, and phenaproxima proposed moving it to Drupack. A double-click with no
-project in reach could create and serve one per-user site, as the Launcher does.
-Lean: take both together once the budget moves, since neither helps alone.
+A downloaded executable carries no signature, so Gatekeeper and SmartScreen
+stop its first run. The Drupal CMS Launcher's budget pays for Apple and Azure
+signing, and phenaproxima proposed moving it to Drupack.
 
 ## The musl build's cost on authenticated pages
 

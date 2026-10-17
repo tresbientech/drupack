@@ -160,7 +160,7 @@ func TestPickNamesTheTargetsAReleaseLacksItsOwn(t *testing.T) {
 		{Name: "drupack", Target: "linux-amd64"}, {Name: "drupack", Target: "macos-arm64"},
 		{Name: "drupacked-demo", Target: "linux-arm64"},
 	}}
-	_, err := pick(latest, "drupack", "linux-arm64")
+	_, err := pick(latest, "linux-arm64")
 	if err == nil || !strings.HasSuffix(err.Error(), "has no linux-arm64 build. It has: linux-amd64, macos-arm64") {
 		t.Fatalf("pick = %v", err)
 	}

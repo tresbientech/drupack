@@ -208,7 +208,7 @@ Three variables have no option:
 | Variable | Selects |
 |---|---|
 | `DRUPACK_CACHE_DIR` | where a release unpacks, for a disk with more room |
-| `DRUPACK_CA_FILE` | the TLS trust bundle PHP, `new` and `self-update` verify HTTPS against |
+| `DRUPACK_CA_FILE` | the TLS trust bundle PHP and `self-update` verify HTTPS against |
 | `DRUPACK_NO_UPDATE_CHECK` | `1` turns off the engine executable's daily release check |
 
 ## The engine executable
@@ -216,7 +216,6 @@ Three variables have no option:
 ```
 drupack [start] [DIR] [--listen IP:PORT] [--foreground]
 drupack stop [DIR]
-drupack new DIR
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
 drupack php SCRIPT [ARGUMENTS]
@@ -235,8 +234,8 @@ It carries no Drupal, Drush or Node, so it prints no line for them.
 
 `drupack` with no command serves `DIR`, the working directory by default. A
 first word naming no command is taken as `DIR`. `drupack start` does the same
-as `drupack`. `start`, `stop` and `new` are reserved: a folder with one of those
-names takes `./start`, `./stop` or `./new`.
+as `drupack`, and `start` and `stop` are reserved: a folder with either name
+takes `./start`.
 
 The server runs in the background. The start prints its progress and the login
 link, returns once the site answers, and names the log file. `--foreground`
@@ -258,28 +257,9 @@ and says it already serves.
 - A folder whose database holds no installed site prints `Install:` with
   `/core/install.php` instead, and mints no link. A probe asks the folder's
   Database API for the `key_value` table first.
+- A request's child processes, such as Package Manager's Composer, find a
+  `php` on `PATH` that runs the bundled PHP.
 - Caddy's errors go to standard error.
-
-`new DIR` creates a Project folder from the Drupal CMS archive, then serves it
-as a start naming `DIR`.
-
-- `DIR` must be missing or empty. A second argument or an option is refused.
-- It reads `release.json` from
-  `https://github.com/tresbientech/drupal-cms-archive/releases/latest/download/release.json`,
-  downloads the `drupal-cms` asset, and checks its size and SHA-256.
-- It refuses an archive entry outside the project, and any link.
-- It lays the project beside `DIR` and moves it into place last, so a failed
-  download or extraction leaves `DIR` as it was. An existing empty `DIR`, such
-  as `.`, keeps its identity, and a shell inside it stays there.
-- It writes `web/sites/default/settings.php`: the archive's
-  `default.settings.php`, then SQLite at `db/site.sqlite`, a fresh hash salt,
-  `config_sync_directory` at `../config`, Package Manager direct write,
-  `skip_permissions_hardening`, and the trusted hosts `127.0.0.1` and
-  `localhost`. It creates `db` and `web/sites/default/files`.
-- The settings set `IS_DDEV_PROJECT=1`, which stops the Drupal CMS installer's
-  warning about `skip_permissions_hardening`.
-- The start that follows opens the browser on `/core/install.php` when a person
-  is present and the listener is loopback. A later start opens nothing.
 
 `drush` runs the Drush of the nearest directory at or above the working directory
 that holds `vendor/autoload.php`. Drush's child processes find a `php` on
