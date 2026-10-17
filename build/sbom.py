@@ -79,10 +79,12 @@ function info($extension, $label) {
     if (!extension_loaded($extension)) return '';
     ob_start();
     (new ReflectionExtension($extension))->info();
-    if (!preg_match('/>' . preg_quote($label, '/') . ' <\/td><td class="v">([^<]*?) </', ob_get_clean(), $row)) {
+    $label = preg_quote($label, '/');
+    // phpinfo() prints an HTML table under the frankenphp SAPI and plain text under cli.
+    if (!preg_match('/>' . $label . ' <\/td><td class="v">([^<]*?) <|^' . $label . ' => ([^\r\n]*)/m', ob_get_clean(), $row)) {
         throw new RuntimeException("phpinfo() of $extension has no row $label");
     }
-    return $row[1];
+    return $row[2] ?? $row[1];
 }
 foreach (get_loaded_extensions() as $name) echo "extension\t", $name, "\t", phpversion($name), "\n";
 """
@@ -101,7 +103,7 @@ def runtime_components(runtime):
         script.write(REPORT + "".join(f'echo "library\\t{name}\\t", {expression}, "\\n";\n'
                                       for name, (expression, _) in LIBRARIES.items()))
     try:
-        report = subprocess.run([runtime, "php-cli", script.name], check=True, capture_output=True, text=True,
+        report = subprocess.run([runtime, "php-cli", script.name], check=True, stdout=subprocess.PIPE, text=True,
                                 env=environment).stdout
     finally:
         Path(script.name).unlink()
