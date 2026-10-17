@@ -218,8 +218,8 @@ function serve(string $binary, array $arguments): never
     // The Caddyfile beside this file is fixed, and Caddy fills its values from this environment.
     // The server opens a browser on the installer of a project `new` created alone, so a value
     // inherited from an earlier start is cleared.
-    putenv($created && $install !== null && personPresent() && loopback($bind)
-        ? "DRUPACK_RUNTIME_OPEN=$install" : 'DRUPACK_RUNTIME_OPEN');
+    $open = $created && $install !== null && personPresent() && loopback($bind);
+    putenv($open ? "DRUPACK_RUNTIME_OPEN=$install" : 'DRUPACK_RUNTIME_OPEN');
     exportServerEnvironment([
         'DRUPACK_RUNTIME_PORT' => $port,
         'DRUPACK_RUNTIME_BIND' => $bind,
