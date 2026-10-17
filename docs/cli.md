@@ -159,6 +159,8 @@ exports them once a start has created the secrets.
 | `DRUPACK_MERCURE_PUBLISHER_SECRET` | the HS256 key a publisher token is signed with |
 | `DRUPACK_MERCURE_SUBSCRIBER_SECRET` | the HS256 key a subscriber token is signed with |
 
+[The build guide](build-your-site.md#a-site-that-pushes-live-updates) describes the two ways to publish.
+
 ## `start` and `stop`
 
 `SITE` and `SITE start` are one command. A start takes the Serving lease, then

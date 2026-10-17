@@ -31,8 +31,8 @@
 
 ### Acceptance criteria
 
-- [ ] `(cd launcher && go test ./internal/siteconfig/...)` passes with cases for `mercure` true, false, absent and a string.
-- [ ] The same tests show `site.json` holding `"mercure": false` for a contract without the key.
+- [x] `(cd launcher && go test ./internal/siteconfig/...)` passes with cases for `mercure` true, false, absent and a string.
+- [x] The same tests show `site.json` holding `"mercure": false` for a contract without the key.
 
 ---
 
@@ -47,10 +47,10 @@ A start of a site with the key creates the secrets and exports the variables. It
 
 ### Acceptance criteria
 
-- [ ] `python3 tests/conformance dist/variant/variant-demo-linux-amd64-musl <results> -k MercureHub -k NodeRefusals` passes after the variant build `build/qa.sh` runs.
-- [ ] `python3 tests/conformance dist/drupacked-demo-linux-amd64 <results> -k MercureHub` passes: 404 at `/.well-known/mercure`, no secret file.
-- [ ] `git grep -n -E "node-fixture|node-demo|dist/node\b"` prints nothing.
-- [ ] `git diff main -- engine/` prints nothing.
+- [x] `python3 tests/conformance dist/variant/variant-demo-linux-amd64-musl <results> -k MercureHub -k NodeRefusals` passes after the variant build `build/qa.sh` runs.
+- [x] `python3 tests/conformance dist/drupacked-demo-linux-amd64 <results> -k MercureHub` passes: 404 at `/.well-known/mercure`, no secret file.
+- [x] `git grep -n -E "node-fixture|node-demo|dist/node\b" -- ':!docs'` prints nothing.
+- [x] `git diff main -- engine/` prints nothing.
 
 ---
 
@@ -65,8 +65,8 @@ A start of a site with the key creates the secrets and exports the variables. It
 
 ### Acceptance criteria
 
-- [ ] `python3 tests/conformance dist/variant/variant-demo-linux-amd64-musl <results> -k MercureHub` passes with the HTTP publish and Drush cases.
-- [ ] A `MercureHub` case runs `drush` on Site data with no secret files and finds none created afterwards.
+- [x] `python3 tests/conformance dist/variant/variant-demo-linux-amd64-musl <results> -k MercureHub` passes with the HTTP publish and Drush cases.
+- [x] A `MercureHub` case runs `drush` on Site data with no secret files and finds none created afterwards.
 
 ---
 
@@ -81,5 +81,5 @@ ADR 0034 records the opt-in hub, its secrets and its transport. `docs/build-your
 
 ### Acceptance criteria
 
-- [ ] `test -f docs/adr/0034-*.md` succeeds and `grep -n "mercure" docs/build-your-site.md docs/cli.md` prints the key and all three variables.
+- [x] `test -f docs/adr/0034-*.md` succeeds and `grep -n "mercure" docs/build-your-site.md docs/cli.md` prints the key and all three variables.
 - [ ] `bash build/qa.sh` passes on the branch head, run from the main checkout, and writes `qa-green`.

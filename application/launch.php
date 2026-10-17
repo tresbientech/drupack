@@ -211,8 +211,6 @@ function openWhenServing(string $url, ?string $target, bool $browser): void
     putenv($browser ? "DRUPACK_RUNTIME_OPEN=$target" : 'DRUPACK_RUNTIME_OPEN');
 }
 
-// The token names this Site data over HTTP without disclosing its path. Windows spells one
-// path in several casings, so the hash reads a single one.
 // A start creates each missing hub secret in Site data. Both a start and `drush` then
 // export the hub's address and both secrets to the PHP they run. `drush` creates nothing,
 // so before a start has created the secrets it exports no hub.
@@ -243,6 +241,8 @@ function exportMercure(SiteData $site, string $bind, int $port, bool $drush): vo
     putenv('DRUPACK_MERCURE_URL=http://' . urlHost(probeHost($bind)) . ":$port/.well-known/mercure");
 }
 
+// The token names this Site data over HTTP without disclosing its path. Windows spells one
+// path in several casings, so the hash reads a single one.
 function siteToken(string $data): string
 {
     return hash('sha256', windows() ? strtolower($data) : $data);

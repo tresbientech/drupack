@@ -76,7 +76,7 @@ A test drives the packed executable from outside: it starts a site, sends HTTP r
 
 - `launcher/internal/siteconfig`: `mercure` parses as true, false and absent; a string is refused; `site.json` carries the value. Prior art: the `node` cases in `siteconfig_test.go:276`.
 - `tests/conformance/mercure_cases.py`, class `MercureHub`, skipped when `site.json` has `mercure` false, as `WRITABLE` is in `harness.py:640`:
-  - a subscriber with a token for the probe's topic receives the update the probe publishes, through the server's `encode`
+  - a subscriber that accepts gzip and holds a token for the probe's topic receives the update the probe publishes, unbuffered
   - a subscriber reconnecting with `Last-Event-ID` receives the update it missed
   - a subscriber with no token, or a token signed by another key, gets 401
   - a publish over HTTP with a token signed by the publisher secret reaches a subscriber
