@@ -56,9 +56,10 @@ _REPORTED_AS = {"opcache": "zend opcache"}
 
 # PHP compiles these whatever a build selects, so no allowlist names them.
 # Read off a PHP 8.5 static build; a release that changes the set corrects it.
+# FrankenPHP's php-cli adds frankenphp-cli, from 1.13 on.
 ALWAYS_COMPILED = frozenset({
-    "core", "date", "hash", "json", "lexbor", "pcre", "random", "reflection",
-    "spl", "standard", "uri",
+    "core", "date", "frankenphp-cli", "hash", "json", "lexbor", "pcre", "random",
+    "reflection", "spl", "standard", "uri",
 })
 
 
