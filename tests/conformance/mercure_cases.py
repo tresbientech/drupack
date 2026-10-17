@@ -1,7 +1,8 @@
 """The Mercure hub a site's contract turns on: a request publishes through mercure_publish(),
 a subscriber that accepts gzip and holds a token signed with the Site data secret receives
-it as it is published, a reconnect replays the history, and a site without the key serves
-no hub and writes no secret.
+it as it is published, a reconnect replays the history, a publisher token posts over HTTP, `drush` sees the hub's
+variables once a start created the secrets, and a site without the key serves no hub and
+writes no secret.
 """
 
 import base64
@@ -15,6 +16,7 @@ import time
 import unittest
 import zlib
 from urllib.error import HTTPError
+from urllib.parse import urlencode
 
 import harness
 
@@ -120,6 +122,48 @@ class MercureHub(harness.ConformanceCase):
                     self.assertEqual(connection.getresponse().status, 401)
                 finally:
                     connection.close()
+
+    def drush_environment(self):
+        """The hub variables a `drush` command's PHP sees, empty when unset."""
+        code = "echo json_encode(array_map('getenv', ['DRUPACK_MERCURE_URL', 'DRUPACK_MERCURE_PUBLISHER_SECRET', 'DRUPACK_MERCURE_SUBSCRIBER_SECRET']));"
+        result = harness.run([str(harness.BINARY), "drush", "--data-dir", str(self.data), "php:eval", code],
+                             cwd=self.class_dir, capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_an_http_publish_reaches_a_subscriber(self):
+        stream = Stream(self.site.port, self.subscriber_token())
+        connection = http.client.HTTPConnection("localhost", self.site.port, timeout=harness.WAITS["http_request"].seconds)
+        try:
+            stream.read_until(":")
+            bearer = token(self.secret("mercure_publisher_secret"), {"mercure": {"publish": [TOPIC]}})
+            connection.request("POST", HUB, body=urlencode({"topic": TOPIC, "data": "posted", "private": "on"}),
+                               headers={"Authorization": f"Bearer {bearer}", "Content-Type": "application/x-www-form-urlencoded"})
+            response = connection.getresponse()
+            update = response.read().decode()
+            self.assertEqual(response.status, 200, update)
+            stream.read_until(f"id: {update}\ndata: posted\n")
+        finally:
+            connection.close()
+            stream.close()
+
+    def test_drush_sees_the_hub_variables(self):
+        self.assertEqual(self.drush_environment(), [
+            f"http://127.0.0.1:{self.site.port}{HUB}",
+            self.secret("mercure_publisher_secret"),
+            self.secret("mercure_subscriber_secret"),
+        ])
+
+    def test_drush_creates_no_secret(self):
+        for name in SECRETS:
+            os.replace(self.data / name, self.class_dir / name)
+        try:
+            self.assertEqual(self.drush_environment(), [False, False, False])
+            for name in SECRETS:
+                self.assertFalse((self.data / name).exists(), name)
+        finally:
+            for name in SECRETS:
+                os.replace(self.class_dir / name, self.data / name)
 
     def test_the_secrets_stay_private_and_survive_a_restart(self):
         before = {name: self.secret(name) for name in SECRETS}

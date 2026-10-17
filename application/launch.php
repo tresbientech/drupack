@@ -213,15 +213,29 @@ function openWhenServing(string $url, ?string $target, bool $browser): void
 
 // The token names this Site data over HTTP without disclosing its path. Windows spells one
 // path in several casings, so the hash reads a single one.
-// Creates each missing hub secret in Site data, then exports the hub's address and both
-// secrets to the server and to the PHP it runs.
-function exportMercure(SiteData $site, string $bind, int $port): void
+// A start creates each missing hub secret in Site data. Both a start and `drush` then
+// export the hub's address and both secrets to the PHP they run. `drush` creates nothing,
+// so before a start has created the secrets it exports no hub.
+function exportMercure(SiteData $site, string $bind, int $port, bool $drush): void
 {
-    foreach ([
+    $secrets = [
         'DRUPACK_MERCURE_PUBLISHER_SECRET' => $site->mercurePublisherSecret(),
         'DRUPACK_MERCURE_SUBSCRIBER_SECRET' => $site->mercureSubscriberSecret(),
-    ] as $name => $path) {
-        if (!file_exists($path) && file_put_contents($path, bin2hex(random_bytes(32)), LOCK_EX) === false) {
+    ];
+    if ($drush && array_filter($secrets, 'file_exists') !== $secrets) {
+        return;
+    }
+    foreach ($secrets as $name => $path) {
+        // Exclusive creation refuses a file or link already at the path, and the start's
+        // umask leaves the new file readable by its owner alone.
+        $handle = @fopen($path, 'x');
+        if ($handle !== false) {
+            $written = fwrite($handle, bin2hex(random_bytes(32)));
+            fclose($handle);
+            if ($written !== 64) {
+                throw new RuntimeException("Cannot write the Mercure secret: $path");
+            }
+        } elseif (!is_file($path)) {
             throw new RuntimeException("Cannot create the Mercure secret: $path");
         }
         putenv("$name=" . file_get_contents($path));
@@ -855,8 +869,8 @@ try {
             stopCommand($written === DEFAULT_DATA_DIR ? '' : ' --data-dir ' . shellWord($written)), array_slice($argv, 1));
         $site->recordListener($options['listen'], $options['host'], $options['files-dir']);
     }
-    if (siteSettings()['mercure'] && !$drush) {
-        exportMercure($site, $bind, $port);
+    if (siteSettings()['mercure']) {
+        exportMercure($site, $bind, $port, $drush);
     }
     if (siteSettings()['writable'] !== []) {
         useSiteApplication($site, $drush);
