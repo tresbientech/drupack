@@ -46,8 +46,9 @@ The Engine executable already serves a writable Project folder unchanged
   - Package Manager direct write
   - the installer's hardening warning turned off
 - After `new`, serving writes nothing into the folder, as before.
-- A start on a project with no installed site opens `/core/install.php` and
-  mints no login link.
+- `new` opens the browser on `/core/install.php` when a person is watching. A
+  later start on a project with no installed site prints that address, opens
+  nothing and mints no login link.
 - Drupack never updates a created codebase. Automatic Updates and the
   project's Composer own it.
 - The command line is the only entry point. A double-click keeps its current
