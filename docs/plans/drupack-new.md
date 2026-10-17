@@ -106,7 +106,7 @@ Creating the Forge repository, its GitHub mirror and the first push are owner st
 
 ### Acceptance criteria
 
-- [x] The workflow's build script, run locally with a dry-run flag, writes an archive, `release.json` and `checksums.txt` into a scratch directory.
+- [x] The workflow's build script, run locally, writes an archive, `release.json` and `checksums.txt` into a scratch directory, and tags and pushes nothing.
 - [x] Its `release.json` holds one asset with target `any` and the `cms` and `core` fields, which phase 2's Go types decode in a unit test.
 - [x] The script run twice with no upstream change reports no lock change and tags nothing.
 - [x] The serve check, run locally against the archive with a local engine build, gets 200 from `/core/install.php`.

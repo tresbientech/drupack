@@ -56,7 +56,7 @@ drupack new my-site
 
 It downloads the latest [Drupal CMS archive](https://github.com/tresbientech/drupal-cms-archive/releases), a prebuilt `composer create-project drupal/cms`, and checks its size and SHA-256. It writes `web/sites/default/settings.php` with a SQLite database in `db/site.sqlite`, a hash salt of its own and Package Manager turned on. The browser then opens on the Drupal CMS installer, where you pick a site template. The installer downloads the template with the project's own Composer, and Project Browser installs modules the same way. Both need the network.
 
-`DIR` must be missing or empty, and a failed download leaves no `DIR` behind. After `new` the folder is yours: `drupack my-site` serves it like any project, and Drupack never changes its code. A start on a project whose installer never finished prints the installer's address instead of a login link.
+`DIR` must be missing or empty, and a failed download leaves `DIR` as it was. After `new` the folder is yours: `drupack my-site` serves it like any project, and Drupack never changes its code. A start on a project whose installer never finished prints the installer's address instead of a login link.
 
 ## Install the Drupacked Demo
 

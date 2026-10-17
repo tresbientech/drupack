@@ -8,7 +8,7 @@ The Drupal CMS Launcher (`drupal/cms-launcher` v1.0.9) is an Electron app. It
 bundles PHP 8.4 and Composer, and its Drupal Association budget pays for macOS
 and Windows signing. On first run it does four things:
 
-1. It extracts a prebuilt `create-project drupal/cms` codebase into the
+1. It extracts a prebuilt `create-project drupal/cms` project into the
    system's app data folder.
 2. It writes `settings.php` with SQLite, a hash salt and Package Manager direct
    write.
@@ -24,7 +24,7 @@ its first start uninstalls `package_manager`. With a read-only project root,
 
 The Engine executable already serves a writable Project folder unchanged
 ([ADR 0022](0022-engine-executable.md)). drupal.org's `cms` release is an
-11 KB `composer.json` with no `vendor`, so no prebuilt codebase exists.
+11 KB `composer.json` with no `vendor`, so no prebuilt project exists.
 
 ## Decision
 
@@ -49,7 +49,7 @@ The Engine executable already serves a writable Project folder unchanged
 - `new` opens the browser on `/core/install.php` when a person is watching. A
   later start on a project with no installed site prints that address, opens
   nothing and mints no login link.
-- Drupack never updates a created codebase. Automatic Updates and the
+- Drupack never updates a created Project folder. Automatic Updates and the
   project's Composer own it.
 - The command line is the only entry point. A double-click keeps its current
   behaviour.
@@ -61,7 +61,7 @@ The Engine executable already serves a writable Project folder unchanged
   The installer could then offer only templates built in, and Project Browser
   could add nothing.
 - A Packaged site whose whole project is a Writable directory. Its upgrade
-  lays a new release over a codebase that Drupal owns.
+  lays a new release over files that Drupal owns.
 - A separate `drupal-cms` executable carrying the archive. A third executable
   and release line for one embedded file.
 - Composer run on the reader's machine at `new`. About 180 package downloads,

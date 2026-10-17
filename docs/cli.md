@@ -235,8 +235,8 @@ It carries no Drupal, Drush or Node, so it prints no line for them.
 
 `drupack` with no command serves `DIR`, the working directory by default. A
 first word naming no command is taken as `DIR`. `drupack start` does the same
-as `drupack`, and `start` and `stop` are reserved: a folder with either name
-takes `./start`.
+as `drupack`. `start`, `stop` and `new` are reserved: a folder with one of those
+names takes `./start`, `./stop` or `./new`.
 
 The server runs in the background. The start prints its progress and the login
 link, returns once the site answers, and names the log file. `--foreground`
@@ -268,13 +268,16 @@ as a start naming `DIR`.
   `https://github.com/tresbientech/drupal-cms-archive/releases/latest/download/release.json`,
   downloads the `drupal-cms` asset, and checks its size and SHA-256.
 - It refuses an archive entry outside the project, and any link.
-- It lays the project beside `DIR` and renames it into place last, so a failure
-  leaves no `DIR`.
+- It lays the project beside `DIR` and moves it into place last, so a failed
+  download or extraction leaves `DIR` as it was. An existing empty `DIR`, such
+  as `.`, keeps its identity, and a shell inside it stays there.
 - It writes `web/sites/default/settings.php`: the archive's
   `default.settings.php`, then SQLite at `db/site.sqlite`, a fresh hash salt,
   `config_sync_directory` at `../config`, Package Manager direct write,
   `skip_permissions_hardening`, and the trusted hosts `127.0.0.1` and
   `localhost`. It creates `db` and `web/sites/default/files`.
+- The settings set `IS_DDEV_PROJECT=1`, which stops the Drupal CMS installer's
+  warning about `skip_permissions_hardening`.
 - The start that follows opens the browser on `/core/install.php` when a person
   is present and the listener is loopback. A later start opens nothing.
 

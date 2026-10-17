@@ -57,7 +57,7 @@ folder. Drupack never changes its code.
 - D2. `new` refuses with no DIR, and refuses a DIR that exists and holds any entry. Invariant: a refused `new` writes nothing.
 - D3. `new` reads `release.json` from `https://github.com/tresbientech/drupal-cms-archive/releases/latest/download/release.json`, a launcher constant. The file follows the `release` schema, with one asset whose target is `any`, plus `cms` and `core` version fields. Evidence: `launcher/update.go:24`, `:38`, `:189`.
 - D4. `new` downloads the asset through the `self-update` client and checks size and SHA-256 before extracting. `DRUPACK_CA_FILE` applies. Evidence: `launcher/update.go:131`, `:168`.
-- D5. `new` extracts into a staging directory beside DIR with Go's `archive/tar` and `compress/gzip`. It refuses an entry with an absolute path, a `..` segment or a link leaving the staging directory. It renames staging to DIR last, and removes staging on any failure.
+- D5. `new` extracts into a staging directory beside DIR with Go's `archive/tar` and `compress/gzip`. It refuses an entry with an absolute path, a `..` segment or a link leaving the staging directory. It moves the project into DIR last, and removes staging on any failure. A missing DIR takes one rename; an existing empty DIR, such as `.`, takes its entries one by one and keeps its identity.
 - D6. `new` writes `web/sites/default/settings.php` from the archive's `default.settings.php` plus one block:
   - SQLite at `db/site.sqlite` beside the docroot, written from `DRUPAL_ROOT`, since the server and Drush run from different directories
   - a hash salt of 55 random bytes, URL-safe base64
@@ -97,7 +97,7 @@ A test drives the executable or the Go function through its inputs and checks wh
 
 - Go unit tests in `launcher` cover `new` against an `httptest` server: refusals, checksum mismatch, traversal entries, the settings block, distinct salts, and no DIR after a failure. Prior art: `launcher/update_test.go:32`.
 - Conformance cases in `tests/conformance/engine_cases.py` cover a start on an uninstalled project and the `php` a request's child process runs. Prior art: `test_drush_child_processes_run_on_the_runtime_php_with_no_php_on_path`.
-- A conformance case in `browser_cases.py` covers the browser open after `new`. Prior art: that file's open cases.
+- Conformance cases in `tests/conformance/engine_cases.py` cover the browser open after `new`, with and without a person present. Prior art: `browser_cases.py`'s open cases.
 - The launcher constant stays fixed. No environment variable redirects `new` to another archive, so the end-to-end download runs in Go tests alone.
 - The archive repository tests its own archive, as D14 states.
 

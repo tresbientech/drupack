@@ -94,3 +94,9 @@ often found the port taken. 3787 spells DRUP on a phone keypad, as the demo's
 that no known software uses.
 
 A project started with no `--listen` answers on the new port after an upgrade.
+
+## Amendment, 2026-10-17
+
+[ADR 0033](0033-drupack-new-creates-a-drupal-cms-project.md) adds `drupack new
+DIR`, which creates a Project folder from the Drupal CMS archive and serves it.
+`new` becomes a reserved first word, as `start` and `stop` are.
