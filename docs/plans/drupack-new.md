@@ -60,12 +60,12 @@ The launcher word `new DIR` on the Engine executable. It reads `release.json` fr
 
 ### Acceptance criteria
 
-- [ ] Go tests against `httptest` show that `new` refuses a missing DIR argument and a non-empty DIR, and writes nothing.
-- [ ] Go tests show a size or SHA-256 mismatch leaves no DIR and no staging directory.
-- [ ] Go tests show an archive entry with an absolute path, a `..` segment or an escaping link is refused, with no DIR left.
-- [ ] A Go test reads the written `settings.php` and finds every setting D6 lists.
-- [ ] A Go test runs `new` twice and finds two different hash salts.
-- [ ] Every existing `engine_cases.py` case passes.
+- [x] Go tests against `httptest` show that `new` refuses a missing DIR argument and a non-empty DIR, and writes nothing.
+- [x] Go tests show a size or SHA-256 mismatch leaves no DIR and no staging directory.
+- [x] Go tests show an archive entry with an absolute path, a `..` segment or an escaping link is refused, with no DIR left.
+- [x] A Go test reads the written `settings.php` and finds every setting D6 lists.
+- [x] A Go test runs `new` twice and finds two different hash salts.
+- [x] Every existing `engine_cases.py` case passes.
 
 ---
 

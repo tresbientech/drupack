@@ -47,6 +47,10 @@ func run() error {
 	if len(os.Args) > 1 && os.Args[1] == "self-update" {
 		return selfUpdate(os.Args[2:], releaseURL, executable, os.Stdout)
 	}
+	if engine && len(os.Args) > 1 && os.Args[1] == "new" {
+		_, err := create(os.Args[2:], archiveURL, os.Stdout)
+		return err
+	}
 	root, err := runtime.Root(siteName, os.Stderr)
 	if err != nil {
 		return err

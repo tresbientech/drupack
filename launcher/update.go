@@ -39,6 +39,9 @@ const fetchTimeout = 5 * time.Second
 type release struct {
 	Version string  `json:"version"`
 	Assets  []asset `json:"assets"`
+	// The Drupal CMS archive's release.json alone names its cms and core versions.
+	CMS  string `json:"cms"`
+	Core string `json:"core"`
 }
 
 type asset struct {
@@ -101,7 +104,7 @@ func selfUpdate(arguments []string, url, executable string, out io.Writer) error
 	// A release lacking this file's build is recorded as none, so no run names it.
 	var chosen asset
 	if later {
-		if chosen, err = pick(latest, target(goruntime.GOOS, goruntime.GOARCH, musl)); err != nil {
+		if chosen, err = pick(latest, siteName, target(goruntime.GOOS, goruntime.GOARCH, musl)); err != nil {
 			return err
 		}
 	}
@@ -117,6 +120,9 @@ func selfUpdate(arguments []string, url, executable string, out io.Writer) error
 		return nil
 	}
 	if err := download(client, chosen, staged); err != nil {
+		return fmt.Errorf("%w Nothing was replaced.", err)
+	}
+	if err := os.Chmod(staged.Name(), 0o755); err != nil {
 		return err
 	}
 	if err := replaceExecutable(executable, staged.Name()); err != nil {
@@ -126,8 +132,8 @@ func selfUpdate(arguments []string, url, executable string, out io.Writer) error
 	return nil
 }
 
-// download writes chosen into staged, closes it executable, and fails unless
-// its size and SHA-256 match release.json.
+// download writes chosen into staged, closes it, and fails unless its size and
+// SHA-256 match release.json.
 func download(client *http.Client, chosen asset, staged *os.File) error {
 	response, err := client.Get(chosen.URL)
 	if err != nil {
@@ -146,9 +152,9 @@ func download(client *http.Client, chosen asset, staged *os.File) error {
 		return err
 	}
 	if written != chosen.Size || hex.EncodeToString(digest.Sum(nil)) != chosen.SHA256 {
-		return fmt.Errorf("the download of %s does not match the size and SHA-256 release.json lists. Nothing was replaced.", chosen.Asset)
+		return fmt.Errorf("the download of %s does not match the size and SHA-256 release.json lists.", chosen.Asset)
 	}
-	return os.Chmod(staged.Name(), 0o755)
+	return nil
 }
 
 // composerCopy reports whether composer/drupack-install laid executable, which it
@@ -231,11 +237,11 @@ func target(goos, goarch string, musl bool) string {
 	return runtime.Target(goos+"-"+goarch, musl)
 }
 
-// pick returns the engine's asset for target.
-func pick(latest release, target string) (asset, error) {
+// pick returns the asset named name for target.
+func pick(latest release, name, target string) (asset, error) {
 	var targets []string
 	for _, candidate := range latest.Assets {
-		if candidate.Name != siteName {
+		if candidate.Name != name {
 			continue
 		}
 		if candidate.Target == target {
@@ -243,7 +249,7 @@ func pick(latest release, target string) (asset, error) {
 		}
 		targets = append(targets, candidate.Target)
 	}
-	return asset{}, fmt.Errorf("%s %s has no %s build. It has: %s", siteName, latest.Version, target, strings.Join(targets, ", "))
+	return asset{}, fmt.Errorf("%s %s has no %s build. It has: %s", name, latest.Version, target, strings.Join(targets, ", "))
 }
 
 // newer reports whether candidate is a later release than current. A release
