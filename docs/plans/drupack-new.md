@@ -1,90 +1,129 @@
 # Plan: `drupack new` and the Drupal CMS archive
 
-> Source: [ADR 0033](../adr/0033-drupack-new-creates-a-drupal-cms-project.md), from the design session of 2026-10-17.
+**Spec:** [docs/prd/drupack-new.md](../prd/drupack-new.md)
 
 ## Architectural decisions
 
-- The Drupal CMS archive releases from `tresbientech/drupal-cms-archive`. This repository never publishes it.
-- The archive repository pins a Drupack tag for its tests, as the demo repository does.
-- `new` is a launcher word, handled before routing, as `self-update` is. It reuses the `release.json` fetch and checksum code of `launcher/update.go`.
-- Phase 1 decides whether phases 3 and 4 need runtime changes. Phases 2 and 3 touch different repositories and can run in parallel after it.
+Every phase starts from the PRD's decisions:
+
+- D1: `new DIR` is an Engine executable word the launcher handles before routing.
+- D2: `new` refuses with no DIR, or a DIR holding any entry.
+- D3: `new` reads the archive repository's `latest` `release.json`, one asset with target `any`.
+- D4: the download goes through the `self-update` client, with size and SHA-256 checked.
+- D5: extraction into staging refuses escaping entries, and staging becomes DIR last.
+- D6: `new` writes `settings.php` from `default.settings.php` plus Drupack's block, and creates `db/` and `files/`.
+- D7: `new` continues as `drupack DIR` with `DRUPACK_NEW_PROJECT=1`, which `serve.php` reads and clears.
+- D8: with that variable and a person watching, the browser opens on the installer.
+- D9: a start on an uninstalled project prints the installer address and mints no link.
+- D10: `serve()` puts `engine/bin` first on `PATH` before the server starts.
+- D11: the Composer spike runs first, and its findings become tasks.
+- D12: `tresbientech/drupal-cms-archive` builds stock `create-project drupal/cms` daily.
+- D13: it tags `YYYY.MM.N` on a lock change alone.
+- D14: a tag follows a 200 from `/core/install.php` under the pinned Drupack tag.
+- D15: Drupack never writes into a created folder after `new`.
+- D16: README, `docs/cli.md` and `CONTEXT.md` describe `new` and the archive.
+
+Commands the criteria name:
+
+- Go: `(cd launcher && go test ./...)`
+- conformance: `DRUPACK_TEST_ENGINE=dist/drupack-linux-amd64 python3 tests/conformance EXECUTABLE RESULTS -k CASE`, from the main checkout
 
 ---
 
-## Phase 1: Composer runs under a served project
+## Phase 1: a served project runs Composer
+
+**User stories**: 3, 4, 5
+**Decisions**: D10, D11
 
 ### What to build
 
-A spike, kept out of the repository. Make a folder with `composer create-project drupal/cms` and write the ADR's settings into it. Serve it with a local `drupack` build, then run the installer in a browser. Pick a template from the curated list, then install one module through Project Browser.
-
-`ComposerExecutor` starts `php` through Symfony's `PhpExecutableFinder` from the web worker. Package Manager starts Composer the same way.
+Put `engine/bin` first on `PATH` for the server, as `drush` already has it. Then run the spike outside the repository. Create a project with the host's `composer create-project drupal/cms`, add the D6 settings by hand, and serve it with a local engine build. Drive the installer with Playwright through a curated template, then install one module with Project Browser. Record each failure and add its fix to the phase that owns the file.
 
 ### Acceptance criteria
 
-- [ ] The installer downloads and applies a curated template.
-- [ ] Project Browser installs a module.
-- [ ] Each failure is recorded with its cause, such as no `php` on the worker's `PATH`, or a `-d` option that `php-cli` refuses.
-- [ ] Each fix is listed as a task in phase 3 or 4.
+- [ ] A new `engine_cases.py` case requests a project page that runs `php -r 'echo PHP_VERSION;'` in a child process, and gets the runtime's version back.
+- [ ] Playwright completes the installer with a curated template, then `drupack drush status --field=bootstrap` in the spike folder prints `Successful`.
+- [ ] After the Project Browser install, `drupack drush pm:list --status=enabled` lists the module.
+- [ ] The Drush field that tells an uninstalled SQLite project from an unreachable database is written into phase 3.
+- [ ] `(cd launcher && go test ./...)` passes.
 
 ---
 
-## Phase 2: the archive repository
+## Phase 2: `drupack new` creates a project from an archive
+
+**User stories**: 1, 6, 7, 8, 9, 10, 11, 16, 24
+**Decisions**: D1, D2, D3, D4, D5, D6, D15
 
 ### What to build
 
-Create `tresbientech/drupal-cms-archive` on the Forge, mirrored to GitHub. Its daily job runs four steps:
+The launcher word `new DIR` on the Engine executable. It reads `release.json` from a constant URL, downloads the single asset, and checks size and SHA-256. It extracts into staging beside DIR, writes the settings block and the two directories, then renames staging to DIR. The function takes the release URL as a parameter, so tests point it at a local server.
 
-1. Resolve `composer create-project drupal/cms` with `extra.drupal-scaffold.gitignore` set to false.
+### Acceptance criteria
+
+- [ ] Go tests against `httptest` show that `new` refuses a missing DIR argument and a non-empty DIR, and writes nothing.
+- [ ] Go tests show a size or SHA-256 mismatch leaves no DIR and no staging directory.
+- [ ] Go tests show an archive entry with an absolute path, a `..` segment or an escaping link is refused, with no DIR left.
+- [ ] A Go test reads the written `settings.php` and finds every setting D6 lists.
+- [ ] A Go test runs `new` twice and finds two different hash salts.
+- [ ] Every existing `engine_cases.py` case passes.
+
+---
+
+## Phase 3: the created project opens on the installer
+
+**User stories**: 2, 12, 13, 14, 15, 17
+**Decisions**: D7, D8, D9
+
+### What to build
+
+After writing the folder, `new` continues as `drupack DIR` with `DRUPACK_NEW_PROJECT=1`. `serve.php` reads and clears it. With a person watching on a loopback listener, it sets the runtime's open variable to the installer address. A start on an uninstalled project prints the installer address in place of the login line, under the Drush field phase 1 named.
+
+### Acceptance criteria
+
+- [ ] An `engine_cases.py` case starts a project whose settings name an empty SQLite path, and finds `Install:` with `/core/install.php` and no mint failure.
+- [ ] The existing login-link case in `engine_cases.py` still finds `Login:` on an installed project.
+- [ ] A `browser_cases.py` case shows a start with `DRUPACK_NEW_PROJECT=1` and a person present opens the installer address.
+- [ ] A `browser_cases.py` case shows the same start with no person present opens nothing.
+- [ ] An `engine_cases.py` case shows a request's environment holds no `DRUPACK_NEW_PROJECT`.
+
+---
+
+## Phase 4: the archive repository
+
+**User stories**: 18, 19, 20, 21, 22
+**Decisions**: D12, D13, D14
+
+### What to build
+
+A local repository at `../drupal-cms-archive`, laid out like the demo repository, with a Gitea workflow that runs four steps:
+
+1. Resolve `composer create-project drupal/cms` with the scaffold's `gitignore` off.
 2. Compare the lock with the last release's, and stop when they match.
-3. Pack `drupal-cms-VERSION.tar.gz`, and write `release.json` and `checksums.txt`.
-4. Serve the archive with the pinned Drupack tag, check that `/core/install.php` answers 200, then tag and publish.
+3. Serve the archive with the pinned Drupack tag and request `/core/install.php`.
+4. Tag `YYYY.MM.N` and publish `drupal-cms-VERSION.tar.gz`, `release.json` and `checksums.txt`.
+
+Creating the Forge repository, its GitHub mirror and the first push are owner steps.
 
 ### Acceptance criteria
 
-- [ ] A run with no lock change tags nothing.
-- [ ] A lock change publishes `2026.MM.N` with the archive, `release.json` and `checksums.txt`.
-- [ ] `release.json` names the cms version, the core version, the size and the SHA-256.
-- [ ] A failed serve check publishes nothing and leaves `main` unchanged.
-
----
-
-## Phase 3: `drupack new DIR`
-
-### What to build
-
-The launcher word `new`. It refuses a DIR that exists and is not empty. It reads `release.json` from the archive repository's `latest` release, downloads the archive into a staging directory beside DIR, checks size and SHA-256, and extracts it. It then writes `web/sites/default/settings.php` from a template the engine carries, renames the staging directory to DIR, and serves DIR.
-
-### Acceptance criteria
-
-- [ ] `drupack new site` creates `site`, serves it, and opens the installer.
-- [ ] A non-empty DIR, a checksum mismatch or a failed download leaves no DIR behind.
-- [ ] `settings.php` holds SQLite at `db/site.sqlite`, a fresh hash salt, `config_sync_directory` at `../config` and Package Manager direct write.
-- [ ] Two `new` runs write different hash salts.
-- [ ] A conformance case runs `new` against a local archive URL.
-
----
-
-## Phase 4: a start on an uninstalled project opens the installer
-
-### What to build
-
-`engine/serve.php` checks whether the project holds an installed site before it mints a login link. With none, it prints `/core/install.php` and opens the browser there.
-
-### Acceptance criteria
-
-- [ ] A start on a fresh `new` folder opens `/core/install.php` and prints no mint failure.
-- [ ] A start on an installed project prints the login link, as before.
+- [ ] The workflow's build script, run locally with a dry-run flag, writes an archive, `release.json` and `checksums.txt` into a scratch directory.
+- [ ] Its `release.json` holds one asset with target `any` and the `cms` and `core` fields, which phase 2's Go types decode in a unit test.
+- [ ] The script run twice with no upstream change reports no lock change and tags nothing.
+- [ ] The serve check, run locally against the archive with a local engine build, gets 200 from `/core/install.php`.
 
 ---
 
 ## Phase 5: documentation
 
+**User stories**: 23
+**Decisions**: D16
+
 ### What to build
 
-- A README section after "Serve a Drupal project you already have": create a Drupal CMS site.
-- `docs/cli.md`: the `new` word, its refusals and the settings it writes.
-- `CONTEXT.md`: the Drupal CMS archive.
+A README section after "Serve a Drupal project you already have". The `new` word in `docs/cli.md`. The Drupal CMS archive in `CONTEXT.md`. The ADR's "Order" or status line, if the build changed a decision.
 
 ### Acceptance criteria
 
-- [ ] Each command in the README section runs as written on Linux.
+- [ ] `grep -n 'drupack new' README.md docs/cli.md` finds both sections.
+- [ ] `grep -n 'Drupal CMS archive' CONTEXT.md` finds the term.
+- [ ] After the archive's first release, the README's `drupack new` command run with a local engine build prints the installer address.
