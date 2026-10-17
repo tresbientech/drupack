@@ -250,7 +250,7 @@ func TestWriteProducesTheSiteJSONShape(t *testing.T) {
 	want := map[string]any{
 		"name": "mysite", "port": float64(7225), "recipe": "recipes/my_site", "site_name": "My Site",
 		"languages": []any{"fr"}, "smoke_paths": []any{"/"}, "extensions": []any{}, "docroot": "docroot", "settings": "",
-		"platforms": []any{"linux-amd64"}, "libc": "both", "writable": []any{}, "drupal": "11.4.7", "drush": "13.8.0",
+		"platforms": []any{"linux-amd64"}, "libc": "both", "writable": []any{}, "mercure": false, "drupal": "11.4.7", "drush": "13.8.0",
 	}
 	if !reflect.DeepEqual(written, want) {
 		t.Fatalf("site.json = %v; want %v", written, want)
@@ -280,6 +280,24 @@ func TestSiteJSONCarriesNodeInTheFormItWasGiven(t *testing.T) {
 		if err := json.Unmarshal(content, &read); err != nil || read.Node != site.Node {
 			t.Errorf("%q: site.json reads back as %q, %v; want %q", field, read.Node, err, site.Node)
 		}
+	}
+}
+
+func TestParseReadsMercure(t *testing.T) {
+	for field, want := range map[string]bool{"": false, "mercure: false\n": false, "mercure: true\n": true} {
+		site, err := siteconfig.Parse([]byte(minimal + field))
+		if err != nil {
+			t.Fatalf("%q: %v", field, err)
+		}
+		if site.Mercure != want {
+			t.Errorf("%q: Mercure = %v; want %v", field, site.Mercure, want)
+		}
+	}
+}
+
+func TestParseRefusesAMercureString(t *testing.T) {
+	if _, err := siteconfig.Parse([]byte(minimal + "mercure: \"on\"\n")); err == nil {
+		t.Fatal("Parse accepted mercure: \"on\"")
 	}
 }
 

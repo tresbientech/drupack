@@ -85,6 +85,8 @@ type Site struct {
 	// Read sets Docroot from composer.json. Parse leaves it empty.
 	Docroot string `json:"docroot"`
 	Node    Node   `json:"node,omitempty"`
+	// Mercure serves a Mercure hub at /.well-known/mercure on every start.
+	Mercure bool `json:"mercure"`
 	// Read sets Drupal and Drush to the drupal/core and drush/drush releases
 	// composer.lock names. Parse leaves them empty.
 	Drupal string `json:"drupal"`
