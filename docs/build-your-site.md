@@ -43,6 +43,7 @@ libc: both                 # Linux files, one per C library: both, glibc or musl
 extensions: [gmp]          # PHP extensions the site adds to the engine's
 writable: [recipes]        # directories the site writes at runtime
 node: true                 # the Node release the site carries, none by default
+mercure: true              # a Mercure hub on every start, off by default
 ```
 
 `settings` names a PHP file in the site. The build stops when the file is
@@ -188,6 +189,22 @@ Each glibc Linux, macOS and Windows file carries the release. A musl file
 carries none. The site's server and `drush` find the release first on `PATH`.
 A reader runs it as `SITE node`, `SITE npm` and `SITE npx`, which
 [the CLI reference](cli.md) describes.
+
+## A site that pushes live updates
+
+`mercure: true` serves a [Mercure](https://mercure.rocks/) hub at
+`/.well-known/mercure` on the site's own port. Absent or `false` serves none.
+
+Each Site data gets its own publisher and subscriber secrets. The site's PHP
+reads the hub's address and both secrets from three variables, which
+[the CLI reference](cli.md#mercure-hub) lists. Map them to the module you use
+in the site's `settings` file.
+
+PHP in a request publishes with FrankenPHP's `mercure_publish()`, which needs
+no token. Drush commands and cron post to the hub with an HS256 token signed
+by the publisher secret. A browser subscribes with a token signed by the
+subscriber secret, which the site hands out. The hub refuses a subscriber
+without one.
 
 ## Private Composer packages
 

@@ -143,6 +143,22 @@ The server and `drush` find the same release first on `PATH`.
 A musl file carries no Node. There each word exits 1 and names the glibc
 file. A site without Node answers each word as an unknown command.
 
+## Mercure hub
+
+A site whose `drupack.yml` sets `mercure: true` serves a Mercure hub at
+`/.well-known/mercure`. A start creates `mercure_publisher_secret` and
+`mercure_subscriber_secret` in Site data when they are missing. The hub keeps
+its last 1000 updates in `mercure.db` there.
+
+A start exports three variables to the server and the PHP it runs. `drush`
+exports them once a start has created the secrets.
+
+| Variable | Holds |
+|---|---|
+| `DRUPACK_MERCURE_URL` | the hub's address on the listener, for an HTTP publish |
+| `DRUPACK_MERCURE_PUBLISHER_SECRET` | the HS256 key a publisher token is signed with |
+| `DRUPACK_MERCURE_SUBSCRIBER_SECRET` | the HS256 key a subscriber token is signed with |
+
 ## `start` and `stop`
 
 `SITE` and `SITE start` are one command. A start takes the Serving lease, then
