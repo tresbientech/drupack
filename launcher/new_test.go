@@ -203,6 +203,35 @@ func TestNewFillsAnEmptyDirectory(t *testing.T) {
 	}
 }
 
+func TestNewFillsTheWorkingDirectoryInPlace(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "here")
+	if err := os.Mkdir(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(directory)
+	created, err := create([]string{"."}, archiveRelease(t, archiveOf(t, project)), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(created)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(before, after) {
+		t.Fatal("new replaced the working directory instead of filling it")
+	}
+	if got := names(t, filepath.Dir(directory)); !slices.Equal(got, []string{"here"}) {
+		t.Fatalf("the parent holds %v", got)
+	}
+	if _, err := os.Stat("composer.json"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestNewLeavesNothingWhenTheDownloadDiffers(t *testing.T) {
 	parent := t.TempDir()
 	body := archiveOf(t, project)

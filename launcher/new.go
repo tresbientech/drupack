@@ -51,14 +51,15 @@ func create(arguments []string, url string, out io.Writer) (string, error) {
 		return "", err
 	}
 	entries, err := os.ReadDir(directory)
-	if err == nil && len(entries) > 0 {
+	existing := err == nil
+	if existing && len(entries) > 0 {
 		return "", fmt.Errorf("%s holds files. new creates a project in a missing or empty directory.", directory)
 	}
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "", fmt.Errorf("new creates a project in a missing or empty directory: %w", err)
 	}
-	// The project is laid beside its directory and renamed into place last, so a
-	// failure leaves nothing at the name the reader gave.
+	// The project is laid beside its directory and moved into place last, so a
+	// failed download or extraction leaves nothing at the name the reader gave.
 	staging, err := os.MkdirTemp(filepath.Dir(directory), "."+filepath.Base(directory)+".new-*")
 	if err != nil {
 		return "", fmt.Errorf("cannot write beside %s: %w", directory, err)
@@ -93,15 +94,30 @@ func create(arguments []string, url string, out io.Writer) (string, error) {
 	if err := writeSettings(project); err != nil {
 		return "", err
 	}
-	// Windows renames onto no existing directory, empty or not.
-	if err := os.Remove(directory); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return "", err
-	}
-	if err := os.Rename(project, directory); err != nil {
+	if err := place(project, directory, existing); err != nil {
 		return "", err
 	}
 	fmt.Fprintf(out, "Created %s.\n", directory)
 	return directory, nil
+}
+
+// place moves the laid project to directory. An existing directory keeps its
+// identity, so a shell or a Windows process whose working directory it is, as
+// in `new .`, stays in it.
+func place(project, directory string, existing bool) error {
+	if !existing {
+		return os.Rename(project, directory)
+	}
+	entries, err := os.ReadDir(project)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if err := os.Rename(filepath.Join(project, e.Name()), filepath.Join(directory, e.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // extract unpacks the gzipped tar at file into directory. The archive is remote
