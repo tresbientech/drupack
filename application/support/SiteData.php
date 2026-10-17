@@ -42,6 +42,16 @@ final class SiteData
         return "$this->directory/hash_salt";
     }
 
+    public function mercurePublisherSecret(): string
+    {
+        return "$this->directory/mercure_publisher_secret";
+    }
+
+    public function mercureSubscriberSecret(): string
+    {
+        return "$this->directory/mercure_subscriber_secret";
+    }
+
     // The site's own application, laid here when its contract names writable directories.
     public function application(): string
     {

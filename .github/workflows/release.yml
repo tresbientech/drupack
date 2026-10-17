@@ -352,13 +352,13 @@ jobs:
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
             drupack-build --engine-executable --payload-only --output dist/engine
 
-      # The macOS and Windows jobs pack the Node fixture from this payload, which
+      # The macOS and Windows jobs pack the variant fixture from this payload, which
       # holds each of their targets' Node archives.
-      - name: Export the Node fixture payload
+      - name: Export the variant fixture payload
         run: |
-          bash build/node-fixture.sh demo "$RUNNER_TEMP/node-site"
-          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$RUNNER_TEMP/node-site:/node-site" -w /src drupack-job \
-            drupack-build --site /node-site --payload-only --output dist/node
+          bash build/variant-fixture.sh demo "$RUNNER_TEMP/variant-site"
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$RUNNER_TEMP/variant-site:/variant-site" -w /src drupack-job \
+            drupack-build --site /variant-site --payload-only --output dist/variant
 
       # A main push and a tag push of one commit run at once. A release's image is
       # sha-COMMIT and a main run pushes dev-COMMIT, so a main run never replaces it.
@@ -387,8 +387,8 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: node-payload-archive
-          path: dist/node/payload
+          name: variant-payload-archive
+          path: dist/variant/payload
           if-no-files-found: error
 
   # The demo goes through the workflow site repositories call, in the image the
@@ -656,20 +656,20 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          name: node-payload-archive
-          path: dist/node-payload
+          name: variant-payload-archive
+          path: dist/variant-payload
 
-      # The Node fixture packs on the runtime the build above left in its work directory.
-      - name: Run the Node fixture cases
+      # The variant fixture packs on the runtime the build above left in its work directory.
+      - name: Run the variant fixture cases
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
-          New-Item -ItemType Directory -Force -Path dist\node | Out-Null
+          New-Item -ItemType Directory -Force -Path dist\variant | Out-Null
           Push-Location launcher
-          go run ./cmd/pack -runtime "$env:RUNNER_TEMP\drupack\runtime" -entry frankenphp.exe -version $env:DRUPACK_VERSION -source . -output ..\dist\node\node-demo.exe -app ..\dist\node-payload\app-payload.tar -app-checksum ..\dist\node-payload\app_checksum.txt -site ..\dist\node-payload\site.json -site-version $env:DRUPACK_VERSION -node ..\dist\node-payload\node\windows-amd64.zip
+          go run ./cmd/pack -runtime "$env:RUNNER_TEMP\drupack\runtime" -entry frankenphp.exe -version $env:DRUPACK_VERSION -source . -output ..\dist\variant\variant-demo.exe -app ..\dist\variant-payload\app-payload.tar -app-checksum ..\dist\variant-payload\app_checksum.txt -site ..\dist\variant-payload\site.json -site-version $env:DRUPACK_VERSION -node ..\dist\variant-payload\node\windows-amd64.zip
           Pop-Location
-          Copy-Item dist\node-payload\site.json dist\node\site.json
-          python tests/conformance dist\node\node-demo.exe test-results\node -k Node
+          Copy-Item dist\variant-payload\site.json dist\variant\site.json
+          python tests/conformance dist\variant\variant-demo.exe test-results\variant -k Node -k MercureHub
 
       - name: Upload test results
         if: failure()
@@ -740,21 +740,21 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          name: node-payload-archive
-          path: dist/node-payload
+          name: variant-payload-archive
+          path: dist/variant-payload
 
-      # The Node fixture packs on the runtime the build above left in its work
+      # The variant fixture packs on the runtime the build above left in its work
       # directory, with the amd64 launcher the release ships.
-      - name: Run the Node fixture cases
+      - name: Run the variant fixture cases
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
-          New-Item -ItemType Directory -Force -Path dist\node | Out-Null
+          New-Item -ItemType Directory -Force -Path dist\variant | Out-Null
           Push-Location launcher
-          go run ./cmd/pack -goarch amd64 -runtime "$env:RUNNER_TEMP\drupack\runtime" -entry frankenphp.exe -version $env:DRUPACK_VERSION -source . -output ..\dist\node\node-demo.exe -app ..\dist\node-payload\app-payload.tar -app-checksum ..\dist\node-payload\app_checksum.txt -site ..\dist\node-payload\site.json -site-version $env:DRUPACK_VERSION -node ..\dist\node-payload\node\windows-amd64.zip
+          go run ./cmd/pack -goarch amd64 -runtime "$env:RUNNER_TEMP\drupack\runtime" -entry frankenphp.exe -version $env:DRUPACK_VERSION -source . -output ..\dist\variant\variant-demo.exe -app ..\dist\variant-payload\app-payload.tar -app-checksum ..\dist\variant-payload\app_checksum.txt -site ..\dist\variant-payload\site.json -site-version $env:DRUPACK_VERSION -node ..\dist\variant-payload\node\windows-amd64.zip
           Pop-Location
-          Copy-Item dist\node-payload\site.json dist\node\site.json
-          python tests/conformance dist\node\node-demo.exe test-results\node -k Node
+          Copy-Item dist\variant-payload\site.json dist\variant\site.json
+          python tests/conformance dist\variant\variant-demo.exe test-results\variant -k Node -k MercureHub
 
       - name: Upload test results
         if: failure()
@@ -862,22 +862,22 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          name: node-payload-archive
-          path: dist/node-payload
+          name: variant-payload-archive
+          path: dist/variant-payload
 
-      # The Node fixture packs on the runtime the build above left in its work directory.
-      - name: Run the Node fixture cases
+      # The variant fixture packs on the runtime the build above left in its work directory.
+      - name: Run the variant fixture cases
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
-          mkdir -p dist/node
+          mkdir -p dist/variant
           (cd launcher && go run ./cmd/pack -runtime "$RUNNER_TEMP/drupack/runtime" -entry drupack \
-            -version "$DRUPACK_VERSION" -source . -output ../dist/node/node-demo \
-            -app ../dist/node-payload/app-payload.tar -app-checksum ../dist/node-payload/app_checksum.txt \
-            -site ../dist/node-payload/site.json -site-version "$DRUPACK_VERSION" \
-            -node "../dist/node-payload/node/macos-${{ matrix.arch }}.tar.gz")
-          cp dist/node-payload/site.json dist/node/site.json
-          python3 tests/conformance dist/node/node-demo test-results/node -k Node
+            -version "$DRUPACK_VERSION" -source . -output ../dist/variant/variant-demo \
+            -app ../dist/variant-payload/app-payload.tar -app-checksum ../dist/variant-payload/app_checksum.txt \
+            -site ../dist/variant-payload/site.json -site-version "$DRUPACK_VERSION" \
+            -node "../dist/variant-payload/node/macos-${{ matrix.arch }}.tar.gz")
+          cp dist/variant-payload/site.json dist/variant/site.json
+          python3 tests/conformance dist/variant/variant-demo test-results/variant -k Node -k MercureHub
 
       - name: Check the unsigned launch steps
         run: |

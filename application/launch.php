@@ -213,6 +213,22 @@ function openWhenServing(string $url, ?string $target, bool $browser): void
 
 // The token names this Site data over HTTP without disclosing its path. Windows spells one
 // path in several casings, so the hash reads a single one.
+// Creates each missing hub secret in Site data, then exports the hub's address and both
+// secrets to the server and to the PHP it runs.
+function exportMercure(SiteData $site, string $bind, int $port): void
+{
+    foreach ([
+        'DRUPACK_MERCURE_PUBLISHER_SECRET' => $site->mercurePublisherSecret(),
+        'DRUPACK_MERCURE_SUBSCRIBER_SECRET' => $site->mercureSubscriberSecret(),
+    ] as $name => $path) {
+        if (!file_exists($path) && file_put_contents($path, bin2hex(random_bytes(32)), LOCK_EX) === false) {
+            throw new RuntimeException("Cannot create the Mercure secret: $path");
+        }
+        putenv("$name=" . file_get_contents($path));
+    }
+    putenv('DRUPACK_MERCURE_URL=http://' . urlHost(probeHost($bind)) . ":$port/.well-known/mercure");
+}
+
 function siteToken(string $data): string
 {
     return hash('sha256', windows() ? strtolower($data) : $data);
@@ -839,6 +855,9 @@ try {
             stopCommand($written === DEFAULT_DATA_DIR ? '' : ' --data-dir ' . shellWord($written)), array_slice($argv, 1));
         $site->recordListener($options['listen'], $options['host'], $options['files-dir']);
     }
+    if (siteSettings()['mercure'] && !$drush) {
+        exportMercure($site, $bind, $port);
+    }
     if (siteSettings()['writable'] !== []) {
         useSiteApplication($site, $drush);
     }
@@ -919,6 +938,7 @@ try {
         'DRUPACK_RUNTIME_DOCROOT' => application() . '/' . siteSettings()['docroot'],
         'DRUPACK_RUNTIME_LOG_PATH' => $logPath,
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
+        'DRUPACK_RUNTIME_MERCURE_SNIPPET' => siteSettings()['mercure'] ? 'mercure.caddy' : 'none.caddy',
     ]);
     replaceProcess($binary, ['php-server', application() . '/Caddyfile'], application(), 'Cannot start FrankenPHP');
 } catch (Throwable $error) {

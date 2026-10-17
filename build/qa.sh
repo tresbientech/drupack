@@ -3,8 +3,8 @@ set -euo pipefail
 
 # The full QA, which release.yml's qa job runs on a release candidate. It builds
 # the job image, which compiles both runtimes from this checkout. It builds
-# Drupacked Demo at the commit build/demo-pin.sh names, and a copy of it asking
-# for Node, with drupack-build inside that image, where no Docker daemon
+# Drupacked Demo at the commit build/demo-pin.sh names, and a copy of it with a
+# Mercure hub, with drupack-build inside that image, where no Docker daemon
 # answers, and the engine executable beside it. It then runs the cases that
 # need a daemon on this host, and the engine executable's cases against the
 # Drupacked Demo application.
@@ -18,7 +18,7 @@ engine=dist/engine/drupack-$platform
 # path in the job container. dist/work links to the site's work directory for
 # dev-server.sh and the vendor link below; -T fails on a real dist/work.
 work=${DRUPACK_QA_WORK:-/tmp/drupack-qa/$(basename -- "$PWD")}
-mkdir -p dist "$work/work" "$work/node-work" "$work/engine-work" "$work/results"
+mkdir -p dist "$work/work" "$work/variant-work" "$work/engine-work" "$work/results"
 ln -sfnT "$work/work" dist/work
 
 . build/demo-pin.sh
@@ -33,13 +33,13 @@ docker build --target job -t drupack-job .
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -w /src drupack-job \
     drupack-build --site "$demo" --platform "$platform" --libc glibc \
     --output dist --work "$work/work"
-# The Node fixture's build tests its glibc file, and the musl file's refusal runs below.
-node_site=$(mktemp -d)
-trap 'rm -rf "$node_site"' EXIT
-bash build/node-fixture.sh "$demo" "$node_site"
-docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -v "$node_site:/node-site" -w /src drupack-job \
-    drupack-build --site /node-site --platform "$platform" --libc both \
-    --output dist/node --work "$work/node-work"
+# The variant fixture's build tests its glibc file. Its musl file's Node refusal and hub cases run below.
+variant_site=$(mktemp -d)
+trap 'rm -rf "$variant_site"' EXIT
+bash build/variant-fixture.sh "$demo" "$variant_site"
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -v "$variant_site:/variant-site" -w /src drupack-job \
+    drupack-build --site /variant-site --platform "$platform" --libc both \
+    --output dist/variant --work "$work/variant-work"
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -w /src drupack-job \
     drupack-build --engine-executable --platform "$platform" --libc glibc --output dist/engine --work "$work/engine-work"
 
@@ -64,4 +64,4 @@ python3 -m unittest discover -s tests/upstream
 DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" "$work/results/conformance" --site-tests "$demo/tests" \
     -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \
     -k ExistingSiteAdoption -k EngineExecutable
-python3 tests/conformance "dist/node/node-demo-$platform-musl" "$work/results/node-musl" -k NodeRefusals
+python3 tests/conformance "dist/variant/variant-demo-$platform-musl" "$work/results/variant-musl" -k NodeRefusals -k MercureHub
