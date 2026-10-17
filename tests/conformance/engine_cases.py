@@ -274,6 +274,18 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), version.stdout)
 
+    def test_a_request_child_process_runs_on_the_runtime_php_with_no_php_on_path(self):
+        version = self.engine_run("php", "-r", "echo PHP_VERSION;")
+        self.assertEqual(version.returncode, 0, version.stderr)
+        script = self.docroot / "engine-case-child.php"
+        script.write_text("<?php passthru('php -r \"echo PHP_VERSION;\"');")
+        self.addCleanup(script.unlink)
+        empty = harness.fresh_dir(self.class_dir / "empty-server-path")
+        port, log = self.start("request-child", str(self.project), env=dict(os.environ, PATH=str(empty)))
+        with urlopen(f"http://127.0.0.1:{port}/engine-case-child.php",
+                     timeout=harness.WAITS["http_request"].seconds) as response:
+            self.assertEqual(response.read().decode(), version.stdout, f"inspect {log}")
+
     def test_dr_runs_drupal_cores_command_line(self):
         result = self.engine_run("dr", "list", cwd=self.project)
         self.assertEqual(result.returncode, 0, result.stderr)

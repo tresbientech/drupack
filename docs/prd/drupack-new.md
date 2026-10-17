@@ -59,7 +59,7 @@ folder. Drupack never changes its code.
 - D4. `new` downloads the asset through the `self-update` client and checks size and SHA-256 before extracting. `DRUPACK_CA_FILE` applies. Evidence: `launcher/update.go:131`, `:168`.
 - D5. `new` extracts into a staging directory beside DIR with Go's `archive/tar` and `compress/gzip`. It refuses an entry with an absolute path, a `..` segment or a link leaving the staging directory. It renames staging to DIR last, and removes staging on any failure.
 - D6. `new` writes `web/sites/default/settings.php` from the archive's `default.settings.php` plus one block:
-  - SQLite at `../db/site.sqlite` from the docroot
+  - SQLite at `db/site.sqlite` beside the docroot, written from `DRUPAL_ROOT`, since the server and Drush run from different directories
   - a hash salt of 55 random bytes, URL-safe base64
   - `config_sync_directory` at `../config`
   - Package Manager direct write and its testing flag
@@ -69,7 +69,7 @@ folder. Drupack never changes its code.
   It creates `db/` and `web/sites/default/files/`. Evidence: the Launcher's `settings.local.php`.
 - D7. After writing settings, `new` continues as `drupack DIR`, with `DRUPACK_NEW_PROJECT=1` in the environment. `serve.php` reads and clears it. Evidence: `engine/serve.php:154`.
 - D8. With `DRUPACK_NEW_PROJECT` set and a person watching, `serve.php` sets `DRUPACK_RUNTIME_OPEN` to the installer address. A person is watching under the rule a Packaged site's start applies. Evidence: `application/launch.php:206`, `runtime/entrypoint.go:309`.
-- D9. A start on a project whose Drush reports no installed site prints `Install: URL/core/install.php` and mints no login link. Phase 1 names the Drush field that tells an uninstalled SQLite project from an unreachable database. Evidence: `engine/serve.php:196`.
+- D9. A start on a project with no installed site prints `Install: URL/core/install.php` and mints no login link. A `php-cli` probe asks the project's Database API whether the `key_value` table exists, before the mint. A connection error mints as before. Drush's `bootstrap` and `db-status` are both empty for an uninstalled project and for an unreachable database alike, and `drush sql:query` needs the host's `sqlite3` or `mysql` client. Evidence: `engine/serve.php:196`, the phase 1 spike.
 - D10. `serve()` puts `engine/bin` first on `PATH` before it starts the server. The installer's `ComposerExecutor` and Package Manager then run the runtime's PHP. Today only `drush` and `dr` get it. Evidence: `engine/serve.php:242`, `engine/bin/php`.
 - D11. Phase 1 runs a curated template download and a Project Browser install under a served project. Every failure it finds becomes a task in the phase that owns the file.
 - D12. The archive repository is `tresbientech/drupal-cms-archive`, canonical on the Forge and mirrored to GitHub. Its daily job resolves `composer create-project drupal/cms` with the scaffold's `gitignore` off. Evidence: ADR 0001, ADR 0032.

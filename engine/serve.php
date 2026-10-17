@@ -217,6 +217,7 @@ function serve(string $binary, array $arguments): never
         'DRUPACK_RUNTIME_URL' => 'http://' . urlHost(probeHost($bind)) . ":$port",
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
     ]);
+    runtimePhpOnPath();
     replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }
 
@@ -235,11 +236,16 @@ function project(): string
     }
 }
 
+// Drush, core's command line, the installer and Package Manager start Composer and their
+// own child processes with the php on PATH, which bin/ points back at this runtime.
+function runtimePhpOnPath(): void
+{
+    putenv('PATH=' . __DIR__ . '/bin' . PATH_SEPARATOR . getenv('PATH'));
+}
+
 function runScript(string $binary, string $script, array $arguments): never
 {
-    // Drush and core's command line start their own child processes with the php on
-    // PATH, which bin/ points back at this runtime.
-    putenv('PATH=' . __DIR__ . '/bin' . PATH_SEPARATOR . getenv('PATH'));
+    runtimePhpOnPath();
     replaceProcess($binary, array_merge(['php-cli', $script], $arguments), getcwd(), "Cannot run $script");
 }
 

@@ -14,7 +14,7 @@ Every phase starts from the PRD's decisions:
 - D6: `new` writes `settings.php` from `default.settings.php` plus Drupack's block, and creates `db/` and `files/`.
 - D7: `new` continues as `drupack DIR` with `DRUPACK_NEW_PROJECT=1`, which `serve.php` reads and clears.
 - D8: with that variable and a person watching, the browser opens on the installer.
-- D9: a start on an uninstalled project prints the installer address and mints no link.
+- D9: a start on an uninstalled project prints the installer address and mints no link, after a probe for the `key_value` table.
 - D10: `serve()` puts `engine/bin` first on `PATH` before the server starts.
 - D11: the Composer spike runs first, and its findings become tasks.
 - D12: `tresbientech/drupal-cms-archive` builds stock `create-project drupal/cms` daily.
@@ -41,11 +41,11 @@ Put `engine/bin` first on `PATH` for the server, as `drush` already has it. Then
 
 ### Acceptance criteria
 
-- [ ] A new `engine_cases.py` case requests a project page that runs `php -r 'echo PHP_VERSION;'` in a child process, and gets the runtime's version back.
-- [ ] Playwright completes the installer with a curated template, then `drupack drush status --field=bootstrap` in the spike folder prints `Successful`.
-- [ ] After the Project Browser install, `drupack drush pm:list --status=enabled` lists the module.
-- [ ] The Drush field that tells an uninstalled SQLite project from an unreachable database is written into phase 3.
-- [ ] `(cd launcher && go test ./...)` passes.
+- [x] A new `engine_cases.py` case requests a project page that runs `php -r 'echo PHP_VERSION;'` in a child process, and gets the runtime's version back.
+- [x] Playwright completes the installer with a curated template, then `drupack drush status --field=bootstrap` in the spike folder prints `Successful`.
+- [x] After the Project Browser install, `drupack drush pm:list --status=enabled` lists the module.
+- [x] The check that tells an uninstalled SQLite project from an unreachable database is written into phase 3.
+- [x] `(cd launcher && go test ./...)` passes.
 
 ---
 
@@ -76,7 +76,7 @@ The launcher word `new DIR` on the Engine executable. It reads `release.json` fr
 
 ### What to build
 
-After writing the folder, `new` continues as `drupack DIR` with `DRUPACK_NEW_PROJECT=1`. `serve.php` reads and clears it. With a person watching on a loopback listener, it sets the runtime's open variable to the installer address. A start on an uninstalled project prints the installer address in place of the login line, under the Drush field phase 1 named.
+After writing the folder, `new` continues as `drupack DIR` with `DRUPACK_NEW_PROJECT=1`. `serve.php` reads and clears it. With a person watching on a loopback listener, it sets the runtime's open variable to the installer address. A start on an uninstalled project prints the installer address in place of the login line. A `php-cli` probe in the project asks its Database API for the `key_value` table first; a connection error mints as before.
 
 ### Acceptance criteria
 
