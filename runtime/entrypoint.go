@@ -170,7 +170,8 @@ const shutdownDeadline = 10 * time.Second
 
 // writeFromRedirectedEnd moves stdout and stderr to the end of the file each one names,
 // past PHP's lines. Two handles on one file would each keep their own offset, so stderr
-// writes through stdout when both name the same file.
+// writes through stdout when both name the same file. The reader's shell sets these
+// handles: a missing one fails Stat, and a console or pipe one has no end to seek.
 func writeFromRedirectedEnd() {
 	for _, stream := range []*os.File{os.Stdout, os.Stderr} {
 		if info, err := stream.Stat(); err == nil && info.Mode().IsRegular() {
