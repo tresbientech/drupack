@@ -20,6 +20,7 @@ ID             writers=application/launch.php,engine/serve.php  readers=runtime/
 INVOKED        writers=launcher/main.go,build/dev/dev-entry.sh  readers=application/process.php
 LAUNCHER       writers=launcher/main.go,build/dev/dev-entry.sh  readers=application/launch.php,application/process.php
 LOG_PATH       writers=application/launch.php  readers=application/Caddyfile
+MERCURE_SNIPPET  writers=application/launch.php  readers=application/Caddyfile
 NAME           writers=launcher/main.go,build/dev/dev-entry.sh  readers=runtime/entrypoint.go,application/process.php
 NODE           writers=launcher/main.go  readers=runtime/entrypoint.go
 OPEN           writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go
