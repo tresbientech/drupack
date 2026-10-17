@@ -44,6 +44,9 @@ The `drupack` executable: the Runtime and Drupack's own files, with no applicati
 A Drupal Composer project on disk, with its dependencies installed. An Engine executable serves it unchanged, under its own settings.
 _Avoid_: served folder, codebase
 
+**Drupal CMS archive**:
+A prebuilt `composer create-project drupal/cms`, one file for every platform, published from its own repository whenever its lock moves. `drupack new` lays it into a new Project folder.
+
 ### Release
 
 **Release file**:
@@ -152,6 +155,7 @@ A PHP extension that a package in the application's lock file names as a require
 - An **Engine executable** has no **Site data**. A **Project folder**'s own settings name its database and files.
 - An **Engine executable** refuses a **Project folder** with a **Declared extension** its **Runtime** lacks.
 - An **Engine executable** runs a **Project folder**'s own Drush with `drush`, and Drupal core's command line with `dr`.
+- `drupack new` creates a **Project folder** from the **Drupal CMS archive** and writes its settings once. A later start writes nothing into it.
 - A Linux release holds an **Engine executable** per C library, as it does for a **Packaged site**.
 
 ### Extensions

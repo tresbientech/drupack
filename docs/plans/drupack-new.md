@@ -124,6 +124,6 @@ A README section after "Serve a Drupal project you already have". The `new` word
 
 ### Acceptance criteria
 
-- [ ] `grep -n 'drupack new' README.md docs/cli.md` finds both sections.
-- [ ] `grep -n 'Drupal CMS archive' CONTEXT.md` finds the term.
+- [x] `grep -n 'drupack new' README.md docs/cli.md` finds both sections.
+- [x] `grep -n 'Drupal CMS archive' CONTEXT.md` finds the term.
 - [ ] After the archive's first release, the README's `drupack new` command run with a local engine build prints the installer address.

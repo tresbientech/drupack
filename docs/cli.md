@@ -208,7 +208,7 @@ Three variables have no option:
 | Variable | Selects |
 |---|---|
 | `DRUPACK_CACHE_DIR` | where a release unpacks, for a disk with more room |
-| `DRUPACK_CA_FILE` | the TLS trust bundle PHP and `self-update` verify HTTPS against |
+| `DRUPACK_CA_FILE` | the TLS trust bundle PHP, `new` and `self-update` verify HTTPS against |
 | `DRUPACK_NO_UPDATE_CHECK` | `1` turns off the engine executable's daily release check |
 
 ## The engine executable
@@ -216,6 +216,7 @@ Three variables have no option:
 ```
 drupack [start] [DIR] [--listen IP:PORT] [--foreground]
 drupack stop [DIR]
+drupack new DIR
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
 drupack php SCRIPT [ARGUMENTS]
@@ -254,7 +255,28 @@ and says it already serves.
   the bundled PHP does not meet, and names what is missing.
 - The start prints a one-time login link for uid 1, through the folder's Drush.
   It still serves when that fails, or when the folder has no Drush.
+- A folder whose database holds no installed site prints `Install:` with
+  `/core/install.php` instead, and mints no link. A probe asks the folder's
+  Database API for the `key_value` table first.
 - Caddy's errors go to standard error.
+
+`new DIR` creates a Project folder from the Drupal CMS archive, then serves it
+as a start naming `DIR`.
+
+- `DIR` must be missing or empty. A second argument or an option is refused.
+- It reads `release.json` from
+  `https://github.com/tresbientech/drupal-cms-archive/releases/latest/download/release.json`,
+  downloads the `drupal-cms` asset, and checks its size and SHA-256.
+- It refuses an archive entry outside the project, and any link.
+- It lays the project beside `DIR` and renames it into place last, so a failure
+  leaves no `DIR`.
+- It writes `web/sites/default/settings.php`: the archive's
+  `default.settings.php`, then SQLite at `db/site.sqlite`, a fresh hash salt,
+  `config_sync_directory` at `../config`, Package Manager direct write,
+  `skip_permissions_hardening`, and the trusted hosts `127.0.0.1` and
+  `localhost`. It creates `db` and `web/sites/default/files`.
+- The start that follows opens the browser on `/core/install.php` when a person
+  is present and the listener is loopback. A later start opens nothing.
 
 `drush` runs the Drush of the nearest directory at or above the working directory
 that holds `vendor/autoload.php`. Drush's child processes find a `php` on
