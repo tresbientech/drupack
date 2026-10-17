@@ -139,6 +139,13 @@ function drushLoginLink(string $binary, string $drush, string $directory, array 
     return $link;
 }
 
+// A login link and the session it opens cross any other network in clear text, so only
+// a loopback listener opens a browser. 0.0.0.0 and :: accept other computers too.
+function loopback(string $bind): bool
+{
+    return $bind === '::1' || str_starts_with($bind, '127.');
+}
+
 // Whether a file manager's console started this process, which closing the window would end
 // along with a background server.
 function consoleOwned(): bool

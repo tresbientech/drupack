@@ -47,9 +47,17 @@ func run() error {
 	if len(os.Args) > 1 && os.Args[1] == "self-update" {
 		return selfUpdate(os.Args[2:], releaseURL, executable, os.Stdout)
 	}
+	// new serves the project it created, as a start naming that directory, and
+	// serve.php opens the installer for it.
 	if engine && len(os.Args) > 1 && os.Args[1] == "new" {
-		_, err := create(os.Args[2:], archiveURL, os.Stdout)
-		return err
+		directory, err := create(os.Args[2:], archiveURL, os.Stdout)
+		if err != nil {
+			return err
+		}
+		os.Args = []string{os.Args[0], directory}
+		if err := os.Setenv("DRUPACK_NEW_PROJECT", "1"); err != nil {
+			return err
+		}
 	}
 	root, err := runtime.Root(siteName, os.Stderr)
 	if err != nil {

@@ -80,11 +80,11 @@ After writing the folder, `new` continues as `drupack DIR` with `DRUPACK_NEW_PRO
 
 ### Acceptance criteria
 
-- [ ] An `engine_cases.py` case starts a project whose settings name an empty SQLite path, and finds `Install:` with `/core/install.php` and no mint failure.
-- [ ] The existing login-link case in `engine_cases.py` still finds `Login:` on an installed project.
-- [ ] A `browser_cases.py` case shows a start with `DRUPACK_NEW_PROJECT=1` and a person present opens the installer address.
-- [ ] A `browser_cases.py` case shows the same start with no person present opens nothing.
-- [ ] An `engine_cases.py` case shows a request's environment holds no `DRUPACK_NEW_PROJECT`.
+- [x] An `engine_cases.py` case starts a project whose settings name an empty SQLite path, and finds `Install:` with `/core/install.php` and no mint failure.
+- [x] The existing login-link case in `engine_cases.py` still finds `Login:` on an installed project.
+- [x] An `engine_cases.py` case shows a start with `DRUPACK_NEW_PROJECT=1` and a person present opens the installer address.
+- [x] An `engine_cases.py` case shows the same start with no person present opens nothing.
+- [x] An `engine_cases.py` case shows a request's environment holds no `DRUPACK_NEW_PROJECT`.
 
 ---
 

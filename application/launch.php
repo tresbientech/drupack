@@ -293,13 +293,6 @@ function listenerParts(string $listen): array
     return [trim($listener[1], '[]'), (int) $listener[2]];
 }
 
-// A login link and the session it opens cross any other network in clear text, so only
-// a loopback listener opens a browser. 0.0.0.0 and :: accept other computers too.
-function loopback(string $bind): bool
-{
-    return $bind === '::1' || str_starts_with($bind, '127.');
-}
-
 // Reports whether anything holds $bind:$port. A connect answers this on every platform,
 // where a trial bind would report a taken port as free under Windows SO_REUSEADDR. A
 // wildcard is probed on its own family's loopback, since an IPv6-only listener never

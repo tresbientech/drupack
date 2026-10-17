@@ -192,7 +192,10 @@ function serve(string $binary, array $arguments): never
 
     $url = "http://$listen";
     $link = null;
-    if (!is_file("$project/" . DRUSH_SCRIPT)) {
+    $install = null;
+    if (siteInstalled($binary, $project, $docroot) === false) {
+        $install = "$url/core/install.php";
+    } elseif (!is_file("$project/" . DRUSH_SCRIPT)) {
         fwrite(STDERR, "No login link: $project has no Drush. composer require drush/drush adds one.\n");
     } else {
         fwrite(STDOUT, "Creating a one-time login link.\n");
@@ -204,11 +207,17 @@ function serve(string $binary, array $arguments): never
             fwrite(STDERR, "Cannot mint a one-time login link: {$failure->reason}\nGet one once the site answers with: " . executableName() . " drush user:login --uri=$url\n");
         }
     }
-    fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n") . "  Project: $project\n");
+    fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n")
+        . ($install === null ? '' : "  Install: $install\n") . "  Project: $project\n");
     fwrite(STDOUT, "Starting the web server.\n");
+    // `new` sets this for the start that serves the project it created, and no request reads it.
+    $created = environment('DRUPACK_NEW_PROJECT') === '1';
+    putenv('DRUPACK_NEW_PROJECT');
     // The Caddyfile beside this file is fixed, and Caddy fills its values from this environment.
-    // The server opens no browser, so a value inherited from an earlier start is cleared.
-    putenv('DRUPACK_RUNTIME_OPEN');
+    // The server opens a browser on the installer of a project `new` created alone, so a value
+    // inherited from an earlier start is cleared.
+    putenv($created && $install !== null && personPresent() && loopback($bind)
+        ? "DRUPACK_RUNTIME_OPEN=$install" : 'DRUPACK_RUNTIME_OPEN');
     exportServerEnvironment([
         'DRUPACK_RUNTIME_PORT' => $port,
         'DRUPACK_RUNTIME_BIND' => $bind,
@@ -234,6 +243,21 @@ function project(): string
             throw new RuntimeException("No vendor/autoload.php in $start or any directory above it. Run composer install in the project.");
         }
     }
+}
+
+// Whether the database the project's settings name holds an installed site, or null when
+// the probe cannot tell, such as for a database it cannot reach.
+function siteInstalled(string $binary, string $project, string $docroot): ?bool
+{
+    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => ['file', nullDevice(), 'w']];
+    $child = proc_open([$binary, 'php-cli', __DIR__ . '/installed.php', $project, $docroot], $descriptors, $pipes, $project);
+    if (!is_resource($child)) {
+        throw new RuntimeException('Cannot run the installation probe');
+    }
+    $answer = trim((string) stream_get_contents($pipes[1]));
+    fclose($pipes[1]);
+    $status = proc_close($child);
+    return $status === 0 && in_array($answer, ['yes', 'no'], true) ? $answer === 'yes' : null;
 }
 
 // Drush, core's command line, the installer and Package Manager start Composer and their

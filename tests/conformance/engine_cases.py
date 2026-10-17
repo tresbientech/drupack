@@ -81,7 +81,9 @@ class EngineExecutable(harness.ConformanceCase):
                            capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
 
     def start(self, name, *arguments, cwd=None, env=None):
-        """Starts the engine executable on a port of its own, waits for /user/login, and returns the port and log."""
+        """Starts the engine executable on a port of its own, waits for /user/login and the ready line, and
+        returns the port and log. Drupal can answer before the server writes its stop record, which precedes
+        the ready line."""
         port = harness.pick_port()
         log = self.class_dir / f"{name}.log"
         with open(log, "wb") as handle:
@@ -94,6 +96,7 @@ class EngineExecutable(harness.ConformanceCase):
             if process.poll() is not None:
                 self.fail(f"the start exited before answering: inspect {log}")
             if self.status(port, "/user/login") == 200:
+                harness.wait_for_line(log, 0, "drupack is ready", max(deadline - time.monotonic(), 0))
                 return port, log
             time.sleep(0.25)
         self.fail(f"the start did not answer /user/login: inspect {log}")
@@ -285,6 +288,53 @@ class EngineExecutable(harness.ConformanceCase):
         with urlopen(f"http://127.0.0.1:{port}/engine-case-child.php",
                      timeout=harness.WAITS["http_request"].seconds) as response:
             self.assertEqual(response.read().decode(), version.stdout, f"inspect {log}")
+
+    def uninstall(self):
+        """Points the project's settings at a database no installer has run, until the case ends."""
+        settings = self.docroot / "sites" / "default" / "settings.php"
+        original = settings.read_text()
+        self.addCleanup(settings.write_text, original)
+        database = harness.fresh_dir(self.class_dir / f"uninstalled-{self._testMethodName}") / "site.sqlite"
+        settings.write_text(SETTINGS.format(database=json.dumps(str(database))))
+
+    def test_a_start_on_a_project_with_no_installed_site_prints_the_installer_address(self):
+        self.uninstall()
+        port, log = self.start("uninstalled", str(self.project))
+        output = log.read_text()
+        self.assertIn(f"  Install: http://127.0.0.1:{port}/core/install.php\n", output)
+        self.assertNotIn("  Login:", output)
+        self.assertNotIn("Cannot mint", output)
+
+    def test_a_start_for_a_new_project_opens_the_installer_for_a_person(self):
+        if harness.current_platform() == harness.WINDOWS:
+            self.skipTest("the recorder posing as the browser opener is a shell script")
+        self.uninstall()
+        script, recorded = harness.install_recorder(self.class_dir / "recorder-person")
+        env = dict(os.environ, PATH=f"{script.parent}{os.pathsep}{os.environ['PATH']}",
+                   DRUPACK_NEW_PROJECT="1", DRUPACK_RUNTIME_PERSON="1")
+        port, log = self.start("new-person", str(self.project), env=env)
+        self.assertEqual(harness.wait_for_recorded_url(recorded, harness.WAITS["browser_open"].seconds),
+                         f"http://127.0.0.1:{port}/core/install.php", f"inspect {log}")
+
+    def test_a_start_for_a_new_project_opens_nothing_with_no_person(self):
+        if harness.current_platform() == harness.WINDOWS:
+            self.skipTest("the recorder posing as the browser opener is a shell script")
+        self.uninstall()
+        script, recorded = harness.install_recorder(self.class_dir / "recorder-nobody")
+        env = dict(os.environ, PATH=f"{script.parent}{os.pathsep}{os.environ['PATH']}", DRUPACK_NEW_PROJECT="1")
+        env.pop("DRUPACK_RUNTIME_PERSON", None)
+        _, log = self.start("new-nobody", str(self.project), env=env)
+        time.sleep(harness.WAITS["browser_open"].seconds)
+        self.assertFalse(recorded.exists(), f"a start with no person opened a browser: inspect {log}")
+
+    def test_a_request_reads_no_new_project_marker(self):
+        script = self.docroot / "engine-case-marker.php"
+        script.write_text("<?php var_export(getenv('DRUPACK_NEW_PROJECT'));")
+        self.addCleanup(script.unlink)
+        port, log = self.start("marker", str(self.project), env=dict(os.environ, DRUPACK_NEW_PROJECT="1"))
+        with urlopen(f"http://127.0.0.1:{port}/engine-case-marker.php",
+                     timeout=harness.WAITS["http_request"].seconds) as response:
+            self.assertEqual(response.read().decode(), "false", f"inspect {log}")
 
     def test_dr_runs_drupal_cores_command_line(self):
         result = self.engine_run("dr", "list", cwd=self.project)
