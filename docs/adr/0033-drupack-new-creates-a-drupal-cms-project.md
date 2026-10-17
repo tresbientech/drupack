@@ -66,7 +66,7 @@ The Engine executable already serves a writable Project folder unchanged
   and release line for one embedded file.
 - Composer run on the reader's machine at `new`. About 180 package downloads,
   and the Windows antivirus and proxy failures that made the Launcher prebuild.
-- The archive embedded in the engine. About 30 MB more, and an engine tag per
+- The archive embedded in the engine. About 56 MB more, and an engine tag per
   lock move, the coupling [ADR 0032](0032-drupacked-demo-own-repository.md)
   removed.
 - Archive tags named after the cms release. A core security release would

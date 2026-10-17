@@ -84,7 +84,7 @@ folder. Drupack never changes its code.
 - A Packaged site whose whole project is a Writable directory. Its upgrade lays a release over code Drupal owns.
 - A separate `drupal-cms` executable carrying the archive. A third executable and release line for one file.
 - Composer run on the reader's machine. About 180 downloads per create, and the Windows antivirus and proxy failures that made the Launcher prebuild.
-- The archive embedded in the engine. About 30 MB more, and an engine tag per lock move.
+- The archive embedded in the engine. About 56 MB more, and an engine tag per lock move.
 - Archive tags named after the cms release. Core security fixes would wait for the next cms release.
 - `drupal/mercury_demo` added to the archive. The archive would stop being stock.
 - `new` written in `serve.php`. The download and checksum code would exist in Go and PHP.

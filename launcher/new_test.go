@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -259,5 +260,36 @@ func TestNewRefusesAnEntryLeavingTheProject(t *testing.T) {
 				t.Fatalf("the directory above holds %v", got)
 			}
 		})
+	}
+}
+
+// The release.json build/archive.py writes in tresbientech/drupal-cms-archive.
+const archiveReleaseJSON = `{
+  "version": "2026.10.1",
+  "cms": "2.2.5",
+  "core": "11.4.10",
+  "assets": [
+    {
+      "name": "drupal-cms",
+      "target": "any",
+      "asset": "drupal-cms-2026.10.1.tar.gz",
+      "url": "https://github.com/tresbientech/drupal-cms-archive/releases/download/2026.10.1/drupal-cms-2026.10.1.tar.gz",
+      "sha256": "4cf545537986537f2ab26a3aa9ddb8581a071265e69c7b8164c971447fc5ec37",
+      "size": 58628955
+    }
+  ]
+}`
+
+func TestNewReadsTheReleaseTheArchiveRepositoryWrites(t *testing.T) {
+	var latest release
+	if err := json.Unmarshal([]byte(archiveReleaseJSON), &latest); err != nil {
+		t.Fatal(err)
+	}
+	chosen, err := pick(latest, archiveName, "any")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if latest.CMS != "2.2.5" || latest.Core != "11.4.10" || chosen.Size != 58628955 || chosen.Asset != "drupal-cms-2026.10.1.tar.gz" {
+		t.Fatalf("decoded %+v, asset %+v", latest, chosen)
 	}
 }
