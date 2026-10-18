@@ -11,6 +11,16 @@ function mercureUrl(string $bind, int $port): string
     return 'http://' . urlHost(probeHost($bind)) . ":$port/.well-known/mercure";
 }
 
+// The server variables that mount the hub, or that import none.caddy when $on is false.
+// The hub keeps its history in $directory.
+function mercureServerEnvironment(bool $on, string $directory): array
+{
+    return [
+        'DRUPACK_RUNTIME_MERCURE_SNIPPET' => $on ? 'mercure.caddy' : 'none.caddy',
+        'DRUPACK_RUNTIME_MERCURE_DB' => "$directory/mercure.db",
+    ];
+}
+
 // A start creates each missing secret, readable by its owner alone. Both a start and
 // `drush` then export the hub's address and both secrets to the PHP they run. `drush`
 // creates nothing, so before a start has created the secrets it exports no hub.

@@ -923,9 +923,7 @@ try {
         'DRUPACK_RUNTIME_DOCROOT' => application() . '/' . siteSettings()['docroot'],
         'DRUPACK_RUNTIME_LOG_PATH' => $logPath,
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
-        'DRUPACK_RUNTIME_MERCURE_SNIPPET' => siteSettings()['mercure'] ? 'mercure.caddy' : 'none.caddy',
-        'DRUPACK_RUNTIME_MERCURE_DB' => "$data/mercure.db",
-    ]);
+    ] + mercureServerEnvironment(siteSettings()['mercure'], $data));
     replaceProcess($binary, ['php-server', application() . '/Caddyfile'], application(), 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");

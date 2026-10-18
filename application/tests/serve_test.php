@@ -66,6 +66,11 @@ test('a project without composer.json serves no hub', function () {
     same(false, mercureKey(project_with('no-composer', ['web/index.php' => '<?php'])));
 });
 
+test('a composer.json that is not a JSON object is refused', function () {
+    $project = project_with('mercure-broken', ['composer.json' => '{"extra": ']);
+    throws("$project/composer.json is not a JSON object", fn () => mercureKey($project));
+});
+
 test('a Mercure key that is not a boolean is refused', function () {
     $project = project_with('mercure-string', ['composer.json' => '{"extra": {"drupack": {"mercure": "on"}}}']);
     throws("$project/composer.json: extra.drupack.mercure must be true or false", fn () => mercureKey($project));

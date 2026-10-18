@@ -217,10 +217,10 @@ function serve(string $binary, array $arguments): never
     putenv('DRUPACK_RUNTIME_OPEN');
     if ($mercure) {
         $hub = mercureUrl($bind, (int) $port);
-        exportMercure("$entry/mercure_publisher_secret", "$entry/mercure_subscriber_secret", $hub, false);
+        exportEngineMercure($entry, $hub, false);
         // The start's --listen chooses the port, so drush reads the address back from here.
-        if (file_put_contents("$entry/mercure_url", $hub) !== strlen($hub)) {
-            throw new RuntimeException("Cannot write $entry/mercure_url");
+        if (file_put_contents("$entry/" . MERCURE_URL_FILE, $hub) !== strlen($hub)) {
+            throw new RuntimeException("Cannot write $entry/" . MERCURE_URL_FILE);
         }
     }
     exportServerEnvironment([
@@ -230,9 +230,7 @@ function serve(string $binary, array $arguments): never
         'DRUPACK_RUNTIME_ID' => basename($entry),
         'DRUPACK_RUNTIME_URL' => 'http://' . urlHost(probeHost($bind)) . ":$port",
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
-        'DRUPACK_RUNTIME_MERCURE_SNIPPET' => $mercure ? 'mercure.caddy' : 'none.caddy',
-        'DRUPACK_RUNTIME_MERCURE_DB' => "$entry/mercure.db",
-    ]);
+    ] + mercureServerEnvironment($mercure, $entry));
     runtimePhpOnPath();
     replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }
@@ -241,12 +239,28 @@ function serve(string $binary, array $arguments): never
 // reader's file, so a value other than true or false is refused.
 function mercureKey(string $project): bool
 {
-    $composer = json_decode((string) @file_get_contents("$project/composer.json"), true);
+    $path = "$project/composer.json";
+    if (!is_file($path)) {
+        return false;
+    }
+    $composer = json_decode((string) file_get_contents($path), true);
+    if (!is_array($composer)) {
+        throw new RuntimeException("$path is not a JSON object");
+    }
     $value = $composer['extra']['drupack']['mercure'] ?? false;
     if (!is_bool($value)) {
         throw new RuntimeException("$project/composer.json: extra.drupack.mercure must be true or false");
     }
     return $value;
+}
+
+// The engine keeps the hub's secrets and address in the folder's cache entry, so the
+// project folder gains no file.
+const MERCURE_URL_FILE = 'mercure_url';
+
+function exportEngineMercure(string $entry, string $url, bool $drush): void
+{
+    exportMercure("$entry/mercure_publisher_secret", "$entry/mercure_subscriber_secret", $url, $drush);
 }
 
 // Drush in a project with the hub sees the variables the last start created. It creates
@@ -255,9 +269,8 @@ function drush(string $binary, array $arguments): never
 {
     $project = project();
     $entry = folderEntry($project);
-    if (mercureKey($project) && is_file("$entry/mercure_url")) {
-        exportMercure("$entry/mercure_publisher_secret", "$entry/mercure_subscriber_secret",
-            file_get_contents("$entry/mercure_url"), true);
+    if (mercureKey($project) && is_file("$entry/" . MERCURE_URL_FILE)) {
+        exportEngineMercure($entry, file_get_contents("$entry/" . MERCURE_URL_FILE), true);
     }
     runScript($binary, drushScript($project), $arguments);
 }
