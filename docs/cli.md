@@ -155,7 +155,7 @@ exports them once a start has created the secrets.
 
 | Variable | Holds |
 |---|---|
-| `DRUPACK_MERCURE_URL` | the hub's address on the listener, for an HTTP publish |
+| `DRUPACK_MERCURE_URL` | the hub's address on the listener, for an HTTP publish, and the `iss` and `aud` of every token |
 | `DRUPACK_MERCURE_PUBLISHER_SECRET` | the HS256 key a publisher token is signed with |
 | `DRUPACK_MERCURE_SUBSCRIBER_SECRET` | the HS256 key a subscriber token is signed with |
 

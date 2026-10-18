@@ -201,10 +201,19 @@ reads the hub's address and both secrets from three variables, which
 in the site's `settings` file.
 
 PHP in a request publishes with FrankenPHP's `mercure_publish()`, which needs
-no token. Drush commands and cron post to the hub with an HS256 token signed
-by the publisher secret. A browser subscribes with a token signed by the
-subscriber secret, which the site hands out. The hub refuses a subscriber
-without one.
+no token. Drush commands and cron post to the hub with a token signed by the
+publisher secret. A browser subscribes with a token signed by the subscriber
+secret, which the site hands out. The hub refuses a subscriber without one.
+
+The hub speaks Mercure protocol 1.0. Each token is an HS256 access token with:
+
+- the header `typ: at+jwt`
+- `iss` and `aud` both set to `DRUPACK_MERCURE_URL`
+- an `exp`
+- an `authorization_details` claim that grants the topics
+
+symfony/mercure 0.9 and later mints this shape by default. A subscriber names
+its topics with `?match=`.
 
 ## Private Composer packages
 

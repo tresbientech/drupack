@@ -19,8 +19,10 @@ executable.
   A start creates each missing one. `drush` creates none.
 - Start and `drush` export `DRUPACK_MERCURE_URL` and both secrets. A site's
   settings file maps them to the modules it uses.
-- Subscribers and HTTP publishers sign HS256 tokens. Anonymous subscribers,
-  CORS origins, the subscriptions API and the UI stay off.
+- The hub speaks Mercure protocol 1.0. Subscribers and HTTP publishers sign
+  HS256 access tokens whose `iss` and `aud` are `DRUPACK_MERCURE_URL`.
+  Anonymous subscribers, CORS origins, the subscriptions API and the UI stay
+  off.
 - The hub keeps its last 1000 updates in `mercure.db` in Site data, so a
   reconnect with `Last-Event-ID` replays what it missed.
 - The Engine executable serves no hub.

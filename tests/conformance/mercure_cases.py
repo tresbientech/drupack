@@ -1,6 +1,6 @@
 """The Mercure hub a site's contract turns on: a request publishes through mercure_publish(),
-a subscriber that accepts gzip and holds a token signed with the Site data secret receives
-it as it is published, a reconnect replays the history, a publisher token posts over HTTP, `drush` sees the hub's
+a subscriber that accepts gzip and holds a Mercure 1.0 access token signed with the Site
+data secret receives it as it is published, a reconnect replays the history, a publisher token posts over HTTP, `drush` sees the hub's
 variables once a start created the secrets, and a site without the key serves no hub and
 writes no secret.
 """
@@ -25,12 +25,22 @@ TOPIC = "drupack/probe"
 SECRETS = ("mercure_publisher_secret", "mercure_subscriber_secret")
 
 
-def token(secret, claims):
-    """An HS256 JSON Web Token over claims, signed with secret."""
+def signed(secret, header, claims):
+    """An HS256 JSON Web Token with header and claims, signed with secret."""
     def encode(data):
         return base64.urlsafe_b64encode(data).rstrip(b"=")
-    signed = encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode()) + b"." + encode(json.dumps(claims).encode())
-    return (signed + b"." + encode(hmac.new(secret.encode(), signed, hashlib.sha256).digest())).decode()
+    body = encode(json.dumps(dict(header, alg="HS256")).encode()) + b"." + encode(json.dumps(claims).encode())
+    return (body + b"." + encode(hmac.new(secret.encode(), body, hashlib.sha256).digest())).decode()
+
+
+def token(secret, port, action):
+    """A Mercure 1.0 access token granting action on TOPIC, whose iss and aud name the hub."""
+    hub = f"http://127.0.0.1:{port}{HUB}"
+    return signed(secret, {"typ": "at+jwt"}, {
+        "iss": hub, "aud": hub, "exp": int(time.time()) + 600,
+        "authorization_details": [{"type": "https://mercure.rocks/authorization-detail",
+                                   "actions": [action], "topics": [{"match": TOPIC}]}],
+    })
 
 
 class Stream:
@@ -41,7 +51,7 @@ class Stream:
         headers = {"Accept": "text/event-stream", "Accept-Encoding": "gzip", "Authorization": f"Bearer {bearer}"}
         if last_event_id is not None:
             headers["Last-Event-ID"] = last_event_id
-        self.connection.request("GET", f"{HUB}?topic={TOPIC}", headers=headers)
+        self.connection.request("GET", f"{HUB}?match={TOPIC}", headers=headers)
         self.response = self.connection.getresponse()
         # Caddy's encode skips a response whose first write falls under its minimum length,
         # and the hub opens every stream with a two-byte comment line.
@@ -83,7 +93,7 @@ class MercureHub(harness.ConformanceCase):
         return (self.data / name).read_text()
 
     def subscriber_token(self):
-        return token(self.secret("mercure_subscriber_secret"), {"mercure": {"subscribe": [TOPIC]}})
+        return token(self.secret("mercure_subscriber_secret"), self.site.port, "subscribe")
 
     def publish(self, data):
         """Publishes data through the probe, which calls mercure_publish(), and returns the update's id."""
@@ -113,12 +123,18 @@ class MercureHub(harness.ConformanceCase):
             stream.close()
 
     def test_a_subscriber_without_a_valid_token_is_refused(self):
-        for name, bearer in [("no token", None), ("another key", token("another key", {"mercure": {"subscribe": [TOPIC]}}))]:
+        secret = self.secret("mercure_subscriber_secret")
+        refused = [
+            ("no token", None),
+            ("another key", token("another key", self.site.port, "subscribe")),
+            ("a Mercure 0.x token", signed(secret, {"typ": "JWT"}, {"mercure": {"subscribe": [TOPIC]}})),
+        ]
+        for name, bearer in refused:
             with self.subTest(name):
                 connection = http.client.HTTPConnection("localhost", self.site.port, timeout=harness.WAITS["http_request"].seconds)
                 try:
                     headers = {} if bearer is None else {"Authorization": f"Bearer {bearer}"}
-                    connection.request("GET", f"{HUB}?topic={TOPIC}", headers=headers)
+                    connection.request("GET", f"{HUB}?match={TOPIC}", headers=headers)
                     self.assertEqual(connection.getresponse().status, 401)
                 finally:
                     connection.close()
@@ -136,7 +152,7 @@ class MercureHub(harness.ConformanceCase):
         connection = http.client.HTTPConnection("localhost", self.site.port, timeout=harness.WAITS["http_request"].seconds)
         try:
             stream.read_until(":")
-            bearer = token(self.secret("mercure_publisher_secret"), {"mercure": {"publish": [TOPIC]}})
+            bearer = token(self.secret("mercure_publisher_secret"), self.site.port, "publish")
             connection.request("POST", HUB, body=urlencode({"topic": TOPIC, "data": "posted", "private": "on"}),
                                headers={"Authorization": f"Bearer {bearer}", "Content-Type": "application/x-www-form-urlencoded"})
             response = connection.getresponse()
@@ -191,7 +207,7 @@ class MercureHubOff(harness.ConformanceCase):
         site.start(data)
         try:
             with self.assertRaises(HTTPError) as refused:
-                site.fetch(f"{HUB}?topic={TOPIC}")
+                site.fetch(f"{HUB}?match={TOPIC}")
             self.assertEqual(refused.exception.code, 404)
         finally:
             site.stop()
