@@ -1,6 +1,8 @@
 # A site turns on a Mercure hub
 
 Accepted on 2026-10-17.
+Amended on 2026-10-18 by [ADR 0035](0035-composer-json-turns-on-the-mercure-hub.md): the
+key moved to `composer.json`, and the Engine executable serves the hub.
 
 ## Context
 

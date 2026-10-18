@@ -145,13 +145,18 @@ file. A site without Node answers each word as an unknown command.
 
 ## Mercure hub
 
-A site whose `drupack.yml` sets `mercure: true` serves a Mercure hub at
-`/.well-known/mercure`. A start creates `mercure_publisher_secret` and
-`mercure_subscriber_secret` in Site data when they are missing. The hub keeps
-its last 1000 updates in `mercure.db` there.
+A site or project whose `composer.json` sets `extra.drupack.mercure` to `true`
+serves a Mercure hub at `/.well-known/mercure`. A start creates
+`mercure_publisher_secret` and `mercure_subscriber_secret` when they are
+missing. The hub keeps its last 1000 updates in `mercure.db`.
+
+These files live in Site data for a Packaged site. The engine executable keeps
+them in the folder's cache entry, so the project folder gains no file. Moving
+the folder gives it new secrets and an empty history.
 
 A start exports three variables to the server and the PHP it runs. `drush`
-exports them once a start has created the secrets.
+exports them once a start has created the secrets. The engine's `drush` names
+the address the last start listened on.
 
 | Variable | Holds |
 |---|---|
