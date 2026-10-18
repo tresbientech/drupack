@@ -1,2 +1,2 @@
-# A site whose contract leaves mercure off serves no hub. Caddy warns about an empty
-# import file, and a comment keeps it quiet.
+# A site or project whose composer.json leaves extra.drupack.mercure off serves no
+# hub. Caddy warns about an empty import file, and a comment keeps it quiet.

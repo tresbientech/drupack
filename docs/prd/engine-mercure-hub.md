@@ -78,7 +78,7 @@ variables once a start created them. A `drupack.yml` that still sets
 A test drives an executable from outside: it starts a project, sends HTTP requests and reads files. It never reads a generated Caddyfile.
 
 - `launcher/internal/siteconfig`: `mercure` in `drupack.yml` is refused with the new key's name. `composer.json` `extra.drupack.mercure` reads as true, false and absent. A string is refused. Prior art: `TestParseReadsMercure` and `TestParseRefusesAMercureString`, `siteconfig_test.go:286,298`.
-- `tests/conformance/mercure_cases.py`, a new engine class on the engine's project fixture with the key written into its `composer.json`:
+- `tests/conformance/engine_cases.py`, cases in `EngineExecutable` on its project fixture with the key written into its `composer.json`, which `-k EngineExecutable` already runs:
   - a subscriber receives what a request publishes with `mercure_publish()`
   - an HTTP publish signed by the publisher secret reaches a subscriber
   - `drupack drush` sees the three variables, with the URL of a start on a non-default port

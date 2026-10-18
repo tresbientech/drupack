@@ -119,7 +119,7 @@ function checkPlatform(string $binary, string $project): void
     }
 }
 
-// One served folder's state: the lease, the stop record and the log. The entry sits in the
+// One served folder's state: the lease, the stop record, the log and the Mercure hub's files. The entry sits in the
 // cache beside the unpacked engine, keyed by the folder, so the folder itself gains no file.
 // Windows spells one path in several casings, so the key reads a single one.
 function folderEntry(string $project): string

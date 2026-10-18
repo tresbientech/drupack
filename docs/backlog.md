@@ -192,7 +192,7 @@ add one when a reader asks for it.
 `stop.json` is mode 0600 on Linux and macOS. On Windows it takes the access of
 Site data, or of the folder's cache entry, so an account that reads Site data
 reads the token and can stop the site. Drupacked Demo's OAuth key pair in
-Site data `oauth-keys` takes the same access. That account already reads the database
+Site data `oauth-keys` and the two Mercure hub secrets take the same access. That account already reads the database
 and `settings.php`. Lean: give the record a protected DACL for the current user,
 as the cache root has, when a reader shares a Windows machine.
 

@@ -1,7 +1,8 @@
 # The Mercure hub at /.well-known/mercure, speaking Mercure protocol 1.0. Subscribers
-# and HTTP publishers present an HS256 access token signed with the secret Site data
-# holds, whose iss and aud are both the hub's address. PHP in a request publishes
-# through mercure_publish() with none. The history keeps the last 1000 updates for a reconnect.
+# and HTTP publishers present an HS256 access token signed with a secret that Site
+# data, or the engine's folder entry, holds. Its iss and aud are both the hub's
+# address. PHP in a request publishes through mercure_publish() with none. The
+# history keeps the last 1000 updates for a reconnect.
 mercure {
 	resource_identifier "{$DRUPACK_MERCURE_URL}"
 	issuer "{$DRUPACK_MERCURE_URL}" {

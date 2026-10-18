@@ -45,7 +45,7 @@
 		respond @drupackIdentityOther 404
 
 		import "guards.caddy"
-		# mercure.caddy for a site whose contract sets mercure, none.caddy otherwise. The hub
+		# mercure.caddy for a site whose site.json sets mercure, none.caddy otherwise. The hub
 		# sits in php_server's route block, where FrankenPHP finds it for mercure_publish().
 		import "{$DRUPACK_RUNTIME_MERCURE_SNIPPET}"
 		# Public files live in the files directory, Site data's "files" unless a start
