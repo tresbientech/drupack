@@ -212,7 +212,9 @@ in the site's `settings` file.
 PHP in a request publishes with FrankenPHP's `mercure_publish()`, which needs
 no token. Drush commands and cron post to the hub with a token signed by the
 publisher secret. A browser subscribes with a token signed by the subscriber
-secret, which the site hands out. The hub refuses a subscriber without one.
+secret, which the site hands out in the `mercure_access_token` cookie. An
+`EventSource` sends cookies and no `Authorization` header. The hub refuses a
+subscriber without a token.
 
 The hub speaks Mercure protocol 1.0. Each token is an HS256 access token with:
 

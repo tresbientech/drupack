@@ -1,6 +1,6 @@
 """The Mercure hub a site's contract turns on: a request publishes through mercure_publish(),
 a subscriber that accepts gzip and holds a Mercure 1.0 access token signed with the Site
-data secret receives it as it is published, a reconnect replays the history, a publisher token posts over HTTP, `drush` sees the hub's
+data secret, in a header or a browser's cookie, receives it as it is published, a reconnect replays the history, a publisher token posts over HTTP, `drush` sees the hub's
 variables once a start created the secrets, and a site without the key serves no hub and
 writes no secret.
 """
@@ -23,6 +23,7 @@ import harness
 HUB = "/.well-known/mercure"
 TOPIC = "drupack/probe"
 SECRETS = ("mercure_publisher_secret", "mercure_subscriber_secret")
+COOKIE = "mercure_access_token"
 
 
 def signed(secret, header, claims):
@@ -44,11 +45,16 @@ def token(secret, port, action):
 
 
 class Stream:
-    """One subscription to TOPIC that accepts gzip, read as it arrives."""
+    """One subscription to TOPIC that accepts gzip, read as it arrives. The token goes in the
+    Authorization header, or in the cookie a browser's EventSource sends when cookie is set."""
 
-    def __init__(self, port, bearer, last_event_id=None):
+    def __init__(self, port, bearer, last_event_id=None, cookie=False):
         self.connection = http.client.HTTPConnection("localhost", port, timeout=harness.WAITS["http_request"].seconds)
-        headers = {"Accept": "text/event-stream", "Accept-Encoding": "gzip", "Authorization": f"Bearer {bearer}"}
+        headers = {"Accept": "text/event-stream", "Accept-Encoding": "gzip"}
+        if cookie:
+            headers["Cookie"] = f"{COOKIE}={bearer}"
+        else:
+            headers["Authorization"] = f"Bearer {bearer}"
         if last_event_id is not None:
             headers["Last-Event-ID"] = last_event_id
         self.connection.request("GET", f"{HUB}?match={TOPIC}", headers=headers)
@@ -109,6 +115,16 @@ class MercureHub(harness.ConformanceCase):
             stream.read_until(":")
             update = self.publish("live")
             stream.read_until(f"id: {update}\ndata: live\n")
+        finally:
+            stream.close()
+
+    def test_a_browser_subscribes_with_the_token_in_a_cookie(self):
+        stream = Stream(self.site.port, self.subscriber_token(), cookie=True)
+        try:
+            self.assertEqual(stream.response.status, 200)
+            stream.read_until(":")
+            update = self.publish("cookie")
+            stream.read_until(f"id: {update}\ndata: cookie\n")
         finally:
             stream.close()
 
