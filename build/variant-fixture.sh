@@ -15,7 +15,14 @@ destination=$(cd -- "$2" && pwd)
 cd -- "$demo"
 git ls-files -z | xargs -0 cp --parents -t "$destination"
 sed -i 's/^name: drupacked-demo$/name: variant-demo/; /^languages:/d' "$destination/drupack.yml"
-printf 'mercure: true\n' >>"$destination/drupack.yml"
+python3 -c 'import json, sys
+path = sys.argv[1]
+with open(path) as handle:
+    composer = json.load(handle)
+composer.setdefault("extra", {}).setdefault("drupack", {})["mercure"] = True
+with open(path, "w") as handle:
+    json.dump(composer, handle, indent=4)
+    handle.write("\n")' "$destination/composer.json"
 docroot=$(python3 -c 'import json, sys; print(json.load(sys.stdin)["extra"]["drupal-scaffold"]["locations"]["web-root"].rstrip("/"))' <composer.json)
 # Composer creates the docroot, so the demo tracks no file there.
 mkdir -p -- "$destination/$docroot"

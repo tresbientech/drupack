@@ -85,7 +85,8 @@ type Site struct {
 	// Read sets Docroot from composer.json. Parse leaves it empty.
 	Docroot string `json:"docroot"`
 	Node    Node   `json:"node,omitempty"`
-	// Mercure serves a Mercure hub at /.well-known/mercure on every start.
+	// Mercure serves a Mercure hub at /.well-known/mercure on every start. Read
+	// sets it from composer.json extra.drupack.mercure. Parse leaves it false.
 	Mercure bool `json:"mercure"`
 	// Read sets Drupal and Drush to the drupal/core and drush/drush releases
 	// composer.lock names. Parse leaves them empty.
@@ -163,6 +164,14 @@ var (
 // Parse reads drupack.yml content. The site author writes that file, so every
 // field is checked here and an error names the field it rejects.
 func Parse(content []byte) (Site, error) {
+	// Site's JSON tags are also the drupack.yml keys, so a key that left the file
+	// for composer.json is refused before the strict parse would accept it.
+	var keys map[string]any
+	if yaml.Unmarshal(content, &keys) == nil {
+		if _, moved := keys["mercure"]; moved {
+			return Site{}, fmt.Errorf("%s: mercure moved to composer.json extra.drupack.mercure", FileName)
+		}
+	}
 	var site Site
 	if err := yaml.UnmarshalStrict(content, &site); err != nil {
 		return Site{}, fmt.Errorf("%s: %w", FileName, err)
@@ -283,7 +292,7 @@ func Read(directory string) (Site, error) {
 			return Site{}, fieldError("settings", "%q is not a file in the site", site.Settings)
 		}
 	}
-	if site.Docroot, err = docroot(directory); err != nil {
+	if site.Docroot, site.Mercure, err = composerSettings(directory); err != nil {
 		return Site{}, err
 	}
 	site.Drupal, site.Drush, err = lockedReleases(directory)
@@ -318,12 +327,13 @@ func lockedReleases(directory string) (drupal, drush string, err error) {
 	return releases["drupal/core"], releases["drush/drush"], nil
 }
 
-// docroot reads the web root drupal/core-composer-scaffold writes to. The site
-// author sets it, so it is checked like a drupack.yml field.
-func docroot(directory string) (string, error) {
+// composerSettings reads the web root drupal/core-composer-scaffold writes to and
+// whether the site serves a Mercure hub. The site author sets both, so each is
+// checked like a drupack.yml field.
+func composerSettings(directory string) (docroot string, mercure bool, err error) {
 	content, err := os.ReadFile(filepath.Join(directory, "composer.json"))
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	var composer struct {
 		Extra struct {
@@ -332,17 +342,27 @@ func docroot(directory string) (string, error) {
 					WebRoot string `json:"web-root"`
 				} `json:"locations"`
 			} `json:"drupal-scaffold"`
+			Drupack struct {
+				Mercure any `json:"mercure"`
+			} `json:"drupack"`
 		} `json:"extra"`
 	}
 	if err := json.Unmarshal(content, &composer); err != nil {
-		return "", fmt.Errorf("composer.json: %w", err)
+		return "", false, fmt.Errorf("composer.json: %w", err)
 	}
 	webRoot := composer.Extra.Scaffold.Locations.WebRoot
 	cleaned := path.Clean(webRoot)
 	if webRoot == "" || cleaned == "." || !relativePathRe.MatchString(cleaned) || hasParentSegment(cleaned) {
-		return "", fmt.Errorf("composer.json: extra.drupal-scaffold.locations.web-root: %q must name a directory inside the project", webRoot)
+		return "", false, fmt.Errorf("composer.json: extra.drupal-scaffold.locations.web-root: %q must name a directory inside the project", webRoot)
 	}
-	return cleaned, nil
+	switch value := composer.Extra.Drupack.Mercure.(type) {
+	case nil:
+		return cleaned, false, nil
+	case bool:
+		return cleaned, value, nil
+	default:
+		return "", false, fmt.Errorf("composer.json: extra.drupack.mercure: %v must be true or false", value)
+	}
 }
 
 // Write stores site as site.json in directory.

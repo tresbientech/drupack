@@ -283,21 +283,36 @@ func TestSiteJSONCarriesNodeInTheFormItWasGiven(t *testing.T) {
 	}
 }
 
-func TestParseReadsMercure(t *testing.T) {
-	for field, want := range map[string]bool{"": false, "mercure: false\n": false, "mercure: true\n": true} {
-		site, err := siteconfig.Parse([]byte(minimal + field))
-		if err != nil {
-			t.Fatalf("%q: %v", field, err)
-		}
-		if site.Mercure != want {
-			t.Errorf("%q: Mercure = %v; want %v", field, site.Mercure, want)
+func TestParseRefusesMercureWithItsNewKey(t *testing.T) {
+	for _, field := range []string{"mercure: true\n", "mercure: false\n"} {
+		_, err := siteconfig.Parse([]byte(minimal + field))
+		if err == nil || !strings.Contains(err.Error(), "mercure moved to composer.json extra.drupack.mercure") {
+			t.Errorf("%q: Parse error = %v; want one naming composer.json extra.drupack.mercure", field, err)
 		}
 	}
 }
 
-func TestParseRefusesAMercureString(t *testing.T) {
-	if _, err := siteconfig.Parse([]byte(minimal + "mercure: \"on\"\n")); err == nil {
-		t.Fatal("Parse accepted mercure: \"on\"")
+// drupackExtra is a composer.json with the web root web and extra.drupack set to drupack.
+func drupackExtra(drupack string) string {
+	return `{"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": ` + drupack + `}}`
+}
+
+func TestReadTakesMercureFromComposer(t *testing.T) {
+	for drupack, want := range map[string]bool{`{}`: false, `{"mercure": false}`: false, `{"mercure": true}`: true} {
+		read, err := siteconfig.Read(site(t, minimal, drupackExtra(drupack)))
+		if err != nil {
+			t.Fatalf("%s: %v", drupack, err)
+		}
+		if read.Mercure != want {
+			t.Errorf("%s: Mercure = %v; want %v", drupack, read.Mercure, want)
+		}
+	}
+}
+
+func TestReadRefusesAMercureString(t *testing.T) {
+	_, err := siteconfig.Read(site(t, minimal, drupackExtra(`{"mercure": "on"}`)))
+	if err == nil || !strings.Contains(err.Error(), "extra.drupack.mercure") {
+		t.Fatalf("Read error = %v; want one naming extra.drupack.mercure", err)
 	}
 }
 
