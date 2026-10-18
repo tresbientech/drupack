@@ -32,6 +32,7 @@ PATTERNS = {
         [rf"\$\{{?{NAME}"],
     ),
     "Caddyfile": ([], [rf"\{{\$" + NAME + r"\}"]),
+    ".caddy": ([], [rf"\{{\$" + NAME + r"\}"]),
 }
 
 
@@ -110,7 +111,7 @@ class EnvironmentContract(unittest.TestCase):
         # Caddy splices the value into the text before it reads quotes, so a start refuses a
         # value holding a double quote only where the reference has quotes around it.
         for path in sources():
-            if Path(path).name == "Caddyfile":
+            if Path(path).name == "Caddyfile" or Path(path).suffix == ".caddy":
                 with self.subTest(path=path):
                     for number, line in enumerate((ROOT / path).read_text().splitlines(), 1):
                         unquoted = re.sub(r'"[^"]*"', "", line)

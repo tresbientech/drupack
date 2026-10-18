@@ -6,6 +6,7 @@ declare(strict_types=1);
 (require __DIR__ . '/vendor/autoload.php')->addPsr4('Drupack\\Support\\', __DIR__ . '/support');
 
 require __DIR__ . '/process.php';
+require __DIR__ . '/mercure.php';
 
 use Drupack\Support\SiteData;
 use Symfony\Component\Filesystem\Path;
@@ -209,36 +210,6 @@ function openWhenServing(string $url, ?string $target, bool $browser): void
     // The server opens a browser when this variable is set, so a start that opens none
     // clears whatever the environment it inherited held.
     putenv($browser ? "DRUPACK_RUNTIME_OPEN=$target" : 'DRUPACK_RUNTIME_OPEN');
-}
-
-// A start creates each missing hub secret in Site data. Both a start and `drush` then
-// export the hub's address and both secrets to the PHP they run. `drush` creates nothing,
-// so before a start has created the secrets it exports no hub.
-function exportMercure(SiteData $site, string $bind, int $port, bool $drush): void
-{
-    $secrets = [
-        'DRUPACK_MERCURE_PUBLISHER_SECRET' => $site->mercurePublisherSecret(),
-        'DRUPACK_MERCURE_SUBSCRIBER_SECRET' => $site->mercureSubscriberSecret(),
-    ];
-    if ($drush && array_filter($secrets, 'file_exists') !== $secrets) {
-        return;
-    }
-    foreach ($secrets as $name => $path) {
-        // Exclusive creation refuses a file or link already at the path, and the start's
-        // umask leaves the new file readable by its owner alone.
-        $handle = @fopen($path, 'x');
-        if ($handle !== false) {
-            $written = fwrite($handle, bin2hex(random_bytes(32)));
-            fclose($handle);
-            if ($written !== 64) {
-                throw new RuntimeException("Cannot write the Mercure secret: $path");
-            }
-        } elseif (!is_file($path)) {
-            throw new RuntimeException("Cannot create the Mercure secret: $path");
-        }
-        putenv("$name=" . file_get_contents($path));
-    }
-    putenv('DRUPACK_MERCURE_URL=http://' . urlHost(probeHost($bind)) . ":$port/.well-known/mercure");
 }
 
 // The token names this Site data over HTTP without disclosing its path. Windows spells one
@@ -870,7 +841,7 @@ try {
         $site->recordListener($options['listen'], $options['host'], $options['files-dir']);
     }
     if (siteSettings()['mercure']) {
-        exportMercure($site, $bind, $port, $drush);
+        exportMercure($site->mercurePublisherSecret(), $site->mercureSubscriberSecret(), mercureUrl($bind, $port), $drush);
     }
     if (siteSettings()['writable'] !== []) {
         useSiteApplication($site, $drush);
@@ -953,6 +924,7 @@ try {
         'DRUPACK_RUNTIME_LOG_PATH' => $logPath,
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
         'DRUPACK_RUNTIME_MERCURE_SNIPPET' => siteSettings()['mercure'] ? 'mercure.caddy' : 'none.caddy',
+        'DRUPACK_RUNTIME_MERCURE_DB' => "$data/mercure.db",
     ]);
     replaceProcess($binary, ['php-server', application() . '/Caddyfile'], application(), 'Cannot start FrankenPHP');
 } catch (Throwable $error) {

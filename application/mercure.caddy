@@ -13,7 +13,7 @@ mercure {
 		}
 	}
 	transport bolt {
-		path "{$DRUPACK_RUNTIME_DATA_DIR}/mercure.db"
+		path "{$DRUPACK_RUNTIME_MERCURE_DB}"
 		size 1000
 	}
 }

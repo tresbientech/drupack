@@ -10,6 +10,7 @@ import json
 import os
 import shlex
 import shutil
+import stat
 import subprocess
 import threading
 import time
@@ -20,6 +21,7 @@ from urllib.request import urlopen
 
 import harness
 import version_cases
+from mercure_cases import HUB, TOPIC, Stream, token
 
 SETTINGS = """<?php
 $databases['default']['default'] = [
@@ -315,6 +317,82 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertNotEqual(result.returncode, 0)
         # serve.php prints paths in Drupack's canonical form, forward slashes on Windows too.
         self.assertIn(f"{self.lacking.as_posix()}/vendor/drush/drush/drush.php does not exist", result.stderr)
+
+    def with_mercure(self, value=True):
+        """Sets extra.drupack.mercure in the project's composer.json and adds the probe that
+        publishes through mercure_publish(), until the case ends."""
+        composer = self.project / "composer.json"
+        original = composer.read_text()
+        self.addCleanup(composer.write_text, original)
+        content = json.loads(original)
+        content.setdefault("extra", {}).setdefault("drupack", {})["mercure"] = value
+        composer.write_text(json.dumps(content, indent=4))
+        probe = self.docroot / "mercure-probe.php"
+        probe.write_text("<?php echo mercure_publish('drupack/probe', (string) ($_GET['data'] ?? ''), true);")
+        self.addCleanup(probe.unlink)
+
+    def hub_entry(self, port):
+        """The folder's cache entry holding the hub a start on port recorded."""
+        root = self.engine_run("php", "-r", "echo getenv('DRUPACK_RUNTIME_CACHE_ROOT');", cwd=self.project).stdout
+        hub = f"http://127.0.0.1:{port}{HUB}"
+        entries = [path.parent for path in Path(root, "folders").glob("*/mercure_url") if path.read_text() == hub]
+        self.assertEqual(len(entries), 1, f"entries recording {hub}: {entries}")
+        return entries[0]
+
+    def test_a_project_with_the_mercure_key_serves_the_hub_from_its_cache_entry(self):
+        self.with_mercure()
+        before = self.snapshot()
+        port, log = self.start("mercure", str(self.project))
+        entry = self.hub_entry(port)
+        secrets = {name: (entry / f"mercure_{name}_secret").read_text() for name in ("publisher", "subscriber")}
+        stream = Stream(port, token(secrets["subscriber"], port, "subscribe"))
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=harness.WAITS["http_request"].seconds)
+        try:
+            self.assertEqual(stream.response.status, 200, f"inspect {log}")
+            stream.read_until(":")
+            with urlopen(f"http://127.0.0.1:{port}/mercure-probe.php?data=live",
+                         timeout=harness.WAITS["http_request"].seconds) as response:
+                update = response.read().decode()
+            stream.read_until(f"id: {update}\ndata: live\n")
+            connection.request("POST", HUB, body=f"topic={TOPIC}&data=posted&private=on", headers={
+                "Authorization": f"Bearer {token(secrets['publisher'], port, 'publish')}",
+                "Content-Type": "application/x-www-form-urlencoded"})
+            response = connection.getresponse()
+            posted = response.read().decode()
+            self.assertEqual(response.status, 200, posted)
+            stream.read_until(f"id: {posted}\ndata: posted\n")
+        finally:
+            connection.close()
+            stream.close()
+        for name, secret in secrets.items():
+            self.assertRegex(secret, r"^[0-9a-f]{64}$", name)
+            if harness.current_platform() != harness.WINDOWS:
+                self.assertEqual(stat.S_IMODE((entry / f"mercure_{name}_secret").stat().st_mode), 0o600, name)
+        self.assertTrue((entry / "mercure.db").is_file())
+        self.assertEqual(self.snapshot(), before, "the hub wrote into the project folder")
+
+    def test_drush_sees_the_hub_the_last_start_served(self):
+        self.with_mercure()
+        port, _ = self.start("mercure-drush", str(self.project))
+        entry = self.hub_entry(port)
+        code = "echo json_encode(array_map('getenv', ['DRUPACK_MERCURE_URL', 'DRUPACK_MERCURE_PUBLISHER_SECRET', 'DRUPACK_MERCURE_SUBSCRIBER_SECRET']));"
+        result = self.engine_run("drush", "php:eval", code, cwd=self.project)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), [
+            f"http://127.0.0.1:{port}{HUB}",
+            (entry / "mercure_publisher_secret").read_text(),
+            (entry / "mercure_subscriber_secret").read_text(),
+        ])
+
+    def test_a_project_without_the_mercure_key_serves_no_hub(self):
+        port, log = self.start("no-mercure", str(self.project))
+        self.assertEqual(self.status(port, f"{HUB}?match={TOPIC}"), 404, f"inspect {log}")
+
+    def test_a_mercure_key_that_is_not_a_boolean_stops_the_start(self):
+        self.with_mercure("on")
+        result = self.engine_run(str(self.project))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("extra.drupack.mercure must be true or false", result.stderr)
 
     def alias_run(self, *commands):
         """Runs each shell command from class_dir inside Drush, whose PATH names the php alias, and returns

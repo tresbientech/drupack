@@ -38,6 +38,10 @@
 		respond @drupackIdentityOther 404
 
 		import "guards.caddy"
+		# mercure.caddy for a project whose composer.json sets extra.drupack.mercure,
+		# none.caddy otherwise. The hub sits in php_server's route block, where
+		# FrankenPHP finds it for mercure_publish().
+		import "{$DRUPACK_RUNTIME_MERCURE_SNIPPET}"
 		php_server {
 			root "{$DRUPACK_RUNTIME_DOCROOT}"
 		}

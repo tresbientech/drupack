@@ -55,6 +55,22 @@ test('a WordPress site is refused', function () {
     throws("$project is not a Drupal project: $project/core/lib/Drupal.php does not exist", fn () => docroot($project));
 });
 
+test('the Mercure key reads true, false and absent', function () {
+    foreach (['{}' => false, '{"mercure": false}' => false, '{"mercure": true}' => true] as $drupack => $expected) {
+        $project = project_with('mercure-' . md5($drupack), ['composer.json' => "{\"extra\": {\"drupack\": $drupack}}"]);
+        same($expected, mercureKey($project), $drupack);
+    }
+});
+
+test('a project without composer.json serves no hub', function () {
+    same(false, mercureKey(project_with('no-composer', ['web/index.php' => '<?php'])));
+});
+
+test('a Mercure key that is not a boolean is refused', function () {
+    $project = project_with('mercure-string', ['composer.json' => '{"extra": {"drupack": {"mercure": "on"}}}']);
+    throws("$project/composer.json: extra.drupack.mercure must be true or false", fn () => mercureKey($project));
+});
+
 test('a web root with no index.php is refused', function () {
     $project = project_with('empty', ['composer.json' => '{}']);
     throws("$project/web/index.php does not exist", fn () => docroot($project));
