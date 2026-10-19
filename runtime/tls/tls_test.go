@@ -44,7 +44,7 @@ func TestATrustedRootServesHTTPS(t *testing.T) {
 	if err := newRoot(dir); err != nil {
 		t.Fatal(err)
 	}
-	choice, err := tlsSource(dir, pool(t, dir))
+	choice, err := tlsSource(dir, pool(t, dir), "localhost", "x.drupack.site")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,11 +61,11 @@ func TestEachRootNamesItsOwnAuthority(t *testing.T) {
 		if err := newRoot(dir); err != nil {
 			t.Fatal(err)
 		}
-		first, err := tlsSource(dir, pool(t, dir))
+		first, err := tlsSource(dir, pool(t, dir), "localhost", "x.drupack.site")
 		if err != nil {
 			t.Fatal(err)
 		}
-		again, err := tlsSource(dir, pool(t, dir))
+		again, err := tlsSource(dir, pool(t, dir), "localhost", "x.drupack.site")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -85,7 +85,7 @@ func TestAnUntrustedRootServesHTTP(t *testing.T) {
 	if err := newRoot(dir); err != nil {
 		t.Fatal(err)
 	}
-	choice, err := tlsSource(dir, x509.NewCertPool())
+	choice, err := tlsSource(dir, x509.NewCertPool(), "localhost", "x.drupack.site")
 	if err != nil || choice.Source != "none" {
 		t.Fatalf("choice = %+v, %v, want none", choice, err)
 	}
@@ -94,7 +94,7 @@ func TestAnUntrustedRootServesHTTP(t *testing.T) {
 func TestNoRootServesHTTP(t *testing.T) {
 	noMkcert(t)
 	for _, dir := range []string{"", t.TempDir()} {
-		choice, err := tlsSource(dir, nil)
+		choice, err := tlsSource(dir, nil, "localhost", "x.drupack.site")
 		if err != nil || choice.Source != "none" {
 			t.Fatalf("dir %q: choice = %+v, %v, want none", dir, choice, err)
 		}
@@ -110,7 +110,7 @@ func TestARootWithoutItsKeyFails(t *testing.T) {
 	if err := os.Remove(filepath.Join(dir, rootKeyName)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tlsSource(dir, pool(t, dir)); err == nil {
+	if _, err := tlsSource(dir, pool(t, dir), "localhost", "x.drupack.site"); err == nil {
 		t.Fatal("a root without its key was accepted")
 	}
 }
@@ -149,13 +149,15 @@ func TestTheRootCannotVouchForAnotherSite(t *testing.T) {
 		t.Fatalf("root extended key usage = %v, want server authentication alone", root.ExtKeyUsage)
 	}
 	roots := pool(t, dir)
-	for _, name := range []string{"localhost", "site.localhost"} {
+	for _, name := range []string{"localhost", "site.localhost", "drupacked-demo.drupack.site", "127.0.0.1", "::1"} {
 		if ok, err := verifies(root, key, roots, name); err != nil || !ok {
 			t.Fatalf("%s did not verify", name)
 		}
 	}
-	if ok, err := verifies(root, key, roots, "example.com"); err != nil || ok {
-		t.Fatal("a certificate for example.com verified under the root")
+	for _, name := range []string{"example.com", "drupack.site.example.com", "192.168.1.5"} {
+		if ok, err := verifies(root, key, roots, name); err != nil || ok {
+			t.Fatalf("a certificate for %s verified under the root", name)
+		}
 	}
 }
 
@@ -185,14 +187,14 @@ func TestUninstallWithoutARootChangesNothing(t *testing.T) {
 
 // stubCertificate writes a self-signed certificate for localhost valid for validFor. It
 // stands in for both mkcert's root and the certificate mkcert writes under it.
-func stubCertificate(t *testing.T, validFor time.Duration) string {
+func stubCertificate(t *testing.T, validFor time.Duration, names ...string) string {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
-		DNSNames:     []string{"localhost"},
+		DNSNames:     names,
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(validFor),
 	}
@@ -212,13 +214,13 @@ type stub struct {
 }
 
 // stubMkcert puts an mkcert on PATH that logs its arguments and writes a certificate
-// valid for validFor, which is also its root when withRoot is set.
-func stubMkcert(t *testing.T, validFor time.Duration, withRoot bool) stub {
+// for names valid for validFor, which is also its root when withRoot is set.
+func stubMkcert(t *testing.T, validFor time.Duration, withRoot bool, names ...string) stub {
 	if runtime.GOOS == "windows" {
 		t.Skip("the mkcert stub is a shell script")
 	}
 	bin, caroot := t.TempDir(), t.TempDir()
-	certificate := stubCertificate(t, validFor)
+	certificate := stubCertificate(t, validFor, names...)
 	if withRoot {
 		copyFile(t, certificate, filepath.Join(caroot, "rootCA.pem"))
 	}
@@ -270,8 +272,8 @@ func TestMkcertComesBeforeATrustedRoot(t *testing.T) {
 	if err := newRoot(dir); err != nil {
 		t.Fatal(err)
 	}
-	mkcert := stubMkcert(t, 800*24*time.Hour, true)
-	choice, err := tlsSource(dir, trusting(t, filepath.Join(dir, rootCertificateName), mkcert.certificate))
+	mkcert := stubMkcert(t, 800*24*time.Hour, true, "localhost", "*.drupack.site")
+	choice, err := tlsSource(dir, trusting(t, filepath.Join(dir, rootCertificateName), mkcert.certificate), "localhost", "x.drupack.site")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +287,7 @@ func TestMkcertComesBeforeATrustedRoot(t *testing.T) {
 		t.Fatalf("choice = %+v, want %+v", choice, want)
 	}
 	got := calls(t, mkcert.log)
-	wantCalls := []string{"-CAROOT", "-cert-file " + want.Certificate + " -key-file " + want.Key + " localhost 127.0.0.1 ::1"}
+	wantCalls := []string{"-CAROOT", "-cert-file " + want.Certificate + " -key-file " + want.Key + " localhost 127.0.0.1 ::1 *.drupack.site"}
 	if strings.Join(got, "|") != strings.Join(wantCalls, "|") {
 		t.Fatalf("mkcert ran %q, want %q", got, wantCalls)
 	}
@@ -293,9 +295,9 @@ func TestMkcertComesBeforeATrustedRoot(t *testing.T) {
 
 func TestACurrentMkcertCertificateIsKept(t *testing.T) {
 	dir := t.TempDir()
-	mkcert := stubMkcert(t, 800*24*time.Hour, true)
+	mkcert := stubMkcert(t, 800*24*time.Hour, true, "localhost", "*.drupack.site")
 	for range 2 {
-		if _, err := tlsSource(dir, trusting(t, mkcert.certificate)); err != nil {
+		if _, err := tlsSource(dir, trusting(t, mkcert.certificate), "localhost", "x.drupack.site"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -306,9 +308,9 @@ func TestACurrentMkcertCertificateIsKept(t *testing.T) {
 
 func TestAnMkcertCertificateNearExpiryIsWrittenAgain(t *testing.T) {
 	dir := t.TempDir()
-	mkcert := stubMkcert(t, 10*24*time.Hour, true)
+	mkcert := stubMkcert(t, 10*24*time.Hour, true, "localhost", "*.drupack.site")
 	for range 2 {
-		if _, err := tlsSource(dir, trusting(t, mkcert.certificate)); err != nil {
+		if _, err := tlsSource(dir, trusting(t, mkcert.certificate), "localhost", "x.drupack.site"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -320,12 +322,12 @@ func TestAnMkcertCertificateNearExpiryIsWrittenAgain(t *testing.T) {
 // A recreated mkcert root leaves the earlier certificate chaining to nothing.
 func TestAnMkcertCertificateFromAnEarlierRootIsWrittenAgain(t *testing.T) {
 	dir := t.TempDir()
-	mkcert := stubMkcert(t, 800*24*time.Hour, true)
-	if _, err := tlsSource(dir, trusting(t, mkcert.certificate)); err != nil {
+	mkcert := stubMkcert(t, 800*24*time.Hour, true, "localhost", "*.drupack.site")
+	if _, err := tlsSource(dir, trusting(t, mkcert.certificate), "localhost", "x.drupack.site"); err != nil {
 		t.Fatal(err)
 	}
-	copyFile(t, stubCertificate(t, 800*24*time.Hour), filepath.Join(mkcert.caroot, "rootCA.pem"))
-	if _, err := tlsSource(dir, trusting(t, mkcert.certificate)); err != nil {
+	copyFile(t, stubCertificate(t, 800*24*time.Hour, "localhost"), filepath.Join(mkcert.caroot, "rootCA.pem"))
+	if _, err := tlsSource(dir, trusting(t, mkcert.certificate), "localhost", "x.drupack.site"); err != nil {
 		t.Fatal(err)
 	}
 	if n := len(calls(t, mkcert.log)); n != 4 {
@@ -339,8 +341,8 @@ func TestAnUntrustedMkcertRootFallsThroughToTheDrupackRoot(t *testing.T) {
 	if err := newRoot(dir); err != nil {
 		t.Fatal(err)
 	}
-	stubMkcert(t, 800*24*time.Hour, true)
-	choice, err := tlsSource(dir, pool(t, dir))
+	stubMkcert(t, 800*24*time.Hour, true, "localhost", "*.drupack.site")
+	choice, err := tlsSource(dir, pool(t, dir), "localhost", "x.drupack.site")
 	if err != nil || choice.Source != "drupack" {
 		t.Fatalf("choice = %+v, %v, want drupack", choice, err)
 	}
@@ -348,8 +350,8 @@ func TestAnUntrustedMkcertRootFallsThroughToTheDrupackRoot(t *testing.T) {
 
 func TestMkcertWithoutItsRootIsSkipped(t *testing.T) {
 	dir := t.TempDir()
-	stubMkcert(t, 800*24*time.Hour, false)
-	choice, err := tlsSource(dir, x509.NewCertPool())
+	stubMkcert(t, 800*24*time.Hour, false, "localhost", "*.drupack.site")
+	choice, err := tlsSource(dir, x509.NewCertPool(), "localhost", "x.drupack.site")
 	if err != nil || choice.Source != "none" {
 		t.Fatalf("choice = %+v, %v, want none", choice, err)
 	}
@@ -434,5 +436,45 @@ func TestTLSSourceFallsBackToTheEngineBind(t *testing.T) {
 	t.Setenv("DRUPACK_DNS_ANSWER", "none")
 	if c := source(t, "--bind", "127.0.0.1", "--folder", "My Shop"); c.Host != "127.0.0.1" || c.Alias != "my-shop.drupack.site" {
 		t.Errorf("%+v", c)
+	}
+}
+
+func TestAnMkcertCertificateWithoutTheSiteNameIsWrittenAgain(t *testing.T) {
+	dir := t.TempDir()
+	mkcert := stubMkcert(t, 800*24*time.Hour, true, "localhost")
+	for range 2 {
+		if _, err := tlsSource(dir, trusting(t, mkcert.certificate), "localhost", "x.drupack.site"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	written := 0
+	for _, call := range calls(t, mkcert.log) {
+		if strings.HasPrefix(call, "-cert-file") {
+			written++
+		}
+	}
+	if written != 2 {
+		t.Fatalf("mkcert wrote %d certificates, want 2: %q", written, calls(t, mkcert.log))
+	}
+}
+
+func TestOnlyALoopbackStartAddressedByAServedNameMayServeHTTPS(t *testing.T) {
+	t.Setenv("DRUPACK_DNS_ANSWER", "127.0.0.1")
+	for _, c := range []struct {
+		args     []string
+		eligible bool
+	}{
+		{[]string{"--bind", "127.0.0.1", "--name", "demo"}, true},
+		{[]string{"--bind", "127.0.0.1", "--name", "demo", "--host", "localhost"}, true},
+		{[]string{"--bind", "::1", "--name", "demo"}, true},
+		{[]string{"--bind", "127.0.0.1", "--folder", "shop", "--host", "127.0.0.1"}, true},
+		{[]string{"--bind", "127.0.0.1", "--name", "demo", "--host", "example.test"}, false},
+		{[]string{"--bind", "127.0.0.1", "--name", "demo", "--host", "site.localhost"}, false},
+		{[]string{"--bind", "0.0.0.0", "--name", "demo"}, false},
+		{[]string{"--bind", "192.168.1.5", "--folder", "shop"}, false},
+	} {
+		if got := source(t, c.args...); got.Eligible != c.eligible {
+			t.Errorf("%v: eligible = %v", c.args, got.Eligible)
+		}
 	}
 }

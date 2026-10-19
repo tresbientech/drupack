@@ -1,5 +1,5 @@
 # The names the mkcert certificate covers, as in tls-drupack-site.caddy.
-"https://localhost:{$DRUPACK_RUNTIME_PORT}", "https://127.0.0.1:{$DRUPACK_RUNTIME_PORT}", "https://[::1]:{$DRUPACK_RUNTIME_PORT}" {
+"https://{$DRUPACK_RUNTIME_ALIAS}:{$DRUPACK_RUNTIME_PORT}", "https://localhost:{$DRUPACK_RUNTIME_PORT}", "https://127.0.0.1:{$DRUPACK_RUNTIME_PORT}", "https://[::1]:{$DRUPACK_RUNTIME_PORT}" {
 	tls "{$DRUPACK_RUNTIME_TLS_CERT}" "{$DRUPACK_RUNTIME_TLS_KEY}"
 	import site
 }

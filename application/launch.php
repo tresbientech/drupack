@@ -916,7 +916,7 @@ try {
         fwrite(STDOUT, "No browser opens: {$options['listen']} accepts other computers over plain HTTP."
             . " Sign in from another computer only through a TLS proxy.\n");
     }
-    fwrite(STDOUT, nameHint($tls) . tlsHint($tls, $bind));
+    fwrite(STDOUT, nameHint($tls) . tlsHint($tls));
     openWhenServing($url, $link, $browser);
     // Every step that needed the administrator password has run. The server inherits
     // this environment and passes it to every process it starts, including PHP code a

@@ -35,8 +35,9 @@ const (
 	rootKeyName         = "root.key"
 )
 
-// mkcertNames are the hosts tls-mkcert-site.caddy and tls-drupack-site.caddy name.
-var mkcertNames = []string{"localhost", "127.0.0.1", "::1"}
+// mkcertNames are the hosts tls-mkcert-site.caddy and tls-drupack-site.caddy name, the
+// site's drupack.site name among them.
+var mkcertNames = []string{"localhost", "127.0.0.1", "::1", "*." + siteDomain}
 
 // siteDomain is the zone whose wildcard record answers 127.0.0.1 for every label.
 const siteDomain = "drupack.site"
@@ -61,14 +62,16 @@ type tlsChoice struct {
 	Certificate string `json:"certificate,omitempty"`
 	Key         string `json:"key,omitempty"`
 	// Host is what the start's URL names, Alias the site's drupack.site name, and Reason
-	// why Host is not Alias when the start tried the name.
-	Host   string `json:"host"`
-	Alias  string `json:"alias"`
-	Reason string `json:"reason"`
+	// why Host is not Alias when the start tried the name. Eligible reports whether the
+	// bind and Host may serve HTTPS from a local root.
+	Host     string `json:"host"`
+	Alias    string `json:"alias"`
+	Reason   string `json:"reason"`
+	Eligible bool   `json:"eligible"`
 }
 
-// newRoot writes a root that can vouch only for loopback names, so its key
-// signs nothing a browser accepts for another site.
+// newRoot writes a root that can vouch only for loopback names and drupack.site, so its
+// key signs nothing a browser accepts for another site.
 func newRoot(dir string) error {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -92,7 +95,7 @@ func newRoot(dir string) error {
 		IsCA:                        true,
 		PermittedDNSDomainsCritical: true,
 		// A DNS constraint without a leading dot also permits every subdomain.
-		PermittedDNSDomains: []string{"localhost"},
+		PermittedDNSDomains: []string{"localhost", siteDomain},
 		PermittedIPRanges: []*net.IPNet{
 			{IP: net.IPv4(127, 0, 0, 0).To4(), Mask: net.CIDRMask(8, 32)},
 			{IP: net.IPv6loopback, Mask: net.CIDRMask(128, 128)},
@@ -116,16 +119,17 @@ func newRoot(dir string) error {
 	return os.WriteFile(filepath.Join(dir, rootCertificateName), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certificate}), 0o644)
 }
 
-// tlsSource picks what a loopback start serves from dir. mkcert comes first, once its
-// root exists, since `mkcert -install` already made the machine trust it. The Drupack
-// root counts once a certificate it signs for localhost verifies against roots, the
-// check a browser makes. A nil roots means the system's trust store.
-func tlsSource(dir string, roots *x509.CertPool) (tlsChoice, error) {
+// tlsSource picks what a loopback start addressed as host serves from dir; alias is the
+// site's drupack.site name, which Caddy serves too. mkcert comes first, once its root
+// exists, since `mkcert -install` already made the machine trust it. The Drupack root
+// counts once a certificate it signs for host verifies against roots, the check a
+// browser makes. A nil roots means the system's trust store.
+func tlsSource(dir string, roots *x509.CertPool, host, alias string) (tlsChoice, error) {
 	none := tlsChoice{Source: "none"}
 	if dir == "" {
 		return none, nil
 	}
-	if choice, found, err := mkcertSource(dir, roots); found || err != nil {
+	if choice, found, err := mkcertSource(dir, roots, host, alias); found || err != nil {
 		return choice, err
 	}
 	root := filepath.Join(dir, rootCertificateName)
@@ -136,7 +140,7 @@ func tlsSource(dir string, roots *x509.CertPool) (tlsChoice, error) {
 	if err != nil {
 		return none, err
 	}
-	trusted, err := verifies(certificate, key, roots, "localhost")
+	trusted, err := verifies(certificate, key, roots, host)
 	if err != nil {
 		return none, err
 	}
@@ -183,8 +187,9 @@ func readRoot(dir string) (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	return certificate, key, nil
 }
 
-// verifies signs a throwaway certificate for name under root and checks it against
-// roots. Only a failed check means untrusted; a root that cannot sign is an error.
+// verifies signs a throwaway certificate for name, a host name or an IP address, under
+// root and checks it against roots. Only a failed check means untrusted; a root that
+// cannot sign is an error.
 func verifies(root *x509.Certificate, rootKey *ecdsa.PrivateKey, roots *x509.CertPool, name string) (bool, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -194,11 +199,15 @@ func verifies(root *x509.Certificate, rootKey *ecdsa.PrivateKey, roots *x509.Cer
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject:      pkix.Name{CommonName: name},
-		DNSNames:     []string{name},
 		NotBefore:    now.Add(-time.Minute),
 		NotAfter:     now.Add(time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	if ip := net.ParseIP(name); ip != nil {
+		template.IPAddresses = []net.IP{ip}
+	} else {
+		template.DNSNames = []string{name}
 	}
 	der, err := x509.CreateCertificate(rand.Reader, template, root, &key.PublicKey, rootKey)
 	if err != nil {
@@ -272,7 +281,8 @@ func fixedLookup(addresses string) lookupFunc {
 
 // writeTLSSource prints the choice for launch.php and serve.php to read. A packed site
 // passes --name and falls back to localhost; the engine passes --folder and falls back
-// to its bind address. --host names the host outright.
+// to its bind address. --host names the host outright. Only a loopback bind addressed
+// by a name Caddy serves reads the local roots; any other start serves plain HTTP.
 func writeTLSSource(out io.Writer, dir string, args []string) error {
 	flags := flag.NewFlagSet("tls-source", flag.ContinueOnError)
 	bind := flags.String("bind", "", "the address the server listens on")
@@ -282,23 +292,29 @@ func writeTLSSource(out io.Writer, dir string, args []string) error {
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	choice, err := tlsSource(dir, nil)
-	if err != nil {
-		return err
-	}
 	label, fallback := *name, "localhost"
 	if *name == "" {
 		label, fallback = *folder, *bind
 	}
-	choice.Alias = siteLabel(label) + "." + siteDomain
-	choice.Host = *host
-	if choice.Host == "" {
+	alias := siteLabel(label) + "." + siteDomain
+	chosen, reason := *host, ""
+	if chosen == "" {
 		var lookup lookupFunc = net.DefaultResolver.LookupIPAddr
 		if answer := os.Getenv("DRUPACK_DNS_ANSWER"); answer != "" {
 			lookup = fixedLookup(answer)
 		}
-		choice.Host, choice.Reason = chooseHost(context.Background(), lookup, choice.Alias, *bind, fallback)
+		chosen, reason = chooseHost(context.Background(), lookup, alias, *bind, fallback)
 	}
+	loopback := *bind == "::1" || strings.HasPrefix(*bind, "127.")
+	eligible := loopback && (chosen == alias || chosen == "localhost" || chosen == "127.0.0.1" || chosen == "::1")
+	choice := tlsChoice{Source: "none"}
+	if eligible {
+		var err error
+		if choice, err = tlsSource(dir, nil, chosen, alias); err != nil {
+			return err
+		}
+	}
+	choice.Host, choice.Alias, choice.Reason, choice.Eligible = chosen, alias, reason, eligible
 	return json.NewEncoder(out).Encode(choice)
 }
 
@@ -398,8 +414,8 @@ func nssDatabases() (*truststore.NSSTrust, string) {
 
 // mkcertSource writes a certificate for mkcertNames with the reader's own mkcert, which
 // opens its root key itself. found is false when mkcert or its root is absent, or when
-// roots do not trust that root, as before `mkcert -install`.
-func mkcertSource(dir string, roots *x509.CertPool) (choice tlsChoice, found bool, err error) {
+// roots do not trust that root for host, as before `mkcert -install`.
+func mkcertSource(dir string, roots *x509.CertPool, host, alias string) (choice tlsChoice, found bool, err error) {
 	mkcert, err := exec.LookPath("mkcert")
 	if err != nil {
 		return choice, false, nil
@@ -419,7 +435,7 @@ func mkcertSource(dir string, roots *x509.CertPool) (choice tlsChoice, found boo
 		Certificate: filepath.Join(folder, "localhost.pem"),
 		Key:         filepath.Join(folder, "localhost-key.pem"),
 	}
-	if !current(choice) {
+	if !current(choice, alias) {
 		if err := os.MkdirAll(folder, 0o700); err != nil {
 			return choice, true, err
 		}
@@ -432,16 +448,17 @@ func mkcertSource(dir string, roots *x509.CertPool) (choice tlsChoice, found boo
 	if err != nil {
 		return choice, true, fmt.Errorf("mkcert wrote no certificate: %w", err)
 	}
-	if _, err := certificate.Verify(x509.VerifyOptions{DNSName: "localhost", Roots: roots}); err != nil {
+	if _, err := certificate.Verify(x509.VerifyOptions{DNSName: host, Roots: roots}); err != nil {
 		return choice, false, nil
 	}
 	return choice, true, nil
 }
 
 // current reports whether the certificate and key mkcert wrote exist, chain to the
-// root mkcert holds now, and outlive mkcertRenewal. A recreated mkcert root makes
-// every earlier certificate stale.
-func current(choice tlsChoice) bool {
+// root mkcert holds now for alias, and outlive mkcertRenewal. A recreated mkcert root
+// makes every earlier certificate stale, and so does one written before mkcertNames
+// held drupack.site.
+func current(choice tlsChoice, alias string) bool {
 	if _, err := os.Stat(choice.Key); err != nil {
 		return false
 	}
@@ -457,7 +474,7 @@ func current(choice tlsChoice) bool {
 	if !pool.AppendCertsFromPEM(root) {
 		return false
 	}
-	if _, err := certificate.Verify(x509.VerifyOptions{DNSName: "localhost", Roots: pool}); err != nil {
+	if _, err := certificate.Verify(x509.VerifyOptions{DNSName: alias, Roots: pool}); err != nil {
 		return false
 	}
 	return time.Until(certificate.NotAfter) > mkcertRenewal

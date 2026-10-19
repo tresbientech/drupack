@@ -4,7 +4,7 @@
 # or absent. tests/conformance/test_environment.py checks every line against the
 # sources.
 
-ALIAS          writers=application/process.php  readers=application/settings.php
+ALIAS          writers=application/process.php  readers=application/settings.php,application/tls-drupack-site.caddy,application/tls-mkcert-site.caddy
 APP_DIR        writers=launcher/main.go,application/launch.php,build/seed.sh,build/dev/dev-entry.sh  readers=runtime/entrypoint.go,application/launch.php,application/settings.php,build/dev/dev-entry.sh
 BIND           writers=application/launch.php,engine/serve.php  readers=application/Caddyfile,engine/Caddyfile
 BINARY         writers=runtime/entrypoint.go  readers=application/launch.php,engine/serve.php

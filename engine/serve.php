@@ -219,7 +219,7 @@ function serve(string $binary, array $arguments): never
     }
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n")
         . ($install === null ? '' : "  Install: $install\n") . "  Project: $project\n");
-    fwrite(STDOUT, tlsHint($tls, $host));
+    fwrite(STDOUT, tlsHint($tls));
     fwrite(STDOUT, "Starting the web server.\n");
     // The Caddyfile beside this file is fixed, and Caddy fills its values from this environment.
     // The server opens no browser, so a value inherited from an earlier start is cleared.

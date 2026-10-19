@@ -7,12 +7,15 @@ stands in for an installed root without touching this machine's store.
 
 import os
 import shutil
+import socket
+import ssl
 from pathlib import Path
 from urllib.request import Request, urlopen
 
 import harness
 
-# The root `trust` writes: ECDSA P-256 with a critical name constraint for loopback names.
+# The root `trust` writes: ECDSA P-256 with a critical name constraint for loopback names
+# and drupack.site.
 ROOT_CONFIG = """[req]
 distinguished_name=dn
 x509_extensions=ext
@@ -22,7 +25,7 @@ CN=Drupack test root
 [ext]
 basicConstraints=critical,CA:true
 keyUsage=critical,keyCertSign,cRLSign
-nameConstraints=critical,permitted;DNS:localhost,permitted;IP:127.0.0.0/255.0.0.0,permitted;IP:::1/ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+nameConstraints=critical,permitted;DNS:localhost,permitted;DNS:drupack.site,permitted;IP:127.0.0.0/255.0.0.0,permitted;IP:::1/ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
 """
 
 
@@ -52,15 +55,15 @@ def trusted_environment(tls_dir, bundle):
     return env
 
 
-# Stands in for the reader's mkcert: reports CAROOT and signs a localhost certificate
-# under it, valid for DAYS days. It logs every call, so a case can read what ran. It names
+# Stands in for the reader's mkcert: reports CAROOT and signs a certificate for the names
+# mkcert receives under it, valid for DAYS days. It logs every call, so a case can read what ran. It names
 # openssl by path: trusted_environment drops the folder of a real mkcert, which can hold
 # openssl too.
 MKCERT_STUB = """#!/bin/sh
 echo "$@" >> {calls}
 if [ "$1" = -CAROOT ]; then echo {caroot}; exit 0; fi
 {openssl} req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -keyout "$4" -out "$4.csr" \\
-    -subj /CN=localhost -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1" 2>/dev/null
+    -subj /CN=localhost -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1,DNS:*.drupack.site" 2>/dev/null
 {openssl} x509 -req -in "$4.csr" -CA {caroot}/rootCA.pem -CAkey {caroot}/rootCA-key.pem -CAcreateserial \\
     -days {days} -copy_extensions copy -out "$2" 2>/dev/null
 """
@@ -84,6 +87,16 @@ def write_mkcert(directory, days):
     stub.write_text(MKCERT_STUB.format(calls=calls, caroot=caroot, days=days, openssl=shutil.which("openssl")))
     stub.chmod(0o755)
     return bin_dir, calls
+
+
+def fetch_by_name(name, port, root):
+    """The status of GET /user/login from the listener on 127.0.0.1 addressed as name, with the
+    certificate verified for name against root alone. No resolver takes part."""
+    context = ssl.create_default_context(cafile=str(root))
+    with socket.create_connection(("127.0.0.1", port), timeout=harness.WAITS["http_request"].seconds) as raw:
+        with context.wrap_socket(raw, server_hostname=name) as connection:
+            connection.sendall(f"GET /user/login HTTP/1.1\r\nHost: {name}:{port}\r\nConnection: close\r\n\r\n".encode())
+            return connection.recv(64).split(b" ")[1]
 
 
 class TlsSources(harness.ConformanceCase):
@@ -134,6 +147,19 @@ class TlsSources(harness.ConformanceCase):
         request = Request(f"http://127.0.0.1:{site.port}/user/login", headers={"Host": f"{alias}:{site.port}"})
         with urlopen(request, timeout=harness.WAITS["http_request"].seconds) as response:
             self.assertEqual(response.status, 200)
+
+    def test_a_trusted_root_serves_https_on_the_name(self):
+        alias = f"{harness.SITE['name'].replace('.', '-')}.drupack.site"
+        site = self.start(root=True, trusted=True, answer="127.0.0.1")
+        self.assertIn(f"URL:       https://{alias}:{site.port}/", site.log_path.read_text(errors="replace"))
+        self.assertEqual(fetch_by_name(alias, site.port, self.root), b"200")
+
+    def test_mkcert_serves_https_on_the_name(self):
+        alias = f"{harness.SITE['name'].replace('.', '-')}.drupack.site"
+        stub, _ = write_mkcert(self.case_dir / "mkcert", 800)
+        site = self.start(root=False, trusted=False, mkcert=stub, answer="127.0.0.1")
+        self.assertIn(f"URL:       https://{alias}:{site.port}/", site.log_path.read_text(errors="replace"))
+        self.assertEqual(fetch_by_name(alias, site.port, stub.parent / "caroot" / "rootCA.pem"), b"200")
 
     def test_a_name_the_resolver_filters_falls_back_to_localhost(self):
         site = self.start(root=False, trusted=False, answer="0.0.0.0")
@@ -299,7 +325,7 @@ class TrustCommand(harness.ConformanceCase):
         constraints = harness.run(["openssl", "x509", "-in", str(written), "-noout", "-ext", "nameConstraints"],
                                   capture_output=True, text=True, check=True).stdout
         self.assertIn("critical", constraints)
-        for subtree in ("DNS:localhost", "IP:127.0.0.0/255.0.0.0", "IP:0:0:0:0:0:0:0:1/FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF"):
+        for subtree in ("DNS:localhost", "DNS:drupack.site", "IP:127.0.0.0/255.0.0.0", "IP:0:0:0:0:0:0:0:1/FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF"):
             self.assertIn(subtree, constraints)
 
 

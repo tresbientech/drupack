@@ -228,22 +228,12 @@ function fakeRuntime(array $answer): string
 }
 
 test('a start hands the runtime its bind, its site and the host the reader asked for', function (): void {
-    $answer = ['source' => 'none', 'host' => 'localhost', 'alias' => 'demo.drupack.site', 'reason' => 'no answer'];
+    $answer = ['source' => 'none', 'host' => 'localhost', 'alias' => 'demo.drupack.site', 'reason' => 'no answer', 'eligible' => true];
     $runtime = fakeRuntime($answer);
     same($answer, tlsChoice($runtime, '127.0.0.1', ['--name', 'demo'], null));
     same("tls-source --bind 127.0.0.1 --name demo\n", file_get_contents(dirname($runtime) . '/arguments'));
     tlsChoice($runtime, '127.0.0.1', ['--folder', 'My Shop'], '127.0.0.1');
     same("tls-source --bind 127.0.0.1 --folder My Shop --host 127.0.0.1\n", file_get_contents(dirname($runtime) . '/arguments'));
-});
-
-test('only a loopback bind addressed by a name the local root covers serves HTTPS', function (): void {
-    $root = ['source' => 'drupack', 'root' => '/tls/root.pem', 'rootKey' => '/tls/root.key', 'authority' => 'drupack-00',
-        'alias' => 'demo.drupack.site', 'reason' => ''];
-    same($root + ['host' => 'localhost'], tlsChoice(fakeRuntime($root + ['host' => 'localhost']), '127.0.0.1', ['--name', 'demo'], null));
-    foreach ([['0.0.0.0', 'localhost'], ['192.168.1.5', 'localhost'], ['127.0.0.1', 'example.test']] as [$bind, $host]) {
-        same(['source' => 'none', 'host' => $host, 'alias' => 'demo.drupack.site', 'reason' => ''],
-            tlsChoice(fakeRuntime($root + ['host' => $host]), $bind, ['--name', 'demo'], $host), "$bind $host");
-    }
 });
 
 test('a start whose name did not resolve says which host its URL names instead', function (): void {
@@ -253,18 +243,17 @@ test('a start whose name did not resolve says which host its URL names instead',
 });
 
 test('an HTTP loopback start names trust, and no other start does', function (): void {
-    $none = ['source' => 'none', 'host' => 'localhost'];
+    $none = ['source' => 'none', 'eligible' => true];
     putenv('DRUPACK_TLS_DIR=/home/reader/.config/drupack/tls');
     try {
-        same('HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n", tlsHint($none, '127.0.0.1'));
-        same('', tlsHint(['source' => 'drupack', 'host' => 'localhost'], '127.0.0.1'));
-        same('', tlsHint($none, '0.0.0.0'));
-        same('', tlsHint(['source' => 'none', 'host' => 'example.test'], '127.0.0.1'));
+        same('HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n", tlsHint($none));
+        same('', tlsHint(['source' => 'drupack', 'eligible' => true]));
+        same('', tlsHint(['source' => 'none', 'eligible' => false]));
     } finally {
         putenv('DRUPACK_TLS_DIR');
     }
     // An account with no config folder cannot hold a root.
-    same('', tlsHint($none, '127.0.0.1'));
+    same('', tlsHint($none));
 });
 
 test('an HTTPS start writes the public roots and its own into one bundle, which Drush reuses', function (): void {

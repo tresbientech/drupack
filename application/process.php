@@ -292,13 +292,9 @@ function loopback(string $bind): bool
     return $bind === '::1' || str_starts_with($bind, '127.');
 }
 
-// The hosts tls-drupack-site.caddy names. Caddy issues a certificate per named host.
-const TLS_HOSTS = ['localhost', '127.0.0.1', '::1'];
-
 // What a start on $bind serves and the host its URL names, as the runtime answers from the
 // user's local root and the resolver. $site names the site: ['--name', NAME] for a packed
-// site, ['--folder', NAME] for the engine. $host is the host the reader asked for. A host
-// outside TLS_HOSTS serves plain HTTP.
+// site, ['--folder', NAME] for the engine. $host is the host the reader asked for.
 function tlsChoice(string $binary, string $bind, array $site, ?string $host): array
 {
     $arguments = [$binary, 'tls-source', '--bind', $bind, ...$site];
@@ -315,11 +311,7 @@ function tlsChoice(string $binary, string $bind, array $site, ?string $host): ar
     if (proc_close($child) !== 0) {
         throw new RuntimeException('Cannot read the local root in ' . getenv('DRUPACK_TLS_DIR'));
     }
-    $choice = json_decode((string) $output, true, flags: JSON_THROW_ON_ERROR);
-    if (!tlsEligible($bind, $choice['host'])) {
-        return ['source' => 'none', 'host' => $choice['host'], 'alias' => $choice['alias'], 'reason' => $choice['reason']];
-    }
-    return $choice;
+    return json_decode((string) $output, true, flags: JSON_THROW_ON_ERROR);
 }
 
 // The line a start prints when its drupack.site name did not resolve to the listener, or ''.
@@ -329,12 +321,6 @@ function nameHint(array $choice): string
         return '';
     }
     return "Name: {$choice['alias']} did not resolve to 127.0.0.1 ({$choice['reason']}), so the URL uses {$choice['host']}.\n";
-}
-
-// Whether a start on $bind addressed as $host can serve HTTPS from a local root.
-function tlsEligible(string $bind, string $host): bool
-{
-    return loopback($bind) && in_array($host, TLS_HOSTS, true);
 }
 
 // PHP verifies HTTPS against DRUPACK_CA_FILE, which holds public roots alone. A site
@@ -373,10 +359,10 @@ function useTlsBundle(string $directory): void
 }
 
 // The line a start prints when `trust` would move it to HTTPS, or ''.
-function tlsHint(array $choice, string $bind): string
+function tlsHint(array $choice): string
 {
     // An account with no config folder has nowhere to keep a root, so `trust` cannot help.
-    if ($choice['source'] !== 'none' || !tlsEligible($bind, $choice['host']) || environment('DRUPACK_TLS_DIR') === null) {
+    if ($choice['source'] !== 'none' || !$choice['eligible'] || environment('DRUPACK_TLS_DIR') === null) {
         return '';
     }
     return 'HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n";

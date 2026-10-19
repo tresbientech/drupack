@@ -1,6 +1,6 @@
 # Caddy issues a certificate per named address, so the names are fixed. On-demand
 # issuance would sign any name a page asks for into this site's storage.
-"https://localhost:{$DRUPACK_RUNTIME_PORT}", "https://127.0.0.1:{$DRUPACK_RUNTIME_PORT}", "https://[::1]:{$DRUPACK_RUNTIME_PORT}" {
+"https://{$DRUPACK_RUNTIME_ALIAS}:{$DRUPACK_RUNTIME_PORT}", "https://localhost:{$DRUPACK_RUNTIME_PORT}", "https://127.0.0.1:{$DRUPACK_RUNTIME_PORT}", "https://[::1]:{$DRUPACK_RUNTIME_PORT}" {
 	tls {
 		issuer internal {
 			ca "{$DRUPACK_RUNTIME_TLS_CA}"
