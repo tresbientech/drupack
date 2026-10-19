@@ -214,7 +214,8 @@ no token. Drush commands and cron post to the hub with a token signed by the
 publisher secret. A browser subscribes with a token signed by the subscriber
 secret, which the site hands out in the `mercure_access_token` cookie. An
 `EventSource` sends cookies and no `Authorization` header. The hub refuses a
-subscriber without a token.
+subscriber without a token. A site served over [HTTPS](cli.md#https) sets the
+cookie with `Secure`.
 
 The hub speaks Mercure protocol 1.0. Each token is an HS256 access token with:
 

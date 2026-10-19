@@ -144,9 +144,19 @@ Useful options:
 
 [The command line reference](docs/cli.md) covers every option, including the ones this list leaves out.
 
+### HTTPS
+
+Run this once, and every Drupack site on your computer serves `https://localhost`:
+
+```sh
+./drupacked-demo trust
+```
+
+It installs a local root that can vouch only for loopback addresses, and may ask for your password. A machine with [mkcert](https://github.com/FiloSottile/mkcert) installed, as DDEV sets up, serves HTTPS with no command. `trust --uninstall` removes the root. [The command line reference](docs/cli.md#https) has the details.
+
 ### Serving other computers
 
-The site speaks plain HTTP. A listener beyond loopback, such as `--listen 0.0.0.0:7225`, sends the login link, the password and the session cookie over the network unencrypted. Put a TLS proxy in front of the site before anyone signs in from another computer. On such a listener a start prints the login link and opens no browser.
+A listener beyond loopback, such as `--listen 0.0.0.0:7225`, serves plain HTTP. It sends the login link, the password and the session cookie over the network unencrypted. Put a TLS proxy in front of the site before anyone signs in from another computer. On such a listener a start prints the login link and opens no browser.
 
 ## Administer with Drush
 
@@ -256,7 +266,7 @@ The agent registers itself, then sends you to the site to sign in and approve it
 
 Each site generates its own OAuth key pair on its first served request, and keeps it in Site data under `oauth-keys`.
 
-The demo serves plain HTTP. OAuth allows it on a loopback address, and some agents refuse it anyway. A hosted connector, such as the ones in claude.ai, calls from its vendor's servers and cannot reach `localhost`.
+An agent that refuses plain HTTP takes `https://localhost:7225/mcp` once the site serves [HTTPS](#https). A hosted connector, such as the ones in claude.ai, calls from its vendor's servers and cannot reach `localhost`.
 
 ## Updates
 
