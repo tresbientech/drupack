@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -13,6 +14,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -36,6 +38,15 @@ const (
 // mkcertNames are the hosts tls-mkcert-site.caddy and tls-drupack-site.caddy name.
 var mkcertNames = []string{"localhost", "127.0.0.1", "::1"}
 
+// siteDomain is the zone whose wildcard record answers 127.0.0.1 for every label.
+const siteDomain = "drupack.site"
+
+// lookupLimit is how long a start waits for the resolver's answer.
+const lookupLimit = time.Second
+
+// lookupFunc resolves a name, as net.Resolver.LookupIPAddr does.
+type lookupFunc func(ctx context.Context, name string) ([]net.IPAddr, error)
+
 // mkcertRenewal is how close to expiry an mkcert certificate is written again.
 const mkcertRenewal = 30 * 24 * time.Hour
 
@@ -49,6 +60,11 @@ type tlsChoice struct {
 	Authority   string `json:"authority,omitempty"`
 	Certificate string `json:"certificate,omitempty"`
 	Key         string `json:"key,omitempty"`
+	// Host is what the start's URL names, Alias the site's drupack.site name, and Reason
+	// why Host is not Alias when the start tried the name.
+	Host   string `json:"host"`
+	Alias  string `json:"alias"`
+	Reason string `json:"reason"`
 }
 
 // newRoot writes a root that can vouch only for loopback names, so its key
@@ -196,11 +212,92 @@ func verifies(root *x509.Certificate, rootKey *ecdsa.PrivateKey, roots *x509.Cer
 	return err == nil, nil
 }
 
-// writeTLSSource prints the choice for launch.php and serve.php to read.
-func writeTLSSource(out io.Writer, dir string) error {
+// siteLabel turns a site's name or a folder's name into one DNS label.
+func siteLabel(name string) string {
+	label := strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {
+			return r
+		}
+		return '-'
+	}, strings.ToLower(name))
+	if len(label) > 63 {
+		label = label[:63]
+	}
+	if label = strings.Trim(label, "-"); label == "" {
+		return "site"
+	}
+	return label
+}
+
+// chooseHost returns the host a start on bind names in its URL: alias when the resolver
+// answers it with 127.0.0.1, otherwise fallback with the reason.
+func chooseHost(ctx context.Context, lookup lookupFunc, alias, bind, fallback string) (string, string) {
+	// The record answers 127.0.0.1 alone, so the name never reaches another listener.
+	if bind != "127.0.0.1" {
+		return fallback, ""
+	}
+	ctx, cancel := context.WithTimeout(ctx, lookupLimit)
+	defer cancel()
+	addresses, err := lookup(ctx, alias)
+	if ctx.Err() != nil {
+		return fallback, fmt.Sprintf("no answer within %v", lookupLimit)
+	}
+	if err != nil || len(addresses) == 0 {
+		return fallback, "no answer"
+	}
+	answered := make([]string, len(addresses))
+	for i, address := range addresses {
+		if address.IP.Equal(net.IPv4(127, 0, 0, 1)) {
+			return alias, ""
+		}
+		answered[i] = address.IP.String()
+	}
+	return fallback, "answered " + strings.Join(answered, ", ")
+}
+
+// fixedLookup answers every name with addresses, a comma list, or with no such host
+// for "none". DRUPACK_DNS_ANSWER sets it, so a test picks the resolver's answer.
+func fixedLookup(addresses string) lookupFunc {
+	return func(ctx context.Context, name string) ([]net.IPAddr, error) {
+		if addresses == "none" {
+			return nil, &net.DNSError{Err: "no such host", Name: name, IsNotFound: true}
+		}
+		var answer []net.IPAddr
+		for _, field := range strings.Split(addresses, ",") {
+			answer = append(answer, net.IPAddr{IP: net.ParseIP(field)})
+		}
+		return answer, nil
+	}
+}
+
+// writeTLSSource prints the choice for launch.php and serve.php to read. A packed site
+// passes --name and falls back to localhost; the engine passes --folder and falls back
+// to its bind address. --host names the host outright.
+func writeTLSSource(out io.Writer, dir string, args []string) error {
+	flags := flag.NewFlagSet("tls-source", flag.ContinueOnError)
+	bind := flags.String("bind", "", "the address the server listens on")
+	name := flags.String("name", "", "the packed site's name")
+	folder := flags.String("folder", "", "the served folder's name")
+	host := flags.String("host", "", "the host the reader asked for")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 	choice, err := tlsSource(dir, nil)
 	if err != nil {
 		return err
+	}
+	label, fallback := *name, "localhost"
+	if *name == "" {
+		label, fallback = *folder, *bind
+	}
+	choice.Alias = siteLabel(label) + "." + siteDomain
+	choice.Host = *host
+	if choice.Host == "" {
+		var lookup lookupFunc = net.DefaultResolver.LookupIPAddr
+		if answer := os.Getenv("DRUPACK_DNS_ANSWER"); answer != "" {
+			lookup = fixedLookup(answer)
+		}
+		choice.Host, choice.Reason = chooseHost(context.Background(), lookup, choice.Alias, *bind, fallback)
 	}
 	return json.NewEncoder(out).Encode(choice)
 }

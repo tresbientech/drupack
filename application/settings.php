@@ -43,6 +43,7 @@ $settings['trusted_host_patterns'] = [
   '^127\\.0\\.0\\.1$',
   '^\\[::1\\]$',
   '^' . preg_quote(getenv('DRUPACK_RUNTIME_HOST'), '/') . '$',
+  '^' . preg_quote(getenv('DRUPACK_RUNTIME_ALIAS'), '/') . '$',
 ];
 // automated_cron runs cron at the end of whichever response arrives once its
 // interval has elapsed, which puts a queue or a drupal.org fetch inside a

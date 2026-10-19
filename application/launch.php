@@ -24,7 +24,7 @@ Usage: %1$s [start] [OPTIONS]
 Options:
   --data-dir PATH            Site data directory, ./data by default
   --listen IP:PORT           Listener address, 127.0.0.1 on the site's port by default
-  --host HOST                Permitted request host, localhost by default
+  --host HOST                Permitted request host, NAME.drupack.site or localhost by default
   --files-dir PATH           Public files directory, files in Site data by default
   --database sqlite|mysql|pgsql
                              Database backend for a first start, sqlite by default
@@ -745,14 +745,13 @@ try {
         $options = administratorCredentials($options, $steps);
     }
     $options['listen'] ??= '127.0.0.1:' . siteSettings()['port'];
-    $options['host'] ??= 'localhost';
     requireDatabaseOptions($options, $steps);
     [$bind, $port] = listenerParts($options['listen']);
     if (!filter_var($bind, FILTER_VALIDATE_IP) || $port < 1 || $port > 65535) {
         throw new InvalidArgumentException('Invalid listener address or port');
     }
     // The permitted request host is external input and is converted to an exact Drupal pattern.
-    if (!filter_var($options['host'], FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)
+    if ($options['host'] !== null && !filter_var($options['host'], FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)
         && !filter_var($options['host'], FILTER_VALIDATE_IP)) {
         throw new InvalidArgumentException('Invalid --host value');
     }
@@ -783,6 +782,10 @@ try {
     }
     putenv("DRUPACK_RUNTIME_DATA_DIR=$data");
     putenv("DRUPACK_RUNTIME_FILES_DIR=$files");
+    // A start asks the runtime which host its URL names. `drush` addresses the site where its
+    // last start served, and Site data no start served yet on localhost.
+    $tls = $drush ? null : tlsChoice($binary, $bind, ['--name', executableName()], $options['host']);
+    $options['host'] = $drush ? $options['host'] ?? 'localhost' : $tls['host'];
     // Drupal matches its trusted host patterns against the request's host, which keeps an
     // IPv6 address's brackets.
     putenv('DRUPACK_RUNTIME_HOST=' . urlHost($options['host']));
@@ -790,7 +793,6 @@ try {
     // variable. Without it Drupal falls back to http://default, and every printed or mailed
     // link names an unreachable host.
     // `drush` addresses the site with the scheme its last start served.
-    $tls = $drush ? null : tlsChoice($binary, $bind, $options['host']);
     $scheme = $drush ? $options['scheme'] ?? SiteData::UNRECORDED_SCHEME : tlsScheme($tls);
     $url = siteUrl($scheme, $options['host'], $port);
     putenv("DRUSH_OPTIONS_URI=$url");
@@ -914,7 +916,7 @@ try {
         fwrite(STDOUT, "No browser opens: {$options['listen']} accepts other computers over plain HTTP."
             . " Sign in from another computer only through a TLS proxy.\n");
     }
-    fwrite(STDOUT, tlsHint($tls, $bind, $options['host']));
+    fwrite(STDOUT, nameHint($tls) . tlsHint($tls, $bind));
     openWhenServing($url, $link, $browser);
     // Every step that needed the administrator password has run. The server inherits
     // this environment and passes it to every process it starts, including PHP code a

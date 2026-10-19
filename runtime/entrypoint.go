@@ -346,8 +346,8 @@ func init() {
 		os.Exit(0)
 	}
 	// launch.php and serve.php ask this before a loopback start, and serve what it prints.
-	if len(os.Args) == 2 && os.Args[1] == "tls-source" {
-		if err := writeTLSSource(os.Stdout, os.Getenv("DRUPACK_TLS_DIR")); err != nil {
+	if len(os.Args) > 1 && os.Args[1] == "tls-source" {
+		if err := writeTLSSource(os.Stdout, os.Getenv("DRUPACK_TLS_DIR"), os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}

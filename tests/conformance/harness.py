@@ -38,6 +38,9 @@ SITE = None
 # machine's mkcert and local root from every start, so a developer's trust never changes
 # what a case sees. tls_cases.py sets its own.
 os.environ["DRUPACK_TLS_DIR"] = ""
+# Every start names localhost unless a case answers the resolver itself: "none" stands in
+# for a resolver that never answers *.drupack.site, so the machine's DNS never changes a URL.
+os.environ["DRUPACK_DNS_ANSWER"] = "none"
 
 LINUX = "linux"
 MACOS = "macos"

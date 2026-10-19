@@ -1,13 +1,17 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"io"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -348,5 +352,87 @@ func TestMkcertWithoutItsRootIsSkipped(t *testing.T) {
 	choice, err := tlsSource(dir, x509.NewCertPool())
 	if err != nil || choice.Source != "none" {
 		t.Fatalf("choice = %+v, %v, want none", choice, err)
+	}
+}
+
+func TestASiteNameOrFolderNameBecomesOneLabel(t *testing.T) {
+	for name, want := range map[string]string{
+		"drupacked-demo":               "drupacked-demo",
+		"acme.intranet":                "acme-intranet",
+		"My Shop_2":                    "my-shop-2",
+		"-édition-":                    "dition",
+		"___":                          "site",
+		strings.Repeat("a", 70):        strings.Repeat("a", 63),
+		strings.Repeat("a", 62) + "-b": strings.Repeat("a", 62),
+	} {
+		if got := siteLabel(name); got != want {
+			t.Errorf("siteLabel(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
+func TestTheNameIsUsedOnlyWhenItResolvesToTheListener(t *testing.T) {
+	for _, c := range []struct {
+		answer, bind, host, reason string
+	}{
+		{"127.0.0.1", "127.0.0.1", "x.drupack.site", ""},
+		{"::1,127.0.0.1", "127.0.0.1", "x.drupack.site", ""},
+		{"0.0.0.0", "127.0.0.1", "localhost", "answered 0.0.0.0"},
+		{"203.0.113.9,0.0.0.0", "127.0.0.1", "localhost", "answered 203.0.113.9, 0.0.0.0"},
+		{"none", "127.0.0.1", "localhost", "no answer"},
+		{"127.0.0.1", "::1", "localhost", ""},
+		{"127.0.0.1", "0.0.0.0", "localhost", ""},
+	} {
+		host, reason := chooseHost(context.Background(), fixedLookup(c.answer), "x.drupack.site", c.bind, "localhost")
+		if host != c.host || reason != c.reason {
+			t.Errorf("answer %s on %s: got %q %q, want %q %q", c.answer, c.bind, host, reason, c.host, c.reason)
+		}
+	}
+}
+
+func TestAResolverThatDoesNotAnswerInTimeFallsBack(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	silent := func(ctx context.Context, name string) ([]net.IPAddr, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	host, reason := chooseHost(ctx, silent, "x.drupack.site", "127.0.0.1", "localhost")
+	if host != "localhost" || reason != "no answer within 1s" {
+		t.Fatalf("got %q %q", host, reason)
+	}
+}
+
+func source(t *testing.T, args ...string) tlsChoice {
+	t.Helper()
+	var out bytes.Buffer
+	if err := writeTLSSource(&out, "", args); err != nil {
+		t.Fatal(err)
+	}
+	var choice tlsChoice
+	if err := json.Unmarshal(out.Bytes(), &choice); err != nil {
+		t.Fatal(err)
+	}
+	return choice
+}
+
+func TestTLSSourceNamesThePackedSiteOrFallsBackToLocalhost(t *testing.T) {
+	t.Setenv("DRUPACK_DNS_ANSWER", "127.0.0.1")
+	if c := source(t, "--bind", "127.0.0.1", "--name", "drupacked-demo"); c.Host != "drupacked-demo.drupack.site" || c.Alias != c.Host || c.Reason != "" {
+		t.Errorf("resolved: %+v", c)
+	}
+	t.Setenv("DRUPACK_DNS_ANSWER", "none")
+	if c := source(t, "--bind", "127.0.0.1", "--name", "drupacked-demo"); c.Host != "localhost" || c.Alias != "drupacked-demo.drupack.site" || c.Reason != "no answer" {
+		t.Errorf("unresolved: %+v", c)
+	}
+	if c := source(t, "--bind", "127.0.0.1", "--name", "drupacked-demo", "--host", "example.test"); c.Host != "example.test" || c.Reason != "" {
+		t.Errorf("--host: %+v", c)
+	}
+}
+
+func TestTLSSourceFallsBackToTheEngineBind(t *testing.T) {
+	t.Setenv("DRUPACK_DNS_ANSWER", "none")
+	if c := source(t, "--bind", "127.0.0.1", "--folder", "My Shop"); c.Host != "127.0.0.1" || c.Alias != "my-shop.drupack.site" {
+		t.Errorf("%+v", c)
 	}
 }

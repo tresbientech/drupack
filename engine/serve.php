@@ -185,7 +185,7 @@ function serve(string $binary, array $arguments): never
     $mercure = mercureKey($project);
     // The engine's URL names the bind address itself, so it is the host too.
     $host = trim($bind, '[]');
-    $tls = tlsChoice($binary, $host, $host);
+    $tls = tlsChoice($binary, $host, ['--folder', basename($project)], $host);
 
     // The reader's terminal gets every refusal above and the lease's below, so a start that
     // detaches has nothing left to refuse but the server's own failures.
@@ -219,7 +219,7 @@ function serve(string $binary, array $arguments): never
     }
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n")
         . ($install === null ? '' : "  Install: $install\n") . "  Project: $project\n");
-    fwrite(STDOUT, tlsHint($tls, $host, $host));
+    fwrite(STDOUT, tlsHint($tls, $host));
     fwrite(STDOUT, "Starting the web server.\n");
     // The Caddyfile beside this file is fixed, and Caddy fills its values from this environment.
     // The server opens no browser, so a value inherited from an earlier start is cleared.

@@ -295,15 +295,18 @@ function loopback(string $bind): bool
 // The hosts tls-drupack-site.caddy names. Caddy issues a certificate per named host.
 const TLS_HOSTS = ['localhost', '127.0.0.1', '::1'];
 
-// What a start serves. A loopback bind addressed by one of TLS_HOSTS gets the runtime's
-// answer, which reads the user's local root. Anything else serves plain HTTP.
-function tlsChoice(string $binary, string $bind, string $host): array
+// What a start on $bind serves and the host its URL names, as the runtime answers from the
+// user's local root and the resolver. $site names the site: ['--name', NAME] for a packed
+// site, ['--folder', NAME] for the engine. $host is the host the reader asked for. A host
+// outside TLS_HOSTS serves plain HTTP.
+function tlsChoice(string $binary, string $bind, array $site, ?string $host): array
 {
-    if (!tlsEligible($bind, $host)) {
-        return ['source' => 'none'];
+    $arguments = [$binary, 'tls-source', '--bind', $bind, ...$site];
+    if ($host !== null) {
+        array_push($arguments, '--host', $host);
     }
     $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => STDERR];
-    $child = proc_open([$binary, 'tls-source'], $descriptors, $pipes, __DIR__);
+    $child = proc_open($arguments, $descriptors, $pipes, __DIR__);
     if (!is_resource($child)) {
         throw new RuntimeException('Cannot read the local root');
     }
@@ -312,7 +315,20 @@ function tlsChoice(string $binary, string $bind, string $host): array
     if (proc_close($child) !== 0) {
         throw new RuntimeException('Cannot read the local root in ' . getenv('DRUPACK_TLS_DIR'));
     }
-    return json_decode((string) $output, true, flags: JSON_THROW_ON_ERROR);
+    $choice = json_decode((string) $output, true, flags: JSON_THROW_ON_ERROR);
+    if (!tlsEligible($bind, $choice['host'])) {
+        return ['source' => 'none', 'host' => $choice['host'], 'alias' => $choice['alias'], 'reason' => $choice['reason']];
+    }
+    return $choice;
+}
+
+// The line a start prints when its drupack.site name did not resolve to the listener, or ''.
+function nameHint(array $choice): string
+{
+    if ($choice['reason'] === '') {
+        return '';
+    }
+    return "Name: {$choice['alias']} did not resolve to 127.0.0.1 ({$choice['reason']}), so the URL uses {$choice['host']}.\n";
 }
 
 // Whether a start on $bind addressed as $host can serve HTTPS from a local root.
@@ -357,10 +373,10 @@ function useTlsBundle(string $directory): void
 }
 
 // The line a start prints when `trust` would move it to HTTPS, or ''.
-function tlsHint(array $choice, string $bind, string $host): string
+function tlsHint(array $choice, string $bind): string
 {
     // An account with no config folder has nowhere to keep a root, so `trust` cannot help.
-    if ($choice['source'] !== 'none' || !tlsEligible($bind, $host) || environment('DRUPACK_TLS_DIR') === null) {
+    if ($choice['source'] !== 'none' || !tlsEligible($bind, $choice['host']) || environment('DRUPACK_TLS_DIR') === null) {
         return '';
     }
     return 'HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n";
@@ -371,10 +387,10 @@ function tlsScheme(array $choice): string
     return $choice['source'] === 'none' ? 'http' : 'https';
 }
 
-// The server variables that pick the TLS snippets for $choice.
+// The server variables that name the site and pick the TLS snippets for $choice.
 function tlsServerEnvironment(array $choice): array
 {
-    return match ($choice['source']) {
+    return ['DRUPACK_RUNTIME_ALIAS' => $choice['alias']] + match ($choice['source']) {
         'none' => ['DRUPACK_RUNTIME_TLS' => 'none'],
         'mkcert' => [
             'DRUPACK_RUNTIME_TLS' => 'mkcert',

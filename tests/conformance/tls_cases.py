@@ -8,6 +8,7 @@ stands in for an installed root without touching this machine's store.
 import os
 import shutil
 from pathlib import Path
+from urllib.request import Request, urlopen
 
 import harness
 
@@ -107,7 +108,7 @@ class TlsSources(harness.ConformanceCase):
         bundle.write_text("".join(Path(root).read_text() for root in trusted))
         return trusted_environment(tls_dir, bundle)
 
-    def start(self, root, trusted, mkcert=None, name="site", bind="127.0.0.1"):
+    def start(self, root, trusted, mkcert=None, name="site", bind="127.0.0.1", answer="none"):
         tls_dir = self.root.parent if root else self.case_dir / "tls"
         system = [self.root] if trusted else []
         served = self.root if trusted and bind == "127.0.0.1" else None
@@ -116,12 +117,29 @@ class TlsSources(harness.ConformanceCase):
             # `mkcert -install` puts its root in the system store.
             system.append(served)
         env = self.environment(tls_dir, system)
+        env["DRUPACK_DNS_ANSWER"] = answer
         if mkcert is not None:
             env["PATH"] = f"{mkcert}{os.pathsep}{env['PATH']}"
         site = harness.Site(harness.BINARY, self.case_dir / name, root=served)
         site.start(self.data, bind=bind, env=env)
         self.addCleanup(site.stop)
         return site
+
+    def test_a_name_that_resolves_to_the_listener_names_the_url(self):
+        alias = f"{harness.SITE['name'].replace('.', '-')}.drupack.site"
+        site = self.start(root=False, trusted=False, answer="127.0.0.1")
+        log = site.log_path.read_text(errors="replace")
+        self.assertIn(f"URL:       http://{alias}:{site.port}/", log)
+        self.assertNotIn("did not resolve", log)
+        request = Request(f"http://127.0.0.1:{site.port}/user/login", headers={"Host": f"{alias}:{site.port}"})
+        with urlopen(request, timeout=harness.WAITS["http_request"].seconds) as response:
+            self.assertEqual(response.status, 200)
+
+    def test_a_name_the_resolver_filters_falls_back_to_localhost(self):
+        site = self.start(root=False, trusted=False, answer="0.0.0.0")
+        log = site.log_path.read_text(errors="replace")
+        self.assertIn(f"URL:       http://localhost:{site.port}/", log)
+        self.assertIn("did not resolve to 127.0.0.1 (answered 0.0.0.0), so the URL uses localhost.", log)
 
     def test_mkcert_serves_https(self):
         stub, calls = write_mkcert(self.case_dir / "mkcert", 800)
