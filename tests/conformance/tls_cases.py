@@ -72,7 +72,8 @@ def write_mkcert(directory, days):
     harness.run(
         ["openssl", "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes",
          "-keyout", str(caroot / "rootCA-key.pem"), "-out", str(caroot / "rootCA.pem"), "-days", "30",
-         "-subj", "/CN=mkcert test root", "-addext", "basicConstraints=critical,CA:true"],
+         "-subj", "/CN=mkcert test root", "-addext", "basicConstraints=critical,CA:true",
+         "-addext", "keyUsage=critical,keyCertSign,cRLSign"],
         check=True, capture_output=True,
     )
     bin_dir = directory / "bin"
