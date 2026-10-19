@@ -205,9 +205,10 @@ function administratorCredentials(array $options, array $steps): array
 
 // The server process waits for its own first response, prints the readiness line and opens
 // the browser when asked. A request spends a one-time login link, so readiness is polled on
-// $url, the bind's own address, and the browser opens on $target. $target is a working credential for uid 1, so it
-// enters the serving process's environment only when a browser will actually spend it: any
-// PHP running inside that process can otherwise read it through getenv, $_ENV or phpinfo.
+// $url, the bind's own address, and the browser opens on $target. $target is a working
+// credential for uid 1, so it enters the serving process's environment only when a browser
+// will actually spend it: any PHP running inside that process can otherwise read it through
+// getenv, $_ENV or phpinfo.
 function openWhenServing(string $url, ?string $target, bool $browser): void
 {
     putenv("DRUPACK_RUNTIME_URL=$url");
