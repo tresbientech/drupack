@@ -444,6 +444,10 @@ jobs:
         working-directory: runtime/watch
         run: go test ./...
 
+      - name: Run the runtime TLS unit tests
+        working-directory: runtime/tls
+        run: go test ./...
+
       - uses: actions/download-artifact@v7
         with:
           name: runtime-linux-${{ matrix.arch }}-musl
@@ -594,6 +598,10 @@ jobs:
 
       - name: Run the runtime watcher unit tests
         working-directory: runtime/watch
+        run: go test ./...
+
+      - name: Run the runtime TLS unit tests
+        working-directory: runtime/tls
         run: go test ./...
 
       - uses: actions/download-artifact@v8
@@ -794,6 +802,10 @@ jobs:
 
       - name: Run the runtime watcher unit tests
         working-directory: runtime/watch
+        run: go test ./...
+
+      - name: Run the runtime TLS unit tests
+        working-directory: runtime/tls
         run: go test ./...
 
       - uses: actions/download-artifact@v8

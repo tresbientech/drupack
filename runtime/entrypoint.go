@@ -310,9 +310,14 @@ func init() {
 			cron = []string{executable, "php-cli",
 				filepath.Join(application, "vendor", "drush", "drush", "drush.php"), "cron"}
 		}
+		roots, err := rootPool(os.Getenv("DRUPACK_RUNTIME_TLS_ROOT"))
+		if err != nil {
+			panic(err)
+		}
 		go run(stopping, siteName(), plan{
 			probe: strings.TrimSuffix(os.Getenv("DRUPACK_RUNTIME_URL"), "/") +
 				readinessPath + url.QueryEscape(os.Getenv("DRUPACK_RUNTIME_ID")),
+			roots:       roots,
 			open:        os.Getenv("DRUPACK_RUNTIME_OPEN"),
 			cron:        cron,
 			dir:         application,
@@ -330,6 +335,14 @@ func init() {
 	// credential, so it arrives in the environment, which only this user can read.
 	if len(os.Args) > 1 && os.Args[1] == "browser-open" {
 		openBrowser(os.Getenv("DRUPACK_RUNTIME_OPEN"))
+		os.Exit(0)
+	}
+	// launch.php and serve.php ask this before a loopback start, and serve what it prints.
+	if len(os.Args) == 2 && os.Args[1] == "tls-source" {
+		if err := writeTLSSource(os.Stdout, os.Getenv("DRUPACK_TLS_DIR")); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 		os.Exit(0)
 	}
 	if len(os.Args) > 1 && nodeCommands[os.Args[1]] != "" {

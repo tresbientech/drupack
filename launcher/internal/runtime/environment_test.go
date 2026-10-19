@@ -38,7 +38,7 @@ func count(env []string, key string) int {
 func TestEnvironmentPHPRCAlwaysNamesTheRuntimeDirectory(t *testing.T) {
 	parent := []string{"PHPRC=/caller/chosen/path", "HOME=/home/user"}
 
-	env := runtimepkg.Environment("/runtime/dir", parent)
+	env := runtimepkg.Environment("/runtime/dir", "", parent)
 
 	value, ok := lookup(env, "PHPRC")
 	if !ok {
@@ -59,7 +59,7 @@ func TestEnvironmentPHPRCAlwaysNamesTheRuntimeDirectory(t *testing.T) {
 func TestEnvironmentDRUPACKCAFileKeepsACallersValue(t *testing.T) {
 	parent := []string{"DRUPACK_CA_FILE=/proxy/bundle.pem", "HOME=/home/user"}
 
-	env := runtimepkg.Environment("/runtime/dir", parent)
+	env := runtimepkg.Environment("/runtime/dir", "", parent)
 
 	value, ok := lookup(env, "DRUPACK_CA_FILE")
 	if !ok {
@@ -79,7 +79,7 @@ func TestEnvironmentDRUPACKCAFileKeepsACallersValue(t *testing.T) {
 // When the caller sets neither variable, Environment points both at the
 // runtime directory the launcher unpacked.
 func TestEnvironmentSetsBothVariablesWhenTheCallerSetsNeither(t *testing.T) {
-	env := runtimepkg.Environment("/runtime/dir", []string{"HOME=/home/user"})
+	env := runtimepkg.Environment("/runtime/dir", "", []string{"HOME=/home/user"})
 
 	phprc, ok := lookup(env, "PHPRC")
 	if !ok || phprc != "/runtime/dir" {
@@ -103,7 +103,7 @@ func TestEnvironmentDropsTheLoaderControls(t *testing.T) {
 		"LD_PRELOADED_BY_NOBODY=keep",
 		"HOME=/home/user",
 	}
-	env := runtimepkg.Environment("/runtime/dir", parent)
+	env := runtimepkg.Environment("/runtime/dir", "", parent)
 	for _, dropped := range []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "GLIBC_TUNABLES"} {
 		if value, found := lookup(env, dropped); found {
 			t.Fatalf("Environment kept %s=%s", dropped, value)
@@ -114,5 +114,39 @@ func TestEnvironmentDropsTheLoaderControls(t *testing.T) {
 	}
 	if value, found := lookup(env, "HOME"); !found || value != "/home/user" {
 		t.Fatalf("Environment did not keep HOME: %q, %v", value, found)
+	}
+}
+
+// Every site and the engine find the user's local root through this variable.
+func TestEnvironmentNamesTheTLSFolder(t *testing.T) {
+	env := runtimepkg.Environment("/runtime/dir", "/home/user/.config/drupack/tls", []string{"HOME=/home/user"})
+
+	value, ok := lookup(env, "DRUPACK_TLS_DIR")
+	if !ok || value != "/home/user/.config/drupack/tls" {
+		t.Fatalf("DRUPACK_TLS_DIR = %q, %v, want the folder passed in", value, ok)
+	}
+}
+
+// A test or a reader who names their own folder keeps it, once.
+func TestEnvironmentDRUPACKTLSDirKeepsACallersValue(t *testing.T) {
+	parent := []string{"DRUPACK_TLS_DIR=/caller/tls", "HOME=/home/user"}
+
+	env := runtimepkg.Environment("/runtime/dir", "/home/user/.config/drupack/tls", parent)
+
+	value, _ := lookup(env, "DRUPACK_TLS_DIR")
+	if value != "/caller/tls" {
+		t.Fatalf("DRUPACK_TLS_DIR = %q, want the caller's %q", value, "/caller/tls")
+	}
+	if n := count(env, "DRUPACK_TLS_DIR"); n != 1 {
+		t.Fatalf("DRUPACK_TLS_DIR appears %d times, want exactly 1", n)
+	}
+}
+
+// An account with no config folder gets no variable, and its sites serve HTTP.
+func TestEnvironmentLeavesTheTLSFolderUnsetWithoutOne(t *testing.T) {
+	env := runtimepkg.Environment("/runtime/dir", "", []string{"HOME=/home/user"})
+
+	if value, found := lookup(env, "DRUPACK_TLS_DIR"); found {
+		t.Fatalf("DRUPACK_TLS_DIR = %q, want it unset", value)
 	}
 }

@@ -216,7 +216,7 @@ function serve(string $binary, array $arguments): never
     // The server opens no browser, so a value inherited from an earlier start is cleared.
     putenv('DRUPACK_RUNTIME_OPEN');
     if ($mercure) {
-        $hub = mercureUrl($bind, (int) $port);
+        $hub = mercureUrl('http', $bind, (int) $port);
         exportEngineMercure($entry, $hub, false);
         // The start's --listen chooses the port, so drush reads the address back from here.
         if (file_put_contents("$entry/" . MERCURE_URL_FILE, $hub) !== strlen($hub)) {
@@ -230,7 +230,7 @@ function serve(string $binary, array $arguments): never
         'DRUPACK_RUNTIME_ID' => basename($entry),
         'DRUPACK_RUNTIME_URL' => 'http://' . urlHost(probeHost($bind)) . ":$port",
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
-    ] + mercureServerEnvironment($mercure, $entry));
+    ] + mercureServerEnvironment($mercure, $entry) + tlsServerEnvironment(['source' => 'none']));
     runtimePhpOnPath();
     replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }

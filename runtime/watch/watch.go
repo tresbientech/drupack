@@ -7,6 +7,8 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -23,11 +25,12 @@ import (
 // plan holds what run watches: where readiness answers, what to open once ready,
 // and how and when cron runs.
 type plan struct {
-	probe       string   // the identity route's URL, token included
-	open        string   // the login link to open once ready, "" for none
-	cron        []string // one cron run's argv, empty for a server that runs no cron
-	dir         string   // the directory cron runs in
-	stopRecord  string   // the file that tells SITE stop where the stop channel listens
+	probe       string         // the identity route's URL, token included
+	roots       *x509.CertPool // the roots an https probe trusts, nil for the system's
+	open        string         // the login link to open once ready, "" for none
+	cron        []string       // one cron run's argv, empty for a server that runs no cron
+	dir         string         // the directory cron runs in
+	stopRecord  string         // the file that tells SITE stop where the stop channel listens
 	poll        time.Duration
 	readyWithin time.Duration
 	firstCron   time.Duration
@@ -139,7 +142,10 @@ func writeOwnerOnly(path string, content []byte) error {
 func ready(stopping context.Context, p plan, errs io.Writer) bool {
 	// A cold start answers its first request slowly, and a request that never returns would
 	// otherwise hold the poll past the deadline.
-	client := http.Client{Timeout: 30 * time.Second}
+	client := http.Client{
+		Timeout:   30 * time.Second,
+		Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: p.roots}},
+	}
 	started := time.Now()
 	deadline := started.Add(p.readyWithin)
 	var last error
@@ -207,4 +213,21 @@ func guard(signals <-chan os.Signal, deadline time.Duration, exit func(int)) con
 		exit(1)
 	}()
 	return stopping
+}
+
+// rootPool reads the root an https site's certificate chains to, the file
+// DRUPACK_RUNTIME_TLS_ROOT names. An http site names none and gets nil.
+func rootPool(path string) (*x509.CertPool, error) {
+	if path == "" {
+		return nil, nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(data) {
+		return nil, fmt.Errorf("%s holds no certificate", path)
+	}
+	return roots, nil
 }

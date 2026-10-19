@@ -6,9 +6,9 @@ declare(strict_types=1);
 // serve.php share. Both load process.php first.
 
 // The hub's address on a listener, which is also the iss and aud of every token.
-function mercureUrl(string $bind, int $port): string
+function mercureUrl(string $scheme, string $bind, int $port): string
 {
-    return 'http://' . urlHost(probeHost($bind)) . ":$port/.well-known/mercure";
+    return siteUrl($scheme, probeHost($bind), $port) . '.well-known/mercure';
 }
 
 // The server variables that mount the hub, or that import none.caddy when $on is false.

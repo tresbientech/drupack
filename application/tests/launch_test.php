@@ -172,10 +172,11 @@ test('site data with no listener record changes nothing', function (): void {
 });
 
 test('a listener record fills an absent address and host', function (): void {
-    $record = ['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => null];
+    $record = ['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => null, 'scheme' => 'https'];
     $filled = recordedListener(['listen' => null, 'host' => null], $record);
     same('127.0.0.1:8080', $filled['listen']);
     same('example.test', $filled['host']);
+    same('https', $filled['scheme']);
 });
 
 test('a listener record fills an absent files directory', function (): void {
@@ -194,7 +195,7 @@ test('a record without a files directory leaves the default to Site data', funct
 });
 
 test('an explicit option beats the listener record', function (): void {
-    $record = ['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => null];
+    $record = ['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => null, 'scheme' => 'http'];
     $given = recordedListener(['listen' => '127.0.0.1:9000', 'host' => null], $record);
     same('127.0.0.1:9000', $given['listen']);
     same('example.test', $given['host']);
@@ -202,8 +203,37 @@ test('an explicit option beats the listener record', function (): void {
 
 test('a served listener brackets an IPv6 host in its URL', function (): void {
     $site = new SiteData(scratch());
-    $site->recordListener('[::]:8080', '::1', null);
+    $site->recordListener('[::]:8080', '::1', null, 'http');
     same(['::', 'http://[::1]:8080/'], servedListener($site, ['listen' => '127.0.0.1:7000', 'host' => 'localhost']));
+});
+
+test('a served listener names the scheme its start served', function (): void {
+    $site = new SiteData(scratch());
+    $site->recordListener('127.0.0.1:8080', 'localhost', null, 'https');
+    same(['127.0.0.1', 'https://localhost:8080/'], servedListener($site, ['listen' => '127.0.0.1:7000', 'host' => 'localhost']));
+});
+
+test('a site URL takes the scheme and brackets an IPv6 host', function (): void {
+    same('https://localhost:8080/', siteUrl('https', 'localhost', 8080));
+    same('http://[::1]:8080/', siteUrl('http', '::1', 8080));
+});
+
+test('only a loopback bind addressed by a name the local root covers asks for HTTPS', function (): void {
+    // These return before running the runtime, which this test has none of.
+    foreach ([['0.0.0.0', 'localhost'], ['192.168.1.5', 'localhost'], ['127.0.0.1', 'example.test'], ['127.0.0.1', 'site.localhost']] as [$bind, $host]) {
+        same(['source' => 'none'], tlsChoice('/no/runtime', $bind, $host), "$bind $host");
+    }
+});
+
+test('the TLS source picks its snippets and their files', function (): void {
+    same(['DRUPACK_RUNTIME_TLS' => 'none'], tlsServerEnvironment(['source' => 'none']));
+    same([
+        'DRUPACK_RUNTIME_TLS' => 'drupack',
+        'DRUPACK_RUNTIME_TLS_ROOT' => '/tls/root.pem',
+        'DRUPACK_RUNTIME_TLS_ROOT_KEY' => '/tls/root.key',
+    ], tlsServerEnvironment(['source' => 'drupack', 'root' => '/tls/root.pem', 'rootKey' => '/tls/root.key']));
+    same('http', tlsScheme(['source' => 'none']));
+    same('https', tlsScheme(['source' => 'drupack']));
 });
 
 test('a served listener without a record is the one this start asked for', function (): void {

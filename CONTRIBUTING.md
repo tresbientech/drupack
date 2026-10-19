@@ -140,6 +140,7 @@ The launcher's and the runtime watcher's unit tests need Go:
 ```sh
 (cd launcher && go test ./...)
 (cd runtime/watch && go test ./...)
+(cd runtime/tls && go test ./...)
 ```
 
 On Windows, `python` runs the suite in place of `python3`, which Windows does not provide:

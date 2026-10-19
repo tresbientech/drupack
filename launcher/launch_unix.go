@@ -11,7 +11,7 @@ import (
 )
 
 func launch(executable string, args []string) error {
-	env := runtime.Environment(filepath.Dir(executable), os.Environ())
+	env := runtime.Environment(filepath.Dir(executable), runtime.TLSDir(), os.Environ())
 	return syscall.Exec(executable, args, env)
 }
 

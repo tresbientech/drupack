@@ -1,0 +1,3 @@
+"http://:{$DRUPACK_RUNTIME_PORT}" {
+	import site
+}

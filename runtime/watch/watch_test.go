@@ -3,9 +3,16 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"maps"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -471,5 +478,91 @@ func TestStoppingEndsACronRunInFlight(t *testing.T) {
 	w.returns(t, 5*time.Second)
 	if errs := w.errs.String(); errs != "" {
 		t.Fatalf("reported %q for a run the stop ended", errs)
+	}
+}
+
+// tlsServer answers the identity route over https under its own test root, which it
+// writes as PEM for rootPool to read.
+func tlsServer(t *testing.T) (*httptest.Server, string) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+	root := filepath.Join(t.TempDir(), "root.pem")
+	block := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
+	if err := os.WriteFile(root, block, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return server, root
+}
+
+// otherRoot writes a self-signed root that signed nothing the test servers present.
+// Every httptest TLS server shares one built-in certificate.
+func otherRoot(t *testing.T) string {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "other root"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "other.pem")
+	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestAnHTTPSProbeTrustsTheNamedRoot(t *testing.T) {
+	server, root := tlsServer(t)
+	roots, err := rootPool(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := probing(t, server, "")
+	p.roots = roots
+	w := watch(t, p)
+	deadline := time.Now().Add(5 * time.Second)
+	for !strings.Contains(w.out.String(), "is ready") {
+		if time.Now().After(deadline) {
+			t.Fatalf("no ready line; reported %q", w.errs.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestAnHTTPSProbeRefusesAnotherRoot(t *testing.T) {
+	server, _ := tlsServer(t)
+	roots, err := rootPool(otherRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := probing(t, server, "")
+	p.roots = roots
+	p.readyWithin = 200 * time.Millisecond
+	w := watch(t, p)
+	w.returns(t, 5*time.Second)
+	if got := w.out.String(); got != "" {
+		t.Fatalf("printed %q for a certificate from another root", got)
+	}
+	if !strings.Contains(w.errs.String(), "certificate") {
+		t.Fatalf("reported %q, want the certificate failure", w.errs.String())
+	}
+}
+
+func TestAnHTTPSiteNamesNoRoot(t *testing.T) {
+	roots, err := rootPool("")
+	if roots != nil || err != nil {
+		t.Fatalf("rootPool(\"\") = %v, %v, want nil, nil", roots, err)
 	}
 }

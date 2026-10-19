@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -27,10 +28,11 @@ var loaderVariables = []string{
 // binary otherwise resolves php.ini from wherever it happens to run rather
 // than the runtime the launcher unpacked. DRUPACK_CA_FILE names the packed
 // bundle unless parent already sets it, so a caller behind a TLS-inspection
-// proxy can still name their own.
-func Environment(directory string, parent []string) []string {
-	env := make([]string, 0, len(parent)+2)
-	callerSetCAFile := false
+// proxy can still name their own. DRUPACK_TLS_DIR names tlsDir, the folder
+// holding the user's local root, unless parent sets it or tlsDir is empty.
+func Environment(directory, tlsDir string, parent []string) []string {
+	env := make([]string, 0, len(parent)+3)
+	callerSetCAFile, callerSetTLSDir := false, false
 	for _, entry := range parent {
 		if hasKey(entry, "PHPRC") {
 			continue
@@ -41,13 +43,31 @@ func Environment(directory string, parent []string) []string {
 		if hasKey(entry, "DRUPACK_CA_FILE") {
 			callerSetCAFile = true
 		}
+		if hasKey(entry, "DRUPACK_TLS_DIR") {
+			callerSetTLSDir = true
+		}
 		env = append(env, entry)
 	}
 	env = append(env, "PHPRC="+directory)
 	if !callerSetCAFile {
 		env = append(env, "DRUPACK_CA_FILE="+Canonical(filepath.Join(directory, caFileName)))
 	}
+	if !callerSetTLSDir && tlsDir != "" {
+		env = append(env, "DRUPACK_TLS_DIR="+Canonical(tlsDir))
+	}
 	return env
+}
+
+// TLSDir returns the folder holding the user's local root, one per user
+// account so every site and the engine share it. It returns "" when the
+// system names no config folder, such as a Unix account without HOME, and
+// sites then serve HTTP.
+func TLSDir() string {
+	config, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(config, "drupack", "tls")
 }
 
 // hasKey reports whether entry, one os.Environ() line, names key.

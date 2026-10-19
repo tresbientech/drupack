@@ -3,8 +3,10 @@
 # holding one.
 {
 	admin off
-	auto_https off
 	persist_config off
+	# tls-none-global.caddy or tls-drupack-global.caddy, the half of the source that a
+	# global option carries. The site block below names the other half.
+	import "tls-{$DRUPACK_RUNTIME_TLS}-global.caddy"
 	# Windows PHP keys its opcache segment per user account, so a second server attaches to
 	# the first one's segment, finds opcode handlers from a differently based image and aborts
 	# before it binds. The cache id gives each Site data its own segment. Other platforms do
@@ -22,7 +24,8 @@
 	}
 }
 
-"http://:{$DRUPACK_RUNTIME_PORT}" {
+# The site, which the source's site block imports under its address.
+(site) {
 	bind "{$DRUPACK_RUNTIME_BIND}"
 	root * "{$DRUPACK_RUNTIME_DOCROOT}"
 	encode zstd br gzip
@@ -67,3 +70,7 @@
 		}
 	}
 }
+
+# tls-none-site.caddy serves http on any address of the bind, tls-drupack-site.caddy
+# https on the loopback names the local root covers.
+import "tls-{$DRUPACK_RUNTIME_TLS}-site.caddy"

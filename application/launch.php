@@ -264,13 +264,6 @@ function listenerParts(string $listen): array
     return [trim($listener[1], '[]'), (int) $listener[2]];
 }
 
-// A login link and the session it opens cross any other network in clear text, so only
-// a loopback listener opens a browser. 0.0.0.0 and :: accept other computers too.
-function loopback(string $bind): bool
-{
-    return $bind === '::1' || str_starts_with($bind, '127.');
-}
-
 // Reports whether anything holds $bind:$port. A connect answers this on every platform,
 // where a trial bind would report a taken port as free under Windows SO_REUSEADDR. A
 // wildcard is probed on its own family's loopback, since an IPv6-only listener never
@@ -290,9 +283,10 @@ function portTaken(string $bind, int $port): bool
 // its bind address and its URL.
 function servedListener(SiteData $site, array $options): array
 {
-    $record = $site->listener() ?? $options;
+    // Site data served before the record existed served HTTP.
+    $record = $site->listener() ?? $options + ['scheme' => 'http'];
     [$bind, $port] = listenerParts($record['listen']);
-    return [$bind, 'http://' . urlHost($record['host']) . ":$port/"];
+    return [$bind, siteUrl($record['scheme'], $record['host'], $port)];
 }
 
 // An option the reader gave beats the recorded listener. Site data written before the
@@ -304,6 +298,7 @@ function recordedListener(array $options, ?array $record): array
     }
     $options['listen'] ??= $record['listen'];
     $options['host'] ??= $record['host'];
+    $options['scheme'] = $record['scheme'];
     return $options;
 }
 
@@ -788,7 +783,11 @@ try {
     // The address a reader types, never the bind address. Drush builds absolute URLs from this
     // variable. Without it Drupal falls back to http://default, and every printed or mailed
     // link names an unreachable host.
-    $url = 'http://' . urlHost($options['host']) . ":$port/";
+    // `drush` addresses the site with the scheme its last start served, and HTTP without a
+    // record, as every start before the record served.
+    $tls = $drush ? null : tlsChoice($binary, $bind, $options['host']);
+    $scheme = $drush ? $options['scheme'] ?? 'http' : tlsScheme($tls);
+    $url = siteUrl($scheme, $options['host'], $port);
     putenv("DRUSH_OPTIONS_URI=$url");
     $logPath = $site->logs() . '/caddy.log';
     $runtime = canonical(realpath($site->runtime()));
@@ -838,10 +837,10 @@ try {
         }
         $serving->detach($options['foreground'] !== null,
             stopCommand($written === DEFAULT_DATA_DIR ? '' : ' --data-dir ' . shellWord($written)), array_slice($argv, 1));
-        $site->recordListener($options['listen'], $options['host'], $options['files-dir']);
+        $site->recordListener($options['listen'], $options['host'], $options['files-dir'], $scheme);
     }
     if (siteSettings()['mercure']) {
-        exportMercure($site->mercurePublisherSecret(), $site->mercureSubscriberSecret(), mercureUrl($bind, $port), $drush);
+        exportMercure($site->mercurePublisherSecret(), $site->mercureSubscriberSecret(), mercureUrl($scheme, $bind, $port), $drush);
     }
     if (siteSettings()['writable'] !== []) {
         useSiteApplication($site, $drush);
@@ -923,7 +922,7 @@ try {
         'DRUPACK_RUNTIME_DOCROOT' => application() . '/' . siteSettings()['docroot'],
         'DRUPACK_RUNTIME_LOG_PATH' => $logPath,
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
-    ] + mercureServerEnvironment(siteSettings()['mercure'], $data));
+    ] + mercureServerEnvironment(siteSettings()['mercure'], $data) + tlsServerEnvironment($tls));
     replaceProcess($binary, ['php-server', application() . '/Caddyfile'], application(), 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");

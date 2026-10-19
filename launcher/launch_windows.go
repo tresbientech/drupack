@@ -23,7 +23,7 @@ func launch(executable string, args []string) error {
 	command.Stderr = os.Stderr
 	// php.ini and the bundled trust store load through the same environment
 	// rules launch_unix.go applies, so the two entry points cannot drift apart.
-	command.Env = runtime.Environment(filepath.Dir(executable), os.Environ())
+	command.Env = runtime.Environment(filepath.Dir(executable), runtime.TLSDir(), os.Environ())
 	if consoleOwned() {
 		command.Env = append(command.Env, "DRUPACK_RUNTIME_CONSOLE_OWNED=1")
 	}

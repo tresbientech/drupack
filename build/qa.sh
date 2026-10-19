@@ -55,6 +55,7 @@ ln -sfn ../dist/work/app/vendor application/vendor
 "$executable" php-cli "$PWD/application/tests/argv_test.php" a b
 (cd launcher && go test ./...)
 (cd runtime/watch && go test ./...)
+(cd runtime/tls && go test ./...)
 python3 -m unittest discover -s tests/conformance -p test_harness.py
 python3 -m unittest discover -s tests/conformance -p test_environment.py
 python3 -m unittest discover -s tests/conformance -p test_app_payload.py
@@ -63,5 +64,5 @@ python3 -m unittest discover -s tests/conformance -p test_native_pack.py
 python3 -m unittest discover -s tests/upstream
 DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" "$work/results/conformance" --site-tests "$demo/tests" \
     -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \
-    -k ExistingSiteAdoption -k EngineExecutable
+    -k ExistingSiteAdoption -k EngineExecutable -k TlsSources
 python3 tests/conformance "dist/variant/variant-demo-$platform-musl" "$work/results/variant-musl" -k NodeRefusals -k MercureHub

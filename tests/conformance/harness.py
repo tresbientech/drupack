@@ -11,6 +11,7 @@ import platform
 import shutil
 import signal
 import socket
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -453,11 +454,15 @@ class Site:
 
     The host name in every request is "localhost", never the loopback literal: settings.php
     trusts only '^localhost$', so a request addressed to 127.0.0.1 would be refused.
+
+    A site given root serves HTTPS, and every request verifies its certificate against root.
     """
 
-    def __init__(self, binary, case_dir):
+    def __init__(self, binary, case_dir, root=None):
         self.binary = binary
         self.case_dir = case_dir
+        self.scheme = "http" if root is None else "https"
+        self._context = None if root is None else ssl.create_default_context(cafile=str(root))
         self.log_path = case_dir / "run.log"
         self.process = None
         self.port = None
@@ -552,8 +557,8 @@ class Site:
         )
 
     def fetch(self, path):
-        request = Request(f"http://localhost:{self.port}{path}")
-        with urlopen(request, timeout=WAITS["http_request"].seconds) as response:
+        request = Request(f"{self.scheme}://localhost:{self.port}{path}")
+        with urlopen(request, timeout=WAITS["http_request"].seconds, context=self._context) as response:
             return response.status, response.headers, response.read().decode(errors="replace")
 
     def http(self, path):

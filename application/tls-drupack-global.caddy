@@ -1,0 +1,13 @@
+# HTTPS from the user's local root, which `trust` installed. auto_https off would stop
+# Caddy issuing for the named site addresses, so only its HTTP redirects are off.
+# Caddy would install the root on every start, which asks for a password.
+auto_https disable_redirects
+skip_install_trust
+pki {
+	ca drupack {
+		root {
+			cert "{$DRUPACK_RUNTIME_TLS_ROOT}"
+			key "{$DRUPACK_RUNTIME_TLS_ROOT_KEY}"
+		}
+	}
+}

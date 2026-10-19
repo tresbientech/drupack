@@ -153,6 +153,7 @@ Set-Content -Path (Join-Path $frankenphp 'app.tar') -Value $null -NoNewline
 Copy-Item (Join-Path $payload 'app_checksum.txt') (Join-Path $frankenphp 'app_checksum.txt')
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\entrypoint.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack.go')
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\watch\watch.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_watch.go')
+Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\tls\tls.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_tls.go')
 
 # php.net publishes x64 builds alone, so a Windows on Arm host builds the amd64
 # runtime too, with its own clang. cmd/pack builds the launcher for its own

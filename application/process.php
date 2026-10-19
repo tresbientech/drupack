@@ -279,6 +279,60 @@ function urlHost(string $host): string
     return str_contains($host, ':') ? "[$host]" : $host;
 }
 
+// The URL a reader types for a site served with $scheme on $host and $port.
+function siteUrl(string $scheme, string $host, int $port): string
+{
+    return "$scheme://" . urlHost($host) . ":$port/";
+}
+
+// A login link and the session it opens cross any other network in clear text, so only
+// a loopback listener opens a browser. 0.0.0.0 and :: accept other computers too.
+function loopback(string $bind): bool
+{
+    return $bind === '::1' || str_starts_with($bind, '127.');
+}
+
+// The hosts tls-drupack-site.caddy names. Caddy issues a certificate per named host.
+const TLS_HOSTS = ['localhost', '127.0.0.1', '::1'];
+
+// What a start serves. A loopback bind addressed by one of TLS_HOSTS gets the runtime's
+// answer, which reads the user's local root. Anything else serves plain HTTP.
+function tlsChoice(string $binary, string $bind, string $host): array
+{
+    if (!loopback($bind) || !in_array($host, TLS_HOSTS, true)) {
+        return ['source' => 'none'];
+    }
+    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => STDERR];
+    $child = proc_open([$binary, 'tls-source'], $descriptors, $pipes, __DIR__);
+    if (!is_resource($child)) {
+        throw new RuntimeException('Cannot read the local root');
+    }
+    $output = stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+    if (proc_close($child) !== 0) {
+        throw new RuntimeException('Cannot read the local root in ' . getenv('DRUPACK_TLS_DIR'));
+    }
+    return json_decode((string) $output, true, flags: JSON_THROW_ON_ERROR);
+}
+
+function tlsScheme(array $choice): string
+{
+    return $choice['source'] === 'none' ? 'http' : 'https';
+}
+
+// The server variables that pick the TLS snippets for $choice.
+function tlsServerEnvironment(array $choice): array
+{
+    return match ($choice['source']) {
+        'none' => ['DRUPACK_RUNTIME_TLS' => 'none'],
+        'drupack' => [
+            'DRUPACK_RUNTIME_TLS' => 'drupack',
+            'DRUPACK_RUNTIME_TLS_ROOT' => $choice['root'],
+            'DRUPACK_RUNTIME_TLS_ROOT_KEY' => $choice['rootKey'],
+        ],
+    };
+}
+
 // The address a probe on this computer reaches a server bound to $bind, which a wildcard
 // reaches through its own family's loopback, since an IPv6-only listener never answers on
 // 127.0.0.1.

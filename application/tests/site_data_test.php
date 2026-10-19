@@ -129,13 +129,14 @@ test('a listener record missing its host refuses', function (): void {
     throws('Recorded listener has no host', fn() => $site->listener());
 });
 
-test('a recorded listener reads back whole, and an old record names no files directory', function (): void {
+test('a recorded listener reads back whole, and an old record names no files directory and HTTP', function (): void {
     $site = scratch();
     same(null, $site->listener());
-    $site->recordListener('127.0.0.1:8080', 'example.test', '/srv/files');
-    same(['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => '/srv/files'], $site->listener());
+    $site->recordListener('127.0.0.1:8080', 'example.test', '/srv/files', 'https');
+    same(['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => '/srv/files', 'scheme' => 'https'], $site->listener());
     file_put_contents("$site->directory/listener", json_encode(['listen' => '127.0.0.1:8080', 'host' => 'localhost']));
     same(null, $site->listener()['files-dir']);
+    same('http', $site->listener()['scheme']);
 });
 
 test('the recorded connection is the database block of the recorded settings', function (): void {

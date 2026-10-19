@@ -98,12 +98,14 @@ final class SiteData
             'listen' => $record['listen'] ?? throw new RuntimeException('Recorded listener has no listen address'),
             'host' => $record['host'] ?? throw new RuntimeException('Recorded listener has no host'),
             'files-dir' => $record['files-dir'] ?? null,
+            // A record from a release before HTTPS names no scheme, and those served HTTP.
+            'scheme' => $record['scheme'] ?? 'http',
         ];
     }
 
-    public function recordListener(string $listen, string $host, ?string $filesDirectory): void
+    public function recordListener(string $listen, string $host, ?string $filesDirectory, string $scheme): void
     {
-        $this->write(self::LISTENER, json_encode(['listen' => $listen, 'host' => $host, 'files-dir' => $filesDirectory]),
+        $this->write(self::LISTENER, json_encode(['listen' => $listen, 'host' => $host, 'files-dir' => $filesDirectory, 'scheme' => $scheme]),
             'Cannot record the listener');
     }
 
