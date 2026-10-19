@@ -34,6 +34,11 @@ BINARY = None
 RESULTS = None
 SITE = None
 
+# Every case serves HTTP unless it names a folder of its own: an empty value hides the
+# machine's mkcert and local root from every start, so a developer's trust never changes
+# what a case sees. tls_cases.py sets its own.
+os.environ["DRUPACK_TLS_DIR"] = ""
+
 LINUX = "linux"
 MACOS = "macos"
 WINDOWS = "windows"

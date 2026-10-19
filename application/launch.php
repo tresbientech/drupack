@@ -18,6 +18,7 @@ Usage: %1$s [start] [OPTIONS]
        %1$s drush [OPTIONS] DRUSH_COMMAND
        %1$s node|npm|npx [ARGUMENTS]
        %1$s stop [--data-dir PATH]
+       %1$s trust [--uninstall]
        %1$s clean [--dry-run]
 
 Options:
@@ -44,6 +45,9 @@ Commands:
   drush                      Run a Drush command against the site
   stop                       Stop the site serving the Site data, for a site
                              another terminal started
+  trust                      Install the local root that lets every Drupack site on
+                             this computer serve HTTPS. It may ask for a password.
+                             --uninstall removes it.
   node, npm, npx             Run the site's bundled Node release, for a site
                              that carries one
   clean                      Remove the unpacked applications from the cache.
@@ -62,7 +66,7 @@ TEXT;
 
 // The commands this script runs. The executable runs clean, and node, npm and npx where
 // it carries Node, before this script starts.
-const COMMANDS = ['start', 'drush', 'stop'];
+const COMMANDS = ['start', 'drush', 'stop', 'trust'];
 const NODE_COMMANDS = ['node', 'npm', 'npx'];
 
 // The server runs from the application directory, which every site of a release
@@ -707,6 +711,9 @@ try {
     if ($mode === 'stop') {
         exit(stopSite(fromStartDirectory(stopDataDirectory($arguments))));
     }
+    if ($mode === 'trust') {
+        replaceProcess(getenv('DRUPACK_RUNTIME_BINARY'), array_merge(['tls-trust'], $arguments), __DIR__, 'Cannot run trust');
+    }
     $drush = $mode === 'drush';
     [$options, $command] = options($arguments, $drush, siteSettings());
     $written = $options['data-dir'];
@@ -904,6 +911,10 @@ try {
     if ($link !== null && !loopback($bind)) {
         fwrite(STDOUT, "No browser opens: {$options['listen']} accepts other computers over plain HTTP."
             . " Sign in from another computer only through a TLS proxy.\n");
+    }
+    $hint = tlsHint($tls, $bind, $options['host']);
+    if ($hint !== null) {
+        fwrite(STDOUT, $hint);
     }
     openWhenServing($url, $link, $browser);
     // Every step that needed the administrator password has run. The server inherits

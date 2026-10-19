@@ -4,8 +4,8 @@
 {
 	admin off
 	persist_config off
-	# tls-none-global.caddy or tls-drupack-global.caddy, the half of the source that a
-	# global option carries. The site block below names the other half.
+	# tls-none-global.caddy, tls-mkcert-global.caddy or tls-drupack-global.caddy, the half
+	# of the source that a global option carries. The site block below names the other half.
 	import "tls-{$DRUPACK_RUNTIME_TLS}-global.caddy"
 	# Windows PHP keys its opcache segment per user account, so a second server attaches to
 	# the first one's segment, finds opcode handlers from a differently based image and aborts
@@ -71,6 +71,6 @@
 	}
 }
 
-# tls-none-site.caddy serves http on any address of the bind, tls-drupack-site.caddy
-# https on the loopback names the local root covers.
+# tls-none-site.caddy serves http on any address of the bind, tls-mkcert-site.caddy and
+# tls-drupack-site.caddy https on the loopback names a local root covers.
 import "tls-{$DRUPACK_RUNTIME_TLS}-site.caddy"

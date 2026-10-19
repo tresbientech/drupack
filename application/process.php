@@ -315,6 +315,15 @@ function tlsChoice(string $binary, string $bind, string $host): array
     return json_decode((string) $output, true, flags: JSON_THROW_ON_ERROR);
 }
 
+// The line a start prints when `trust` would move it to HTTPS, or null.
+function tlsHint(array $choice, string $bind, string $host): ?string
+{
+    if ($choice['source'] !== 'none' || !loopback($bind) || !in_array($host, TLS_HOSTS, true)) {
+        return null;
+    }
+    return 'HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n";
+}
+
 function tlsScheme(array $choice): string
 {
     return $choice['source'] === 'none' ? 'http' : 'https';
@@ -325,6 +334,12 @@ function tlsServerEnvironment(array $choice): array
 {
     return match ($choice['source']) {
         'none' => ['DRUPACK_RUNTIME_TLS' => 'none'],
+        'mkcert' => [
+            'DRUPACK_RUNTIME_TLS' => 'mkcert',
+            'DRUPACK_RUNTIME_TLS_ROOT' => $choice['root'],
+            'DRUPACK_RUNTIME_TLS_CERT' => $choice['certificate'],
+            'DRUPACK_RUNTIME_TLS_KEY' => $choice['key'],
+        ],
         'drupack' => [
             'DRUPACK_RUNTIME_TLS' => 'drupack',
             'DRUPACK_RUNTIME_TLS_ROOT' => $choice['root'],

@@ -11,6 +11,7 @@ import hmac
 import http.client
 import json
 import os
+import ssl
 import stat
 import time
 import unittest
@@ -19,6 +20,7 @@ from urllib.error import HTTPError
 from urllib.parse import urlencode
 
 import harness
+from tls_cases import trusted_environment, write_root
 
 HUB = "/.well-known/mercure"
 TOPIC = "drupack/probe"
@@ -34,9 +36,9 @@ def signed(secret, header, claims):
     return (body + b"." + encode(hmac.new(secret.encode(), body, hashlib.sha256).digest())).decode()
 
 
-def token(secret, port, action):
+def token(secret, port, action, scheme="http"):
     """A Mercure 1.0 access token granting action on TOPIC, whose iss and aud name the hub."""
-    hub = f"http://127.0.0.1:{port}{HUB}"
+    hub = f"{scheme}://127.0.0.1:{port}{HUB}"
     return signed(secret, {"typ": "at+jwt"}, {
         "iss": hub, "aud": hub, "exp": int(time.time()) + 600,
         "authorization_details": [{"type": "https://mercure.rocks/authorization-detail",
@@ -48,8 +50,12 @@ class Stream:
     """One subscription to TOPIC that accepts gzip, read as it arrives. The token goes in the
     Authorization header, or in the cookie a browser's EventSource sends when cookie is set."""
 
-    def __init__(self, port, bearer, last_event_id=None, cookie=False):
-        self.connection = http.client.HTTPConnection("localhost", port, timeout=harness.WAITS["http_request"].seconds)
+    def __init__(self, port, bearer, last_event_id=None, cookie=False, context=None):
+        timeout = harness.WAITS["http_request"].seconds
+        if context is None:
+            self.connection = http.client.HTTPConnection("localhost", port, timeout=timeout)
+        else:
+            self.connection = http.client.HTTPSConnection("localhost", port, timeout=timeout, context=context)
         headers = {"Accept": "text/event-stream", "Accept-Encoding": "gzip"}
         if cookie:
             headers["Cookie"] = f"{COOKIE}={bearer}"
@@ -207,6 +213,46 @@ class MercureHub(harness.ConformanceCase):
         self.site.stop()
         self.site.start(self.data)
         self.assertEqual({name: self.secret(name) for name in SECRETS}, before)
+
+
+class MercureHubHttps(harness.ConformanceCase):
+    """The hub of a site serving HTTPS from a trusted local root names https, and a
+    subscriber over TLS receives what a request publishes."""
+
+    PLATFORMS = (harness.LINUX,)
+    TOOLS = ("openssl",)
+
+    @classmethod
+    def setUpClass(cls):
+        if not harness.SITE["mercure"]:
+            raise unittest.SkipTest("the site's contract leaves mercure off")
+        root = write_root(cls.class_dir / "tls")
+        cls.context = ssl.create_default_context(cafile=str(root))
+        cls.data = cls.class_dir / "data"
+        cls.site = harness.Site(harness.BINARY, cls.class_dir / "site", root=root)
+        cls.site.start(cls.data, env=trusted_environment(root.parent, root))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.site.stop()
+
+    def test_drush_names_the_https_hub(self):
+        code = "echo getenv('DRUPACK_MERCURE_URL');"
+        result = harness.run([str(harness.BINARY), "drush", "--data-dir", str(self.data), "php:eval", code],
+                             cwd=self.class_dir, capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
+        self.assertEqual(result.stdout.strip(), f"https://127.0.0.1:{self.site.port}{HUB}", result.stderr)
+
+    def test_a_subscriber_over_https_receives_what_a_request_publishes(self):
+        secret = (self.data / "mercure_subscriber_secret").read_text()
+        stream = Stream(self.site.port, token(secret, self.site.port, "subscribe", "https"), context=self.context)
+        try:
+            self.assertEqual(stream.response.status, 200)
+            stream.read_until(":")
+            status, _, update = self.site.fetch("/mercure-probe.php?data=secure")
+            self.assertEqual(status, 200, update)
+            stream.read_until(f"id: {update}\ndata: secure\n")
+        finally:
+            stream.close()
 
 
 class MercureHubOff(harness.ConformanceCase):

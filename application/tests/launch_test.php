@@ -225,6 +225,14 @@ test('only a loopback bind addressed by a name the local root covers asks for HT
     }
 });
 
+test('an HTTP loopback start names trust, and no other start does', function (): void {
+    $none = ['source' => 'none'];
+    same('HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n", tlsHint($none, '127.0.0.1', 'localhost'));
+    same(null, tlsHint(['source' => 'drupack'], '127.0.0.1', 'localhost'));
+    same(null, tlsHint($none, '0.0.0.0', 'localhost'));
+    same(null, tlsHint($none, '127.0.0.1', 'example.test'));
+});
+
 test('the TLS source picks its snippets and their files', function (): void {
     same(['DRUPACK_RUNTIME_TLS' => 'none'], tlsServerEnvironment(['source' => 'none']));
     same([
@@ -232,6 +240,14 @@ test('the TLS source picks its snippets and their files', function (): void {
         'DRUPACK_RUNTIME_TLS_ROOT' => '/tls/root.pem',
         'DRUPACK_RUNTIME_TLS_ROOT_KEY' => '/tls/root.key',
     ], tlsServerEnvironment(['source' => 'drupack', 'root' => '/tls/root.pem', 'rootKey' => '/tls/root.key']));
+    same([
+        'DRUPACK_RUNTIME_TLS' => 'mkcert',
+        'DRUPACK_RUNTIME_TLS_ROOT' => '/caroot/rootCA.pem',
+        'DRUPACK_RUNTIME_TLS_CERT' => '/tls/mkcert/localhost.pem',
+        'DRUPACK_RUNTIME_TLS_KEY' => '/tls/mkcert/localhost-key.pem',
+    ], tlsServerEnvironment(['source' => 'mkcert', 'root' => '/caroot/rootCA.pem',
+        'certificate' => '/tls/mkcert/localhost.pem', 'key' => '/tls/mkcert/localhost-key.pem']));
+    same('https', tlsScheme(['source' => 'mkcert']));
     same('http', tlsScheme(['source' => 'none']));
     same('https', tlsScheme(['source' => 'drupack']));
 });

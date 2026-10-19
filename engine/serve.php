@@ -19,6 +19,7 @@ Usage: %1$s [start] [DIR] [--listen IP:PORT] [--foreground]
        %1$s php -r CODE
        %1$s clean [--dry-run]
        %1$s self-update [--check]
+       %1$s trust [--uninstall]
 
 Serves the Drupal project in DIR, the working directory by default, with its
 own settings, in the background. --foreground serves in this terminal until a
@@ -32,6 +33,8 @@ Commands:
   php      Run a script or -r CODE on the bundled PHP, with no PHP option
   clean    Remove the unpacked engine files from the cache
   self-update  Install the newest release over this file, or --check for one
+  trust    Install the local root that lets every Drupack site on this
+           computer serve HTTPS, or --uninstall it. It may ask for a password.
 
 docs/cli.md explains every command.
 TEXT;
@@ -180,6 +183,9 @@ function serve(string $binary, array $arguments): never
     $docroot = canonical(docroot($project));
     checkPlatform($binary, $project);
     $mercure = mercureKey($project);
+    // The engine's URL names the bind address itself, so it is the host too.
+    $host = trim($bind, '[]');
+    $tls = tlsChoice($binary, $host, $host);
 
     // The reader's terminal gets every refusal above and the lease's below, so a start that
     // detaches has nothing left to refuse but the server's own failures.
@@ -192,11 +198,11 @@ function serve(string $binary, array $arguments): never
     $serving->detach($foreground,
         stopCommand($directory === null ? '' : ' ' . shellWord($directory)), array_merge(['start'], $typed));
 
-    $url = "http://$listen";
+    $url = siteUrl(tlsScheme($tls), $host, (int) $port);
     $link = null;
     $install = null;
     if (siteInstalled($binary, $project, $docroot) === false) {
-        $install = "$url/core/install.php";
+        $install = "{$url}core/install.php";
     } elseif (!is_file("$project/" . DRUSH_SCRIPT)) {
         fwrite(STDERR, "No login link: $project has no Drush. composer require drush/drush adds one.\n");
     } else {
@@ -211,12 +217,16 @@ function serve(string $binary, array $arguments): never
     }
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n")
         . ($install === null ? '' : "  Install: $install\n") . "  Project: $project\n");
+    $hint = tlsHint($tls, $host, $host);
+    if ($hint !== null) {
+        fwrite(STDOUT, $hint);
+    }
     fwrite(STDOUT, "Starting the web server.\n");
     // The Caddyfile beside this file is fixed, and Caddy fills its values from this environment.
     // The server opens no browser, so a value inherited from an earlier start is cleared.
     putenv('DRUPACK_RUNTIME_OPEN');
     if ($mercure) {
-        $hub = mercureUrl('http', $bind, (int) $port);
+        $hub = mercureUrl(tlsScheme($tls), $bind, (int) $port);
         exportEngineMercure($entry, $hub, false);
         // The start's --listen chooses the port, so drush reads the address back from here.
         if (file_put_contents("$entry/" . MERCURE_URL_FILE, $hub) !== strlen($hub)) {
@@ -228,9 +238,9 @@ function serve(string $binary, array $arguments): never
         'DRUPACK_RUNTIME_BIND' => $bind,
         'DRUPACK_RUNTIME_DOCROOT' => $docroot,
         'DRUPACK_RUNTIME_ID' => basename($entry),
-        'DRUPACK_RUNTIME_URL' => 'http://' . urlHost(probeHost($bind)) . ":$port",
+        'DRUPACK_RUNTIME_URL' => siteUrl(tlsScheme($tls), probeHost($bind), (int) $port),
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
-    ] + mercureServerEnvironment($mercure, $entry) + tlsServerEnvironment(['source' => 'none']));
+    ] + mercureServerEnvironment($mercure, $entry) + tlsServerEnvironment($tls));
     runtimePhpOnPath();
     replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }
@@ -330,6 +340,7 @@ try {
         'start' => serve($binary, array_slice($argv, 2)),
         'drush' => drush($binary, array_slice($argv, 2)),
         'dr' => runScript($binary, coreScript(project()), array_slice($argv, 2)),
+        'trust' => replaceProcess($binary, array_merge(['tls-trust'], array_slice($argv, 2)), __DIR__, 'Cannot run trust'),
         '--help', '-h' => fwrite(STDOUT, sprintf(USAGE, executableName(), DEFAULT_LISTEN) . "\n"),
         default => serve($binary, array_slice($argv, 1)),
     };

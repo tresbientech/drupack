@@ -11,6 +11,7 @@ in `engine/serve.php` the contract the engine commands record. A test in
 ```
 SITE [start] [OPTIONS]
 SITE stop [--data-dir PATH]
+SITE trust [--uninstall]
 SITE drush [OPTIONS] DRUSH_COMMAND
 SITE node|npm|npx [ARGUMENTS]
 SITE clean [--dry-run]
@@ -92,9 +93,40 @@ A browser opens only on a loopback listener, 127.0.0.0/8 or `::1`. Any other
 listener, `0.0.0.0` included, prints the login link and opens nothing.
 
 Every start writes both values into the Listener record in Site data, beside the
-files directory. A start reads only the files directory back, so `--listen` does
-not become sticky. `drush` reads all three, which is how `SITE drush user:login`
-prints a working link whatever port the site runs on.
+files directory and the scheme it served. A start reads only the files directory
+back, so `--listen` does not become sticky. `drush` reads all four, which is how
+`SITE drush user:login` prints a working link whatever port and scheme the site
+runs on.
+
+## HTTPS
+
+A start serves HTTPS when its bind is loopback, its host is `localhost`,
+`127.0.0.1` or `::1`, and the machine trusts one of two roots. It checks them
+in order:
+
+1. mkcert's, when `mkcert` is on `PATH` and `mkcert -CAROOT` holds
+   `rootCA.pem`. The start runs mkcert to write a certificate for the three
+   names into `DRUPACK_TLS_DIR/mkcert`, and again when it nears expiry.
+2. The Drupack root, once `SITE trust` or `drupack trust` installed it.
+
+Any other start serves HTTP. A loopback start on HTTP prints a line naming
+`trust`. The printed URL, the login link, `drush` and the Mercure hub's address
+all use the scheme the start served.
+
+`trust` creates the Drupack root on first use, in `DRUPACK_TLS_DIR`, and
+installs it in the system's trust store and in Firefox's NSS databases. It
+prints one line per store:
+
+- Linux asks for your password through `sudo`. Firefox gets the root only when
+  `certutil` is installed.
+- macOS asks for your password and writes the System keychain.
+- Windows writes your account's root store after one confirmation dialog.
+
+`trust --uninstall` removes the root from both stores and deletes it. One root
+serves every Drupack site and engine start of your account. It can vouch only
+for `localhost`, its subdomains, `127.0.0.0/8` and `::1`, so its key cannot
+sign a certificate a browser accepts for another site. Chromium and Firefox
+enforce that limit; Drupack has not checked Safari or Edge.
 
 ## A first start
 
@@ -208,12 +240,13 @@ entry it runs, and cleanup removes an entry unused for 30 days.
 Ten options read a variable when the option is absent. The table above names
 each one.
 
-Three variables have no option:
+Four variables have no option:
 
 | Variable | Selects |
 |---|---|
 | `DRUPACK_CACHE_DIR` | where a release unpacks, for a disk with more room |
 | `DRUPACK_CA_FILE` | the TLS trust bundle PHP and `self-update` verify HTTPS against |
+| `DRUPACK_TLS_DIR` | the folder holding the local root, `drupack/tls` in your config folder by default |
 | `DRUPACK_NO_UPDATE_CHECK` | `1` turns off the engine executable's daily release check |
 
 ## The engine executable
@@ -227,6 +260,7 @@ drupack php SCRIPT [ARGUMENTS]
 drupack php -r CODE
 drupack clean [--dry-run]
 drupack self-update [--check]
+drupack trust [--uninstall]
 drupack --help
 drupack --version
 ```
@@ -298,6 +332,10 @@ release and changes nothing.
 - A local build, whose version names no release, is refused.
 - A release older than this file is never installed.
 - On Windows the old file moves to `drupack.exe.old`, which a later run removes.
+
+`trust` installs the local root that lets every Drupack site and engine start on
+this computer serve HTTPS, and `--uninstall` removes it. [HTTPS](#https) explains
+both.
 
 Once a day, a run starts `drupack self-update --check` in the background. While
 the newest release it saw is newer than this file, each run prints one line to

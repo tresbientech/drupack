@@ -26,10 +26,12 @@ NAME           writers=launcher/main.go,build/dev/dev-entry.sh  readers=runtime/
 NODE           writers=launcher/main.go  readers=runtime/entrypoint.go
 OPEN           writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go
 PERSON         writers=application/process.php  readers=application/process.php
-PORT           writers=application/launch.php,engine/serve.php  readers=application/tls-drupack-site.caddy,application/tls-none-site.caddy
+PORT           writers=application/launch.php,engine/serve.php  readers=application/tls-drupack-site.caddy,application/tls-mkcert-site.caddy,application/tls-none-site.caddy
 SITE_VERSION   writers=launcher/main.go  readers=runtime/entrypoint.go
 STOP_RECORD    writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go
 TLS            writers=application/process.php  readers=application/Caddyfile,engine/Caddyfile
+TLS_CERT       writers=application/process.php  readers=application/tls-mkcert-site.caddy
+TLS_KEY        writers=application/process.php  readers=application/tls-mkcert-site.caddy
 TLS_ROOT       writers=application/process.php  readers=application/tls-drupack-global.caddy,runtime/entrypoint.go
 TLS_ROOT_KEY   writers=application/process.php  readers=application/tls-drupack-global.caddy
 URL            writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go

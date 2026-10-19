@@ -144,7 +144,7 @@ test('docs/cli.md names every engine command the usage names', function () {
             throw new RuntimeException("docs/cli.md's engine section omits $command");
         }
     }
-    same(['start', 'stop', 'drush', 'dr', 'php', 'clean', 'self-update'], $commands[1]);
+    same(['start', 'stop', 'drush', 'dr', 'php', 'clean', 'self-update', 'trust'], $commands[1]);
 });
 
 $status = runCases();
