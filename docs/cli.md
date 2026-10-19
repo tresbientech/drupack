@@ -87,7 +87,8 @@ rejected.
 
 `--host` names the permitted request host, as a hostname or an IP address. It
 becomes an exact Drupal trusted-host pattern. A request carrying any other Host
-header gets 400. Printed URLs put an IPv6 host in brackets.
+header gets 400. Printed URLs put an IPv6 host in brackets. Without `--host`, the
+start picks the host as [Site names](#site-names) describes.
 
 A browser opens only on a loopback listener, 127.0.0.0/8 or `::1`. Any other
 listener, `0.0.0.0` included, prints the login link and opens nothing.
@@ -98,16 +99,45 @@ back, so `--listen` does not become sticky. `drush` reads all four, which is how
 `SITE drush user:login` prints a working link whatever port and scheme the site
 runs on.
 
+## Site names
+
+Each site has a name under `drupack.site`, whose public DNS answers every name
+with `127.0.0.1`. Separate names keep each site's cookies apart, which
+`localhost` cannot, since browsers ignore the port.
+
+- A Packaged site's label is the `name` in `drupack.yml`: `drupacked-demo.drupack.site`.
+- An engine start's label is the folder's name: `~/DEV/My Shop` gives `my-shop.drupack.site`.
+- The label is lowercased, each character outside `a-z`, `0-9` and `-` becomes
+  `-`, and it is cut to 63 characters.
+
+A start on `127.0.0.1` without `--host` looks the name up with the system
+resolver and waits at most one second. When the answer holds `127.0.0.1`, the
+URL, the login link, `drush` and the Listener record use the name. Otherwise
+they use `localhost`, or the bind address for the engine, and the start prints
+the answer:
+
+```
+Name: drupacked-demo.drupack.site did not resolve to 127.0.0.1 (no answer), so the URL uses localhost.
+```
+
+An offline machine gets no answer. A resolver that drops private answers may
+return another address, such as `0.0.0.0`. The server answers the name,
+`localhost`, `127.0.0.1` and `[::1]` in every case.
+
+An engine folder keeps its own settings. When they set `trusted_host_patterns`,
+add `'^.+\.drupack\.site$'` so Drupal accepts the name.
+
 ## HTTPS
 
 A start serves HTTPS when its bind is loopback, its host is `localhost`,
-`127.0.0.1` or `::1`, and the machine trusts one of two roots. It checks them
-in order:
+`127.0.0.1`, `::1` or the site's name, and the machine trusts one of two roots.
+It checks them in order:
 
 1. mkcert's, when `mkcert` is on `PATH`, `mkcert -CAROOT` holds `rootCA.pem`,
    and `mkcert -install` made the machine trust it. The start runs mkcert to
-   write a certificate for the three names into `DRUPACK_TLS_DIR/mkcert`, and
-   again when it nears expiry or mkcert's root changes.
+   write a certificate for those names and `*.drupack.site` into
+   `DRUPACK_TLS_DIR/mkcert`, and again when it nears expiry, when mkcert's root
+   changes, or when it lacks `*.drupack.site`.
 2. The Drupack root, once `SITE trust` or `drupack trust` installed it.
 
 Any other start serves HTTP. A loopback start on HTTP prints a line naming
@@ -128,8 +158,10 @@ prints one line per store:
 
 `trust --uninstall` removes the root from both stores and deletes it. One root
 serves every Drupack site and engine start of your account. It can vouch only
-for TLS servers named `localhost`, its subdomains, `127.0.0.0/8` or `::1`, so
-its key cannot sign a certificate a browser accepts for another site. Chromium and Firefox
+for TLS servers named `localhost`, `drupack.site`, their subdomains,
+`127.0.0.0/8` or `::1`, so its key cannot sign a certificate a browser accepts
+for another site. A root made before drupack.site names cannot vouch for them:
+`trust --uninstall`, then `trust`, replaces it. Chromium and Firefox
 enforce that limit; Drupack has not checked Safari or Edge.
 
 ## A first start
@@ -244,13 +276,14 @@ entry it runs, and cleanup removes an entry unused for 30 days.
 Ten options read a variable when the option is absent. The table above names
 each one.
 
-Four variables have no option:
+Five variables have no option:
 
 | Variable | Selects |
 |---|---|
 | `DRUPACK_CACHE_DIR` | where a release unpacks, for a disk with more room |
 | `DRUPACK_CA_FILE` | the TLS trust bundle PHP and `self-update` verify HTTPS against |
 | `DRUPACK_TLS_DIR` | the folder holding the local root, `drupack/tls` in your config folder by default |
+| `DRUPACK_DNS_ANSWER` | a fixed answer for the [site name](#site-names) lookup, for tests: a comma list of addresses, or `none` |
 | `DRUPACK_NO_UPDATE_CHECK` | `1` turns off the engine executable's daily release check |
 
 ## The engine executable
@@ -293,6 +326,8 @@ and says it already serves.
 - The start refuses a docroot without `core/lib/Drupal.php`. The Caddyfile's
   guards and front controller are Drupal's, and would not suit a WordPress site.
 - `--listen` defaults to `127.0.0.1:3787`.
+- The URL names the folder's [site name](#site-names) when it resolves, and the
+  bind address otherwise.
 - The start refuses a folder whose PHP version or `composer.lock` extensions
   the bundled PHP does not meet, and names what is missing.
 - The start prints a one-time login link for uid 1, through the folder's Drush.

@@ -105,7 +105,7 @@ A folder per site keeps each site with its data. To run `drupacked-demo` from an
 ./drupacked-demo
 ```
 
-Drupack installs your site and serves it on `http://localhost:7225`. It prints a one-time login link and opens your browser on it. The link logs you in as `admin` and lands you on your dashboard. Set your own password from there, under your account. The first start of each version also unpacks its runtime, which adds about a second.
+Drupack installs your site and serves it on `http://drupacked-demo.drupack.site:7225`, a name whose DNS points at your own computer, so each site keeps its own cookies. Offline, or behind a DNS filter that blocks that name, the URL is `http://localhost:7225` and the start says why. It prints a one-time login link and opens your browser on it. The link logs you in as `admin` and lands you on your dashboard. Set your own password from there, under your account. The first start of each version also unpacks its runtime, which adds about a second.
 
 Later starts need nothing:
 
@@ -137,7 +137,7 @@ Useful options:
 
 - `--data-dir PATH` puts Site data somewhere else. `DRUPACK_DATA_DIR` sets a default.
 - `--listen IP:PORT` serves on another address, `127.0.0.1:7225` by default. Each start records its address in Site data, so `drush` reaches the site without repeating the option.
-- `--host HOST` names the address readers type, `localhost` by default. An IPv6 address works too, such as `--host ::1`.
+- `--host HOST` names the address readers type, the site's `drupack.site` name or `localhost` by default. An IPv6 address works too, such as `--host ::1`.
 - `--site-name NAME` names the site on a first start, `Drupacked Demo` by default. `DRUPACK_SITE_NAME` sets it too. A later start never renames a site.
 - `--no-browser` starts without opening a browser.
 - `drupacked-demo --version` prints the release and the release of each component it carries: FrankenPHP, PHP, Caddy, SQLite, Node, Drupal core and Drush. `drupacked-demo --help` lists every option.
@@ -146,13 +146,13 @@ Useful options:
 
 ### HTTPS
 
-Run this once, and every Drupack site on your computer serves `https://localhost`:
+Run this once, and every Drupack site on your computer serves HTTPS, on its own name and on `localhost`:
 
 ```sh
 ./drupacked-demo trust
 ```
 
-It installs a local root that can vouch only for web servers on loopback addresses, and may ask for your password. A machine where [mkcert](https://github.com/FiloSottile/mkcert) is installed and trusted, as DDEV sets up, serves HTTPS with no command. `trust --uninstall` removes the root. [The command line reference](docs/cli.md#https) has the details.
+It installs a local root that can vouch only for web servers on loopback addresses and `drupack.site` names, and may ask for your password. A machine where [mkcert](https://github.com/FiloSottile/mkcert) is installed and trusted, as DDEV sets up, serves HTTPS with no command. `trust --uninstall` removes the root. [The command line reference](docs/cli.md#https) has the details.
 
 ### Serving other computers
 

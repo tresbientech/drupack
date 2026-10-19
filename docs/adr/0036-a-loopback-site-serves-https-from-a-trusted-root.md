@@ -1,6 +1,9 @@
 # A loopback site serves HTTPS from a root the machine trusts
 
 Accepted on 2026-10-19.
+Amended on 2026-10-19 by [ADR 0037](0037-a-loopback-site-answers-on-its-drupack-site-name.md):
+a start may also be addressed by its drupack.site name, and the root's name
+constraint permits `drupack.site`.
 
 ## Context
 
