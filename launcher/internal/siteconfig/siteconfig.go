@@ -88,6 +88,9 @@ type Site struct {
 	// Mercure serves a Mercure hub at /.well-known/mercure on every start. Read
 	// sets it from composer.json extra.drupack.mercure. Parse leaves it false.
 	Mercure bool `json:"mercure"`
+	// Subdomain is the Site host's label, read from composer.json
+	// extra.drupack.subdomain. Empty means the label comes from Name.
+	Subdomain string `json:"subdomain,omitempty"`
 	// Read sets Drupal and Drush to the drupal/core and drush/drush releases
 	// composer.lock names. Parse leaves them empty.
 	Drupal string `json:"drupal"`
@@ -159,6 +162,8 @@ var (
 	languageRe     = regexp.MustCompile(`^[a-z]{2,3}(-[a-z]+)?$`)
 	relativePathRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_./-]*$`)
 	pathRe         = regexp.MustCompile(`^/[A-Za-z0-9_./~-]*$`)
+	// One DNS label: the engine's serve.php holds the same rule for a Project folder.
+	subdomainRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 )
 
 // Parse reads drupack.yml content. The site author writes that file, so every
@@ -170,6 +175,9 @@ func Parse(content []byte) (Site, error) {
 	if yaml.Unmarshal(content, &keys) == nil {
 		if _, moved := keys["mercure"]; moved {
 			return Site{}, fmt.Errorf("%s: mercure moved to composer.json extra.drupack.mercure", FileName)
+		}
+		if _, misplaced := keys["subdomain"]; misplaced {
+			return Site{}, fmt.Errorf("%s: subdomain belongs in composer.json extra.drupack.subdomain", FileName)
 		}
 	}
 	var site Site
@@ -292,7 +300,7 @@ func Read(directory string) (Site, error) {
 			return Site{}, fieldError("settings", "%q is not a file in the site", site.Settings)
 		}
 	}
-	if site.Docroot, site.Mercure, err = composerSettings(directory); err != nil {
+	if err := composerSettings(directory, &site); err != nil {
 		return Site{}, err
 	}
 	site.Drupal, site.Drush, err = lockedReleases(directory)
@@ -327,13 +335,13 @@ func lockedReleases(directory string) (drupal, drush string, err error) {
 	return releases["drupal/core"], releases["drush/drush"], nil
 }
 
-// composerSettings reads the web root drupal/core-composer-scaffold writes to and
-// whether the site serves a Mercure hub. The site author sets both, so each is
-// checked like a drupack.yml field.
-func composerSettings(directory string) (docroot string, mercure bool, err error) {
+// composerSettings sets site's web root, which drupal/core-composer-scaffold writes
+// to, whether it serves a Mercure hub, and its subdomain. The site author sets all
+// three, so each is checked like a drupack.yml field.
+func composerSettings(directory string, site *Site) error {
 	content, err := os.ReadFile(filepath.Join(directory, "composer.json"))
 	if err != nil {
-		return "", false, err
+		return err
 	}
 	var composer struct {
 		Extra struct {
@@ -343,26 +351,38 @@ func composerSettings(directory string) (docroot string, mercure bool, err error
 				} `json:"locations"`
 			} `json:"drupal-scaffold"`
 			Drupack struct {
-				Mercure any `json:"mercure"`
+				Mercure   any `json:"mercure"`
+				Subdomain any `json:"subdomain"`
 			} `json:"drupack"`
 		} `json:"extra"`
 	}
 	if err := json.Unmarshal(content, &composer); err != nil {
-		return "", false, fmt.Errorf("composer.json: %w", err)
+		return fmt.Errorf("composer.json: %w", err)
 	}
 	webRoot := composer.Extra.Scaffold.Locations.WebRoot
 	cleaned := path.Clean(webRoot)
 	if webRoot == "" || cleaned == "." || !relativePathRe.MatchString(cleaned) || hasParentSegment(cleaned) {
-		return "", false, fmt.Errorf("composer.json: extra.drupal-scaffold.locations.web-root: %q must name a directory inside the project", webRoot)
+		return fmt.Errorf("composer.json: extra.drupal-scaffold.locations.web-root: %q must name a directory inside the project", webRoot)
 	}
+	site.Docroot = cleaned
 	switch value := composer.Extra.Drupack.Mercure.(type) {
 	case nil:
-		return cleaned, false, nil
 	case bool:
-		return cleaned, value, nil
+		site.Mercure = value
 	default:
-		return "", false, fmt.Errorf("composer.json: extra.drupack.mercure: %v must be true or false", value)
+		return fmt.Errorf("composer.json: extra.drupack.mercure: %v must be true or false", value)
 	}
+	switch value := composer.Extra.Drupack.Subdomain.(type) {
+	case nil:
+	case string:
+		if !subdomainRe.MatchString(value) {
+			return fmt.Errorf("composer.json: extra.drupack.subdomain: %q must be one DNS label: a to z, 0 to 9 and dashes, at most 63, no dash at either end", value)
+		}
+		site.Subdomain = value
+	default:
+		return fmt.Errorf("composer.json: extra.drupack.subdomain: %v must be a string", value)
+	}
+	return nil
 }
 
 // Write stores site as site.json in directory.

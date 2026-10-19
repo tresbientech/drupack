@@ -346,3 +346,36 @@ func TestTheExtensionRefusalNamesTheExtensionsAndTheTargets(t *testing.T) {
 		t.Errorf("error %q names a Linux target", err)
 	}
 }
+
+func TestReadTakesTheSubdomainFromComposer(t *testing.T) {
+	read, err := siteconfig.Read(site(t, minimal, drupackExtra(`{"subdomain": "demo"}`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read.Subdomain != "demo" {
+		t.Fatalf("Subdomain = %q; want demo", read.Subdomain)
+	}
+	content, err := json.Marshal(read)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), `"subdomain":"demo"`) {
+		t.Fatalf("site.json = %s; want it to carry subdomain demo", content)
+	}
+}
+
+func TestReadRefusesASubdomainThatIsNotOneDNSLabel(t *testing.T) {
+	for _, value := range []string{`"-demo"`, `"demo-"`, `"Demo"`, `"my.shop"`, `""`, `"` + strings.Repeat("a", 64) + `"`, `7`} {
+		_, err := siteconfig.Read(site(t, minimal, drupackExtra(`{"subdomain": `+value+`}`)))
+		if err == nil || !strings.Contains(err.Error(), "extra.drupack.subdomain") {
+			t.Errorf("%s: Read error = %v; want one naming extra.drupack.subdomain", value, err)
+		}
+	}
+}
+
+func TestParseRefusesASubdomainInDrupackYml(t *testing.T) {
+	_, err := siteconfig.Parse([]byte(minimal + "subdomain: demo\n"))
+	if err == nil || !strings.Contains(err.Error(), "composer.json extra.drupack.subdomain") {
+		t.Fatalf("Parse error = %v; want one naming composer.json extra.drupack.subdomain", err)
+	}
+}

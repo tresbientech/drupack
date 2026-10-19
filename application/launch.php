@@ -117,6 +117,13 @@ function siteSettings(): array
     return $site ??= json_decode((string) file_get_contents(__DIR__ . '/site.json'), true, 512, JSON_THROW_ON_ERROR);
 }
 
+// The tls-source arguments that name the site's label: the subdomain from composer.json
+// when the site set one, otherwise the executable's name.
+function siteLabelSource(array $site): array
+{
+    return ['--name', $site['subdomain'] ?? executableName()];
+}
+
 // The launcher hands this script the reader's whole line. Its first word names the
 // command, and a line with none, or opening with an option, starts the site. A Node
 // word arrives only from a file that carries no Node.
@@ -785,7 +792,7 @@ try {
     putenv("DRUPACK_RUNTIME_FILES_DIR=$files");
     // A start asks the runtime which host its URL names. `drush` addresses the host its last
     // start served.
-    $tls = $drush ? null : tlsChoice($binary, $bind, ['--name', executableName()], $options['host']);
+    $tls = $drush ? null : tlsChoice($binary, $bind, siteLabelSource(siteSettings()), $options['host']);
     $options['host'] = $drush ? $options['host'] ?? SiteData::UNRECORDED_HOST : $tls['host'];
     // Drupal matches its trusted host patterns against the request's host, which keeps an
     // IPv6 address's brackets.

@@ -236,6 +236,14 @@ test('a start hands the runtime its bind, its site and the host the reader asked
     same("tls-source --bind 127.0.0.1 --folder My Shop --host 127.0.0.1\n", file_get_contents(dirname($runtime) . '/arguments'));
 });
 
+test('a site that sets a subdomain hands the runtime that label, and one without hands its name', function (): void {
+    same(['--name', 'demo'], siteLabelSource(['site_name' => 'Fixture Site', 'subdomain' => 'demo']));
+    same(['--name', FIXTURE_NAME], siteLabelSource(FIXTURE_SITE));
+    $runtime = fakeRuntime(['source' => 'none', 'host' => 'localhost', 'alias' => 'demo.drupack.site', 'reason' => 'no answer', 'eligible' => true]);
+    tlsChoice($runtime, '127.0.0.1', siteLabelSource(['subdomain' => 'demo']), null);
+    same("tls-source --bind 127.0.0.1 --name demo\n", file_get_contents(dirname($runtime) . '/arguments'));
+});
+
 test('a start whose name did not resolve says which host its URL names instead', function (): void {
     same("Name: demo.drupack.site did not resolve to 127.0.0.1 (answered 0.0.0.0), so the URL uses localhost.\n",
         nameHint(['host' => 'localhost', 'alias' => 'demo.drupack.site', 'reason' => 'answered 0.0.0.0']));

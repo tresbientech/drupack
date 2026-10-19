@@ -99,6 +99,12 @@ def fetch_by_name(name, port, root):
             return connection.recv(64).split(b" ")[1]
 
 
+def site_host():
+    """The Site host a start names: the site's subdomain, otherwise its name with dots as dashes."""
+    label = harness.SITE.get("subdomain") or harness.SITE["name"].replace(".", "-")
+    return f"{label}.drupack.site"
+
+
 class TlsSources(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX,)
     TOOLS = ("openssl",)
@@ -139,7 +145,7 @@ class TlsSources(harness.ConformanceCase):
         return site
 
     def test_a_name_that_resolves_to_the_listener_names_the_url(self):
-        alias = f"{harness.SITE['name'].replace('.', '-')}.drupack.site"
+        alias = site_host()
         site = self.start(root=False, trusted=False, answer="127.0.0.1")
         log = site.log_path.read_text(errors="replace")
         self.assertIn(f"URL:       http://{alias}:{site.port}/", log)
@@ -149,20 +155,20 @@ class TlsSources(harness.ConformanceCase):
             self.assertEqual(response.status, 200)
 
     def test_a_trusted_root_serves_https_on_the_name(self):
-        alias = f"{harness.SITE['name'].replace('.', '-')}.drupack.site"
+        alias = site_host()
         site = self.start(root=True, trusted=True, answer="127.0.0.1")
         self.assertIn(f"URL:       https://{alias}:{site.port}/", site.log_path.read_text(errors="replace"))
         self.assertEqual(fetch_by_name(alias, site.port, self.root), b"200")
 
     def test_mkcert_serves_https_on_the_name(self):
-        alias = f"{harness.SITE['name'].replace('.', '-')}.drupack.site"
+        alias = site_host()
         stub, _ = write_mkcert(self.case_dir / "mkcert", 800)
         site = self.start(root=False, trusted=False, mkcert=stub, answer="127.0.0.1")
         self.assertIn(f"URL:       https://{alias}:{site.port}/", site.log_path.read_text(errors="replace"))
         self.assertEqual(fetch_by_name(alias, site.port, stub.parent / "caroot" / "rootCA.pem"), b"200")
 
     def test_drush_addresses_the_name_its_last_start_served(self):
-        alias = f"{harness.SITE['name'].replace('.', '-')}.drupack.site"
+        alias = site_host()
         site = self.start(root=False, trusted=False, answer="127.0.0.1")
         site.stop()
         login = harness.run_drush(harness.BINARY, self.case_dir, self.data, "user:login")
