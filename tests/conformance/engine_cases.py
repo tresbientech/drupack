@@ -247,6 +247,29 @@ class EngineExecutable(harness.ConformanceCase):
         with urlopen(request, timeout=harness.WAITS["http_request"].seconds) as response:
             self.assertEqual(response.status, 200)
 
+    def with_subdomain(self, value):
+        """Sets extra.drupack.subdomain in the project's composer.json until the case ends."""
+        composer = self.project / "composer.json"
+        original = composer.read_text()
+        self.addCleanup(composer.write_text, original)
+        content = json.loads(original)
+        content.setdefault("extra", {}).setdefault("drupack", {})["subdomain"] = value
+        composer.write_text(json.dumps(content, indent=4))
+
+    def test_a_folder_with_a_subdomain_is_served_on_it(self):
+        self.with_subdomain("shop")
+        port, log = self.start("start-subdomain", str(self.project), env=dict(os.environ, DRUPACK_DNS_ANSWER="127.0.0.1"))
+        self.assertIn(f"URL:     http://shop.drupack.site:{port}\n", log.read_text(errors="replace"))
+        request = Request(f"http://127.0.0.1:{port}/user/login", headers={"Host": f"shop.drupack.site:{port}"})
+        with urlopen(request, timeout=harness.WAITS["http_request"].seconds) as response:
+            self.assertEqual(response.status, 200)
+
+    def test_a_subdomain_that_is_not_one_dns_label_stops_the_start(self):
+        self.with_subdomain("-bad")
+        result = self.engine_run(str(self.project))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("extra.drupack.subdomain must be one DNS label", result.stderr)
+
     def test_a_folder_whose_name_does_not_resolve_is_served_on_its_bind_address(self):
         port, log = self.start("start-unnamed", str(self.project))
         text = log.read_text(errors="replace")

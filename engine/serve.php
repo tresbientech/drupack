@@ -185,7 +185,7 @@ function serve(string $binary, array $arguments): never
     $mercure = mercureKey($project);
     // The engine's URL names the folder's drupack.site name when it resolves, otherwise the
     // bind address itself.
-    $tls = tlsChoice($binary, trim($bind, '[]'), ['--folder', basename($project)], null);
+    $tls = tlsChoice($binary, trim($bind, '[]'), folderLabelSource($project), null);
 
     // The reader's terminal gets every refusal above and the lease's below, so a start that
     // detaches has nothing left to refuse but the server's own failures.
@@ -244,23 +244,48 @@ function serve(string $binary, array $arguments): never
     replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }
 
-// Whether the project's composer.json turns the Mercure hub on. composer.json is the
-// reader's file, so a value other than true or false is refused.
-function mercureKey(string $project): bool
+// The project's composer.json extra.drupack settings. composer.json is the reader's file,
+// so a file that is not a JSON object is refused.
+function drupackExtra(string $project): array
 {
     $path = "$project/composer.json";
     if (!is_file($path)) {
-        return false;
+        return [];
     }
     $composer = json_decode((string) file_get_contents($path), true);
     if (!is_array($composer)) {
         throw new RuntimeException("$path is not a JSON object");
     }
-    $value = $composer['extra']['drupack']['mercure'] ?? false;
+    $drupack = $composer['extra']['drupack'] ?? [];
+    if (!is_array($drupack)) {
+        throw new RuntimeException("$path: extra.drupack must be a JSON object");
+    }
+    return $drupack;
+}
+
+// Whether the project turns the Mercure hub on. A value other than true or false is refused.
+function mercureKey(string $project): bool
+{
+    $value = drupackExtra($project)['mercure'] ?? false;
     if (!is_bool($value)) {
         throw new RuntimeException("$project/composer.json: extra.drupack.mercure must be true or false");
     }
     return $value;
+}
+
+// The tls-source arguments that name the folder's label: its subdomain, otherwise the
+// folder's name. A subdomain must be one DNS label; pack's siteconfig holds the same rule.
+function folderLabelSource(string $project): array
+{
+    $value = drupackExtra($project)['subdomain'] ?? null;
+    if ($value === null) {
+        return ['--folder', basename($project)];
+    }
+    if (!is_string($value) || preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $value) !== 1) {
+        throw new RuntimeException("$project/composer.json: extra.drupack.subdomain must be one DNS label: "
+            . 'a to z, 0 to 9 and dashes, at most 63, no dash at either end');
+    }
+    return ['--folder', $value];
 }
 
 // The engine keeps the hub's secrets and address in the folder's cache entry, so the

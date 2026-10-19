@@ -82,6 +82,19 @@ test('a Mercure key that is not a boolean is refused', function () {
     throws("$project/composer.json: extra.drupack.mercure must be true or false", fn () => mercureKey($project));
 });
 
+test('a folder names its subdomain as the label, or its own name without one', function () {
+    $project = project_with('Subdomain Shop', ['composer.json' => '{"extra": {"drupack": {"subdomain": "shop"}}}']);
+    same(['--folder', 'shop'], folderLabelSource($project));
+    same(['--folder', 'no-composer'], folderLabelSource(project_with('no-composer', ['web/index.php' => '<?php'])));
+});
+
+test('a subdomain that is not one DNS label is refused', function () {
+    foreach (['"-shop"', '"Shop"', '"my.shop"', '""', '7'] as $value) {
+        $project = project_with('subdomain-' . md5($value), ['composer.json' => "{\"extra\": {\"drupack\": {\"subdomain\": $value}}}"]);
+        throws("$project/composer.json: extra.drupack.subdomain must be one DNS label", fn () => folderLabelSource($project));
+    }
+});
+
 test('a web root with no index.php is refused', function () {
     $project = project_with('empty', ['composer.json' => '{}']);
     throws("$project/web/index.php does not exist", fn () => docroot($project));
