@@ -241,19 +241,25 @@ class EngineExecutable(harness.ConformanceCase):
     def test_a_folder_is_served_on_its_drupack_site_name(self):
         named = self.class_dir / "My Shop"
         shutil.copytree(self.project, named, symlinks=True)
+        self.with_subdomain(None, named)
         port, log = self.start("start-named", str(named), env=dict(os.environ, DRUPACK_DNS_ANSWER="127.0.0.1"))
         self.assertIn(f"URL:     http://my-shop.drupack.site:{port}\n", log.read_text(errors="replace"))
         request = Request(f"http://127.0.0.1:{port}/user/login", headers={"Host": f"my-shop.drupack.site:{port}"})
         with urlopen(request, timeout=harness.WAITS["http_request"].seconds) as response:
             self.assertEqual(response.status, 200)
 
-    def with_subdomain(self, value):
-        """Sets extra.drupack.subdomain in the project's composer.json until the case ends."""
-        composer = self.project / "composer.json"
+    def with_subdomain(self, value, project=None):
+        """Sets extra.drupack.subdomain in a project's composer.json until the case ends, or removes it
+        for None. The project defaults to the demo's copy, whose composer.json sets one."""
+        composer = (project or self.project) / "composer.json"
         original = composer.read_text()
         self.addCleanup(composer.write_text, original)
         content = json.loads(original)
-        content.setdefault("extra", {}).setdefault("drupack", {})["subdomain"] = value
+        drupack = content.setdefault("extra", {}).setdefault("drupack", {})
+        if value is None:
+            drupack.pop("subdomain", None)
+        else:
+            drupack["subdomain"] = value
         composer.write_text(json.dumps(content, indent=4))
 
     def test_a_folder_with_a_subdomain_is_served_on_it(self):
@@ -271,6 +277,7 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertIn("extra.drupack.subdomain must be one DNS label", result.stderr)
 
     def test_a_folder_whose_name_does_not_resolve_is_served_on_its_bind_address(self):
+        self.with_subdomain(None)
         port, log = self.start("start-unnamed", str(self.project))
         text = log.read_text(errors="replace")
         self.assertIn(f"URL:     http://127.0.0.1:{port}\n", text)
