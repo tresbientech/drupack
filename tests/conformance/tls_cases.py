@@ -288,13 +288,14 @@ class TrustCommand(harness.ConformanceCase):
 class SystemTrust(harness.ConformanceCase):
     """`trust` on the machine running the suite: macOS's System keychain or the Windows
     Root store. A start serves HTTPS only when the system's own verifier accepts the
-    root, so each start's URL reports what the store holds."""
+    root, so each start's URL reports what the store holds. Both systems ask a person to
+    confirm each change, so this case runs by hand, never on a CI runner."""
 
     PLATFORMS = (harness.MACOS, harness.WINDOWS)
     SYSTEM_TRUST = True
 
     def trust(self, env, *arguments):
-        # A confirmation the system shows instead of trusting the root would hang here.
+        # The system's confirmation prompt waits here for the person running the case.
         result = harness.run([str(harness.BINARY), "trust", *arguments], env=env,
                              capture_output=True, text=True, timeout=120)
         log = self.case_dir / f"trust{''.join(arguments)}.log"
