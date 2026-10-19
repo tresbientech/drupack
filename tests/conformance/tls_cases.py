@@ -6,6 +6,7 @@ stands in for an installed root without touching this machine's store.
 """
 
 import os
+import shutil
 from pathlib import Path
 
 import harness
@@ -51,13 +52,15 @@ def trusted_environment(tls_dir, bundle):
 
 
 # Stands in for the reader's mkcert: reports CAROOT and signs a localhost certificate
-# under it, valid for DAYS days. It logs every call, so a case can read what ran.
+# under it, valid for DAYS days. It logs every call, so a case can read what ran. It names
+# openssl by path: trusted_environment drops the folder of a real mkcert, which can hold
+# openssl too.
 MKCERT_STUB = """#!/bin/sh
 echo "$@" >> {calls}
 if [ "$1" = -CAROOT ]; then echo {caroot}; exit 0; fi
-openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -keyout "$4" -out "$4.csr" \\
+{openssl} req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -keyout "$4" -out "$4.csr" \\
     -subj /CN=localhost -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1" 2>/dev/null
-openssl x509 -req -in "$4.csr" -CA {caroot}/rootCA.pem -CAkey {caroot}/rootCA-key.pem -CAcreateserial \\
+{openssl} x509 -req -in "$4.csr" -CA {caroot}/rootCA.pem -CAkey {caroot}/rootCA-key.pem -CAcreateserial \\
     -days {days} -copy_extensions copy -out "$2" 2>/dev/null
 """
 
@@ -76,7 +79,7 @@ def write_mkcert(directory, days):
     bin_dir.mkdir()
     calls = directory / "calls"
     stub = bin_dir / "mkcert"
-    stub.write_text(MKCERT_STUB.format(calls=calls, caroot=caroot, days=days))
+    stub.write_text(MKCERT_STUB.format(calls=calls, caroot=caroot, days=days, openssl=shutil.which("openssl")))
     stub.chmod(0o755)
     return bin_dir, calls
 
