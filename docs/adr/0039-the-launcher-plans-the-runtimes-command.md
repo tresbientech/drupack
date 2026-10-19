@@ -24,5 +24,6 @@ an inherited application directory or a stale Node release.
 
 ## Consequences
 
-- One table test asserts the command for each kind of start.
+- Two table tests, one over the arguments and one over the environment, cover
+  each kind of start.
 - The launcher no longer changes its own environment.
