@@ -12,6 +12,7 @@ require __DIR__ . '/../launch.php';
 require __DIR__ . '/cases.php';
 
 use Drupack\Support\SiteData;
+use Drupack\Support\Step;
 
 const FIXTURE_NAME = 'fixture-site';
 putenv('DRUPACK_RUNTIME_NAME=' . FIXTURE_NAME);
@@ -27,12 +28,12 @@ function scratch(): SiteData
     return new SiteData($path);
 }
 
-// A $run that records each call and answers from $found, keyed by step.
+// A $run that records each call by step name and answers from $found, keyed by step name.
 function recorder(array &$calls, array $found = []): callable
 {
-    return function (string $step, bool $adopted) use (&$calls, $found): bool {
-        $calls[] = [$step, $adopted];
-        return $found[$step] ?? false;
+    return function (Step $step, bool $adopted) use (&$calls, $found): bool {
+        $calls[] = [$step->value, $adopted];
+        return $found[$step->value] ?? false;
     };
 }
 
@@ -54,7 +55,7 @@ test('a finished site has no remaining steps', function (): void {
 test('recorded progress names the remaining steps', function (): void {
     $site = scratch();
     file_put_contents("$site->directory/installation-progress", json_encode(['modules']));
-    same(['modules'], $site->steps('pgsql'));
+    same([Step::Modules], $site->steps('pgsql'));
 });
 
 test('the finished marker beats recorded progress', function (): void {
@@ -70,10 +71,24 @@ test('unreadable progress refuses', function (): void {
     throws('Cannot read the recorded initialization progress', fn() => $site->steps('sqlite'));
 });
 
+test('progress naming a step this release does not know refuses before any step runs', function (): void {
+    $site = scratch();
+    file_put_contents("$site->directory/installation-progress", json_encode(['settings', 'migrate']));
+    throws('Cannot read the recorded initialization progress', fn() => $site->steps('sqlite'));
+});
+
+test('a step recorded by name resumes as that step', function (): void {
+    $site = scratch();
+    $calls = [];
+    file_put_contents("$site->directory/installation-progress", json_encode(['administrator']));
+    $site->initialize($site->steps('sqlite'), recorder($calls));
+    same([['administrator', false]], $calls);
+});
+
 test('settings without a marker adopt the site', function (): void {
     $site = scratch();
     file_put_contents($site->settings(), '');
-    same(['adopt'], $site->steps('sqlite'));
+    same([Step::Adopt], $site->steps('sqlite'));
 });
 
 test('a database without settings refuses', function (): void {
@@ -86,23 +101,23 @@ test('settings beat a database when neither marker exists', function (): void {
     $site = scratch();
     file_put_contents($site->settings(), '');
     file_put_contents($site->database(), '');
-    same(['adopt'], $site->steps('sqlite'));
+    same([Step::Adopt], $site->steps('sqlite'));
 });
 
 test('an empty site data directory seeds sqlite', function (): void {
-    same(['seed', 'settings', 'administrator'], scratch()->steps('sqlite'));
+    same([Step::Seed, Step::Settings, Step::Administrator], scratch()->steps('sqlite'));
 });
 
 test('an empty site data directory installs on a database server', function (): void {
     $site = scratch();
-    same(['settings', 'install', 'modules'], $site->steps('pgsql'));
+    same([Step::Settings, Step::Install, Step::Modules], $site->steps('pgsql'));
     same([], stateFiles($site), 'reading the steps recorded an installation start');
 });
 
 test('a fresh start drops an installation start no progress resumes', function (): void {
     $site = scratch();
     $site->startInstall();
-    same(['settings', 'install', 'modules'], $site->steps('pgsql'));
+    same([Step::Settings, Step::Install, Step::Modules], $site->steps('pgsql'));
     same(false, $site->installStarted());
 });
 
@@ -149,8 +164,8 @@ test('the recorded connection is the database block of the recorded settings', f
 test('a finished initialization leaves no progress, adoption or installation start behind', function (): void {
     $site = scratch();
     $steps = $site->steps('pgsql');
-    same(true, $site->initialize($steps, function (string $step) use ($site): bool {
-        if ($step === 'install') {
+    same(true, $site->initialize($steps, function (Step $step) use ($site): bool {
+        if ($step === Step::Install) {
             $site->startInstall();
             return true;
         }
@@ -165,34 +180,34 @@ test('a finished initialization leaves no progress, adoption or installation sta
 test('adoption passes to every step after the one that found a site', function (): void {
     $site = scratch();
     $calls = [];
-    $site->initialize(['settings', 'install', 'modules'], recorder($calls, ['install' => true]));
+    $site->initialize([Step::Settings, Step::Install, Step::Modules], recorder($calls, ['install' => true]));
     same([['settings', false], ['install', false], ['modules', true]], $calls);
 });
 
 test('a step that throws leaves progress naming it onward', function (): void {
     $site = scratch();
     $steps = $site->steps('sqlite');
-    throws('seed copy failed', fn() => $site->initialize($steps, function (string $step): bool {
-        if ($step === 'settings') {
+    throws('seed copy failed', fn() => $site->initialize($steps, function (Step $step): bool {
+        if ($step === Step::Settings) {
             throw new RuntimeException('seed copy failed');
         }
         return false;
     }));
-    same(['settings', 'administrator'], $site->steps('sqlite'));
+    same([Step::Settings, Step::Administrator], $site->steps('sqlite'));
     same(false, $site->installed());
 });
 
 test('an installation start outlives a crash in the install step and goes with the finished marker', function (): void {
     $site = scratch();
-    throws('install cut off', fn() => $site->initialize($site->steps('pgsql'), function (string $step) use ($site): bool {
-        if ($step === 'install') {
+    throws('install cut off', fn() => $site->initialize($site->steps('pgsql'), function (Step $step) use ($site): bool {
+        if ($step === Step::Install) {
             $site->startInstall();
             throw new RuntimeException('install cut off');
         }
         return false;
     }));
     same(true, $site->installStarted());
-    same(['install', 'modules'], $site->steps('pgsql'));
+    same([Step::Install, Step::Modules], $site->steps('pgsql'));
     same(true, $site->installStarted(), 'reading resumed steps dropped the installation start');
     $calls = [];
     $site->initialize($site->steps('pgsql'), recorder($calls));

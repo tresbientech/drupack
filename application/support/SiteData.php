@@ -131,9 +131,13 @@ final class SiteData
         return file_exists($this->path(self::FINISHED));
     }
 
-    // The steps a start owes, from what the directory holds. Progress lives beside the
-    // recorded settings, so a start tells a finished site from an interrupted one and
-    // repeats no step that already wrote to a database.
+    /**
+     * The steps a start owes, from what the directory holds. Progress lives beside the
+     * recorded settings, so a start tells a finished site from an interrupted one and
+     * repeats no step that already wrote to a database.
+     *
+     * @return list<Step>
+     */
     public function steps(string $backend): array
     {
         if ($this->installed()) {
@@ -141,15 +145,17 @@ final class SiteData
         }
         $progress = $this->path(self::PROGRESS);
         if (file_exists($progress)) {
-            $steps = json_decode($this->read($progress), true);
-            if (!is_array($steps)) {
+            // Another release may have written the file, with names this one does not know.
+            $names = json_decode($this->read($progress), true);
+            $steps = is_array($names) ? array_map(fn(mixed $name) => is_string($name) ? Step::tryFrom($name) : null, $names) : [null];
+            if (in_array(null, $steps, true)) {
                 throw new RuntimeException("Cannot read the recorded initialization progress: $progress. Remove that file, then start "
                     . \executableName() . ' again to check the site.');
             }
-            return $steps;
+            return array_values($steps);
         }
         if (file_exists($this->settings())) {
-            return ['adopt'];
+            return [Step::Adopt];
         }
         // The database is the user's only copy, so a start without recorded settings never seeds over one.
         if (file_exists($this->database())) {
@@ -157,14 +163,14 @@ final class SiteData
                 . \executableName() . ' with an empty Site data directory.');
         }
         if ($backend === 'sqlite') {
-            return ['seed', 'settings', 'administrator'];
+            return [Step::Seed, Step::Settings, Step::Administrator];
         }
         // A record with no progress beside it belongs to an initialization nobody resumes,
         // so it says nothing about what the database holds now.
         if ($this->installStarted()) {
             unlink($this->path(self::INSTALL_STARTED));
         }
-        return ['settings', 'install', 'modules'];
+        return [Step::Settings, Step::Install, Step::Modules];
     }
 
     /**
@@ -174,7 +180,8 @@ final class SiteData
      * step found one. After the last step, writes the finished marker and removes every
      * other state file. Returns whether the start adopted an existing site.
      *
-     * @param callable(string, bool): bool $run
+     * @param list<Step> $steps
+     * @param callable(Step, bool): bool $run
      */
     public function initialize(array $steps, callable $run): bool
     {
@@ -212,9 +219,11 @@ final class SiteData
         return file_exists($this->path(self::INSTALL_STARTED));
     }
 
+    /** @param list<Step> $steps */
     private function recordProgress(array $steps): void
     {
-        $this->write(self::PROGRESS, json_encode($steps), 'Cannot record the initialization progress');
+        $this->write(self::PROGRESS, json_encode(array_map(fn(Step $step) => $step->value, $steps)),
+            'Cannot record the initialization progress');
     }
 
     private function write(string $name, string $contents, string $failure): void

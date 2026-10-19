@@ -250,19 +250,3 @@ is `{"date"}` in `check-extensions.py` and eleven names in `harness.py`. Neither
 `expected_extensions()` nor `check-extensions.py` has a unit test. Lean: put the
 per-platform exclusions in the allowlist file. One parser takes a platform and
 prints the list, and the others call it.
-
-## Typed first-start steps
-
-`SiteData::steps()` returns bare step names: `seed`, `settings`,
-`administrator`, `install`, `modules`, `adopt`. About twenty string literals
-spell them across `SiteData.php` and `launch.php`. `credentialsRequired`,
-`requireSeed`, `requireDatabaseOptions` and the settings refresh each derive a
-precondition from the list. The preconditions check the list read before the
-lease, and the steps run from the list read under it.
-
-`site_data_test.php` covers `steps()` and `initialize()`. The four refusals in
-`installSite` and the `adoptSite` path run only in the Docker suite.
-
-Lean: `SiteData` returns a plan that holds the steps and their preconditions.
-One runner executes it, with Drush behind a recording stand-in in tests. The
-`site_data_test.php` cases stay.

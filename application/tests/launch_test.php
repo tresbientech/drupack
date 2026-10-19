@@ -14,6 +14,7 @@ require __DIR__ . '/../launch.php';
 
 use Drupack\Support\SiteContract;
 use Drupack\Support\SiteData;
+use Drupack\Support\Step;
 
 // Every variable options() reads for a default.
 const OPTION_VARIABLES = [
@@ -137,36 +138,36 @@ test('under drush an option after the command stays in the command', function ()
 
 test('a site without a recipe refuses a sqlite first start, naming both servers', function (): void {
     foreach (['has no recipe to seed a SQLite site', '--database mysql', '--database pgsql'] as $needle) {
-        throws($needle, fn() => requireSeed(['seed', 'settings', 'administrator'], contract(recipe: '')));
+        throws($needle, fn() => requireNeeds([Step::Seed, Step::Settings, Step::Administrator], connection(['database' => 'sqlite']), contract(recipe: '')));
     }
 });
 
 test('a site without a recipe starts on a database server', function (): void {
-    requireSeed(['settings', 'install', 'modules'], contract(recipe: ''));
-    requireSeed(['adopt'], contract(recipe: ''));
+    requireNeeds([Step::Settings, Step::Install, Step::Modules], connection(), contract(recipe: ''));
+    requireNeeds([Step::Adopt], connection(), contract(recipe: ''));
 });
 
 test('a site with a recipe seeds sqlite', function (): void {
-    requireSeed(['seed', 'settings', 'administrator'], contract(recipe: 'recipes/fixture'));
+    requireNeeds([Step::Seed, Step::Settings, Step::Administrator], connection(['database' => 'sqlite']), contract(recipe: 'recipes/fixture'));
 });
 
 test('sqlite needs no connection details', function (): void {
     $options = connection(['database' => 'sqlite', 'db-host' => null, 'db-name' => null,
         'db-user' => null, 'db-password' => null]);
-    requireDatabaseOptions($options, ['settings', 'install', 'modules']);
+    requireNeeds([Step::Settings, Step::Install, Step::Modules], $options, contract());
 });
 
 test('a resumed start reads its connection from recorded settings', function (): void {
     $options = connection(['db-host' => null, 'db-name' => null, 'db-user' => null, 'db-password' => null]);
-    requireDatabaseOptions($options, ['modules']);
+    requireNeeds([Step::Modules], $options, contract());
 });
 
 test('a first start on a database server needs every connection detail', function (): void {
-    requireDatabaseOptions(connection(), ['settings', 'install', 'modules']);
+    requireNeeds([Step::Settings, Step::Install, Step::Modules], connection(), contract());
     foreach (['db-host', 'db-name', 'db-user', 'db-password'] as $name) {
         throws(
             'Missing database connection details for mysql',
-            fn() => requireDatabaseOptions(connection([$name => null]), ['settings', 'install', 'modules']),
+            fn() => requireNeeds([Step::Settings, Step::Install, Step::Modules], connection([$name => null]), contract()),
         );
     }
 });
@@ -404,26 +405,26 @@ test('an IPv6 wildcard is probed on IPv6 loopback', function (): void {
 });
 
 test('the install and administrator steps require credentials', function (): void {
-    same(true, credentialsRequired(['settings', 'install', 'modules']));
-    same(true, credentialsRequired(['seed', 'settings', 'administrator']));
-    same(false, credentialsRequired(['adopt']));
-    same(false, credentialsRequired(['modules']));
-    same(false, credentialsRequired([]));
+    same('settings install modules | connection credentials', Step::describe([Step::Settings, Step::Install, Step::Modules]));
+    same('seed settings administrator | recipe connection credentials', Step::describe([Step::Seed, Step::Settings, Step::Administrator]));
+    same('adopt | ', Step::describe([Step::Adopt]));
+    same('modules | ', Step::describe([Step::Modules]));
+    same(' | ', Step::describe([]));
 });
 
 test('a start that needs no credentials generates none', function (): void {
     $options = ['admin-user' => null, 'admin-password' => null];
-    same($options, administratorCredentials($options, ['adopt']));
+    same($options, administratorCredentials($options, [Step::Adopt]));
 });
 
 test('a start that installs generates an administrator password', function (): void {
-    $filled = administratorCredentials(['admin-user' => null, 'admin-password' => null], ['administrator']);
+    $filled = administratorCredentials(['admin-user' => null, 'admin-password' => null], [Step::Administrator]);
     same('admin', $filled['admin-user']);
     same(64, strlen((string) $filled['admin-password']));
 });
 
 test('a given administrator name and password survive', function (): void {
-    $filled = administratorCredentials(['admin-user' => 'ann', 'admin-password' => 'given'], ['install']);
+    $filled = administratorCredentials(['admin-user' => 'ann', 'admin-password' => 'given'], [Step::Install]);
     same('ann', $filled['admin-user']);
     same('given', $filled['admin-password']);
 });

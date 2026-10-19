@@ -8,8 +8,10 @@ declare(strict_types=1);
 require __DIR__ . '/process.php';
 require __DIR__ . '/mercure.php';
 
+use Drupack\Support\Need;
 use Drupack\Support\SiteContract;
 use Drupack\Support\SiteData;
+use Drupack\Support\Step;
 use Symfony\Component\Filesystem\Path;
 
 // The option set also reaches a reader through docs/cli.md.
@@ -203,7 +205,7 @@ function options(array $arguments, bool $drush, SiteContract $site): array
 // passwordless. It reaches only the Drupal step that sets it.
 function administratorCredentials(array $options, array $steps): array
 {
-    if (!credentialsRequired($steps)) {
+    if (!in_array(Need::Credentials, Step::owed($steps), true)) {
         return $options;
     }
     $options['admin-user'] ??= 'admin';
@@ -365,31 +367,32 @@ function siteEnvironment(array $plan, string $data, string $files, string $runti
     return $environment;
 }
 
-function credentialsRequired(array $steps): bool
+// A first start refuses before it changes anything when its owed steps need what neither
+// the build nor the reader gave. The administrator's credentials are generated instead.
+function requireNeeds(array $steps, array $options, SiteContract $site): void
 {
-    return array_intersect(['administrator', 'install'], $steps) !== [];
+    foreach (Step::owed($steps) as $need) {
+        match ($need) {
+            // A site built without a recipe ships no seed, so a SQLite first start has nothing to copy.
+            Need::Recipe => $site->recipe === '' ? throw new RuntimeException(executableName() . ' has no recipe to seed a SQLite site. '
+                . 'Start it with --database mysql or --database pgsql and the connection details of the database that holds its site.') : null,
+            Need::Connection => requireConnection($options),
+            Need::Credentials => null,
+        };
+    }
 }
 
-// A first start on a database server takes its connection from the command line. SQLite needs
-// none, and a resumed start reads the connection from the recorded settings.
-function requireDatabaseOptions(array $options, array $steps): void
+// A first start on a database server takes its connection from the command line. SQLite
+// needs none.
+function requireConnection(array $options): void
 {
-    if (!in_array('settings', $steps, true) || $options['database'] === 'sqlite') {
+    if ($options['database'] === 'sqlite') {
         return;
     }
     foreach (['db-host', 'db-name', 'db-user', 'db-password'] as $name) {
         if ($options[$name] === null) {
             throw new RuntimeException("Missing database connection details for {$options['database']}");
         }
-    }
-}
-
-// A site built without a recipe ships no seed, so a SQLite first start has nothing to copy.
-function requireSeed(array $steps, SiteContract $site): void
-{
-    if (in_array('seed', $steps, true) && $site->recipe === '') {
-        throw new RuntimeException(executableName() . ' has no recipe to seed a SQLite site. '
-            . 'Start it with --database mysql or --database pgsql and the connection details of the database that holds its site.');
     }
 }
 
@@ -702,26 +705,15 @@ function removeRecipeModules(string $binary): void
     }
 }
 
-// What each initialization step tells the person waiting. A first start spends minutes
-// inside one of these, and prints nothing else until the site answers.
-const STEP_REPORTS = [
-    'seed' => 'Copying the packaged site into Site data',
-    'settings' => 'Writing the site settings',
-    'install' => 'Installing the site',
-    'modules' => 'Removing modules the application cannot run',
-    'administrator' => 'Creating the administrator account',
-    'adopt' => 'Adopting the site already in Site data',
-];
-
 // Returns whether the step found a site already installed in the database.
-function runStep(string $step, SiteData $site, array $options, string $binary, bool $adopted): bool
+function runStep(Step $step, SiteData $site, array $options, string $binary, bool $adopted): bool
 {
     switch ($step) {
-        case 'seed':
+        case Step::Seed:
             copySeed($site);
             clearSeedCaches($site);
             return false;
-        case 'settings':
+        case Step::Settings:
             // A repeated step keeps the existing secret, so the site's sessions and tokens survive it.
             if (!file_exists($site->secret())
                 && file_put_contents($site->secret(), bin2hex(random_bytes(32)), LOCK_EX) === false) {
@@ -729,22 +721,20 @@ function runStep(string $step, SiteData $site, array $options, string $binary, b
             }
             writeSettings($site->settings(), application() . '/settings.php', databaseConfiguration($options, $site), siteContract()->settings);
             return false;
-        case 'administrator':
+        case Step::Administrator:
             configureAdministrator($binary);
             configureSeedSiteName($binary, $options['site-name']);
             return false;
-        case 'install':
+        case Step::Install:
             return installSite($site, $options, $binary);
-        case 'modules':
+        case Step::Modules:
             if (!$adopted) {
                 removeRecipeModules($binary);
             }
             return false;
-        case 'adopt':
+        case Step::Adopt:
             adoptSite($site->directory, $binary);
             return false;
-        default:
-            throw new RuntimeException("Unknown initialization step: $step");
     }
 }
 
@@ -793,11 +783,10 @@ try {
         $options = recordedListener($options, $named->listener());
     } else {
         $steps = $named->steps($options['database']);
-        requireSeed($steps, siteContract());
+        requireNeeds($steps, $options, siteContract());
         $options = administratorCredentials($options, $steps);
     }
     $options['listen'] ??= '127.0.0.1:' . siteContract()->port;
-    requireDatabaseOptions($options, $steps);
     [$bind, $port] = listenerParts($options['listen']);
     if (!filter_var($bind, FILTER_VALIDATE_IP) || $port < 1 || $port > 65535) {
         throw new InvalidArgumentException('Invalid listener address or port');
@@ -892,7 +881,7 @@ try {
     // the server answering requests.
     if (!$drush && file_exists($site->settings())) {
         // A pending settings step writes the file itself, so its contents are read once they are final.
-        if (!in_array('settings', $steps, true)) {
+        if (!in_array(Step::Settings, $steps, true)) {
             $options = recordedOptions($options, $site);
             writeSettings($site->settings(), application() . '/settings.php', databaseConfiguration($options, $site), siteContract()->settings);
         }
@@ -900,8 +889,8 @@ try {
     // The remaining steps reach the disk before the first one changes anything, and the
     // completion marker follows the last one.
     $number = 0;
-    $adopted = $site->initialize($steps, function (string $step, bool $adopted) use (&$number, $steps, $site, $options, $binary): bool {
-        fwrite(STDOUT, sprintf("[%d/%d] %s\n", ++$number, count($steps), STEP_REPORTS[$step]));
+    $adopted = $site->initialize($steps, function (Step $step, bool $adopted) use (&$number, $steps, $site, $options, $binary): bool {
+        fwrite(STDOUT, sprintf("[%d/%d] %s\n", ++$number, count($steps), $step->report()));
         return runStep($step, $site, $options, $binary, $adopted);
     });
     foreach (glob(application() . '/translations/*.po') as $translation) {
@@ -921,7 +910,7 @@ try {
     try {
         $link = loginLink($binary, $plan['url'], '/admin/dashboard');
     } catch (LoginLinkFailure $failure) {
-        if (credentialsRequired($steps) && !$adopted) {
+        if (in_array(Need::Credentials, Step::owed($steps), true) && !$adopted) {
             throw $failure;
         }
         $link = null;
