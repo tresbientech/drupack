@@ -270,24 +270,6 @@ Lean: one pure function takes argv, the environment, the Site data and the
 outside it. Boundary tests assert the plan with the existing `fakeRuntime`
 stub, and the helper tests stay.
 
-## One launch environment in the launcher
-
-`run()` in `launcher/main.go` sets or unsets eight `DRUPACK_RUNTIME_*`
-variables with `os.Setenv`, and branches on engine or site. `prepareNode` edits
-`PATH` and `DRUPACK_RUNTIME_NODE`. `Environment()` then rebuilds the slice from
-`os.Environ()`: it adds `PHPRC` and the CA defaults and drops the glibc loader
-variables. The engine branch unsets `DRUPACK_RUNTIME_APP_DIR` so an inherited
-value cannot reach the runtime.
-
-`route_test.go` and `environment_test.go` each test one half. No test covers
-the combinations: engine or site, a stale inherited `DRUPACK_RUNTIME_NODE`, an
-inherited `DRUPACK_RUNTIME_APP_DIR`.
-
-Lean: one function takes the identity, the cache root, the runtime and
-application directories, the Node directory, argv and the parent environment.
-It returns the exec path, argv and environment, and `run()` execs them. One
-table test over those combinations replaces the two test files.
-
 ## Typed first-start steps
 
 `SiteData::steps()` returns bare step names: `seed`, `settings`,

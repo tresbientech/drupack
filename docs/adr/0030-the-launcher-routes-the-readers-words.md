@@ -3,6 +3,8 @@
 Accepted on 2026-10-05. Amends [ADR 0014](0014-the-parser-owns-the-command-line.md).
 Amended on 2026-10-05 by [ADR 0031](0031-the-engine-updates-itself.md): the
 launcher handles `self-update` before routing, beside `detach` and `lay-app`.
+Amended on 2026-10-20 by [ADR 0039](0039-the-launcher-plans-the-runtimes-command.md):
+`Plan` in `launcher/plan.go` routes the words.
 
 ## Context
 

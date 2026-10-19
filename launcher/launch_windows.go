@@ -7,26 +7,21 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 	"unsafe"
-
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
 
-// launch starts executable as a child, since Windows has no process image
+// foldCase is true: Windows variable names are case-insensitive.
+const foldCase = true
+
+// launch starts the command as a child, since Windows has no process image
 // replacement, and reports its outcome through this process's own exit.
-func launch(executable string, args []string) error {
-	command := exec.Command(executable, args[1:]...)
+func launch(c Command) error {
+	command := exec.Command(c.Path, c.Args[1:]...)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
-	// php.ini and the bundled trust store load through the same environment
-	// rules launch_unix.go applies, so the two entry points cannot drift apart.
-	command.Env = runtime.Environment(filepath.Dir(executable), runtime.TLSDir(), os.Environ())
-	if consoleOwned() {
-		command.Env = append(command.Env, "DRUPACK_RUNTIME_CONSOLE_OWNED=1")
-	}
+	command.Env = c.Env
 
 	err := command.Run()
 	if err == nil {

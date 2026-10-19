@@ -4,15 +4,19 @@ package main
 
 import (
 	"os"
-	"path/filepath"
 	"syscall"
-
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
 
-func launch(executable string, args []string) error {
-	env := runtime.Environment(filepath.Dir(executable), runtime.TLSDir(), os.Environ())
-	return syscall.Exec(executable, args, env)
+// foldCase is false: Unix variable names are case-sensitive.
+const foldCase = false
+
+func launch(c Command) error {
+	return syscall.Exec(c.Path, c.Args, c.Env)
+}
+
+// consoleOwned is false: a Unix terminal belongs to the shell that started it.
+func consoleOwned() bool {
+	return false
 }
 
 // detachedProcess starts the server in a session of its own, so the terminal's
