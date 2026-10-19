@@ -283,3 +283,41 @@ class TrustCommand(harness.ConformanceCase):
         for subtree in ("DNS:localhost", "IP:127.0.0.0/255.0.0.0", "IP:0:0:0:0:0:0:0:1/FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF"):
             self.assertIn(subtree, constraints)
 
+
+class SystemTrust(harness.ConformanceCase):
+    """`trust` on the machine running the suite: macOS's System keychain or the Windows
+    Root store. A start serves HTTPS only when the system's own verifier accepts the
+    root, so each start's URL reports what the store holds."""
+
+    PLATFORMS = (harness.MACOS, harness.WINDOWS)
+    SYSTEM_TRUST = True
+
+    def trust(self, env, *arguments):
+        # A confirmation the system shows instead of trusting the root would hang here.
+        result = harness.run([str(harness.BINARY), "trust", *arguments], env=env,
+                             capture_output=True, text=True, timeout=120)
+        log = self.case_dir / f"trust{''.join(arguments)}.log"
+        log.write_text(result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, f"inspect {log}")
+        return result.stdout
+
+    def start(self, tls_dir, name, root=None):
+        site = harness.Site(harness.BINARY, self.case_dir / name, root=root)
+        site.start(self.class_dir / "data", env=dict(os.environ, DRUPACK_TLS_DIR=str(tls_dir)))
+        log = site.log_path.read_text(errors="replace")
+        site.stop()
+        return site.port, log
+
+    def test_trust_serves_https_until_uninstalled(self):
+        tls_dir = self.case_dir / "tls"
+        self.assertIn("System trust store: installed.", self.trust(dict(os.environ, DRUPACK_TLS_DIR=str(tls_dir))))
+        port, log = self.start(tls_dir, "trusted", root=tls_dir / "root.pem")
+        self.assertIn(f"URL:       https://localhost:{port}/", log)
+
+        kept = self.case_dir / "kept"
+        shutil.copytree(tls_dir, kept)
+        self.trust(dict(os.environ, DRUPACK_TLS_DIR=str(tls_dir)), "--uninstall")
+        self.assertFalse((tls_dir / "root.pem").exists())
+        # The same root, now absent from the store, no longer qualifies.
+        port, log = self.start(kept, "removed")
+        self.assertIn(f"URL:       http://localhost:{port}/", log)

@@ -658,6 +658,7 @@ jobs:
       - name: Run the conformance suite
         env:
           DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
+          DRUPACK_TEST_SYSTEM_TRUST: "1"
         run: |
           Copy-Item dist\payload\site.json dist\site.json
           python tests/conformance dist\drupacked-demo.exe test-results\conformance --site-tests demo\tests
@@ -866,9 +867,15 @@ jobs:
           path: runtime-components
           if-no-files-found: error
 
+      # A trust-settings change asks a person to authorize it, even under sudo. The runner
+      # has nobody to ask, so the SystemTrust case needs the right granted on this VM.
+      - name: Allow trust-settings changes without a prompt
+        run: sudo security authorizationdb write com.apple.trust-settings.admin allow
+
       - name: Run the test scripts
         env:
           DRUPACK_TEST_ENGINE: dist/engine/drupack
+          DRUPACK_TEST_SYSTEM_TRUST: "1"
         run: |
           python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests demo/tests
 

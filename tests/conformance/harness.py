@@ -108,6 +108,7 @@ DOCKER_SKIP = "needs a Docker daemon, which does not answer"
 RECIPE_SKIP = "the site has no recipe"
 WRITABLE_SKIP = "the site lists no writable directory"
 ENGINE_SKIP = "DRUPACK_TEST_ENGINE names no engine executable"
+SYSTEM_TRUST_SKIP = "writes the machine's trust store, which DRUPACK_TEST_SYSTEM_TRUST=1 allows"
 _docker_answers = None
 
 
@@ -611,8 +612,9 @@ def engine_executable():
 class ConformanceCase(unittest.TestCase):
     """Base for every case module: gates the class on its declared platforms, tools,
     whether it installs a site, which needs the site's recipe, whether it writes
-    into the application, which needs a writable directory, and whether it runs
-    the engine executable, which DRUPACK_TEST_ENGINE names. Each class writes under
+    into the application, which needs a writable directory, whether it runs
+    the engine executable, which DRUPACK_TEST_ENGINE names, and whether it writes
+    the machine's trust store, which DRUPACK_TEST_SYSTEM_TRUST=1 allows. Each class writes under
     class_dir, and each test under case_dir.
     """
 
@@ -621,6 +623,8 @@ class ConformanceCase(unittest.TestCase):
     RECIPE = True
     WRITABLE = False
     ENGINE = False
+    # The class changes the machine's trust store, so it runs only where that is allowed.
+    SYSTEM_TRUST = False
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -652,6 +656,8 @@ class ConformanceCase(unittest.TestCase):
             raise unittest.SkipTest(WRITABLE_SKIP)
         if cls.ENGINE and engine_executable() is None:
             raise unittest.SkipTest(ENGINE_SKIP)
+        if cls.SYSTEM_TRUST and os.environ.get("DRUPACK_TEST_SYSTEM_TRUST") != "1":
+            raise unittest.SkipTest(SYSTEM_TRUST_SKIP)
         for tool in cls.TOOLS:
             # A CI runner without a daemon still runs every case that needs none.
             if tool == "docker" and not docker_answers():
