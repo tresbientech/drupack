@@ -88,6 +88,11 @@ test('a folder names its subdomain as the label, or its own name without one', f
     same(['--folder', 'no-composer'], folderLabelSource(project_with('no-composer', ['web/index.php' => '<?php'])));
 });
 
+test('an extra.drupack that is not a JSON object is refused', function () {
+    $project = project_with('drupack-string', ['composer.json' => '{"extra": {"drupack": "on"}}']);
+    throws("$project/composer.json: extra.drupack must be a JSON object", fn () => mercureKey($project));
+});
+
 test('a subdomain that is not one DNS label is refused', function () {
     foreach (['"-shop"', '"Shop"', '"my.shop"', '""', '7'] as $value) {
         $project = project_with('subdomain-' . md5($value), ['composer.json' => "{\"extra\": {\"drupack\": {\"subdomain\": $value}}}"]);

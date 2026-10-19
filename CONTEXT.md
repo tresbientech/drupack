@@ -20,7 +20,7 @@ A distributable Drupal application. One built from a Site template carries a See
 The Drupal CMS recipe that gives a new site its starting configuration and content. A Packaged site carries at most one, named in its Site contract. Drupacked Demo carries its own.
 
 **Site contract**:
-The `drupack.yml` beside a site's `composer.json`, naming its executable, port, Site template, default site name, translations, settings file, build targets, added PHP extensions, Writable directories, and whether it carries Bundled Node. A build writes it out as `site.json`, with the docroot and the Mercure hub key `composer.json` names, and every other reader takes that file.
+The `drupack.yml` beside a site's `composer.json`, naming its executable, port, Site template, default site name, translations, settings file, build targets, added PHP extensions, Writable directories, and whether it carries Bundled Node. A build writes it out as `site.json`, with the docroot, the Mercure hub key and the subdomain `composer.json` names, and every other reader takes that file.
 
 **Site repository**:
 A repository holding one site's Composer project and Site contract. Its releases publish that Packaged site.

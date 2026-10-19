@@ -226,7 +226,7 @@ func verifies(root *x509.Certificate, rootKey *ecdsa.PrivateKey, roots *x509.Cer
 	return err == nil, nil
 }
 
-// siteLabel turns a site's name or a folder's name into one DNS label.
+// siteLabel turns a site's subdomain or name, or a folder's, into one DNS label.
 func siteLabel(name string) string {
 	label := strings.Map(func(r rune) rune {
 		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {
@@ -291,8 +291,8 @@ func fixedLookup(addresses string) lookupFunc {
 func writeTLSSource(out io.Writer, dir string, args []string) error {
 	flags := flag.NewFlagSet("tls-source", flag.ContinueOnError)
 	bind := flags.String("bind", "", "the address the server listens on")
-	name := flags.String("name", "", "the packed site's name")
-	folder := flags.String("folder", "", "the Project folder's name")
+	name := flags.String("name", "", "the packed site's label: its subdomain, otherwise its name")
+	folder := flags.String("folder", "", "the Project folder's label: its subdomain, otherwise its name")
 	host := flags.String("host", "", "the host the reader asked for")
 	if err := flags.Parse(args); err != nil {
 		return err

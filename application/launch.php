@@ -24,7 +24,7 @@ Usage: %1$s [start] [OPTIONS]
 Options:
   --data-dir PATH            Site data directory, ./data by default
   --listen IP:PORT           Listener address, 127.0.0.1 on the site's port by default
-  --host HOST                Permitted request host, by default NAME.drupack.site or localhost
+  --host HOST                Permitted request host, by default the site's drupack.site host or localhost
   --files-dir PATH           Public files directory, files in Site data by default
   --database sqlite|mysql|pgsql
                              Database backend for a first start, sqlite by default

@@ -274,7 +274,8 @@ function mercureKey(string $project): bool
 }
 
 // The tls-source arguments that name the folder's label: its subdomain, otherwise the
-// folder's name. A subdomain must be one DNS label; pack's siteconfig holds the same rule.
+// folder's name. composer.json is the reader's file, so a subdomain that is not one DNS
+// label is refused; pack's siteconfig holds the same rule.
 function folderLabelSource(string $project): array
 {
     $value = drupackExtra($project)['subdomain'] ?? null;

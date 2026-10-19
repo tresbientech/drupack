@@ -37,7 +37,7 @@ One line per component follows, each naming the component and its release:
 |---|---|---|---|---|
 | `--data-dir` | PATH | `./data` | `DRUPACK_DATA_DIR` | every start, `drush` |
 | `--listen` | IP:PORT | `127.0.0.1` on the site's port, `7225` for the Drupacked Demo | none | every start |
-| `--host` | HOST | `NAME.drupack.site` when it resolves to 127.0.0.1, `localhost` otherwise (see [Site hosts](#site-hosts)) | none | every start |
+| `--host` | HOST | the site's drupack.site host when it resolves to 127.0.0.1, `localhost` otherwise (see [Site hosts](#site-hosts)) | none | every start |
 | `--files-dir` | PATH | `files` in Site data | none | every start, `drush` |
 | `--database` | `sqlite`, `mysql`, `pgsql` | `sqlite` | `DRUPACK_DATABASE` | first start |
 | `--db-host` | HOST | none | `DRUPACK_DB_HOST` | first start |
@@ -107,7 +107,7 @@ name with `127.0.0.1`. Separate names keep each site's cookies apart, which
 
 - `extra.drupack.subdomain` in the site's or folder's `composer.json` sets
   the label: `"subdomain": "demo"` gives `demo.drupack.site`. It must be one
-  DNS label, and a start refuses another value.
+  DNS label: a build refuses another value, and so does an engine start.
 - Without it, a Packaged site's label is the `name` in `drupack.yml`.
 - Without it, an engine start's label is the folder's name: `~/DEV/My Shop`
   gives `my-shop.drupack.site`.

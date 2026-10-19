@@ -203,20 +203,6 @@ key, so a project serves the hub in development and once packed.
 Composer hashes `extra` into the lock, so run `composer update --lock` after
 the change. A `drupack.yml` that still sets `mercure` stops the build.
 
-## A site's own drupack.site name
-
-A loopback start serves the site on `NAME.drupack.site`, which
-[the CLI reference](cli.md#site-hosts) describes. `extra.drupack.subdomain`
-in the site's `composer.json` replaces `NAME` with one DNS label of your
-choice. The engine executable reads the same key.
-
-```json
-{"extra": {"drupack": {"subdomain": "demo"}}}
-```
-
-A value with characters outside `a-z`, `0-9` and `-`, or a dash at either end,
-stops the build. A `drupack.yml` that sets `subdomain` stops it too.
-
 Each Site data, or each project folder the engine serves, gets its own
 publisher and subscriber secrets. The site's PHP
 reads the hub's address and both secrets from three variables, which
@@ -241,6 +227,21 @@ The hub speaks Mercure protocol 1.0. Each token is an HS256 access token with:
 
 symfony/mercure 0.9 and later mints this shape by default. A subscriber names
 its topics with `?match=`.
+
+## A site's own Site host
+
+A loopback start serves the site on `NAME.drupack.site`, which
+[the CLI reference](cli.md#site-hosts) describes. `extra.drupack.subdomain`
+in the site's `composer.json` replaces `NAME` with one DNS label of your
+choice. The engine executable reads the same key.
+
+```json
+{"extra": {"drupack": {"subdomain": "demo"}}}
+```
+
+A value that is not one DNS label (`a-z`, `0-9` and `-`, 1 to 63 characters,
+no dash at either end) stops the build and an engine start. A `drupack.yml`
+that sets `subdomain` stops the build too.
 
 ## Private Composer packages
 
