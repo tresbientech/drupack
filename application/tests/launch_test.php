@@ -12,6 +12,7 @@ declare(strict_types=1);
 define('DRUPACK_LAUNCH_LIBRARY', true);
 require __DIR__ . '/../launch.php';
 
+use Drupack\Support\Need;
 use Drupack\Support\SiteContract;
 use Drupack\Support\SiteData;
 use Drupack\Support\Step;
@@ -404,12 +405,12 @@ test('an IPv6 wildcard is probed on IPv6 loopback', function (): void {
     }
 });
 
-test('the install and administrator steps require credentials', function (): void {
-    same('settings install modules | connection credentials', Step::describe([Step::Settings, Step::Install, Step::Modules]));
-    same('seed settings administrator | recipe connection credentials', Step::describe([Step::Seed, Step::Settings, Step::Administrator]));
-    same('adopt | ', Step::describe([Step::Adopt]));
-    same('modules | ', Step::describe([Step::Modules]));
-    same(' | ', Step::describe([]));
+test('owed steps need a recipe, a connection and credentials by step', function (): void {
+    same([Need::Connection, Need::Credentials], Step::owed([Step::Settings, Step::Install, Step::Modules]));
+    same([Need::Recipe, Need::Connection, Need::Credentials], Step::owed([Step::Seed, Step::Settings, Step::Administrator]));
+    same([], Step::owed([Step::Adopt]));
+    same([], Step::owed([Step::Modules]));
+    same([], Step::owed([]));
 });
 
 test('a start that needs no credentials generates none', function (): void {

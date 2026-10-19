@@ -14,8 +14,8 @@ from the list. A progress file naming a step the release did not know failed in
 - `Step` is a string-backed enum. Its values are the names the progress file
   records, so the file's format is unchanged.
 - `Step::needs()` names what each step needs: `Need::Recipe`,
-  `Need::Connection` or `Need::Credentials`. `Step::describe()` prints a list
-  of steps with their needs on one line.
+  `Need::Connection` or `Need::Credentials`. `Step::owed()` merges the needs of
+  a list of steps.
 - `requireNeeds()` in `launch.php` holds the refusals, since they name
   command-line options. A start generates the credentials instead.
 - `SiteData::steps()` refuses a progress file that names an unknown step, before

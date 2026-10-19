@@ -51,15 +51,4 @@ enum Step: string
         $needs = array_merge(...array_map(fn(self $step) => $step->needs(), $steps));
         return array_values(array_filter(Need::cases(), fn(Need $need) => in_array($need, $needs, true)));
     }
-
-    /**
-     * The steps and their needs on one line, as "seed settings administrator | recipe connection credentials".
-     *
-     * @param list<Step> $steps
-     */
-    public static function describe(array $steps): string
-    {
-        $names = fn(array $cases) => implode(' ', array_map(fn(\BackedEnum $case) => $case->value, $cases));
-        return $names($steps) . ' | ' . $names(self::owed($steps));
-    }
 }
