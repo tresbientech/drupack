@@ -247,14 +247,31 @@ test('an HTTPS start writes the public roots and its own into one bundle, which 
     $public = getenv('DRUPACK_CA_FILE');
     putenv("DRUPACK_CA_FILE=$directory/public.pem");
     try {
-        exportTlsBundle(['source' => 'drupack', 'root' => "$directory/root.pem"], $directory);
+        storeTlsBundle(['source' => 'drupack', 'root' => "$directory/root.pem"], $directory);
         same("$directory/ca-bundle.pem", getenv('DRUPACK_CA_FILE'));
         same("PUBLIC\n\nLOCAL\n", file_get_contents("$directory/ca-bundle.pem"));
+        same(['ca-bundle.pem', 'public.pem', 'root.pem'], array_values(array_diff(scandir($directory), ['.', '..'])));
         putenv("DRUPACK_CA_FILE=$directory/public.pem");
         useTlsBundle($directory);
         same("$directory/ca-bundle.pem", getenv('DRUPACK_CA_FILE'));
         putenv("DRUPACK_CA_FILE=$directory/public.pem");
         useTlsBundle(scratch());
+        same("$directory/public.pem", getenv('DRUPACK_CA_FILE'));
+    } finally {
+        putenv($public === false ? 'DRUPACK_CA_FILE' : "DRUPACK_CA_FILE=$public");
+    }
+});
+
+test('an HTTP start deletes the bundle, so Drush returns to the public roots', function (): void {
+    $directory = scratch();
+    file_put_contents("$directory/ca-bundle.pem", "PUBLIC\n\nLOCAL\n");
+    $public = getenv('DRUPACK_CA_FILE');
+    putenv("DRUPACK_CA_FILE=$directory/public.pem");
+    try {
+        storeTlsBundle(['source' => 'none'], $directory);
+        same(false, file_exists("$directory/ca-bundle.pem"));
+        storeTlsBundle(['source' => 'none'], $directory);
+        useTlsBundle($directory);
         same("$directory/public.pem", getenv('DRUPACK_CA_FILE'));
     } finally {
         putenv($public === false ? 'DRUPACK_CA_FILE' : "DRUPACK_CA_FILE=$public");

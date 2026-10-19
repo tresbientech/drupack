@@ -200,9 +200,7 @@ function serve(string $binary, array $arguments): never
 
     // The engine's URL has no trailing slash, as before HTTPS.
     $url = rtrim(siteUrl(tlsScheme($tls), $host, (int) $port), '/');
-    if ($tls['source'] !== 'none') {
-        exportTlsBundle($tls, $entry);
-    }
+    storeTlsBundle($tls, $entry);
     $link = null;
     $install = null;
     if (siteInstalled($binary, $project, $docroot) === false) {

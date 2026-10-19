@@ -115,7 +115,7 @@ Any other start serves HTTP. A loopback start on HTTP prints a line naming
 all use the scheme the start served. PHP verifies HTTPS against
 `DRUPACK_CA_FILE`, so an HTTPS start writes that bundle plus its own root into
 `ca-bundle.pem` beside the server's state, and points the server, cron and
-`drush` at it.
+`drush` at it. An HTTP start deletes that file.
 
 `trust` creates the Drupack root on first use, in `DRUPACK_TLS_DIR`, and
 installs it in the system's trust store and in Firefox's NSS databases. It

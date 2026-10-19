@@ -798,8 +798,6 @@ try {
     $runtime = canonical(realpath($site->runtime()));
     if ($drush) {
         useTlsBundle($runtime);
-    } elseif ($tls['source'] !== 'none') {
-        exportTlsBundle($tls, $runtime);
     }
     // Caddy state and every temporary file stay beside the site they belong to.
     putenv("TMPDIR=$runtime");
@@ -848,6 +846,7 @@ try {
         $serving->detach($options['foreground'] !== null,
             stopCommand($written === DEFAULT_DATA_DIR ? '' : ' --data-dir ' . shellWord($written)), array_slice($argv, 1));
         $site->recordListener($options['listen'], $options['host'], $options['files-dir'], $scheme);
+        storeTlsBundle($tls, $runtime);
     }
     if (siteSettings()['mercure']) {
         exportMercure($site->mercurePublisherSecret(), $site->mercureSubscriberSecret(), mercureUrl($scheme, $bind, $port), $drush);

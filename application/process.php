@@ -326,19 +326,29 @@ function tlsEligible(string $bind, string $host): bool
 // cron reach the site's own hub.
 const TLS_BUNDLE = 'ca-bundle.pem';
 
-// Writes the bundle for $choice into $directory and points this process's children at it.
-function exportTlsBundle(array $choice, string $directory): void
+// Called under the Serving lease. An HTTPS start writes the bundle for $choice into
+// $directory and points this process's children at it. An HTTP start deletes it, so Drush
+// stops trusting a root the site no longer serves.
+function storeTlsBundle(array $choice, string $directory): void
 {
     $bundle = "$directory/" . TLS_BUNDLE;
+    if ($choice['source'] === 'none') {
+        if (file_exists($bundle) && !unlink($bundle)) {
+            throw new RuntimeException("Cannot delete $bundle");
+        }
+        return;
+    }
     $roots = file_get_contents(getenv('DRUPACK_CA_FILE')) . "\n" . file_get_contents($choice['root']);
-    if (file_put_contents($bundle, $roots) !== strlen($roots)) {
+    // A running server's cron reads the bundle, so it is replaced whole, never rewritten in place.
+    $partial = "$bundle." . bin2hex(random_bytes(4));
+    if (file_put_contents($partial, $roots) !== strlen($roots) || !rename($partial, $bundle)) {
         throw new RuntimeException("Cannot write $bundle");
     }
     putenv("DRUPACK_CA_FILE=$bundle");
 }
 
-// Points Drush at the bundle the last HTTPS start wrote into $directory. A site that never
-// served HTTPS has none, and keeps the public roots.
+// Points Drush at the bundle the last start wrote into $directory. A site whose last start
+// served HTTP has none, and keeps the public roots.
 function useTlsBundle(string $directory): void
 {
     if (is_file("$directory/" . TLS_BUNDLE)) {

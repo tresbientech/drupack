@@ -41,6 +41,7 @@ its own store.
   names its session cookie per scheme.
 - PHP verifies HTTPS against `DRUPACK_CA_FILE`. An HTTPS start writes that
   bundle plus its served root into `ca-bundle.pem` and exports it to the
-  server, cron and `drush`, so they reach the site's own hub.
+  server, cron and `drush`, so they reach the site's own hub. An HTTP start
+  deletes it, so `drush` stops trusting a root the site no longer serves.
 - `--host` with any other name keeps HTTP. On-demand issuance would cover it but
   would let any page make Caddy sign certificates into Site data.
