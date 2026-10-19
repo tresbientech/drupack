@@ -11,7 +11,8 @@ reader with what the Go build writes.
 ## Decision
 
 - `SiteContract` in `application/support/` holds the fields PHP reads, with
-  their types. A missing or mistyped key fails at read time with its name.
+  their types. A missing or mistyped key fails at read time, naming the
+  constructor parameter. `node` is read for its presence alone.
 - `application/tests/site.json` is a reference file. A Go test compares it with
   what `siteconfig.Write` produces for a fixed site, and the PHP tests build
   their contract from it.

@@ -244,13 +244,13 @@ test('a start hands the runtime its bind, its site and the host the reader asked
 });
 
 test('the reference site.json reads as the Site contract', function (): void {
-    same(['port' => 7225, 'recipe' => '', 'settings' => '', 'siteName' => 'Fixture Site', 'subdomain' => null, 'node' => false,
+    same(['port' => 7225, 'recipe' => '', 'settings' => '', 'siteName' => 'Fixture Site', 'subdomain' => 'fixture', 'node' => true,
         'writable' => [], 'docroot' => 'web', 'mercure' => false], get_object_vars(SiteContract::read(__DIR__ . '/site.json')));
 });
 
 test('a site that sets a subdomain hands the runtime that label, and one without hands its name', function (): void {
     same(['--name', 'demo'], siteLabelSource(contract(subdomain: 'demo')));
-    same(['--name', FIXTURE_NAME], siteLabelSource(contract()));
+    same(['--name', FIXTURE_NAME], siteLabelSource(contract(subdomain: null)));
     $runtime = fakeRuntime(['source' => 'none', 'host' => 'localhost', 'alias' => 'demo.drupack.site', 'reason' => 'no answer', 'eligible' => true]);
     tlsChoice($runtime, '127.0.0.1', siteLabelSource(contract(subdomain: 'demo')), null);
     same("tls-source --bind 127.0.0.1 --name demo\n", file_get_contents(dirname($runtime) . '/arguments'));
@@ -659,7 +659,7 @@ test('an unknown word names itself above the usage', function () {
 });
 
 test('a Node word on a site without Node is an unknown command', function () {
-    throws('Unknown command: npm', fn () => command(['npm', 'ci'], contract()));
+    throws('Unknown command: npm', fn () => command(['npm', 'ci'], contract(node: false)));
 });
 
 test('a Node word on a site with Node names the glibc build', function () {

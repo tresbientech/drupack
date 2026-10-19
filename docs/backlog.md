@@ -250,3 +250,12 @@ is `{"date"}` in `check-extensions.py` and eleven names in `harness.py`. Neither
 `expected_extensions()` nor `check-extensions.py` has a unit test. Lean: put the
 per-platform exclusions in the allowlist file. One parser takes a platform and
 prints the list, and the others call it.
+
+## Steps checked before the lease and run under it
+
+`launch.php` checks what the owed steps need on the list it reads before the
+Serving lease. It runs the list it reads again under the lease, which can
+differ from the checked one. The refusals in `installSite` and the `adoptSite`
+path run only in the Docker suite. Lean: one runner takes the list read under
+the lease and checks its needs, with Drush behind a stub binary in tests, as
+`fakeRuntime()` stubs `tls-source`.

@@ -382,8 +382,9 @@ func TestParseRefusesASubdomainInDrupackYml(t *testing.T) {
 
 // application/tests/site.json is the reference file the PHP tests read the Site
 // contract from. A change to what Write produces fails here until that file holds it.
+// The fixture sets subdomain and node, which Write leaves out when a site sets neither.
 func TestWriteMatchesThePHPReferenceFile(t *testing.T) {
-	read, err := siteconfig.Read(site(t, "name: fixture-site\nsite_name: Fixture Site\n", scaffold("web")))
+	read, err := siteconfig.Read(site(t, "name: fixture-site\nsite_name: Fixture Site\nnode: 24\n", drupackExtra(`{"subdomain": "fixture"}`)))
 	if err != nil {
 		t.Fatal(err)
 	}

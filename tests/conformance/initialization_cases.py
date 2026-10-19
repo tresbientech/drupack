@@ -210,8 +210,8 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
                           "the refused start changed the existing database")
 
     def test_a_blocked_administrator_does_not_stop_a_later_start(self):
-        # A later start needs no generated password, so credentialsRequired() reports it
-        # false, and the site keeps serving without a link: the owner already has a password.
+        # A later start owes no step that needs Need::Credentials, so it generates no password,
+        # and the site keeps serving without a link: the owner already has a password.
         data = self.case_dir / "data"
         site = harness.Site(harness.BINARY, self.case_dir / "install")
         site.start(data, "--admin-user", "init-admin", "--admin-password", PASSWORD)
