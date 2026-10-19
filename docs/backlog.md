@@ -251,25 +251,6 @@ is `{"date"}` in `check-extensions.py` and eleven names in `harness.py`. Neither
 per-platform exclusions in the allowlist file. One parser takes a platform and
 prints the list, and the others call it.
 
-## One start plan in launch.php
-
-The `serve` path of `launch.php` works out where a start serves: listener,
-host, scheme, URL and the server environment. The host value changes meaning
-three times on the way. It starts as the user's word, becomes the recorded host,
-then the host `tlsChoice` returns, then `UNRECORDED_HOST`. `putenv` calls spread
-along the script export the result. `serve()` in `engine/serve.php` repeats the
-same tail by hand: `tlsChoice`, `storeTlsBundle`, `exportServerEnvironment`,
-`replaceProcess`.
-
-`launch_test.php` covers each helper. Only the Docker conformance cases catch a
-mistake in the order the helpers run.
-
-Lean: one pure function takes argv, the environment, the Site data and the
-`tls-source` answer. It returns the bind, port, URL, scheme and exports.
-`launch.php` and `serve.php` both apply that plan. The `drush` branch stays
-outside it. Boundary tests assert the plan with the existing `fakeRuntime`
-stub, and the helper tests stay.
-
 ## Typed first-start steps
 
 `SiteData::steps()` returns bare step names: `seed`, `settings`,

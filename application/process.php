@@ -393,6 +393,30 @@ function tlsServerEnvironment(array $choice): array
     };
 }
 
+// Where a start on $bind:$port serves, under the host and scheme its caller chose: the URL
+// a reader types, and the URL a probe on this computer reaches.
+function listenerPlan(string $bind, int $port, string $host, string $scheme): array
+{
+    return [
+        'bind' => $bind,
+        'port' => $port,
+        'host' => $host,
+        'scheme' => $scheme,
+        'url' => siteUrl($scheme, $host, $port),
+        'probe' => siteUrl($scheme, probeHost($bind), $port),
+    ];
+}
+
+// The variables Caddy fills the fixed Caddyfile from: the listener in $plan, the TLS
+// snippets for $tls, and the caller's own $values. exportServerEnvironment checks them.
+function serverEnvironment(array $plan, array $tls, array $values): array
+{
+    return [
+        'DRUPACK_RUNTIME_PORT' => (string) $plan['port'],
+        'DRUPACK_RUNTIME_BIND' => $plan['bind'],
+    ] + $values + tlsServerEnvironment($tls);
+}
+
 // The address a probe on this computer reaches a server bound to $bind, which a wildcard
 // reaches through its own family's loopback, since an IPv6-only listener never answers on
 // 127.0.0.1.

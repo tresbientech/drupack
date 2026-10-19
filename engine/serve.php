@@ -185,7 +185,9 @@ function serve(string $binary, array $arguments): never
     $mercure = mercureKey($project);
     // The engine's URL names the folder's drupack.site name when it resolves, otherwise the
     // bind address itself.
-    $tls = tlsChoice($binary, trim($bind, '[]'), folderLabelSource($project), null);
+    $bind = trim($bind, '[]');
+    $tls = tlsChoice($binary, $bind, folderLabelSource($project), null);
+    $plan = listenerPlan($bind, (int) $port, $tls['host'], tlsScheme($tls));
 
     // The reader's terminal gets every refusal above and the lease's below, so a start that
     // detaches has nothing left to refuse but the server's own failures.
@@ -199,7 +201,7 @@ function serve(string $binary, array $arguments): never
         stopCommand($directory === null ? '' : ' ' . shellWord($directory)), array_merge(['start'], $typed));
 
     // The engine's URL has no trailing slash, as before HTTPS.
-    $url = rtrim(siteUrl(tlsScheme($tls), $tls['host'], (int) $port), '/');
+    $url = rtrim($plan['url'], '/');
     storeTlsBundle($tls, $entry);
     $link = null;
     $install = null;
@@ -225,21 +227,19 @@ function serve(string $binary, array $arguments): never
     // The server opens no browser, so a value inherited from an earlier start is cleared.
     putenv('DRUPACK_RUNTIME_OPEN');
     if ($mercure) {
-        $hub = mercureUrl(tlsScheme($tls), $bind, (int) $port);
+        $hub = mercureUrl($plan['scheme'], $bind, $plan['port']);
         exportEngineMercure($entry, $hub, false);
         // The start's --listen chooses the port, so drush reads the address back from here.
         if (file_put_contents("$entry/" . MERCURE_URL_FILE, $hub) !== strlen($hub)) {
             throw new RuntimeException("Cannot write $entry/" . MERCURE_URL_FILE);
         }
     }
-    exportServerEnvironment([
-        'DRUPACK_RUNTIME_PORT' => $port,
-        'DRUPACK_RUNTIME_BIND' => $bind,
+    exportServerEnvironment(serverEnvironment($plan, $tls, [
         'DRUPACK_RUNTIME_DOCROOT' => $docroot,
         'DRUPACK_RUNTIME_ID' => basename($entry),
-        'DRUPACK_RUNTIME_URL' => siteUrl(tlsScheme($tls), probeHost($bind), (int) $port),
+        'DRUPACK_RUNTIME_URL' => $plan['probe'],
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
-    ] + mercureServerEnvironment($mercure, $entry) + tlsServerEnvironment($tls));
+    ] + mercureServerEnvironment($mercure, $entry)));
     runtimePhpOnPath();
     replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }

@@ -6,7 +6,7 @@
 
 ALIAS          writers=application/process.php  readers=application/settings.php,application/tls-drupack-site.caddy,application/tls-mkcert-site.caddy
 APP_DIR        writers=launcher/plan.go,application/launch.php,build/seed.sh,build/dev/dev-entry.sh  readers=runtime/entrypoint.go,application/launch.php,application/settings.php,build/dev/dev-entry.sh
-BIND           writers=application/launch.php,engine/serve.php  readers=application/Caddyfile,engine/Caddyfile
+BIND           writers=application/process.php  readers=application/Caddyfile,engine/Caddyfile
 BINARY         writers=runtime/entrypoint.go  readers=application/launch.php,engine/serve.php
 CACHE_ROOT     writers=launcher/plan.go  readers=engine/serve.php
 COMPONENTS     writers=launcher/plan.go  readers=runtime/entrypoint.go
@@ -27,7 +27,7 @@ NAME           writers=launcher/plan.go,build/dev/dev-entry.sh  readers=runtime/
 NODE           writers=launcher/plan.go  readers=runtime/entrypoint.go
 OPEN           writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go
 PERSON         writers=application/process.php  readers=application/process.php
-PORT           writers=application/launch.php,engine/serve.php  readers=application/tls-drupack-site.caddy,application/tls-mkcert-site.caddy,application/tls-none-site.caddy
+PORT           writers=application/process.php  readers=application/tls-drupack-site.caddy,application/tls-mkcert-site.caddy,application/tls-none-site.caddy
 SITE_VERSION   writers=launcher/plan.go  readers=runtime/entrypoint.go
 STOP_RECORD    writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go
 TLS            writers=application/process.php  readers=application/Caddyfile,engine/Caddyfile

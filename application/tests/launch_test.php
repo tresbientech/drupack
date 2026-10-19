@@ -204,13 +204,13 @@ test('an explicit option beats the listener record', function (): void {
 test('a served listener brackets an IPv6 host in its URL', function (): void {
     $site = new SiteData(scratch());
     $site->recordListener('[::]:8080', '::1', null, 'http');
-    same(['::', 'http://[::1]:8080/'], servedListener($site, ['listen' => '127.0.0.1:7000', 'host' => 'localhost']));
+    same(['::', 'http://[::1]:8080/'], servedListener($site, listenerPlan('127.0.0.1', 7000, 'localhost', 'http')));
 });
 
 test('a served listener names the scheme its start served', function (): void {
     $site = new SiteData(scratch());
     $site->recordListener('127.0.0.1:8080', 'localhost', null, 'https');
-    same(['127.0.0.1', 'https://localhost:8080/'], servedListener($site, ['listen' => '127.0.0.1:7000', 'host' => 'localhost']));
+    same(['127.0.0.1', 'https://localhost:8080/'], servedListener($site, listenerPlan('127.0.0.1', 7000, 'localhost', 'http')));
 });
 
 test('a site URL takes the scheme and brackets an IPv6 host', function (): void {
@@ -326,8 +326,55 @@ test('the TLS source picks its snippets and their files', function (): void {
     same('https', tlsScheme(['source' => 'drupack']));
 });
 
-test('a served listener without a record is the one this start asked for', function (): void {
-    same(['127.0.0.1', 'http://localhost:7000/'], servedListener(new SiteData(scratch()), ['listen' => '127.0.0.1:7000', 'host' => 'localhost']));
+test('a served listener without a record is the one this start planned, over HTTP', function (): void {
+    same(['127.0.0.1', 'http://demo.drupack.site:7000/'],
+        servedListener(new SiteData(scratch()), listenerPlan('127.0.0.1', 7000, 'demo.drupack.site', 'https')));
+});
+
+test('a plan names the URL a reader types and the one a probe reaches', function (): void {
+    same([
+        'bind' => '127.0.0.1',
+        'port' => 7225,
+        'host' => 'demo.drupack.site',
+        'scheme' => 'https',
+        'url' => 'https://demo.drupack.site:7225/',
+        'probe' => 'https://127.0.0.1:7225/',
+    ], listenerPlan('127.0.0.1', 7225, 'demo.drupack.site', 'https'));
+});
+
+test('a plan on an IPv6 wildcard brackets its hosts and probes IPv6 loopback', function (): void {
+    $plan = listenerPlan('::', 8080, '::1', 'http');
+    same('http://[::1]:8080/', $plan['url']);
+    same('http://[::1]:8080/', $plan['probe']);
+});
+
+test('the server environment holds the listener, the caller\'s values and the TLS snippets', function (): void {
+    same([
+        'DRUPACK_RUNTIME_PORT' => '8080',
+        'DRUPACK_RUNTIME_BIND' => '::',
+        'DRUPACK_RUNTIME_ID' => 'token',
+        'DRUPACK_RUNTIME_ALIAS' => 'demo.drupack.site',
+        'DRUPACK_RUNTIME_TLS' => 'none',
+    ], serverEnvironment(listenerPlan('::', 8080, '::1', 'http'), ['source' => 'none', 'alias' => 'demo.drupack.site'],
+        ['DRUPACK_RUNTIME_ID' => 'token']));
+});
+
+test('the site environment names the plan\'s host and URL, the site\'s paths and the options given', function (): void {
+    [$options] = parse(['--db-host', 'db.test'], environment: ['DRUPACK_DATABASE' => 'mysql']);
+    same([
+        'DRUPACK_RUNTIME_DATA_DIR' => '/data',
+        'DRUPACK_RUNTIME_FILES_DIR' => '/data/files',
+        'DRUPACK_RUNTIME_HOST' => '[::1]',
+        'DRUSH_OPTIONS_URI' => 'http://[::1]:8080/',
+        'TMPDIR' => '/data/runtime',
+        'TEMP' => '/data/runtime',
+        'TMP' => '/data/runtime',
+        'XDG_DATA_HOME' => '/data/runtime',
+        'XDG_CONFIG_HOME' => '/data/runtime',
+        'DRUPACK_DATABASE' => 'mysql',
+        'DRUPACK_DB_HOST' => 'db.test',
+        'DRUPACK_SITE_NAME' => 'Fixture Site',
+    ], siteEnvironment(listenerPlan('::', 8080, '::1', 'http'), '/data', '/data/files', '/data/runtime', $options));
 });
 
 test('only a loopback address opens a browser', function (): void {

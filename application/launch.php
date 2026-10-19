@@ -291,11 +291,15 @@ function portTaken(string $bind, int $port): bool
 }
 
 // Where the running server serves, read from the record that start wrote, so a handover
-// names the address that server took rather than the one this start asked for. Returns
-// its bind address and its URL.
-function servedListener(SiteData $site, array $options): array
+// names the address that server took rather than the one this start planned. Site data
+// written before the record existed falls back to this start's plan. Returns the bind
+// address and the URL.
+function servedListener(SiteData $site, array $plan): array
 {
-    $record = $site->listener() ?? $options + ['scheme' => SiteData::UNRECORDED_SCHEME];
+    $record = $site->listener();
+    if ($record === null) {
+        return [$plan['bind'], siteUrl(SiteData::UNRECORDED_SCHEME, $plan['host'], $plan['port'])];
+    }
     [$bind, $port] = listenerParts($record['listen']);
     return [$bind, siteUrl($record['scheme'], $record['host'], $port)];
 }
@@ -319,6 +323,45 @@ function recordedFilesDirectory(array $options, ?array $record): array
 {
     $options['files-dir'] ??= $record['files-dir'] ?? null;
     return $options;
+}
+
+// What Drush and every PHP process of the site read: where its data, files and temporary
+// files live, the address it answers on, and the options the reader gave for the
+// connection and the accounts.
+function siteEnvironment(array $plan, string $data, string $files, string $runtime, array $options): array
+{
+    $environment = [
+        'DRUPACK_RUNTIME_DATA_DIR' => $data,
+        'DRUPACK_RUNTIME_FILES_DIR' => $files,
+        // Drupal matches its trusted host patterns against the request's host, which keeps
+        // an IPv6 address's brackets.
+        'DRUPACK_RUNTIME_HOST' => urlHost($plan['host']),
+        // The address a reader types, never the bind address. Without it Drupal falls back
+        // to http://default, and every printed or mailed link names an unreachable host.
+        'DRUSH_OPTIONS_URI' => $plan['url'],
+        // Caddy state and every temporary file stay beside the site they belong to.
+        'TMPDIR' => $runtime,
+        'TEMP' => $runtime,
+        'TMP' => $runtime,
+        'XDG_DATA_HOME' => $runtime,
+        'XDG_CONFIG_HOME' => $runtime,
+    ];
+    foreach ([
+        'database' => 'DRUPACK_DATABASE',
+        'db-host' => 'DRUPACK_DB_HOST',
+        'db-port' => 'DRUPACK_DB_PORT',
+        'db-name' => 'DRUPACK_DB_NAME',
+        'db-user' => 'DRUPACK_DB_USER',
+        'db-password' => 'DRUPACK_DB_PASSWORD',
+        'admin-user' => 'DRUPACK_ADMIN_USER',
+        'admin-password' => 'DRUPACK_ADMIN_PASSWORD',
+        'site-name' => 'DRUPACK_SITE_NAME',
+    ] as $option => $name) {
+        if ($options[$option] !== null) {
+            $environment[$name] = $options[$option];
+        }
+    }
+    return $environment;
 }
 
 function credentialsRequired(array $steps): bool
@@ -788,47 +831,19 @@ try {
     if ($options['files-dir'] !== null) {
         $options['files-dir'] = $files;
     }
-    putenv("DRUPACK_RUNTIME_DATA_DIR=$data");
-    putenv("DRUPACK_RUNTIME_FILES_DIR=$files");
-    // A start asks the runtime which host its URL names. `drush` addresses the host its last
-    // start served.
+    // A start serves the host and scheme the runtime chose. `drush` asks nothing, so it
+    // addresses the site where its last start served.
     $tls = $drush ? null : tlsChoice($binary, $bind, siteLabelSource(siteSettings()), $options['host']);
-    $options['host'] = $drush ? $options['host'] ?? SiteData::UNRECORDED_HOST : $tls['host'];
-    // Drupal matches its trusted host patterns against the request's host, which keeps an
-    // IPv6 address's brackets.
-    putenv('DRUPACK_RUNTIME_HOST=' . urlHost($options['host']));
-    // The address a reader types, never the bind address. Drush builds absolute URLs from this
-    // variable. Without it Drupal falls back to http://default, and every printed or mailed
-    // link names an unreachable host.
-    // `drush` addresses the site with the scheme its last start served.
-    $scheme = $drush ? $options['scheme'] ?? SiteData::UNRECORDED_SCHEME : tlsScheme($tls);
-    $url = siteUrl($scheme, $options['host'], $port);
-    putenv("DRUSH_OPTIONS_URI=$url");
+    $plan = $drush
+        ? listenerPlan($bind, $port, $options['host'] ?? SiteData::UNRECORDED_HOST, $options['scheme'] ?? SiteData::UNRECORDED_SCHEME)
+        : listenerPlan($bind, $port, $tls['host'], tlsScheme($tls));
     $logPath = $site->logs() . '/caddy.log';
     $runtime = canonical(realpath($site->runtime()));
     if ($drush) {
         useTlsBundle($runtime);
     }
-    // Caddy state and every temporary file stay beside the site they belong to.
-    putenv("TMPDIR=$runtime");
-    putenv("TEMP=$runtime");
-    putenv("TMP=$runtime");
-    putenv("XDG_DATA_HOME=$runtime");
-    putenv("XDG_CONFIG_HOME=$runtime");
-    foreach ([
-        'database' => 'DRUPACK_DATABASE',
-        'db-host' => 'DRUPACK_DB_HOST',
-        'db-port' => 'DRUPACK_DB_PORT',
-        'db-name' => 'DRUPACK_DB_NAME',
-        'db-user' => 'DRUPACK_DB_USER',
-        'db-password' => 'DRUPACK_DB_PASSWORD',
-        'admin-user' => 'DRUPACK_ADMIN_USER',
-        'admin-password' => 'DRUPACK_ADMIN_PASSWORD',
-        'site-name' => 'DRUPACK_SITE_NAME',
-    ] as $option => $environment) {
-        if ($options[$option] !== null) {
-            putenv("$environment={$options[$option]}");
-        }
+    foreach (siteEnvironment($plan, $data, $files, $runtime, $options) as $name => $value) {
+        putenv("$name=$value");
     }
     // Both questions are asked before the listener record and every install step, so a
     // served site and a taken port each reach their reader as a sentence rather than as
@@ -843,7 +858,7 @@ try {
             if (!$site->installed()) {
                 throw new RuntimeException("Another " . executableName() . " start is preparing this Site data: $data");
             }
-            [$servedBind, $served] = servedListener($site, $options);
+            [$servedBind, $served] = servedListener($site, $plan);
             if (personPresent()) {
                 handOver($binary, $served, $data, $options['no-browser'] === null && loopback($servedBind));
             }
@@ -855,11 +870,11 @@ try {
         }
         $serving->detach($options['foreground'] !== null,
             stopCommand($written === DEFAULT_DATA_DIR ? '' : ' --data-dir ' . shellWord($written)), array_slice($argv, 1));
-        $site->recordListener($options['listen'], $options['host'], $options['files-dir'], $scheme);
+        $site->recordListener($options['listen'], $plan['host'], $options['files-dir'], $plan['scheme']);
         storeTlsBundle($tls, $runtime);
     }
     if (siteSettings()['mercure']) {
-        exportMercure($site->mercurePublisherSecret(), $site->mercureSubscriberSecret(), mercureUrl($scheme, $bind, $port), $drush);
+        exportMercure($site->mercurePublisherSecret(), $site->mercureSubscriberSecret(), mercureUrl($plan['scheme'], $bind, $port), $drush);
     }
     if (siteSettings()['writable'] !== []) {
         useSiteApplication($site, $drush);
@@ -903,7 +918,7 @@ try {
     // it and every other start serve without the link.
     fwrite(STDOUT, "Creating a one-time login link.\n");
     try {
-        $link = loginLink($binary, $url, '/admin/dashboard');
+        $link = loginLink($binary, $plan['url'], '/admin/dashboard');
     } catch (LoginLinkFailure $failure) {
         if (credentialsRequired($steps) && !$adopted) {
             throw $failure;
@@ -913,7 +928,7 @@ try {
     }
     // The addresses and paths only, never a readiness claim: the server binds after this
     // process execs into it, so the process that answers a request announces that itself.
-    $details = "  URL:       $url\n" . ($link === null ? '' : "  Login:     $link\n");
+    $details = "  URL:       {$plan['url']}\n" . ($link === null ? '' : "  Login:     $link\n");
     fwrite(STDOUT, $details . "  Site data: $data\n  Log:       $logPath\n");
     // A start with a terminal on standard input opens the browser for the person who ran
     // it, first start or later. A script, a container and a test have none, so they get
@@ -925,16 +940,14 @@ try {
             . " Sign in from another computer only through a TLS proxy.\n");
     }
     fwrite(STDOUT, nameHint($tls) . tlsHint($tls));
-    openWhenServing(siteUrl($scheme, probeHost($bind), $port), $link, $browser);
+    openWhenServing($plan['probe'], $link, $browser);
     // Every step that needed the administrator password has run. The server inherits
     // this environment and passes it to every process it starts, including PHP code a
     // site runs, so the credential stops here.
     putenv('DRUPACK_ADMIN_PASSWORD');
     fwrite(STDOUT, "Starting the web server.\n");
     // The Caddyfile the application ships is fixed, and Caddy fills its values from this environment.
-    exportServerEnvironment([
-        'DRUPACK_RUNTIME_PORT' => (string) $port,
-        'DRUPACK_RUNTIME_BIND' => $bind,
+    exportServerEnvironment(serverEnvironment($plan, $tls, [
         'DRUPACK_RUNTIME_ID' => siteToken($data),
         // Absolute, because FrankenPHP resolves a relative docroot against the directory
         // its process started in, which on Unix is the shared application whatever the
@@ -942,7 +955,7 @@ try {
         'DRUPACK_RUNTIME_DOCROOT' => application() . '/' . siteSettings()['docroot'],
         'DRUPACK_RUNTIME_LOG_PATH' => $logPath,
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
-    ] + mercureServerEnvironment(siteSettings()['mercure'], $data) + tlsServerEnvironment($tls));
+    ] + mercureServerEnvironment(siteSettings()['mercure'], $data)));
     replaceProcess($binary, ['php-server', application() . '/Caddyfile'], application(), 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
