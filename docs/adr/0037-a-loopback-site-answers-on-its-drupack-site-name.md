@@ -15,11 +15,12 @@ with `127.0.0.1`, as `*.ddev.site` does for DDEV.
 
 ## Decision
 
-- Each site has a name, `<label>.drupack.site`:
+- Each site has a Site host, `<label>.drupack.site`:
   - a Packaged site takes its label from `name` in `drupack.yml`
-  - an engine start takes the folder's name
+  - an engine start takes the Project folder's name
   - the label is lowercased, every character outside `[a-z0-9-]` becomes `-`,
-    and it is cut to 63 characters; an empty label becomes `site`
+    it is cut to 63 characters, and dashes at either end are dropped; an empty
+    label becomes `site`
 - The runtime's `tls-source` word decides the host and the TLS source in one
   answer. `launch.php` and `serve.php` pass the bind and the label source, and
   read the answer.
@@ -29,7 +30,7 @@ with `127.0.0.1`, as `*.ddev.site` does for DDEV.
      name with `127.0.0.1` within one second.
   3. Otherwise `localhost` for a Packaged site and the bind address for the
      engine. A start that tried the name prints one line naming the answer.
-- The listener record keeps the chosen host, so `drush` and a handover use it.
+- The Listener record keeps the chosen host, so `drush` and a handover use it.
 - Caddy serves the name beside `localhost`, `127.0.0.1` and `[::1]`, whichever
   host the URL names, and `settings.php` trusts it.
 - HTTPS covers the name. The Drupack root's name constraint permits
@@ -50,5 +51,5 @@ with `127.0.0.1`, as `*.ddev.site` does for DDEV.
 - A root made before this change cannot vouch for the name. No released root
   exists, so nothing migrates one: `trust --uninstall`, then `trust`, makes a new
   one.
-- An engine folder whose own settings restrict trusted hosts must allow the
+- A Project folder whose own settings restrict trusted hosts must allow the
   name, for example with `^.+\.drupack\.site$`.

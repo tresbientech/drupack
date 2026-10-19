@@ -137,7 +137,7 @@ Useful options:
 
 - `--data-dir PATH` puts Site data somewhere else. `DRUPACK_DATA_DIR` sets a default.
 - `--listen IP:PORT` serves on another address, `127.0.0.1:7225` by default. Each start records its address in Site data, so `drush` reaches the site without repeating the option.
-- `--host HOST` names the address readers type, the site's `drupack.site` name or `localhost` by default. An IPv6 address works too, such as `--host ::1`.
+- `--host HOST` names the address readers type, its `drupack.site` host or `localhost` by default. An IPv6 address works too, such as `--host ::1`.
 - `--site-name NAME` names the site on a first start, `Drupacked Demo` by default. `DRUPACK_SITE_NAME` sets it too. A later start never renames a site.
 - `--no-browser` starts without opening a browser.
 - `drupacked-demo --version` prints the release and the release of each component it carries: FrankenPHP, PHP, Caddy, SQLite, Node, Drupal core and Drush. `drupacked-demo --help` lists every option.

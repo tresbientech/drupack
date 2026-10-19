@@ -205,7 +205,7 @@ function administratorCredentials(array $options, array $steps): array
 
 // The server process waits for its own first response, prints the readiness line and opens
 // the browser when asked. A request spends a one-time login link, so readiness is polled on
-// $url and the browser opens on $target. $target is a working credential for uid 1, so it
+// $url, the bind's own address, and the browser opens on $target. $target is a working credential for uid 1, so it
 // enters the serving process's environment only when a browser will actually spend it: any
 // PHP running inside that process can otherwise read it through getenv, $_ENV or phpinfo.
 function openWhenServing(string $url, ?string $target, bool $browser): void
@@ -917,7 +917,7 @@ try {
             . " Sign in from another computer only through a TLS proxy.\n");
     }
     fwrite(STDOUT, nameHint($tls) . tlsHint($tls));
-    openWhenServing($url, $link, $browser);
+    openWhenServing(siteUrl($scheme, probeHost($bind), $port), $link, $browser);
     // Every step that needed the administrator password has run. The server inherits
     // this environment and passes it to every process it starts, including PHP code a
     // site runs, so the credential stops here.

@@ -121,7 +121,7 @@ class TlsSources(harness.ConformanceCase):
         bundle.write_text("".join(Path(root).read_text() for root in trusted))
         return trusted_environment(tls_dir, bundle)
 
-    def start(self, root, trusted, mkcert=None, name="site", bind="127.0.0.1", answer="none"):
+    def start(self, root, trusted, mkcert=None, name="site", bind="127.0.0.1", answer="none", options=()):
         tls_dir = self.root.parent if root else self.case_dir / "tls"
         system = [self.root] if trusted else []
         served = self.root if trusted and bind == "127.0.0.1" else None
@@ -134,7 +134,7 @@ class TlsSources(harness.ConformanceCase):
         if mkcert is not None:
             env["PATH"] = f"{mkcert}{os.pathsep}{env['PATH']}"
         site = harness.Site(harness.BINARY, self.case_dir / name, root=served)
-        site.start(self.data, bind=bind, env=env)
+        site.start(self.data, *options, bind=bind, env=env)
         self.addCleanup(site.stop)
         return site
 
@@ -160,6 +160,20 @@ class TlsSources(harness.ConformanceCase):
         site = self.start(root=False, trusted=False, mkcert=stub, answer="127.0.0.1")
         self.assertIn(f"URL:       https://{alias}:{site.port}/", site.log_path.read_text(errors="replace"))
         self.assertEqual(fetch_by_name(alias, site.port, stub.parent / "caroot" / "rootCA.pem"), b"200")
+
+    def test_drush_addresses_the_name_its_last_start_served(self):
+        alias = f"{harness.SITE['name'].replace('.', '-')}.drupack.site"
+        site = self.start(root=False, trusted=False, answer="127.0.0.1")
+        site.stop()
+        login = harness.run_drush(harness.BINARY, self.case_dir, self.data, "user:login")
+        self.assertEqual(login.returncode, 0, login.stderr)
+        self.assertTrue(login.stdout.strip().startswith(f"http://{alias}:{site.port}/user/reset/"), login.stdout)
+
+    def test_host_localhost_keeps_localhost_when_the_name_resolves(self):
+        site = self.start(root=False, trusted=False, answer="127.0.0.1", options=("--host", "localhost"))
+        log = site.log_path.read_text(errors="replace")
+        self.assertIn(f"URL:       http://localhost:{site.port}/", log)
+        self.assertNotIn("did not resolve", log)
 
     def test_a_name_the_resolver_filters_falls_back_to_localhost(self):
         site = self.start(root=False, trusted=False, answer="0.0.0.0")

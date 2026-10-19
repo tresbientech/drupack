@@ -292,7 +292,7 @@ func writeTLSSource(out io.Writer, dir string, args []string) error {
 	flags := flag.NewFlagSet("tls-source", flag.ContinueOnError)
 	bind := flags.String("bind", "", "the address the server listens on")
 	name := flags.String("name", "", "the packed site's name")
-	folder := flags.String("folder", "", "the served folder's name")
+	folder := flags.String("folder", "", "the Project folder's name")
 	host := flags.String("host", "", "the host the reader asked for")
 	if err := flags.Parse(args); err != nil {
 		return err

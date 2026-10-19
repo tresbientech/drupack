@@ -80,6 +80,10 @@ The Drupack and Drupal versions that last served a Site data directory.
 **Listener record**:
 The listen address, permitted host and scheme the last start served, and the Files directory it named, held in Site data.
 
+**Site host**:
+A site's own host name, `<label>.drupack.site`, whose public DNS answers `127.0.0.1`. The label comes from the Site contract's name or the Project folder's name. A start's URL names it when the resolver answers it with `127.0.0.1`.
+_Avoid_: site name (the Drupal site's title)
+
 **Database backend**:
 SQLite, MySQL, or PostgreSQL, selected when a Packaged site first starts. It stores the structured part of Site data.
 
