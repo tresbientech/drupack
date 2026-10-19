@@ -782,10 +782,10 @@ try {
     }
     putenv("DRUPACK_RUNTIME_DATA_DIR=$data");
     putenv("DRUPACK_RUNTIME_FILES_DIR=$files");
-    // A start asks the runtime which host its URL names. `drush` addresses the site where its
-    // last start served, and Site data no start served yet on localhost.
+    // A start asks the runtime which host its URL names. `drush` addresses the host its last
+    // start served.
     $tls = $drush ? null : tlsChoice($binary, $bind, ['--name', executableName()], $options['host']);
-    $options['host'] = $drush ? $options['host'] ?? 'localhost' : $tls['host'];
+    $options['host'] = $drush ? $options['host'] ?? SiteData::UNRECORDED_HOST : $tls['host'];
     // Drupal matches its trusted host patterns against the request's host, which keeps an
     // IPv6 address's brackets.
     putenv('DRUPACK_RUNTIME_HOST=' . urlHost($options['host']));

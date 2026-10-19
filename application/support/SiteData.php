@@ -23,6 +23,8 @@ final class SiteData
     // port it actually uses, and keeps the files directory the last start named.
     // The scheme of a site no record names, from a release that served HTTP alone.
     public const UNRECORDED_SCHEME = 'http';
+    // The host `drush` addresses on Site data no start has served yet.
+    public const UNRECORDED_HOST = 'localhost';
     private const LISTENER = 'listener';
 
     public function __construct(public readonly string $directory)

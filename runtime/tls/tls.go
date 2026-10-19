@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,9 +36,13 @@ const (
 	rootKeyName         = "root.key"
 )
 
-// mkcertNames are the hosts tls-mkcert-site.caddy and tls-drupack-site.caddy name, the
-// site's drupack.site name among them.
-var mkcertNames = []string{"localhost", "127.0.0.1", "::1", "*." + siteDomain}
+// loopbackNames are the hosts tls-mkcert-site.caddy and tls-drupack-site.caddy name beside
+// the site's drupack.site name.
+var loopbackNames = []string{"localhost", "127.0.0.1", "::1"}
+
+// mkcertNames are the names mkcert's certificate covers: loopbackNames and every
+// drupack.site name.
+var mkcertNames = append(slices.Clone(loopbackNames), "*."+siteDomain)
 
 // siteDomain is the zone whose wildcard record answers 127.0.0.1 for every label.
 const siteDomain = "drupack.site"
@@ -306,7 +311,7 @@ func writeTLSSource(out io.Writer, dir string, args []string) error {
 		chosen, reason = chooseHost(context.Background(), lookup, alias, *bind, fallback)
 	}
 	loopback := *bind == "::1" || strings.HasPrefix(*bind, "127.")
-	eligible := loopback && (chosen == alias || chosen == "localhost" || chosen == "127.0.0.1" || chosen == "::1")
+	eligible := loopback && (chosen == alias || slices.Contains(loopbackNames, chosen))
 	choice := tlsChoice{Source: "none"}
 	if eligible {
 		var err error
@@ -456,8 +461,8 @@ func mkcertSource(dir string, roots *x509.CertPool, host, alias string) (choice 
 
 // current reports whether the certificate and key mkcert wrote exist, chain to the
 // root mkcert holds now for alias, and outlive mkcertRenewal. A recreated mkcert root
-// makes every earlier certificate stale, and so does one written before mkcertNames
-// held drupack.site.
+// makes every earlier certificate stale, and a certificate that does not cover alias
+// is stale too.
 func current(choice tlsChoice, alias string) bool {
 	if _, err := os.Stat(choice.Key); err != nil {
 		return false
