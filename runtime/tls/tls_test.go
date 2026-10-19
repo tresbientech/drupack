@@ -111,13 +111,16 @@ func TestTheRootCannotVouchForAnotherSite(t *testing.T) {
 	if !root.PermittedDNSDomainsCritical {
 		t.Fatal("the name constraint is not critical")
 	}
+	if len(root.ExtKeyUsage) != 1 || root.ExtKeyUsage[0] != x509.ExtKeyUsageServerAuth {
+		t.Fatalf("root extended key usage = %v, want server authentication alone", root.ExtKeyUsage)
+	}
 	roots := pool(t, dir)
 	for _, name := range []string{"localhost", "site.localhost"} {
-		if !verifies(root, key, roots, name) {
+		if ok, err := verifies(root, key, roots, name); err != nil || !ok {
 			t.Fatalf("%s did not verify", name)
 		}
 	}
-	if verifies(root, key, roots, "example.com") {
+	if ok, err := verifies(root, key, roots, "example.com"); err != nil || ok {
 		t.Fatal("a certificate for example.com verified under the root")
 	}
 }
@@ -146,29 +149,43 @@ func TestUninstallWithoutARootChangesNothing(t *testing.T) {
 	}
 }
 
-// stubMkcert puts an mkcert on PATH that logs its arguments and writes a certificate
-// valid for validFor. It returns the log's path and the CAROOT it reports.
-func stubMkcert(t *testing.T, validFor time.Duration, withRoot bool) (string, string) {
-	bin, caroot, work := t.TempDir(), t.TempDir(), t.TempDir()
-	if withRoot {
-		if err := os.WriteFile(filepath.Join(caroot, "rootCA.pem"), []byte("stub"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
+// stubCertificate writes a self-signed certificate for localhost valid for validFor. It
+// stands in for both mkcert's root and the certificate mkcert writes under it.
+func stubCertificate(t *testing.T, validFor time.Duration) string {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	template := &x509.Certificate{SerialNumber: big.NewInt(1), NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(validFor)}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		DNSNames:     []string{"localhost"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(validFor),
+	}
 	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
 	if err != nil {
 		t.Fatal(err)
 	}
-	certificate := filepath.Join(work, "cert.pem")
-	if err := os.WriteFile(certificate, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o644); err != nil {
+	path := filepath.Join(t.TempDir(), "cert.pem")
+	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	log := filepath.Join(work, "calls")
+	return path
+}
+
+type stub struct {
+	log, caroot, certificate string
+}
+
+// stubMkcert puts an mkcert on PATH that logs its arguments and writes a certificate
+// valid for validFor, which is also its root when withRoot is set.
+func stubMkcert(t *testing.T, validFor time.Duration, withRoot bool) stub {
+	bin, caroot := t.TempDir(), t.TempDir()
+	certificate := stubCertificate(t, validFor)
+	if withRoot {
+		copyFile(t, certificate, filepath.Join(caroot, "rootCA.pem"))
+	}
+	log := filepath.Join(t.TempDir(), "calls")
 	script := "#!/bin/sh\necho \"$@\" >> " + log + "\n" +
 		"if [ \"$1\" = -CAROOT ]; then echo " + caroot + "; exit 0; fi\n" +
 		"cp " + certificate + " \"$2\" && echo key > \"$4\"\n"
@@ -177,7 +194,30 @@ func stubMkcert(t *testing.T, validFor time.Duration, withRoot bool) (string, st
 	}
 	// The stub comes first, ahead of any real mkcert, and its cp and echo after it.
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+"/usr/bin"+string(os.PathListSeparator)+"/bin")
-	return log, caroot
+	return stub{log: log, caroot: caroot, certificate: certificate}
+}
+
+func copyFile(t *testing.T, from, to string) {
+	data, err := os.ReadFile(from)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(to, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// trusting is a system trust store holding each certificate file.
+func trusting(t *testing.T, files ...string) *x509.CertPool {
+	roots := x509.NewCertPool()
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		roots.AppendCertsFromPEM(data)
+	}
+	return roots
 }
 
 func calls(t *testing.T, log string) []string {
@@ -193,21 +233,21 @@ func TestMkcertComesBeforeATrustedRoot(t *testing.T) {
 	if err := newRoot(dir); err != nil {
 		t.Fatal(err)
 	}
-	log, caroot := stubMkcert(t, 800*24*time.Hour, true)
-	choice, err := tlsSource(dir, pool(t, dir))
+	mkcert := stubMkcert(t, 800*24*time.Hour, true)
+	choice, err := tlsSource(dir, trusting(t, filepath.Join(dir, rootCertificateName), mkcert.certificate))
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := tlsChoice{
 		Source:      "mkcert",
-		Root:        filepath.Join(caroot, "rootCA.pem"),
+		Root:        filepath.Join(mkcert.caroot, "rootCA.pem"),
 		Certificate: filepath.Join(dir, "mkcert", "localhost.pem"),
 		Key:         filepath.Join(dir, "mkcert", "localhost-key.pem"),
 	}
 	if choice != want {
 		t.Fatalf("choice = %+v, want %+v", choice, want)
 	}
-	got := calls(t, log)
+	got := calls(t, mkcert.log)
 	wantCalls := []string{"-CAROOT", "-cert-file " + want.Certificate + " -key-file " + want.Key + " localhost 127.0.0.1 ::1"}
 	if strings.Join(got, "|") != strings.Join(wantCalls, "|") {
 		t.Fatalf("mkcert ran %q, want %q", got, wantCalls)
@@ -216,27 +256,56 @@ func TestMkcertComesBeforeATrustedRoot(t *testing.T) {
 
 func TestACurrentMkcertCertificateIsKept(t *testing.T) {
 	dir := t.TempDir()
-	log, _ := stubMkcert(t, 800*24*time.Hour, true)
+	mkcert := stubMkcert(t, 800*24*time.Hour, true)
 	for range 2 {
-		if _, err := tlsSource(dir, nil); err != nil {
+		if _, err := tlsSource(dir, trusting(t, mkcert.certificate)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if n := len(calls(t, log)); n != 3 {
+	if n := len(calls(t, mkcert.log)); n != 3 {
 		t.Fatalf("mkcert ran %d times, want -CAROOT twice and one certificate", n)
 	}
 }
 
 func TestAnMkcertCertificateNearExpiryIsWrittenAgain(t *testing.T) {
 	dir := t.TempDir()
-	log, _ := stubMkcert(t, 10*24*time.Hour, true)
+	mkcert := stubMkcert(t, 10*24*time.Hour, true)
 	for range 2 {
-		if _, err := tlsSource(dir, nil); err != nil {
+		if _, err := tlsSource(dir, trusting(t, mkcert.certificate)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if n := len(calls(t, log)); n != 4 {
+	if n := len(calls(t, mkcert.log)); n != 4 {
 		t.Fatalf("mkcert ran %d times, want a certificate on both starts", n)
+	}
+}
+
+// A recreated mkcert root leaves the earlier certificate chaining to nothing.
+func TestAnMkcertCertificateFromAnEarlierRootIsWrittenAgain(t *testing.T) {
+	dir := t.TempDir()
+	mkcert := stubMkcert(t, 800*24*time.Hour, true)
+	if _, err := tlsSource(dir, trusting(t, mkcert.certificate)); err != nil {
+		t.Fatal(err)
+	}
+	copyFile(t, stubCertificate(t, 800*24*time.Hour), filepath.Join(mkcert.caroot, "rootCA.pem"))
+	if _, err := tlsSource(dir, trusting(t, mkcert.certificate)); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(calls(t, mkcert.log)); n != 4 {
+		t.Fatalf("mkcert ran %d times, want a certificate after the root changed", n)
+	}
+}
+
+// mkcert's root exists before `mkcert -install` trusts it.
+func TestAnUntrustedMkcertRootFallsThroughToTheDrupackRoot(t *testing.T) {
+	dir := t.TempDir()
+	if err := newRoot(dir); err != nil {
+		t.Fatal(err)
+	}
+	stubMkcert(t, 800*24*time.Hour, true)
+	choice, err := tlsSource(dir, pool(t, dir))
+	if err != nil || choice.Source != "drupack" {
+		t.Fatalf("choice = %+v, %v, want drupack", choice, err)
 	}
 }
 

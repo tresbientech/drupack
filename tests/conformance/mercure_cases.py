@@ -242,6 +242,14 @@ class MercureHubHttps(harness.ConformanceCase):
                              cwd=self.class_dir, capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
         self.assertEqual(result.stdout.strip(), f"https://127.0.0.1:{self.site.port}{HUB}", result.stderr)
 
+    def test_drush_reaches_the_https_hub(self):
+        # 401 means curl verified the site's certificate and the hub asked for a token.
+        code = ("$c = curl_init(getenv('DRUPACK_MERCURE_URL')); curl_setopt($c, CURLOPT_RETURNTRANSFER, true);"
+                " curl_exec($c); echo curl_errno($c) . ' ' . curl_getinfo($c, CURLINFO_HTTP_CODE);")
+        result = harness.run([str(harness.BINARY), "drush", "--data-dir", str(self.data), "php:eval", code],
+                             cwd=self.class_dir, capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
+        self.assertEqual(result.stdout.strip(), "0 401", result.stderr)
+
     def test_a_subscriber_over_https_receives_what_a_request_publishes(self):
         secret = (self.data / "mercure_subscriber_secret").read_text()
         stream = Stream(self.site.port, token(secret, self.site.port, "subscribe", "https"), context=self.context)

@@ -104,14 +104,18 @@ A start serves HTTPS when its bind is loopback, its host is `localhost`,
 `127.0.0.1` or `::1`, and the machine trusts one of two roots. It checks them
 in order:
 
-1. mkcert's, when `mkcert` is on `PATH` and `mkcert -CAROOT` holds
-   `rootCA.pem`. The start runs mkcert to write a certificate for the three
-   names into `DRUPACK_TLS_DIR/mkcert`, and again when it nears expiry.
+1. mkcert's, when `mkcert` is on `PATH`, `mkcert -CAROOT` holds `rootCA.pem`,
+   and `mkcert -install` made the machine trust it. The start runs mkcert to
+   write a certificate for the three names into `DRUPACK_TLS_DIR/mkcert`, and
+   again when it nears expiry or mkcert's root changes.
 2. The Drupack root, once `SITE trust` or `drupack trust` installed it.
 
 Any other start serves HTTP. A loopback start on HTTP prints a line naming
 `trust`. The printed URL, the login link, `drush` and the Mercure hub's address
-all use the scheme the start served.
+all use the scheme the start served. PHP verifies HTTPS against
+`DRUPACK_CA_FILE`, so an HTTPS start writes that bundle plus its own root into
+`ca-bundle.pem` beside the server's state, and points the server, cron and
+`drush` at it.
 
 `trust` creates the Drupack root on first use, in `DRUPACK_TLS_DIR`, and
 installs it in the system's trust store and in Firefox's NSS databases. It
@@ -124,8 +128,8 @@ prints one line per store:
 
 `trust --uninstall` removes the root from both stores and deletes it. One root
 serves every Drupack site and engine start of your account. It can vouch only
-for `localhost`, its subdomains, `127.0.0.0/8` and `::1`, so its key cannot
-sign a certificate a browser accepts for another site. Chromium and Firefox
+for TLS servers named `localhost`, its subdomains, `127.0.0.0/8` or `::1`, so
+its key cannot sign a certificate a browser accepts for another site. Chromium and Firefox
 enforce that limit; Drupack has not checked Safari or Edge.
 
 ## A first start

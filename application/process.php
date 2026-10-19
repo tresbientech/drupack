@@ -299,7 +299,7 @@ const TLS_HOSTS = ['localhost', '127.0.0.1', '::1'];
 // answer, which reads the user's local root. Anything else serves plain HTTP.
 function tlsChoice(string $binary, string $bind, string $host): array
 {
-    if (!loopback($bind) || !in_array($host, TLS_HOSTS, true)) {
+    if (!tlsEligible($bind, $host)) {
         return ['source' => 'none'];
     }
     $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => STDERR];
@@ -315,11 +315,43 @@ function tlsChoice(string $binary, string $bind, string $host): array
     return json_decode((string) $output, true, flags: JSON_THROW_ON_ERROR);
 }
 
-// The line a start prints when `trust` would move it to HTTPS, or null.
-function tlsHint(array $choice, string $bind, string $host): ?string
+// Whether a start on $bind addressed as $host can serve HTTPS from a local root.
+function tlsEligible(string $bind, string $host): bool
 {
-    if ($choice['source'] !== 'none' || !loopback($bind) || !in_array($host, TLS_HOSTS, true)) {
-        return null;
+    return loopback($bind) && in_array($host, TLS_HOSTS, true);
+}
+
+// PHP verifies HTTPS against DRUPACK_CA_FILE, which holds public roots alone. A site
+// served over HTTPS keeps that bundle plus its own root here, in $directory, so Drush and
+// cron reach the site's own hub.
+const TLS_BUNDLE = 'ca-bundle.pem';
+
+// Writes the bundle for $choice into $directory and points this process's children at it.
+function exportTlsBundle(array $choice, string $directory): void
+{
+    $bundle = "$directory/" . TLS_BUNDLE;
+    $roots = file_get_contents(getenv('DRUPACK_CA_FILE')) . "\n" . file_get_contents($choice['root']);
+    if (file_put_contents($bundle, $roots) !== strlen($roots)) {
+        throw new RuntimeException("Cannot write $bundle");
+    }
+    putenv("DRUPACK_CA_FILE=$bundle");
+}
+
+// Points Drush at the bundle the last HTTPS start wrote into $directory. A site that never
+// served HTTPS has none, and keeps the public roots.
+function useTlsBundle(string $directory): void
+{
+    if (is_file("$directory/" . TLS_BUNDLE)) {
+        putenv("DRUPACK_CA_FILE=$directory/" . TLS_BUNDLE);
+    }
+}
+
+// The line a start prints when `trust` would move it to HTTPS, or ''.
+function tlsHint(array $choice, string $bind, string $host): string
+{
+    // An account with no config folder has nowhere to keep a root, so `trust` cannot help.
+    if ($choice['source'] !== 'none' || !tlsEligible($bind, $host) || environment('DRUPACK_TLS_DIR') === null) {
+        return '';
     }
     return 'HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n";
 }

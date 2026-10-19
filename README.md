@@ -38,7 +38,7 @@ vendor/bin/drupack-install
 
 `drupack self-update` replaces an install-script copy with the newest release, after checking its SHA-256. `drupack self-update --check` reports the newest release and changes nothing. A run names a newer release in one line, from a check made once a day in the background. `DRUPACK_NO_UPDATE_CHECK=1` turns that check off. A Composer copy updates through `composer update drupal/drupack`, then `vendor/bin/drupack-install`.
 
-`drupack` serves the project in the working directory, or in the directory you name after it. It serves Drupal alone, and refuses a folder without Drupal core. It reads the docroot from the scaffold web root in `composer.json`, `web` by default. It prints a one-time login link through the project's Drush, returns the prompt once the project answers on `http://127.0.0.1:3787`, and keeps serving in the background. `drupack stop` ends it, and `--foreground` serves in the terminal instead. A project without Drush serves with no link. `--listen IP:PORT` picks another address.
+`drupack` serves the project in the working directory, or in the directory you name after it. It serves Drupal alone, and refuses a folder without Drupal core. It reads the docroot from the scaffold web root in `composer.json`, `web` by default. It prints a one-time login link through the project's Drush, returns the prompt once the project answers on `http://127.0.0.1:3787`, or `https://` once [HTTPS](#https) is set up, and keeps serving in the background. `drupack stop` ends it, and `--foreground` serves in the terminal instead. A project without Drush serves with no link. `--listen IP:PORT` picks another address.
 
 The project's own `settings.php` names the database, the files paths and the hash salt. Drupack writes nothing into the project, and Drupal writes files where those settings put them. For a ddev project, point `settings.local.php` at the database's published port on `127.0.0.1`. The ddev host name `db` resolves only inside ddev.
 
@@ -152,7 +152,7 @@ Run this once, and every Drupack site on your computer serves `https://localhost
 ./drupacked-demo trust
 ```
 
-It installs a local root that can vouch only for loopback addresses, and may ask for your password. A machine with [mkcert](https://github.com/FiloSottile/mkcert) installed, as DDEV sets up, serves HTTPS with no command. `trust --uninstall` removes the root. [The command line reference](docs/cli.md#https) has the details.
+It installs a local root that can vouch only for web servers on loopback addresses, and may ask for your password. A machine where [mkcert](https://github.com/FiloSottile/mkcert) is installed and trusted, as DDEV sets up, serves HTTPS with no command. `trust --uninstall` removes the root. [The command line reference](docs/cli.md#https) has the details.
 
 ### Serving other computers
 
@@ -266,7 +266,7 @@ The agent registers itself, then sends you to the site to sign in and approve it
 
 Each site generates its own OAuth key pair on its first served request, and keeps it in Site data under `oauth-keys`.
 
-An agent that refuses plain HTTP takes `https://localhost:7225/mcp` once the site serves [HTTPS](#https). A hosted connector, such as the ones in claude.ai, calls from its vendor's servers and cannot reach `localhost`.
+An agent that requires HTTPS takes `https://localhost:7225/mcp` once the site serves [HTTPS](#https). A hosted connector, such as the ones in claude.ai, calls from its vendor's servers and cannot reach `localhost`.
 
 ## Updates
 

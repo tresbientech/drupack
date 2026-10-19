@@ -13,10 +13,11 @@ its own store.
 
 - A start on a loopback bind, addressed as `localhost`, `127.0.0.1` or `::1`,
   serves HTTPS from the first root the machine trusts:
-  1. mkcert, when `mkcert` is on PATH and `mkcert -CAROOT` holds `rootCA.pem`.
+  1. mkcert, when `mkcert` is on PATH, `mkcert -CAROOT` holds `rootCA.pem`,
+     and the certificate mkcert writes verifies against the system's roots.
      Drupack runs mkcert to write a certificate for the three names and never
-     opens mkcert's root key. A certificate within 30 days of expiry is written
-     again.
+     opens mkcert's root key. A certificate within 30 days of expiry, or one
+     an earlier mkcert root signed, is written again.
   2. The Drupack root, when a certificate it signs for `localhost` verifies
      against the system's roots. Caddy's pki app signs from it and rotates its
      own intermediate and site certificates.
@@ -27,6 +28,8 @@ its own store.
   A Packaged site and the engine run the same command.
 - The Drupack root is ECDSA P-256 and valid 10 years. Its critical name
   constraint permits `localhost` and its subdomains, `127.0.0.0/8` and `::1`.
+  Its extended key usage is server authentication alone, since name
+  constraints leave code signing and mail unbound.
   One root serves every site of the user account, in `DRUPACK_TLS_DIR`.
 - The listener record keeps the scheme a start served, which `drush` and a
   handover use.
@@ -36,7 +39,8 @@ its own store.
 - No start asks for a password. Only `trust` writes a trust store.
 - A Site data moving from HTTP to HTTPS signs its reader in once, since Drupal
   names its session cookie per scheme.
-- PHP verifies HTTPS against `DRUPACK_CA_FILE`, which holds no local root, so a
-  request from the site to itself over HTTPS fails verification.
+- PHP verifies HTTPS against `DRUPACK_CA_FILE`. An HTTPS start writes that
+  bundle plus its served root into `ca-bundle.pem` and exports it to the
+  server, cron and `drush`, so they reach the site's own hub.
 - `--host` with any other name keeps HTTP. On-demand issuance would cover it but
   would let any page make Caddy sign certificates into Site data.

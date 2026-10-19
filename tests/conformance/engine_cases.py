@@ -10,6 +10,7 @@ import json
 import os
 import shlex
 import shutil
+import ssl
 import stat
 import subprocess
 import threading
@@ -22,6 +23,7 @@ from urllib.request import urlopen
 import harness
 import version_cases
 from mercure_cases import HUB, TOPIC, Stream, token
+from tls_cases import trusted_environment, write_root
 
 SETTINGS = """<?php
 $databases['default']['default'] = [
@@ -130,6 +132,28 @@ class EngineExecutable(harness.ConformanceCase):
             for path in self.project.rglob("*")
             if not path.is_relative_to(self.files) and not path.is_dir()
         }
+
+    def test_a_trusted_root_serves_the_folder_over_https(self):
+        # SSL_CERT_FILE stands in for the system trust store on Linux alone.
+        if harness.current_platform() != harness.LINUX or shutil.which("openssl") is None:
+            self.skipTest("needs Linux and openssl")
+        case_dir = self.class_dir / "https"
+        root = write_root(case_dir / "tls")
+        port = harness.pick_port()
+        log = case_dir / "start.log"
+        with open(log, "wb") as handle:
+            process = harness.popen(
+                [str(self.engine), str(self.project), "--foreground", "--listen", f"127.0.0.1:{port}"],
+                cwd=self.class_dir, env=trusted_environment(root.parent, root), stdout=handle,
+                stderr=subprocess.STDOUT, start_new_session=True)
+        self.addCleanup(harness.stop_process, process, harness.WAITS["stop"].seconds, f": inspect {log}")
+        # The ready line follows the probe, which verifies https://127.0.0.1, an address with no SNI.
+        harness.wait_for_line(log, 0, "drupack is ready", harness.WAITS["start"].seconds)
+        context = ssl.create_default_context(cafile=str(root))
+        with urlopen(f"https://127.0.0.1:{port}/user/login", context=context,
+                     timeout=harness.WAITS["http_request"].seconds) as response:
+            self.assertEqual(response.status, 200)
+        self.assertIn(f"URL:     https://127.0.0.1:{port}\n", log.read_text(errors="replace"))
 
     def test_version_names_the_runtime_components_alone(self):
         lines = version_cases.version_lines(self.engine)[1:]

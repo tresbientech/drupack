@@ -287,8 +287,7 @@ function portTaken(string $bind, int $port): bool
 // its bind address and its URL.
 function servedListener(SiteData $site, array $options): array
 {
-    // Site data served before the record existed served HTTP.
-    $record = $site->listener() ?? $options + ['scheme' => 'http'];
+    $record = $site->listener() ?? $options + ['scheme' => SiteData::UNRECORDED_SCHEME];
     [$bind, $port] = listenerParts($record['listen']);
     return [$bind, siteUrl($record['scheme'], $record['host'], $port)];
 }
@@ -790,14 +789,18 @@ try {
     // The address a reader types, never the bind address. Drush builds absolute URLs from this
     // variable. Without it Drupal falls back to http://default, and every printed or mailed
     // link names an unreachable host.
-    // `drush` addresses the site with the scheme its last start served, and HTTP without a
-    // record, as every start before the record served.
+    // `drush` addresses the site with the scheme its last start served.
     $tls = $drush ? null : tlsChoice($binary, $bind, $options['host']);
-    $scheme = $drush ? $options['scheme'] ?? 'http' : tlsScheme($tls);
+    $scheme = $drush ? $options['scheme'] ?? SiteData::UNRECORDED_SCHEME : tlsScheme($tls);
     $url = siteUrl($scheme, $options['host'], $port);
     putenv("DRUSH_OPTIONS_URI=$url");
     $logPath = $site->logs() . '/caddy.log';
     $runtime = canonical(realpath($site->runtime()));
+    if ($drush) {
+        useTlsBundle($runtime);
+    } elseif ($tls['source'] !== 'none') {
+        exportTlsBundle($tls, $runtime);
+    }
     // Caddy state and every temporary file stay beside the site they belong to.
     putenv("TMPDIR=$runtime");
     putenv("TEMP=$runtime");
@@ -912,10 +915,7 @@ try {
         fwrite(STDOUT, "No browser opens: {$options['listen']} accepts other computers over plain HTTP."
             . " Sign in from another computer only through a TLS proxy.\n");
     }
-    $hint = tlsHint($tls, $bind, $options['host']);
-    if ($hint !== null) {
-        fwrite(STDOUT, $hint);
-    }
+    fwrite(STDOUT, tlsHint($tls, $bind, $options['host']));
     openWhenServing($url, $link, $browser);
     // Every step that needed the administrator password has run. The server inherits
     // this environment and passes it to every process it starts, including PHP code a

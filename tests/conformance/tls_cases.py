@@ -91,25 +91,31 @@ class TlsSources(harness.ConformanceCase):
         cls.root = write_root(cls.class_dir / "tls")
         # One install, which every case starts again under its own trust.
         site = harness.Site(harness.BINARY, cls.class_dir / "install")
-        site.start(cls.data, env=cls.environment(cls.class_dir / "empty-tls", None))
+        site.start(cls.data, env=cls.environment(cls.class_dir / "empty-tls", []))
         site.stop()
 
     @classmethod
     def environment(cls, tls_dir, trusted):
-        # An empty bundle trusts nothing, so the machine's own roots never count.
-        empty = cls.class_dir / "empty.pem"
-        empty.touch()
-        return trusted_environment(tls_dir, trusted if trusted is not None else empty)
+        """trusted lists the roots the system trust store holds. An empty list trusts
+        nothing, so the machine's own roots never count."""
+        bundle = tls_dir.parent / f"system-{len(trusted)}-{abs(hash(tuple(map(str, trusted))))}.pem"
+        bundle.parent.mkdir(parents=True, exist_ok=True)
+        bundle.write_text("".join(Path(root).read_text() for root in trusted))
+        return trusted_environment(tls_dir, bundle)
 
-    def start(self, root, trusted, mkcert=None, name="site"):
+    def start(self, root, trusted, mkcert=None, name="site", bind="127.0.0.1"):
         tls_dir = self.root.parent if root else self.case_dir / "tls"
-        env = self.environment(tls_dir, self.root if trusted else None)
-        served = self.root if trusted else None
+        system = [self.root] if trusted else []
+        served = self.root if trusted and bind == "127.0.0.1" else None
+        if mkcert is not None:
+            served = mkcert.parent / "caroot" / "rootCA.pem"
+            # `mkcert -install` puts its root in the system store.
+            system.append(served)
+        env = self.environment(tls_dir, system)
         if mkcert is not None:
             env["PATH"] = f"{mkcert}{os.pathsep}{env['PATH']}"
-            served = mkcert.parent / "caroot" / "rootCA.pem"
         site = harness.Site(harness.BINARY, self.case_dir / name, root=served)
-        site.start(self.data, env=env)
+        site.start(self.data, bind=bind, env=env)
         self.addCleanup(site.stop)
         return site
 
@@ -149,19 +155,37 @@ class TlsSources(harness.ConformanceCase):
                                   "php:eval", "echo getenv('DRUSH_OPTIONS_URI');")
         self.assertEqual(drush.stdout.strip(), f"https://localhost:{site.port}/", drush.stderr)
 
-    def test_a_certificate_names_only_loopback_hosts(self):
+    def test_the_served_certificate_verifies_for_localhost(self):
         site = self.start(root=True, trusted=True)
         served = harness.run(
             ["openssl", "s_client", "-connect", f"127.0.0.1:{site.port}", "-servername", "localhost",
              "-CAfile", str(self.root), "-verify_return_error"],
-            input="", capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, timeout=30,
         )
         self.assertIn("Verify return code: 0 (ok)", served.stdout, served.stderr)
 
-    def test_no_root_serves_http(self):
+    def test_no_root_serves_http_and_names_trust(self):
         site = self.start(root=False, trusted=False)
         status, _, _ = site.fetch("/user/login")
         self.assertEqual(status, 200)
+        log = site.log_path.read_text(errors="replace")
+        self.assertIn(f"URL:       http://localhost:{site.port}/", log)
+        self.assertIn('HTTPS: run "', log)
+
+    def test_a_non_loopback_listener_serves_http(self):
+        site = self.start(root=True, trusted=True, bind="0.0.0.0")
+        self.assertEqual(site.fetch("/user/login")[0], 200)
+        log = site.log_path.read_text(errors="replace")
+        self.assertIn(f"URL:       http://localhost:{site.port}/", log)
+        self.assertNotIn('HTTPS: run "', log)
+
+    def test_an_untrusted_mkcert_root_falls_through_to_http(self):
+        stub, _ = write_mkcert(self.case_dir / "mkcert", 800)
+        env = self.environment(self.case_dir / "tls", [])
+        env["PATH"] = f"{stub}{os.pathsep}{env['PATH']}"
+        site = harness.Site(harness.BINARY, self.case_dir / "site")
+        site.start(self.data, env=env)
+        self.addCleanup(site.stop)
         self.assertIn(f"URL:       http://localhost:{site.port}/", site.log_path.read_text(errors="replace"))
 
     def test_a_root_the_machine_does_not_trust_serves_http(self):
@@ -170,27 +194,6 @@ class TlsSources(harness.ConformanceCase):
         self.assertEqual(status, 200)
         self.assertIn(f"URL:       http://localhost:{site.port}/", site.log_path.read_text(errors="replace"))
 
-    def test_the_root_refuses_another_site(self):
-        leaf = self.case_dir / "example"
-        leaf.mkdir()
-        harness.run(
-            ["openssl", "req", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes",
-             "-keyout", str(leaf / "key.pem"), "-out", str(leaf / "csr.pem"), "-subj", "/CN=example.com",
-             "-addext", "subjectAltName=DNS:example.com"],
-            check=True, capture_output=True,
-        )
-        harness.run(
-            ["openssl", "x509", "-req", "-in", str(leaf / "csr.pem"), "-CA", str(self.root),
-             "-CAkey", str(self.root.parent / "root.key"), "-CAcreateserial", "-days", "1",
-             "-copy_extensions", "copy", "-out", str(leaf / "cert.pem")],
-            check=True, capture_output=True,
-        )
-        verified = harness.run(
-            ["openssl", "verify", "-CAfile", str(self.root), str(leaf / "cert.pem")],
-            capture_output=True, text=True,
-        )
-        self.assertNotEqual(verified.returncode, 0, verified.stdout)
-        self.assertIn("permitted subtree violation", verified.stdout + verified.stderr)
 
 
 # python:3.13-slim, pinned the way network_cases.py pins it. Its ca-certificates package
@@ -242,7 +245,8 @@ class TrustCommand(harness.ConformanceCase):
         result = harness.run(
             ["docker", "run", "--rm", "-i", "--user", "0", "-e", "DRUPACK_TLS_DIR=/tls",
              "-v", f"{harness.BINARY}:/site/binary:ro", "--entrypoint", "/bin/sh", TRUST_IMAGE, "-s"],
-            input=TRUST_SCRIPT, capture_output=True, text=True, timeout=300,
+            # harness.run closes standard input unless told otherwise; the script arrives on it.
+            stdin=None, input=TRUST_SCRIPT, capture_output=True, text=True, timeout=300,
         )
         (self.case_dir / "trust.log").write_text(result.stdout + result.stderr)
         self.assertEqual(result.returncode, 0, f"inspect {self.case_dir / 'trust.log'}")

@@ -198,11 +198,15 @@ function serve(string $binary, array $arguments): never
     $serving->detach($foreground,
         stopCommand($directory === null ? '' : ' ' . shellWord($directory)), array_merge(['start'], $typed));
 
-    $url = siteUrl(tlsScheme($tls), $host, (int) $port);
+    // The engine's URL has no trailing slash, as before HTTPS.
+    $url = rtrim(siteUrl(tlsScheme($tls), $host, (int) $port), '/');
+    if ($tls['source'] !== 'none') {
+        exportTlsBundle($tls, $entry);
+    }
     $link = null;
     $install = null;
     if (siteInstalled($binary, $project, $docroot) === false) {
-        $install = "{$url}core/install.php";
+        $install = "$url/core/install.php";
     } elseif (!is_file("$project/" . DRUSH_SCRIPT)) {
         fwrite(STDERR, "No login link: $project has no Drush. composer require drush/drush adds one.\n");
     } else {
@@ -217,10 +221,7 @@ function serve(string $binary, array $arguments): never
     }
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n")
         . ($install === null ? '' : "  Install: $install\n") . "  Project: $project\n");
-    $hint = tlsHint($tls, $host, $host);
-    if ($hint !== null) {
-        fwrite(STDOUT, $hint);
-    }
+    fwrite(STDOUT, tlsHint($tls, $host, $host));
     fwrite(STDOUT, "Starting the web server.\n");
     // The Caddyfile beside this file is fixed, and Caddy fills its values from this environment.
     // The server opens no browser, so a value inherited from an earlier start is cleared.
@@ -279,6 +280,7 @@ function drush(string $binary, array $arguments): never
 {
     $project = project();
     $entry = folderEntry($project);
+    useTlsBundle($entry);
     if (mercureKey($project) && is_file("$entry/" . MERCURE_URL_FILE)) {
         exportEngineMercure($entry, file_get_contents("$entry/" . MERCURE_URL_FILE), true);
     }

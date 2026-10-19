@@ -21,6 +21,8 @@ final class SiteData
     private const INSTALL_STARTED = 'install-started';
     // Every start records where it serves, so a later `drush` addresses the site on the
     // port it actually uses, and keeps the files directory the last start named.
+    // The scheme of a site no record names, from a release that served HTTP alone.
+    public const UNRECORDED_SCHEME = 'http';
     private const LISTENER = 'listener';
 
     public function __construct(public readonly string $directory)
@@ -98,8 +100,8 @@ final class SiteData
             'listen' => $record['listen'] ?? throw new RuntimeException('Recorded listener has no listen address'),
             'host' => $record['host'] ?? throw new RuntimeException('Recorded listener has no host'),
             'files-dir' => $record['files-dir'] ?? null,
-            // A record from a release before HTTPS names no scheme, and those served HTTP.
-            'scheme' => $record['scheme'] ?? 'http',
+            // Site data a release up to 1.0.0-beta8 recorded names no scheme. Those served HTTP.
+            'scheme' => $record['scheme'] ?? self::UNRECORDED_SCHEME,
         ];
     }
 

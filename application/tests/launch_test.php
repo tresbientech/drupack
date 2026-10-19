@@ -227,10 +227,38 @@ test('only a loopback bind addressed by a name the local root covers asks for HT
 
 test('an HTTP loopback start names trust, and no other start does', function (): void {
     $none = ['source' => 'none'];
-    same('HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n", tlsHint($none, '127.0.0.1', 'localhost'));
-    same(null, tlsHint(['source' => 'drupack'], '127.0.0.1', 'localhost'));
-    same(null, tlsHint($none, '0.0.0.0', 'localhost'));
-    same(null, tlsHint($none, '127.0.0.1', 'example.test'));
+    putenv('DRUPACK_TLS_DIR=/home/reader/.config/drupack/tls');
+    try {
+        same('HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n", tlsHint($none, '127.0.0.1', 'localhost'));
+        same('', tlsHint(['source' => 'drupack'], '127.0.0.1', 'localhost'));
+        same('', tlsHint($none, '0.0.0.0', 'localhost'));
+        same('', tlsHint($none, '127.0.0.1', 'example.test'));
+    } finally {
+        putenv('DRUPACK_TLS_DIR');
+    }
+    // An account with no config folder cannot hold a root.
+    same('', tlsHint($none, '127.0.0.1', 'localhost'));
+});
+
+test('an HTTPS start writes the public roots and its own into one bundle, which Drush reuses', function (): void {
+    $directory = scratch();
+    file_put_contents("$directory/public.pem", "PUBLIC\n");
+    file_put_contents("$directory/root.pem", "LOCAL\n");
+    $public = getenv('DRUPACK_CA_FILE');
+    putenv("DRUPACK_CA_FILE=$directory/public.pem");
+    try {
+        exportTlsBundle(['source' => 'drupack', 'root' => "$directory/root.pem"], $directory);
+        same("$directory/ca-bundle.pem", getenv('DRUPACK_CA_FILE'));
+        same("PUBLIC\n\nLOCAL\n", file_get_contents("$directory/ca-bundle.pem"));
+        putenv("DRUPACK_CA_FILE=$directory/public.pem");
+        useTlsBundle($directory);
+        same("$directory/ca-bundle.pem", getenv('DRUPACK_CA_FILE'));
+        putenv("DRUPACK_CA_FILE=$directory/public.pem");
+        useTlsBundle(scratch());
+        same("$directory/public.pem", getenv('DRUPACK_CA_FILE'));
+    } finally {
+        putenv($public === false ? 'DRUPACK_CA_FILE' : "DRUPACK_CA_FILE=$public");
+    }
 });
 
 test('the TLS source picks its snippets and their files', function (): void {

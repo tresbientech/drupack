@@ -61,11 +61,14 @@ func newRoot(dir string) error {
 	}
 	now := time.Now()
 	template := &x509.Certificate{
-		SerialNumber:                serial,
-		Subject:                     pkix.Name{Organization: []string{"Drupack"}, CommonName: "Drupack local root"},
-		NotBefore:                   now.Add(-time.Hour),
-		NotAfter:                    now.AddDate(10, 0, 0),
-		KeyUsage:                    x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		SerialNumber: serial,
+		Subject:      pkix.Name{Organization: []string{"Drupack"}, CommonName: "Drupack local root"},
+		NotBefore:    now.Add(-time.Hour),
+		NotAfter:     now.AddDate(10, 0, 0),
+		KeyUsage:     x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		// Name constraints bind DNS and IP names only. This limits the root to TLS servers,
+		// so it cannot vouch for code signing or mail.
+		ExtKeyUsage:                 []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid:       true,
 		IsCA:                        true,
 		PermittedDNSDomainsCritical: true,
@@ -103,7 +106,7 @@ func tlsSource(dir string, roots *x509.CertPool) (tlsChoice, error) {
 	if dir == "" {
 		return none, nil
 	}
-	if choice, found, err := mkcertSource(dir); found || err != nil {
+	if choice, found, err := mkcertSource(dir, roots); found || err != nil {
 		return choice, err
 	}
 	root := filepath.Join(dir, rootCertificateName)
@@ -114,7 +117,11 @@ func tlsSource(dir string, roots *x509.CertPool) (tlsChoice, error) {
 	if err != nil {
 		return none, err
 	}
-	if verifies(certificate, key, roots, "localhost") {
+	trusted, err := verifies(certificate, key, roots, "localhost")
+	if err != nil {
+		return none, err
+	}
+	if trusted {
 		return tlsChoice{Source: "drupack", Root: root, RootKey: filepath.Join(dir, rootKeyName)}, nil
 	}
 	return none, nil
@@ -149,11 +156,12 @@ func readRoot(dir string) (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	return certificate, key, nil
 }
 
-// verifies signs a throwaway certificate for name under root and checks it against roots.
-func verifies(root *x509.Certificate, rootKey *ecdsa.PrivateKey, roots *x509.CertPool, name string) bool {
+// verifies signs a throwaway certificate for name under root and checks it against
+// roots. Only a failed check means untrusted; a root that cannot sign is an error.
+func verifies(root *x509.Certificate, rootKey *ecdsa.PrivateKey, roots *x509.CertPool, name string) (bool, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return false
+		return false, err
 	}
 	now := time.Now()
 	template := &x509.Certificate{
@@ -167,14 +175,14 @@ func verifies(root *x509.Certificate, rootKey *ecdsa.PrivateKey, roots *x509.Cer
 	}
 	der, err := x509.CreateCertificate(rand.Reader, template, root, &key.PublicKey, rootKey)
 	if err != nil {
-		return false
+		return false, fmt.Errorf("the local root cannot sign: %w", err)
 	}
 	leaf, err := x509.ParseCertificate(der)
 	if err != nil {
-		return false
+		return false, err
 	}
 	_, err = leaf.Verify(x509.VerifyOptions{DNSName: name, Roots: roots})
-	return err == nil
+	return err == nil, nil
 }
 
 // writeTLSSource prints the choice for launch.php and serve.php to read.
@@ -281,8 +289,9 @@ func nssDatabases() (*truststore.NSSTrust, string) {
 }
 
 // mkcertSource writes a certificate for mkcertNames with the reader's own mkcert, which
-// opens its root key itself. found is false when mkcert or its root is absent.
-func mkcertSource(dir string) (choice tlsChoice, found bool, err error) {
+// opens its root key itself. found is false when mkcert or its root is absent, or when
+// roots do not trust that root, as before `mkcert -install`.
+func mkcertSource(dir string, roots *x509.CertPool) (choice tlsChoice, found bool, err error) {
 	mkcert, err := exec.LookPath("mkcert")
 	if err != nil {
 		return choice, false, nil
@@ -302,32 +311,58 @@ func mkcertSource(dir string) (choice tlsChoice, found bool, err error) {
 		Certificate: filepath.Join(folder, "localhost.pem"),
 		Key:         filepath.Join(folder, "localhost-key.pem"),
 	}
-	if current(choice.Certificate) {
-		return choice, true, nil
+	if !current(choice) {
+		if err := os.MkdirAll(folder, 0o700); err != nil {
+			return choice, true, err
+		}
+		command := exec.Command(mkcert, append([]string{"-cert-file", choice.Certificate, "-key-file", choice.Key}, mkcertNames...)...)
+		if output, err := command.CombinedOutput(); err != nil {
+			return choice, true, fmt.Errorf("mkcert: %w: %s", err, output)
+		}
 	}
-	if err := os.MkdirAll(folder, 0o700); err != nil {
-		return choice, true, err
+	certificate, err := readCertificate(choice.Certificate)
+	if err != nil {
+		return choice, true, fmt.Errorf("mkcert wrote no certificate: %w", err)
 	}
-	command := exec.Command(mkcert, append([]string{"-cert-file", choice.Certificate, "-key-file", choice.Key}, mkcertNames...)...)
-	if output, err := command.CombinedOutput(); err != nil {
-		return choice, true, fmt.Errorf("mkcert: %w: %s", err, output)
+	if _, err := certificate.Verify(x509.VerifyOptions{DNSName: "localhost", Roots: roots}); err != nil {
+		return choice, false, nil
 	}
 	return choice, true, nil
 }
 
-// current reports whether the certificate at path exists and outlives mkcertRenewal.
-func current(path string) bool {
-	data, err := os.ReadFile(path)
+// current reports whether the certificate and key mkcert wrote exist, chain to the
+// root mkcert holds now, and outlive mkcertRenewal. A recreated mkcert root makes
+// every earlier certificate stale.
+func current(choice tlsChoice) bool {
+	if _, err := os.Stat(choice.Key); err != nil {
+		return false
+	}
+	certificate, err := readCertificate(choice.Certificate)
 	if err != nil {
 		return false
 	}
-	block, _ := pem.Decode(data)
-	if block == nil {
+	root, err := os.ReadFile(choice.Root)
+	if err != nil {
 		return false
 	}
-	certificate, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(root) {
+		return false
+	}
+	if _, err := certificate.Verify(x509.VerifyOptions{DNSName: "localhost", Roots: pool}); err != nil {
 		return false
 	}
 	return time.Until(certificate.NotAfter) > mkcertRenewal
+}
+
+func readCertificate(path string) (*x509.Certificate, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, fmt.Errorf("%s is not PEM", path)
+	}
+	return x509.ParseCertificate(block.Bytes)
 }

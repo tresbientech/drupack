@@ -78,7 +78,7 @@ An environment variable that selects the default Site data directory for a Packa
 The Drupack and Drupal versions that last served a Site data directory.
 
 **Listener record**:
-The listen address and permitted host the last start served on, and the Files directory it named, held in Site data.
+The listen address, permitted host and scheme the last start served, and the Files directory it named, held in Site data.
 
 **Database backend**:
 SQLite, MySQL, or PostgreSQL, selected when a Packaged site first starts. It stores the structured part of Site data.

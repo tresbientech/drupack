@@ -23,6 +23,12 @@ function project_with(string $name, array $files): string
     return $project;
 }
 
+test('the engine treats only 127.0.0.0/8 and ::1 as loopback', function () {
+    foreach (['127.0.0.1' => true, '::1' => true, '0.0.0.0' => false, '::' => false, '10.0.0.2' => false] as $bind => $expected) {
+        same($expected, loopback($bind), $bind);
+    }
+});
+
 test('a project naming no web root serves web', function () {
     $project = project_with('default', ['composer.json' => '{}', 'web/index.php' => '<?php', 'web/core/lib/Drupal.php' => '<?php']);
     same("$project/web", docroot($project));
