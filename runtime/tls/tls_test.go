@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -111,6 +112,9 @@ func TestARootWithoutItsKeyFails(t *testing.T) {
 }
 
 func TestTheRootKeyIsTheOwnersAlone(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no Unix mode bits; the ACL on %AppData% guards the key")
+	}
 	dir := t.TempDir()
 	if err := newRoot(dir); err != nil {
 		t.Fatal(err)
@@ -206,6 +210,9 @@ type stub struct {
 // stubMkcert puts an mkcert on PATH that logs its arguments and writes a certificate
 // valid for validFor, which is also its root when withRoot is set.
 func stubMkcert(t *testing.T, validFor time.Duration, withRoot bool) stub {
+	if runtime.GOOS == "windows" {
+		t.Skip("the mkcert stub is a shell script")
+	}
 	bin, caroot := t.TempDir(), t.TempDir()
 	certificate := stubCertificate(t, validFor)
 	if withRoot {
