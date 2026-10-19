@@ -1,6 +1,8 @@
 # A loopback site answers on its drupack.site name
 
 Accepted on 2026-10-19. Amends [ADR 0036](0036-a-loopback-site-serves-https-from-a-trusted-root.md).
+Amended on 2026-10-19 by [ADR 0038](0038-composer-json-names-the-site-subdomain.md):
+`composer.json` `extra.drupack.subdomain` may set the label.
 
 ## Context
 

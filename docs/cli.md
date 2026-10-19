@@ -105,8 +105,12 @@ Each site has a Site host under `drupack.site`, whose public DNS answers every
 name with `127.0.0.1`. Separate names keep each site's cookies apart, which
 `localhost` cannot, since browsers ignore the port.
 
-- A Packaged site's label is the `name` in `drupack.yml`: `drupacked-demo.drupack.site`.
-- An engine start's label is the folder's name: `~/DEV/My Shop` gives `my-shop.drupack.site`.
+- `extra.drupack.subdomain` in the site's or folder's `composer.json` sets
+  the label: `"subdomain": "demo"` gives `demo.drupack.site`. It must be one
+  DNS label, and a start refuses another value.
+- Without it, a Packaged site's label is the `name` in `drupack.yml`.
+- Without it, an engine start's label is the folder's name: `~/DEV/My Shop`
+  gives `my-shop.drupack.site`.
 - The label is lowercased, each character outside `a-z`, `0-9` and `-` becomes
   `-`, it is cut to 63 characters, and dashes at either end are dropped. A label
   left empty becomes `site`.
@@ -118,7 +122,7 @@ they use `localhost`, or the bind address for the engine, and the start prints
 the answer:
 
 ```
-Name: drupacked-demo.drupack.site did not resolve to 127.0.0.1 (no answer), so the URL uses localhost.
+Name: demo.drupack.site did not resolve to 127.0.0.1 (no answer), so the URL uses localhost.
 ```
 
 An offline machine gets no answer. A resolver that drops private answers may

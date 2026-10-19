@@ -105,7 +105,7 @@ A folder per site keeps each site with its data. To run `drupacked-demo` from an
 ./drupacked-demo
 ```
 
-Drupack installs your site and serves it on `http://drupacked-demo.drupack.site:7225`, a name whose DNS points at your own computer, so each site keeps its own cookies. Offline, or behind a DNS filter that blocks that name, the URL is `http://localhost:7225` and the start says why. It prints a one-time login link and opens your browser on it. The link logs you in as `admin` and lands you on your dashboard. Set your own password from there, under your account. The first start of each version also unpacks its runtime, which adds about a second.
+Drupack installs your site and serves it on `http://demo.drupack.site:7225`, a name whose DNS points at your own computer, so each site keeps its own cookies. Offline, or behind a DNS filter that blocks that name, the URL is `http://localhost:7225` and the start says why. It prints a one-time login link and opens your browser on it. The link logs you in as `admin` and lands you on your dashboard. Set your own password from there, under your account. The first start of each version also unpacks its runtime, which adds about a second.
 
 Later starts need nothing:
 
