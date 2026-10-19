@@ -250,3 +250,68 @@ is `{"date"}` in `check-extensions.py` and eleven names in `harness.py`. Neither
 `expected_extensions()` nor `check-extensions.py` has a unit test. Lean: put the
 per-platform exclusions in the allowlist file. One parser takes a platform and
 prints the list, and the others call it.
+
+## One start plan in launch.php
+
+The `serve` path of `launch.php` works out where a start serves: listener,
+host, scheme, URL and the server environment. The host value changes meaning
+three times on the way. It starts as the user's word, becomes the recorded host,
+then the host `tlsChoice` returns, then `UNRECORDED_HOST`. `putenv` calls spread
+along the script export the result. `serve()` in `engine/serve.php` repeats the
+same tail by hand: `tlsChoice`, `storeTlsBundle`, `exportServerEnvironment`,
+`replaceProcess`.
+
+`launch_test.php` covers each helper. Only the Docker conformance cases catch a
+mistake in the order the helpers run.
+
+Lean: one pure function takes argv, the environment, the Site data and the
+`tls-source` answer. It returns the bind, port, URL, scheme and exports.
+`launch.php` and `serve.php` both apply that plan. The `drush` branch stays
+outside it. Boundary tests assert the plan with the existing `fakeRuntime`
+stub, and the helper tests stay.
+
+## One launch environment in the launcher
+
+`run()` in `launcher/main.go` sets or unsets eight `DRUPACK_RUNTIME_*`
+variables with `os.Setenv`, and branches on engine or site. `prepareNode` edits
+`PATH` and `DRUPACK_RUNTIME_NODE`. `Environment()` then rebuilds the slice from
+`os.Environ()`: it adds `PHPRC` and the CA defaults and drops the glibc loader
+variables. The engine branch unsets `DRUPACK_RUNTIME_APP_DIR` so an inherited
+value cannot reach the runtime.
+
+`route_test.go` and `environment_test.go` each test one half. No test covers
+the combinations: engine or site, a stale inherited `DRUPACK_RUNTIME_NODE`, an
+inherited `DRUPACK_RUNTIME_APP_DIR`.
+
+Lean: one function takes the identity, the cache root, the runtime and
+application directories, the Node directory, argv and the parent environment.
+It returns the exec path, argv and environment, and `run()` execs them. One
+table test over those combinations replaces the two test files.
+
+## Typed first-start steps
+
+`SiteData::steps()` returns bare step names: `seed`, `settings`,
+`administrator`, `install`, `modules`, `adopt`. About twenty string literals
+spell them across `SiteData.php` and `launch.php`. `credentialsRequired`,
+`requireSeed`, `requireDatabaseOptions` and the settings refresh each derive a
+precondition from the list. The preconditions check the list read before the
+lease, and the steps run from the list read under it.
+
+`site_data_test.php` covers `steps()` and `initialize()`. The four refusals in
+`installSite` and the `adoptSite` path run only in the Docker suite.
+
+Lean: `SiteData` returns a plan that holds the steps and their preconditions.
+One runner executes it, with Drush behind a recording stand-in in tests. The
+`site_data_test.php` cases stay.
+
+## A typed site.json reader in PHP
+
+`siteSettings()` in `launch.php` returns site.json as an untyped array, read by
+key in about fifteen places. `build/install-translations.php` parses the file
+again. `launch_test.php` builds `FIXTURE_SITE` by hand, so no test compares the
+PHP reader with what the Go build writes. A renamed key or a changed `omitempty`
+fails on a user's machine.
+
+Lean: a PHP `Site` value whose constructor names a missing or mistyped key. A
+site.json written by the Go build feeds one PHP test and replaces
+`FIXTURE_SITE`.
