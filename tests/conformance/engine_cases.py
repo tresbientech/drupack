@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 import harness
 import version_cases
@@ -237,6 +237,21 @@ class EngineExecutable(harness.ConformanceCase):
         port, _ = self.start("start-space", str(spaced), env=env)
         self.assertEqual(self.status(port, "/"), 200)
         self.assertEqual(list(temporary.glob("*Caddyfile*")), [], "the start wrote a Caddyfile into the temporary directory")
+
+    def test_a_folder_is_served_on_its_drupack_site_name(self):
+        named = self.class_dir / "My Shop"
+        shutil.copytree(self.project, named, symlinks=True)
+        port, log = self.start("start-named", str(named), env=dict(os.environ, DRUPACK_DNS_ANSWER="127.0.0.1"))
+        self.assertIn(f"URL:     http://my-shop.drupack.site:{port}\n", log.read_text(errors="replace"))
+        request = Request(f"http://127.0.0.1:{port}/user/login", headers={"Host": f"my-shop.drupack.site:{port}"})
+        with urlopen(request, timeout=harness.WAITS["http_request"].seconds) as response:
+            self.assertEqual(response.status, 200)
+
+    def test_a_folder_whose_name_does_not_resolve_is_served_on_its_bind_address(self):
+        port, log = self.start("start-unnamed", str(self.project))
+        text = log.read_text(errors="replace")
+        self.assertIn(f"URL:     http://127.0.0.1:{port}\n", text)
+        self.assertIn("Name: project.drupack.site did not resolve to 127.0.0.1 (no answer), so the URL uses 127.0.0.1.", text)
 
     def test_a_start_without_a_directory_serves_the_working_directory(self):
         port, _ = self.start("start-working-directory", cwd=self.project)

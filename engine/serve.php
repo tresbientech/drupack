@@ -183,9 +183,9 @@ function serve(string $binary, array $arguments): never
     $docroot = canonical(docroot($project));
     checkPlatform($binary, $project);
     $mercure = mercureKey($project);
-    // The engine's URL names the bind address itself, so it is the host too.
-    $host = trim($bind, '[]');
-    $tls = tlsChoice($binary, $host, ['--folder', basename($project)], $host);
+    // The engine's URL names the folder's drupack.site name when it resolves, otherwise the
+    // bind address itself.
+    $tls = tlsChoice($binary, trim($bind, '[]'), ['--folder', basename($project)], null);
 
     // The reader's terminal gets every refusal above and the lease's below, so a start that
     // detaches has nothing left to refuse but the server's own failures.
@@ -199,7 +199,7 @@ function serve(string $binary, array $arguments): never
         stopCommand($directory === null ? '' : ' ' . shellWord($directory)), array_merge(['start'], $typed));
 
     // The engine's URL has no trailing slash, as before HTTPS.
-    $url = rtrim(siteUrl(tlsScheme($tls), $host, (int) $port), '/');
+    $url = rtrim(siteUrl(tlsScheme($tls), $tls['host'], (int) $port), '/');
     storeTlsBundle($tls, $entry);
     $link = null;
     $install = null;
@@ -219,7 +219,7 @@ function serve(string $binary, array $arguments): never
     }
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n")
         . ($install === null ? '' : "  Install: $install\n") . "  Project: $project\n");
-    fwrite(STDOUT, tlsHint($tls));
+    fwrite(STDOUT, nameHint($tls) . tlsHint($tls));
     fwrite(STDOUT, "Starting the web server.\n");
     // The Caddyfile beside this file is fixed, and Caddy fills its values from this environment.
     // The server opens no browser, so a value inherited from an earlier start is cleared.
