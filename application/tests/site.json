@@ -1,0 +1,21 @@
+{
+  "name": "fixture-site",
+  "port": 7225,
+  "recipe": "",
+  "settings": "",
+  "site_name": "Fixture Site",
+  "languages": [],
+  "smoke_paths": [
+    "/"
+  ],
+  "extensions": [],
+  "platforms": [
+    "linux-amd64"
+  ],
+  "libc": "both",
+  "writable": [],
+  "docroot": "web",
+  "mercure": false,
+  "drupal": "11.4.7",
+  "drush": "13.8.0"
+}

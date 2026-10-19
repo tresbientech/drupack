@@ -12,6 +12,7 @@ declare(strict_types=1);
 define('DRUPACK_LAUNCH_LIBRARY', true);
 require __DIR__ . '/../launch.php';
 
+use Drupack\Support\SiteContract;
 use Drupack\Support\SiteData;
 
 // Every variable options() reads for a default.
@@ -28,8 +29,12 @@ const OPTION_VARIABLES = [
     'DRUPACK_SITE_NAME',
 ];
 
-// The site.json a build writes, reduced to what options() reads.
-const FIXTURE_SITE = ['site_name' => 'Fixture Site'];
+// The Site contract of site.json beside this file, which the Go build's tests keep equal to
+// what a build writes. Named fields replace the reference file's values.
+function contract(mixed ...$fields): SiteContract
+{
+    return new SiteContract(...$fields + get_object_vars(SiteContract::read(__DIR__ . '/site.json')));
+}
 // The launcher exports the executable's name to every hop; this file runs outside one.
 const FIXTURE_NAME = 'fixture-site';
 putenv('DRUPACK_RUNTIME_NAME=' . FIXTURE_NAME);
@@ -44,7 +49,7 @@ function parse(array $arguments, bool $drush = false, array $environment = []): 
     foreach (OPTION_VARIABLES as $name) {
         putenv(array_key_exists($name, $environment) ? "$name={$environment[$name]}" : $name);
     }
-    return options($arguments, $drush, FIXTURE_SITE);
+    return options($arguments, $drush, contract());
 }
 
 function scratch(): string
@@ -132,17 +137,17 @@ test('under drush an option after the command stays in the command', function ()
 
 test('a site without a recipe refuses a sqlite first start, naming both servers', function (): void {
     foreach (['has no recipe to seed a SQLite site', '--database mysql', '--database pgsql'] as $needle) {
-        throws($needle, fn() => requireSeed(['seed', 'settings', 'administrator'], ['recipe' => '']));
+        throws($needle, fn() => requireSeed(['seed', 'settings', 'administrator'], contract(recipe: '')));
     }
 });
 
 test('a site without a recipe starts on a database server', function (): void {
-    requireSeed(['settings', 'install', 'modules'], ['recipe' => '']);
-    requireSeed(['adopt'], ['recipe' => '']);
+    requireSeed(['settings', 'install', 'modules'], contract(recipe: ''));
+    requireSeed(['adopt'], contract(recipe: ''));
 });
 
 test('a site with a recipe seeds sqlite', function (): void {
-    requireSeed(['seed', 'settings', 'administrator'], ['recipe' => 'recipes/fixture']);
+    requireSeed(['seed', 'settings', 'administrator'], contract(recipe: 'recipes/fixture'));
 });
 
 test('sqlite needs no connection details', function (): void {
@@ -236,11 +241,16 @@ test('a start hands the runtime its bind, its site and the host the reader asked
     same("tls-source --bind 127.0.0.1 --folder My Shop --host 127.0.0.1\n", file_get_contents(dirname($runtime) . '/arguments'));
 });
 
+test('the reference site.json reads as the Site contract', function (): void {
+    same(['port' => 7225, 'recipe' => '', 'settings' => '', 'siteName' => 'Fixture Site', 'subdomain' => null, 'node' => false,
+        'writable' => [], 'docroot' => 'web', 'mercure' => false], get_object_vars(SiteContract::read(__DIR__ . '/site.json')));
+});
+
 test('a site that sets a subdomain hands the runtime that label, and one without hands its name', function (): void {
-    same(['--name', 'demo'], siteLabelSource(['site_name' => 'Fixture Site', 'subdomain' => 'demo']));
-    same(['--name', FIXTURE_NAME], siteLabelSource(FIXTURE_SITE));
+    same(['--name', 'demo'], siteLabelSource(contract(subdomain: 'demo')));
+    same(['--name', FIXTURE_NAME], siteLabelSource(contract()));
     $runtime = fakeRuntime(['source' => 'none', 'host' => 'localhost', 'alias' => 'demo.drupack.site', 'reason' => 'no answer', 'eligible' => true]);
-    tlsChoice($runtime, '127.0.0.1', siteLabelSource(['subdomain' => 'demo']), null);
+    tlsChoice($runtime, '127.0.0.1', siteLabelSource(contract(subdomain: 'demo')), null);
     same("tls-source --bind 127.0.0.1 --name demo\n", file_get_contents(dirname($runtime) . '/arguments'));
 });
 
@@ -623,36 +633,36 @@ test('docs/cli.md names every option the parser accepts', function () {
 });
 
 test('no word starts the site', function () {
-    same(['start', []], command([], FIXTURE_SITE));
+    same(['start', []], command([], contract()));
 });
 
 test('a line opening with an option starts the site with every word', function () {
-    same(['start', ['--listen', '127.0.0.1:9000']], command(['--listen', '127.0.0.1:9000'], FIXTURE_SITE));
+    same(['start', ['--listen', '127.0.0.1:9000']], command(['--listen', '127.0.0.1:9000'], contract()));
 });
 
 test('a command word names the mode and leaves the rest', function () {
-    same(['start', ['--foreground']], command(['start', '--foreground'], FIXTURE_SITE));
-    same(['drush', ['status']], command(['drush', 'status'], FIXTURE_SITE));
-    same(['stop', ['--data-dir', 'site']], command(['stop', '--data-dir', 'site'], FIXTURE_SITE));
+    same(['start', ['--foreground']], command(['start', '--foreground'], contract()));
+    same(['drush', ['status']], command(['drush', 'status'], contract()));
+    same(['stop', ['--data-dir', 'site']], command(['stop', '--data-dir', 'site'], contract()));
 });
 
 test('a first -h or --help asks for the usage', function () {
-    same(['help', []], command(['-h'], FIXTURE_SITE));
-    same(['help', []], command(['--help', '--listen', 'x'], FIXTURE_SITE));
+    same(['help', []], command(['-h'], contract()));
+    same(['help', []], command(['--help', '--listen', 'x'], contract()));
 });
 
 test('an unknown word names itself above the usage', function () {
-    throws('Unknown command: frobnicate', fn () => command(['frobnicate'], FIXTURE_SITE));
-    throws('Usage: ' . FIXTURE_NAME . ' [start] [OPTIONS]', fn () => command(['frobnicate'], FIXTURE_SITE));
+    throws('Unknown command: frobnicate', fn () => command(['frobnicate'], contract()));
+    throws('Usage: ' . FIXTURE_NAME . ' [start] [OPTIONS]', fn () => command(['frobnicate'], contract()));
 });
 
 test('a Node word on a site without Node is an unknown command', function () {
-    throws('Unknown command: npm', fn () => command(['npm', 'ci'], FIXTURE_SITE));
+    throws('Unknown command: npm', fn () => command(['npm', 'ci'], contract()));
 });
 
 test('a Node word on a site with Node names the glibc build', function () {
     throws('npx: this musl build of ' . FIXTURE_NAME . ' carries no Node. Run the glibc build',
-        fn () => command(['npx', 'cowsay'], FIXTURE_SITE + ['node' => '24.21.0']));
+        fn () => command(['npx', 'cowsay'], contract(node: true)));
 });
 
 $status = runCases();

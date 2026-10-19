@@ -8,6 +8,7 @@ declare(strict_types=1);
 require __DIR__ . '/process.php';
 require __DIR__ . '/mercure.php';
 
+use Drupack\Support\SiteContract;
 use Drupack\Support\SiteData;
 use Symfony\Component\Filesystem\Path;
 
@@ -101,7 +102,7 @@ function useSiteApplication(SiteData $site, bool $drush): void
             throw new RuntimeException("This Site data holds another release's application. Start "
                 . executableName() . " once to lay this release's: $data");
         }
-    } elseif (process($launcher, array_merge(['lay-app', $data], siteSettings()['writable']), $descriptors, $data, 'Cannot run ' . executableName()) !== 0) {
+    } elseif (process($launcher, array_merge(['lay-app', $data], siteContract()->writable), $descriptors, $data, 'Cannot run ' . executableName()) !== 0) {
         throw new RuntimeException("Cannot lay the application in Site data: $data");
     }
     putenv('DRUPACK_RUNTIME_APP_DIR=' . $site->application());
@@ -110,24 +111,24 @@ function useSiteApplication(SiteData $site, bool $drush): void
 // Site data when neither --data-dir nor DRUPACK_DATA_DIR names one.
 const DEFAULT_DATA_DIR = './data';
 
-// The packaged site's defaults, written from its drupack.yml when the application was built.
-function siteSettings(): array
+// The packaged site's Site contract, written from its drupack.yml when the application was built.
+function siteContract(): SiteContract
 {
     static $site;
-    return $site ??= json_decode((string) file_get_contents(__DIR__ . '/site.json'), true, 512, JSON_THROW_ON_ERROR);
+    return $site ??= SiteContract::read(__DIR__ . '/site.json');
 }
 
 // The tls-source arguments that name the site's label: the subdomain from composer.json
 // when the site set one, otherwise the executable's name.
-function siteLabelSource(array $site): array
+function siteLabelSource(SiteContract $site): array
 {
-    return ['--name', $site['subdomain'] ?? executableName()];
+    return ['--name', $site->subdomain ?? executableName()];
 }
 
 // The launcher hands this script the reader's whole line. Its first word names the
 // command, and a line with none, or opening with an option, starts the site. A Node
 // word arrives only from a file that carries no Node.
-function command(array $arguments, array $site): array
+function command(array $arguments, SiteContract $site): array
 {
     $word = $arguments[0] ?? null;
     if ($word === '-h' || $word === '--help') {
@@ -139,14 +140,14 @@ function command(array $arguments, array $site): array
     if (in_array($word, COMMANDS, true)) {
         return [$word, array_slice($arguments, 1)];
     }
-    if (in_array($word, NODE_COMMANDS, true) && isset($site['node'])) {
+    if (in_array($word, NODE_COMMANDS, true) && $site->node) {
         throw new RuntimeException("$word: this musl build of " . executableName()
             . ' carries no Node. Run the glibc build, the file without -musl in its name.');
     }
     throw new InvalidArgumentException("Unknown command: $word\n\n" . sprintf(HELP, executableName()));
 }
 
-function options(array $arguments, bool $drush, array $site): array
+function options(array $arguments, bool $drush, SiteContract $site): array
 {
     $options = [
         'data-dir' => environment('DRUPACK_DATA_DIR') ?? DEFAULT_DATA_DIR,
@@ -163,7 +164,7 @@ function options(array $arguments, bool $drush, array $site): array
         'db-password' => environment('DRUPACK_DB_PASSWORD'),
         'admin-user' => environment('DRUPACK_ADMIN_USER'),
         'admin-password' => environment('DRUPACK_ADMIN_PASSWORD'),
-        'site-name' => environment('DRUPACK_SITE_NAME') ?? $site['site_name'],
+        'site-name' => environment('DRUPACK_SITE_NAME') ?? $site->siteName,
         'no-browser' => null,
         'foreground' => null,
     ];
@@ -384,9 +385,9 @@ function requireDatabaseOptions(array $options, array $steps): void
 }
 
 // A site built without a recipe ships no seed, so a SQLite first start has nothing to copy.
-function requireSeed(array $steps, array $site): void
+function requireSeed(array $steps, SiteContract $site): void
 {
-    if (in_array('seed', $steps, true) && $site['recipe'] === '') {
+    if (in_array('seed', $steps, true) && $site->recipe === '') {
         throw new RuntimeException(executableName() . ' has no recipe to seed a SQLite site. '
             . 'Start it with --database mysql or --database pgsql and the connection details of the database that holds its site.');
     }
@@ -570,7 +571,7 @@ function databaseHoldsTables(array $options): bool
 function installDrupal(array $options, string $binary): void
 {
     $drush = drushPath();
-    $recipe = application() . '/' . siteSettings()['recipe'];
+    $recipe = application() . '/' . siteContract()->recipe;
     if (!is_file($drush) || !is_dir($recipe)) {
         throw new RuntimeException('Bundled Drupal installation files are unavailable');
     }
@@ -604,7 +605,7 @@ function installSite(SiteData $site, array $options, string $binary): bool
         fwrite(STDOUT, "This database already holds a site. " . executableName() . " enabled nothing on it, and keeps its own administrator account.\n");
         return true;
     }
-    if (siteSettings()['recipe'] === '') {
+    if (siteContract()->recipe === '') {
         throw new RuntimeException("The database for $site->directory holds no installed site, and " . executableName()
             . " has no recipe to install one. Name the database that holds its site, then start " . executableName() . " again.");
     }
@@ -726,7 +727,7 @@ function runStep(string $step, SiteData $site, array $options, string $binary, b
                 && file_put_contents($site->secret(), bin2hex(random_bytes(32)), LOCK_EX) === false) {
                 throw new RuntimeException('Cannot initialize the site secret');
             }
-            writeSettings($site->settings(), application() . '/settings.php', databaseConfiguration($options, $site), siteSettings()['settings']);
+            writeSettings($site->settings(), application() . '/settings.php', databaseConfiguration($options, $site), siteContract()->settings);
             return false;
         case 'administrator':
             configureAdministrator($binary);
@@ -753,7 +754,7 @@ if (defined('DRUPACK_LAUNCH_LIBRARY')) {
 }
 
 try {
-    [$mode, $arguments] = command(array_slice($argv, 1), siteSettings());
+    [$mode, $arguments] = command(array_slice($argv, 1), siteContract());
     if ($mode === 'help') {
         printf(HELP . "\n", executableName());
         exit(0);
@@ -765,7 +766,7 @@ try {
         replaceProcess(getenv('DRUPACK_RUNTIME_BINARY'), array_merge(['tls-trust'], $arguments), __DIR__, 'Cannot run trust');
     }
     $drush = $mode === 'drush';
-    [$options, $command] = options($arguments, $drush, siteSettings());
+    [$options, $command] = options($arguments, $drush, siteContract());
     $written = $options['data-dir'];
     $options['data-dir'] = fromStartDirectory($written);
     if ($options['files-dir'] !== null) {
@@ -792,10 +793,10 @@ try {
         $options = recordedListener($options, $named->listener());
     } else {
         $steps = $named->steps($options['database']);
-        requireSeed($steps, siteSettings());
+        requireSeed($steps, siteContract());
         $options = administratorCredentials($options, $steps);
     }
-    $options['listen'] ??= '127.0.0.1:' . siteSettings()['port'];
+    $options['listen'] ??= '127.0.0.1:' . siteContract()->port;
     requireDatabaseOptions($options, $steps);
     [$bind, $port] = listenerParts($options['listen']);
     if (!filter_var($bind, FILTER_VALIDATE_IP) || $port < 1 || $port > 65535) {
@@ -833,7 +834,7 @@ try {
     }
     // A start serves the host and scheme the runtime chose. `drush` asks nothing, so it
     // addresses the site where its last start served.
-    $tls = $drush ? null : tlsChoice($binary, $bind, siteLabelSource(siteSettings()), $options['host']);
+    $tls = $drush ? null : tlsChoice($binary, $bind, siteLabelSource(siteContract()), $options['host']);
     $plan = $drush
         ? listenerPlan($bind, $port, $options['host'] ?? SiteData::UNRECORDED_HOST, $options['scheme'] ?? SiteData::UNRECORDED_SCHEME)
         : listenerPlan($bind, $port, $tls['host'], tlsScheme($tls));
@@ -873,10 +874,10 @@ try {
         $site->recordListener($options['listen'], $plan['host'], $options['files-dir'], $plan['scheme']);
         storeTlsBundle($tls, $runtime);
     }
-    if (siteSettings()['mercure']) {
+    if (siteContract()->mercure) {
         exportMercure($site->mercurePublisherSecret(), $site->mercureSubscriberSecret(), mercureUrl($plan['scheme'], $bind, $port), $drush);
     }
-    if (siteSettings()['writable'] !== []) {
+    if (siteContract()->writable !== []) {
         useSiteApplication($site, $drush);
     }
     if ($steps !== []) {
@@ -893,7 +894,7 @@ try {
         // A pending settings step writes the file itself, so its contents are read once they are final.
         if (!in_array('settings', $steps, true)) {
             $options = recordedOptions($options, $site);
-            writeSettings($site->settings(), application() . '/settings.php', databaseConfiguration($options, $site), siteSettings()['settings']);
+            writeSettings($site->settings(), application() . '/settings.php', databaseConfiguration($options, $site), siteContract()->settings);
         }
     }
     // The remaining steps reach the disk before the first one changes anything, and the
@@ -952,10 +953,10 @@ try {
         // Absolute, because FrankenPHP resolves a relative docroot against the directory
         // its process started in, which on Unix is the shared application whatever the
         // entry point changes to.
-        'DRUPACK_RUNTIME_DOCROOT' => application() . '/' . siteSettings()['docroot'],
+        'DRUPACK_RUNTIME_DOCROOT' => application() . '/' . siteContract()->docroot,
         'DRUPACK_RUNTIME_LOG_PATH' => $logPath,
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
-    ] + mercureServerEnvironment(siteSettings()['mercure'], $data)));
+    ] + mercureServerEnvironment(siteContract()->mercure, $data)));
     replaceProcess($binary, ['php-server', application() . '/Caddyfile'], application(), 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");

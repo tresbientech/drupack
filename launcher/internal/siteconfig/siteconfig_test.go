@@ -379,3 +379,28 @@ func TestParseRefusesASubdomainInDrupackYml(t *testing.T) {
 		t.Fatalf("Parse error = %v; want one naming composer.json extra.drupack.subdomain", err)
 	}
 }
+
+// application/tests/site.json is the reference file the PHP tests read the Site
+// contract from. A change to what Write produces fails here until that file holds it.
+func TestWriteMatchesThePHPReferenceFile(t *testing.T) {
+	read, err := siteconfig.Read(site(t, "name: fixture-site\nsite_name: Fixture Site\n", scaffold("web")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	if err := siteconfig.Write(read, directory); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(directory, siteconfig.OutputName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reference := filepath.Join("..", "..", "..", "application", "tests", "site.json")
+	want, err := os.ReadFile(reference)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("%s differs from what Write produces. Replace it with:\n%s", reference, got)
+	}
+}

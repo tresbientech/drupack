@@ -266,15 +266,3 @@ lease, and the steps run from the list read under it.
 Lean: `SiteData` returns a plan that holds the steps and their preconditions.
 One runner executes it, with Drush behind a recording stand-in in tests. The
 `site_data_test.php` cases stay.
-
-## A typed site.json reader in PHP
-
-`siteSettings()` in `launch.php` returns site.json as an untyped array, read by
-key in about fifteen places. `build/install-translations.php` parses the file
-again. `launch_test.php` builds `FIXTURE_SITE` by hand, so no test compares the
-PHP reader with what the Go build writes. A renamed key or a changed `omitempty`
-fails on a user's machine.
-
-Lean: a PHP `Site` value whose constructor names a missing or mistyped key. A
-site.json written by the Go build feeds one PHP test and replaces
-`FIXTURE_SITE`.
