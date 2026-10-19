@@ -158,6 +158,16 @@ class TlsSources(harness.ConformanceCase):
                                   "php:eval", "echo getenv('DRUSH_OPTIONS_URI');")
         self.assertEqual(drush.stdout.strip(), f"https://localhost:{site.port}/", drush.stderr)
 
+    def test_a_new_root_on_the_same_site_data_serves_https_from_it(self):
+        # The first start leaves Caddy's intermediate for the class root in Site data.
+        self.start(root=True, trusted=True).stop()
+        root = write_root(self.case_dir / "tls")
+        site = harness.Site(harness.BINARY, self.case_dir / "new", root=root)
+        site.start(self.data, env=self.environment(root.parent, [root]))
+        self.addCleanup(site.stop)
+        status, _, _ = site.fetch("/user/login")
+        self.assertEqual(status, 200)
+
     def test_the_served_certificate_verifies_for_localhost(self):
         site = self.start(root=True, trusted=True)
         served = harness.run(
@@ -272,3 +282,4 @@ class TrustCommand(harness.ConformanceCase):
         self.assertIn("critical", constraints)
         for subtree in ("DNS:localhost", "IP:127.0.0.0/255.0.0.0", "IP:0:0:0:0:0:0:0:1/FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF"):
             self.assertIn(subtree, constraints)
+

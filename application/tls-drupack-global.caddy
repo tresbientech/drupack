@@ -4,7 +4,7 @@ auto_https disable_redirects
 # Caddy would otherwise install the root on every start, which asks for a password.
 skip_install_trust
 pki {
-	ca drupack {
+	ca "{$DRUPACK_RUNTIME_TLS_CA}" {
 		root {
 			cert "{$DRUPACK_RUNTIME_TLS_ROOT}"
 			key "{$DRUPACK_RUNTIME_TLS_ROOT_KEY}"

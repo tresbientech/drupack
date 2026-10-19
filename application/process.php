@@ -386,6 +386,7 @@ function tlsServerEnvironment(array $choice): array
             'DRUPACK_RUNTIME_TLS' => 'drupack',
             'DRUPACK_RUNTIME_TLS_ROOT' => $choice['root'],
             'DRUPACK_RUNTIME_TLS_ROOT_KEY' => $choice['rootKey'],
+            'DRUPACK_RUNTIME_TLS_CA' => $choice['authority'],
         ],
     };
 }

@@ -48,6 +48,32 @@ func TestATrustedRootServesHTTPS(t *testing.T) {
 	}
 }
 
+func TestEachRootNamesItsOwnAuthority(t *testing.T) {
+	noMkcert(t)
+	authorities := map[string]bool{}
+	for range 2 {
+		dir := t.TempDir()
+		if err := newRoot(dir); err != nil {
+			t.Fatal(err)
+		}
+		first, err := tlsSource(dir, pool(t, dir))
+		if err != nil {
+			t.Fatal(err)
+		}
+		again, err := tlsSource(dir, pool(t, dir))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasPrefix(first.Authority, "drupack-") || again.Authority != first.Authority {
+			t.Fatalf("authorities %q and %q, want one drupack- name per root", first.Authority, again.Authority)
+		}
+		authorities[first.Authority] = true
+	}
+	if len(authorities) != 2 {
+		t.Fatalf("two roots share the authority %v", authorities)
+	}
+}
+
 func TestAnUntrustedRootServesHTTP(t *testing.T) {
 	noMkcert(t)
 	dir := t.TempDir()

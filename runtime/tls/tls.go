@@ -6,8 +6,10 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -44,6 +46,7 @@ type tlsChoice struct {
 	Source      string `json:"source"`
 	Root        string `json:"root,omitempty"`
 	RootKey     string `json:"rootKey,omitempty"`
+	Authority   string `json:"authority,omitempty"`
 	Certificate string `json:"certificate,omitempty"`
 	Key         string `json:"key,omitempty"`
 }
@@ -122,9 +125,17 @@ func tlsSource(dir string, roots *x509.CertPool) (tlsChoice, error) {
 		return none, err
 	}
 	if trusted {
-		return tlsChoice{Source: "drupack", Root: root, RootKey: filepath.Join(dir, rootKeyName)}, nil
+		return tlsChoice{Source: "drupack", Root: root, RootKey: filepath.Join(dir, rootKeyName), Authority: authority(certificate)}, nil
 	}
 	return none, nil
+}
+
+// authority names Caddy's CA for root. Caddy stores a CA's intermediate under its name
+// and reuses it without checking it against the configured root, so a new root needs
+// a new name.
+func authority(root *x509.Certificate) string {
+	sum := sha256.Sum256(root.Raw)
+	return "drupack-" + hex.EncodeToString(sum[:8])
 }
 
 func readRoot(dir string) (*x509.Certificate, *ecdsa.PrivateKey, error) {

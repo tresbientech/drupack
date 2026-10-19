@@ -284,7 +284,9 @@ test('the TLS source picks its snippets and their files', function (): void {
         'DRUPACK_RUNTIME_TLS' => 'drupack',
         'DRUPACK_RUNTIME_TLS_ROOT' => '/tls/root.pem',
         'DRUPACK_RUNTIME_TLS_ROOT_KEY' => '/tls/root.key',
-    ], tlsServerEnvironment(['source' => 'drupack', 'root' => '/tls/root.pem', 'rootKey' => '/tls/root.key']));
+        'DRUPACK_RUNTIME_TLS_CA' => 'drupack-0123456789abcdef',
+    ], tlsServerEnvironment(['source' => 'drupack', 'root' => '/tls/root.pem', 'rootKey' => '/tls/root.key',
+        'authority' => 'drupack-0123456789abcdef']));
     same([
         'DRUPACK_RUNTIME_TLS' => 'mkcert',
         'DRUPACK_RUNTIME_TLS_ROOT' => '/caroot/rootCA.pem',

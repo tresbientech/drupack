@@ -30,6 +30,7 @@ PORT           writers=application/launch.php,engine/serve.php  readers=applicat
 SITE_VERSION   writers=launcher/main.go  readers=runtime/entrypoint.go
 STOP_RECORD    writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go
 TLS            writers=application/process.php  readers=application/Caddyfile,engine/Caddyfile
+TLS_CA         writers=application/process.php  readers=application/tls-drupack-global.caddy,application/tls-drupack-site.caddy
 TLS_CERT       writers=application/process.php  readers=application/tls-mkcert-site.caddy
 TLS_KEY        writers=application/process.php  readers=application/tls-mkcert-site.caddy
 TLS_ROOT       writers=application/process.php  readers=application/tls-drupack-global.caddy,runtime/entrypoint.go

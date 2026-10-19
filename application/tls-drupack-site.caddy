@@ -3,7 +3,7 @@
 "https://localhost:{$DRUPACK_RUNTIME_PORT}", "https://127.0.0.1:{$DRUPACK_RUNTIME_PORT}", "https://[::1]:{$DRUPACK_RUNTIME_PORT}" {
 	tls {
 		issuer internal {
-			ca drupack
+			ca "{$DRUPACK_RUNTIME_TLS_CA}"
 		}
 	}
 	import site

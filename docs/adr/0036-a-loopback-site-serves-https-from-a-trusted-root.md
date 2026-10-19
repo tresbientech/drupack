@@ -20,7 +20,9 @@ its own store.
      an earlier mkcert root signed, is written again.
   2. The Drupack root, when a certificate it signs for `localhost` verifies
      against the system's roots. Caddy's pki app signs from it and rotates its
-     own intermediate and site certificates.
+     own intermediate and site certificates. The CA's name carries the root's
+     fingerprint: Caddy reuses a stored intermediate without checking it
+     against the root, so a new root gets a new name.
 - Any other start serves HTTP. A loopback start that could have served HTTPS
   prints one line naming `trust`.
 - `trust` creates the Drupack root on first use and installs it in the system
