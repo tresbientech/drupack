@@ -447,8 +447,32 @@ def run(args, **kwargs):
     """subprocess.run's counterpart to popen(): standard input pinned closed unless the
     caller overrides it.
     """
-    kwargs.setdefault("stdin", subprocess.DEVNULL)
-    return subprocess.run(args, **kwargs)
+    timeout = kwargs.get("timeout")
+    if current_platform() != WINDOWS or timeout is None:
+        kwargs.setdefault("stdin", subprocess.DEVNULL)
+        return subprocess.run(args, **kwargs)
+    # On a timeout subprocess.run kills the child alone, then reads its pipes to the end.
+    # On Windows a grandchild that inherited them, such as trust's root-store prompt,
+    # holds them open and the read never returns, so the whole tree goes first.
+    del kwargs["timeout"]
+    check = kwargs.pop("check", False)
+    data = kwargs.pop("input", None)
+    if data is None:
+        kwargs.setdefault("stdin", subprocess.DEVNULL)
+    else:
+        kwargs["stdin"] = subprocess.PIPE
+    if kwargs.pop("capture_output", False):
+        kwargs["stdout"] = kwargs["stderr"] = subprocess.PIPE
+    with subprocess.Popen(args, **kwargs) as process:
+        try:
+            stdout, stderr = process.communicate(data, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            stop_process(process, timeout)
+            raise
+    result = subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
+    if check:
+        result.check_returncode()
+    return result
 
 
 def run_drush(binary, work_dir, data_dir, *command):

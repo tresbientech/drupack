@@ -5,7 +5,8 @@ set -euo pipefail
 # the job image, which compiles both runtimes from this checkout. It builds
 # Drupacked Demo at the commit build/demo-pin.sh names, and a copy of it with a
 # Mercure hub, with drupack-build inside that image, where no Docker daemon
-# answers, and the engine executable beside it. It then runs the cases that
+# answers, and the engine executable beside it. It packs the demo again without
+# Node, for the case of a site that carries none. It then runs the cases that
 # need a daemon on this host, and the engine executable's cases against the
 # Drupacked Demo application.
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
@@ -43,6 +44,27 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -v "$
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -w /src drupack-job \
     drupack-build --engine-executable --platform "$platform" --libc glibc --output dist/engine --work "$work/engine-work"
 
+# Drupacked Demo again without Node, for the case of a site that carries none.
+# launch.php reads the site.json inside the payload, so the copy swaps that file
+# too, and its checksum names an application cache entry of its own.
+no_node=$work/no-node
+mkdir -p dist/no-node "$no_node"
+python3 -c 'import json, sys
+with open(sys.argv[1]) as handle:
+    site = json.load(handle)
+del site["node"]
+with open(sys.argv[2], "w") as handle:
+    json.dump(site, handle, indent=2)' dist/site.json dist/no-node/site.json
+cp "$work/work/payload/app-payload.tar" "$no_node/app-payload.tar"
+tar --delete -f "$no_node/app-payload.tar" ./site.json
+tar --mtime=@0 --owner=0 --group=0 --numeric-owner --mode=u+rw,go+rX -rf "$no_node/app-payload.tar" \
+    -C dist/no-node ./site.json
+sha256sum "$no_node/app-payload.tar" | cut -d ' ' -f 1 | tr -d '\n' >"$no_node/app_checksum.txt"
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -w /src/launcher -e CGO_ENABLED=0 drupack-job \
+    sh -c 'go run ./cmd/pack -runtime "/opt/drupack/runtimes/$1-glibc" -entry drupack -version "$DRUPACK_ENGINE_VERSION" \
+        -source . -output "../dist/no-node/drupacked-demo-$1" -app "$2/app-payload.tar" -app-checksum "$2/app_checksum.txt" \
+        -site ../dist/no-node/site.json -site-version dev' sh "$platform" "$no_node"
+
 # The PHP unit files read the vendor directory of the site just built.
 ln -sfn ../dist/work/app/vendor application/vendor
 "$executable" php-cli "$PWD/application/tests/launch_test.php"
@@ -56,13 +78,9 @@ ln -sfn ../dist/work/app/vendor application/vendor
 (cd launcher && go test ./...)
 (cd runtime/watch && go test ./...)
 (cd runtime/tls && go test ./...)
-python3 -m unittest discover -s tests/conformance -p test_harness.py
-python3 -m unittest discover -s tests/conformance -p test_environment.py
-python3 -m unittest discover -s tests/conformance -p test_app_payload.py
-python3 -m unittest discover -s tests/conformance -p test_release_files.py
-python3 -m unittest discover -s tests/conformance -p test_native_pack.py
-python3 -m unittest discover -s tests/upstream
+bash build/unit-tests.sh
 DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" "$work/results/conformance" --site-tests "$demo/tests" \
     -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \
     -k ExistingSiteAdoption -k EngineExecutable -k TlsSources -k TrustCommand
 python3 tests/conformance "dist/variant/variant-demo-$platform-musl" "$work/results/variant-musl" -k NodeRefusals -k MercureHub
+python3 tests/conformance "dist/no-node/drupacked-demo-$platform" "$work/results/no-node" -k NodeRefusals
