@@ -53,8 +53,9 @@ Commands:
                              --uninstall removes it.
   node, npm, npx             Run the site's bundled Node release, for a site
                              that carries one
-  clean                      Remove the unpacked applications from the cache.
-                             --dry-run lists them and removes nothing.
+  clean                      Remove the unpacked runtimes, applications and Node
+                             releases from the cache. --dry-run lists them and
+                             removes nothing.
 
 Examples:
   %1$s

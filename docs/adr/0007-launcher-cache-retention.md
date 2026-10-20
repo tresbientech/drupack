@@ -1,6 +1,9 @@
 # The launcher cache keeps an entry for 30 days
 
-Accepted on 2026-09-18.
+Accepted on 2026-09-18. Amended on 2026-10-20 by
+[ADR 0043](0043-one-store-holds-the-launchers-cache-entries.md): the 30-day
+rule covers the application, the runtime stays while active, and `clean`
+removes every kind.
 
 ## Context
 

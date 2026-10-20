@@ -210,17 +210,6 @@ reads only its own cache and main's, so a release during such an outage fails on
 Windows. Lean: point `X_VCPKG_ASSET_SOURCES` at our own copy of each download,
 keyed by its SHA-512.
 
-## One store for the launcher's cache entries
-
-The runtime, the application and the Node release are each staged, held, swept
-and cleaned under their own marker files: `active`, `.complete`, `.used` and
-`.release`. `CleanApps` and `CleanNode` are the same loop with different words.
-`unpackApp` and `LaySiteApp` copy the staging rename-swap. A `hold` parameter
-crosses four signatures only so tests can swap it. Lean: one store parameterised
-by kind, with the three clean tests merged into one table over kinds. The file
-locks themselves would come from a maintained package, such as `lockedfile` or
-`gofrs/flock`.
-
 ## One table of build targets
 
 A target's name lives in five forms:

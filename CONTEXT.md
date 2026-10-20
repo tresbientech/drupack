@@ -69,7 +69,7 @@ The public command-line interface that exposes the Drush command set for a Packa
 _Avoid_: `dr`, the name of Drupal core's own command line.
 
 **`clean` command**:
-The public command that removes unpacked releases from the cache.
+The public command that removes unpacked releases, and the state of folders no server runs, from the cache.
 
 **`DRUPACK_DATA_DIR`**:
 An environment variable that selects the default Site data directory for a Packaged site.
@@ -147,7 +147,7 @@ A PHP extension that a package in the application's lock file names as a require
 - An executable of a **Packaged site** carries one **Runtime**.
 - A Linux release of a **Packaged site** holds an executable per C library, and its **Install script** installs the one for the host.
 - `--version` names the **Runtime** that ran, and the release of each component the executable carries.
-- A **Runtime** and an **Application root** each unpack to their own cache. The **`clean` command** removes entries from both.
+- A **Runtime** and an **Application root** each unpack to their own cache. The **`clean` command** removes entries from both, except one a running site uses.
 - A **Packaged site** whose **Site contract** names a **Writable directory** keeps its **Application root** in **Site data**, which the **`clean` command** never touches.
 - An upgrade of such a **Packaged site** lays the new release into **Site data** and carries over each entry of a **Writable directory** that the release does not ship.
 

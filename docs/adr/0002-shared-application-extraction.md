@@ -2,7 +2,9 @@
 
 Proposed on 2026-09-17. Revised on 2026-09-21. Not implemented. Amended on 2026-09-25: a site whose
 contract names a writable directory keeps its own application in Site data,
-as `0021-writable-directories.md` records.
+as `0021-writable-directories.md` records. Amended on 2026-10-20 by
+[ADR 0043](0043-one-store-holds-the-launchers-cache-entries.md): `clean` also
+removes the runtimes and the engine's folder entries.
 
 ## Context
 

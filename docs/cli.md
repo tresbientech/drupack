@@ -269,12 +269,14 @@ too.
 
 ## `clean`
 
-`clean` removes the unpacked applications and Node releases from the cache. An entry a running
-site holds is listed and kept, because the site reads its PHP files on every
-request. `--dry-run` lists every entry with its size and removes none.
+`clean` removes the unpacked runtimes, applications and Node releases from the
+cache. An entry a running site holds is listed and kept, because the site reads
+its PHP files on every request. `--dry-run` lists every entry with its size and
+removes none. The next start unpacks what it needs again.
 
-The unpacked runtimes are cleaned on their own schedule. A start dates the
-entry it runs, and cleanup removes an entry unused for 30 days.
+Without `clean`, a start keeps the runtime it runs and removes the others. An
+application goes once no start has used it for 30 days. A Node release stays
+until `clean`.
 
 ## Environment
 
@@ -361,7 +363,8 @@ forms. That covers `-d`, `-l`, `-v`, `-m`, `-i`, `--ini`, `--ri`, `-f`, `-h`
 and `-S`. An argument after `-r CODE` stops the same way. Drush's child
 processes reach the same command through the `php` on `PATH`.
 
-`clean` removes the unpacked engine files from the cache.
+`clean` removes the unpacked engine files from the cache, and the state of each
+folder no server runs: its stop record, log and Mercure hub data.
 
 `self-update` installs the newest release over this file. It reads the
 release's `release.json` from

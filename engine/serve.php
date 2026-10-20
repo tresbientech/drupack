@@ -31,7 +31,8 @@ Commands:
   drush    Run the Drush of the project holding the working directory
   dr       Run Drupal core's command line of that project
   php      Run a script or -r CODE on the bundled PHP, with no PHP option
-  clean    Remove the unpacked engine files from the cache
+  clean    Remove the unpacked engine files and stopped folders' state
+           from the cache
   self-update  Install the newest release over this file, or --check for one
   trust    Install the local root that lets every Drupack site on this
            computer serve HTTPS, or --uninstall it. It may ask for a password.
