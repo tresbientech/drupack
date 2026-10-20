@@ -364,7 +364,8 @@ and `-S`. An argument after `-r CODE` stops the same way. Drush's child
 processes reach the same command through the `php` on `PATH`.
 
 `clean` removes the unpacked engine files from the cache, and the state of each
-folder no server runs: its stop record, log and Mercure hub data.
+folder no server runs: its stop record, log and Mercure hub data. A folder a
+server runs is listed and kept.
 
 `self-update` installs the newest release over this file. It reads the
 release's `release.json` from

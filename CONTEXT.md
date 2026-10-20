@@ -33,7 +33,7 @@ The Node.js release a Packaged site carries when its Site contract asks for one:
 _Avoid_: embedded Node, Node runtime
 
 **Mercure hub**:
-The hub a Packaged site or a Project folder serves at `/.well-known/mercure` when its `composer.json` sets `extra.drupack.mercure`. Its secrets and its history live in Site data, or in the folder's cache entry for the Engine executable.
+The hub a Packaged site or a Project folder serves at `/.well-known/mercure` when its `composer.json` sets `extra.drupack.mercure`. Its secrets and its history live in Site data, or in the folder's cache entry for the Engine executable, which the **`clean` command** removes once no server runs the folder.
 
 ### Engine executable
 
