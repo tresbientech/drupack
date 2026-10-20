@@ -44,11 +44,12 @@ func buildFixture(t *testing.T) ([]byte, runtimepkg.Manifest) {
 // prepareAndActivate runs a start's runtime steps, the way PrepareRelease runs
 // them around a ready application.
 func prepareAndActivate(root string, payload []byte, m runtimepkg.Manifest, notice io.Writer) (string, error) {
-	entry, err := runtimepkg.Prepare(root, payload, m, notice, func(string) error { return nil })
+	cache := runtimepkg.NewCache(root, func(string) error { return nil })
+	entry, err := cache.Prepare(payload, m, notice)
 	if err != nil {
 		return "", err
 	}
-	return entry, runtimepkg.Activate(root, entry)
+	return entry, cache.Activate(entry)
 }
 
 func TestPrepareWarmStartReturnsEntryWithoutNotice(t *testing.T) {
@@ -103,8 +104,7 @@ func TestPrepareRestagesWhenFileSizeChanges(t *testing.T) {
 	if string(restored) != fixtureEntryContent {
 		t.Fatalf("file was not restored: %q", restored)
 	}
-	// The re-stage claims its own name, so the corrupted entry is never written
-	// over, and a third start settles on the entry the second one activated.
+	// A third start settles on the entry the second one wrote.
 	third, err := prepareAndActivate(root, payload, manifest, io.Discard)
 	if err != nil {
 		t.Fatal(err)
@@ -422,7 +422,7 @@ func TestPreparesAndHoldsForAnotherProcess(t *testing.T) {
 	}
 	payload, manifest := buildFixture(t)
 	manifest.Version = "1.0.0"
-	if _, err := runtimepkg.Prepare(root, payload, manifest, io.Discard, runtimepkg.HoldUsage); err != nil {
+	if _, err := runtimepkg.NewCache(root, runtimepkg.HoldUsage).Prepare(payload, manifest, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(os.Getenv(prepareAckVariable), nil, 0600); err != nil {

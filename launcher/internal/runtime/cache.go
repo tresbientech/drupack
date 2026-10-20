@@ -17,8 +17,8 @@ import (
 // rootMode is the permission every candidate cache root is created with.
 const rootMode = 0700
 
-// stagingPrefix separates a cache key from the random suffix os.MkdirTemp adds,
-// and removeOthers matches on it to clear what an interrupted run left.
+// stagingPrefix starts the name of a directory being written or removed.
+// Cleanup matches on it to clear what an interrupted run left.
 const stagingPrefix = ".staging-"
 
 // activeName holds the key of the entry a start last activated, and lockName
@@ -138,86 +138,52 @@ func Key(version string, payload []byte) string {
 }
 
 // Prepare returns the directory holding the runtime m describes, staging
-// payload into root's cache the first time m's version and payload are seen.
-// It calls hold on the entry before the root lock releases, and hold marks the
-// entry in use for the rest of the process (HoldUsage), so an Activate by
-// another release cannot remove the entry before this start runs from it. A
-// hold error stops the start. Production passes HoldUsage; hold is a seam for
-// tests, since a real Windows hold keeps a handle that blocks t.TempDir cleanup.
-// It activates nothing: Activate does, once the application is ready too. A
-// start that cannot stage the runtime it carries reports the failure and
-// stops, since the application beside it belongs to this release alone.
-func Prepare(root string, payload []byte, m Manifest, notice io.Writer, hold func(entry string) error) (string, error) {
-	return prepare(root, "runtime", payload, m, notice, hold)
-}
-
-// prepare stages payload into root as the entry m describes, once, and names
-// what it unpacks as what in its notice.
-func prepare(root, what string, payload []byte, m Manifest, notice io.Writer, hold func(entry string) error) (string, error) {
-	key := Key(m.Version, payload)
-
-	entry, ok, err := holdWarm(root, key, m, hold)
+// payload the first time m's version and payload are seen. It activates
+// nothing: Activate does, once the application is ready too. A start that
+// cannot stage the runtime it carries reports the failure and stops, since the
+// application beside it belongs to this release alone.
+func (c Cache) Prepare(payload []byte, m Manifest, notice io.Writer) (string, error) {
+	sp, err := releaseSpec(c.root, "runtime", payload, m, notice)
 	if err != nil {
 		return "", err
 	}
-	if ok {
-		return entry, nil
-	}
-
-	unlock, err := lockRoot(root)
-	if err != nil {
-		return "", fmt.Errorf("could not lock the runtime cache %s: %w", root, err)
-	}
-	defer unlock()
-
-	// Another process may have finished staging while this one waited on the lock.
-	entry, ok, err = holdWarm(root, key, m, hold)
-	if err != nil {
-		return "", err
-	}
-	if ok {
-		return entry, nil
-	}
-
-	fmt.Fprintf(notice, "Unpacking %s %s. This happens once for each version.\n", what, m.Version)
-
-	name, err := stage(root, key, payload, m, notice)
-	if err != nil {
-		return "", stagingFailure(root, m, err)
-	}
-	// hold runs before the deferred unlock, so no Activate takes the lock and
-	// finds the entry unmarked.
-	entry = filepath.Join(root, name)
-	if err := hold(entry); err != nil {
-		return "", err
-	}
-	return entry, nil
+	return c.runtimes().prepare(sp, notice)
 }
 
-// holdWarm calls hold on the warm entry warmEntry finds, then
-// checks the entry is still whole. removeOthers renames an entry away before
-// it deletes it, and this runs without the root lock when it is the first
-// look, so a removal that beat the hold leaves the entry missing here and the
-// caller stages afresh.
-func holdWarm(root, key string, m Manifest, hold func(entry string) error) (string, bool, error) {
-	entry, ok := warmEntry(root, key, m)
-	if !ok {
-		return "", false, nil
+// releaseSpec describes the entry holding the release m describes, a runtime
+// or a Node release. It is named by Key, whole when its stored manifest matches
+// m and every file has m's size, and written by extracting payload and
+// verifying every file. A checksum failure leaves the cache untouched, since
+// the entry takes its name only after every declared file verifies.
+func releaseSpec(dir, what string, payload []byte, m Manifest, notice io.Writer) (spec, error) {
+	contents, err := json.Marshal(m)
+	if err != nil {
+		return spec{}, err
 	}
-	if err := hold(entry); err != nil {
-		// A removal that beat the hold is the case above, not a failure.
-		if _, statErr := os.Stat(entry); statErr != nil {
-			return "", false, nil
-		}
-		return "", false, err
-	}
-	return entry, warm(entry, m), nil
+	return spec{
+		name:   Key(m.Version, payload),
+		notice: fmt.Sprintf("Unpacking %s %s. This happens once for each version.", what, m.Version),
+		ready:  func(entry string) bool { return warm(entry, m) },
+		fill: func(staging string) error {
+			err := Extract(staging, payload, m, notice)
+			if err == nil {
+				err = verifyChecksums(staging, m)
+			}
+			if err != nil {
+				return stagingFailure(dir, m, err)
+			}
+			return nil
+		},
+		marker:   ManifestName,
+		contents: contents,
+	}, nil
 }
 
-// Activate names entry, a directory Prepare returned, as root's active runtime
+// Activate names entry, a directory Prepare returned, as the active runtime
 // and removes every other version's entry. An entry already active changes
 // nothing, so a warm start takes no lock.
-func Activate(root, entry string) error {
+func (c Cache) Activate(entry string) error {
+	root := c.root
 	name := filepath.Base(entry)
 	if active, err := activeKey(root); err == nil && active == name {
 		return nil
@@ -232,23 +198,6 @@ func Activate(root, entry string) error {
 	}
 	removeOthers(root, name)
 	return nil
-}
-
-// warmEntry reports the directory already holding the runtime m describes: the
-// one named after key, or the one active names, since a start that found key's
-// name taken staged under a name of its own.
-func warmEntry(root, key string, m Manifest) (string, bool) {
-	if entry := filepath.Join(root, key); warm(entry, m) {
-		return entry, true
-	}
-	name, err := activeKey(root)
-	if err != nil || name == key {
-		return "", false
-	}
-	if entry := filepath.Join(root, name); warm(entry, m) {
-		return entry, true
-	}
-	return "", false
 }
 
 // warm reports whether entry already holds the runtime m describes: its
@@ -358,50 +307,6 @@ func stagingFailure(root string, m Manifest, err error) error {
 		total += file.Size
 	}
 	return fmt.Errorf("could not unpack the runtime into %s, which needs %d bytes: %w", root, total, err)
-}
-
-// stage extracts payload into a fresh staging directory, verifies it, and
-// names it as an entry. It returns that entry's name, which is key unless a
-// directory already holds that name. A checksum failure leaves the cache
-// untouched, since the naming happens only after every declared file verifies.
-func stage(root, key string, payload []byte, m Manifest, notice io.Writer) (string, error) {
-	staging, err := os.MkdirTemp(root, key+stagingPrefix)
-	if err != nil {
-		return "", err
-	}
-	defer os.RemoveAll(staging)
-
-	if err := Extract(staging, payload, m, notice); err != nil {
-		return "", err
-	}
-	if err := verifyChecksums(staging, m); err != nil {
-		return "", err
-	}
-	contents, err := json.Marshal(m)
-	if err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(filepath.Join(staging, ManifestName), contents, 0600); err != nil {
-		return "", err
-	}
-
-	name := freeName(root, key)
-	return name, os.Rename(staging, filepath.Join(root, name))
-}
-
-// freeName returns key, or the first key.N beside it that no directory holds.
-// A site runs from its entry with files open, and Windows refuses to rename or
-// remove a directory while it does, so a re-stage claims its own name rather
-// than displacing the one that is there. The caller holds root's lock, so no
-// other process takes the name in between.
-func freeName(root, key string) string {
-	name := key
-	for n := 1; ; n++ {
-		if _, err := os.Lstat(filepath.Join(root, name)); err != nil {
-			return name
-		}
-		name = fmt.Sprintf("%s.%d", key, n)
-	}
 }
 
 func verifyChecksums(directory string, m Manifest) error {

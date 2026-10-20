@@ -68,16 +68,17 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	directory, application, err := runtime.PrepareRelease(root, runtime.Release{
+	cache := runtime.NewCache(root, runtime.HoldUsage)
+	directory, application, err := cache.PrepareRelease(runtime.Release{
 		Payload:     runtimePayload,
 		Manifest:    m,
 		AppChecksum: string(appChecksum),
 		AppPayload:  appPayload,
-	}, os.Stderr, runtime.HoldUsage)
+	}, os.Stderr)
 	if err != nil {
 		return err
 	}
-	nodeBin, err := prepareNode(root)
+	nodeBin, err := prepareNode(cache)
 	if err != nil {
 		return err
 	}
@@ -102,7 +103,7 @@ func run() error {
 
 // prepareNode unpacks the Node release this file carries and returns its
 // executable directory, or "" for a file that carries none.
-func prepareNode(root string) (string, error) {
+func prepareNode(cache runtime.Cache) (string, error) {
 	if len(nodeManifest) == 0 {
 		return "", nil
 	}
@@ -110,7 +111,7 @@ func prepareNode(root string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	directory, err := runtime.PrepareNode(root, nodePayload, m, os.Stderr, runtime.HoldUsage)
+	directory, err := cache.PrepareNode(nodePayload, m, os.Stderr)
 	if err != nil {
 		return "", err
 	}

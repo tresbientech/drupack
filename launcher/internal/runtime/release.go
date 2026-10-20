@@ -14,19 +14,20 @@ type Release struct {
 	AppPayload  []byte
 }
 
-// PrepareRelease readies r's runtime and application under root and returns
-// both directories, calling hold on each before its cache lock releases. The
-// runtime turns active once both are ready, so a failed step leaves the release an earlier start activated in place.
-func PrepareRelease(root string, r Release, notice io.Writer, hold func(entry string) error) (string, string, error) {
-	runtimeDir, err := Prepare(root, r.Payload, r.Manifest, notice, hold)
+// PrepareRelease readies r's runtime and application and returns both
+// directories, holding each before its cache lock releases. The runtime turns
+// active once both are ready, so a failed step leaves the release an earlier
+// start activated in place.
+func (c Cache) PrepareRelease(r Release, notice io.Writer) (string, string, error) {
+	runtimeDir, err := c.Prepare(r.Payload, r.Manifest, notice)
 	if err != nil {
 		return "", "", r.failure("runtime", err)
 	}
-	application, err := PrepareApp(root, r.AppChecksum, r.AppPayload, notice, hold)
+	application, err := c.PrepareApp(r.AppChecksum, r.AppPayload, notice)
 	if err != nil {
 		return "", "", r.failure("application", err)
 	}
-	if err := Activate(root, runtimeDir); err != nil {
+	if err := c.Activate(runtimeDir); err != nil {
 		return "", "", r.failure("activation", err)
 	}
 	return runtimeDir, application, nil

@@ -62,6 +62,10 @@ func TestProgressLastNamesTheTotal(t *testing.T) {
 	}
 }
 
+// noHold stands in for HoldUsage where no other process takes part. A real hold
+// keeps a handle that blocks t.TempDir cleanup on Windows.
+func noHold(string) error { return nil }
+
 // unpackedApp builds an application directory with the two markers a finished
 // unpacking leaves, dated used days ago.
 func unpackedApp(t *testing.T, appRoot, name string, used time.Duration) string {
@@ -234,7 +238,7 @@ func TestPrepareAppUnpacksAnEmptyArchive(t *testing.T) {
 	}
 
 	notice := &bytes.Buffer{}
-	entry, err := PrepareApp(root, "abc123def4567890", payload.Bytes(), notice, func(string) error { return nil })
+	entry, err := NewCache(root, noHold).PrepareApp("abc123def4567890", payload.Bytes(), notice)
 	if err != nil {
 		t.Fatalf("PrepareApp failed: %v", err)
 	}
@@ -246,7 +250,7 @@ func TestPrepareAppUnpacksAnEmptyArchive(t *testing.T) {
 	}
 
 	notice.Reset()
-	if _, err := PrepareApp(root, "abc123def4567890", payload.Bytes(), notice, func(string) error { return nil }); err != nil {
+	if _, err := NewCache(root, noHold).PrepareApp("abc123def4567890", payload.Bytes(), notice); err != nil {
 		t.Fatalf("the second PrepareApp failed: %v", err)
 	}
 	if notice.Len() != 0 {
@@ -316,7 +320,7 @@ func TestPrepareNodeUnpacksOnceUnderTheNodeDirectory(t *testing.T) {
 	}
 	root := t.TempDir()
 	var notice bytes.Buffer
-	entry, err := PrepareNode(root, payload, m, &notice, func(string) error { return nil })
+	entry, err := NewCache(root, noHold).PrepareNode(payload, m, &notice)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -328,7 +332,7 @@ func TestPrepareNodeUnpacksOnceUnderTheNodeDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	notice.Reset()
-	if again, err := PrepareNode(root, payload, m, &notice, func(string) error { return nil }); err != nil || again != entry || notice.Len() != 0 {
+	if again, err := NewCache(root, noHold).PrepareNode(payload, m, &notice); err != nil || again != entry || notice.Len() != 0 {
 		t.Fatalf("a second PrepareNode = %s, %v, printed %q", again, err, notice.String())
 	}
 	if after, _ := os.Stat(entry); !after.ModTime().Equal(before.ModTime()) {
