@@ -90,7 +90,7 @@ func lockRoot(root string) (func(), error) {
 func leaseHeld(entry string) bool {
 	pointer, err := windows.UTF16PtrFromString(filepath.Join(entry, leaseName))
 	if err != nil {
-		return false
+		return true
 	}
 	// PHP opens the lease for reading and writing and shares both, so this
 	// open has to share them too.

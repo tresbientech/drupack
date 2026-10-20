@@ -41,11 +41,14 @@ type store struct {
 	// label prefixes an entry's name in clean's listing. one and many name the
 	// kind in its totals.
 	label, one, many string
+	// active is true for a kind whose directory keeps an active file naming
+	// the entry a start last activated.
+	active bool
 }
 
 func (c Cache) runtimes() store {
 	return store{dir: c.root, noun: "runtime", hold: c.hold, owns: ownedRuntime, inUse: entryInUse,
-		one: "unpacked runtime", many: "unpacked runtimes"}
+		one: "unpacked runtime", many: "unpacked runtimes", active: true}
 }
 
 func (c Cache) applications() store {
@@ -128,8 +131,7 @@ func (s store) write(sp spec, notice io.Writer) (string, error) {
 	}
 	fmt.Fprintln(notice, sp.notice)
 	entry := s.target(sp.name)
-	aside := filepath.Join(s.dir, stagingPrefix+"removing-"+filepath.Base(entry))
-	if err := swap(entry, aside, sp.marker, sp.contents, sp.fill); err != nil {
+	if err := swap(entry, asideName(entry), sp.marker, sp.contents, sp.fill); err != nil {
 		return "", err
 	}
 	return entry, s.hold(entry)
@@ -160,6 +162,9 @@ func (s store) holdReady(sp spec) (string, bool, error) {
 func (s store) readyEntry(sp spec) (string, bool) {
 	if entry := filepath.Join(s.dir, sp.name); sp.ready(entry) {
 		return entry, true
+	}
+	if !s.active {
+		return "", false
 	}
 	name, err := activeKey(s.dir)
 	if err != nil || name == sp.name {
@@ -240,7 +245,7 @@ func retire(path string, inUse func(string) bool) (bool, error) {
 	if inUse(path) {
 		return false, nil
 	}
-	doomed := filepath.Join(filepath.Dir(path), stagingPrefix+"removing-"+filepath.Base(path))
+	doomed := asideName(path)
 	if err := removeTree(doomed); err != nil {
 		return false, err
 	}

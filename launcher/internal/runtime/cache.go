@@ -21,6 +21,11 @@ const rootMode = 0700
 // Cleanup matches on it to clear what an interrupted run left.
 const stagingPrefix = ".staging-"
 
+// asideName is where the entry at path moves before it is removed.
+func asideName(path string) string {
+	return filepath.Join(filepath.Dir(path), stagingPrefix+"removing-"+filepath.Base(path))
+}
+
 // activeName holds the key of the entry a start last activated, and lockName
 // serializes staging. Both live in the cache root, beside the entries.
 const activeName = "active"
