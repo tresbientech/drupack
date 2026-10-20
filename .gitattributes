@@ -4,3 +4,7 @@
 /composer.json -export-ignore
 /composer -export-ignore
 /LICENSE -export-ignore
+
+# Go and PHP tests compare this reference file byte for byte, so a Windows
+# checkout keeps its LF endings.
+/application/tests/site.json text eol=lf

@@ -84,7 +84,7 @@ func TestPlanEnvironment(t *testing.T) {
 			// FrankenPHP resolves php.ini through PHPRC, so a stale value would load the wrong settings.
 			name: "PHPRC always names the runtime directory",
 			edit: func(l *Launch) { l.Parent = []string{"PHPRC=/caller/chosen/path", "HOME=/home/user"} },
-			want: map[string]string{"PHPRC": "/runtime/dir", "HOME": "/home/user"},
+			want: map[string]string{"PHPRC": filepath.FromSlash("/runtime/dir"), "HOME": "/home/user"},
 		},
 		{
 			// A caller behind a TLS-inspection proxy names their own bundle.
@@ -94,7 +94,7 @@ func TestPlanEnvironment(t *testing.T) {
 		},
 		{
 			name: "both variables point at the runtime when the caller sets neither",
-			want: map[string]string{"PHPRC": "/runtime/dir", "DRUPACK_CA_FILE": "/runtime/dir/cacert.pem"},
+			want: map[string]string{"PHPRC": filepath.FromSlash("/runtime/dir"), "DRUPACK_CA_FILE": "/runtime/dir/cacert.pem"},
 		},
 		{
 			// A glibc runtime runs under the host's loader, which would load the caller's code.
@@ -172,13 +172,13 @@ func TestPlanEnvironment(t *testing.T) {
 				l.NodeBin = "/node/bin"
 				l.Parent = []string{"Path=/bin", "phprc=/stale", "Drupack_CA_File=/proxy/bundle.pem"}
 			},
-			want:  map[string]string{"PATH": "/node/bin" + path + "/bin", "PHPRC": "/runtime/dir", "Drupack_CA_File": "/proxy/bundle.pem"},
+			want:  map[string]string{"PATH": "/node/bin" + path + "/bin", "PHPRC": filepath.FromSlash("/runtime/dir"), "Drupack_CA_File": "/proxy/bundle.pem"},
 			lacks: []string{"Path", "phprc", "DRUPACK_CA_FILE"},
 		},
 		{
 			name: "Unix keeps variables whose names differ only in case",
 			edit: func(l *Launch) { l.Parent = []string{"phprc=/kept"} },
-			want: map[string]string{"phprc": "/kept", "PHPRC": "/runtime/dir"},
+			want: map[string]string{"phprc": "/kept", "PHPRC": filepath.FromSlash("/runtime/dir")},
 		},
 		{
 			name: "a console a file manager opened is named",
