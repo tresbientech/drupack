@@ -176,13 +176,18 @@ func (s store) readyEntry(sp spec) (string, bool) {
 	return "", false
 }
 
-// target returns the path a new entry named name takes. An unready entry under
-// that name is replaced, unless a site still runs from it: Windows refuses to
-// replace a directory a site has files open in. The new entry then takes the
-// first name.N no directory holds. The caller holds the lock.
+// target returns the path a new entry named name takes. Windows refuses to
+// move a directory while any file inside is open, and a running site's loader
+// holds files open without the usage marker. A kind with an active file
+// therefore never displaces an entry: the new one takes the first free name.N,
+// and the active file points later starts at it. A kind without one replaces
+// an unready entry, unless a site still marks it in use. The caller holds the lock.
 func (s store) target(name string) string {
 	path := filepath.Join(s.dir, name)
-	if !entryInUse(path) {
+	if !s.active && !entryInUse(path) {
+		return path
+	}
+	if _, err := os.Lstat(path); err != nil {
 		return path
 	}
 	for n := 1; ; n++ {

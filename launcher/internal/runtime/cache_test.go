@@ -97,8 +97,8 @@ func TestPrepareRestagesWhenFileSizeChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if again != entry {
-		t.Fatalf("the re-stage took %q, want the corrupted entry's own name %q", again, entry)
+	if again == entry {
+		t.Fatalf("the re-stage wrote over the corrupted entry %q, want a name of its own", entry)
 	}
 	restored, err := os.ReadFile(filepath.Join(again, "bin", "app"))
 	if err != nil {
@@ -107,7 +107,8 @@ func TestPrepareRestagesWhenFileSizeChanges(t *testing.T) {
 	if string(restored) != fixtureEntryContent {
 		t.Fatalf("file was not restored: %q", restored)
 	}
-	// A third start settles on the entry the second one wrote.
+	// The re-stage claims its own name, so the corrupted entry is never written
+	// over, and a third start settles on the entry the second one activated.
 	third, err := prepareAndActivate(root, payload, manifest, io.Discard)
 	if err != nil {
 		t.Fatal(err)
