@@ -13,8 +13,8 @@ import (
 // whose contract names writable directories.
 const siteAppName = "app"
 
-// previousAppName holds the site's application while an upgrade lays the next
-// one. It stays whole until the next one replaces it.
+// previousAppName holds the site's old application while an upgrade moves the
+// next one into place. It stays whole until the next one is in place.
 const previousAppName = ".previous-app"
 
 // releaseName holds the application checksum of the release laid in a site's
@@ -58,35 +58,19 @@ func LaySiteApp(data, checksum string, payload []byte, writable []string, notice
 		// An upgrade interrupted after its swap leaves the old application behind.
 		return removeTree(previous)
 	}
-	staging := filepath.Join(data, stagingPrefix+siteAppName)
-	if err := removeTree(staging); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(staging, 0700); err != nil {
-		return err
-	}
 	fmt.Fprintf(notice, "Laying the application in %s. This happens once for each release.\n", data)
-	// An interrupted upgrade already moved the old application aside, and only
-	// the swap below removes it.
-	if _, err := os.Stat(entry); err == nil {
-		if err := removeTree(previous); err != nil {
-			return err
-		}
-		if err := os.Rename(entry, previous); err != nil {
-			return err
-		}
+	// An upgrade interrupted between moving the old application aside and moving
+	// the new one in leaves the old one in previous alone.
+	old := entry
+	if _, err := os.Stat(entry); err != nil {
+		old = previous
 	}
-	if err := layStaging(staging, previous, checksum, payload, writable, notice); err != nil {
-		removeTree(staging)
-		return err
-	}
-	if err := os.Rename(staging, entry); err != nil {
-		return err
-	}
-	return removeTree(previous)
+	return swap(entry, previous, releaseName, []byte(checksum), func(staging string) error {
+		return layStaging(staging, old, payload, writable, notice)
+	})
 }
 
-func layStaging(staging, previous, checksum string, payload []byte, writable []string, notice io.Writer) error {
+func layStaging(staging, old string, payload []byte, writable []string, notice io.Writer) error {
 	if err := extractApp(staging, payload, notice); err != nil {
 		return err
 	}
@@ -95,11 +79,11 @@ func layStaging(staging, previous, checksum string, payload []byte, writable []s
 		if err := os.MkdirAll(filepath.Join(staging, native), 0700); err != nil {
 			return err
 		}
-		if err := carryOver(filepath.Join(previous, native), filepath.Join(staging, native)); err != nil {
+		if err := carryOver(filepath.Join(old, native), filepath.Join(staging, native)); err != nil {
 			return err
 		}
 	}
-	return os.WriteFile(filepath.Join(staging, releaseName), []byte(checksum), 0600)
+	return nil
 }
 
 // carryOver copies into to each entry of from that to lacks. A missing from

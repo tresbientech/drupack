@@ -42,76 +42,18 @@ func AppRoot(root string) string {
 
 // PrepareApp returns the directory holding the application that checksum
 // names, unpacking payload there the first time this release is seen. A
-// directory carrying the completion marker is used as it stands. Unpacking
-// happens under the root lock, into a staging directory that moves into place
-// once the marker is written, so a start interrupted halfway leaves nothing a
-// later start mistakes for a finished copy.
+// directory carrying the completion marker is used as it stands.
 func (c Cache) PrepareApp(checksum string, payload []byte, notice io.Writer) (string, error) {
-	root := c.root
 	if !SingleElement(checksum) || len(checksum) < 12 {
 		return "", fmt.Errorf("application checksum is not a single path element: %q", checksum)
 	}
-	appRoot := AppRoot(root)
-	name := entryName(checksum)
-	entry := filepath.Join(appRoot, name)
-	if err := os.MkdirAll(appRoot, rootMode); err != nil {
-		return "", err
-	}
-
-	unlock, err := lockRoot(appRoot)
-	if err != nil {
-		return "", fmt.Errorf("could not lock the application cache %s: %w", appRoot, err)
-	}
-	defer unlock()
-
-	// Another process may have unpacked this release while this one waited on the lock.
-	if !complete(entry) {
-		fmt.Fprintf(notice, "Unpacking the application. This happens once for each release.\n")
-		if err := unpackApp(appRoot, entry, name, payload, notice); err != nil {
-			return "", err
-		}
-	}
-	if err := markUsed(entry); err != nil {
-		return "", err
-	}
-	// hold runs before the deferred unlock, so no sweep takes the lock and finds
-	// the entry unmarked.
-	if err := c.hold(entry); err != nil {
-		return "", err
-	}
-	sweepApps(appRoot, name, time.Now())
-	return entry, nil
-}
-
-// unpackApp writes the application into a staging directory and moves it to
-// entry once the completion marker is written, so a start interrupted halfway
-// leaves nothing a later start mistakes for a finished copy.
-func unpackApp(appRoot, entry, name string, payload []byte, notice io.Writer) error {
-	staging := filepath.Join(appRoot, stagingPrefix+name)
-	if err := removeTree(staging); err != nil {
-		return err
-	}
-	// The archive names every directory it holds, so the staging directory is
-	// the one the extraction never creates for itself.
-	if err := os.MkdirAll(staging, 0700); err != nil {
-		return err
-	}
-	if err := extractApp(staging, payload, notice); err != nil {
-		removeTree(staging)
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(staging, completeName), nil, 0600); err != nil {
-		removeTree(staging)
-		return err
-	}
-	if err := removeTree(entry); err != nil {
-		return err
-	}
-	if err := os.Rename(staging, entry); err != nil {
-		removeTree(staging)
-		return err
-	}
-	return nil
+	return c.applications().prepare(spec{
+		name:   entryName(checksum),
+		notice: "Unpacking the application. This happens once for each release.",
+		ready:  complete,
+		fill:   func(staging string) error { return extractApp(staging, payload, notice) },
+		marker: completeName,
+	}, notice)
 }
 
 // markUsed dates the entry this start runs. Writing the file rather than

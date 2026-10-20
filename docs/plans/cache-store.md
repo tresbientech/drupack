@@ -56,7 +56,7 @@ and `LaySiteApp`.
 ### Acceptance criteria
 
 - [ ] `go test ./internal/runtime/` passes, the `app_test.go` sweep cases and every `siteapp_test.go` case included.
-- [ ] `rtk grep -n "func unpackApp\|func sweepApps\|func PrepareApp" internal/runtime` prints nothing.
+- [ ] `rtk grep -rn "func unpackApp\|func PrepareApp(" internal/runtime` prints nothing.
 - [ ] `GOOS=windows go vet ./...` passes.
 
 ---
@@ -75,7 +75,7 @@ stays. The three clean tests become one table over kinds.
 ### Acceptance criteria
 
 - [ ] `go test ./internal/runtime/` passes a clean table with rows per kind: listing, dry run, an entry another process holds, and reader content in the root.
-- [ ] `rtk grep -n "func CleanApps\|func CleanNode\|func reportHeld\|func applicationWord\|func releaseWord" internal/runtime` prints nothing.
+- [ ] `rtk grep -rn "func CleanApps\|func CleanNode\|func reportHeld\|func applicationWord\|func releaseWord" internal/runtime` prints nothing.
 - [ ] `python3 tests/conformance dist/drupacked-demo-linux-amd64 <results> -k ColdWarmStart -k SiteNamedCaches -k NodeClean` passes the existing clean cases unchanged.
 
 ---

@@ -97,6 +97,9 @@ func TestPrepareRestagesWhenFileSizeChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if again != entry {
+		t.Fatalf("the re-stage took %q, want the corrupted entry's own name %q", again, entry)
+	}
 	restored, err := os.ReadFile(filepath.Join(again, "bin", "app"))
 	if err != nil {
 		t.Fatal(err)

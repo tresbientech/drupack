@@ -55,7 +55,7 @@ keeps an entry a running site or server uses, as today, and says so.
 - D7. `clean` removes each `folders/` entry whose `serving.lock` no server holds. The in-use test takes an exclusive non-blocking lock on that file and releases it at once: `flock` on unix, `LockFileEx` on Windows. An entry moves to a staging name and is tested again before removal, as `removeOthers` does. Invariant: `Serving::lock` holds `flock(LOCK_EX)` on `serving.lock` for the server's life. Evidence: `application/process.php:262-273`.
 - D8. Lock code stays hand-written, and `go.mod` gains no module. `lockRoot`, `HoldUsage` and `entryInUse` keep their bodies. The lease test sits beside them in `lock_unix.go` and `lock_windows.go`, using `golang.org/x/sys`, already required. Evidence: `launcher/go.mod`.
 - D9. Each kind keeps its retention rule from D2. Evidence: ADR 0007, ADR 0027.
-- D10. The old shape goes: `CleanApps`, `CleanNode`, `sweepApps`, `reportHeld`, `applicationWord`, `releaseWord`, the `hold` parameters and the near-copy tests. Evidence: `rtk grep -n "func CleanApps\|func CleanNode\|func sweepApps" launcher/internal/runtime`.
+- D10. The old shape goes: `CleanApps`, `CleanNode`, `unpackApp`, `reportHeld`, `applicationWord`, `releaseWord`, the `hold` parameters and the near-copy tests. Evidence: `rtk grep -n "func CleanApps\|func CleanNode\|func unpackApp" launcher/internal/runtime`.
 - D11. Docs follow:
   - `docs/cli.md`: the `clean` section and the engine's `clean` line
   - help texts: `application/launch.php:56` and `engine/serve.php:34`

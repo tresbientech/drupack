@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // Cache is one site's cache root, with the hold every start takes on the
@@ -28,10 +29,25 @@ type store struct {
 	dir  string
 	noun string
 	hold func(entry string) error
+	// retain runs under the lock on every start of a kind that dates and sweeps
+	// its entries, with the entry the start runs. Nil for a kind that keeps
+	// entries until activation or clean removes them.
+	retain func(entry string) error
 }
 
 func (c Cache) runtimes() store {
 	return store{dir: c.root, noun: "runtime", hold: c.hold}
+}
+
+func (c Cache) applications() store {
+	dir := AppRoot(c.root)
+	return store{dir: dir, noun: "application", hold: c.hold, retain: func(entry string) error {
+		if err := markUsed(entry); err != nil {
+			return err
+		}
+		sweepApps(dir, filepath.Base(entry), time.Now())
+		return nil
+	}}
 }
 
 func (c Cache) nodes() store {
@@ -58,7 +74,8 @@ func (s store) prepare(sp spec, notice io.Writer) (string, error) {
 	if err := os.MkdirAll(s.dir, rootMode); err != nil {
 		return "", err
 	}
-	if entry, ok, err := s.holdReady(sp); err != nil || ok {
+	entry, ok, err := s.holdReady(sp)
+	if err != nil || ok && s.retain == nil {
 		return entry, err
 	}
 
@@ -68,7 +85,22 @@ func (s store) prepare(sp spec, notice io.Writer) (string, error) {
 	}
 	defer unlock()
 
-	// Another process may have finished staging while this one waited on the lock.
+	if !ok {
+		if entry, err = s.write(sp, notice); err != nil {
+			return "", err
+		}
+	}
+	if s.retain != nil {
+		if err := s.retain(entry); err != nil {
+			return "", err
+		}
+	}
+	return entry, nil
+}
+
+// write returns the entry sp describes, staging it unless another process
+// finished staging while this one waited on the lock. The caller holds the lock.
+func (s store) write(sp spec, notice io.Writer) (string, error) {
 	if entry, ok, err := s.holdReady(sp); err != nil || ok {
 		return entry, err
 	}
@@ -78,10 +110,7 @@ func (s store) prepare(sp spec, notice io.Writer) (string, error) {
 	if err := swap(entry, aside, sp.marker, sp.contents, sp.fill); err != nil {
 		return "", err
 	}
-	if err := s.hold(entry); err != nil {
-		return "", err
-	}
-	return entry, nil
+	return entry, s.hold(entry)
 }
 
 // holdReady calls hold on the entry readyEntry finds, then checks the entry is
