@@ -235,53 +235,34 @@ func sizesMatch(entry string, m Manifest) bool {
 }
 
 // removeOthers deletes the other versions' entries, once key is active, so the
-// cache holds one version. DRUPACK_CACHE_DIR can name a directory that already
-// holds the reader's own files, so a directory goes only when it carries a
-// manifest this program wrote, or when it is a staging directory an
-// interrupted run abandoned. Staging runs under the root lock, so no live one
-// exists here. An entry another start still serves from stays, since removing
-// it would pull PHP files out from under a running site. A start holds its
-// marker without the root lock when the entry is warm, so a marker can appear
-// between the test and the removal. Each entry therefore moves to a staging
-// name first, and the marker is tested again there: Windows refuses the move
-// while a handle is open inside, and the flock on unix follows the directory
-// through the move. A holder that comes later finds the entry gone from its
-// path. A removal failure reports nothing, because the next start retries.
+// cache holds one version. An entry another start still serves from stays,
+// since removing it would pull PHP files out from under a running site. A
+// removal failure reports nothing, because the next start retries.
 func removeOthers(root, key string) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return
 	}
 	for _, candidate := range entries {
-		name := candidate.Name()
-		if name == key || !candidate.IsDir() {
+		path := filepath.Join(root, candidate.Name())
+		if candidate.Name() == key || !candidate.IsDir() || !ownedRuntime(path) {
 			continue
 		}
-		path := filepath.Join(root, name)
-		abandoned, _ := filepath.Match("*"+stagingPrefix+"*", name)
-		if !abandoned {
-			if _, err := readManifest(path); err != nil {
-				continue
-			}
-		}
-		if entryInUse(path) {
-			continue
-		}
-		if !abandoned {
-			doomed := filepath.Join(root, stagingPrefix+"removing-"+name)
-			if os.Rename(path, doomed) != nil {
-				continue
-			}
-			if entryInUse(doomed) {
-				// A failed rename back leaves the entry whole under its staging name,
-				// and the next call tests its marker there before it removes anything.
-				os.Rename(doomed, path)
-				continue
-			}
-			path = doomed
-		}
-		os.RemoveAll(path)
+		retire(path, entryInUse)
 	}
+}
+
+// ownedRuntime reports whether path, a directory in the cache root, is a
+// runtime entry: one carrying a manifest this program wrote, or a staging
+// directory an interrupted run abandoned. DRUPACK_CACHE_DIR can name a
+// directory that already holds the reader's own files, which stay. Staging
+// runs under the root lock, so no live staging directory exists where this runs.
+func ownedRuntime(path string) bool {
+	if abandoned, _ := filepath.Match("*"+stagingPrefix+"*", filepath.Base(path)); abandoned {
+		return true
+	}
+	_, err := readManifest(path)
+	return err == nil
 }
 
 // activeKey returns the key root's active file names. The file lives in the

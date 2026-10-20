@@ -171,8 +171,8 @@ func holdUsageInChild(t *testing.T, work, entry string) {
 }
 
 // A server that started more than unusedFor ago refreshes no timestamp, so the
-// sweep and the clean command both ask the entry itself whether a process holds it.
-func TestCleanupKeepsAnEntryARunningStartHolds(t *testing.T) {
+// sweep asks the entry itself whether a process holds it.
+func TestSweepKeepsAnEntryARunningStartHolds(t *testing.T) {
 	root := t.TempDir()
 	appRoot := AppRoot(root)
 	if err := os.MkdirAll(appRoot, rootMode); err != nil {
@@ -189,17 +189,6 @@ func TestCleanupKeepsAnEntryARunningStartHolds(t *testing.T) {
 	}
 	if _, err := os.Stat(stale); !os.IsNotExist(err) {
 		t.Errorf("the sweep kept a directory no start holds")
-	}
-
-	var out bytes.Buffer
-	if err := CleanApps(root, "acme", false, &out); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(running); err != nil {
-		t.Errorf("clean removed a directory a start holds: %v", err)
-	}
-	if !strings.Contains(out.String(), "in use by a running site") {
-		t.Errorf("clean did not report the held directory: %q", out.String())
 	}
 }
 
@@ -255,54 +244,6 @@ func TestPrepareAppUnpacksAnEmptyArchive(t *testing.T) {
 	}
 	if notice.Len() != 0 {
 		t.Errorf("a second start reported %q", notice.String())
-	}
-}
-
-func TestCleanNodeListsThenRemovesEachReleaseAndKeepsOneInUse(t *testing.T) {
-	root := t.TempDir()
-	for _, name := range []string{"v24.21.0-aaaaaaaaaaaa", "v22.30.0-bbbbbbbbbbbb", "v26.1.0-cccccccccccc"} {
-		if err := os.MkdirAll(filepath.Join(NodeRoot(root), name, "bin"), 0700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(NodeRoot(root), name, "bin", "node"), make([]byte, 2*megabyte), 0700); err != nil {
-			t.Fatal(err)
-		}
-	}
-	running := filepath.Join(NodeRoot(root), "v26.1.0-cccccccccccc")
-	holdUsageInChild(t, root, running)
-
-	var listing bytes.Buffer
-	if err := CleanNode(root, true, &listing); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(listing.String(), "  node/v24.21.0-aaaaaaaaaaaa  2 MB\n") ||
-		!strings.Contains(listing.String(), "4 MB in 2 unpacked Node releases.") {
-		t.Fatalf("clean --dry-run printed %q", listing.String())
-	}
-	if _, err := os.Stat(filepath.Join(NodeRoot(root), "v24.21.0-aaaaaaaaaaaa")); err != nil {
-		t.Fatalf("a dry run removed a release: %v", err)
-	}
-
-	var removal bytes.Buffer
-	if err := CleanNode(root, false, &removal); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(removal.String(), "Removed 2 unpacked Node releases, freeing 4 MB.") ||
-		!strings.Contains(removal.String(), "Kept 1 unpacked Node release a running site still uses.") {
-		t.Fatalf("clean printed %q", removal.String())
-	}
-	entries, _ := os.ReadDir(NodeRoot(root))
-	for _, entry := range entries {
-		if entry.IsDir() && entry.Name() != "v26.1.0-cccccccccccc" {
-			t.Errorf("clean left %s", entry.Name())
-		}
-	}
-}
-
-func TestCleanNodeSaysNothingWhereNoReleaseWasUnpacked(t *testing.T) {
-	var out bytes.Buffer
-	if err := CleanNode(t.TempDir(), false, &out); err != nil || out.Len() != 0 {
-		t.Fatalf("CleanNode = %v, printed %q; want nothing", err, out.String())
 	}
 }
 

@@ -89,79 +89,10 @@ func sweepApps(appRoot, keep string, now time.Time) {
 		}
 		// A server started more than unusedFor ago refreshes no timestamp, so the
 		// marker alone would date a directory a site still serves from.
-		if now.Sub(info.ModTime()) > unusedFor && !entryInUse(path) {
-			removeTree(path)
+		if now.Sub(info.ModTime()) > unusedFor {
+			retire(path, entryInUse)
 		}
 	}
-}
-
-// CleanApps reports every unpacked application under root, with the space it
-// holds, and removes it unless dry names a listing alone. The release a reader
-// runs next unpacks again on its first start.
-func CleanApps(root, name string, dry bool, out io.Writer) error {
-	appRoot := AppRoot(root)
-	entries, err := os.ReadDir(appRoot)
-	if err != nil {
-		fmt.Fprintf(out, "No unpacked application in %s\n", appRoot)
-		return nil
-	}
-
-	unlock, err := lockRoot(appRoot)
-	if err != nil {
-		return fmt.Errorf("could not lock the application cache %s: %w", appRoot, err)
-	}
-	defer unlock()
-
-	var count int
-	var freed int64
-	var held int
-	for _, candidate := range entries {
-		if !candidate.IsDir() {
-			continue
-		}
-		path := filepath.Join(appRoot, candidate.Name())
-		size := directorySize(path)
-		// A site serving from this directory reads its PHP files on every request.
-		if entryInUse(path) {
-			fmt.Fprintf(out, "  %s  %d MB  in use by a running site, kept\n", candidate.Name(), size/megabyte)
-			held++
-			continue
-		}
-		fmt.Fprintf(out, "  %s  %d MB\n", candidate.Name(), size/megabyte)
-		if !dry {
-			if err := removeTree(path); err != nil {
-				return err
-			}
-		}
-		count++
-		freed += size
-	}
-	if dry {
-		fmt.Fprintf(out, "%d MB in %d unpacked %s. Run %s clean to remove them.\n",
-			freed/megabyte, count, applicationWord(count), name)
-		reportHeld(out, held)
-		return nil
-	}
-	fmt.Fprintf(out, "Removed %d unpacked %s, freeing %d MB.\n", count, applicationWord(count), freed/megabyte)
-	reportHeld(out, held)
-	return nil
-}
-
-// reportHeld names the applications cleanup left in place, so a reader who
-// expected an empty cache knows a site still runs from one.
-func reportHeld(out io.Writer, held int) {
-	if held == 0 {
-		return
-	}
-	fmt.Fprintf(out, "Kept %d unpacked %s a running site still serves from. Stop the site, then clean again.\n",
-		held, applicationWord(held))
-}
-
-func applicationWord(count int) string {
-	if count == 1 {
-		return "application"
-	}
-	return "applications"
 }
 
 // directorySize adds up the file sizes under path. A file that disappears

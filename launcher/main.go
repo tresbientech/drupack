@@ -51,15 +51,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	cache := runtime.NewCache(root, runtime.HoldUsage)
 	if len(os.Args) > 1 && os.Args[1] == "clean" {
 		dry, err := cleanArguments(os.Args[2:])
 		if err != nil {
 			return err
 		}
-		if err := runtime.CleanApps(root, siteName, dry, os.Stdout); err != nil {
-			return err
-		}
-		return runtime.CleanNode(root, dry, os.Stdout)
+		return cache.Clean(siteName, dry, os.Stdout)
 	}
 	if engine {
 		updateNotice(root, executable, os.Stderr, runtime.Terminal(os.Stderr), time.Now(), func() error { return startCheck(launcher) })
@@ -68,7 +66,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	cache := runtime.NewCache(root, runtime.HoldUsage)
 	directory, application, err := cache.PrepareRelease(runtime.Release{
 		Payload:     runtimePayload,
 		Manifest:    m,

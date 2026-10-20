@@ -1,8 +1,10 @@
 package runtime
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -33,10 +35,17 @@ type store struct {
 	// its entries, with the entry the start runs. Nil for a kind that keeps
 	// entries until activation or clean removes them.
 	retain func(entry string) error
+	// owns reports whether a directory in dir is an entry of this kind.
+	owns  func(path string) bool
+	inUse func(path string) bool
+	// label prefixes an entry's name in clean's listing. one and many name the
+	// kind in its totals.
+	label, one, many string
 }
 
 func (c Cache) runtimes() store {
-	return store{dir: c.root, noun: "runtime", hold: c.hold}
+	return store{dir: c.root, noun: "runtime", hold: c.hold, owns: ownedRuntime, inUse: entryInUse,
+		one: "unpacked runtime", many: "unpacked runtimes"}
 }
 
 func (c Cache) applications() store {
@@ -47,12 +56,18 @@ func (c Cache) applications() store {
 		}
 		sweepApps(dir, filepath.Base(entry), time.Now())
 		return nil
-	}}
+	}, owns: anyDirectory, inUse: entryInUse,
+		one: "unpacked application", many: "unpacked applications"}
 }
 
 func (c Cache) nodes() store {
-	return store{dir: NodeRoot(c.root), noun: "Node", hold: c.hold}
+	return store{dir: NodeRoot(c.root), noun: "Node", hold: c.hold, owns: anyDirectory, inUse: entryInUse,
+		label: nodeDirName + "/", one: "unpacked Node release", many: "unpacked Node releases"}
 }
+
+// anyDirectory owns every directory: the application and Node directories
+// hold nothing this program did not write.
+func anyDirectory(string) bool { return true }
 
 // spec describes one entry a start needs: its name, how to tell it is whole,
 // and how to write it.
@@ -205,4 +220,116 @@ func replace(target, aside, staging string) error {
 		}
 	}
 	return os.Rename(staging, target)
+}
+
+// retire removes the entry at path unless a process runs from it, and reports
+// whether the entry left its path. A start holds an entry without the lock when
+// it finds it ready, so a hold can land between the test and the removal. The
+// entry therefore moves to a staging name first and is tested again there:
+// Windows refuses the move while a handle is open inside, and the flock on unix
+// follows the directory through the move. A holder that comes later finds the
+// entry gone from its path.
+func retire(path string, inUse func(string) bool) (bool, error) {
+	if inUse(path) {
+		return false, nil
+	}
+	doomed := filepath.Join(filepath.Dir(path), stagingPrefix+"removing-"+filepath.Base(path))
+	if err := removeTree(doomed); err != nil {
+		return false, err
+	}
+	if os.Rename(path, doomed) != nil {
+		return false, nil
+	}
+	if inUse(doomed) {
+		// A failed rename back leaves the entry whole under its staging name, and
+		// the next removal tests it there before it removes anything.
+		os.Rename(doomed, path)
+		return false, nil
+	}
+	return true, removeTree(doomed)
+}
+
+// Clean lists every cache entry with the space it holds, and removes each one
+// unless dry names a listing alone. An entry a running site uses is listed and
+// kept. name is the executable's name, for the line that says how to remove
+// what a dry run listed.
+func (c Cache) Clean(name string, dry bool, out io.Writer) error {
+	var listed int
+	for _, s := range []store{c.runtimes(), c.applications(), c.nodes()} {
+		n, err := s.clean(dry, out)
+		if err != nil {
+			return err
+		}
+		listed += n
+	}
+	switch {
+	case listed == 0:
+		fmt.Fprintf(out, "Nothing to clean in %s.\n", c.root)
+	case dry:
+		fmt.Fprintf(out, "Run %s clean to remove them.\n", name)
+	}
+	return nil
+}
+
+// clean lists the kind's entries and removes each one unless dry. It returns
+// how many entries it listed, and prints nothing for a kind with none.
+func (s store) clean(dry bool, out io.Writer) (int, error) {
+	entries, err := os.ReadDir(s.dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	unlock, err := lockRoot(s.dir)
+	if err != nil {
+		return 0, fmt.Errorf("could not lock the %s cache %s: %w", s.noun, s.dir, err)
+	}
+	defer unlock()
+
+	var count, held int
+	var freed int64
+	for _, candidate := range entries {
+		path := filepath.Join(s.dir, candidate.Name())
+		if !candidate.IsDir() || !s.owns(path) {
+			continue
+		}
+		size := directorySize(path)
+		kept := s.inUse(path)
+		if !kept && !dry {
+			removed, err := retire(path, s.inUse)
+			if err != nil {
+				return 0, err
+			}
+			kept = !removed
+		}
+		if kept {
+			// A site serving from this entry reads its files on every request.
+			fmt.Fprintf(out, "  %s%s  %d MB  in use by a running site, kept\n", s.label, candidate.Name(), size/megabyte)
+			held++
+			continue
+		}
+		fmt.Fprintf(out, "  %s%s  %d MB\n", s.label, candidate.Name(), size/megabyte)
+		count++
+		freed += size
+	}
+	if count+held == 0 {
+		return 0, nil
+	}
+	if dry {
+		fmt.Fprintf(out, "%d MB in %d %s.\n", freed/megabyte, count, s.words(count))
+	} else {
+		fmt.Fprintf(out, "Removed %d %s, freeing %d MB.\n", count, s.words(count), freed/megabyte)
+	}
+	if held > 0 {
+		fmt.Fprintf(out, "Kept %d %s a running site still uses. Stop the site, then clean again.\n", held, s.words(held))
+	}
+	return count + held, nil
+}
+
+func (s store) words(count int) string {
+	if count == 1 {
+		return s.one
+	}
+	return s.many
 }
