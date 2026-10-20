@@ -115,13 +115,13 @@ class EngineExecutable(harness.ConformanceCase):
         except (URLError, ConnectionError, TimeoutError):
             return None
 
-    def detached_start(self, *arguments, cwd=None):
+    def detached_start(self, *arguments, cwd=None, env=None):
         """Starts the engine executable in the background on a port of its own, which the
         case's cleanup stops, and returns the port and the finished start."""
         port = harness.pick_port()
         target = str(cwd or self.class_dir)
-        self.addCleanup(self.engine_run, "stop", str(self.project), cwd=target)
-        start = harness.run([str(self.engine), *arguments, "--listen", f"127.0.0.1:{port}"], cwd=target,
+        self.addCleanup(self.engine_run, "stop", str(self.project), cwd=target, env=env)
+        start = harness.run([str(self.engine), *arguments, "--listen", f"127.0.0.1:{port}"], cwd=target, env=env,
                             capture_output=True, text=True, timeout=harness.WAITS["start"].seconds)
         return port, start
 
@@ -223,6 +223,25 @@ class EngineExecutable(harness.ConformanceCase):
         stop = self.engine_run("stop", str(self.project))
         self.assertEqual(stop.returncode, 0, stop.stderr)
         self.assertIsNone(self.status(port, "/"), "the server still answers after stop")
+
+    def test_clean_keeps_a_served_folders_entry_and_removes_it_once_stopped(self):
+        # A cache of its own: the run's shared cache holds the site executable's entries too.
+        cache = harness.reserved_dir(self.class_dir / "clean-cache")
+        env = {**os.environ, "DRUPACK_CACHE_DIR": str(cache)}
+        _, start = self.detached_start(str(self.project), env=env)
+        self.assertEqual(start.returncode, 0, f"{start.stdout}{start.stderr}")
+        served = self.engine_run("clean", env=env)
+        self.assertEqual(served.returncode, 0, served.stderr)
+        self.assertRegex(served.stdout, r"  folders/f[0-9a-f]{16}  \d+ MB  in use by a running site, kept\n")
+        self.assertIn("Kept 1 folder entry a running site still uses.", served.stdout)
+
+        stop = self.engine_run("stop", str(self.project), env=env)
+        self.assertEqual(stop.returncode, 0, stop.stderr)
+        cleaned = self.engine_run("clean", env=env)
+        self.assertEqual(cleaned.returncode, 0, cleaned.stderr)
+        self.assertIn("Removed 1 folder entry", cleaned.stdout)
+        self.assertEqual([path for path in (cache / "folders").iterdir() if path.is_dir()], [],
+                         f"clean left a folder entry: {cleaned.stdout}")
 
     def test_a_stop_on_a_missing_folder_names_it(self):
         result = self.engine_run("stop", str(self.class_dir / "never-served"))

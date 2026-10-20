@@ -9,15 +9,23 @@ import (
 	"testing"
 )
 
+// holdMarker holds entry's usage marker from another process, as a start does.
+func holdMarker(t *testing.T, entry string) {
+	holdUsageInChild(t, t.TempDir(), entry)
+}
+
 // cleanKinds names each kind clean walks: where its entries live under the
-// cache root, the prefix its listing gives them, and the words its totals use.
+// cache root, the prefix its listing gives them, the words its totals use, and
+// how a running site holds one.
 var cleanKinds = []struct {
 	kind, label, one, many string
 	dir                    func(root string) string
+	hold                   func(t *testing.T, entry string)
 }{
-	{"runtime", "", "unpacked runtime", "unpacked runtimes", func(root string) string { return root }},
-	{"application", "", "unpacked application", "unpacked applications", AppRoot},
-	{"Node", "node/", "unpacked Node release", "unpacked Node releases", NodeRoot},
+	{"runtime", "", "unpacked runtime", "unpacked runtimes", func(root string) string { return root }, holdMarker},
+	{"application", "", "unpacked application", "unpacked applications", AppRoot, holdMarker},
+	{"Node", "node/", "unpacked Node release", "unpacked Node releases", NodeRoot, holdMarker},
+	{"folder", "folders/", "folder entry", "folder entries", func(root string) string { return filepath.Join(root, folderDirName) }, holdLease},
 }
 
 // cleanEntry writes a 2 MB entry at path, carrying the manifest a runtime entry
@@ -51,7 +59,7 @@ func TestCleanListsThenRemovesEachKindAndKeepsAHeldEntry(t *testing.T) {
 				t.Fatal(err)
 			}
 			running := filepath.Join(dir, names[2])
-			holdUsageInChild(t, t.TempDir(), running)
+			c.hold(t, running)
 			cache := NewCache(root, noHold)
 
 			var listing bytes.Buffer

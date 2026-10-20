@@ -65,8 +65,15 @@ func (c Cache) nodes() store {
 		label: nodeDirName + "/", one: "unpacked Node release", many: "unpacked Node releases"}
 }
 
-// anyDirectory owns every directory: the application and Node directories
-// hold nothing this program did not write.
+// folders holds the engine's served folders' state, one entry each, which
+// serve.php writes. A served folder's server holds the lease in its entry.
+func (c Cache) folders() store {
+	return store{dir: filepath.Join(c.root, folderDirName), noun: "folder", owns: anyDirectory, inUse: leaseHeld,
+		label: folderDirName + "/", one: "folder entry", many: "folder entries"}
+}
+
+// anyDirectory owns every directory: the application, Node and folder
+// directories hold nothing this program and serve.php did not write.
 func anyDirectory(string) bool { return true }
 
 // spec describes one entry a start needs: its name, how to tell it is whole,
@@ -255,7 +262,7 @@ func retire(path string, inUse func(string) bool) (bool, error) {
 // what a dry run listed.
 func (c Cache) Clean(name string, dry bool, out io.Writer) error {
 	var listed int
-	for _, s := range []store{c.runtimes(), c.applications(), c.nodes()} {
+	for _, s := range []store{c.runtimes(), c.applications(), c.nodes(), c.folders()} {
 		n, err := s.clean(dry, out)
 		if err != nil {
 			return err

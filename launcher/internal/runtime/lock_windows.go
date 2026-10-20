@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/windows"
 )
 
 // lockTimeout bounds how long a launch waits for another process's lock
@@ -79,4 +81,29 @@ func lockRoot(root string) (func(), error) {
 		}
 		time.Sleep(lockPollInterval)
 	}
+}
+
+// leaseHeld reports whether a server holds the Serving lease in entry, a
+// folder's state. serve.php takes it with PHP's flock, which locks the file's
+// whole range with LockFileEx here, so a lock on its first byte conflicts. A
+// missing lease means no server ever ran from the entry.
+func leaseHeld(entry string) bool {
+	pointer, err := windows.UTF16PtrFromString(filepath.Join(entry, leaseName))
+	if err != nil {
+		return false
+	}
+	// PHP opens the lease for reading and writing and shares both, so this
+	// open has to share them too.
+	handle, err := windows.CreateFile(pointer, windows.GENERIC_READ|windows.GENERIC_WRITE,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, nil, windows.OPEN_EXISTING, windows.FILE_ATTRIBUTE_NORMAL, 0)
+	if err != nil {
+		return !os.IsNotExist(err)
+	}
+	defer windows.CloseHandle(handle)
+	overlapped := new(windows.Overlapped)
+	if err := windows.LockFileEx(handle, windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, overlapped); err != nil {
+		return true
+	}
+	windows.UnlockFileEx(handle, 0, 1, 0, overlapped)
+	return false
 }

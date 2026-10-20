@@ -61,3 +61,19 @@ func lockRoot(root string) (func(), error) {
 		file.Close()
 	}, nil
 }
+
+// leaseHeld reports whether a server holds the Serving lease in entry, a
+// folder's state. serve.php takes it with PHP's flock, which is flock(2) here.
+// A missing lease means no server ever ran from the entry.
+func leaseHeld(entry string) bool {
+	file, err := os.OpenFile(filepath.Join(entry, leaseName), os.O_RDWR, 0)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		return true
+	}
+	syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+	return false
+}

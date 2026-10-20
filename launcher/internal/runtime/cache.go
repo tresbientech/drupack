@@ -31,6 +31,12 @@ const lockName = "lock"
 const holdAttempts = 50
 const holdRetryInterval = 10 * time.Millisecond
 
+// folderDirName holds the state of each folder the engine serves, and
+// leaseName is the lease serve.php's Serving class holds inside one such entry
+// for as long as its server runs.
+const folderDirName = "folders"
+const leaseName = "serving.lock"
+
 // usageName lives inside one entry, runtime or application, and carries the
 // lock a running start holds on the files it serves from. Cleanup tests it
 // before removing anything.
