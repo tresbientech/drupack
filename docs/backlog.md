@@ -261,8 +261,6 @@ feature and platform:
 - repetition in `release.yml`: about 120 lines net, half from merging the two
   Windows jobs
 - PHP start code that Go already holds: about 286 lines
-- `application/cacert.pem`: 2,950 lines, if a build fetches it with a pinned
-  checksum
 - one started site per class for read-only cases
 - the browser cases' 10-second waits for an absence
 - Windows arm64 runs emulated and sets the candidate's wall time, 77 minutes
