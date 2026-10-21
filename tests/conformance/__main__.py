@@ -101,7 +101,7 @@ class CaseLoader(unittest.TestLoader):
         if self.site_tests is not None:
             suite.addTests(super().discover(str(self.site_tests), pattern, str(self.site_tests)))
         spec = os.environ.get("DRUPACK_SHARD")
-        return suite if spec is None else shard(suite, spec)
+        return shard(suite, spec) if spec else suite
 
 
 def flatten(suite):

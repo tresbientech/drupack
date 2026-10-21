@@ -39,12 +39,10 @@ env:
   GOPROXY: https://proxy.golang.org|https://proxy.golang.org,direct
 
 jobs:
-  # What a run covers. A tag whose candidate run succeeded builds nothing and
-  # publishes that run's files. Any other tag, and a dispatch, cover every
-  # platform, and a dispatch can name one. A main push covers Linux amd64, and only
-  # when it touched something an executable carries. GitHub leaves the effect of a
-  # path filter on a tag push undocumented, so the comparison happens here rather
-  # than under `on:`.
+  # A tag whose candidate run succeeded publishes that run's files. Other tags and
+  # dispatches cover every platform (a dispatch can name one). A main push covers
+  # Linux amd64 when it touched something an executable carries; the comparison
+  # runs here because GitHub leaves path filters on tag pushes undocumented.
   gate:
     name: gate
     runs-on: ubuntu-24.04
@@ -151,7 +149,6 @@ jobs:
               echo 'Documentation alone changed. Nothing to build.'
             fi
           fi
-          # Each Linux architecture publishes a file per C library.
           linux_runtime=$(jq -cn --argjson linux "$linux" \
             '[$linux[] | ({arch: .arch, libc: "musl"}, {arch: .arch, libc: "gnu"})]')
           # Every platform packs the payload job's output, so any target calls for it.
@@ -278,11 +275,9 @@ jobs:
           path: runtime-components
           if-no-files-found: error
 
-  # The application is PHP source, vendor, translations and a seeded database.
-  # None of it depends on a platform, so every executable packs this one build.
-  # drupack-build makes it in the job image, whose PHP is the amd64 musl runtime.
-  # Every run pushes that image under the commit, where build.yml finds it, and
-  # the publish job names it after the version once every platform passed.
+  # The application (PHP source, vendor, translations, seeded database) is the same
+  # on every platform, so every executable packs this one build. Every run pushes
+  # the job image under the commit for build.yml; publish names it after the version.
   payload:
     name: payload
     needs: [gate, linux-runtime]
@@ -346,7 +341,6 @@ jobs:
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
             drupack-build --site demo --payload-only --output dist
 
-      # The engine executable carries the engine's files in place of an application.
       - name: Export the engine payload
         run: |
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
@@ -545,12 +539,23 @@ jobs:
           path: dist/engine/musl/drupack
           if-no-files-found: error
 
+  # install.ps1 installs the amd64 build on Windows on Arm too, which runs it under
+  # the system's x64 emulation. The Arm legs build the amd64 executables on an Arm
+  # host and test them there. Emulation doubles each case's time, so two Arm
+  # runners each take half of the test classes. The amd64 leg ships the files.
   windows:
-    name: Windows amd64
+    name: ${{ matrix.name }}
     needs: [gate, payload]
     if: needs.gate.outputs.windows != '[]'
-    runs-on: windows-2025
-    timeout-minutes: 90
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: Windows amd64, runner: windows-2025, timeout: 90, results: windows-amd64, ships: true, variant: true, shard: ''}
+          - {name: 'Windows arm64 (amd64 emulated, 1/2)', runner: windows-11-arm, timeout: 120, results: windows-arm64-1, ships: false, variant: false, shard: 1/2}
+          - {name: 'Windows arm64 (amd64 emulated, 2/2)', runner: windows-11-arm, timeout: 120, results: windows-arm64-2, ships: false, variant: true, shard: 2/2}
     defaults:
       run:
         shell: pwsh
@@ -570,6 +575,7 @@ jobs:
           cache: false
 
       - name: Run the Go unit tests
+        if: matrix.ships
         shell: bash
         run: bash build/go-tests.sh
 
@@ -591,7 +597,7 @@ jobs:
             ~\AppData\Local\vcpkg\archives
             ~\go\pkg\mod
             ~\AppData\Local\go-build
-          key: windows-build-${{ hashFiles('build/windows/build.ps1') }}
+          key: ${{ matrix.ships && 'windows' || 'windows-arm' }}-build-${{ hashFiles('build/windows/build.ps1') }}
 
       - name: Build the executables
         env:
@@ -601,24 +607,27 @@ jobs:
 
       # The engine uploads before the suite, so a run the suite hangs still keeps it.
       - uses: actions/upload-artifact@v7
+        if: matrix.ships
         with:
           name: drupack-windows-amd64
           path: dist/engine/drupack.exe
           if-no-files-found: error
 
-      # The runtime both executables carry, which the publish job archives as a Release file.
       - uses: actions/upload-artifact@v7
+        if: matrix.ships
         with:
           name: runtime-windows-amd64
           path: ${{ runner.temp }}\drupack\runtime
           if-no-files-found: error
 
       - name: Report the runtime's components
+        if: matrix.ships
         run: |
           New-Item -ItemType Directory -Path runtime-components | Out-Null
           python build/sbom.py runtime --target windows-amd64 "$env:RUNNER_TEMP\drupack\runtime\frankenphp.exe" >runtime-components\windows-amd64.json
 
       - uses: actions/upload-artifact@v7
+        if: matrix.ships
         with:
           name: runtime-components-windows-amd64
           path: runtime-components
@@ -627,103 +636,13 @@ jobs:
       - name: Run the conformance suite
         env:
           DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
+          DRUPACK_SHARD: ${{ matrix.shard }}
         run: |
           Copy-Item dist\payload\site.json dist\site.json
           python tests/conformance dist\drupacked-demo.exe test-results\conformance --site-tests demo\tests
 
       - uses: actions/download-artifact@v8
-        with:
-          name: variant-payload-archive
-          path: dist/variant-payload
-
-      # The variant fixture packs on the runtime the build above left in its work directory.
-      - name: Run the variant fixture cases
-        env:
-          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
-        run: |
-          New-Item -ItemType Directory -Force -Path dist\variant | Out-Null
-          Push-Location launcher
-          go run ./cmd/pack -runtime "$env:RUNNER_TEMP\drupack\runtime" -entry frankenphp.exe -version $env:DRUPACK_VERSION -source . -output ..\dist\variant\variant-demo.exe -app ..\dist\variant-payload\app-payload.tar -app-checksum ..\dist\variant-payload\app_checksum.txt -site ..\dist\variant-payload\site.json -site-version $env:DRUPACK_VERSION -node ..\dist\variant-payload\node\windows-amd64.zip
-          Pop-Location
-          Copy-Item dist\variant-payload\site.json dist\variant\site.json
-          python tests/conformance dist\variant\variant-demo.exe test-results\variant -k Node -k MercureHub
-
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-results-windows-amd64
-          path: test-results
-
-  # install.ps1 installs the amd64 build on Windows on Arm, which runs it under
-  # the system's x64 emulation. This job builds the amd64 executables on an Arm
-  # host and runs the suite on them there. Emulation doubles each case's time,
-  # so two runners each take half of the test classes.
-  windows-arm:
-    name: Windows arm64 (amd64 emulated, ${{ matrix.shard }}/2)
-    needs: [gate, payload]
-    if: needs.gate.outputs.windows != '[]'
-    runs-on: windows-11-arm
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
-    timeout-minutes: 120
-    defaults:
-      run:
-        shell: pwsh
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ needs.gate.outputs.demo_repository }}
-          ref: ${{ needs.gate.outputs.demo_ref }}
-          path: demo
-          persist-credentials: false
-
-      - uses: actions/setup-go@v7
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: false
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: payload-archive
-          path: dist/payload
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: engine-payload-archive
-          path: dist/engine-payload
-
-      - uses: actions/cache@v6
-        with:
-          path: |
-            ${{ runner.temp }}\drupack\downloads
-            ${{ runner.temp }}\drupack\vcpkg
-            ~\AppData\Local\vcpkg\archives
-            ~\go\pkg\mod
-            ~\AppData\Local\go-build
-          key: windows-arm-build-${{ hashFiles('build/windows/build.ps1') }}
-
-      - name: Build the executables
-        env:
-          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
-        run: |
-          ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupacked-demo.exe -EnginePayloadDirectory dist\engine-payload -EngineOutput dist\engine\drupack.exe
-
-      - name: Run the conformance suite
-        env:
-          DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
-          DRUPACK_SHARD: ${{ matrix.shard }}/2
-        run: |
-          Copy-Item dist\payload\site.json dist\site.json
-          python tests/conformance dist\drupacked-demo.exe test-results\conformance --site-tests demo\tests
-
-      # The second shard runs the shorter half, so it takes the variant cases.
-      - uses: actions/download-artifact@v8
-        if: matrix.shard == 2
+        if: matrix.variant
         with:
           name: variant-payload-archive
           path: dist/variant-payload
@@ -731,7 +650,7 @@ jobs:
       # The variant fixture packs on the runtime the build above left in its work
       # directory, with the amd64 launcher the release ships.
       - name: Run the variant fixture cases
-        if: matrix.shard == 2
+        if: matrix.variant
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
@@ -746,7 +665,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: test-results-windows-arm64-${{ matrix.shard }}
+          name: test-results-${{ matrix.results }}
           path: test-results
 
   macos:
@@ -816,7 +735,6 @@ jobs:
             ${{ runner.temp }}/drupack/pkgroot
           key: macos-${{ matrix.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder-inputs.sh', 'runtime/php-extensions.txt', 'runtime/php-extension-libs.txt') }}
 
-      # The runtime both executables carry, which the publish job archives as a Release file.
       - uses: actions/upload-artifact@v7
         with:
           name: runtime-macos-${{ matrix.arch }}
@@ -847,7 +765,6 @@ jobs:
           name: variant-payload-archive
           path: dist/variant-payload
 
-      # The variant fixture packs on the runtime the build above left in its work directory.
       - name: Run the variant fixture cases
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
@@ -934,7 +851,7 @@ jobs:
 
   # A tag run that publishes its candidate's files skips every build job.
   publish:
-    needs: [gate, linux, windows, windows-arm, macos, demo]
+    needs: [gate, linux, windows, macos, demo]
     if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' }}
     runs-on: ubuntu-24.04
     permissions:
