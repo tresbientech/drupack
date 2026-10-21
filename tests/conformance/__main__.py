@@ -118,12 +118,13 @@ def shard(suite, spec):
     A class stays whole, so its shared setUpClass runs on one runner.
     """
     index, count = (int(part) for part in spec.split("/"))
+    if not 1 <= index <= count:
+        raise SystemExit(f"DRUPACK_SHARD={spec} needs 1 <= K <= N")
     tests = list(flatten(suite))
-    classes = sorted({f"{type(test).__module__}.{type(test).__qualname__}" for test in tests})
-    kept = set(classes[index - 1::count])
-    return unittest.TestSuite(
-        test for test in tests if f"{type(test).__module__}.{type(test).__qualname__}" in kept
-    )
+    def key(test):
+        return f"{type(test).__module__}.{type(test).__qualname__}"
+    kept = set(sorted({key(test) for test in tests})[index - 1::count])
+    return unittest.TestSuite(test for test in tests if key(test) in kept)
 
 
 def main(argv):
