@@ -19,7 +19,7 @@ FILES_DIR      writers=application/launch.php  readers=application/Caddyfile,app
 HOST           writers=application/launch.php  readers=application/settings.php
 ID             writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go,application/Caddyfile,engine/Caddyfile
 INVOKED        writers=launcher/plan.go,build/dev/dev-entry.sh  readers=application/process.php
-LAUNCHER       writers=launcher/plan.go,build/dev/dev-entry.sh  readers=application/launch.php,application/process.php
+LAUNCHER       writers=launcher/plan.go,build/dev/dev-entry.sh  readers=application/launch.php,application/process.php,engine/serve.php
 LOG_PATH       writers=application/launch.php  readers=application/Caddyfile
 MERCURE_DB     writers=application/mercure.php  readers=application/mercure.caddy
 MERCURE_SNIPPET  writers=application/mercure.php  readers=application/Caddyfile,engine/Caddyfile
