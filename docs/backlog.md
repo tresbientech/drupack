@@ -253,18 +253,15 @@ the lease and checks its needs, with Drush behind a stub binary in tests, as
 
 Measured on 2026-10-21 at `171ab00`. Tests hold 37% of the tracked lines,
 production code 24% and docs 18%. Every CI job spends most of its time in the
-conformance suite, because each case starts a real site. These cuts keep every
-feature and platform:
+conformance suite, because each case starts a real site. Still open, keeping
+every feature and platform:
 
-- comments that restate their line: 560 to 1,000 production lines, 1,050 to
-  1,860 in all
-- repetition in `release.yml`: about 120 lines net, half from merging the two
-  Windows jobs
 - PHP start code that Go already holds: about 286 lines
-- one started site per class for read-only cases
-- the browser cases' 10-second waits for an absence
-- Windows arm64 runs emulated and sets the candidate's wall time, 77 minutes
-- QA and the Linux amd64 job both test the packed Linux demo
+- the release candidate's wall time once Windows arm64 runs in two shards,
+  against 77 minutes before
 
-Moving the start flow from PHP to Go was sized and dropped: its net runs from
-350 lines fewer to 1,110 more. Lean: comments and CI first.
+Kept as they are: the browser cases' 10-second waits for an absence, which
+match the budget a real browser gets, and the QA and Linux amd64 suite runs,
+which test `drupack-build`'s chain and the shipped files. Moving the start flow
+from PHP to Go was sized and dropped: its net runs from 350 lines fewer to
+1,110 more.

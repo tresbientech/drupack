@@ -98,6 +98,8 @@ DRUPACK_TEST_ENGINE=dist/engine/drupack-linux-amd64 python3 tests/conformance di
 
 `tests/conformance` takes a results directory as its second argument, and empties it before any case runs. It refuses a non-empty directory that no earlier run created. It reads the site from the `site.json` beside the executable. `--site-tests DIR` adds a site's own `*_cases.py` modules to the run; Drupacked Demo's live in its repository's `tests`.
 
+`DRUPACK_SHARD=K/N` runs the Kth of N shares of the test classes, every Nth class in name order. A class stays whole. Unittest arguments such as `-k Node` apply on top. The release workflow's two Windows arm64 legs run `1/2` and `2/2`.
+
 On Linux the suite uses Docker for three things:
 
 - proving the site cases offline inside a container, instead of on the host
