@@ -76,8 +76,9 @@ func SingleElement(value string) bool {
 	return SafePath(value) && filepath.Base(value) == value
 }
 
-// hashFile streams the file, since runtime files can run to hundreds of megabytes.
-func hashFile(path string) (string, error) {
+// HashFile returns the hex SHA-256 of the file at path. It streams the file,
+// since runtime files can run to hundreds of megabytes.
+func HashFile(path string) (string, error) {
 	source, err := os.Open(path)
 	if err != nil {
 		return "", err

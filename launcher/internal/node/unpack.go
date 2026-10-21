@@ -113,19 +113,7 @@ func writeZipFile(destination, name string, entry *zip.File) error {
 }
 
 func writeFile(destination, name string, contents io.Reader) error {
-	target := filepath.Join(destination, filepath.FromSlash(name))
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return err
-	}
-	output, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(output, contents)
-	if closeErr := output.Close(); err == nil {
-		err = closeErr
-	}
-	return err
+	return runtime.WriteFile(filepath.Join(destination, filepath.FromSlash(name)), contents, 0o755)
 }
 
 // writeLinkScript replaces a link in bin, such as npm, with a script running

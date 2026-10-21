@@ -23,6 +23,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp"
 	pgperrors "github.com/ProtonMail/go-crypto/openpgp/errors"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
@@ -232,7 +233,7 @@ func signedChecksums(r Request, tag string) (map[string]string, error) {
 // download writes url to path unless path already holds the file with SHA-256
 // want, and refuses a download with any other hash.
 func download(url, path, want string) error {
-	if got, err := hashFile(path); err == nil && got == want {
+	if got, err := runtime.HashFile(path); err == nil && got == want {
 		return nil
 	}
 	response, err := http.Get(url)
@@ -262,19 +263,6 @@ func download(url, path, want string) error {
 		return fmt.Errorf("%s has SHA-256 %s, and the signed SHASUMS256.txt names %s", url, got, want)
 	}
 	return os.Rename(partial, path)
-}
-
-func hashFile(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 func fetch(url string) ([]byte, error) {

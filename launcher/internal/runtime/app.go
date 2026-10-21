@@ -148,22 +148,10 @@ func extractApp(destination string, payload []byte, notice io.Writer) error {
 	}
 }
 
+// writeAppFile keeps the archive's mode with write added for the owner alone:
+// the site writes into its own data directory, never here.
 func writeAppFile(path string, contents io.Reader, mode os.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
-	}
-	// The site writes into its own data directory, never here, so the unpacked
-	// tree keeps the archive's own modes with write added for the owner alone.
-	output, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode.Perm()|0600)
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(output, contents)
-	closeErr := output.Close()
-	if err == nil {
-		err = closeErr
-	}
-	return err
+	return WriteFile(path, contents, mode.Perm()|0600)
 }
 
 // removeTree deletes path, restoring the modes on the way down. An application

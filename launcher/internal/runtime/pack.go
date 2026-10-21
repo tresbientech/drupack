@@ -41,7 +41,7 @@ func Build(directory, version, entry string) ([]byte, Manifest, error) {
 		if err != nil {
 			return nil, Manifest{}, err
 		}
-		sum, err := hashFile(full)
+		sum, err := HashFile(full)
 		if err != nil {
 			return nil, Manifest{}, err
 		}

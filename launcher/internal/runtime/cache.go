@@ -277,7 +277,7 @@ func stagingFailure(root string, m Manifest, err error) error {
 
 func verifyChecksums(directory string, m Manifest) error {
 	for _, file := range m.Files {
-		sum, err := hashFile(filepath.Join(directory, filepath.FromSlash(file.Path)))
+		sum, err := HashFile(filepath.Join(directory, filepath.FromSlash(file.Path)))
 		if err != nil {
 			return err
 		}
