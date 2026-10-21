@@ -20,7 +20,6 @@ import (
 	"time"
 )
 
-// noMkcert hides any mkcert this machine has, so the Drupack root decides.
 func noMkcert(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 }
@@ -132,7 +131,7 @@ func TestTheRootKeyIsTheOwnersAlone(t *testing.T) {
 	}
 }
 
-// The name constraint is what keeps a stolen key from signing for another site.
+// The name constraint keeps a stolen key from signing for another site.
 func TestTheRootCannotVouchForAnotherSite(t *testing.T) {
 	dir := t.TempDir()
 	if err := newRoot(dir); err != nil {
@@ -185,8 +184,7 @@ func TestUninstallWithoutARootChangesNothing(t *testing.T) {
 	}
 }
 
-// stubCertificate writes a self-signed certificate for localhost valid for validFor. It
-// stands in for both mkcert's root and the certificate mkcert writes under it.
+// Stands in for both mkcert's root and the certificate mkcert writes under it.
 func stubCertificate(t *testing.T, validFor time.Duration, names ...string) string {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -213,8 +211,6 @@ type stub struct {
 	log, caroot, certificate string
 }
 
-// stubMkcert puts an mkcert on PATH that logs its arguments and writes a certificate
-// for names valid for validFor, which is also its root when withRoot is set.
 func stubMkcert(t *testing.T, validFor time.Duration, withRoot bool, names ...string) stub {
 	if runtime.GOOS == "windows" {
 		t.Skip("the mkcert stub is a shell script")
@@ -246,7 +242,6 @@ func copyFile(t *testing.T, from, to string) {
 	}
 }
 
-// trusting is a system trust store holding each certificate file.
 func trusting(t *testing.T, files ...string) *x509.CertPool {
 	roots := x509.NewCertPool()
 	for _, file := range files {

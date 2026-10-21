@@ -90,7 +90,7 @@ def declaring_packages(extension: str, project: Path) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("site", type=Path, nargs="?", help="the site's composer project directory")
-    # The job image fetches spc once and names it here, so a build needs no download.
+    # The job image fetches spc once, so a build needs no download.
     parser.add_argument("--spc", type=Path, default=os.environ.get("DRUPACK_SPC"),
                         help="an spc binary to use instead of downloading one, DRUPACK_SPC by default")
     parser.add_argument("--fetch-spc", type=Path, metavar="PATH",

@@ -1,7 +1,6 @@
-# The libraries a builder names to static-php-cli beside the extension
-# allowlist. No extension pulls them: watcher serves FrankenPHP, the nghttp
-# trio serves Caddy, and freetype, libavif, libjpeg and libwebp add text,
-# AVIF, JPEG and WebP to gd.
+# Libraries no extension pulls: watcher serves FrankenPHP, the nghttp trio
+# serves Caddy, and freetype, libavif, libjpeg and libwebp add text, AVIF, JPEG
+# and WebP to gd.
 
 freetype
 libavif

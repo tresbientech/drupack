@@ -1,21 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Links the runtime executable for the libc the builder image names in
-# SPC_LIBC. build/app-payload.sh packs the application separately.
+# Links the runtime executable for the libc the builder image names in SPC_LIBC.
 
 cd /go/src/app
-# The launcher carries the application and unpacks it once per release, so the server
-# embeds nothing. frankenphp's embed.go still needs the file to exist, and its init
-# returns early on an empty one, which leaves EmbeddedAppPath unset.
+# frankenphp's embed.go needs the file to exist, and its init returns early on
+# an empty one, which leaves EmbeddedAppPath unset.
 : > app.tar
 
 php_config=/go/src/app/dist/static-php-cli/buildroot/bin/php-config
 . /build/builder-inputs.sh
 export CGO_ENABLED=1
 export CGO_CFLAGS="-fPIC -O2 -I/go/src/app/dist/static-php-cli/buildroot/include $($php_config --includes) -DFRANKENPHP_VERSION=$frankenphp_version"
-# static-php-cli owns the mapping from extensions to libraries, and the image
-# compiled PHP from this same list, so the link flags follow the allowlist
+# The image compiled PHP from this same list, so the link flags follow it
 # rather than a written-out set that would name a library no extension pulls.
 extensions=$(bash /build/extensions-list.sh /build/php-extensions.txt)
 extension_libs=$(bash /build/extensions-list.sh /build/php-extension-libs.txt)
@@ -27,7 +24,6 @@ if ! php_libraries=$(cd /go/src/app/dist/static-php-cli && ./spc spc-config "$ex
 fi
 php_libraries=${php_libraries//-lstdc++/$(gcc -print-file-name=libstdc++.a)}
 export CGO_LDFLAGS="-L/go/src/app/dist/static-php-cli/buildroot/lib -static-libgcc -Wl,--start-group $php_libraries -Wl,--end-group"
-# --version names the SQLite release static-php-cli compiled into PHP.
 sqlite_version=$(sed -n 's/^#define SQLITE_VERSION *"\(.*\)"$/\1/p' /go/src/app/dist/static-php-cli/buildroot/include/sqlite3.h)
 if [[ -z $sqlite_version ]]; then
     printf 'sqlite3.h names no SQLITE_VERSION\n' >&2
@@ -35,9 +31,8 @@ if [[ -z $sqlite_version ]]; then
 fi
 build_tags=nobadger,nomysql,nopgx
 linker_flags="-Wl,--dynamic-list=/go/src/app/dist/static-php-cli/buildroot/lib/libphp.a.dynsym"
-# The builder image sets SPC_LIBC. A glibc build links a dynamic PIE against the
-# host libc. A musl build links a single file that runs on any host. A Linux
-# release publishes a file for each.
+# A glibc build links a dynamic PIE against the host libc. A musl build links a
+# single file that runs on any host.
 # -z now resolves every relocation at load, which leaves the GOT read-only for
 # the process lifetime. The static-pie link already reports BIND_NOW.
 case "$SPC_LIBC" in
@@ -59,8 +54,8 @@ esac
 export GOROOT="/go/src/app/dist/static-php-cli/pkgroot/$static_php_arch/go-xcaddy"
 export GOPATH="/go/src/app/dist/static-php-cli/pkgroot/$static_php_arch/go"
 export GOTOOLCHAIN=local
-# Go moves to the next entry after a "|" on any error, so a module fetch the
-# proxy drops mid-stream gets a second attempt. go.sum checks either answer.
+# Go moves to the next entry after a "|" on any error, so a dropped fetch gets
+# a second attempt. go.sum checks either answer.
 export GOPROXY='https://proxy.golang.org|https://proxy.golang.org,direct'
 mkdir -p /out
 cd caddy

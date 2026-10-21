@@ -27,7 +27,6 @@ import (
 	"time"
 )
 
-// exits records each code guard hands its exit function.
 func exits() (func(int), <-chan int) {
 	codes := make(chan int, 1)
 	return func(code int) { codes <- code }, codes
@@ -88,8 +87,6 @@ func (o *output) String() string {
 	return o.buffer.String()
 }
 
-// scripted answers each request with the next status, repeating the last one,
-// and reports when it first answered 204.
 func scripted(t *testing.T, statuses ...int) (*httptest.Server, func() time.Time) {
 	var mu sync.Mutex
 	var readyAt time.Time
@@ -112,7 +109,6 @@ func scripted(t *testing.T, statuses ...int) (*httptest.Server, func() time.Time
 	}
 }
 
-// watching is one run in flight, with what it printed and opened.
 type watching struct {
 	out, errs output
 	opened    chan string
@@ -121,7 +117,6 @@ type watching struct {
 	done      chan struct{}
 }
 
-// watch starts run on p and ends it when the test ends.
 func watch(t *testing.T, p plan) *watching {
 	stopping, stop := context.WithCancel(context.Background())
 	w := &watching{opened: make(chan string, 10), shutdowns: make(chan struct{}, 10), stop: stop, done: make(chan struct{})}
@@ -137,7 +132,6 @@ func watch(t *testing.T, p plan) *watching {
 	return w
 }
 
-// returns fails the test unless run returns within limit.
 func (w *watching) returns(t *testing.T, limit time.Duration) {
 	t.Helper()
 	select {
@@ -147,7 +141,6 @@ func (w *watching) returns(t *testing.T, limit time.Duration) {
 	}
 }
 
-// probing builds a plan for server with cron far off, which the readiness cases leave unrun.
 func probing(t *testing.T, server *httptest.Server, open string) plan {
 	return plan{
 		probe:       server.URL + "/.drupack-id?id=token",
@@ -235,7 +228,6 @@ func TestRunWithNoLinkAnnouncesReadyAndOpensNothing(t *testing.T) {
 	}
 }
 
-// stopChannel waits for the record the ready line follows, then returns its contents.
 func (w *watching) stopChannel(t *testing.T, p plan) stopRecord {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -253,7 +245,6 @@ func (w *watching) stopChannel(t *testing.T, p plan) stopRecord {
 	return record
 }
 
-// request sends method path to the stop channel with authorization, "" for none.
 func request(t *testing.T, record stopRecord, method, path, authorization string) int {
 	t.Helper()
 	req, err := http.NewRequest(method, fmt.Sprintf("http://127.0.0.1:%d%s", record.Port, path), nil)
@@ -290,7 +281,6 @@ func TestStopRecordHoldsThePortTheTokenAndThePidOwnerOnly(t *testing.T) {
 	}
 }
 
-// recordKeys reads the JSON object at path and returns its keys in order.
 func recordKeys(t *testing.T, path string) []string {
 	t.Helper()
 	content, err := os.ReadFile(path)
@@ -412,8 +402,6 @@ func TestHelperProcess(t *testing.T) {
 	os.Exit(0)
 }
 
-// cronning builds a plan whose cron is this test binary in mode, recording its runs
-// to a file the returned function reads.
 func cronning(t *testing.T, server *httptest.Server, mode string, first, every time.Duration) (plan, func(n int) []time.Time) {
 	t.Setenv("DRUPACK_WATCH_HELPER", "1")
 	record := filepath.Join(t.TempDir(), "runs")
@@ -481,8 +469,6 @@ func TestStoppingEndsACronRunInFlight(t *testing.T) {
 	}
 }
 
-// tlsServer answers the identity route over https under its own test root, which it
-// writes as PEM for rootPool to read.
 func tlsServer(t *testing.T) (*httptest.Server, string) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)

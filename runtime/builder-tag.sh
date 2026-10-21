@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Prints the registry tag for a builder image: a digest over everything the
-# image carries. A run whose inputs are unchanged finds the image already
-# published and skips the PHP compile.
+# A run whose inputs are unchanged finds the image already published and
+# skips the PHP compile.
 #
 # Usage: builder-tag.sh musl|gnu
 # EXTENSIONS_FILE names the extension list, runtime/php-extensions.txt by default.

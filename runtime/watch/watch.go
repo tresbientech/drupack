@@ -22,8 +22,6 @@ import (
 	"time"
 )
 
-// plan holds what run watches: where readiness answers, what to open once ready,
-// and how and when cron runs.
 type plan struct {
 	probe       string         // the identity route's URL, token included
 	roots       *x509.CertPool // the roots an https probe trusts, nil for the system's
@@ -37,11 +35,8 @@ type plan struct {
 	cronEvery   time.Duration
 }
 
-// run waits for the site to answer, opens the stop channel, prints the ready line on
-// out, calls opener with p.open when it is set, then runs cron on p's schedule, when
-// p has a cron.
-// shutdown stops the process when a request to the channel carries the token. run
-// returns once stopping ends and any cron child in flight has exited, or when the
+// shutdown stops the process when a request to the stop channel carries the token.
+// run returns once stopping ends and any cron child in flight has exited, when the
 // site never answers, or at once after the ready line when p has no cron.
 func run(stopping context.Context, site string, p plan, out, errs io.Writer, opener func(string), shutdown func()) {
 	if !ready(stopping, p, errs) {
@@ -60,19 +55,16 @@ func run(stopping context.Context, site string, p plan, out, errs io.Writer, ope
 	}
 }
 
-// stopRecord is what SITE stop reads from the file serveStop writes.
 type stopRecord struct {
 	Port  int    `json:"port"`
 	Token string `json:"token"`
 	Pid   int    `json:"pid"`
 }
 
-// serveStop listens for one request, POST /stop with the token as a bearer value, and
-// writes the record that names the port and the token to path. The channel binds
-// loopback whatever address the site listens on, so no other computer reaches it. On
-// Unix the record is owner-only, so no other account holds the token; Windows ignores
-// the mode, and the file takes the access of its directory. A valid request gets
-// 204, then shutdown runs. Ending stopping closes the listener.
+// serveStop accepts POST /stop with the token as a bearer value and writes the
+// port and token to path. The channel binds loopback whatever address the site
+// listens on, so no other computer reaches it. On Unix the record is owner-only;
+// Windows ignores the mode, and the file takes the access of its directory.
 func serveStop(stopping context.Context, path string, shutdown func()) error {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -112,9 +104,8 @@ func serveStop(stopping context.Context, path string, shutdown func()) error {
 	return nil
 }
 
-// writeOwnerOnly replaces the file at path with content, in one rename, so a reader
-// sees the old record or the new one and never half of either. CreateTemp makes the
-// file mode 0600 on Unix. Windows ignores the mode.
+// One rename, so a reader sees the old record or the new one and never half of
+// either. CreateTemp makes the file mode 0600 on Unix.
 func writeOwnerOnly(path string, content []byte) error {
 	staging, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*")
 	if err != nil {
@@ -133,8 +124,8 @@ func writeOwnerOnly(path string, content []byte) error {
 	return err
 }
 
-// ready polls p.probe until it answers 204. The open link is a one-time login
-// link, which a request spends, so the poll asks the identity route instead.
+// The open link is a one-time login link, which a request spends, so the poll
+// asks the identity route instead.
 //
 // Only 204 counts. A 500 from a failed bootstrap and a 400 from a rejected host
 // both reach a client that connects, so a poll accepting any answer would
@@ -174,12 +165,10 @@ func ready(stopping context.Context, p plan, errs io.Writer) bool {
 	return false
 }
 
-// scheduleCron runs Drupal's cron in a child process p.firstCron after ready, then
-// every p.cronEvery. automated_cron runs the same work inside whichever request
-// arrives after its interval elapses, where a fetch that cannot reach drupal.org,
-// or a queue that takes a minute, holds that request's PHP thread and the database
-// rows behind it. Ending stopping ends a child in flight, so a run cannot hold the
-// process open.
+// automated_cron runs the same work inside whichever request arrives after its
+// interval elapses, where a fetch that cannot reach drupal.org, or a slow queue,
+// holds that request's PHP thread and the database rows behind it. Ending
+// stopping ends a child in flight, so a run cannot hold the process open.
 func scheduleCron(stopping context.Context, p plan, errs io.Writer) {
 	timer := time.NewTimer(p.firstCron)
 	defer timer.Stop()
@@ -200,10 +189,9 @@ func scheduleCron(stopping context.Context, p plan, errs io.Writer) {
 	}
 }
 
-// guard returns a context that ends at the first signal on signals, so work the
-// process started outside a request stops. Caddy finishes an in-flight PHP request
-// before it exits, and a request has no upper bound, so exit runs with 1 once
-// deadline passes after that signal; a healthy stop ends the process first.
+// Caddy finishes an in-flight PHP request before it exits, and a request has no
+// upper bound, so exit runs with 1 once deadline passes after the first signal.
+// A healthy stop ends the process first.
 func guard(signals <-chan os.Signal, deadline time.Duration, exit func(int)) context.Context {
 	stopping, stop := context.WithCancel(context.Background())
 	go func() {
@@ -215,8 +203,7 @@ func guard(signals <-chan os.Signal, deadline time.Duration, exit func(int)) con
 	return stopping
 }
 
-// rootPool reads the root an https site's certificate chains to, the file
-// DRUPACK_RUNTIME_TLS_ROOT names. An http site names none and gets nil.
+// An http site names no root and gets nil.
 func rootPool(path string) (*x509.CertPool, error) {
 	if path == "" {
 		return nil, nil

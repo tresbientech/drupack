@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Builds one FrankenPHP static-builder image carrying the extensions its
-# extension list names. PHP_EXTENSIONS takes effect while the
-# image is built, so a published image cannot carry a narrowed PHP.
-# builder-tag.sh names the image a build of these inputs belongs under.
+# PHP_EXTENSIONS takes effect while the image is built, so a published image
+# cannot carry a narrowed PHP.
 #
 # Usage: build-builder.sh musl|gnu TAG [WORK_DIRECTORY]
 # EXTENSIONS_FILE names the extension list, runtime/php-extensions.txt by default.
@@ -42,10 +40,9 @@ if [ "$head" != "$frankenphp_commit" ]; then
 fi
 
 target=static-builder-$libc
-# bake reads GITHUB_TOKEN for the secret its build-static.sh run expects, and
-# builds both architectures unless one is named. It would also read the
-# workflow's GO_VERSION, a patch release the gnu Dockerfile cannot find once
-# go.dev stops listing it, so the pinned FrankenPHP's own Go version applies.
+# bake reads GITHUB_TOKEN for the secret build-static.sh expects. It would also
+# read the workflow's GO_VERSION, a patch release the gnu Dockerfile cannot find
+# once go.dev stops listing it, so unset it for the pinned FrankenPHP's own.
 cd "$source"
 env -u GO_VERSION VERSION=$frankenphp_version docker buildx bake --load \
     --set "$target.platform=$platform" \

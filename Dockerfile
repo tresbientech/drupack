@@ -1,9 +1,5 @@
-# The builder images carry the static PHP toolchain and name their libc in
-# SPC_LIBC, which embed.sh reads to pick its link mode. A Linux release
-# publishes a file per runtime: the glibc one serves a rendered page several
-# times faster, and the musl one runs on any host.
-#
-# A runtime links the PHP that runtime/php-extensions.txt names, and
+# A Linux release publishes a file per runtime: the glibc one serves a rendered
+# page several times faster, and the musl one runs on any host.
 # PHP_EXTENSIONS takes effect while a builder image is built, so
 # runtime/build-builder.sh builds one image per libc before this file runs.
 ARG MUSL_BUILDER=drupack-builder-musl:local
@@ -18,19 +14,16 @@ ARG RUNTIME_COMPONENTS=no-runtime-components
 # The extension list a runtime links. build/site-runtimes.sh sets this to a build
 # context holding the engine list merged with a site's additions, as RUNTIMES does.
 ARG EXTENSIONS=engine-extensions
-# The job image runs drupack-build: Go for the packer and the launcher, Python for
-# the conformance suite, and GNU tar for the payload's fixed archive options. It is
-# a glibc host, the only kind that runs both runtimes, so a file of either libc
-# is tested where it was built.
+# The job image is a glibc host, the only kind that runs both runtimes, so a file
+# of either libc is tested where it was built.
 # docker buildx imagetools inspect golang:1.26-bookworm --format '{{.Manifest.Digest}}'
 ARG JOB_BASE=golang:1.26-bookworm@sha256:5314eb22361f736de0720087458a32c57893bf4e3b513d92ed880572b1b69e84
-# act_runner, which Gitea and Forgejo run, starts JavaScript actions with the job
-# container's own node.
+# act_runner starts JavaScript actions with the job container's own node.
 # docker buildx imagetools inspect node:24-bookworm-slim --format '{{.Manifest.Digest}}'
 ARG NODE_IMAGE=node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
 
-# php.ini and the trust bundle join the entry executable in each runtime
-# directory, so the launcher's environment function finds both beside it.
+# php.ini and the trust bundle sit beside the executable, where the launcher's
+# environment function finds them.
 # application/cacert.pem comes from https://curl.se/ca/cacert.pem, sha256
 # f66dff1bdf8f96060b8177976f8b7d9254bc89bc4db933d769f7384d28480bc9, 121
 # certificates. A refresh replaces the file and that checksum in one commit;
@@ -68,9 +61,8 @@ COPY --from=runtime-musl /out/drupack /drupack
 FROM scratch AS uncompressed-gnu
 COPY --from=runtime-gnu /out/drupack /drupack
 
-# One runner builds one runtime, since a builder image per libc and a PHP
-# compile do not share a runner. Each exports its directory, which
-# drupack-build takes as a --runtime.
+# A builder image per libc and a PHP compile do not share a runner, so one runner
+# builds one runtime.
 FROM scratch AS runtime-musl-files
 COPY --from=runtime-musl /out /out
 
@@ -91,14 +83,14 @@ FROM scratch AS no-runtime-components
 FROM ${RUNTIME_COMPONENTS} AS runtime-components
 
 # drupack-build runs here on any CI host, with no Docker daemon. The musl runtime
-# is its PHP: a static executable carrying every extension the site runs with.
+# is its PHP.
 FROM ${NODE_IMAGE} AS node
 
 FROM ${JOB_BASE} AS job
 ARG DRUPACK_VERSION
 ARG TARGETARCH
-# Go moves to the next entry after a "|" on any error, so a module fetch the
-# proxy drops mid-stream gets a second attempt. go.sum checks either answer.
+# Go moves to the next entry after a "|" on any error, so a dropped fetch gets
+# a second attempt. go.sum checks either answer.
 ENV GOPROXY="https://proxy.golang.org|https://proxy.golang.org,direct"
 # The conformance suite reads process arguments with procps' ps. cweagans/composer-patches
 # 1.x applies a patch to a dist install with GNU patch alone.

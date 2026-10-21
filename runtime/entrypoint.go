@@ -19,32 +19,23 @@ import (
 	"github.com/dunglas/frankenphp"
 )
 
-// version names the engine release. Each build script sets it with -ldflags.
 var version = "dev"
 
-// libc names the C library this runtime was linked against. embed.sh sets it
-// from the builder image's SPC_LIBC, and a build that links no libc of its own
-// leaves it empty. A Linux release publishes a file per libc, so a report
-// about one of them has to say which ran.
+// libc is empty for a build that links no libc of its own. A Linux release
+// publishes a file per libc, so a report has to say which ran.
 var libc = ""
 
-// frankenphpVersion and sqliteVersion name the FrankenPHP release this runtime
-// is built from and the SQLite library its PHP links. Each build script sets
-// both with -ldflags.
 var (
 	frankenphpVersion string
 	sqliteVersion     string
 )
 
-// siteName names the executable the reader ran. The launcher exports it with
-// the site's release, since one runtime build serves every site of an engine
-// release.
+// One runtime build serves every site of an engine release, so the launcher
+// exports the site's name and release.
 func siteName() string {
 	return os.Getenv("DRUPACK_RUNTIME_NAME")
 }
 
-// release describes what ran: the site and its release, the engine release,
-// and the libc when more than one build of this release exists.
 func release() string {
 	site := siteName() + " " + os.Getenv("DRUPACK_RUNTIME_SITE_VERSION")
 	if libc == "" {
@@ -53,8 +44,6 @@ func release() string {
 	return site + " (drupack " + version + ", " + libc + ")"
 }
 
-// components lists what this file carries, one "Name version" line each: the
-// runtime's own parts, then the site's, which the launcher exports.
 func components() []string {
 	lines := []string{
 		"FrankenPHP " + frankenphpVersion,
@@ -68,7 +57,6 @@ func components() []string {
 	return lines
 }
 
-// caddyVersion reads Caddy's module version from the build information.
 // caddy.Version prefixes the CustomVersion the build scripts set.
 func caddyVersion() string {
 	info, _ := debug.ReadBuildInfo()
@@ -80,14 +68,9 @@ func caddyVersion() string {
 	panic("the build information names no " + caddy.ImportPath)
 }
 
-// nodeCommands names the programs of a site's bundled Node release that its
-// command line runs, with each one's file on Windows, where npm and npx are
-// batch files.
+// Each program's file on Windows, where npm and npx are batch files.
 var nodeCommands = map[string]string{"node": "node.exe", "npm": "npm.cmd", "npx": "npx.cmd"}
 
-// runNode runs program from the Node release the launcher unpacked, in the
-// reader's directory, and exits with its status. The launcher sends a Node word
-// here only from a file that carries Node.
 func runNode(program string, arguments []string) {
 	directory := os.Getenv("DRUPACK_RUNTIME_NODE")
 	file := program
@@ -124,9 +107,8 @@ func runNode(program string, arguments []string) {
 const phpUsage = `Usage: %[1]s php SCRIPT [ARGUMENTS]
        %[1]s php -r CODE`
 
-// phpArguments turns the Engine executable's php command into php-cli's, which
-// reads no PHP option and passes -r code no $argv. The arguments come from the
-// reader or from Drush, so any other form stops here, before PHP starts.
+// php-cli reads no PHP option and passes -r code no $argv. The arguments come
+// from the reader or from Drush, so any other form stops here, before PHP starts.
 func phpArguments(arguments []string) []string {
 	var refusal string
 	switch {
@@ -147,9 +129,8 @@ func phpArguments(arguments []string) []string {
 	return nil
 }
 
-// readinessPath answers 204 for a request carrying this site's own identity token, and 404
-// for anything else. The Caddyfile serves it without reaching Drupal, so it
-// costs the readiness poll in watch.go no page render and no session.
+// The Caddyfile answers 204 for this site's identity token and 404 for any other,
+// without reaching Drupal, so the readiness poll in watch.go renders no page.
 const readinessPath = "/.drupack-id?id="
 
 func openBrowser(address string) {
@@ -230,18 +211,14 @@ func stopServer(guardSignals chan<- os.Signal) {
 const cronInterval = 3 * time.Hour
 const cronFirstDelay = 2 * time.Minute
 
-// serveCaddyfile runs Caddy on the Caddyfile at config. PHPRC already names
-// the runtime directory in every hop, including this one, so php.ini loads
-// from there without a scan path naming the application too.
+// PHPRC already names the runtime directory in every hop, including this one,
+// so php.ini loads from there without a scan path naming the application too.
 func serveCaddyfile(config string) {
 	os.Args = []string{os.Args[0], "run", "--config", config, "--adapter", "caddyfile"}
 }
 
-// canonical rewrites path in Drupack's canonical form: forward slashes. This
-// file builds inside frankenphp's own module, which cannot import the
-// launcher's internal/runtime package, so the conversion is restated here.
-// filepath.ToSlash does the same work as the launcher's own copy, which its
-// canonical_test.go covers.
+// This file builds inside frankenphp's own module, which cannot import the
+// launcher's internal/runtime package, so the canonical form is restated here.
 func canonical(path string) string {
 	return filepath.ToSlash(path)
 }
@@ -251,13 +228,11 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	// PHP, Caddy and the reader's terminal read this variable, so it takes
-	// Drupack's canonical form; executable itself is used for nothing else.
+	// PHP, Caddy and the reader's terminal read this variable.
 	if err := os.Setenv("DRUPACK_RUNTIME_BINARY", canonical(executable)); err != nil {
 		panic(err)
 	}
-	// The launcher unpacks the application once per release and names its
-	// directory here. Every relative path the site resolves starts from it.
+	// The launcher unpacks the application once per release and names its directory.
 	application := os.Getenv("DRUPACK_RUNTIME_APP_DIR")
 	if application == "" {
 		application = frankenphp.EmbeddedAppPath
@@ -265,13 +240,11 @@ func init() {
 	// A build step runs this binary on its own to read its version, with no
 	// launcher to name a directory and no embedded application to fall back to.
 	if application != "" {
-		// The site resolves its own relative paths from the application, so the
-		// directory the reader started in has to reach launch.php separately.
-		// Site data named relative to it belongs there, not in a copy every
-		// site of the release shares.
+		// The site resolves relative paths from the application, so the reader's
+		// directory has to reach launch.php separately. Site data named relative
+		// to it belongs there, not in a copy every site of the release shares.
 		if directory, err := os.Getwd(); err == nil {
-			// launch.php reads this variable to resolve a relative --data-dir
-			// against the reader's own directory, so it takes the canonical form.
+			// launch.php resolves a relative --data-dir against it.
 			if err := os.Setenv("DRUPACK_RUNTIME_CWD", canonical(directory)); err != nil {
 				panic(err)
 			}
@@ -286,8 +259,6 @@ func init() {
 		os.Args = append([]string{os.Args[0]}, phpArguments(os.Args[2:])...)
 		return
 	}
-	// launch.php and the engine executable's serve.php replace themselves with this
-	// command to serve, naming the fixed Caddyfile they ship.
 	if len(os.Args) == 3 && os.Args[1] == "php-server" {
 		// On Windows the handle PHP's proc_open hands this process writes at a stale
 		// offset, over the log's first lines. A detached server appends through its own
@@ -304,7 +275,7 @@ func init() {
 		// The server waits for itself. A separate process would first extract its own copy
 		// of the embedded application, which takes longer than the wait on a slow disk.
 		stopping, guardSignals := stopGuard()
-		// The engine executable has no application, and its folder server runs no cron.
+		// The engine executable has no application and runs no cron.
 		var cron []string
 		if application != "" {
 			cron = []string{executable, "php-cli",
@@ -337,7 +308,7 @@ func init() {
 		openBrowser(os.Getenv("DRUPACK_RUNTIME_OPEN"))
 		os.Exit(0)
 	}
-	// The trust command of launch.php and serve.php, which may ask for a password.
+	// May ask for a password.
 	if len(os.Args) > 1 && os.Args[1] == "tls-trust" {
 		if err := trust(os.Stdout, os.Getenv("DRUPACK_TLS_DIR"), os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -345,7 +316,6 @@ func init() {
 		}
 		os.Exit(0)
 	}
-	// launch.php and serve.php ask this on every start, and serve the host and TLS source it prints.
 	if len(os.Args) > 1 && os.Args[1] == "tls-source" {
 		if err := writeTLSSource(os.Stdout, os.Getenv("DRUPACK_TLS_DIR"), os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
