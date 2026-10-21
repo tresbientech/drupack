@@ -5,6 +5,6 @@
 
 frankenphp_version=1.13.1
 frankenphp_commit=99d4e119ca2e5a90a69d8dbee5d5c9a8016416c5
-php_version=8.5.11
+php_version=8.5.12
 # A caller may merge a site's additions into another file.
 extensions_file=${EXTENSIONS_FILE:-$(dirname -- "${BASH_SOURCE[0]}")/php-extensions.txt}
