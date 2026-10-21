@@ -265,3 +265,23 @@ match the budget a real browser gets, and the QA and Linux amd64 suite runs,
 which test `drupack-build`'s chain and the shipped files. Moving the start flow
 from PHP to Go was sized and dropped: its net runs from 350 lines fewer to
 1,110 more.
+
+## A Composer project served in production
+
+The question: what does a Composer project need to run in production on the
+engine, installed through `composer require` and `composer install`? The engine
+already serves a project folder as it is (ADR 0022), with none of a packaged
+site's single-file limits. Gaps found in the tresbien.tech review on 2026-10-21:
+
+- The README requires the package with `--dev`, so `composer install --no-dev`
+  on a server leaves it out.
+- `composer install` fetches no executable. `vendor/bin/drupack-install` is a
+  second step, run again after each version change.
+- The engine's PHP has a fixed extension set. Site extensions (ADR 0020) reach
+  packaged Linux sites only, so a project that needs `ext-tidy` cannot start.
+- A start detaches with no service unit, and `status`, `logs` and `restart`
+  are still open.
+- Off loopback, a start serves plain HTTP for any Host header. HTTPS on a public
+  name needs a proxy in front, since ADR 0036 rules out ACME on demand.
+- Behind a proxy, the project's own `settings.php` sets `reverse_proxy` and the
+  trusted hosts.
