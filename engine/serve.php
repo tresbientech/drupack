@@ -194,7 +194,7 @@ function serve(string $binary, array $arguments): never
     // bind address itself.
     $bind = trim($bind, '[]');
     $tls = tlsChoice($binary, $bind, folderLabelSource($project), null);
-    $plan = listenerPlan($bind, (int) $port, $tls['host'], tlsScheme($tls));
+    $plan = listenerPlan($bind, (int) $port, $tls->host, $tls->scheme());
 
     // The reader's terminal gets every refusal above and the lease's below, so a start that
     // detaches has nothing left to refuse but the server's own failures.
@@ -209,7 +209,7 @@ function serve(string $binary, array $arguments): never
 
     // The engine's URL has no trailing slash, as before HTTPS.
     $url = rtrim($plan['url'], '/');
-    storeTlsBundle($tls, $entry);
+    $tls->storeBundle($entry);
     $link = null;
     $install = null;
     if (siteInstalled($binary, $project, $docroot) === false) {
@@ -228,7 +228,7 @@ function serve(string $binary, array $arguments): never
     }
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n")
         . ($install === null ? '' : "  Install: $install\n") . "  Project: $project\n");
-    fwrite(STDOUT, nameHint($tls) . tlsHint($tls));
+    fwrite(STDOUT, $tls->nameHint() . $tls->trustHint());
     fwrite(STDOUT, "Starting the web server.\n");
     // The Caddyfile beside this file is fixed, and Caddy fills its values from this environment.
     // The server opens no browser, so a value inherited from an earlier start is cleared.

@@ -234,10 +234,16 @@ function fakeRuntime(array $answer): string
     return "$directory/drupack";
 }
 
+// One tls-source answer per source, as runtime/tls encodes it. Its own test fails when
+// this file no longer matches.
+function tlsAnswer(string $source): array
+{
+    return json_decode((string) file_get_contents(__DIR__ . '/tls-choices.json'), true, flags: JSON_THROW_ON_ERROR)[$source];
+}
+
 test('a start hands the runtime its bind, its site and the host the reader asked for', function (): void {
-    $answer = ['source' => 'none', 'host' => 'localhost', 'alias' => 'demo.drupack.site', 'reason' => 'no answer', 'eligible' => true];
-    $runtime = fakeRuntime($answer);
-    same($answer, tlsChoice($runtime, '127.0.0.1', ['--name', 'demo'], null));
+    $runtime = fakeRuntime(tlsAnswer('none'));
+    same(get_object_vars(TlsChoice::fromArray(tlsAnswer('none'))), get_object_vars(tlsChoice($runtime, '127.0.0.1', ['--name', 'demo'], null)));
     same("tls-source --bind 127.0.0.1 --name demo\n", file_get_contents(dirname($runtime) . '/arguments'));
     tlsChoice($runtime, '127.0.0.1', ['--folder', 'My Shop'], '127.0.0.1');
     same("tls-source --bind 127.0.0.1 --folder My Shop --host 127.0.0.1\n", file_get_contents(dirname($runtime) . '/arguments'));
@@ -251,29 +257,29 @@ test('the reference site.json reads as the Site contract', function (): void {
 test('a site that sets a subdomain hands the runtime that label, and one without hands its name', function (): void {
     same(['--name', 'demo'], siteLabelSource(contract(subdomain: 'demo')));
     same(['--name', FIXTURE_NAME], siteLabelSource(contract(subdomain: null)));
-    $runtime = fakeRuntime(['source' => 'none', 'host' => 'localhost', 'alias' => 'demo.drupack.site', 'reason' => 'no answer', 'eligible' => true]);
+    $runtime = fakeRuntime(tlsAnswer('none'));
     tlsChoice($runtime, '127.0.0.1', siteLabelSource(contract(subdomain: 'demo')), null);
     same("tls-source --bind 127.0.0.1 --name demo\n", file_get_contents(dirname($runtime) . '/arguments'));
 });
 
 test('a start whose name did not resolve says which host its URL names instead', function (): void {
-    same("Name: demo.drupack.site did not resolve to 127.0.0.1 (answered 0.0.0.0), so the URL uses localhost.\n",
-        nameHint(['host' => 'localhost', 'alias' => 'demo.drupack.site', 'reason' => 'answered 0.0.0.0']));
-    same('', nameHint(['host' => 'demo.drupack.site', 'alias' => 'demo.drupack.site', 'reason' => '']));
+    same("Name: demo.drupack.site did not resolve to 127.0.0.1 (no answer), so the URL uses localhost.\n",
+        TlsChoice::fromArray(tlsAnswer('none'))->nameHint());
+    same('', TlsChoice::fromArray(tlsAnswer('drupack'))->nameHint());
 });
 
 test('an HTTP loopback start names trust, and no other start does', function (): void {
-    $none = ['source' => 'none', 'eligible' => true];
+    $none = TlsChoice::fromArray(tlsAnswer('none'));
     putenv('DRUPACK_TLS_DIR=/home/reader/.config/drupack/tls');
     try {
-        same('HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n", tlsHint($none));
-        same('', tlsHint(['source' => 'drupack', 'eligible' => true]));
-        same('', tlsHint(['source' => 'none', 'eligible' => false]));
+        same('HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n", $none->trustHint());
+        same('', TlsChoice::fromArray(tlsAnswer('drupack'))->trustHint());
+        same('', TlsChoice::fromArray(['eligible' => false] + tlsAnswer('none'))->trustHint());
     } finally {
         putenv('DRUPACK_TLS_DIR');
     }
     // An account with no config folder cannot hold a root.
-    same('', tlsHint($none));
+    same('', $none->trustHint());
 });
 
 test('an HTTPS start writes the public roots and its own into one bundle, which Drush reuses', function (): void {
@@ -283,7 +289,7 @@ test('an HTTPS start writes the public roots and its own into one bundle, which 
     $public = getenv('DRUPACK_CA_FILE');
     putenv("DRUPACK_CA_FILE=$directory/public.pem");
     try {
-        storeTlsBundle(['source' => 'drupack', 'root' => "$directory/root.pem"], $directory);
+        TlsChoice::fromArray(['root' => "$directory/root.pem"] + tlsAnswer('drupack'))->storeBundle($directory);
         same("$directory/ca-bundle.pem", getenv('DRUPACK_CA_FILE'));
         same("PUBLIC\n\nLOCAL\n", file_get_contents("$directory/ca-bundle.pem"));
         same(['ca-bundle.pem', 'public.pem', 'root.pem'], array_values(array_diff(scandir($directory), ['.', '..'])));
@@ -304,9 +310,9 @@ test('an HTTP start deletes the bundle, so Drush returns to the public roots', f
     $public = getenv('DRUPACK_CA_FILE');
     putenv("DRUPACK_CA_FILE=$directory/public.pem");
     try {
-        storeTlsBundle(['source' => 'none'], $directory);
+        TlsChoice::fromArray(tlsAnswer('none'))->storeBundle($directory);
         same(false, file_exists("$directory/ca-bundle.pem"));
-        storeTlsBundle(['source' => 'none'], $directory);
+        TlsChoice::fromArray(tlsAnswer('none'))->storeBundle($directory);
         useTlsBundle($directory);
         same("$directory/public.pem", getenv('DRUPACK_CA_FILE'));
     } finally {
@@ -316,26 +322,34 @@ test('an HTTP start deletes the bundle, so Drush returns to the public roots', f
 
 test('the TLS source picks its snippets and their files', function (): void {
     same(['DRUPACK_RUNTIME_ALIAS' => 'demo.drupack.site', 'DRUPACK_RUNTIME_TLS' => 'none'],
-        tlsServerEnvironment(['source' => 'none', 'alias' => 'demo.drupack.site']));
+        TlsChoice::fromArray(tlsAnswer('none'))->serverEnvironment());
     same([
         'DRUPACK_RUNTIME_ALIAS' => 'demo.drupack.site',
         'DRUPACK_RUNTIME_TLS' => 'drupack',
         'DRUPACK_RUNTIME_TLS_ROOT' => '/tls/root.pem',
         'DRUPACK_RUNTIME_TLS_ROOT_KEY' => '/tls/root.key',
         'DRUPACK_RUNTIME_TLS_CA' => 'drupack-0123456789abcdef',
-    ], tlsServerEnvironment(['source' => 'drupack', 'root' => '/tls/root.pem', 'rootKey' => '/tls/root.key',
-        'authority' => 'drupack-0123456789abcdef', 'alias' => 'demo.drupack.site']));
+    ], TlsChoice::fromArray(tlsAnswer('drupack'))->serverEnvironment());
     same([
         'DRUPACK_RUNTIME_ALIAS' => 'demo.drupack.site',
         'DRUPACK_RUNTIME_TLS' => 'mkcert',
         'DRUPACK_RUNTIME_TLS_ROOT' => '/caroot/rootCA.pem',
         'DRUPACK_RUNTIME_TLS_CERT' => '/tls/mkcert/localhost.pem',
         'DRUPACK_RUNTIME_TLS_KEY' => '/tls/mkcert/localhost-key.pem',
-    ], tlsServerEnvironment(['source' => 'mkcert', 'root' => '/caroot/rootCA.pem',
-        'certificate' => '/tls/mkcert/localhost.pem', 'key' => '/tls/mkcert/localhost-key.pem', 'alias' => 'demo.drupack.site']));
-    same('https', tlsScheme(['source' => 'mkcert']));
-    same('http', tlsScheme(['source' => 'none']));
-    same('https', tlsScheme(['source' => 'drupack']));
+    ], TlsChoice::fromArray(tlsAnswer('mkcert'))->serverEnvironment());
+    same('https', TlsChoice::fromArray(tlsAnswer('mkcert'))->scheme());
+    same('http', TlsChoice::fromArray(tlsAnswer('none'))->scheme());
+    same('https', TlsChoice::fromArray(tlsAnswer('drupack'))->scheme());
+});
+
+test('every value a source\'s TLS snippets read is in its server environment', function (): void {
+    foreach (['none', 'mkcert', 'drupack'] as $source) {
+        $environment = serverEnvironment(listenerPlan('127.0.0.1', 7225, 'localhost', 'http'), TlsChoice::fromArray(tlsAnswer($source)), []);
+        foreach (glob(dirname(__DIR__) . "/tls-$source-*.caddy") as $snippet) {
+            preg_match_all('/\{\$(DRUPACK_RUNTIME_[A-Z_]+)/', (string) file_get_contents($snippet), $names);
+            same([], array_values(array_diff($names[1], array_keys($environment))), basename($snippet));
+        }
+    }
 });
 
 test('a served listener without a record is the one this start planned, over HTTP', function (): void {
@@ -367,7 +381,7 @@ test('the server environment holds the listener, the caller\'s values and the TL
         'DRUPACK_RUNTIME_ID' => 'token',
         'DRUPACK_RUNTIME_ALIAS' => 'demo.drupack.site',
         'DRUPACK_RUNTIME_TLS' => 'none',
-    ], serverEnvironment(listenerPlan('::', 8080, '::1', 'http'), ['source' => 'none', 'alias' => 'demo.drupack.site'],
+    ], serverEnvironment(listenerPlan('::', 8080, '::1', 'http'), TlsChoice::fromArray(tlsAnswer('none')),
         ['DRUPACK_RUNTIME_ID' => 'token']));
 });
 

@@ -1,0 +1,29 @@
+{
+  "drupack": {
+    "source": "drupack",
+    "root": "/tls/root.pem",
+    "rootKey": "/tls/root.key",
+    "authority": "drupack-0123456789abcdef",
+    "host": "demo.drupack.site",
+    "alias": "demo.drupack.site",
+    "reason": "",
+    "eligible": true
+  },
+  "mkcert": {
+    "source": "mkcert",
+    "root": "/caroot/rootCA.pem",
+    "certificate": "/tls/mkcert/localhost.pem",
+    "key": "/tls/mkcert/localhost-key.pem",
+    "host": "demo.drupack.site",
+    "alias": "demo.drupack.site",
+    "reason": "",
+    "eligible": true
+  },
+  "none": {
+    "source": "none",
+    "host": "localhost",
+    "alias": "demo.drupack.site",
+    "reason": "no answer",
+    "eligible": true
+  }
+}

@@ -478,3 +478,28 @@ func TestOnlyALoopbackStartAddressedByAServedNameMayServeHTTPS(t *testing.T) {
 		}
 	}
 }
+
+// application/tests/tls-choices.json holds one choice per source as tls-source encodes
+// it, and process.php's TlsChoice reads that file in the PHP tests. A renamed or dropped
+// field fails here until the file, and then TlsChoice, follow.
+func TestChoicesMatchThePHPReferenceFile(t *testing.T) {
+	choices := map[string]tlsChoice{
+		"none": {Source: "none", Host: "localhost", Alias: "demo.drupack.site", Reason: "no answer", Eligible: true},
+		"mkcert": {Source: "mkcert", Root: "/caroot/rootCA.pem", Certificate: "/tls/mkcert/localhost.pem", Key: "/tls/mkcert/localhost-key.pem",
+			Host: "demo.drupack.site", Alias: "demo.drupack.site", Eligible: true},
+		"drupack": {Source: "drupack", Root: "/tls/root.pem", RootKey: "/tls/root.key", Authority: "drupack-0123456789abcdef",
+			Host: "demo.drupack.site", Alias: "demo.drupack.site", Eligible: true},
+	}
+	got, err := json.MarshalIndent(choices, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reference := filepath.Join("..", "..", "application", "tests", "tls-choices.json")
+	want, err := os.ReadFile(reference)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got)+"\n" != string(want) {
+		t.Fatalf("%s differs from what tls-source encodes. Replace it with:\n%s", reference, got)
+	}
+}

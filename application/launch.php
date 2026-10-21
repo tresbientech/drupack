@@ -827,7 +827,7 @@ try {
     $tls = $drush ? null : tlsChoice($binary, $bind, siteLabelSource(siteContract()), $options['host']);
     $plan = $drush
         ? listenerPlan($bind, $port, $options['host'] ?? SiteData::UNRECORDED_HOST, $options['scheme'] ?? SiteData::UNRECORDED_SCHEME)
-        : listenerPlan($bind, $port, $tls['host'], tlsScheme($tls));
+        : listenerPlan($bind, $port, $tls->host, $tls->scheme());
     $logPath = $site->logs() . '/caddy.log';
     $runtime = canonical(realpath($site->runtime()));
     if ($drush) {
@@ -862,7 +862,7 @@ try {
         $serving->detach($options['foreground'] !== null,
             stopCommand($written === DEFAULT_DATA_DIR ? '' : ' --data-dir ' . shellWord($written)), array_slice($argv, 1));
         $site->recordListener($options['listen'], $plan['host'], $options['files-dir'], $plan['scheme']);
-        storeTlsBundle($tls, $runtime);
+        $tls->storeBundle($runtime);
     }
     if (siteContract()->mercure) {
         exportMercure($site->mercurePublisherSecret(), $site->mercureSubscriberSecret(), mercureUrl($plan['scheme'], $bind, $port), $drush);
@@ -930,7 +930,7 @@ try {
         fwrite(STDOUT, "No browser opens: {$options['listen']} accepts other computers over plain HTTP."
             . " Sign in from another computer only through a TLS proxy.\n");
     }
-    fwrite(STDOUT, nameHint($tls) . tlsHint($tls));
+    fwrite(STDOUT, $tls->nameHint() . $tls->trustHint());
     openWhenServing($plan['probe'], $link, $browser);
     // Every step that needed the administrator password has run. The server inherits
     // this environment and passes it to every process it starts, including PHP code a

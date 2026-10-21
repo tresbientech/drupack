@@ -295,7 +295,7 @@ function loopback(string $bind): bool
 // What a start on $bind serves and the host its URL names, as the runtime answers from the
 // user's local root and the resolver. $site names the site: ['--name', NAME] for a packed
 // site, ['--folder', NAME] for the engine. $host is the host the reader asked for.
-function tlsChoice(string $binary, string $bind, array $site, ?string $host): array
+function tlsChoice(string $binary, string $bind, array $site, ?string $host): TlsChoice
 {
     $arguments = [$binary, 'tls-source', '--bind', $bind, ...$site];
     if ($host !== null) {
@@ -311,42 +311,122 @@ function tlsChoice(string $binary, string $bind, array $site, ?string $host): ar
     if (proc_close($child) !== 0) {
         throw new RuntimeException('Cannot read the local root in ' . getenv('DRUPACK_TLS_DIR'));
     }
-    return json_decode((string) $output, true, flags: JSON_THROW_ON_ERROR);
-}
-
-// The line a start prints when its drupack.site name did not resolve to the listener, or ''.
-function nameHint(array $choice): string
-{
-    if ($choice['reason'] === '') {
-        return '';
-    }
-    return "Name: {$choice['alias']} did not resolve to 127.0.0.1 ({$choice['reason']}), so the URL uses {$choice['host']}.\n";
+    return TlsChoice::fromArray(json_decode((string) $output, true, flags: JSON_THROW_ON_ERROR));
 }
 
 // PHP verifies HTTPS against DRUPACK_CA_FILE, which holds public roots alone. A site
-// served over HTTPS keeps that bundle plus its own root here, in $directory, so Drush and
-// cron reach the site's own hub.
+// served over HTTPS keeps that bundle plus its own root here, in a directory of its own,
+// so Drush and cron reach the site's own hub.
 const TLS_BUNDLE = 'ca-bundle.pem';
 
-// Called under the Serving lease. An HTTPS start writes the bundle for $choice into
-// $directory and points this process's children at it. An HTTP start deletes it, so Drush
-// stops trusting a root the site no longer serves.
-function storeTlsBundle(array $choice, string $directory): void
+// What a start serves, from the JSON runtime/tls's tls-source prints:
+// 'none' for plain HTTP, 'mkcert' with the files mkcert wrote, or 'drupack' with the root
+// Caddy signs from. application/tests/tls-choices.json holds one of each as Go writes it.
+final readonly class TlsChoice
 {
-    $bundle = "$directory/" . TLS_BUNDLE;
-    if ($choice['source'] === 'none') {
-        if (file_exists($bundle) && !unlink($bundle)) {
-            throw new RuntimeException("Cannot delete $bundle");
+    public function __construct(
+        public string $source,
+        // What the start's URL names.
+        public string $host,
+        // The site's drupack.site name.
+        public string $alias,
+        // Why host is not alias when the start tried the name, or ''.
+        public string $reason,
+        // Whether the bind and host may serve HTTPS from a local root.
+        public bool $eligible,
+        // What a client verifies against, '' for none.
+        public string $root,
+        // The local root's key, which Caddy signs from, '' unless drupack.
+        public string $rootKey,
+        // The name Caddy gives the local root's authority, '' unless drupack.
+        public string $authority,
+        // mkcert's certificate and key, '' unless mkcert.
+        public string $certificate,
+        public string $key,
+    ) {
+    }
+
+    public static function fromArray(array $choice): self
+    {
+        return new self(
+            source: $choice['source'],
+            host: $choice['host'],
+            alias: $choice['alias'],
+            reason: $choice['reason'],
+            eligible: $choice['eligible'],
+            // tls-source leaves out the files a source does not use.
+            root: $choice['root'] ?? '',
+            rootKey: $choice['rootKey'] ?? '',
+            authority: $choice['authority'] ?? '',
+            certificate: $choice['certificate'] ?? '',
+            key: $choice['key'] ?? '',
+        );
+    }
+
+    public function scheme(): string
+    {
+        return $this->source === 'none' ? 'http' : 'https';
+    }
+
+    // The line a start prints when its drupack.site name did not resolve to the listener, or ''.
+    public function nameHint(): string
+    {
+        if ($this->reason === '') {
+            return '';
         }
-        return;
+        return "Name: {$this->alias} did not resolve to 127.0.0.1 ({$this->reason}), so the URL uses {$this->host}.\n";
     }
-    $roots = file_get_contents(getenv('DRUPACK_CA_FILE')) . "\n" . file_get_contents($choice['root']);
-    // A running server's cron reads the bundle, so it is replaced whole, never rewritten in place.
-    $partial = "$bundle." . bin2hex(random_bytes(4));
-    if (file_put_contents($partial, $roots) !== strlen($roots) || !rename($partial, $bundle)) {
-        throw new RuntimeException("Cannot write $bundle");
+
+    // The line a start prints when `trust` would move it to HTTPS, or ''.
+    public function trustHint(): string
+    {
+        // An account with no config folder has nowhere to keep a root, so `trust` cannot help.
+        if ($this->source !== 'none' || !$this->eligible || environment('DRUPACK_TLS_DIR') === null) {
+            return '';
+        }
+        return 'HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n";
     }
-    putenv("DRUPACK_CA_FILE=$bundle");
+
+    // Called under the Serving lease. An HTTPS start writes the bundle into $directory and
+    // points this process's children at it. An HTTP start deletes it, so Drush stops
+    // trusting a root the site no longer serves.
+    public function storeBundle(string $directory): void
+    {
+        $bundle = "$directory/" . TLS_BUNDLE;
+        if ($this->source === 'none') {
+            if (file_exists($bundle) && !unlink($bundle)) {
+                throw new RuntimeException("Cannot delete $bundle");
+            }
+            return;
+        }
+        $roots = file_get_contents(getenv('DRUPACK_CA_FILE')) . "\n" . file_get_contents($this->root);
+        // A running server's cron reads the bundle, so it is replaced whole, never rewritten in place.
+        $partial = "$bundle." . bin2hex(random_bytes(4));
+        if (file_put_contents($partial, $roots) !== strlen($roots) || !rename($partial, $bundle)) {
+            throw new RuntimeException("Cannot write $bundle");
+        }
+        putenv("DRUPACK_CA_FILE=$bundle");
+    }
+
+    // The server variables that name the site and pick the TLS snippets.
+    public function serverEnvironment(): array
+    {
+        return ['DRUPACK_RUNTIME_ALIAS' => $this->alias] + match ($this->source) {
+            'none' => ['DRUPACK_RUNTIME_TLS' => 'none'],
+            'mkcert' => [
+                'DRUPACK_RUNTIME_TLS' => 'mkcert',
+                'DRUPACK_RUNTIME_TLS_ROOT' => $this->root,
+                'DRUPACK_RUNTIME_TLS_CERT' => $this->certificate,
+                'DRUPACK_RUNTIME_TLS_KEY' => $this->key,
+            ],
+            'drupack' => [
+                'DRUPACK_RUNTIME_TLS' => 'drupack',
+                'DRUPACK_RUNTIME_TLS_ROOT' => $this->root,
+                'DRUPACK_RUNTIME_TLS_ROOT_KEY' => $this->rootKey,
+                'DRUPACK_RUNTIME_TLS_CA' => $this->authority,
+            ],
+        };
+    }
 }
 
 // Points Drush at the bundle the last start wrote into $directory. A site whose last start
@@ -356,41 +436,6 @@ function useTlsBundle(string $directory): void
     if (is_file("$directory/" . TLS_BUNDLE)) {
         putenv("DRUPACK_CA_FILE=$directory/" . TLS_BUNDLE);
     }
-}
-
-// The line a start prints when `trust` would move it to HTTPS, or ''.
-function tlsHint(array $choice): string
-{
-    // An account with no config folder has nowhere to keep a root, so `trust` cannot help.
-    if ($choice['source'] !== 'none' || !$choice['eligible'] || environment('DRUPACK_TLS_DIR') === null) {
-        return '';
-    }
-    return 'HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n";
-}
-
-function tlsScheme(array $choice): string
-{
-    return $choice['source'] === 'none' ? 'http' : 'https';
-}
-
-// The server variables that name the site and pick the TLS snippets for $choice.
-function tlsServerEnvironment(array $choice): array
-{
-    return ['DRUPACK_RUNTIME_ALIAS' => $choice['alias']] + match ($choice['source']) {
-        'none' => ['DRUPACK_RUNTIME_TLS' => 'none'],
-        'mkcert' => [
-            'DRUPACK_RUNTIME_TLS' => 'mkcert',
-            'DRUPACK_RUNTIME_TLS_ROOT' => $choice['root'],
-            'DRUPACK_RUNTIME_TLS_CERT' => $choice['certificate'],
-            'DRUPACK_RUNTIME_TLS_KEY' => $choice['key'],
-        ],
-        'drupack' => [
-            'DRUPACK_RUNTIME_TLS' => 'drupack',
-            'DRUPACK_RUNTIME_TLS_ROOT' => $choice['root'],
-            'DRUPACK_RUNTIME_TLS_ROOT_KEY' => $choice['rootKey'],
-            'DRUPACK_RUNTIME_TLS_CA' => $choice['authority'],
-        ],
-    };
 }
 
 // Where a start on $bind:$port serves, under the host and scheme its caller chose: the URL
@@ -409,12 +454,12 @@ function listenerPlan(string $bind, int $port, string $host, string $scheme): ar
 
 // The variables Caddy fills the fixed Caddyfile from: the listener in $plan, the TLS
 // snippets for $tls, and the caller's own $values. exportServerEnvironment checks them.
-function serverEnvironment(array $plan, array $tls, array $values): array
+function serverEnvironment(array $plan, TlsChoice $tls, array $values): array
 {
     return [
         'DRUPACK_RUNTIME_PORT' => (string) $plan['port'],
         'DRUPACK_RUNTIME_BIND' => $plan['bind'],
-    ] + $values + tlsServerEnvironment($tls);
+    ] + $values + $tls->serverEnvironment();
 }
 
 // The address a probe on this computer reaches a server bound to $bind, which a wildcard
