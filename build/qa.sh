@@ -67,17 +67,11 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -w /s
 
 # The PHP unit files read the vendor directory of the site just built.
 ln -sfn ../dist/work/app/vendor application/vendor
-"$executable" php-cli "$PWD/application/tests/launch_test.php"
-"$executable" php-cli "$PWD/application/tests/site_data_test.php"
-"$executable" php-cli "$PWD/application/tests/serve_test.php"
-"$executable" php-cli "$PWD/application/tests/serving_test.php"
-"$executable" php-cli "$PWD/application/tests/drupack_install_test.php"
-"$executable" php-cli "$PWD/application/tests/windows_paths_test.php"
-"$executable" php-cli "$PWD/application/tests/site_data_public_stream_test.php"
-"$executable" php-cli "$PWD/application/tests/argv_test.php" a b
-(cd launcher && go test ./...)
-(cd runtime/watch && go test ./...)
-(cd runtime/tls && go test ./...)
+# Every file gets the arguments a and b, which argv_test.php checks.
+for file in application/tests/*_test.php; do
+    "$executable" php-cli "$PWD/$file" a b
+done
+bash build/go-tests.sh
 bash build/unit-tests.sh
 DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" "$work/results/conformance" --site-tests "$demo/tests" \
     -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \

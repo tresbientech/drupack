@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// build/qa.sh runs this file with the arguments a and b. Composer and Drush read
+// build/qa.sh runs every test file with the arguments a and b. Composer and Drush read
 // their command from $argv[1], so a php-cli that puts its own binary in $argv[0]
 // breaks both.
 

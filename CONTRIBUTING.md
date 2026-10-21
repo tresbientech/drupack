@@ -126,21 +126,20 @@ ln -sfn ../dist/work/app/vendor application/vendor
 Then:
 
 ```sh
-./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/launch_test.php"
-./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/serve_test.php"
-./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/windows_paths_test.php"
-./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/site_data_public_stream_test.php"
+for file in application/tests/*_test.php; do
+    ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/$file" a b
+done
 ```
+
+`argv_test.php` checks the arguments `a` and `b`. The other files ignore them.
 
 `site_data_public_stream_test.php` covers the check that refuses a public file
 target resolving outside Site data.
 
-The launcher's and the runtime watcher's unit tests need Go:
+The Go unit tests of every module need Go:
 
 ```sh
-(cd launcher && go test ./...)
-(cd runtime/watch && go test ./...)
-(cd runtime/tls && go test ./...)
+bash build/go-tests.sh
 ```
 
 On Windows, `python` runs the suite in place of `python3`, which Windows does not provide:

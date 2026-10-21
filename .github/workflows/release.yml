@@ -436,17 +436,9 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: false
 
-      - name: Run the launcher unit tests
-        working-directory: launcher
-        run: go test ./...
-
-      - name: Run the runtime watcher unit tests
-        working-directory: runtime/watch
-        run: go test ./...
-
-      - name: Run the runtime TLS unit tests
-        working-directory: runtime/tls
-        run: go test ./...
+      - name: Run the Go unit tests
+        shell: bash
+        run: bash build/go-tests.sh
 
       - uses: actions/download-artifact@v7
         with:
@@ -577,17 +569,9 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: false
 
-      - name: Run the launcher unit tests
-        working-directory: launcher
-        run: go test ./...
-
-      - name: Run the runtime watcher unit tests
-        working-directory: runtime/watch
-        run: go test ./...
-
-      - name: Run the runtime TLS unit tests
-        working-directory: runtime/tls
-        run: go test ./...
+      - name: Run the Go unit tests
+        shell: bash
+        run: bash build/go-tests.sh
 
       - uses: actions/download-artifact@v8
         with:
@@ -781,17 +765,9 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: false
 
-      - name: Run the launcher unit tests
-        working-directory: launcher
-        run: go test ./...
-
-      - name: Run the runtime watcher unit tests
-        working-directory: runtime/watch
-        run: go test ./...
-
-      - name: Run the runtime TLS unit tests
-        working-directory: runtime/tls
-        run: go test ./...
+      - name: Run the Go unit tests
+        shell: bash
+        run: bash build/go-tests.sh
 
       - uses: actions/download-artifact@v8
         with:
