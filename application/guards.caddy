@@ -20,6 +20,7 @@ respond @siteConfiguration 404
 	path_regexp \.(engine|inc|install|make|module|profile|po|sh|.*sql(ite3?)?|theme|twig|tpl(\.php)?|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?$|/\..*|/(Entries.*|Repository|Root|Tag|Template|composer\.(json|lock)|web\.config|yarn\.lock|package\.json)$|/#.*#$|\.php(~|\.sw[op]|\.bak|\.orig|\.save)$
 }
 respond @protectedFilesRegexp 403
+# Core, module, theme and library assets are versioned by release, so they cache forever.
 @versionedAssetPath {
 	file
 	path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2

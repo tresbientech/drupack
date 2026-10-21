@@ -43,7 +43,8 @@ type Launch struct {
 	Engine     bool
 	// ConsoleOwned is true on Windows when a file manager created the console.
 	ConsoleOwned bool
-	FoldCase     bool
+	// FoldCase matches variable names whatever their case, as Windows does.
+	FoldCase bool
 }
 
 // Command is the process a start replaces itself with, or runs as a child on Windows.
