@@ -13,22 +13,18 @@ import (
 	"strings"
 )
 
-// Manifest lists the runtime's declared files and its entry point.
 type Manifest struct {
 	Version string `json:"version"`
 	Entry   string `json:"entry"`
 	Files   []File `json:"files"`
 }
 
-// File is one runtime file, declared by its path relative to the runtime
-// root, its size, and its checksum.
 type File struct {
 	Path   string `json:"path"`
 	Size   int64  `json:"size"`
 	SHA256 string `json:"sha256"`
 }
 
-// ManifestName is the file name a cache entry stores its manifest under.
 const ManifestName = "manifest.json"
 
 // ParseManifest decodes and validates data. The stored copy lives in the
@@ -80,8 +76,7 @@ func SingleElement(value string) bool {
 	return SafePath(value) && filepath.Base(value) == value
 }
 
-// hashFile returns the lowercase hex SHA-256 of the file at path, streamed so
-// a multi-hundred-megabyte runtime file is never held in memory whole.
+// hashFile streams the file, since runtime files can run to hundreds of megabytes.
 func hashFile(path string) (string, error) {
 	source, err := os.Open(path)
 	if err != nil {

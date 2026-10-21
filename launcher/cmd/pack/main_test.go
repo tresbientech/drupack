@@ -15,8 +15,6 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
-// buildRuntime packs a directory holding one entry file and returns what
-// writeBuildCopy takes.
 func buildRuntime(t *testing.T) ([]byte, runtime.Manifest) {
 	t.Helper()
 	directory := t.TempDir()
@@ -30,7 +28,6 @@ func buildRuntime(t *testing.T) ([]byte, runtime.Manifest) {
 	return payload, manifest
 }
 
-// source stands in for the launcher source tree writeBuildCopy copies.
 func source(t *testing.T) string {
 	t.Helper()
 	directory := t.TempDir()
@@ -144,7 +141,6 @@ func TestWriteNodePayloadCarriesTheReleaseOrNothing(t *testing.T) {
 	}
 }
 
-// writeNodeArchive writes a Node tarball holding bin/node and LICENSE.
 func writeNodeArchive(t *testing.T, path string) {
 	t.Helper()
 	file, err := os.Create(path)

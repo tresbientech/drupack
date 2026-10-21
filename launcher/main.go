@@ -20,17 +20,13 @@ func main() {
 }
 
 func run() error {
-	// launch.php runs this word under the Serving lease, once it has resolved Site data.
 	if len(os.Args) > 1 && os.Args[1] == "lay-app" {
 		return layApp(os.Args[2:])
 	}
-	// launch.php and serve.php run this word to start the server in the background. It needs
-	// no cache.
+	// detach needs no cache.
 	if len(os.Args) > 1 && os.Args[1] == "detach" {
 		return detach(os.Args[2:])
 	}
-	// launch.php runs this executable again to lay a site's own application, and to
-	// detach a server, as serve.php does for a folder.
 	launcher, err := os.Executable()
 	if err != nil {
 		return err
@@ -98,8 +94,7 @@ func run() error {
 	}))
 }
 
-// prepareNode unpacks the Node release this file carries and returns its
-// executable directory, or "" for a file that carries none.
+// prepareNode returns "" for a file that carries no Node.
 func prepareNode(cache runtime.Cache) (string, error) {
 	if len(nodeManifest) == 0 {
 		return "", nil
@@ -115,7 +110,6 @@ func prepareNode(cache runtime.Cache) (string, error) {
 	return filepath.Dir(filepath.Join(directory, filepath.FromSlash(m.Entry))), nil
 }
 
-// cleanArguments reads what follows the clean command, which a reader types.
 func cleanArguments(arguments []string) (bool, error) {
 	switch {
 	case len(arguments) == 0:

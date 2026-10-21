@@ -28,8 +28,6 @@ const index = `[
 
 var archiveSuffixes = []string{"linux-x64.tar.gz", "linux-arm64.tar.gz", "darwin-x64.tar.gz", "darwin-arm64.tar.gz", "win-x64.zip"}
 
-// dist serves a release directory: the index, and for each release its
-// archives and a SHASUMS256.txt that signer signs.
 type dist struct {
 	files  map[string][]byte
 	signer *openpgp.Entity
@@ -70,7 +68,6 @@ func newKey(t *testing.T) *openpgp.Entity {
 	return entity
 }
 
-// sign writes tag's SHASUMS256.txt.sig as signer's detached signature.
 func (d *dist) sign(t *testing.T, tag string, signer *openpgp.Entity) {
 	t.Helper()
 	var signature bytes.Buffer

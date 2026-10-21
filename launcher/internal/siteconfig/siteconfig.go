@@ -17,10 +17,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// FileName is the site contract a site repository holds beside composer.json.
 const FileName = "drupack.yml"
 
-// OutputName is the normalized form every other reader takes.
 const OutputName = "site.json"
 
 // DefaultLibc is the libc value of a site whose contract names none, and of the engine.
@@ -34,7 +32,6 @@ var Libcs = map[string][]string{
 	"musl":  {"musl"},
 }
 
-// Platforms lists the targets a site names, and each one's GOARCH.
 var Platforms = map[string]string{
 	"linux-amd64":   "amd64",
 	"linux-arm64":   "arm64",
@@ -43,7 +40,6 @@ var Platforms = map[string]string{
 	"windows-amd64": "amd64",
 }
 
-// PlatformNames lists every target in Platforms, sorted.
 func PlatformNames() []string {
 	return slices.Sorted(maps.Keys(Platforms))
 }
@@ -66,7 +62,6 @@ func CheckNative(platforms, extensions []string) error {
 		strings.Join(natives, ", "), strings.Join(extensions, ", "))
 }
 
-// Site is one site's contract. Its JSON tags are the site.json shape.
 type Site struct {
 	Name   string `json:"name"`
 	Port   int    `json:"port"`
@@ -97,7 +92,6 @@ type Site struct {
 	Drush  string `json:"drush"`
 }
 
-// NodeLTS is the Node value `node: true` parses to.
 const NodeLTS Node = "lts"
 
 // Node is the Node.js release a site carries: empty for none, NodeLTS for the
@@ -141,7 +135,6 @@ func (n *Node) UnmarshalJSON(content []byte) error {
 	return fmt.Errorf("node: %s is not true, false, a major version such as 24, or a version such as 24.21.0", content)
 }
 
-// Exact reports whether n names one MAJOR.MINOR.PATCH release.
 func (n Node) Exact() bool {
 	return nodeVersionRe.MatchString(string(n))
 }
@@ -285,7 +278,6 @@ func isControl(r rune) bool {
 	return r < 0x20 || r == 0x7f
 }
 
-// Read parses the drupack.yml in directory and takes the docroot from its composer.json.
 func Read(directory string) (Site, error) {
 	content, err := os.ReadFile(filepath.Join(directory, FileName))
 	if err != nil {
@@ -335,9 +327,8 @@ func lockedReleases(directory string) (drupal, drush string, err error) {
 	return releases["drupal/core"], releases["drush/drush"], nil
 }
 
-// composerSettings sets site's web root, which drupal/core-composer-scaffold writes
-// to, whether it serves a Mercure hub, and its subdomain. The site author sets all
-// three, so each is checked like a drupack.yml field.
+// composerSettings sets site's web root (where drupal/core-composer-scaffold writes), Mercure hub
+// flag and subdomain. The site author sets all three, so each is checked like a drupack.yml field.
 func composerSettings(directory string, site *Site) error {
 	content, err := os.ReadFile(filepath.Join(directory, "composer.json"))
 	if err != nil {
@@ -385,7 +376,6 @@ func composerSettings(directory string, site *Site) error {
 	return nil
 }
 
-// Write stores site as site.json in directory.
 func Write(site Site, directory string) error {
 	content, err := json.MarshalIndent(site, "", "  ")
 	if err != nil {

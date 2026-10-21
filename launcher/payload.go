@@ -1,16 +1,10 @@
 package main
 
-// runtimePayload and runtimeManifest carry the compressed runtime build and the
-// manifest describing what it holds. appPayload and appChecksum carry the
-// compressed application and the name of its cache entry. siteName and
-// siteVersion name the packaged site and its release. engine marks the engine
-// executable, whose application holds the engine's files alone. nodePayload
-// and nodeManifest carry the site's Node release, and are empty for a file
-// that carries none. siteComponents lists the site's parts that --version
-// names after the runtime's, one "Name version" line each, and is empty for
-// the engine. musl marks a file packed over a musl runtime, whose release
-// self-update fetches.
 // launcher/cmd/pack replaces this file before it builds the launcher.
+// nodePayload and nodeManifest are empty for a file with no Node. siteComponents holds
+// one "Name version" line per part --version prints after the runtime's, and is empty
+// for the engine, whose application holds the engine's files alone. musl marks a file
+// packed over a musl runtime, whose release self-update fetches.
 var (
 	runtimePayload  []byte
 	runtimeManifest []byte

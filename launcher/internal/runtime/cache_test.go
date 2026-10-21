@@ -17,8 +17,6 @@ import (
 
 const fixtureEntryContent = "entry executable content"
 
-// buildFixture packs a two-file runtime directory and returns its payload
-// and manifest, ready for Prepare or Extract.
 func buildFixture(t *testing.T) ([]byte, runtimepkg.Manifest) {
 	t.Helper()
 	source := t.TempDir()
@@ -41,8 +39,6 @@ func buildFixture(t *testing.T) ([]byte, runtimepkg.Manifest) {
 	return payload, manifest
 }
 
-// prepareAndActivate runs a start's runtime steps, the way PrepareRelease runs
-// them around a ready application.
 func prepareAndActivate(root string, payload []byte, m runtimepkg.Manifest, notice io.Writer) (string, error) {
 	cache := runtimepkg.NewCache(root, func(string) error { return nil })
 	entry, err := cache.Prepare(payload, m, notice)
@@ -368,7 +364,6 @@ func TestPrepareRefusesAnUnsafeActiveFile(t *testing.T) {
 
 func TestRootPrefersTheCacheDirOverTheDefaultRoot(t *testing.T) {
 	base := t.TempDir()
-	// Root creates the named directory itself, at the private mode privateRoot demands.
 	cache := filepath.Join(base, "cache")
 	xdg := filepath.Join(base, "xdg")
 	t.Setenv("DRUPACK_CACHE_DIR", cache)
@@ -408,9 +403,9 @@ func TestSafePathRefusesAWindowsVolumeName(t *testing.T) {
 	}
 }
 
-// Environment names the child below reads. A child, not this process: the
-// holder must outlive its Prepare call the way a launcher does, and Windows
-// refuses to delete a directory this process still holds a marker in.
+// Environment names the child below reads. A child, not this process: the holder must outlive
+// its Prepare call the way a launcher does, and Windows refuses to delete a directory this
+// process still holds a marker in.
 const (
 	prepareRootVariable    = "DRUPACK_TEST_PREPARE_ROOT"
 	prepareAckVariable     = "DRUPACK_TEST_PREPARE_ACK"

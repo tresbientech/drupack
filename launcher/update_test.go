@@ -18,7 +18,6 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
 
-// packedAs sets the payload values pack stamps, for one test.
 func packedAs(t *testing.T, name, release string, isEngine bool) {
 	t.Helper()
 	savedName, savedVersion, savedEngine := siteName, siteVersion, engine
@@ -28,7 +27,6 @@ func packedAs(t *testing.T, name, release string, isEngine bool) {
 	t.Setenv("DRUPACK_CACHE_DIR", filepath.Join(t.TempDir(), "cache"))
 }
 
-// publish serves latest as release.json, and body at /asset, which each asset's URL names.
 func publish(t *testing.T, latest release, body ...byte) *httptest.Server {
 	t.Helper()
 	var server *httptest.Server
@@ -49,7 +47,6 @@ func publish(t *testing.T, latest release, body ...byte) *httptest.Server {
 	return server
 }
 
-// built returns a release of newest whose engine asset for this host is body.
 func built(newest string, body []byte) release {
 	digest := sha256.Sum256(body)
 	latest := hostRelease(newest)
@@ -59,7 +56,6 @@ func built(newest string, body []byte) release {
 	return latest
 }
 
-// installed writes an executable holding content into a directory of its own.
 func installed(t *testing.T, content string) string {
 	t.Helper()
 	executable := filepath.Join(t.TempDir(), "drupack")
@@ -69,7 +65,6 @@ func installed(t *testing.T, content string) string {
 	return executable
 }
 
-// leftovers lists what sits beside executable other than itself.
 func leftovers(t *testing.T, executable string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(filepath.Dir(executable))

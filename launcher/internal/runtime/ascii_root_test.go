@@ -7,9 +7,7 @@ import (
 	"testing"
 )
 
-// fakeResolve stands in for GetShortPathName: aliases maps a candidate to the
-// short name Windows would report for it, so every rung in resolveASCIIRoot
-// runs against a table on this host without calling Windows.
+// fakeResolve stands in for GetShortPathName: aliases maps a candidate to its Windows short name.
 func fakeResolve(aliases map[string]string) func(string) (string, error) {
 	return func(candidate string) (string, error) {
 		if alias, ok := aliases[candidate]; ok {
@@ -83,10 +81,8 @@ func TestResolveASCIIRootRungOrder(t *testing.T) {
 	}
 }
 
-// TestResolveASCIIRootRunsMkdirBeforeResolve pins the order a refactor could
-// silently drop: mkdir must run, and must run before resolve, for the
-// candidate under test. A short name exists only for a path that exists, so
-// reordering these breaks on a real Windows volume while staying green here.
+// mkdir must run before resolve, since a short name exists only for a path that exists. Reordering
+// breaks on a real Windows volume while staying green here.
 func TestResolveASCIIRootRunsMkdirBeforeResolve(t *testing.T) {
 	var calls []string
 	mkdir := func(candidate string) error {
@@ -111,9 +107,6 @@ func TestResolveASCIIRootRunsMkdirBeforeResolve(t *testing.T) {
 	}
 }
 
-// TestResolveASCIIRootPrintsANoticeWhenItFallsThrough covers the swap Root's
-// own doc comment promises never happens silently: falling from root to the
-// fallback rung names both candidates and the reason in one line.
 func TestResolveASCIIRootPrintsANoticeWhenItFallsThrough(t *testing.T) {
 	root := "/cache/田中"
 	fallback := "/tmp/田中/fallback"

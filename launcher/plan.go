@@ -9,7 +9,6 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
 
-// nodeWords name the programs of a site's bundled Node release.
 var nodeWords = []string{"node", "npm", "npx"}
 
 // loaderVariables are the glibc dynamic loader's own controls. A Linux release
@@ -24,15 +23,12 @@ var loaderVariables = []string{
 	"GLIBC_TUNABLES",
 }
 
-// caFileName is the vendored trust bundle's name, packed beside the entry
-// executable under the runtime directory.
 const caFileName = "cacert.pem"
 
 // Launch holds everything one start hands the runtime. Paths are native.
 type Launch struct {
-	Args   []string // os.Args
-	Parent []string // os.Environ()
-	// Entry is the runtime's executable, inside the unpacked runtime directory.
+	Args        []string // os.Args
+	Parent      []string // os.Environ()
 	Entry       string
 	Application string
 	Launcher    string
@@ -47,8 +43,7 @@ type Launch struct {
 	Engine     bool
 	// ConsoleOwned is true on Windows when a file manager created the console.
 	ConsoleOwned bool
-	// FoldCase matches variable names whatever their case, as Windows does.
-	FoldCase bool
+	FoldCase     bool
 }
 
 // Command is the process a start replaces itself with, or runs as a child on Windows.
@@ -58,7 +53,6 @@ type Command struct {
 	Env  []string
 }
 
-// Plan turns a start into the runtime's command line and environment.
 func Plan(l Launch) Command {
 	return Command{
 		Path: l.Entry,
@@ -67,11 +61,9 @@ func Plan(l Launch) Command {
 	}
 }
 
-// arguments turns the reader's words into the runtime's. A site's php-cli,
-// the version flags, a Node word where this file carries Node, and the Engine's
-// php pass unchanged. Every other line reaches
-// launch.php, or the Engine's serve.php, through php-cli, which reads the command
-// word itself.
+// arguments turns the reader's words into the runtime's. A site's php-cli, the version flags, a Node
+// word where this file carries Node, and the Engine's php pass unchanged. Every other line
+// reaches launch.php, or the Engine's serve.php, through php-cli.
 func arguments(args []string, application string, engine, node bool) []string {
 	switch {
 	case len(args) > 1 && !engine && args[1] == "php-cli":
@@ -88,9 +80,8 @@ func arguments(args []string, application string, engine, node bool) []string {
 	return args
 }
 
-// environment builds the runtime's environment from the launcher's own. A
-// variable the launcher owns replaces an inherited one, and one this start does
-// not use is dropped, since a start can run from another Drupack server's process.
+// environment builds the runtime's environment from the launcher's own. A variable this
+// start does not use is dropped, since a start can run from another Drupack server's process.
 func environment(l Launch) []string {
 	directory := filepath.Dir(l.Entry)
 	e := environ{entries: slices.Clone(l.Parent), fold: l.FoldCase}
@@ -112,14 +103,11 @@ func environment(l Launch) []string {
 	e.put("DRUPACK_RUNTIME_SITE_VERSION=" + l.Version)
 	e.put("DRUPACK_RUNTIME_COMPONENTS=" + l.Components)
 	e.put("DRUPACK_RUNTIME_LAUNCHER=" + runtime.Canonical(l.Launcher))
-	// A start that detaches tells the reader how to stop the site, in the words the
-	// reader used to run it.
 	e.put("DRUPACK_RUNTIME_INVOKED=" + l.Args[0])
 	if l.Engine {
 		// The engine serves a folder named from the reader's directory. An application
 		// directory would send the runtime down the site path, which refuses the php word.
 		e.drop("DRUPACK_RUNTIME_APP_DIR")
-		// serve.php keeps each served folder's lease, stop record and log in an entry here.
 		e.put("DRUPACK_RUNTIME_CACHE_ROOT=" + runtime.Canonical(l.Root))
 	} else {
 		e.drop("DRUPACK_RUNTIME_CACHE_ROOT")
@@ -130,7 +118,6 @@ func environment(l Launch) []string {
 	if l.NodeBin == "" {
 		e.drop("DRUPACK_RUNTIME_NODE")
 	} else {
-		// The server, Drush and the node, npm and npx commands find Node first on PATH.
 		path, _ := e.get("PATH")
 		e.put("PATH=" + l.NodeBin + string(os.PathListSeparator) + path)
 		e.put("DRUPACK_RUNTIME_NODE=" + runtime.Canonical(l.NodeBin))
@@ -141,7 +128,6 @@ func environment(l Launch) []string {
 	return e.entries
 }
 
-// environ is an environment under construction, one NAME=value entry each.
 type environ struct {
 	entries []string
 	fold    bool
@@ -169,7 +155,6 @@ func (e *environ) drop(name string) {
 	e.entries = slices.DeleteFunc(e.entries, func(entry string) bool { return e.named(entry, name) })
 }
 
-// put replaces every entry with entry's name by entry.
 func (e *environ) put(entry string) {
 	name, _, _ := strings.Cut(entry, "=")
 	e.drop(name)

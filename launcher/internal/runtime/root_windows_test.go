@@ -10,7 +10,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// withDACL replaces dir's DACL with the one sddl describes, blocking inheritance.
 func withDACL(t *testing.T, dir, sddl string) {
 	t.Helper()
 	sd, err := windows.SecurityDescriptorFromString(sddl)
@@ -28,7 +27,6 @@ func withDACL(t *testing.T, dir, sddl string) {
 	}
 }
 
-// createdRoot is a cache root makeRoot created, as a start creates one.
 func createdRoot(t *testing.T) string {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), "parent", "root")

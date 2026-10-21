@@ -13,8 +13,6 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// TestProgressReportsEachStep reads a payload in pieces and checks that the
-// reports arrive as the reader advances, not all at the end.
 func TestProgressReportsEachStep(t *testing.T) {
 	notice := &bytes.Buffer{}
 	total := 100 * megabyte
@@ -45,8 +43,6 @@ func TestProgressReportsEachStep(t *testing.T) {
 	}
 }
 
-// TestProgressLastNamesTheTotal covers a payload whose final read falls short
-// of a step, where the closing report still has to name the whole payload.
 func TestProgressLastNamesTheTotal(t *testing.T) {
 	notice := &bytes.Buffer{}
 	total := 15 * megabyte
@@ -62,12 +58,9 @@ func TestProgressLastNamesTheTotal(t *testing.T) {
 	}
 }
 
-// noHold stands in for HoldUsage where no other process takes part. A real hold
-// keeps a handle that blocks t.TempDir cleanup on Windows.
+// noHold stands in for HoldUsage: a real hold keeps a handle that blocks t.TempDir cleanup on Windows.
 func noHold(string) error { return nil }
 
-// unpackedApp builds an application directory with the two markers a finished
-// unpacking leaves, dated used days ago.
 func unpackedApp(t *testing.T, appRoot, name string, used time.Duration) string {
 	t.Helper()
 	path := filepath.Join(appRoot, name)
@@ -112,8 +105,7 @@ func TestSweepRemovesTheUnusedAndKeepsTheRest(t *testing.T) {
 	}
 }
 
-// Environment names the child below reads. A child, not this process: the marker
-// answers whether another process runs from an entry, and Windows refuses to delete
+// Environment names the child below reads. A child, not this process: Windows refuses to delete
 // a file this process still holds, which would fail the temporary directory cleanup.
 const (
 	holdEntryVariable   = "DRUPACK_TEST_HOLD_ENTRY"
@@ -144,7 +136,6 @@ func TestHoldsUsageForAnotherProcess(t *testing.T) {
 	t.Fatal("the parent never released this holder")
 }
 
-// holdUsageInChild starts that child on entry and returns once it holds the marker.
 // The handshake files live in work, outside the cache the caller sweeps.
 func holdUsageInChild(t *testing.T, work, entry string) {
 	t.Helper()
@@ -192,8 +183,6 @@ func TestSweepKeepsAnEntryARunningStartHolds(t *testing.T) {
 	}
 }
 
-// TestSweepDatesAnUnmarkedDirectory covers a release unpacked before this one
-// wrote markers, which has to survive its first sweep.
 func TestSweepDatesAnUnmarkedDirectory(t *testing.T) {
 	appRoot := t.TempDir()
 	unmarked := filepath.Join(appRoot, "unmarked")

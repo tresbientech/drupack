@@ -14,20 +14,16 @@ import (
 	"unicode/utf8"
 )
 
-// rootMode is the permission every candidate cache root is created with.
 const rootMode = 0700
 
 // stagingPrefix starts the name of a directory being written or removed.
 // Cleanup matches on it to clear what an interrupted run left.
 const stagingPrefix = ".staging-"
 
-// asideName is where the entry at path moves before it is removed.
 func asideName(path string) string {
 	return filepath.Join(filepath.Dir(path), stagingPrefix+"removing-"+filepath.Base(path))
 }
 
-// activeName holds the key of the entry a start last activated, and lockName
-// serializes staging. Both live in the cache root, beside the entries.
 const activeName = "active"
 const lockName = "lock"
 
@@ -47,13 +43,10 @@ const leaseName = "serving.lock"
 // before removing anything.
 const usageName = ".inuse"
 
-// Root returns the cache directory a runtime unpacks into, creating it. A
-// user-named directory that refuses writes is reported, never silently
-// swapped for another; an unnamed one falls back from the user cache
-// directory to the temporary directory. On Windows, a chosen root PHP's
-// startup cannot read as ASCII falls to the temporary directory too, with one
-// line written to notice naming why; a root with no ASCII form anywhere stops
-// the start instead.
+// Root returns the cache directory a runtime unpacks into, creating it. A user-named
+// directory that refuses writes is reported, never swapped for another. On Windows, a root
+// PHP cannot read as ASCII falls to the temporary directory with one line to notice; a root
+// with no ASCII form anywhere stops the start.
 func Root(name string, notice io.Writer) (string, error) {
 	if dir := os.Getenv("DRUPACK_CACHE_DIR"); dir != "" {
 		if err := makeRoot(dir); err != nil {
@@ -81,15 +74,12 @@ func Root(name string, notice io.Writer) (string, error) {
 	return "", lastErr
 }
 
-// resolveASCIIRoot returns the first candidate PHP startup can locate: root,
-// then fallback. PHP resolves its PHPRC-derived configuration path through the
-// ANSI code page, so a root outside that code page breaks extension loading.
-// mkdir runs first because Windows allocates a short name only for a path that
-// exists. A candidate already in ASCII is returned untouched, since resolve
-// also rewrites a long ASCII segment, which no reader asked for. Falling from
-// root to fallback writes one line to notice naming why root was passed over.
-// Two exhausted candidates stop the start instead, since a site missing its
-// extensions is worse than a start that refuses.
+// resolveASCIIRoot returns the first candidate PHP startup can locate: root, then fallback.
+// PHP resolves its PHPRC-derived configuration path through the ANSI code page, so a root
+// outside it breaks extension loading. mkdir runs first because Windows allocates a short name
+// only for a path that exists. An ASCII candidate is returned untouched, since resolve also
+// rewrites a long ASCII segment. Falling to fallback writes one line to notice. Two exhausted
+// candidates stop the start, since a site missing its extensions is worse than a refused start.
 func resolveASCIIRoot(root, fallback string, mkdir func(string) error, resolve func(string) (string, error), notice io.Writer) (string, error) {
 	ascii, rootErr := asciiForm(root, mkdir, resolve)
 	if rootErr == nil {
@@ -108,10 +98,8 @@ func resolveASCIIRoot(root, fallback string, mkdir func(string) error, resolve f
 	)
 }
 
-// asciiForm creates candidate, then returns it unchanged when it is already
-// ASCII, or its resolved short name when that is ASCII. An error names why
-// candidate carries no ASCII form: mkdir's own failure, resolve's own
-// failure, or resolve succeeding on a name that is still not ASCII.
+// asciiForm creates candidate, then returns it when ASCII, or its resolved short name
+// when that is ASCII.
 func asciiForm(candidate string, mkdir func(string) error, resolve func(string) (string, error)) (string, error) {
 	if err := mkdir(candidate); err != nil {
 		return "", err
@@ -129,9 +117,6 @@ func asciiForm(candidate string, mkdir func(string) error, resolve func(string) 
 	return resolved, nil
 }
 
-// isASCII reports whether s holds bytes in the ASCII range alone. Any UTF-8
-// encoding of a non-ASCII rune uses a byte at or above utf8.RuneSelf, so a
-// byte-wise scan is enough.
 func isASCII(s string) bool {
 	for i := 0; i < len(s); i++ {
 		if s[i] >= utf8.RuneSelf {
@@ -148,11 +133,9 @@ func Key(version string, payload []byte) string {
 	return "v" + version + "-" + hex.EncodeToString(sum[:])[:12]
 }
 
-// Prepare returns the directory holding the runtime m describes, staging
-// payload the first time m's version and payload are seen. It activates
-// nothing: Activate does, once the application is ready too. A start that
-// cannot stage the runtime it carries reports the failure and stops, since the
-// application beside it belongs to this release alone.
+// Prepare returns the directory holding the runtime m describes, staging payload the first
+// time. It activates nothing: Activate does, once the application is ready too. A start that
+// cannot stage its runtime stops, since the application beside it belongs to this release alone.
 func (c Cache) Prepare(payload []byte, m Manifest, notice io.Writer) (string, error) {
 	sp, err := releaseSpec(c.root, "runtime", payload, m, notice)
 	if err != nil {
@@ -161,11 +144,8 @@ func (c Cache) Prepare(payload []byte, m Manifest, notice io.Writer) (string, er
 	return c.runtimes().prepare(sp, notice)
 }
 
-// releaseSpec describes the entry holding the release m describes, a runtime
-// or a Node release. It is named by Key, whole when its stored manifest matches
-// m and every file has m's size, and written by extracting payload and
-// verifying every file. A checksum failure leaves the cache untouched, since
-// the entry takes its name only after every declared file verifies.
+// releaseSpec describes the entry for a runtime or Node release, named by Key. A checksum
+// failure leaves the cache untouched: the entry takes its name only after every file verifies.
 func releaseSpec(dir, what string, payload []byte, m Manifest, notice io.Writer) (spec, error) {
 	contents, err := json.Marshal(m)
 	if err != nil {
@@ -211,8 +191,6 @@ func (c Cache) Activate(entry string) error {
 	return nil
 }
 
-// warm reports whether entry already holds the runtime m describes: its
-// stored manifest matches m, and every declared file has m's recorded size.
 func warm(entry string, m Manifest) bool {
 	stored, err := readManifest(entry)
 	if err != nil {
@@ -224,7 +202,6 @@ func warm(entry string, m Manifest) bool {
 	return sizesMatch(entry, m)
 }
 
-// readManifest loads and validates the manifest entry stores.
 func readManifest(entry string) (Manifest, error) {
 	data, err := os.ReadFile(filepath.Join(entry, ManifestName))
 	if err != nil {
@@ -233,8 +210,6 @@ func readManifest(entry string) (Manifest, error) {
 	return ParseManifest(data)
 }
 
-// sizesMatch reports whether every file m declares is present under entry
-// with its declared size.
 func sizesMatch(entry string, m Manifest) bool {
 	for _, file := range m.Files {
 		info, err := os.Stat(filepath.Join(entry, filepath.FromSlash(file.Path)))
@@ -245,10 +220,9 @@ func sizesMatch(entry string, m Manifest) bool {
 	return true
 }
 
-// removeOthers deletes the other versions' entries, once key is active, so the
-// cache holds one version. An entry another start still serves from stays,
-// since removing it would pull PHP files out from under a running site. A
-// removal failure reports nothing, because the next start retries.
+// removeOthers deletes the other versions' entries. An entry another start still serves from
+// stays, since removal would pull PHP files from under a running site. A removal failure
+// reports nothing; the next start retries.
 func removeOthers(root, key string) {
 	entries, err := os.ReadDir(root)
 	if err != nil {

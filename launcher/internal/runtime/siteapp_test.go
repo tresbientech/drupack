@@ -10,7 +10,6 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// appArchive compresses a tar holding files, each path mapped to its contents.
 func appArchive(t *testing.T, files map[string]string) []byte {
 	t.Helper()
 	archive := &bytes.Buffer{}
@@ -41,7 +40,6 @@ func appArchive(t *testing.T, files map[string]string) []byte {
 	return payload.Bytes()
 }
 
-// siteData returns a Site data directory holding the runtime directory a start creates.
 func siteData(t *testing.T) string {
 	t.Helper()
 	data := t.TempDir()
@@ -158,7 +156,6 @@ func TestLayArgumentsReadsBothForms(t *testing.T) {
 	}
 }
 
-// written writes contents at the path relative under the site's application in data.
 func written(t *testing.T, data, relative, contents string) string {
 	t.Helper()
 	path := filepath.Join(SiteApp(data), filepath.FromSlash(relative))

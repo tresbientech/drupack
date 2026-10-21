@@ -32,13 +32,10 @@ import (
 //go:embed release-keys.asc
 var releaseKeys []byte
 
-// KeyringFile is where the repository keeps releaseKeys.
 const KeyringFile = "launcher/internal/node/release-keys.asc"
 
 const dist = "https://nodejs.org/dist"
 
-// build names a target's Node build: its name in the release index's files
-// list, and the end of its archive's name.
 type build struct{ index, archive string }
 
 // builds maps each target to its Node build. A musl target has no entry and
@@ -61,7 +58,6 @@ func Archive(dir, target string) (string, bool) {
 	return filepath.Join(dir, target+build.archive[strings.Index(build.archive, "."):]), true
 }
 
-// Request is one resolution.
 type Request struct {
 	Value siteconfig.Node
 	// Targets names each target as its executable's suffix, such as linux-amd64-musl.
@@ -82,7 +78,6 @@ type Resolution struct {
 	Archives map[string]string
 }
 
-// release is one entry of the release index.
 type release struct {
 	Version string   `json:"version"`
 	Files   []string `json:"files"`
@@ -95,9 +90,8 @@ var (
 	checksumRe     = regexp.MustCompile(`^([0-9a-f]{64})  (\S+)$`)
 )
 
-// Resolve picks the release r.Value names from the release index and returns
-// one verified archive per target. nodejs.org sends the index, the checksums
-// and the archives, so each is checked before it is used.
+// Resolve picks the release r.Value names and returns one verified archive per target.
+// nodejs.org sends the index, checksums and archives, so each is checked before use.
 func Resolve(r Request) (Resolution, error) {
 	if r.Dist == "" {
 		r.Dist = dist
@@ -159,8 +153,6 @@ func Resolve(r Request) (Resolution, error) {
 	return Resolution{Version: version, Archives: archives}, nil
 }
 
-// choose picks the newest release value admits and returns it with its version
-// without the leading v.
 func choose(value siteconfig.Node, releases []release) (release, string, error) {
 	var chosen release
 	var newest [3]int
@@ -209,8 +201,6 @@ func newer(a, b [3]int) bool {
 	return false
 }
 
-// signedChecksums fetches a release's SHASUMS256.txt, checks its detached
-// signature against the keyring, and maps each file name to its SHA-256.
 func signedChecksums(r Request, tag string) (map[string]string, error) {
 	base := r.Dist + "/" + tag + "/SHASUMS256.txt"
 	sums, err := fetch(base)

@@ -64,8 +64,6 @@ func Build(directory, version, entry string) ([]byte, Manifest, error) {
 	return archive.Bytes(), Manifest{Version: version, Entry: entry, Files: files}, nil
 }
 
-// writeTarFile appends one entry, header and content, to w. Every header uses
-// a fixed mode, ownership and modification time so Build is reproducible.
 func writeTarFile(w *tar.Writer, source, name string, size int64) error {
 	header := &tar.Header{
 		Name:     name,

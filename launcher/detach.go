@@ -19,15 +19,12 @@ const (
 	timeoutMarker = "Drupal did not answer at"
 )
 
-// relayPoll is how often the relay reads the log for new lines.
 const relayPoll = 100 * time.Millisecond
 
-// detach runs this executable again with the arguments after `--`, as a background
-// server that writes to the log file, and relays that log to the reader until the
-// server answers or exits. The caller names the command that stops it, since only the
-// caller knows which Site data or folder the reader named. launch.php and the engine
-// executable's serve.php run this word once they hold no lease and have checked the
-// listener, so the server it starts is the one that takes the lease.
+// detach runs this executable again with the arguments after `--` as a background
+// server logging to the log file, and relays the log until the server answers or exits.
+// The caller names the command that stops it. launch.php and serve.php run this word
+// only once they hold no lease, so the server it starts takes the lease.
 func detach(arguments []string) error {
 	if len(arguments) < 4 || arguments[2] != "--" {
 		return errors.New("detach takes LOG STOP_COMMAND -- ARGUMENTS")
@@ -44,9 +41,9 @@ func detach(arguments []string) error {
 	// A nil Stdin is the null device, since nothing answers a terminal prompt here.
 	command := exec.Command(executable, server...)
 	command.Stdout, command.Stderr = file, file
-	// launch.php runs this word from the application directory, since PHP's chdir moves
-	// only PHP's own view. The server resolves a relative --data-dir from where it starts.
-	// The engine executable records no start directory and already runs from the reader's.
+	// launch.php runs this word from the application directory because PHP's chdir moves only PHP's view,
+	// and the server resolves a relative --data-dir from where it starts. The engine executable
+	// records no start directory.
 	command.Dir = os.Getenv("DRUPACK_RUNTIME_CWD")
 	// The child's hidden console holds the child alone, which launch_windows.go would
 	// otherwise read as a file manager's window. The server reopens the log by this path.
@@ -75,11 +72,9 @@ func detach(arguments []string) error {
 	return nil
 }
 
-// relay copies the log to out, line by line, and returns the exit code of the start.
-// The ready line ends the relay with 0 and is not copied, since the summary that
-// follows replaces it. A server that exits first ends it with the server's code,
-// after the rest of the log. The timeout line ends it with 1, since the server
-// still runs and the reader has to stop it.
+// relay copies the log to out line by line and returns the start's exit code: 0 at the ready
+// line (not copied), the server's code if it exits first (after the rest of the log), and 1 at
+// the timeout line, since the server still runs.
 func relay(log string, exited <-chan int, out io.Writer, stop string, colour bool, poll time.Duration) int {
 	file, err := os.Open(log)
 	if err != nil {

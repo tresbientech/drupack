@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-// served writes log, runs relay on it with the exit channel exited, and returns what
-// the relay printed and its code.
 func served(t *testing.T, log string, exited chan int, colour bool) (string, int) {
 	t.Helper()
 	siteName = "demo"

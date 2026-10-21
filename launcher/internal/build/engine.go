@@ -8,14 +8,11 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
-// EngineName names the engine executable, which serves a project folder and
-// carries no site.
 const EngineName = "drupack"
 
-// NewEnginePlan orders the steps that pack the engine executable for each of
-// r.Platforms, the host's when it names none, one file per libc on each. A payload-only plan stops
-// at the archive, in OUTPUT/payload. It reads no site, and the conformance
-// suite tests the result beside a site's executable.
+// NewEnginePlan orders the steps that pack the engine executable for each of r.Platforms,
+// the host's when it names none, one file per libc. A payload-only plan stops at the archive.
+// It reads no site.
 func NewEnginePlan(r Request) (Plan, error) {
 	if len(r.Platforms) == 0 {
 		r.Platforms = []string{r.Host}

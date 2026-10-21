@@ -15,7 +15,6 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
-// runtimeFlags collects repeated --runtime PLATFORM/LIBC=DIRECTORY values.
 type runtimeFlags map[string]string
 
 func (f runtimeFlags) String() string { return fmt.Sprint(map[string]string(f)) }
@@ -50,7 +49,6 @@ func run() error {
 	native := flag.Bool("native", false, "accept macOS and Windows targets: pack the Linux ones, export the payload to OUTPUT/payload and list the others there")
 	describe := flag.Bool("describe", false, "print the site's site.json and build nothing")
 	engineExecutable := flag.Bool("engine-executable", false, "pack the engine executable, which serves a project folder, and read no site")
-	// The job image names its own copies of these in the environment.
 	engine := flag.String("engine", os.Getenv("DRUPACK_ENGINE"), "the Drupack engine directory")
 	engineVersion := flag.String("engine-version", os.Getenv("DRUPACK_ENGINE_VERSION"), "the engine's release")
 	php := flag.String("php", os.Getenv("DRUPACK_PHP"), "the runtime executable the build runs PHP with")
@@ -95,7 +93,6 @@ func run() error {
 	if *platforms != "" {
 		request.Platforms = strings.Split(*platforms, ",")
 	}
-	// Every step runs in its own directory, so each path is made absolute once here.
 	for target, path := range map[*string]string{
 		&request.SiteDir: *site, &request.Engine: *engine, &request.PHP: *php, &request.Composer: *composer,
 		&request.Output: *output, &request.Work: *work, &request.RuntimeRoot: *runtimeRoot,

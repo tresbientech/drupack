@@ -11,11 +11,9 @@ import (
 	"unsafe"
 )
 
-// foldCase is true: Windows variable names are case-insensitive.
 const foldCase = true
 
-// launch starts the command as a child, since Windows has no process image
-// replacement, and reports its outcome through this process's own exit.
+// launch starts the command as a child, since Windows cannot replace a process image.
 func launch(c Command) error {
 	command := exec.Command(c.Path, c.Args[1:]...)
 	command.Stdin = os.Stdin
@@ -54,9 +52,7 @@ func consoleOwned() bool {
 	return ownsConsole(os.Getenv("DRUPACK_RUNTIME_DETACHED"), uint32(count))
 }
 
-// holdConsole keeps a file manager's window open so its reader sees a
-// failure before Windows closes the window; a shell's own window already
-// stays open.
+// holdConsole keeps a file manager's window open so its reader sees a failure.
 func holdConsole() {
 	if !consoleOwned() {
 		return
@@ -65,9 +61,8 @@ func holdConsole() {
 	fmt.Fscanln(os.Stdin)
 }
 
-// replaceExecutable moves the running path aside to path.old, which Windows
-// allows while the file runs, then renames staged into place. A failed second
-// rename moves the old file back.
+// replaceExecutable moves the running path aside to path.old, which Windows allows
+// while the file runs. A failed second rename moves it back.
 func replaceExecutable(path, staged string) error {
 	if err := os.Rename(path, path+".old"); err != nil {
 		return fmt.Errorf("cannot move %s aside to %s.old, which a server it started may still run. Stop that server, then run self-update again: %w", path, path, err)

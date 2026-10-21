@@ -137,7 +137,6 @@ func TestParseRefusesAMalformedNodeWithTheAcceptedForms(t *testing.T) {
 	}
 }
 
-// site writes a site directory holding drupack.yml and composer.json.
 func site(t *testing.T, drupack, composer string) string {
 	t.Helper()
 	directory := t.TempDir()
@@ -149,7 +148,6 @@ func site(t *testing.T, drupack, composer string) string {
 	return directory
 }
 
-// locked is a composer.lock naming the two releases Read takes.
 const locked = `{"packages": [{"name": "drupal/core", "version": "11.4.7"}, {"name": "drush/drush", "version": "13.8.0"}]}`
 
 func scaffold(webRoot string) string {
@@ -292,7 +290,6 @@ func TestParseRefusesMercureWithItsNewKey(t *testing.T) {
 	}
 }
 
-// drupackExtra is a composer.json with the web root web and extra.drupack set to drupack.
 func drupackExtra(drupack string) string {
 	return `{"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": ` + drupack + `}}`
 }

@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-// Cache is one site's cache root, with the hold every start takes on the
-// entries it runs from.
 type Cache struct {
 	root string
 	hold func(entry string) error
@@ -25,8 +23,6 @@ func NewCache(root string, hold func(entry string) error) Cache {
 	return Cache{root: root, hold: hold}
 }
 
-// store is the directory holding one kind of cache entry. noun names the kind
-// in messages.
 type store struct {
 	dir  string
 	noun string
@@ -35,9 +31,8 @@ type store struct {
 	// its entries, with the entry the start runs. Nil for a kind that keeps
 	// entries until activation or clean removes them.
 	retain func(entry string) error
-	// owns reports whether a directory in dir is an entry of this kind.
-	owns  func(path string) bool
-	inUse func(path string) bool
+	owns   func(path string) bool
+	inUse  func(path string) bool
 	// label prefixes an entry's name in clean's listing. one and many name the
 	// kind in its totals.
 	label, one, many string
@@ -79,14 +74,10 @@ func (c Cache) folders() store {
 // directories hold nothing this program and serve.php did not write.
 func anyDirectory(string) bool { return true }
 
-// spec describes one entry a start needs: its name, how to tell it is whole,
-// and how to write it.
 type spec struct {
-	name string
-	// notice is the line printed before the entry is written.
-	notice string
-	ready  func(entry string) bool
-	// fill writes every file of the entry but its marker into staging.
+	name     string
+	notice   string
+	ready    func(entry string) bool
 	fill     func(staging string) error
 	marker   string
 	contents []byte
@@ -147,7 +138,6 @@ func (s store) holdReady(sp spec) (string, bool, error) {
 		return "", false, nil
 	}
 	if err := s.hold(entry); err != nil {
-		// A removal that beat the hold is the case above, not a failure.
 		if _, statErr := os.Stat(entry); statErr != nil {
 			return "", false, nil
 		}
@@ -226,7 +216,6 @@ func swap(target, aside, marker string, contents []byte, fill func(staging strin
 	return removeTree(aside)
 }
 
-// replace moves staging to target, moving a directory already at target to aside.
 func replace(target, aside, staging string) error {
 	if _, err := os.Lstat(target); err == nil {
 		if err := removeTree(aside); err != nil {
@@ -288,8 +277,6 @@ func (c Cache) Clean(name string, dry bool, out io.Writer) error {
 	return nil
 }
 
-// clean lists the kind's entries and removes each one unless dry. It returns
-// how many entries it listed, and prints nothing for a kind with none.
 func (s store) clean(dry bool, out io.Writer) (int, error) {
 	entries, err := os.ReadDir(s.dir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -321,7 +308,6 @@ func (s store) clean(dry bool, out io.Writer) (int, error) {
 			kept = !removed
 		}
 		if kept {
-			// A site serving from this entry reads its files on every request.
 			fmt.Fprintf(out, "  %s%s  %d MB  in use by a running site, kept\n", s.label, candidate.Name(), size/megabyte)
 			held++
 			continue

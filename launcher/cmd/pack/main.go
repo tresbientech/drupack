@@ -32,9 +32,6 @@ type site struct {
 	musl       bool
 }
 
-// embeddedPayloadSource returns the payload.go that replaces
-// launcher's own in the build copy, so the launcher embeds this
-// build's runtime instead of the zero-value placeholder committed there.
 func embeddedPayloadSource(packaged site) string {
 	return fmt.Sprintf(`package main
 
@@ -111,7 +108,6 @@ func run() error {
 	packaged := site{name: build.EngineName, version: *version, engine: true, musl: *musl}
 	var nodeVersion siteconfig.Node
 	if !*engine {
-		// The build wrote site.json from a validated drupack.yml.
 		var described siteconfig.Site
 		content, err := os.ReadFile(*siteFile)
 		if err != nil {
@@ -165,8 +161,6 @@ func run() error {
 	return nil
 }
 
-// siteComponents lists the site's parts --version names: Node when this file
-// carries it, then Drupal core and Drush.
 func siteComponents(described siteconfig.Site, node bool) []string {
 	var lines []string
 	if node {
@@ -184,9 +178,6 @@ func requireFlags(flags map[string]string) error {
 	return nil
 }
 
-// writeBuildCopy copies source into directory, then adds the runtime's payload
-// and manifest plus the embedding source, which together replace source's own
-// payload.go in the copy that go build sees.
 func writeBuildCopy(directory, source string, payload []byte, manifest runtime.Manifest, packaged site) error {
 	if err := build.CopyTree(source, directory, func(string) bool { return false }); err != nil {
 		return err
@@ -233,8 +224,6 @@ func writeNodePayload(build, archive, version string) error {
 	return os.WriteFile(filepath.Join(build, "node-manifest.json"), manifestData, 0600)
 }
 
-// writeAppPayload compresses the application tar into the build copy, beside
-// the checksum that names its cache entry.
 func writeAppPayload(build, archive, checksumFile string) error {
 	raw, err := os.Open(archive)
 	if err != nil {
@@ -271,8 +260,7 @@ func writeAppPayload(build, archive, checksumFile string) error {
 
 func buildLauncher(build, output, goarch string) error {
 	// go build keeps only the last -ldflags, so both linker flags share one value.
-	// The build copy sits in the temporary directory and is no checkout, so a .git
-	// directory above it would only make VCS stamping fail.
+	// The build copy is no checkout, so VCS stamping would fail.
 	command := exec.Command("go", "build", "-trimpath", "-buildvcs=false", "-ldflags=-s -w", "-o", output, ".")
 	command.Dir = build
 	command.Env = append(os.Environ(), "CGO_ENABLED=0", "GOARCH="+goarch)

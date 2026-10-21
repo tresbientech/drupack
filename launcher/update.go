@@ -27,11 +27,8 @@ const releaseURL = "https://github.com/tresbientech/drupack/releases/latest/down
 // Its modification time is the last check.
 const updateCheckName = "update-check"
 
-// checkInterval spaces the background checks a run starts.
 const checkInterval = 24 * time.Hour
 
-// fetchTimeout bounds the release.json request, which the background check makes
-// without the reader waiting on it.
 const fetchTimeout = 5 * time.Second
 
 // release is the part of release.json that build/release-files.py writes and an
@@ -50,11 +47,8 @@ type asset struct {
 	Size   int64  `json:"size"`
 }
 
-// version matches a release tag: X.Y.Z with an optional prerelease.
 var version = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$`)
 
-// selfUpdate runs the self-update word for the file at executable, against the
-// release.json url serves.
 func selfUpdate(arguments []string, url, executable string, out io.Writer) error {
 	if len(arguments) > 1 || len(arguments) == 1 && arguments[0] != "--check" {
 		return fmt.Errorf("self-update takes --check alone")
@@ -158,7 +152,6 @@ func composerCopy(executable string) bool {
 	return err == nil
 }
 
-// availableLine names a newer release and the word that installs it.
 func availableLine(newest string) string {
 	return fmt.Sprintf("%s %s is available, this is %s. Run: %s self-update", siteName, newest, siteVersion, siteName)
 }
@@ -223,7 +216,6 @@ func recordCheck(root, newest string) error {
 	return os.Rename(staged.Name(), filepath.Join(root, updateCheckName))
 }
 
-// target names the release asset built for goos and goarch.
 func target(goos, goarch string, musl bool) string {
 	if goos == "darwin" {
 		goos = "macos"
@@ -231,7 +223,6 @@ func target(goos, goarch string, musl bool) string {
 	return runtime.Target(goos+"-"+goarch, musl)
 }
 
-// pick returns the engine's asset for target.
 func pick(latest release, target string) (asset, error) {
 	var targets []string
 	for _, candidate := range latest.Assets {
@@ -332,8 +323,6 @@ func updateNotice(root, executable string, notice io.Writer, terminal bool, now 
 	}
 }
 
-// startCheck runs self-update --check from launcher in a session of its own, with
-// no terminal, and leaves it running.
 func startCheck(launcher string) error {
 	command := exec.Command(launcher, "self-update", "--check")
 	command.SysProcAttr = detachedProcess()

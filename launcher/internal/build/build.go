@@ -17,11 +17,9 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
-// Request is one build: the site, what to build it for, and where the tools are.
 type Request struct {
-	SiteDir string
-	Site    siteconfig.Site
-	// Platforms and Libc override the site's own, each when set.
+	SiteDir   string
+	Site      siteconfig.Site
 	Platforms []string
 	Libc      string
 	// Runtimes maps "PLATFORM/LIBC" to a runtime directory.
@@ -53,8 +51,7 @@ type Request struct {
 // Windows targets the caller packs, as a JSON array.
 const NativeList = "native-targets.json"
 
-// Step is one unit of a build: a command to run, or a function for the steps
-// that only copy files, which writes what it reports to the build log.
+// Step is a command to run, or a Func for the steps that only copy files.
 type Step struct {
 	Name    string
 	Command []string
@@ -63,20 +60,17 @@ type Step struct {
 	Func    func(log io.Writer) error
 }
 
-// Plan is what a build runs, and which targets it packs without testing.
 type Plan struct {
 	Steps    []Step
 	Untested []string
 }
 
-// Executable names a site's executable for one target.
 func Executable(name, target string) string {
 	return name + "-" + target
 }
 
-// NewPlan checks a request against what this release builds and orders its steps.
-// The request comes from a site author's command line, so every refusal names
-// the value it refuses.
+// NewPlan checks a request against what this release builds and orders its steps. The request
+// comes from a site author's command line, so every refusal names the value it refuses.
 func NewPlan(r Request) (Plan, error) {
 	// The site's values passed its parser, so only a flag's can be refused below.
 	if len(r.Platforms) == 0 {
@@ -222,14 +216,12 @@ func nodeTargets(r Request, libcs, natives []string) []string {
 	return targets
 }
 
-// nodeArchives is where the resolve step writes each target's Node archive.
 func nodeArchives(work string) string {
 	return filepath.Join(work, "node")
 }
 
-// resolveNode fetches the verified Node archive of each target into the work
-// directory. It sets site.Node to the exact version, which the site.json steps
-// after it write.
+// resolveNode fetches the verified Node archive of each target into the work directory and sets
+// site.Node to the exact version, which the later site.json steps write.
 func resolveNode(site *siteconfig.Site, targets []string, work string) Step {
 	return Step{Name: "resolve Node", Func: func(log io.Writer) error {
 		resolved, err := node.Resolve(node.Request{Value: site.Node, Targets: targets, Dir: nodeArchives(work)})
@@ -242,10 +234,8 @@ func resolveNode(site *siteconfig.Site, targets []string, work string) Step {
 	}}
 }
 
-// packSteps packs one file per platform and libc, each carrying its one runtime
-// and the archive in payload, to OUTPUT/NAME-TARGET. extra adds the packer's
-// flags for what the archive holds. A site asking for Node carries it on each
-// target Node builds for.
+// packSteps packs one file per platform and libc, to OUTPUT/NAME-TARGET. extra adds the packer's
+// flags. A site asking for Node carries it on each target Node builds for.
 func packSteps(r Request, libcs []string, resolved map[string]string, step, name, payload string, extra ...string) []Step {
 	var steps []Step
 	for _, platform := range r.Platforms {
@@ -270,7 +260,6 @@ func packSteps(r Request, libcs []string, resolved map[string]string, step, name
 	return steps
 }
 
-// requestLibcs returns the C library of each Linux file libc packs.
 func requestLibcs(libc string) ([]string, error) {
 	libcs, ok := siteconfig.Libcs[libc]
 	if !ok {
@@ -308,7 +297,6 @@ func resolveRuntimes(r Request, libcs []string) (map[string]string, error) {
 	return resolved, nil
 }
 
-// Run executes the plan's steps in order, stopping at the first that fails.
 func Run(plan Plan, log io.Writer) error {
 	for _, step := range plan.Steps {
 		fmt.Fprintf(log, "==> %s\n", step.Name)
@@ -445,7 +433,6 @@ func siteFiles(site string) ([]string, error) {
 	return files, err
 }
 
-// inCheckout reports whether directory or one above it holds a .git entry.
 func inCheckout(directory string) bool {
 	for {
 		if _, err := os.Lstat(filepath.Join(directory, ".git")); err == nil {
@@ -500,7 +487,6 @@ func exportPayload(payload, application, destination string, carriesNode bool, w
 	return nil
 }
 
-// copyInto copies each source file into destination under its own name.
 func copyInto(destination string, sources ...string) error {
 	for _, source := range sources {
 		if err := copyFile(source, filepath.Join(destination, filepath.Base(source))); err != nil {

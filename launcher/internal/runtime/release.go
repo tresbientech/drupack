@@ -33,7 +33,6 @@ func (c Cache) PrepareRelease(r Release, notice io.Writer) (string, string, erro
 	return runtimeDir, application, nil
 }
 
-// failure names what the start asked for and the step that stopped it.
 func (r Release) failure(step string, err error) error {
 	return fmt.Errorf("could not prepare runtime %s with application %s, at the %s step: %w",
 		Key(r.Manifest.Version, r.Payload), r.AppChecksum, step, err)

@@ -9,7 +9,6 @@ import (
 	"testing"
 )
 
-// holdMarker holds entry's usage marker from another process, as a start does.
 func holdMarker(t *testing.T, entry string) {
 	holdUsageInChild(t, t.TempDir(), entry)
 }
@@ -28,8 +27,6 @@ var cleanKinds = []struct {
 	{"folder", "folders/", "folder entry", "folder entries", func(root string) string { return filepath.Join(root, folderDirName) }, holdLease},
 }
 
-// cleanEntry writes a 2 MB entry at path, carrying the manifest a runtime entry
-// needs to count as one.
 func cleanEntry(t *testing.T, path string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Join(path, "bin"), 0700); err != nil {
@@ -53,7 +50,6 @@ func TestCleanListsThenRemovesEachKindAndKeepsAHeldEntry(t *testing.T) {
 			for _, name := range names {
 				cleanEntry(t, filepath.Join(dir, name))
 			}
-			// DRUPACK_CACHE_DIR can name a directory the reader already uses.
 			reader := filepath.Join(root, "someone-elses-project")
 			if err := os.MkdirAll(filepath.Join(reader, "src"), 0700); err != nil {
 				t.Fatal(err)

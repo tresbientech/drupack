@@ -13,10 +13,8 @@ import (
 // size a file manager shows for the executable.
 const megabyte = 1_000_000
 
-// progressReports is how many reports one unpacking writes before its last one.
 const progressReports = 10
 
-// barCells is the drawn width of the bar, in characters.
 const barCells = 24
 
 // progress reports how much of a payload an unpacking has read. Unpacking
@@ -55,7 +53,6 @@ func (p *progress) reading(source io.Reader) io.Reader {
 	return &countingReader{progress: p, source: source}
 }
 
-// advance counts n more bytes and reports once each step of the payload passes.
 func (p *progress) advance(n int) {
 	p.read += int64(n)
 	if p.read-p.reported >= p.total/progressReports {

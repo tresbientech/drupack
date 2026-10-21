@@ -15,12 +15,10 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// fileDeleteChild lets its holder remove any entry of a directory, whatever
-// that entry's own ACL says. x/sys/windows does not name it.
+// x/sys/windows does not name FILE_DELETE_CHILD.
 const fileDeleteChild = 0x40
 
-// writeAccess holds every right that changes a directory, what it holds, its
-// ACL or its owner.
+// writeAccess holds every right that changes a directory, its ACL or its owner.
 const writeAccess = windows.FILE_WRITE_DATA | windows.FILE_APPEND_DATA | windows.FILE_WRITE_EA |
 	fileDeleteChild | windows.FILE_WRITE_ATTRIBUTES | windows.DELETE | windows.WRITE_DAC |
 	windows.WRITE_OWNER | windows.GENERIC_WRITE | windows.GENERIC_ALL
@@ -135,8 +133,6 @@ func trusts(trusted []*windows.SID, sid *windows.SID) bool {
 	return false
 }
 
-// accountName names sid as DOMAIN\name, as name alone for an account with no
-// domain, or as its string form when no account resolves.
 func accountName(sid *windows.SID) string {
 	account, domain, _, err := sid.LookupAccount("")
 	if err != nil {
@@ -190,13 +186,10 @@ func cacheRoots(name string) []string {
 	return []string{filepath.Join(cache, name, "runtime")}
 }
 
-// asciiRoot resolves root to the ASCII path PHP startup needs: phase 1 found
-// PHP resolves its PHPRC-derived configuration path through the ANSI code
-// page, so an account name it cannot represent breaks extension loading. The
-// temporary directory is the fallback rung, since it sits under the same
-// per-account profile and carries the same name; its candidate still runs
-// through privateRoot like every other one, since %TEMP% is not the fixed,
-// account-private location cacheRoots' own candidate is.
+// asciiRoot resolves root to the ASCII path PHP startup needs, since PHP resolves its
+// PHPRC-derived configuration path through the ANSI code page. The temporary directory is the
+// fallback. Its candidate still runs through privateRoot, since %TEMP% is not account-private
+// like cacheRoots' own candidate.
 func asciiRoot(root, name string, notice io.Writer) (string, error) {
 	fallback, err := fallbackRoot(name)
 	if err != nil {
@@ -212,11 +205,9 @@ func asciiRoot(root, name string, notice io.Writer) (string, error) {
 	return resolveASCIIRoot(root, fallback, mkdir, shortPathName, notice)
 }
 
-// fallbackRoot names asciiRoot's temp rung. %TMP% and %TEMP% are policy- and
-// reader-writable, unlike cacheRoots' own candidate under the profile, so a
-// fixed name here would let another account's start collide with this one's;
-// namespacing it by SID, the way unix namespaces its own temp candidate by
-// uid, keeps every account in its own directory.
+// fallbackRoot names asciiRoot's temp rung. %TMP% and %TEMP% are policy- and reader-writable,
+// so the name carries the SID, as unix names its temp candidate by uid, keeping every account
+// in its own directory.
 func fallbackRoot(name string) (string, error) {
 	current, err := user.Current()
 	if err != nil {
@@ -225,10 +216,8 @@ func fallbackRoot(name string) (string, error) {
 	return filepath.Join(os.TempDir(), name+"-"+current.Uid, "runtime"), nil
 }
 
-// shortPathName wraps GetShortPathNameW, the Windows API that names an
-// existing path's 8.3 alias, the one Windows-only call resolveASCIIRoot
-// needs, kept behind this thin function so the rung logic itself is
-// testable on any host.
+// shortPathName wraps GetShortPathNameW, which names an existing path's 8.3 alias, so the
+// rung logic is testable on any host.
 func shortPathName(path string) (string, error) {
 	long, err := syscall.UTF16PtrFromString(path)
 	if err != nil {

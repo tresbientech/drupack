@@ -14,35 +14,27 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// appDirName holds every unpacked application, one directory per release.
 const appDirName = "app"
 
-// completeName marks an application directory as fully written. It is the last
-// file created, so a directory without it was interrupted and unpacks again.
+// completeName is the last file created, so a directory without it was interrupted.
 const completeName = ".complete"
 
-// usedName records the last start that ran an application directory. The sweep
-// reads its modification time.
+// usedName's modification time dates the last start that ran the directory.
 const usedName = ".used"
 
-// unusedFor is how long an application directory survives with no start using it.
 const unusedFor = 30 * 24 * time.Hour
 
-// entryName names the directory holding one release's application. The short
-// form keeps the vendor paths inside the tree well clear of the Windows path
-// limit.
+// entryName uses a short form to keep vendor paths clear of the Windows path limit.
 func entryName(checksum string) string {
 	return "r" + checksum[:12]
 }
 
-// AppRoot returns the directory holding unpacked applications under root.
 func AppRoot(root string) string {
 	return filepath.Join(root, appDirName)
 }
 
-// PrepareApp returns the directory holding the application that checksum
-// names, unpacking payload there the first time this release is seen. A
-// directory carrying the completion marker is used as it stands.
+// PrepareApp unpacks payload for the release checksum names the first time it is seen.
+// A directory carrying the completion marker is used as it stands.
 func (c Cache) PrepareApp(checksum string, payload []byte, notice io.Writer) (string, error) {
 	if !SingleElement(checksum) || len(checksum) < 12 {
 		return "", fmt.Errorf("application checksum is not a single path element: %q", checksum)
@@ -56,17 +48,14 @@ func (c Cache) PrepareApp(checksum string, payload []byte, notice io.Writer) (st
 	}, notice)
 }
 
-// markUsed dates the entry this start runs. Writing the file rather than
-// touching it keeps one call for a marker that may not exist yet.
+// markUsed writes the file rather than touching it, since the marker may not exist yet.
 func markUsed(entry string) error {
 	return os.WriteFile(filepath.Join(entry, usedName), nil, 0600)
 }
 
-// sweepApps removes the application directories no start has used for
-// unusedFor, and the staging directories interrupted starts abandoned. It runs
-// under the application cache lock, so no live staging directory exists here.
-// A directory carrying no marker gets one, which dates a release unpacked
-// before this release wrote markers instead of removing it.
+// sweepApps removes application directories unused for unusedFor, and the staging
+// directories interrupted starts abandoned. It runs under the application cache lock, so no
+// live staging directory exists here. A directory with no marker gets one, not a removal.
 func sweepApps(appRoot, keep string, now time.Time) {
 	entries, err := os.ReadDir(appRoot)
 	if err != nil {
@@ -95,8 +84,7 @@ func sweepApps(appRoot, keep string, now time.Time) {
 	}
 }
 
-// directorySize adds up the file sizes under path. A file that disappears
-// while the walk runs counts nothing, which keeps a report from failing.
+// directorySize adds up the file sizes under path. A file that disappears during the walk counts nothing.
 func directorySize(path string) int64 {
 	var total int64
 	filepath.WalkDir(path, func(_ string, entry fs.DirEntry, err error) error {
@@ -112,16 +100,13 @@ func directorySize(path string) int64 {
 	return total
 }
 
-// complete reports whether entry holds a fully unpacked application.
 func complete(entry string) bool {
 	_, err := os.Stat(filepath.Join(entry, completeName))
 	return err == nil
 }
 
-// extractApp unpacks payload, a zstd-compressed tar stream, into destination.
-// The archive arrives inside this executable, so its paths are checked rather
-// than trusted: a crafted binary is a different problem, but a path outside
-// destination is refused here whatever produced it.
+// extractApp unpacks payload, a zstd-compressed tar stream, into destination. Archive
+// paths are checked, not trusted: a path outside destination is refused whatever produced it.
 func extractApp(destination string, payload []byte, notice io.Writer) error {
 	reports := newProgress(int64(len(payload)), notice)
 	decoder, err := zstd.NewReader(reports.reading(bytes.NewReader(payload)))

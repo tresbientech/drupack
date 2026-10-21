@@ -9,37 +9,28 @@ import (
 	"strings"
 )
 
-// siteAppName is the directory in Site data holding the application of a site
-// whose contract names writable directories.
 const siteAppName = "app"
 
-// previousAppName holds the site's old application while an upgrade moves the
-// next one into place. It stays whole until the next one is in place.
+// previousAppName holds the old application while an upgrade moves the next one in.
 const previousAppName = ".previous-app"
 
-// releaseName holds the application checksum of the release laid in a site's
-// application. It is the last file written.
+// releaseName is the last file written.
 const releaseName = ".release"
 
-// SiteApp returns the directory holding the site's own application in data.
 func SiteApp(data string) string {
 	return filepath.Join(data, siteAppName)
 }
 
-// SiteAppCurrent reports whether data holds a site application laid from the
-// release checksum names.
 func SiteAppCurrent(data, checksum string) bool {
 	recorded, err := os.ReadFile(filepath.Join(SiteApp(data), releaseName))
 	return err == nil && string(recorded) == checksum
 }
 
-// LaySiteApp makes data hold the application payload carries, with each
-// writable directory present. An application already laid from checksum is
-// used as it stands. Laying happens under a lock in data's runtime directory,
-// into a staging directory that replaces the old application once its release
-// marker is written. An upgrade copies into the staging directory each entry of
-// a writable directory that the old application holds and this release does
-// not ship.
+// LaySiteApp makes data hold the application payload carries, with each writable
+// directory present. An application already laid from checksum is used as it stands.
+// Laying runs under a lock in data's runtime directory, into a staging directory that
+// replaces the old application once its release marker is written. An upgrade copies in
+// each entry of a writable directory the old application holds and this release does not ship.
 func LaySiteApp(data, checksum string, payload []byte, writable []string, notice io.Writer) error {
 	// The writable list arrives on the command line of a word anyone can type.
 	for _, directory := range writable {
@@ -86,8 +77,7 @@ func layStaging(staging, old string, payload []byte, writable []string, notice i
 	return nil
 }
 
-// carryOver copies into to each entry of from that to lacks. A missing from
-// carries nothing: a first lay has no previous application.
+// carryOver copies each entry of from that to lacks. A missing from carries nothing.
 func carryOver(from, to string) error {
 	entries, err := os.ReadDir(from)
 	if os.IsNotExist(err) {
@@ -108,7 +98,6 @@ func carryOver(from, to string) error {
 	return nil
 }
 
-// copyTree copies the files, directories and links under source to destination.
 func copyTree(source, destination string) error {
 	return filepath.WalkDir(source, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {

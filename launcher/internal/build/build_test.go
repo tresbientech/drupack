@@ -51,14 +51,12 @@ func step(t *testing.T, plan build.Plan, name string) build.Step {
 	return build.Step{}
 }
 
-// packed returns the runtime and the output of the pack step named name.
 func packed(t *testing.T, plan build.Plan, name string) (string, string) {
 	t.Helper()
 	command := step(t, plan, name).Command
 	return command[slices.Index(command, "-runtime")+1], command[slices.Index(command, "-output")+1]
 }
 
-// packSteps returns the names of the plan's pack steps, in order.
 func packSteps(plan build.Plan) []string {
 	var packs []string
 	for _, name := range names(plan) {
@@ -424,7 +422,6 @@ func TestTheSeedTakesTheSiteSettings(t *testing.T) {
 	}
 }
 
-// linkedSite writes a site outside any git checkout holding the links a test names.
 func linkedSite(t *testing.T, links map[string]string) string {
 	t.Helper()
 	site := t.TempDir()
@@ -644,7 +641,6 @@ func TestASiteWithoutNodeWritesNoNodeEntry(t *testing.T) {
 	if slices.Contains(names(plan), "resolve Node") {
 		t.Fatalf("steps = %v; want no Node step", names(plan))
 	}
-	// Staging makes the application directory.
 	if err := os.Mkdir(filepath.Join(r.Work, "app"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -729,8 +725,7 @@ func TestAPayloadOnlyBuildExportsTheNodeArchiveOfEachPayloadTarget(t *testing.T)
 	}
 }
 
-// listed runs the plan's export and list steps over a written payload and
-// returns the list of native targets. A plan with no native target exports nothing.
+// listed runs the plan's export and list steps over a written payload and returns the native targets.
 func listed(t *testing.T, r build.Request, plan build.Plan) string {
 	t.Helper()
 	for _, name := range []string{"payload/app-payload.tar", "payload/app_checksum.txt", "app/site.json"} {
