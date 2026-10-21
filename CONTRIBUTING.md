@@ -90,6 +90,8 @@ The suites run against the published executable, which is the launcher.
 DRUPACK_TEST_ENGINE=dist/engine/drupack-linux-amd64 python3 tests/conformance dist/drupacked-demo-linux-amd64 test-results/conformance --site-tests demo/tests
 ```
 
+Every Python script in `build/`, `runtime/` and `tests/` imports the standard library alone. A host needs `python3` and no `pip install`.
+
 `DRUPACK_TEST_ENGINE` names the engine executable. Its cases serve a copy of the site's own application, and skip when the variable is unset.
 
 `DRUPACK_TEST_PREVIOUS` names the executable of the site's previous release. Its case installs a site with it, then starts that Site data with the executable under test. It skips when the variable is unset.
