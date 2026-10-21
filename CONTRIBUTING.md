@@ -108,12 +108,6 @@ With no Docker daemon, the site cases run on the host and the other container ca
 
 One conformance run happens at a time on a machine. A second run waits for the first, and says so on standard error. Two at once bind the same ports and collide on container names, which times out site starts in both. `DRUPACK_SUITE_LOCK` names the lock file, so a machine that needs two independent runs can give each its own.
 
-The harness's own unit tests need no built executable:
-
-```sh
-python3 -m unittest discover -s tests/conformance -p 'test_harness.py'
-```
-
 The PHP unit files run through the bundled runtime, because `launch.php`
 requires `vendor/autoload.php` and the lock targets a PHP the host may not
 have. They read `application/vendor`, a link `build/qa.sh` points at the vendor
@@ -186,4 +180,4 @@ Each tag needs its drupal.org release node, created by hand. `.gitea/workflows/r
 
 A push to `main` mirrors the same way. It builds and tests Linux amd64 when the push touched a path outside `docs/`, `LICENSE` and the root Markdown files. A documentation commit starts no build.
 
-Documents worth reading before a change: `CONTEXT.md` for the vocabulary, `README.md` for what the product promises, `docs/adr/` for the decisions behind the current shape, `docs/backlog.md` for open questions, `docs/plans/` for work already scheduled and `docs/reviews/` for the reviews a live plan acts on. A decision lands as a short numbered ADR. A plan and the review it acts on are deleted once the work ships, so the tree holds no finished checklists.
+Documents worth reading before a change: `CONTEXT.md` for the vocabulary, `README.md` for what the product promises, `docs/adr/` for the decisions behind the current shape, `docs/backlog.md` for open questions, and `docs/prd/` with `docs/plans/` for work already scheduled. A decision lands as a short numbered ADR. A PRD and its plan are deleted once the work ships, so the tree holds no finished checklists.

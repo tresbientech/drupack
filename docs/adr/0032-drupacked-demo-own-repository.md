@@ -1,7 +1,7 @@
 # Drupacked Demo releases from its own repository
 
 Accepted on 2026-10-13. All five steps of the order below were built by
-2026-10-14. Steps 1 and 3 build [the native site builds PRD](../prd/native-site-builds.md).
+2026-10-14.
 
 ## Context
 

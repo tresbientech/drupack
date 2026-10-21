@@ -248,3 +248,25 @@ differ from the checked one. The refusals in `installSite` and the `adoptSite`
 path run only in the Docker suite. Lean: one runner takes the list read under
 the lease and checks its needs, with Drush behind a stub binary in tests, as
 `fakeRuntime()` stubs `tls-source`.
+
+## Code size and test time
+
+Measured on 2026-10-21 at `171ab00`. Tests hold 37% of the tracked lines,
+production code 24% and docs 18%. Every CI job spends most of its time in the
+conformance suite, because each case starts a real site. These cuts keep every
+feature and platform:
+
+- comments that restate their line: 560 to 1,000 production lines, 1,050 to
+  1,860 in all
+- repetition in `release.yml`: about 120 lines net, half from merging the two
+  Windows jobs
+- PHP start code that Go already holds: about 286 lines
+- `application/cacert.pem`: 2,950 lines, if a build fetches it with a pinned
+  checksum
+- one started site per class for read-only cases
+- the browser cases' 10-second waits for an absence
+- Windows arm64 runs emulated and sets the candidate's wall time, 77 minutes
+- QA and the Linux amd64 job both test the packed Linux demo
+
+Moving the start flow from PHP to Go was sized and dropped: its net runs from
+350 lines fewer to 1,110 more. Lean: comments and CI first.
