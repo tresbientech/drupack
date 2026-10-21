@@ -42,13 +42,19 @@ TEXT;
 
 const DEFAULT_LISTEN = '127.0.0.1:3787';
 
-// composer.json is the reader's file, so a docroot it names is checked before use.
-// The Caddyfile's guards and front controller are Drupal's, so a docroot without
-// Drupal core, such as a WordPress site's, is refused.
+// composer.json is the reader's file, so a docroot it names is checked before use: a
+// .. segment would name a directory outside the project. The Caddyfile's guards and
+// front controller are Drupal's, so a docroot without Drupal core, such as a WordPress
+// site's, is refused.
 function docroot(string $project): string
 {
     $composer = json_decode((string) @file_get_contents("$project/composer.json"), true);
-    $root = trim($composer['extra']['drupal-scaffold']['locations']['web-root'] ?? 'web', './');
+    $webRoot = $composer['extra']['drupal-scaffold']['locations']['web-root'] ?? 'web';
+    if (in_array('..', preg_split('#[/\\\\]#', $webRoot), true)) {
+        throw new RuntimeException("$project/composer.json: extra.drupal-scaffold.locations.web-root "
+            . 'must name a directory inside the project');
+    }
+    $root = trim($webRoot, './');
     $docroot = $root === '' ? $project : "$project/$root";
     foreach (['index.php', 'core/lib/Drupal.php'] as $file) {
         if (!is_file("$docroot/$file")) {

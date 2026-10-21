@@ -297,22 +297,41 @@ func drupackExtra(drupack string) string {
 	return `{"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": ` + drupack + `}}`
 }
 
-func TestReadTakesMercureFromComposer(t *testing.T) {
-	for drupack, want := range map[string]bool{`{}`: false, `{"mercure": false}`: false, `{"mercure": true}`: true} {
-		read, err := siteconfig.Read(site(t, minimal, drupackExtra(drupack)))
-		if err != nil {
-			t.Fatalf("%s: %v", drupack, err)
-		}
-		if read.Mercure != want {
-			t.Errorf("%s: Mercure = %v; want %v", drupack, read.Mercure, want)
-		}
+// application/tests/composer-extra.json holds the extra.drupack cases engine/serve.php
+// shares with Read. Each row names the settings Read takes, or the field its refusal names.
+func TestReadAppliesTheSharedComposerExtraCases(t *testing.T) {
+	content, err := os.ReadFile(filepath.Join("..", "..", "..", "application", "tests", "composer-extra.json"))
+	if err != nil {
+		t.Fatal(err)
 	}
-}
-
-func TestReadRefusesAMercureString(t *testing.T) {
-	_, err := siteconfig.Read(site(t, minimal, drupackExtra(`{"mercure": "on"}`)))
-	if err == nil || !strings.Contains(err.Error(), "extra.drupack.mercure") {
-		t.Fatalf("Read error = %v; want one naming extra.drupack.mercure", err)
+	var rows []struct {
+		Drupack   json.RawMessage
+		Mercure   bool
+		Subdomain *string
+		Refuses   string
+	}
+	if err := json.Unmarshal(content, &rows); err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range rows {
+		read, err := siteconfig.Read(site(t, minimal, drupackExtra(string(row.Drupack))))
+		if row.Refuses != "" {
+			if err == nil || !strings.Contains(err.Error(), row.Refuses) {
+				t.Errorf("%s: Read error = %v; want one naming %s", row.Drupack, err, row.Refuses)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("%s: %v", row.Drupack, err)
+			continue
+		}
+		want := ""
+		if row.Subdomain != nil {
+			want = *row.Subdomain
+		}
+		if read.Mercure != row.Mercure || read.Subdomain != want {
+			t.Errorf("%s: Mercure, Subdomain = %v, %q; want %v, %q", row.Drupack, read.Mercure, read.Subdomain, row.Mercure, want)
+		}
 	}
 }
 
@@ -344,32 +363,6 @@ func TestTheExtensionRefusalNamesTheExtensionsAndTheTargets(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "linux-amd64") {
 		t.Errorf("error %q names a Linux target", err)
-	}
-}
-
-func TestReadTakesTheSubdomainFromComposer(t *testing.T) {
-	read, err := siteconfig.Read(site(t, minimal, drupackExtra(`{"subdomain": "demo"}`)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if read.Subdomain != "demo" {
-		t.Fatalf("Subdomain = %q; want demo", read.Subdomain)
-	}
-	content, err := json.Marshal(read)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(content), `"subdomain":"demo"`) {
-		t.Fatalf("site.json = %s; want it to carry subdomain demo", content)
-	}
-}
-
-func TestReadRefusesASubdomainThatIsNotOneDNSLabel(t *testing.T) {
-	for _, value := range []string{`"-demo"`, `"demo-"`, `"Demo"`, `"my.shop"`, `""`, `"` + strings.Repeat("a", 64) + `"`, `7`} {
-		_, err := siteconfig.Read(site(t, minimal, drupackExtra(`{"subdomain": `+value+`}`)))
-		if err == nil || !strings.Contains(err.Error(), "extra.drupack.subdomain") {
-			t.Errorf("%s: Read error = %v; want one naming extra.drupack.subdomain", value, err)
-		}
 	}
 }
 

@@ -329,7 +329,7 @@ file. A second start on a Project folder that a server already serves exits 1
 and says it already serves.
 
 - The docroot is the scaffold web root `composer.json` names, `web` when it
-  names none.
+  names none. The start refuses a web root with a `..` segment.
 - The start refuses a docroot without `core/lib/Drupal.php`. The Caddyfile's
   guards and front controller are Drupal's, and would not suit a WordPress site.
 - `--listen` defaults to `127.0.0.1:3787`.

@@ -52,6 +52,15 @@ test('a project whose web root is the project itself serves the project', functi
     same($project, docroot($project));
 });
 
+test('a web root outside the project is refused', function () {
+    foreach (['..', '../web', 'web/../..', 'a/../../b', 'web\\..\\..'] as $index => $webRoot) {
+        $composer = json_encode(['extra' => ['drupal-scaffold' => ['locations' => ['web-root' => $webRoot]]]]);
+        $project = project_with("outside-$index", ['composer.json' => $composer]);
+        throws("$project/composer.json: extra.drupal-scaffold.locations.web-root must name a directory inside the project",
+            fn () => docroot($project));
+    }
+});
+
 test('a WordPress site is refused', function () {
     $project = project_with('wordpress', [
         'composer.json' => '{"extra": {"drupal-scaffold": {"locations": {"web-root": "./"}}}}',
@@ -59,13 +68,6 @@ test('a WordPress site is refused', function () {
         'wp-includes/version.php' => '<?php',
     ]);
     throws("$project is not a Drupal project: $project/core/lib/Drupal.php does not exist", fn () => docroot($project));
-});
-
-test('the Mercure key reads true, false and absent', function () {
-    foreach (['{}' => false, '{"mercure": false}' => false, '{"mercure": true}' => true] as $drupack => $expected) {
-        $project = project_with('mercure-' . md5($drupack), ['composer.json' => "{\"extra\": {\"drupack\": $drupack}}"]);
-        same($expected, mercureKey($project), $drupack);
-    }
 });
 
 test('a project without composer.json serves no hub', function () {
@@ -77,27 +79,31 @@ test('a composer.json that is not a JSON object is refused', function () {
     throws("$project/composer.json is not a JSON object", fn () => mercureKey($project));
 });
 
-test('a Mercure key that is not a boolean is refused', function () {
-    $project = project_with('mercure-string', ['composer.json' => '{"extra": {"drupack": {"mercure": "on"}}}']);
-    throws("$project/composer.json: extra.drupack.mercure must be true or false", fn () => mercureKey($project));
+// composer-extra.json holds the extra.drupack cases pack's siteconfig shares with
+// serve.php. Each row names the settings serve.php takes, or the field its refusal names.
+test('the shared extra.drupack cases hold for serve.php', function () {
+    $rows = json_decode((string) file_get_contents(__DIR__ . '/composer-extra.json'), flags: JSON_THROW_ON_ERROR);
+    foreach ($rows as $index => $row) {
+        $project = project_with("extra-$index", ['composer.json' => json_encode(['extra' => ['drupack' => $row->drupack]])]);
+        if (isset($row->refuses)) {
+            throws($row->refuses, function () use ($project): void {
+                mercureKey($project);
+                folderLabelSource($project);
+            });
+            continue;
+        }
+        same($row->mercure, mercureKey($project), "row $index");
+        same(['--folder', $row->subdomain ?? "extra-$index"], folderLabelSource($project), "row $index");
+    }
 });
 
-test('a folder names its subdomain as the label, or its own name without one', function () {
-    $project = project_with('Subdomain Shop', ['composer.json' => '{"extra": {"drupack": {"subdomain": "shop"}}}']);
-    same(['--folder', 'shop'], folderLabelSource($project));
+test('a folder without composer.json takes its own name as the label', function () {
     same(['--folder', 'no-composer'], folderLabelSource(project_with('no-composer', ['web/index.php' => '<?php'])));
 });
 
 test('an extra.drupack that is not a JSON object is refused', function () {
     $project = project_with('drupack-string', ['composer.json' => '{"extra": {"drupack": "on"}}']);
     throws("$project/composer.json: extra.drupack must be a JSON object", fn () => mercureKey($project));
-});
-
-test('a subdomain that is not one DNS label is refused', function () {
-    foreach (['"-shop"', '"Shop"', '"my.shop"', '""', '7'] as $value) {
-        $project = project_with('subdomain-' . md5($value), ['composer.json' => "{\"extra\": {\"drupack\": {\"subdomain\": $value}}}"]);
-        throws("$project/composer.json: extra.drupack.subdomain must be one DNS label", fn () => folderLabelSource($project));
-    }
 });
 
 test('a web root with no index.php is refused', function () {
