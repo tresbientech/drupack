@@ -657,12 +657,17 @@ jobs:
 
   # install.ps1 installs the amd64 build on Windows on Arm, which runs it under
   # the system's x64 emulation. This job builds the amd64 executables on an Arm
-  # host and runs the suite on them there.
+  # host and runs the suite on them there. Emulation doubles each case's time,
+  # so two runners each take half of the test classes.
   windows-arm:
-    name: Windows arm64 (amd64 emulated)
+    name: Windows arm64 (amd64 emulated, ${{ matrix.shard }}/2)
     needs: [gate, payload]
     if: needs.gate.outputs.windows != '[]'
     runs-on: windows-11-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     timeout-minutes: 120
     defaults:
       run:
@@ -711,11 +716,14 @@ jobs:
       - name: Run the conformance suite
         env:
           DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
+          DRUPACK_SHARD: ${{ matrix.shard }}/2
         run: |
           Copy-Item dist\payload\site.json dist\site.json
           python tests/conformance dist\drupacked-demo.exe test-results\conformance --site-tests demo\tests
 
+      # The second shard runs the shorter half, so it takes the variant cases.
       - uses: actions/download-artifact@v8
+        if: matrix.shard == 2
         with:
           name: variant-payload-archive
           path: dist/variant-payload
@@ -723,6 +731,7 @@ jobs:
       # The variant fixture packs on the runtime the build above left in its work
       # directory, with the amd64 launcher the release ships.
       - name: Run the variant fixture cases
+        if: matrix.shard == 2
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
@@ -737,7 +746,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: test-results-windows-arm64
+          name: test-results-windows-arm64-${{ matrix.shard }}
           path: test-results
 
   macos:

@@ -3,6 +3,7 @@
 Discovers every *_cases.py module under this directory, and under DIR when given, and hands
 the rest of argv to unittest, so a caller's own -k, -v or -q still applies on top of this
 suite's default. The site.json beside EXECUTABLE names the site the cases expect.
+DRUPACK_SHARD=K/N runs the Kth of N shares of the test classes.
 """
 
 import os
@@ -99,7 +100,30 @@ class CaseLoader(unittest.TestLoader):
         suite = super().discover(start_dir, pattern, top_level_dir)
         if self.site_tests is not None:
             suite.addTests(super().discover(str(self.site_tests), pattern, str(self.site_tests)))
-        return suite
+        spec = os.environ.get("DRUPACK_SHARD")
+        return suite if spec is None else shard(suite, spec)
+
+
+def flatten(suite):
+    for test in suite:
+        if isinstance(test, unittest.TestSuite):
+            yield from flatten(test)
+        else:
+            yield test
+
+
+def shard(suite, spec):
+    """Keeps every Nth test class in name order, from the Kth, for DRUPACK_SHARD=K/N.
+
+    A class stays whole, so its shared setUpClass runs on one runner.
+    """
+    index, count = (int(part) for part in spec.split("/"))
+    tests = list(flatten(suite))
+    classes = sorted({f"{type(test).__module__}.{type(test).__qualname__}" for test in tests})
+    kept = set(classes[index - 1::count])
+    return unittest.TestSuite(
+        test for test in tests if f"{type(test).__module__}.{type(test).__qualname__}" in kept
+    )
 
 
 def main(argv):
