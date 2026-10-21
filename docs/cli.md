@@ -329,7 +329,9 @@ file. A second start on a Project folder that a server already serves exits 1
 and says it already serves.
 
 - The docroot is the scaffold web root `composer.json` names, `web` when it
-  names none. The start refuses a web root with a `..` segment.
+  names none or the folder has no `composer.json`. `./` serves the folder
+  itself. The start refuses an absolute web root, and one with a `..` segment,
+  by the rules `drupack-build` applies.
 - The start refuses a docroot without `core/lib/Drupal.php`. The Caddyfile's
   guards and front controller are Drupal's, and would not suit a WordPress site.
 - `--listen` defaults to `127.0.0.1:3787`.
@@ -399,6 +401,11 @@ standard error naming it. The check stays off in these cases:
 
 `lay-app` is internal: a start or `drush` runs it to lay or check a site's own
 application.
+
+`drupack composer-settings DIR` is internal too: an engine start or `drush`
+runs it to read the docroot, the Mercure flag and the subdomain from
+`DIR/composer.json`. It prints them as one JSON object, or the refusal a start
+would print.
 
 On a site, `self-update` exits 1 and says the site's publisher ships its new
 release.

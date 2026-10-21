@@ -28,86 +28,44 @@ test('the engine treats only 127.0.0.0/8 and ::1 as loopback', function () {
     }
 });
 
-test('a project naming no web root serves web', function () {
-    $project = project_with('default', ['composer.json' => '{}', 'web/index.php' => '<?php', 'web/core/lib/Drupal.php' => '<?php']);
-    same("$project/web", docroot($project));
+// A stub stands in for the engine's launcher: it prints $stdout, and $stderr then exits 1
+// when $stderr is set.
+function launcher_answering(string $name, string $stdout, string $stderr = ''): void
+{
+    $stub = project_with($name, ['launcher' => "#!/bin/sh\nprintf '%s' " . escapeshellarg($stdout)
+        . ($stderr === '' ? '' : "\nprintf '%s\\n' " . escapeshellarg($stderr) . " >&2\nexit 1") . "\n"]);
+    chmod("$stub/launcher", 0700);
+    putenv("DRUPACK_RUNTIME_LAUNCHER=$stub/launcher");
+}
+
+test('the launcher\'s settings reach serve.php', function () {
+    launcher_answering('settings', '{"docroot":"web","mercure":true,"subdomain":"shop"}');
+    same(['docroot' => 'web', 'mercure' => true, 'subdomain' => 'shop'], composerSettings('/project'));
 });
 
-test('a project serves the web root its scaffold names', function () {
-    $project = project_with('named', [
-        'composer.json' => '{"extra": {"drupal-scaffold": {"locations": {"web-root": "./docroot/"}}}}',
-        'docroot/index.php' => '<?php',
-        'docroot/core/lib/Drupal.php' => '<?php',
-    ]);
-    same("$project/docroot", docroot($project));
+test('the launcher\'s refusal reaches the reader as it is', function () {
+    launcher_answering('refusal', '', '/project/composer.json: extra.drupack.mercure must be true or false, not "on"');
+    throws('/project/composer.json: extra.drupack.mercure must be true or false, not "on"', fn () => composerSettings('/project'));
 });
 
-test('a project whose web root is the project itself serves the project', function () {
-    $project = project_with('flat', [
-        'composer.json' => '{"extra": {"drupal-scaffold": {"locations": {"web-root": "./"}}}}',
-        'index.php' => '<?php',
-        'core/lib/Drupal.php' => '<?php',
-    ]);
-    same($project, docroot($project));
+test('a project serves the docroot its settings name', function () {
+    $project = project_with('named', ['docroot/index.php' => '<?php', 'docroot/core/lib/Drupal.php' => '<?php']);
+    same("$project/docroot", docroot($project, 'docroot'));
 });
 
-test('a web root outside the project is refused', function () {
-    foreach (['..', '../web', 'web/../..', 'a/../../b', 'web\\..\\..'] as $index => $webRoot) {
-        $composer = json_encode(['extra' => ['drupal-scaffold' => ['locations' => ['web-root' => $webRoot]]]]);
-        $project = project_with("outside-$index", ['composer.json' => $composer]);
-        throws("$project/composer.json: extra.drupal-scaffold.locations.web-root must name a directory inside the project",
-            fn () => docroot($project));
-    }
+test('a project whose docroot is the project itself serves the project', function () {
+    $project = project_with('flat', ['index.php' => '<?php', 'core/lib/Drupal.php' => '<?php']);
+    same($project, docroot($project, '.'));
 });
 
 test('a WordPress site is refused', function () {
-    $project = project_with('wordpress', [
-        'composer.json' => '{"extra": {"drupal-scaffold": {"locations": {"web-root": "./"}}}}',
-        'index.php' => '<?php',
-        'wp-includes/version.php' => '<?php',
-    ]);
-    throws("$project is not a Drupal project: $project/core/lib/Drupal.php does not exist", fn () => docroot($project));
+    $project = project_with('wordpress', ['index.php' => '<?php', 'wp-includes/version.php' => '<?php']);
+    throws("$project is not a Drupal project: $project/core/lib/Drupal.php does not exist", fn () => docroot($project, '.'));
 });
 
-test('a project without composer.json serves no hub', function () {
-    same(false, mercureKey(project_with('no-composer', ['web/index.php' => '<?php'])));
-});
-
-test('a composer.json that is not a JSON object is refused', function () {
-    $project = project_with('mercure-broken', ['composer.json' => '{"extra": ']);
-    throws("$project/composer.json is not a JSON object", fn () => mercureKey($project));
-});
-
-// composer-extra.json holds the extra.drupack cases pack's siteconfig shares with
-// serve.php. Each row names the settings serve.php takes, or the field its refusal names.
-test('the shared extra.drupack cases hold for serve.php', function () {
-    $rows = json_decode((string) file_get_contents(__DIR__ . '/composer-extra.json'), flags: JSON_THROW_ON_ERROR);
-    foreach ($rows as $index => $row) {
-        $project = project_with("extra-$index", ['composer.json' => json_encode(['extra' => ['drupack' => $row->drupack]])]);
-        if (isset($row->refuses)) {
-            throws($row->refuses, function () use ($project): void {
-                mercureKey($project);
-                folderLabelSource($project);
-            });
-            continue;
-        }
-        same($row->mercure, mercureKey($project), "row $index");
-        same(['--folder', $row->subdomain ?? "extra-$index"], folderLabelSource($project), "row $index");
-    }
-});
-
-test('a folder without composer.json takes its own name as the label', function () {
-    same(['--folder', 'no-composer'], folderLabelSource(project_with('no-composer', ['web/index.php' => '<?php'])));
-});
-
-test('an extra.drupack that is not a JSON object is refused', function () {
-    $project = project_with('drupack-string', ['composer.json' => '{"extra": {"drupack": "on"}}']);
-    throws("$project/composer.json: extra.drupack must be a JSON object", fn () => mercureKey($project));
-});
-
-test('a web root with no index.php is refused', function () {
+test('a docroot with no index.php is refused', function () {
     $project = project_with('empty', ['composer.json' => '{}']);
-    throws("$project/web/index.php does not exist", fn () => docroot($project));
+    throws("$project/web/index.php does not exist", fn () => docroot($project, 'web'));
 });
 
 test('a project without Drush names the missing path', function () {

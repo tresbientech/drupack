@@ -40,19 +40,29 @@ TEXT;
 
 const DEFAULT_LISTEN = '127.0.0.1:3787';
 
-// composer.json is the reader's file: a docroot with a .. segment would leave the project.
-// The Caddyfile's guards and front controller are Drupal's, so a docroot without Drupal
-// core, such as a WordPress site's, is refused.
-function docroot(string $project): string
+// The engine's launcher reads composer.json, the reader's file, by the rules a build packs a
+// site by. It answers with the docroot relative to the project, the Mercure flag, and the
+// subdomain when the file sets one.
+function composerSettings(string $project): array
 {
-    $composer = json_decode((string) @file_get_contents("$project/composer.json"), true);
-    $webRoot = $composer['extra']['drupal-scaffold']['locations']['web-root'] ?? 'web';
-    if (in_array('..', preg_split('#[/\\\\]#', $webRoot), true)) {
-        throw new RuntimeException("$project/composer.json: extra.drupal-scaffold.locations.web-root "
-            . 'must name a directory inside the project');
+    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $child = proc_open([getenv('DRUPACK_RUNTIME_LAUNCHER'), 'composer-settings', $project], $descriptors, $pipes);
+    if (!is_resource($child)) {
+        throw new RuntimeException('Cannot read the settings of ' . $project);
     }
-    $root = trim($webRoot, './');
-    $docroot = $root === '' ? $project : "$project/$root";
+    $output = stream_get_contents($pipes[1]);
+    $refusal = stream_get_contents($pipes[2]);
+    if (proc_close($child) !== 0) {
+        throw new RuntimeException(trim($refusal));
+    }
+    return json_decode($output, true, flags: JSON_THROW_ON_ERROR);
+}
+
+// The Caddyfile's guards and front controller are Drupal's, so a docroot without Drupal
+// core, such as a WordPress site's, is refused. "." names the project itself.
+function docroot(string $project, string $relative): string
+{
+    $docroot = $relative === '.' ? $project : "$project/$relative";
     foreach (['index.php', 'core/lib/Drupal.php'] as $file) {
         if (!is_file("$docroot/$file")) {
             throw new RuntimeException("$project is not a Drupal project: $docroot/$file does not exist. "
@@ -178,11 +188,12 @@ function serve(string $binary, array $arguments): never
     }
     [, $bind, $port] = $parts;
     $project = projectFolder($directory);
-    $docroot = canonical(docroot($project));
+    $settings = composerSettings($project);
+    $docroot = docroot($project, $settings['docroot']);
     checkPlatform($binary, $project);
-    $mercure = mercureKey($project);
+    $mercure = $settings['mercure'];
     $bind = trim($bind, '[]');
-    $tls = tlsChoice($binary, $bind, folderLabelSource($project), null);
+    $tls = tlsChoice($binary, $bind, ['--folder', $settings['subdomain'] ?? basename($project)], null);
     $plan = listenerPlan($bind, (int) $port, $tls->host, $tls->scheme());
 
     // The reader's terminal gets every refusal above and the lease's below, so a start that
@@ -238,48 +249,6 @@ function serve(string $binary, array $arguments): never
     replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }
 
-// composer.json is the reader's file, so one that is not a JSON object is refused.
-function drupackExtra(string $project): array
-{
-    $path = "$project/composer.json";
-    if (!is_file($path)) {
-        return [];
-    }
-    $composer = json_decode((string) file_get_contents($path), true);
-    if (!is_array($composer)) {
-        throw new RuntimeException("$path is not a JSON object");
-    }
-    $drupack = $composer['extra']['drupack'] ?? [];
-    if (!is_array($drupack)) {
-        throw new RuntimeException("$path: extra.drupack must be a JSON object");
-    }
-    return $drupack;
-}
-
-function mercureKey(string $project): bool
-{
-    $value = drupackExtra($project)['mercure'] ?? false;
-    if (!is_bool($value)) {
-        throw new RuntimeException("$project/composer.json: extra.drupack.mercure must be true or false");
-    }
-    return $value;
-}
-
-// composer.json is the reader's file, so a subdomain that is not one DNS label is refused;
-// pack's siteconfig holds the same rule.
-function folderLabelSource(string $project): array
-{
-    $value = drupackExtra($project)['subdomain'] ?? null;
-    if ($value === null) {
-        return ['--folder', basename($project)];
-    }
-    if (!is_string($value) || preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $value) !== 1) {
-        throw new RuntimeException("$project/composer.json: extra.drupack.subdomain must be one DNS label: "
-            . 'a to z, 0 to 9 and dashes, at most 63, no dash at either end');
-    }
-    return ['--folder', $value];
-}
-
 const MERCURE_URL_FILE = 'mercure_url';
 
 function exportEngineMercure(string $entry, string $url, bool $drush): void
@@ -293,7 +262,7 @@ function drush(string $binary, array $arguments): never
     $project = project();
     $entry = folderEntry($project);
     useTlsBundle($entry);
-    if (mercureKey($project) && is_file("$entry/" . MERCURE_URL_FILE)) {
+    if (is_file("$entry/" . MERCURE_URL_FILE) && composerSettings($project)['mercure']) {
         exportEngineMercure($entry, file_get_contents("$entry/" . MERCURE_URL_FILE), true);
     }
     runScript($binary, drushScript($project), $arguments);

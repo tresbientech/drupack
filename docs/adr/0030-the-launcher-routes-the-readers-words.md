@@ -6,6 +6,8 @@ launcher handles `self-update` before routing, beside `detach` and `lay-app`.
 Amended on 2026-10-20 by [ADR 0039](0039-the-launcher-plans-the-runtimes-command.md):
 `Plan` in `launcher/plan.go` routes the words through `arguments`, which
 replaces `runtimeArguments`.
+Amended on 2026-10-21 by [ADR 0044](0044-one-reader-takes-a-projects-composer-settings.md):
+the engine's launcher also answers `composer-settings` before routing.
 
 ## Context
 

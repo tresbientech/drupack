@@ -348,6 +348,28 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{wordpress.as_posix()}/core/lib/Drupal.php does not exist", result.stderr)
 
+    def test_a_web_root_outside_the_project_stops_the_start(self):
+        composer = self.project / "composer.json"
+        original = composer.read_text()
+        self.addCleanup(composer.write_text, original)
+        content = json.loads(original)
+        content["extra"]["drupal-scaffold"]["locations"]["web-root"] = "/var/www/html"
+        composer.write_text(json.dumps(content))
+        result = self.engine_run(str(self.project))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("extra.drupal-scaffold.locations.web-root must name a directory inside the project, "
+                      'not "/var/www/html"', result.stderr)
+
+    def test_a_folder_without_composer_json_serves_its_web_directory(self):
+        if harness.SITE["docroot"] != "web":
+            self.skipTest("the site under test keeps its docroot outside web")
+        composer = self.project / "composer.json"
+        aside = self.class_dir / "composer.json.aside"
+        composer.rename(aside)
+        self.addCleanup(aside.rename, composer)
+        port, log = self.start("start-no-composer", str(self.project))
+        self.assertEqual(self.status(port, "/user/login"), 200, f"inspect {log}")
+
     def test_drush_runs_the_drush_of_the_project_holding_the_working_directory(self):
         result = self.engine_run("drush", "status", "--field=db-driver", cwd=self.docroot / "core")
         self.assertEqual(result.returncode, 0, result.stderr)
