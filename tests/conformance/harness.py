@@ -29,7 +29,7 @@ except ImportError:  # Windows has no pty module; only a Linux or macOS case att
     pty = None
 
 # Set by __main__ before unittest discovers case modules. None when a module imports the
-# harness on its own, as test_harness.py does. SITE is the site.json beside BINARY.
+# harness on its own. SITE is the site.json beside BINARY.
 BINARY = None
 RESULTS = None
 SITE = None
