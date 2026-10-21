@@ -1,8 +1,6 @@
-"""Ported from tests/initialization.sh: first starts, listener records, database adoption,
-interrupted installs, the serving lease, site naming, and PostgreSQL recovery.
-
-Every case here is Linux only, matching where the old file ran in CI; the PostgreSQL
-cases take their server from harness.DatabaseServer.
+"""First starts, listener records, database adoption, interrupted installs, the serving
+lease, site naming, and PostgreSQL recovery. Linux only; the PostgreSQL cases take their
+server from harness.DatabaseServer.
 """
 
 import os
@@ -47,18 +45,17 @@ def current_administrator(work_dir, data):
 
 
 def follow_link(link):
-    """Follow a one-time login link with a cookie jar, returning where it landed and the
-    session's opener, so a caller can prove the session's identity with a further request.
-    """
+    """Follow a one-time login link with a cookie jar; return where it landed and the
+    session's opener."""
     opener = build_opener(HTTPCookieProcessor(CookieJar()))
     with opener.open(link, timeout=harness.WAITS["http_request"].seconds) as response:
         return response.geturl(), opener
 
 
 def assert_readiness(case, log_path, caddy_log):
-    """Assert both halves of a start's terminal output, the addresses and paths launch.php
-    prints and the readiness line the serving process adds once it answers, and that Caddy's
-    own log never reaches that output. Returns the log text for further assertions.
+    """Assert both halves of a start's terminal output, launch.php's addresses and paths and
+    the serving process's readiness line, and that Caddy's log never reaches it. Returns the
+    log text.
     """
     # A case's own readiness wait can return before the serving process prints this.
     harness.wait_for_line(log_path, 0, harness.ready_line(), harness.WAITS["start"].seconds)
@@ -85,9 +82,8 @@ def assert_marker(case, data):
 
 
 def reset_installation_state(data):
-    """Clear an installed site while keeping its extracted runtime, so a later start in the
-    same Site data directory serves without re-extracting the embedded application.
-    """
+    """Clear an installed site but keep its extracted runtime, so a later start in the same
+    Site data directory does not re-extract the application."""
     directories = ("files", "private", "config", "tmp")
     files = ("settings.php", "site-installed", "installation-progress", "hash_salt", "site.sqlite",
               "site.sqlite-shm", "site.sqlite-wal", "site-adopted", "install-started", "listener")
@@ -106,8 +102,7 @@ class FirstStartAndListener(harness.ConformanceCase):
         site.start(data, "--admin-user", "init-admin", "--admin-password", PASSWORD)
         try:
             assert_marker(self, data)
-            # A first start spends minutes inside these steps and prints nothing else
-            # until the site answers, so each one names itself as it runs.
+            # A first start spends minutes in these steps; each names itself as it runs.
             started = site.log_path.read_text(errors="replace")
             for report in (
                 "[1/3] Copying the packaged site into Site data",
@@ -117,9 +112,8 @@ class FirstStartAndListener(harness.ConformanceCase):
                 self.assertIn(report, started, "a first start reported no progress")
             self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), harness.SITE["site_name"])
             assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
-            # site.start() already got its own 200 from /user/login; the launcher's separate
-            # internal poller writes this line only once its own first request finishes, so
-            # the two race under load. Wait for it instead of trusting one read to have it.
+            # site.start() got its 200 from /user/login, but the launcher's own poller writes
+            # this line after its first request finishes; the two race under load.
             harness.wait_for_line(site.log_path, 0, harness.ready_line(), harness.WAITS["start"].seconds)
 
             bootstrap = harness.run_drush(harness.BINARY, self.case_dir, data, "status", "--field=bootstrap")
@@ -134,8 +128,7 @@ class FirstStartAndListener(harness.ConformanceCase):
             self.assertIn("?destination=/admin/dashboard", link)
             landing, opener = follow_link(link)
             self.assertIn("/admin/dashboard", landing, landing)
-            # The same session that landed on the dashboard is signed in as init-admin: the
-            # account page's title names the account viewing it.
+            # The account page's title names the account viewing it.
             with opener.open(f"http://localhost:{site.port}/user/1",
                               timeout=harness.WAITS["http_request"].seconds) as response:
                 body = response.read().decode(errors="replace")
@@ -210,8 +203,7 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
                           "the refused start changed the existing database")
 
     def test_a_blocked_administrator_does_not_stop_a_later_start(self):
-        # A later start owes no step that needs Need::Credentials, so it generates no password,
-        # and the site keeps serving without a link: the owner already has a password.
+        # A later start owes no Need::Credentials step: no password, no link.
         data = self.case_dir / "data"
         site = harness.Site(harness.BINARY, self.case_dir / "install")
         site.start(data, "--admin-user", "init-admin", "--admin-password", PASSWORD)
@@ -240,13 +232,12 @@ class InterruptedStartAndRace(harness.ConformanceCase):
 
     def test_interrupted_start_then_concurrent_race(self):
         data = self.case_dir / "data"
-        # A rerun into the same results directory finds this method's own race step left a
-        # fully installed site here; the interrupted start below needs a truly uninstalled
-        # data directory to reach its own pending-administrator step.
+        # A rerun finds the race step's installed site here; the interrupted start below needs
+        # an uninstalled data directory.
         reset_installation_state(data)
 
-        # A first start interrupted before the administrator step records its progress, in
-        # its own process group, and leaves the settings behind without a completion marker.
+        # Interrupted before the administrator step: progress recorded, settings left, no
+        # completion marker.
         interrupted_dir = self.case_dir / "interrupted"
         interrupted_dir.mkdir(exist_ok=True)
         log = interrupted_dir / "run.log"
@@ -290,9 +281,8 @@ class InterruptedStartAndRace(harness.ConformanceCase):
         self.assertEqual(account.returncode, 0, account.stderr)
         self.assertEqual(account.stdout.strip(), SEED_ADMIN, "the seed administrator is already replaced")
 
-        # A start with credentials finishes the interrupted setup and prints a link. A
-        # graceful shutdown removes the extracted application, so this case, which the race
-        # below reuses, kills the server hard instead.
+        # A start with credentials finishes the setup and prints a link. A graceful shutdown
+        # removes the extracted application, which the race below reuses, so kill hard.
         recovery_dir = self.case_dir / "recovery"
         recovery_dir.mkdir(exist_ok=True)
         site = harness.Site(harness.BINARY, recovery_dir)
@@ -367,15 +357,12 @@ class EquivalentPathLock(harness.ConformanceCase):
         data = self.case_dir / "data"
         data.mkdir(exist_ok=True)
         equivalent = self.case_dir / "equivalent"
-        # A rerun into the same results directory finds this symlink from the last run.
         equivalent.unlink(missing_ok=True)
         equivalent.symlink_to(data, target_is_directory=True)
         ack = self.case_dir / "lock-acquired"
         release = self.case_dir / "release-lock"
-        # LOCK_HOLDER_SCRIPT keys its own handshake on these two paths, so a rerun into the
-        # same results directory must not find either surviving from the last pass: a stale
-        # ack lets this test race ahead of the new holder actually taking the lock, and a
-        # stale release lets the new holder exit before ever really holding it.
+        # A stale ack lets this test race ahead of the new holder taking the lock; a stale
+        # release lets the holder exit before holding it. Clear both from earlier runs.
         ack.unlink(missing_ok=True)
         release.unlink(missing_ok=True)
 
@@ -492,9 +479,8 @@ class PostgresqlLifecycle(harness.ConformanceCase):
     def test_first_start_never_reinstalls_a_database_that_already_holds_a_site(self):
         self._create_database("existing")
         connection = self._connection("existing")
-        # A second start reuses this Site data directory, not a fresh one: Drupal's installed
-        # config caches the embedded application's own local path, and a different directory's
-        # extraction, though built from the same binary, does not resolve to that same path.
+        # Reuse this Site data directory: Drupal's installed config caches the application's
+        # local path, which a different directory's extraction does not resolve to.
         data = self.case_dir / "data"
 
         site = harness.Site(harness.BINARY, self.case_dir / "first")

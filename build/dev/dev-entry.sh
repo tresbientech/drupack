@@ -81,9 +81,7 @@ docroot=$(python3 -c 'import json; print(json.load(open("site.json"))["docroot"]
 replace /dev-build/site-settings.php "$docroot/sites/default/settings.php"
 replace /dev-build/site-templates.php "$docroot/sites/default/site-templates.php"
 
-# A release start gets these from its launcher, which names the application it
-# unpacked, the site's name, php.ini's directory and the packed trust bundle. A
-# caller's own bundle still wins.
+# A release start gets these from its launcher. A caller's own trust bundle still wins.
 export DRUPACK_RUNTIME_APP_DIR=/data/runtime/app
 # The lay-app word above; a release start's launcher names itself here.
 export DRUPACK_RUNTIME_LAUNCHER=/dev-entry.sh

@@ -24,12 +24,9 @@ if [ -t 0 ]; then
     terminal=(--interactive --tty)
 fi
 
-# A release executable carries its application, so only a build changes those
-# files there. This serves the application drupack-build left in dist/work
-# instead, with the engine files application/ and build/ hold copied over it on
-# every start.
-# -e DRUPACK_CA_FILE with no value forwards the caller's own, unset or not, the
-# same way a release start's environment reaches dev-entry.sh's export.
+# This serves the application drupack-build left in dist/work, with the engine files
+# application/ and build/ hold copied over it on every start.
+# -e DRUPACK_CA_FILE with no value forwards the caller's own, set or not.
 exec docker run --rm "${terminal[@]}" --user "$(id -u):$(id -g)" -p "127.0.0.1:$port:$port" \
     -e DRUPACK_CA_FILE \
     --mount "type=bind,src=$application,dst=/app,readonly" \

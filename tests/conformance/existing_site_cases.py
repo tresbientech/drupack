@@ -51,8 +51,8 @@ class ExistingSiteAdoption(harness.ConformanceCase):
     def install(self):
         """Installs the minimal profile into the server's database and returns its enabled modules.
 
-        The engine's settings template keeps public files in the installer's own Site data,
-        away from the application every start of this release shares.
+        The engine's settings template keeps public files in the installer's Site data, away
+        from the application every start of this release shares.
         """
         installer = self.class_dir / "installer"
         for directory in ("config", "private", "tmp", "files"):

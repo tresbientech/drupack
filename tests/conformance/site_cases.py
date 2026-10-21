@@ -23,8 +23,7 @@ def draw_image(uri, colour, writer="imagepng"):
     return (f"$image = imagecreatetruecolor(64, 64); imagefill($image, 0, 0, imagecolorallocate($image, {colour}));"
             f" {writer}($image, \\Drupal::service('file_system')->realpath('{uri}'));")
 
-# Windows runs the methods named here, and every other method in this class stays
-# Linux and macOS only.
+# The only methods that run on Windows.
 WINDOWS_METHODS = frozenset({
     "test_protected_files",
     "test_startup_ignores_working_directory_script",
@@ -40,18 +39,16 @@ class SeededSite(harness.ConformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # BINARY's own suffix carries the platform's naming rule: none on Linux and macOS,
-        # ".exe" on Windows, where launching a copy named plainly "drupack" would look for
-        # "drupack.exe" and never find it.
+        # BINARY's suffix is ".exe" on Windows, where a copy named plainly "drupack" would
+        # not be found.
         cls.binary = cls.class_dir / f"drupack{harness.BINARY.suffix}"
         shutil.copyfile(harness.BINARY, cls.binary)
         cls.binary.chmod(0o700)
 
     def setUp(self):
         super().setUp()
-        # A setUp skip, unlike a setUpClass skip, reports each test method on its own
-        # line, so -v marks every site case skipped rather than the class once.
-        # With no daemon the offline case cannot run, so these run on the host instead.
+        # A setUp skip reports each method on its own line, where a setUpClass skip reports
+        # the class once. With no daemon the offline case cannot run, so these run on the host.
         if (harness.current_platform() == harness.LINUX and not harness.running_offline()
                 and harness.docker_answers()):
             self.skipTest("Linux runs these cases through the offline case; see -k offline")
@@ -85,17 +82,16 @@ class SeededSite(harness.ConformanceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         extensions, drivers = json.loads(result.stdout)
         loaded = {extension.lower() for extension in extensions}
-        # These builds compile the extensions the allowlist names and nothing
-        # else, so an absence and a surplus are both failures. The Windows PHP
-        # carries a fixed set of its own, and its case asserts presence alone.
+        # These builds compile the allowlist's extensions and nothing else: an absence and a
+        # surplus both fail.
         self.assertEqual(
             sorted(harness.expected_extensions() | harness.ALWAYS_COMPILED), sorted(loaded),
         )
         self.assertTrue({"mysql", "pgsql", "sqlite"} <= set(drivers), drivers)
 
     def test_image_styles_read_the_formats_readers_upload(self):
-        # Drupal's GD toolkit refuses a source whose format gd_info() does not report, so
-        # an uploaded JPEG or WebP would get no derivative. FreeType draws text on images.
+        # Drupal's GD toolkit refuses a source format gd_info() does not report, so an
+        # uploaded JPEG or WebP would get no derivative.
         with tempfile.NamedTemporaryFile(mode="w", suffix=".php", dir=self.case_dir) as probe:
             probe.write("<?php echo json_encode(gd_info());")
             probe.flush()
@@ -116,7 +112,7 @@ class SeededSite(harness.ConformanceCase):
                                        + f" echo \\Drupal\\image\\Entity\\ImageStyle::load('thumbnail')->buildUrl('{source}');")
                 self.assertEqual(drawn.returncode, 0, drawn.stderr)
                 address = urlsplit(drawn.stdout.strip())
-                # The style picks the derivative's own format, AVIF in Drupal CMS's thumbnail.
+                # The style picks the derivative's format, AVIF in Drupal CMS's thumbnail.
                 status, headers, _ = self.site.fetch(f"{address.path}?{address.query}")
                 self.assertEqual(status, 200)
                 self.assertTrue(headers.get("Content-Type", "").startswith("image/"), headers.get("Content-Type"))
@@ -132,8 +128,7 @@ class SeededSite(harness.ConformanceCase):
             self.assertEqual(status, 200, f"the smoke path {path} answered {status}")
 
     def test_startup_ignores_working_directory_script(self):
-        # exit(42) fails the readiness and bootstrap checks below if this script ever runs;
-        # the marker line is the explicit check for the same fact.
+        # exit(42) fails the readiness and bootstrap checks below if this script ever runs.
         script = self.case_dir / "launch.php"
         script.write_text('<?php fwrite(STDOUT, "cwd launch executed\\n"); exit(42);')
         data = self.case_dir / "data"
@@ -158,45 +153,39 @@ class SeededSite(harness.ConformanceCase):
         self.assertTrue((data / "site.sqlite").is_file())
         self.assertTrue((data / "settings.php").is_file())
         self.assertTrue((data / "files").is_dir())
-        # The server reads the application's fixed Caddyfile, so a start writes none.
         self.assertFalse((data / "runtime" / "Caddyfile").exists())
         status = self.run_drush(data, "status", "--format=json")
         self.assertEqual(status.returncode, 0, status.stderr)
         self.assertIn("drupal-version", status.stdout)
-        # Deterministic check: the Seed site never enables these modules, regardless of timing.
         enabled = self.run_drush(data, "pm:list", "--status=enabled", "--format=json")
         self.assertEqual(enabled.returncode, 0, enabled.stderr)
         modules = json.loads(enabled.stdout)
         self.assertNotIn("automatic_updates", modules)
         self.assertNotIn("package_manager", modules)
         self.site.stop()
-        # An already-installed site serves again without credentials.
         self.site.start(data)
         self.assertNotIn("core/install.php", self.site.http("/"))
 
     def test_default_port_first_start_without_credentials(self):
-        # No options and no terminal: the start installs a site on the default port and hands
-        # its reader a way in. Following the printed link must log a browser in as admin, on
-        # the dashboard.
+        # No options and no terminal: the start installs on the default port; the printed link
+        # must log a browser in as admin, on the dashboard.
         data = self.case_dir / "no-credentials"
         self.site.start(data, listen=False)
         origin = f"http://localhost:{self.site.port}"
         link = harness.wait_for_line(self.site.log_path, 0, LINK_PREFIX, harness.WAITS["start"].seconds)
         self.assertTrue(link.startswith(origin + "/user/reset/1/"), link)
         self.assertIn("?destination=/admin/dashboard", link)
-        # A browser reaches the link only once the site has answered, so follow the
-        # product's own order instead of racing the first cold request.
+        # Wait for the ready line, as a browser would, instead of racing the first cold request.
         harness.wait_for_line(self.site.log_path, 0, harness.ready_line(), harness.WAITS["start"].seconds)
         opener = build_opener(HTTPCookieProcessor(CookieJar()))
         with opener.open(link, timeout=harness.WAITS["http_request"].seconds) as response:
             landing = response.geturl()
         self.assertIn("/admin/dashboard", landing)
-        # The same session that landed on the dashboard is signed in as admin: the account
-        # page's title names the account viewing it.
+        # The account page's title names the account viewing it.
         with opener.open(f"{origin}/user/1", timeout=harness.WAITS["http_request"].seconds) as response:
             body = response.read().decode(errors="replace")
         self.assertIn(f"admin | {harness.SITE['site_name']}", body)
-        # The same page refuses an anonymous request, so the link supplied the session.
+        # An anonymous request is refused, so the link supplied the session.
         with self.assertRaises(HTTPError) as error:
             self.site.http("/admin/dashboard")
         self.assertEqual(error.exception.code, 403)
@@ -204,9 +193,8 @@ class SeededSite(harness.ConformanceCase):
     def test_protected_files(self):
         data = self.case_dir / "protected"
         self.site.start(data, *CREDENTIALS)
-        # The settings and sites-scoped private paths answer one exact code. site.sqlite
-        # and the top-level private alias keep the looser check, since they are not both
-        # named Caddyfile matchers guaranteeing one specific code.
+        # The settings and sites-scoped private paths answer one exact code; site.sqlite and
+        # the top-level private alias are not both guaranteed one.
         checks = {
             "/site.sqlite": (403, 404),
             "/private/probe.txt": (403, 404),
@@ -220,14 +208,10 @@ class SeededSite(harness.ConformanceCase):
                 self.assertIn(error.exception.code, expected)
 
     def test_public_storage_blocks_php_execution(self):
-        # Writable public storage must never execute PHP: FrankenPHP still
-        # runs a script when a PATH_INFO suffix follows it, so the barrier
-        # has to catch that case, an uppercase extension, and encoded paths,
-        # not only a filename ending exactly in ".php". Win32 also strips
-        # trailing dots and spaces from a path component, so a name ending
-        # in one of those still opens the ".php" file underneath on the
-        # Windows build. Fixtures are written by the test itself so no
-        # executable probe ships in the repository.
+        # Writable public storage must never execute PHP. FrankenPHP still runs a script
+        # followed by a PATH_INFO suffix, so the barrier must also catch that, an uppercase
+        # extension and encoded paths. Win32 strips trailing dots and spaces from a path
+        # component, so such a name still opens the ".php" file on Windows.
         data = self.case_dir / "php-barrier"
         self.site.start(data, *CREDENTIALS)
         files = data / "files"
@@ -250,10 +234,8 @@ class SeededSite(harness.ConformanceCase):
                 except HTTPError as error:
                     self.assertIn(error.code, [403, 404])
                 else:
-                    # A 200 here is a bug regardless of body: either the
-                    # script executed, or the barrier missed it and
-                    # file_server leaked the source instead. Show both
-                    # so the two failure modes are not confused.
+                    # A 200 means the script executed or file_server leaked its source;
+                    # the body tells which.
                     self.fail(f"expected {path} to be blocked, got {status}: {body!r}")
         self.assertEqual(self.site.http("/sites/default/files/ordinary.txt"), "not executable")
 
@@ -265,14 +247,12 @@ class SeededSite(harness.ConformanceCase):
         self.assertEqual(self.site.http("/sites/default/files/probe.txt"), "served from the files directory")
         self.assertFalse((data / "files").exists(), "Site data holds a files directory")
         self.site.stop()
-        # The recorded directory holds for a start that names none.
         self.site.start(data)
         self.assertEqual(self.site.http("/sites/default/files/probe.txt"), "served from the files directory")
 
     def test_public_storage_cache_headers(self):
-        # An upload and an image style derivative can change at the same URL, so
-        # both revalidate rather than serve a year-old cached copy. A versioned
-        # application asset's URL changes with its content, so it caches immutably.
+        # An upload and a derivative can change at the same URL, so both revalidate. A
+        # versioned application asset's URL changes with its content, so it caches immutably.
         data = self.case_dir / "cache-headers"
         self.site.start(data, *CREDENTIALS)
         (data / "files" / "upload.png").write_bytes(b"not-a-real-png")
@@ -280,17 +260,14 @@ class SeededSite(harness.ConformanceCase):
         self.assertEqual(headers.get("Cache-Control"), "max-age=0,must-revalidate")
         _, headers, _ = self.site.fetch("/core/misc/drupal.js")
         self.assertEqual(headers.get("Cache-Control"), "max-age=31536000,public,immutable")
-        # The case draws its own source and takes the thumbnail's address, token
-        # included, from Drupal.
         source = "public://derivative-source.png"
         drawn = self.run_drush(data, "php:eval", draw_image(source, "255, 0, 0")
                                + f" echo \\Drupal\\image\\Entity\\ImageStyle::load('thumbnail')->buildUrl('{source}');")
         self.assertEqual(drawn.returncode, 0, drawn.stderr)
         address = urlsplit(drawn.stdout.strip())
         derivative = f"{address.path}?{address.query}"
-        # The first request generates the derivative; Drupal serves that response
-        # itself. The file exists on disk from the second request onward. Caddy's
-        # own cache headers apply only to that second request.
+        # Drupal serves the first request itself; Caddy's cache headers apply from the second,
+        # once the file exists on disk.
         status, _, _ = self.site.fetch(derivative)
         self.assertEqual(status, 200)
         status, headers, previous = self.revalidate(derivative)
@@ -298,9 +275,8 @@ class SeededSite(harness.ConformanceCase):
         self.assertEqual(headers.get("Cache-Control"), "max-age=0,must-revalidate")
         etag = headers["ETag"]
         self.assertEqual(self.revalidate(derivative, etag)[0], 304)
-        # The source is replaced at the same path and its derivatives flushed, as a file
-        # update in Drupal does. The token in the URL stays the same, so only revalidation
-        # hands the browser holding the old derivative the new one.
+        # Replacing the source and flushing its derivatives, as a Drupal file update does, keeps
+        # the URL token, so only revalidation hands the browser the new derivative.
         replaced = self.run_drush(data, "php:eval", draw_image(source, "0, 0, 255") + f" image_path_flush('{source}');")
         self.assertEqual(replaced.returncode, 0, replaced.stderr)
         for request in ("generated", "served"):

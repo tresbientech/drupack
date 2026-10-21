@@ -1,15 +1,11 @@
 """Proves the shipped php.ini and trust bundle reach a release start.
 
-Drives the built executable through its php-cli subcommand, the same probe
-site_cases.py's own extensions check uses, and asserts what a site owner
-could observe: which ini loaded, the active memory limit, a certificate path
-that resolves and parses, a working-directory php.ini changing nothing, and a
-fetch that survives a host trust store pointed at nothing.
+Drives the built executable through php-cli and asserts what a site owner could observe:
+which ini loaded, the memory limit, a certificate path that parses, a working-directory
+php.ini changing nothing, and a fetch that survives a broken host trust store.
 
-RuntimeConfigurationServed asserts the same two settings a different way: from
-inside a started site's own php-server hop, never through php-cli. Every case
-above it drives php-cli, which would stay green even if php.ini stopped
-reaching the hop that answers a site's requests.
+RuntimeConfigurationServed asserts the same settings from inside a started site's
+php-server hop, which php-cli probes would not catch if php.ini stopped reaching it.
 """
 
 import json
@@ -56,9 +52,7 @@ echo json_encode([
 
 
 def probe(case_dir, source, env=None):
-    """Write source as probe.php in case_dir and run it through the built executable's
-    php-cli subcommand. Returns the completed process, for the caller to assert and parse.
-    """
+    """Write source as probe.php in case_dir and run it through php-cli."""
     script = case_dir / "probe.php"
     script.write_text(source)
     return harness.run(
@@ -95,9 +89,7 @@ class RuntimeConfiguration(harness.ConformanceCase):
         self.assertGreater(values["certificate_count"], 100, values)
 
     def test_working_directory_php_ini_changes_nothing(self):
-        # Same rule launch.php already follows in site_cases.py's own cwd case:
-        # a file dropped beside where a reader happens to run the executable
-        # from must not reach the runtime that PHPRC names.
+        # A file beside where the executable runs must not reach the runtime PHPRC names.
         (self.case_dir / "php.ini").write_text("memory_limit = 999M\n")
         values = self.php_cli(INI_PROBE)
         self.assertEqual(values["memory_limit"], "512M")
@@ -107,9 +99,8 @@ class RuntimeConfiguration(harness.ConformanceCase):
     def test_release_history_reachable_with_a_broken_host_trust_store(self):
         if harness.running_offline():
             self.skipTest("no network inside the offline container")
-        # A missing SSL_CERT_FILE and SSL_CERT_DIR reproduce a minimal container with
-        # no host CA package installed, the failure user story 6 names; the bundled
-        # cacert.pem must still verify the endpoint.
+        # Missing SSL_CERT_FILE and SSL_CERT_DIR reproduce a container with no host CA
+        # package; the bundled cacert.pem must still verify the endpoint.
         env = dict(
             os.environ,
             SSL_CERT_FILE="/nonexistent/missing-ca-bundle.pem",
@@ -123,10 +114,8 @@ class RuntimeConfiguration(harness.ConformanceCase):
 class RuntimeTrustOnline(harness.ConformanceCase):
     """Proves the shipped anchors verify a real endpoint, not only a file that parses.
 
-    No hijacked host trust store here: RuntimeConfiguration's own fetch case already
-    covers surviving one of those. This case runs with the environment a release start
-    actually gets, so a bundle truncated to one certificate is the only thing that can
-    turn it red.
+    Runs with the environment a release start gets, so a bundle truncated to one
+    certificate is what turns it red.
     """
 
     PLATFORMS = (harness.LINUX, harness.WINDOWS, harness.MACOS)
@@ -153,13 +142,10 @@ def _phpinfo_local_value(page, directive):
 class RuntimeConfigurationServed(harness.ConformanceCase):
     """The shipped php.ini, read from inside a started site's php-server hop.
 
-    Every case in RuntimeConfiguration drives php-cli, a different hop from the one that
-    answers a site's requests. PHPRC is what carries php.ini to that second hop. If it
-    stopped reaching php-server, every php-cli probe here would stay green while a live
-    site ran at PHP's 128M default and a 2M upload cap. This starts a real site, follows its own
-    printed one-time login link, and reads phpinfo() the way an administrator would, at
-    Drupal's own status-report page. Closes phase 6's "a 64M upload succeeds on a site
-    started from a release build" criterion.
+    PHPRC carries php.ini to the hop that answers requests. If it stopped reaching
+    php-server, every php-cli probe would stay green while a live site ran at PHP's 128M
+    default and a 2M upload cap. This starts a site, follows its one-time login link and
+    reads phpinfo() at the status-report page.
     """
 
     PLATFORMS = (harness.LINUX, harness.WINDOWS)
@@ -170,8 +156,7 @@ class RuntimeConfigurationServed(harness.ConformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Same reason SeededSite copies the binary under its own name: BINARY's suffix
-        # carries the platform's naming rule, none on Linux, ".exe" on Windows.
+        # Copied under its own name, as in SeededSite.
         cls.binary = cls.class_dir / f"drupack{harness.BINARY.suffix}"
         shutil.copyfile(harness.BINARY, cls.binary)
         cls.binary.chmod(0o700)
@@ -188,8 +173,7 @@ class RuntimeConfigurationServed(harness.ConformanceCase):
         self.site.start(data, "--admin-user", self.ADMIN_USER, "--admin-password", self.ADMIN_PASSWORD)
         link = harness.wait_for_line(self.site.log_path, 0, LOGIN_PREFIX, harness.WAITS["start"].seconds)
         opener = build_opener(HTTPCookieProcessor(CookieJar()))
-        # Spends the one-time link and signs the opener's cookie jar in as the
-        # administrator; the phpinfo page below reuses that same session.
+        # Spends the one-time link; the cookie jar keeps the administrator session.
         with opener.open(link, timeout=harness.WAITS["http_request"].seconds):
             pass
         with opener.open(

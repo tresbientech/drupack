@@ -1,10 +1,6 @@
-"""Ported from tests/network.sh: the default listener refusing another container, an explicit
-listener serving Drupal to one while protecting private paths, and a Site data path holding a
-space. Every case here is Linux only, matching where the old file ran in CI, and needs Docker
-for its own site container, a client container, and the internal network between them.
-
-The old file's third argument, an installed-data fixture no caller passed, is dropped: every
-case here runs a fresh first start instead.
+"""The default listener refusing another container, an explicit listener serving Drupal to
+one while protecting private paths, and a Site data path holding a space. Linux only; needs
+Docker for a site container, a client container, and the internal network between them.
 """
 
 import os
@@ -17,19 +13,15 @@ ADMIN_USER = "network-admin"
 ADMIN_PASSWORD = "Network.test.administrator.2026!"
 SPACE_ADMIN_USER = "space-admin"
 SPACE_ADMIN_PASSWORD = "Network.space.test.2026!"
-# Printed once Drupal's own poller confirms bootstrap; initialization_cases.py and
-# site_cases.py assert the same line from a host-run start's own log.
+# Printed once Drupal's poller confirms bootstrap.
 
-# debian, pinned the way launcher_cases.py pins its own copy of the same image:
-# docker buildx imagetools inspect debian --format '{{.Manifest.Digest}}'
+# Pinned like launcher_cases.py's copy: docker buildx imagetools inspect debian --format '{{.Manifest.Digest}}'
 DEBIAN_IMAGE = "debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171"
 
-# python:3.13-slim, pinned the way offline_cases.py pins its own copy of the same image, the
-# multi-platform index digest so the arm64 runner resolves it too:
+# python:3.13-slim, the multi-platform index digest so the arm64 runner resolves it too:
 # docker buildx imagetools inspect python:3.13-slim --format '{{.Manifest.Digest}}'
 CLIENT_IMAGE = "python:3.13-slim@sha256:8d9d0b8bcf6506481eae4907c18f5e3e7902e629f5f6d684f9e7c32e85e3ddf0"
 
-# The client probes the site's default port, which the start below serves on.
 LOOPBACK_PROBE = """
 import socket, sys
 
@@ -87,7 +79,7 @@ def _run_client(network, script, log_path, *args):
 
 def _start_site_container(name, network, alias, data_src, data_dst, args, log_path):
     """docker run -d the site under name on network, aliased as alias; wait for its ready line
-    in its own log, since it runs cut off from the host network this suite polls elsewhere.
+    in its log, since it is cut off from the host network.
     """
     subprocess.run(
         ["docker", "run", "-d", "--name", name, "--network", network, "--network-alias", alias,
@@ -115,9 +107,8 @@ def _start_site_container(name, network, alias, data_src, data_dst, args, log_pa
 
 
 def _remove_site_container(name, log_path):
-    """Capture the container's final log, then remove it; either command may fail harmlessly
-    if the container was never created, so neither is checked.
-    """
+    """Capture the container's final log, then remove it; neither is checked, since the
+    container may never have been created."""
     with open(log_path, "w") as handle:
         subprocess.run(["docker", "logs", name], stdout=handle, stderr=subprocess.STDOUT,
                         timeout=harness.WAITS["docker_admin"].seconds)
@@ -125,9 +116,8 @@ def _remove_site_container(name, log_path):
 
 
 class NetworkListener(harness.ConformanceCase):
-    """Marked linux and docker: the site runs in its own container on an internal network,
-    reached only by a second, client container, never by the host.
-    """
+    """The site runs in its own container on an internal network, reached only by a client
+    container."""
 
     PLATFORMS = (harness.LINUX,)
     TOOLS = ("docker",)
@@ -136,8 +126,6 @@ class NetworkListener(harness.ConformanceCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.network = f"drupack-network-{os.getpid()}"
-        # The only setUpClass step: a failure here creates nothing to remove, unlike
-        # server_database_cases.py's readiness probe after its container already exists.
         subprocess.run(["docker", "network", "create", "--internal", cls.network],
                         check=True, capture_output=True, timeout=harness.WAITS["docker_admin"].seconds)
 

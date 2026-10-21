@@ -128,79 +128,51 @@ def docker_answers():
     return _docker_answers
 
 
-# Wait table: each row names the product deadline it covers, the harness wait above it, and
-# the margin that buys. A row with no product deadline states its own budget instead.
+# Wait table: the product deadline each row covers (None: the row states its own budget).
 Wait = namedtuple("Wait", ["name", "seconds", "deadline", "covers"])
 
 WAIT_TABLE = [
-    # runtime/watch/watch.go polls 2 minutes with a 30s per-request timeout: a request
-    # already in flight when the poll gives up can still take 30s more, so the deadline
-    # this row covers is 150s.
+    # watch.go polls 2 min with a 30s request timeout; a request in flight at the end adds 30s: 150s.
     Wait("start", 180, 150, "readiness of a start"),
-    # guard in runtime/watch/watch.go forces the exit 10s after the first stop signal.
+    # watch.go forces the exit 10s after the first stop signal.
     Wait("stop", 30, 10, "stop after the first signal"),
-    # No product deadline: openBrowser runs in the same goroutine that already printed
-    # "drupack is ready.", so the recorder standing in for it sees the URL within a
-    # process spawn, not a poll of any kind.
+    # openBrowser runs in the goroutine that printed the ready line: a process spawn, no poll.
     Wait("browser_open", 10, None, "a start's background browser-open handing its target to the recorder"),
     Wait("drush", 120, None, "a drush command"),
     Wait("php_cli", 30, None, "a php-cli probe"),
     Wait("docker_probe", 10, None, "docker info answering, or reporting no daemon"),
-    # No product deadline: a start that should refuse an argument is expected to fail
-    # before it ever reaches the point of attempting a connection.
+    # An argument refusal fails before any connection attempt.
     Wait("refusal", 20, None, "a start expected to refuse"),
-    # No product deadline: a start that should refuse only after it has bootstrapped
-    # Drupal (or attempted to) against a real database, slower than an argument refusal.
+    # Refuses after bootstrapping Drupal against a real database: slower than an argument refusal.
     Wait("bootstrap_refusal", 180, None, "a start that reaches Drupal before refusing"),
-    # No product deadline: budget for a base-image pull plus the inner run's own site
-    # cases, which take under 2 minutes uncontained.
+    # Base-image pull plus the inner run's site cases (under 2 minutes uncontained).
     Wait("offline", 600, None, "the offline container's full site-case run"),
-    # No product deadline: docker rm -f on a name it just started, normally near-instant.
     Wait("offline_kill", 30, None, "removing a hung offline container after its budget expires"),
-    # launcher/internal/runtime/lock_windows.go's lockRoot() bounds a losing
-    # process's wait for the winner's exclusive lock handle at 60s on Windows, before it
-    # can even begin its own unpack; the deadline this row covers is that 60s lock wait.
+    # lock_windows.go lockRoot() bounds a losing process's wait at 60s on Windows, before its own unpack.
     Wait("unpack", 150, 60, "a losing process's Windows lock wait, then unpacking its runtime"),
-    # No product deadline: compiling a stdlib-only stub, normally a few seconds.
     Wait("fixture_build", 30, None, "compiling a fixture stub with go build"),
-    # No product deadline: packing a launcher around the stub, which is itself a go build
-    # of launcher and can need a first, uncached fetch of its module.
+    # A go build of the launcher; the first run can fetch its module uncached.
     Wait("fixture_pack", 180, None, "packing a fixture launcher with go run ./cmd/pack"),
-    # No product deadline: a start denied room to unpack, behind a pull of the pinned image.
     Wait("cache_full", 120, None, "a start with no room in its cache root, including the image pull"),
     Wait("cache_full_kill", 30, None, "removing a hung cache-full container after its budget expires"),
     Wait("probe", 10, None, "a local process-table lookup (ps, pgrep) against a running start"),
     Wait("port_closed", 2, None, "confirming a stopped server's port refuses a connection"),
-    # runtime/watch/watch.go's readiness poller uses an http.Client{Timeout: 30 * time.Second}
-    # for each request; every case's own HTTP call against a running site or a login link
-    # carries the same per-request deadline.
+    # watch.go's readiness poller gives each request 30s; case requests carry the same deadline.
     Wait("http_request", 60, 30, "an HTTP request against a running site or a login link"),
-    # No product deadline: a first start records its pending administrator step once the seed
-    # and settings steps finish, normally within a few seconds.
     Wait("progress", 180, None, "a first start to record its pending administrator step"),
-    # No product deadline: budget for a database container's own image pull plus its startup.
     Wait("database_container", 300, None, "starting a database container, including an image pull"),
     Wait("database_ready", 180, None, "a database container answering a readiness probe"),
-    # No product deadline: a first start installing into a live MySQL or PostgreSQL server,
-    # slower than a local sqlite start; budget carried over from tests/server-database.sh.
+    # Install into a live MySQL or PostgreSQL server, slower than sqlite; carried over from tests/server-database.sh.
     Wait("database_start", 600, None, "a start serving /user/login against a MySQL or PostgreSQL server"),
-    # No product deadline: Drush installing a core profile into a live MySQL server.
     Wait("database_install", 600, None, "Drush installing a site into a MySQL or PostgreSQL server"),
-    # No product deadline: budget for a network case's site container, including a debian
-    # image pull, mirroring database_container's role for the server-database cases.
     Wait("network_container", 300, None, "starting a network case's site container, including a debian image pull"),
-    # No product deadline: the client container's own worst-case sequence, a 60s front-page
-    # fetch plus four 10s private-path probes, with margin for the container's own start.
+    # Worst case: a 60s front-page fetch plus four 10s private-path probes, plus the container start.
     Wait("network_client", 150, None, "a client container's requests against a network case's site container"),
-    # No product deadline: a metadata call against a container already running, or a quick
-    # network command run against neither.
     Wait("docker_admin", 30, None, "a short docker command: container port, exec, rm, logs; network create, rm"),
     Wait("lock_ack", 10, None, "a helper process to confirm it holds serving.lock before a blocked start runs"),
-    # No product deadline: safety valve bounding how long the lock-holding helper waits for
-    # its release signal, past whatever the blocked start and the assertions on it take.
+    # Safety valve past the blocked start and its assertions.
     Wait("lock_hold", 60, None, "a helper process holding serving.lock until told to release it"),
-    # No product deadline: budget for Windows to release a just-exited process's file
-    # handles under the run cache, normally near-instant.
+    # Windows releases a just-exited process's file handles under the run cache after a delay.
     Wait("cache_cleanup", 10, None, "a run cache directory outliving the process that unpacked into it"),
 ]
 
@@ -230,13 +202,10 @@ def reserved_dir(path):
     return path
 
 
-# launcher, the module cmd/pack builds every fixture launcher from.
 LAUNCHER_SRC = Path(__file__).resolve().parent.parent.parent / "launcher"
 
-# The stub every fixture launcher packs as its runtime: it reports its own version, its
-# arguments, one forwarded environment value and PHPRC, so a case can tell a fixture start
-# from a real one and prove the launcher forwards all four. The version is baked in as
-# literal source text, once per build.
+# The stub every fixture launcher packs as its runtime: it prints its version, its arguments,
+# DRUPACK_TEST_VALUE and PHPRC, so a case can prove the launcher forwards all four.
 _STUB_SOURCE = """package main
 
 import (
@@ -251,9 +220,8 @@ func main() {{
 
 
 def _build_stub(work, runtime_dir, entry, version):
-    """Compile the stub into runtime_dir/entry. The source stays in work, beside runtime_dir
-    rather than inside it, since cmd/pack collects every regular file the runtime holds.
-    """
+    """Compile the stub into runtime_dir/entry. The source stays outside runtime_dir:
+    cmd/pack collects every regular file the runtime holds."""
     source = work / "main.go"
     source.write_text(_STUB_SOURCE.format(version=version))
     subprocess.run(
@@ -264,14 +232,11 @@ def _build_stub(work, runtime_dir, entry, version):
 
 def _run_pack(work, runtime_dir, entry, version, output, name):
     output.parent.mkdir(parents=True, exist_ok=True)
-    # A launcher carries the application beside its runtime. A fixture's stub serves
-    # no site, so it carries an empty archive, under a checksum of its own version so
-    # two fixtures never share a cache entry.
+    # An empty archive, under a checksum of the version so two fixtures never share a cache entry.
     application = work / "app.tar"
     application.write_bytes(b"")
     checksum = work / "app_checksum.txt"
     checksum.write_text(hashlib.sha256(version.encode()).hexdigest())
-    # The packer reads the site's name from the site.json a build writes.
     site = work / "site.json"
     site.write_text(json.dumps({"name": name}))
     subprocess.run(
@@ -285,8 +250,8 @@ def _run_pack(work, runtime_dir, entry, version, output, name):
 
 
 def pack_fixture(entry, version, output, name="fixture"):
-    """Build a launcher whose runtime is the stub, packed under entry (the platform's entry
-    name), for a site called name, which names its cache root."""
+    """Build a launcher whose runtime is the stub, packed under entry, for a site called name,
+    which names its cache root."""
     with tempfile.TemporaryDirectory(prefix="drupack-fixture-") as work:
         work = Path(work)
         runtime_dir = work / "runtime"
@@ -299,8 +264,8 @@ def pack_fixture(entry, version, output, name="fixture"):
 def pack_corrupted_fixture(entry, version, output):
     """Build a fixture like pack_fixture, then flip one hex digit of its entry's checksum.
 
-    The checksum is embedded in the built binary as literal hex text, so the edit is unique
-    and leaves every other offset unchanged, unlike patching the compressed payload.
+    The checksum is embedded in the binary as literal hex text, so the edit is unique and
+    leaves every other offset unchanged.
     """
     with tempfile.TemporaryDirectory(prefix="drupack-fixture-") as work:
         work = Path(work)
@@ -320,9 +285,8 @@ def pack_corrupted_fixture(entry, version, output):
     return output
 
 
-# The one place stopping branches on platform: POSIX signals the process group, which covers
-# a launcher's own children too. Windows has neither process groups nor a way to signal
-# another process, so it force-kills the whole tree at once with taskkill /T /F.
+# POSIX signals the process group, which covers a launcher's children. Windows cannot signal
+# another process, so it force-kills the tree with taskkill /T /F.
 def stop_process(process, timeout, context=""):
     """Stop process and everything under it; kill and report one that outlives timeout."""
     if process.poll() is not None:
@@ -363,13 +327,11 @@ def kill_group(process, timeout):
         time.sleep(0.1)
 
 
-# Another place stopping branches on platform: Windows releases a just-exited process's
-# file handles a moment after it exits, so the run cache directory that process unpacked
-# into can still be held when the run tries to remove it; POSIX holds no such handle.
+# Windows holds a just-exited process's file handles a moment, so its run cache directory can
+# still be locked here; POSIX does not.
 def remove_cache_dir(cache_dir, timeout):
-    """Remove cache_dir, retrying past a held handle; print one line and keep whatever exit
-    code the run already earned if cache_dir outlives timeout, rather than fail the run.
-    """
+    """Remove cache_dir, retrying past a held handle; past timeout, print one line and keep
+    the run's exit code."""
     deadline = time.monotonic() + timeout
     while True:
         try:
@@ -382,7 +344,6 @@ def remove_cache_dir(cache_dir, timeout):
             time.sleep(0.25)
 
 
-# Reads one line of a running process' output, from the offset the case started at.
 def wait_for_line(log_path, offset, prefix, timeout):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -394,19 +355,14 @@ def wait_for_line(log_path, offset, prefix, timeout):
 
 
 def opener_name():
-    """The name runtime/entrypoint.go's openBrowser looks up on PATH for this platform,
-    so a case's recorder answers to the same name the product would call.
-    """
+    """The name runtime/entrypoint.go's openBrowser looks up on PATH for this platform."""
     return "open" if current_platform() == MACOS else "xdg-open"
 
 
 def install_recorder(directory):
-    """Write an executable posing as this platform's browser opener into directory, meant to
-    sit first on PATH for a start under a pseudo-terminal. Returns the script's own path and
-    the file it appends each URL it receives to, one per line.
-
-    A rerun into the same results directory must not find a URL the last run recorded here,
-    so any file left from that run is cleared before the script is written.
+    """Write an executable posing as this platform's browser opener into directory, to sit
+    first on PATH for a start under a pseudo-terminal. Returns the script's path and the file
+    it appends each URL to, one per line. A file left by an earlier run is cleared first.
     """
     directory.mkdir(parents=True, exist_ok=True)
     script = directory / opener_name()
@@ -418,10 +374,8 @@ def install_recorder(directory):
 
 
 def wait_for_recorded_url(recorded, timeout):
-    """Poll recorded, the file install_recorder's script appends to, until a start's
-    background browser-open has written a line. Bounded, so a browser that never opens
-    fails the case instead of hanging it.
-    """
+    """Poll recorded until a start's browser-open has written a line; a browser that never
+    opens fails the case."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if recorded.exists():
@@ -432,11 +386,9 @@ def wait_for_recorded_url(recorded, timeout):
     raise AssertionError(f"the browser recorder wrote no URL to {recorded} within {timeout}s")
 
 
-# Dropping the browser-eligibility gate in phase 2 means any spawn of the product
-# executable that inherits an interactive terminal now qualifies to open one. popen() and
-# run() are the one place every such spawn in this suite pins standard input closed, so a
-# case run from a developer's own terminal cannot hand a start a terminal by accident. The
-# one deliberate exception is Site's own pseudo-terminal branch, which wants exactly that.
+# Any spawn of the product that inherits an interactive terminal qualifies to open a browser.
+# popen() and run() pin standard input closed, so a case run from a developer's terminal
+# cannot hand a start one by accident. Site's pseudo-terminal branch is the exception.
 def popen(args, **kwargs):
     """subprocess.Popen with standard input pinned closed unless the caller overrides it."""
     kwargs.setdefault("stdin", subprocess.DEVNULL)
@@ -444,9 +396,7 @@ def popen(args, **kwargs):
 
 
 def run(args, **kwargs):
-    """subprocess.run's counterpart to popen(): standard input pinned closed unless the
-    caller overrides it.
-    """
+    """subprocess.run's counterpart to popen()."""
     timeout = kwargs.get("timeout")
     if current_platform() != WINDOWS or timeout is None:
         kwargs.setdefault("stdin", subprocess.DEVNULL)
@@ -485,8 +435,7 @@ def run_drush(binary, work_dir, data_dir, *command):
 class Site:
     """One product process for one case: its own port, its own log, its own stop.
 
-    The host name in every request is "localhost", never the loopback literal: settings.php
-    trusts only '^localhost$', so a request addressed to 127.0.0.1 would be refused.
+    Requests use the host "localhost", never 127.0.0.1: settings.php trusts only '^localhost$'.
 
     A site given root serves HTTPS, and every request verifies its certificate against root.
     """
@@ -503,20 +452,17 @@ class Site:
 
     def start(self, data_dir, *options, listen=True, bind="127.0.0.1", ready_wait="start", attach_pty=False, env=None):
         self.port = pick_port() if listen else SITE["port"]
-        # The harness keeps the process it starts: a detached start would return at once.
+        # --foreground: a detached start would return at once.
         args = [str(self.binary), "--foreground", "--data-dir", str(data_dir)]
         if listen:
             args += ["--listen", f"{bind}:{self.port}"]
         args += list(options)
-        # A caller's own subdirectory names one Site process among several sharing a case,
-        # like every other case directory in this suite: created on first use, not in advance.
+        # A case may start several Sites, each in its own subdirectory created on first use.
         self.case_dir.mkdir(parents=True, exist_ok=True)
         if attach_pty:
             self._start_under_pty(args, env)
         else:
-            # popen() pins standard input closed: a headless start must never inherit a
-            # terminal this process happens to have, or the product would treat it as
-            # interactive too.
+            # popen() closes stdin: a headless start must not inherit a terminal.
             with open(self.log_path, "wb") as log_handle:
                 self.process = popen(
                     args, cwd=self.case_dir, stdout=log_handle,
@@ -529,8 +475,7 @@ class Site:
             raise
 
     def _start_under_pty(self, args, env):
-        # The product checks stream_isatty(STDIN); a pseudo-terminal on all three streams
-        # is the harness's own way to make that check true with no real terminal of its own.
+        # The product checks stream_isatty(STDIN).
         master_fd, slave_fd = pty.openpty()
         try:
             self.process = subprocess.Popen(
@@ -538,25 +483,20 @@ class Site:
                 start_new_session=True, env=env,
             )
         finally:
-            # The child already holds its own copy from the fork; the parent's must close so
-            # a read on master_fd sees the far end hang up once the child does, instead of
-            # blocking behind a second open writer.
+            # The parent's copy must close, or a read on master_fd never sees the hang-up.
             os.close(slave_fd)
         self._pty_master = master_fd
         self._pty_thread = threading.Thread(target=self._drain_pty, daemon=True)
         self._pty_thread.start()
 
     def _drain_pty(self):
-        """Copy the pseudo-terminal's output into log_path, the same file a headless start
-        writes directly, so every case reads a start's output the same way regardless of
-        which branch produced it.
-        """
+        """Copy the pseudo-terminal's output into log_path, as a headless start writes it."""
         with open(self.log_path, "wb") as log_handle:
             while True:
                 try:
                     chunk = os.read(self._pty_master, 4096)
                 except OSError:
-                    # The far end hung up: every fd onto the slave closed when the child exited.
+                    # Every fd onto the slave closed when the child exited.
                     break
                 if not chunk:
                     break
@@ -564,9 +504,8 @@ class Site:
                 log_handle.flush()
         os.close(self._pty_master)
 
-    # The port accepts before the site can answer, and the runtime's own first request is
-    # still running then. An HTTP 200 on /user/login is the site's own evidence that the
-    # first request finished, unlike a bare port-accept, which would let a stop race it.
+    # The port accepts before the runtime's first request finishes. A 200 on /user/login proves
+    # it did, where a bare port-accept would let a stop race it.
     def _wait_ready(self, ready_wait):
         timeout = WAITS[ready_wait].seconds
         deadline = time.monotonic() + timeout
@@ -580,8 +519,7 @@ class Site:
                 if status == 200:
                     return
             except (URLError, HTTPError, ConnectionError, TimeoutError):
-                # A cold first request can outlast one 30s poll, same as the product's own
-                # readiness client; that is a reason to retry, not to give up.
+                # A cold first request can outlast one 30s poll, as in the product's own client.
                 pass
             time.sleep(0.25)
         raise AssertionError(
@@ -597,8 +535,7 @@ class Site:
     def http(self, path):
         return self.fetch(path)[2]
 
-    # A server that never reports ready still holds its port, so stopping it here keeps a
-    # retry or a later case from finding that port already taken.
+    # A server that never reports ready still holds its port.
     def stop(self):
         if self.process is None:
             return
@@ -609,11 +546,10 @@ class Site:
 
 def refuse(case, case_dir, name, *args):
     """Run a start that bootstraps Drupal against a real database before refusing; return
-    its combined output. Every caller reaches that far, so this waits on the
-    bootstrap_refusal budget, not the shorter argument-refusal one.
+    its combined output, waiting on the bootstrap_refusal budget.
 
-    A start asks who owns its address before it refuses anything, so each one gets a port of
-    its own here; the machine-global default would answer for whatever else holds it.
+    A start checks who owns its address before refusing, so each gets its own port; the
+    machine-global default would answer for whatever else holds it.
     """
     log = case_dir / f"{name}.log"
     with open(log, "wb") as handle:
@@ -637,12 +573,9 @@ def engine_executable():
 
 
 class ConformanceCase(unittest.TestCase):
-    """Base for every case module: gates the class on its declared platforms, tools,
-    whether it installs a site, which needs the site's recipe, whether it writes
-    into the application, which needs a writable directory, whether it runs
-    the engine executable, which DRUPACK_TEST_ENGINE names, and whether it writes
-    the machine's trust store, which DRUPACK_TEST_SYSTEM_TRUST=1 allows. Each class writes under
-    class_dir, and each test under case_dir.
+    """Base for every case module. Gates: PLATFORMS, TOOLS, RECIPE (the site's recipe),
+    WRITABLE (a writable directory), ENGINE (DRUPACK_TEST_ENGINE) and SYSTEM_TRUST
+    (DRUPACK_TEST_SYSTEM_TRUST=1). Each class writes under class_dir, each test under case_dir.
     """
 
     PLATFORMS = ()
@@ -650,7 +583,6 @@ class ConformanceCase(unittest.TestCase):
     RECIPE = True
     WRITABLE = False
     ENGINE = False
-    # The class changes the machine's trust store, so it runs only where that is allowed.
     SYSTEM_TRUST = False
 
     def __init_subclass__(cls, **kwargs):
@@ -699,8 +631,8 @@ class ConformanceCase(unittest.TestCase):
         self.case_dir.mkdir(parents=True, exist_ok=True)
 
 
-# The account every server-database case connects as. A CI service the variables below
-# name creates it with these values: database drupal, user drupal, this password.
+# The account every server-database case connects as; a CI service named by the variables
+# below creates it: database drupal, user drupal, this password.
 DATABASE_USER = "drupal"
 DATABASE_PASSWORD = "Server.database.test.2026"
 
@@ -722,8 +654,7 @@ _DATABASE_CONTAINERS = {
 # host:port of a server the caller already runs, such as a CI service.
 DATABASE_VARIABLES = {"mysql": "DRUPACK_TEST_MYSQL", "pgsql": "DRUPACK_TEST_PGSQL"}
 
-# Runs one statement through PDO, printing the first column of its first row when asked.
-# The product's own PHP runs it, so no database client or container exec is needed.
+# Runs one statement through PDO on the product's own PHP, so no database client is needed.
 _DATABASE_CLIENT = r"""<?php
 $pdo = new PDO(getenv('DB_DSN'), getenv('DB_USER'), getenv('DB_PASSWORD'),
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);

@@ -16,8 +16,8 @@ ADMIN_PASSWORD = "Handover.test.password.2026"
 
 def _console_env(directory):
     """The environment a Windows file manager's double-click produces, with a recorder posing
-    as the browser opener first on PATH. DRUPACK_RUNTIME_CONSOLE_OWNED is the launcher's own
-    way to say a person is watching, and it needs no terminal of its own.
+    as the browser opener first on PATH. DRUPACK_RUNTIME_CONSOLE_OWNED says a person is
+    watching, with no terminal.
     """
     script, recorded = harness.install_recorder(directory)
     env = dict(

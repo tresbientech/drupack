@@ -1,9 +1,8 @@
-"""Ported from tests/server-database.sh: MySQL and PostgreSQL as the site's live backend.
+"""MySQL and PostgreSQL as the site's live backend.
 
-Each backend gets its own class and its own harness.DatabaseServer, started in setUpClass
-and stopped in tearDownClass. _ServerDatabaseBackend carries that lifecycle and the one test
-method; it mixes into each backend's ConformanceCase rather than being one itself, so
-unittest never collects it on its own with no DATABASE set.
+Each backend has its own class and harness.DatabaseServer, started in setUpClass and
+stopped in tearDownClass. _ServerDatabaseBackend is a mixin, so unittest never collects it
+with no DATABASE set.
 """
 
 import json
@@ -50,8 +49,8 @@ class _ServerDatabaseBackend:
     def test_first_start_then_restart(self):
         data = self.case_dir / "data"
         site = harness.Site(harness.BINARY, self.case_dir / "first-start")
-        # Every local account can read a process's arguments, so no Drush child the
-        # install runs may carry a password or a database URL there.
+        # Every local account can read a process's arguments: no Drush child may carry a
+        # password or a database URL.
         seen = set()
         stop = threading.Event()
         watcher = threading.Thread(target=collect_drush_arguments, args=(seen, stop), daemon=True)
@@ -85,8 +84,8 @@ class _ServerDatabaseBackend:
         self.assertEqual(bootstrap.stdout.strip(), "Successful", bootstrap.stderr)
         self.assertFalse((data / "site.sqlite").exists(), "Site data holds a SQLite database")
 
-        # Drupal CMS recipes enable these during site:install; a runtime install must
-        # remove them, matching the seed build's cleanup, or cron stalls for 240s.
+        # Drupal CMS recipes enable these during site:install; a runtime install must remove
+        # them, as the seed build does, or cron stalls for 240s.
         enabled = harness.run_drush(harness.BINARY, self.case_dir, data, "pm:list", "--status=enabled", "--format=json")
         self.assertEqual(enabled.returncode, 0, enabled.stderr)
         modules = json.loads(enabled.stdout)
@@ -100,9 +99,9 @@ class _ServerDatabaseBackend:
         finally:
             site.stop()
 
-        # A first start cut off after its install step began in the empty database leaves
-        # tables that may boot as a half-installed site. The resume neither adopts nor drops
-        # them: it names the database, and installs once a person has emptied it.
+        # A start cut off mid-install leaves tables that may boot as a half-installed site.
+        # The resume neither adopts nor drops them: it names the database and installs once
+        # a person has emptied it.
         renamed = harness.run_drush(harness.BINARY, self.case_dir, data,
                                     "config:set", "system.site", "name", "Interrupted install", "--yes")
         self.assertEqual(renamed.returncode, 0, renamed.stderr)

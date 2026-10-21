@@ -18,8 +18,7 @@ URL_PREFIX = "  URL:       "
 
 def _recorder_env(directory):
     """Put a recorder posing as this platform's browser opener first on PATH, so a start
-    under it carries the override all the way down to entrypoint.go's own exec.Command.
-    """
+    carries it down to entrypoint.go's exec.Command."""
     script, recorded = harness.install_recorder(directory)
     env = dict(os.environ, PATH=f"{script.parent}{os.pathsep}{os.environ.get('PATH', '')}")
     return env, recorded
@@ -33,8 +32,7 @@ class BrowserOpenCases(harness.ConformanceCase):
         self.data = self.case_dir / "data"
 
     def _install(self, env, recorded):
-        # Headless, like every other case's first start: proves a start with no terminal
-        # opens no browser, the precondition the rest of the suite relies on.
+        # A start with no terminal opens no browser: the rest of the suite relies on it.
         site = harness.Site(harness.BINARY, self.case_dir / "install")
         site.start(self.data, "--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD, env=env)
         site.stop()
@@ -69,8 +67,7 @@ class BrowserOpenCases(harness.ConformanceCase):
         try:
             link = harness.wait_for_line(restart.log_path, 0, LINK_PREFIX, harness.WAITS["start"].seconds)
             self.assertIn("?destination=/admin/dashboard", link)
-            # Bounded by the same budget the positive case gives a real browser-open, so a
-            # slow regression is still caught instead of a check that races ahead of it.
+            # The positive case's budget, so a slow regression is still caught.
             time.sleep(harness.WAITS["browser_open"].seconds)
             self.assertFalse(recorded.exists(),
                               f"the recorder was called although --no-browser was given: inspect {recorded}")
@@ -78,14 +75,11 @@ class BrowserOpenCases(harness.ConformanceCase):
             restart.stop()
 
     def test_interactive_adoption_start_opens_browser_on_dashboard(self):
-        # Site data holding settings but no completion marker already took the
-        # browser-opening branch before this phase: remainingSteps() returns ['adopt'], a
-        # non-empty list, so the step requirement this phase drops was already satisfied for
-        # it. No case had run a start under a terminal to prove it until this one.
+        # Site data holding settings but no completion marker takes the browser-opening
+        # branch: remainingSteps() returns ['adopt'], a non-empty list.
         env, recorded = _recorder_env(self.case_dir / "recorder")
         self._install(env, recorded)
-        # missing_ok: a rerun into the same results directory can find this already gone,
-        # if the last run's own assertions failed before adoption recreated it.
+        # missing_ok: a rerun can find it gone if the last run failed before adoption recreated it.
         (self.data / "site-installed").unlink(missing_ok=True)
 
         restart = harness.Site(harness.BINARY, self.case_dir / "restart")
@@ -101,8 +95,7 @@ class BrowserOpenCases(harness.ConformanceCase):
             restart.stop()
 
     def test_a_failed_mint_opens_no_browser_and_leaks_no_link(self):
-        # A blocked administrator leaves the start with no link to open, so the terminal it
-        # runs under, which would otherwise qualify it to open one, must not matter here.
+        # A blocked administrator leaves no link to open, whatever terminal the start runs under.
         env, recorded = _recorder_env(self.case_dir / "recorder")
         self._install(env, recorded)
         blocked = harness.run_drush(harness.BINARY, self.case_dir, self.data, "php:eval",
@@ -114,16 +107,13 @@ class BrowserOpenCases(harness.ConformanceCase):
         try:
             text = restart.log_path.read_text(errors="replace")
             self.assertNotIn(LINK_PREFIX, text, "the readiness block printed a login link despite a failed mint")
-            # Bounded by the same budget the positive case gives a real browser-open, so a
-            # regression that opens one late is still caught instead of a check that races
-            # ahead of it.
+            # The positive case's budget, so a late browser-open is still caught.
             time.sleep(harness.WAITS["browser_open"].seconds)
             self.assertFalse(recorded.exists(),
                               f"the recorder was called although the mint failed: inspect {recorded}")
 
-            # /proc/<pid>/environ exists only on Linux; the fact it proves here, that a
-            # failed mint leaves no login link in the serving process's own environment,
-            # is not itself platform-specific, only this way of checking it.
+            # /proc/<pid>/environ exists only on Linux, though the fact it proves (a failed mint
+            # leaves no login link in the serving process's environment) is not platform-specific.
             if harness.current_platform() == harness.LINUX:
                 with open(f"/proc/{restart.process.pid}/environ", "rb") as handle:
                     server_environment = handle.read()

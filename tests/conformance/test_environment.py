@@ -40,7 +40,7 @@ def sources():
     """Tracked product files, with the paths the repository spells, relative to its root."""
     listed = subprocess.run(["git", "ls-files", *SOURCES], cwd=ROOT, capture_output=True,
                             text=True, check=True).stdout.split()
-    # A tracked symlink repeats the file it points at, which the listing names already.
+    # A tracked symlink repeats the file it points at.
     return [path for path in listed
             if "/tests/" not in path and not path.endswith("_test.go")
             and (ROOT / path).is_file() and not (ROOT / path).is_symlink()]

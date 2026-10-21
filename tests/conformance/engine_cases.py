@@ -35,7 +35,6 @@ $databases['default']['default'] = [
 $settings['hash_salt'] = 'engine-executable-case';
 """
 
-# The two forms the php command takes, which every refusal lists.
 USAGE = "Usage: drupack php SCRIPT [ARGUMENTS]\n       drupack php -r CODE"
 
 

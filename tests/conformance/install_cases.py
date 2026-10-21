@@ -118,7 +118,6 @@ class InstallScript(harness.ConformanceCase):
         musl.write_bytes(b"a musl build")
         release = self.release("names", self.host_build(), musl)
         executables = [f"{self.name}-{VERSION}-{self.target}{self.extension}", f"{self.name}-{VERSION}-linux-amd64-musl"]
-        # Only a release holding a Windows build carries the PowerShell script.
         scripts = [f"install-{self.name}.sh", *([f"install-{self.name}.ps1"] if self.windows else [])]
         self.assertEqual(sorted(path.name for path in release.iterdir()),
                          sorted([*executables, "checksums.txt", "release.json", *scripts]))

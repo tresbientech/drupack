@@ -1,23 +1,16 @@
-"""An ASCII cache root on Windows: phase 1 found PHP startup resolves the
-PHPRC-derived configuration path through the ANSI code page, so a cache root
-it cannot represent breaks extension loading.
-runtime.Root() now resolves such a root to its ASCII short name before the
-server ever sees it.
+"""An ASCII cache root on Windows. PHP startup resolves the PHPRC-derived configuration
+path through the ANSI code page, so a cache root it cannot represent breaks extension
+loading; runtime.Root() resolves such a root to its ASCII short name.
 
-One case per script phase 1 measured, each pointing DRUPACK_CACHE_DIR at a
-fresh directory named in that script: a Latin-1 accent (probe 1, HTTP 500,
-12 of 13 DLL extensions failing), Cyrillic (probe 6, HTTP 500, no load
-warning at all since php.ini itself was never located) and CJK (probe 7,
-the same shape as Cyrillic). A fourth case points both --data-dir and
-DRUPACK_CACHE_DIR at a non-ASCII path in the same start, the shape a default
-start on a non-ASCII Windows account actually takes. Windows-only: the fault
-and the fix are both Windows-specific, and %LocalAppData% carries the account
-name only there.
+One case per script, each pointing DRUPACK_CACHE_DIR at a fresh directory named in that
+script: a Latin-1 accent (HTTP 500, 12 of 13 DLL extensions failing), Cyrillic and CJK
+(HTTP 500, no load warning since php.ini was never located). A fourth case points both
+--data-dir and DRUPACK_CACHE_DIR at a non-ASCII path, as a default start on a non-ASCII
+account does. Windows only: %LocalAppData% carries the account name only there.
 
-Cyrillic and CJK never print the load-failure warning even when broken, so
-every case also checks that a php-cli probe against the same cache root loads
-every extension runtime/php-extensions.txt names: the signal that separates
-a fixed start from a broken one for those two scripts.
+Cyrillic and CJK print no load-failure warning when broken, so every case also checks that
+a php-cli probe against the same cache root loads every extension in
+runtime/php-extensions.txt.
 """
 
 import json
@@ -43,10 +36,8 @@ class AsciiCacheRootCases(harness.ConformanceCase):
         self.site.stop()
 
     def _loaded_extensions(self, script_name, env):
-        """The extensions a php-cli probe loads against env's cache root: the same
-        Root()/Prepare() path a full start takes, so a broken asciiRoot rung shows
-        up here exactly as it would for the running server.
-        """
+        """The extensions a php-cli probe loads against env's cache root, through the same
+        Root()/Prepare() path a full start takes."""
         probe = self.case_dir / "roots" / script_name / "extensions.php"
         probe.parent.mkdir(parents=True, exist_ok=True)
         probe.write_text("<?php echo json_encode(get_loaded_extensions());")
@@ -61,8 +52,6 @@ class AsciiCacheRootCases(harness.ConformanceCase):
         cache = harness.reserved_dir(self.case_dir / "roots" / script_name / "cache")
         env = dict(os.environ, DRUPACK_CACHE_DIR=str(cache))
         data = data_dir if data_dir is not None else self.case_dir / "data"
-        # start() already polls /user/login to 200 before returning, so no separate
-        # fetch-and-assert is needed here.
         self.site.start(data, *CREDENTIALS, env=env)
         log = self.site.log_path.read_text(errors="replace")
         self.assertNotIn(
@@ -86,8 +75,7 @@ class AsciiCacheRootCases(harness.ConformanceCase):
         self._assert_serves_from("田中")
 
     def test_accented_latin_data_and_cache_dir_serve_cleanly(self):
-        # The PRD's default-start stories: a non-ASCII account name puts the data
-        # directory under a non-ASCII path as well as the cache root. Every other
-        # case here varies the cache root alone.
+        # A non-ASCII account name puts the data directory under a non-ASCII path too; the
+        # other cases vary the cache root alone.
         data = self.case_dir / "tëst-data"
         self._assert_serves_from("tëst", data_dir=data)

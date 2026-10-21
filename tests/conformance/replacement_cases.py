@@ -28,8 +28,7 @@ class ReplacementCases(harness.ConformanceCase):
     def _copy_binary(self, name):
         directory = self.case_dir / name
         directory.mkdir(parents=True, exist_ok=True)
-        # BINARY's own suffix carries the platform's naming rule: none on Linux and macOS,
-        # ".exe" on Windows, where a copy named plainly "drupack" would not run.
+        # BINARY's suffix is ".exe" on Windows, where a copy named plainly "drupack" would not run.
         binary = directory / f"drupack{harness.BINARY.suffix}"
         shutil.copyfile(harness.BINARY, binary)
         binary.chmod(0o700)
@@ -51,8 +50,7 @@ class ReplacementCases(harness.ConformanceCase):
         shutil.copyfile(self.data / "hash_salt", before / "hash_salt")
 
         new_binary = self._copy_binary("new")
-        # The old binary's own directory holds nothing the running site depends
-        # on, so removing it leaves the new binary serving what follows.
+        # Nothing the running site depends on lives in the old binary's directory.
         shutil.rmtree(self.case_dir / "old")
 
         self.new_site = harness.Site(new_binary, self.case_dir / "new")
@@ -74,8 +72,7 @@ class ReplacementCases(harness.ConformanceCase):
         self.assertEqual((self.data / "private" / "replacement.txt").read_text(), "private-replacement-sentinel")
         self.assertEqual((before / "settings.php").read_bytes(), (self.data / "settings.php").read_bytes())
         self.assertEqual((before / "hash_salt").read_bytes(), (self.data / "hash_salt").read_bytes())
-        # The application lives in the user cache, one directory per release, so
-        # Site data holds none of it whichever executable ran.
+        # The application lives in the user cache, so Site data holds none of it.
         self.assertEqual(
             glob.glob(str(self.data / "runtime" / "frankenphp_*")), [],
             "an executable left a copy of the application inside Site data",

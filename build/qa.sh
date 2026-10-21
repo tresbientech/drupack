@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# The full QA, which release.yml's qa job runs on a release candidate. It builds
-# the job image, which compiles both runtimes from this checkout. It builds
-# Drupacked Demo at the commit build/demo-pin.sh names, and a copy of it with a
-# Mercure hub, with drupack-build inside that image, where no Docker daemon
-# answers, and the engine executable beside it. It packs the demo again without
-# Node, for the case of a site that carries none. It then runs the cases that
-# need a daemon on this host, and the engine executable's cases against the
-# Drupacked Demo application.
+# The full QA, which release.yml's qa job runs on a release candidate. It builds the job
+# image (both runtimes), then inside it Drupacked Demo at the build/demo-pin.sh commit, a
+# copy with a Mercure hub, a copy without Node, and the engine executable. It then runs the
+# cases that need a daemon on this host, and the engine executable's cases against the demo.
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 platform=linux-$(go env GOARCH)
 executable=dist/drupacked-demo-$platform

@@ -14,9 +14,8 @@ TESTS_DIR = Path(__file__).resolve().parent.parent
 
 
 class OfflineRun(harness.ConformanceCase):
-    """Marked linux and docker: -k offline selects it. With no daemon it skips by name, and the
-    site cases it would carry run on the host instead. Inside its own container no daemon
-    answers either, so the inner run skips it the same way."""
+    """-k offline selects it. With no daemon it skips and the site cases run on the host
+    instead; inside its container no daemon answers, so the inner run skips it too."""
 
     PLATFORMS = (harness.LINUX,)
     TOOLS = ("docker",)
@@ -31,23 +30,18 @@ class OfflineRun(harness.ConformanceCase):
             "-e", f"{harness.OFFLINE_ENV}=1",
             "-e", "DRUPACK_CACHE_DIR=/cache",
             "--mount", f"type=bind,src={harness.BINARY},dst=/artifact/drupack,readonly",
-            # The inner run reads the site from the site.json beside the executable.
             "--mount", f"type=bind,src={harness.BINARY.parent / 'site.json'},dst=/artifact/site.json,readonly",
             "--mount", f"type=bind,src={TESTS_DIR},dst=/tests,readonly",
-            # The harness finds the allowlist three directories above itself, which
-            # lands here once the suite runs from /tests.
+            # The harness finds the allowlist three directories up, which lands here when the
+            # suite runs from /tests.
             "--mount", f"type=bind,src={harness.ALLOWLIST},dst=/runtime/php-extensions.txt,readonly",
             "--mount", f"type=bind,src={self.class_dir},dst=/results",
             "--mount", f"type=bind,src={os.environ['DRUPACK_CACHE_DIR']},dst=/cache",
             "--entrypoint", "/usr/local/bin/python3",
             OFFLINE_IMAGE,
             "/tests/conformance", "/artifact/drupack", "/results",
-            # The inner run proves SeededSite works with no network, and that
-            # RuntimeTrustOnline skips itself by name rather than by catching a network
-            # error; every other case already ran on the host and needs no second,
-            # redundant run in here. The class name, not the module name, is the
-            # selector: "site_cases" also matches this very method's own name,
-            # test_offline_site_cases.
+            # Proves SeededSite works with no network and RuntimeTrustOnline skips by name. The
+            # class name is the selector: "site_cases" would also match this method's name.
             "-k", "SeededSite",
             "-k", "RuntimeTrustOnline",
         ]
@@ -58,9 +52,8 @@ class OfflineRun(harness.ConformanceCase):
                     timeout=harness.WAITS["offline"].seconds,
                 )
             except subprocess.TimeoutExpired:
-                # SIGKILL above lands on the docker client, not the daemon: the container
-                # keeps running past the budget, holding these mounts, unless removed by
-                # the name it was given.
+                # SIGKILL lands on the docker client, not the daemon: the container keeps
+                # running unless removed by name.
                 try:
                     subprocess.run(
                         ["docker", "rm", "-f", container_name],

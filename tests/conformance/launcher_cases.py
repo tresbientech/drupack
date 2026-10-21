@@ -1,9 +1,8 @@
 """The launcher's own cache: cold starts, fixtures, and the cache states they build.
 
-Ported from tests/launcher.sh cases 1-11 (case 0 moved in phase 2). The Go tests in
-launcher cover the cache-root fallbacks and the concurrent cold start, which
-need no built executable. Most classes stay Linux only; ColdWarmStart also runs on
-Windows, and WindowsLauncherCases holds the cache states only Windows can produce.
+The Go tests in launcher cover the cache-root fallbacks and the concurrent cold start.
+Most classes are Linux only; ColdWarmStart also runs on Windows, and WindowsLauncherCases
+holds the cache states only Windows can produce.
 """
 
 import ctypes
@@ -19,35 +18,28 @@ from urllib.request import urlopen
 
 import harness
 
-# The only line cache.go writes to standard error, once per unpacked version.
 UNPACKING_PATTERN = re.compile(
     r"^Unpacking runtime .+\. This happens once for each version\.$", re.MULTILINE
 )
 
-# The line app.go writes to standard error, once per unpacked release.
 APPLICATION_PATTERN = re.compile(
     r"^Unpacking the application\. This happens once for each release\.$", re.MULTILINE
 )
 
-# The line cache.go writes to standard error, once per unpacked Node release, for a site
-# that carries Node.
 NODE_PATTERN = re.compile(
     r"^Unpacking Node .+\. This happens once for each version\.$", re.MULTILINE
 )
 
-# One progress report, which names how far the unpacking has read and the whole payload.
 PROGRESS_PATTERN = re.compile(r"^  (\d+) of (\d+) MB$", re.MULTILINE)
 
-# The real launcher's entry file inside a cache directory: the Linux distribution's own
-# multicall binary, or FrankenPHP on Windows, matching what each platform's build packs.
+# The real launcher's entry file in a cache directory: what each platform's build packs.
 ENTRY = "frankenphp.exe" if harness.current_platform() == harness.WINDOWS else "drupack"
 
-# debian, pinned the way network_cases.py pins its own copy of the same image:
-# docker buildx imagetools inspect debian --format '{{.Manifest.Digest}}'
+# Pinned like network_cases.py's copy: docker buildx imagetools inspect debian --format '{{.Manifest.Digest}}'
 DEBIAN_IMAGE = "debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171"
 
 
-# The cache root holds the unpacked applications and Node releases beside the runtime entries.
+# The cache root holds these beside the runtime entries.
 APPLICATIONS = "app"
 NOT_RUNTIMES = {APPLICATIONS, "node"}
 
@@ -58,11 +50,7 @@ def entry_count(cache_root):
 
 
 def run(case_dir, executable, name, *args, env=None):
-    """Run executable, capturing stdout and stderr into case_dir/name.{out,err} like the
-    old script's own redirections, so a failure points straight at the same two files.
-    harness.run() pins standard input closed, since executable is sometimes the real
-    product binary (ColdWarmStart's own --help calls).
-    """
+    """Run executable, capturing stdout and stderr into case_dir/name.{out,err}."""
     out_path = case_dir / f"{name}.out"
     err_path = case_dir / f"{name}.err"
     with open(out_path, "wb") as out_handle, open(err_path, "wb") as err_handle:
@@ -127,9 +115,8 @@ class ColdWarmStart(harness.ConformanceCase):
             len(APPLICATION_PATTERN.findall(cold_err)), 1,
             "a cold start did not print exactly one application unpacking line",
         )
-        # Each unpacking reports, so each payload's reports are read on their own: the
-        # runtime's before the application line, the application's after it, and a Node
-        # release's after its own line.
+        # Each payload's reports are read on their own: the runtime's before the application
+        # line, the application's after it, a Node release's after its own line.
         boundary = APPLICATION_PATTERN.search(cold_err)
         node = NODE_PATTERN.search(cold_err)
         application_end = node.start() if node else len(cold_err)
@@ -186,10 +173,7 @@ class ColdWarmStart(harness.ConformanceCase):
 
 
 class InstalledSiteLauncherCases(harness.ConformanceCase):
-    """Cases 4-6: drush, the serving process and SIGINT, against one installed site.
-
-    These share the run cache, like every other suite case, rather than a cache of their own.
-    """
+    """Drush, the serving process and SIGINT, against one installed site."""
 
     PLATFORMS = (harness.LINUX,)
 
@@ -217,12 +201,11 @@ class InstalledSiteLauncherCases(harness.ConformanceCase):
                 ["ps", "-o", "args=", "-p", str(site.process.pid)],
                 capture_output=True, text=True, timeout=harness.WAITS["probe"].seconds,
             ).stdout.strip()
-            # runtime/launch.php re-execs through DRUPACK_RUNTIME_BINARY, so the served
-            # process names the cache entry's drupack, never the path this test invoked.
+            # runtime/launch.php re-execs through DRUPACK_RUNTIME_BINARY: the served process
+            # names the cache entry's drupack, never the path this test invoked.
             self.assertTrue(
                 args.startswith(expected_prefix), "the serving process does not run the cache entry executable"
             )
-            # The server waits for its own first response, so a start leaves no helper behind.
             children = subprocess.run(
                 ["pgrep", "-c", "-P", str(site.process.pid)],
                 capture_output=True, text=True, timeout=harness.WAITS["probe"].seconds,
@@ -239,9 +222,7 @@ class InstalledSiteLauncherCases(harness.ConformanceCase):
                 f"SIGINT did not stop the server within {harness.WAITS['stop'].seconds}s",
             )
             site.process.wait()
-            # HTTPError is a URLError subclass but means the port answered, with an error
-            # status: curl with no -f, what the old script ran, called that a live port too,
-            # so it must fail the case rather than pass as a closed one.
+            # HTTPError is a URLError subclass but means the port answered with an error status.
             try:
                 urlopen(f"http://localhost:{port}/", timeout=harness.WAITS["port_closed"].seconds)
             except HTTPError as error:
@@ -260,22 +241,19 @@ def _active_entry(cache):
 
 
 def _quoted_args(*args):
-    """Match Go's %q rendering of a []string, whose only special character in these fixtures
-    is a Windows path's backslash, which %q escapes by doubling.
-    """
+    """Match Go's %q rendering of a []string; in these fixtures only a Windows path's
+    backslash needs escaping."""
     return " ".join('"' + arg.replace("\\", "\\\\") + '"' for arg in args)
 
 
 def _launch_args(cache, *args):
-    """The words a site's launcher hands its runtime for args: php-cli and the site's
-    launch.php, from the one application a fixture unpacks under cache, then args.
-    """
+    """The words a site's launcher hands its runtime: php-cli, the unpacked launch.php, then args."""
     (application,) = (cache / APPLICATIONS).glob("r*")
     return _quoted_args("php-cli", str(application / "launch.php"), *args)
 
 
-# Win32 CreateFileW constants for _open_locked: GENERIC_READ and OPEN_EXISTING match an
-# already-running process reading its own executable; the share mode varies per case.
+# CreateFileW constants for _open_locked: read and open-existing match a running process
+# reading its own executable.
 _GENERIC_READ = 0x80000000
 _OPEN_EXISTING = 3
 _FILE_SHARE_READ = 0x00000001
@@ -283,8 +261,7 @@ _FILE_SHARE_DELETE = 0x00000004
 _INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
 
 if harness.current_platform() == harness.WINDOWS:
-    # ctypes.windll's default restype truncates a 64-bit HANDLE to a 32-bit int; binding
-    # through this WinDLL instance instead carries CreateFileW and CloseHandle's real signature.
+    # ctypes.windll's default restype truncates a 64-bit HANDLE to 32 bits.
     _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     _kernel32.CreateFileW.restype = ctypes.c_void_p
     _kernel32.CreateFileW.argtypes = [
@@ -345,8 +322,8 @@ class WindowsLauncherCases(harness.ConformanceCase):
         )
         self.assertEqual(_active_entry(cache), entry1, "a second start changed the active entry")
 
-        # A crash between writing a pending activation file and renaming it over 'active'
-        # leaves a stray per-process pending file behind; a warm start touches neither.
+        # A crash between writing a pending file and renaming it over 'active' leaves a stray;
+        # a warm start touches neither.
         stray_pending = cache / "active.pending.999999"
         stray_pending.write_text("stale")
         code, out, err = run(self.case_dir, fixture, "third", "stray", env=env)
@@ -391,8 +368,8 @@ class WindowsLauncherCases(harness.ConformanceCase):
         finally:
             _close_locked(held)
 
-        # An exclusive handle shares nothing at all, blocking both a rename and a delete;
-        # the start still serves, since it never touches the entry the handle holds.
+        # An exclusive handle blocks both rename and delete; the start still serves, since it
+        # never touches the entry the handle holds.
         with open(entry3 / ENTRY, "ab") as handle:
             handle.write(b"z")
         exclusive = _open_locked(entry3 / ENTRY, 0)
@@ -451,8 +428,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
             "a release did not run its own runtime",
         )
         active = (cache / "active").read_text().strip()
-        # Key() puts a letter in front of the version, so a release numbered
-        # from a digit cannot start a path element.
+        # Key() puts a letter before the version so a digit cannot start a path element.
         self.assertTrue(
             active.startswith("vtest-v4-") or active.startswith("vtest-v5-"),
             f"active named neither concurrent release: {active}",
@@ -467,7 +443,6 @@ class WindowsLauncherCases(harness.ConformanceCase):
         self.assertEqual(code, 0, f"installing the good version exited non-zero: inspect {err}")
         good_key = (cache / "active").read_text().strip()
 
-        # An unreadable stored manifest disqualifies the active entry as a fallback target.
         (cache / good_key / "manifest.json").write_text("{}")
 
         broken = harness.pack_corrupted_fixture(ENTRY, "test-v7", self.case_dir / "fixture-broken")
@@ -507,8 +482,8 @@ class CacheRootFull(harness.ConformanceCase):
                     timeout=harness.WAITS["cache_full"].seconds,
                 )
             except subprocess.TimeoutExpired:
-                # SIGKILL above lands on the docker client, not the daemon: the container
-                # keeps running past the budget, holding its mounts, unless removed by name.
+                # SIGKILL lands on the docker client, not the daemon: the container keeps
+                # running unless removed by name.
                 try:
                     subprocess.run(
                         ["docker", "rm", "-f", container_name],
@@ -541,7 +516,6 @@ class SiteNamedCaches(harness.ConformanceCase):
     def test_cleaning_one_site_leaves_the_other_unpacked(self):
         case_dir = harness.RESULTS / type(self).__name__ / self._testMethodName
         case_dir.mkdir(parents=True, exist_ok=True)
-        # The launcher places each root under the user cache directory, which this names.
         cache_home = harness.reserved_dir(case_dir / "xdg")
         env = {key: value for key, value in os.environ.items() if key != "DRUPACK_CACHE_DIR"}
         env["XDG_CACHE_HOME"] = str(cache_home)

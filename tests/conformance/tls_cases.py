@@ -55,10 +55,9 @@ def trusted_environment(tls_dir, bundle):
     return env
 
 
-# Stands in for the reader's mkcert: reports CAROOT and signs a certificate for the names
-# mkcert receives under it, valid for DAYS days. It logs every call, so a case can read what ran. It names
-# openssl by path: trusted_environment drops the folder of a real mkcert, which can hold
-# openssl too.
+# Stands in for the reader's mkcert: reports CAROOT and signs a certificate for the names it
+# receives, valid for DAYS days, and logs every call. It names openssl by path:
+# trusted_environment drops the folder of a real mkcert, which can hold openssl too.
 MKCERT_STUB = """#!/bin/sh
 echo "$@" >> {calls}
 if [ "$1" = -CAROOT ]; then echo {caroot}; exit 0; fi
@@ -90,8 +89,8 @@ def write_mkcert(directory, days):
 
 
 def fetch_by_name(name, port, root):
-    """The status of GET /user/login from the listener on 127.0.0.1 addressed as name, with the
-    certificate verified for name against root alone. No resolver takes part."""
+    """The status of GET /user/login from the listener on 127.0.0.1 addressed as name, with
+    the certificate verified for name against root alone."""
     context = ssl.create_default_context(cafile=str(root))
     with socket.create_connection(("127.0.0.1", port), timeout=harness.WAITS["http_request"].seconds) as raw:
         with context.wrap_socket(raw, server_hostname=name) as connection:
@@ -274,7 +273,7 @@ class TlsSources(harness.ConformanceCase):
 
 
 
-# python:3.13-slim, pinned the way network_cases.py pins it. Its ca-certificates package
+# python:3.13-slim, pinned like network_cases.py. Its ca-certificates package
 # gives truststore update-ca-certificates, and it has no sudo, so truststore runs as root.
 TRUST_IMAGE = "python:3.13-slim@sha256:8d9d0b8bcf6506481eae4907c18f5e3e7902e629f5f6d684f9e7c32e85e3ddf0"
 
@@ -312,8 +311,7 @@ def pem_body(pem):
 
 
 class TrustCommand(harness.ConformanceCase):
-    """`trust` writes a system trust store, so it runs as root in a throwaway container,
-    never on the machine running the suite."""
+    """`trust` writes a system trust store, so it runs as root in a throwaway container."""
 
     PLATFORMS = (harness.LINUX,)
     TOOLS = ("docker", "openssl")
