@@ -57,8 +57,34 @@ class SeededSite(harness.ConformanceCase):
             self.skipTest("not marked for windows")
         self.site = harness.Site(self.binary, self.case_dir)
 
+    served_site = None
+
+    def served(self):
+        """Returns the Site data of the class's one started site, for cases that only read
+        it or add files under names of their own. The first case that asks starts it."""
+        cls = type(self)
+        if cls.served_site is None:
+            directory = cls.class_dir / "served"
+            directory.mkdir(exist_ok=True)
+            site = harness.Site(cls.binary, directory)
+            try:
+                site.start(directory / "data", *CREDENTIALS)
+            except BaseException:
+                site.stop()
+                raise
+            cls.served_site = site
+        self.site = cls.served_site
+        return cls.served_site.case_dir / "data"
+
     def tearDown(self):
-        self.site.stop()
+        if self.site is not type(self).served_site:
+            self.site.stop()
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.served_site is not None:
+            cls.served_site.stop()
+        super().tearDownClass()
 
     def run_drush(self, data, *command):
         return harness.run_drush(self.binary, self.case_dir, data, *command)
@@ -103,8 +129,7 @@ class SeededSite(harness.ConformanceCase):
             with self.subTest(support=support):
                 self.assertTrue(info[support], f"gd_info() reports no {support}")
 
-        data = self.case_dir / "data"
-        self.site.start(data, *CREDENTIALS)
+        data = self.served()
         for extension, writer in (("jpg", "imagejpeg"), ("webp", "imagewebp")):
             with self.subTest(format=extension):
                 source = f"public://gd-source.{extension}"
@@ -118,8 +143,7 @@ class SeededSite(harness.ConformanceCase):
                 self.assertTrue(headers.get("Content-Type", "").startswith("image/"), headers.get("Content-Type"))
 
     def test_smoke_paths_answer(self):
-        data = self.case_dir / "data"
-        self.site.start(data, *CREDENTIALS)
+        self.served()
         for path in harness.SITE["smoke_paths"]:
             try:
                 status = self.site.fetch(path)[0]
@@ -191,8 +215,7 @@ class SeededSite(harness.ConformanceCase):
         self.assertEqual(error.exception.code, 403)
 
     def test_protected_files(self):
-        data = self.case_dir / "protected"
-        self.site.start(data, *CREDENTIALS)
+        self.served()
         # The settings and sites-scoped private paths answer one exact code; site.sqlite and
         # the top-level private alias are not both guaranteed one.
         checks = {
@@ -212,8 +235,7 @@ class SeededSite(harness.ConformanceCase):
         # followed by a PATH_INFO suffix, so the barrier must also catch that, an uppercase
         # extension and encoded paths. Win32 strips trailing dots and spaces from a path
         # component, so such a name still opens the ".php" file on Windows.
-        data = self.case_dir / "php-barrier"
-        self.site.start(data, *CREDENTIALS)
+        data = self.served()
         files = data / "files"
         (files / "probe.php").write_text("<?php echo 'executed';")
         (files / "PROBE.PHP").write_text("<?php echo 'executed';")
@@ -253,8 +275,7 @@ class SeededSite(harness.ConformanceCase):
     def test_public_storage_cache_headers(self):
         # An upload and a derivative can change at the same URL, so both revalidate. A
         # versioned application asset's URL changes with its content, so it caches immutably.
-        data = self.case_dir / "cache-headers"
-        self.site.start(data, *CREDENTIALS)
+        data = self.served()
         (data / "files" / "upload.png").write_bytes(b"not-a-real-png")
         _, headers, _ = self.site.fetch("/sites/default/files/upload.png")
         self.assertEqual(headers.get("Cache-Control"), "max-age=0,must-revalidate")
