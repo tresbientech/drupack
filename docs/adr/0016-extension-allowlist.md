@@ -1,6 +1,9 @@
 # The extension allowlist drives every build
 
 Accepted on 2026-09-22.
+Amended on 2026-10-22 by [ADR 0045](0045-the-harness-holds-the-extension-platform-facts.md):
+on Windows, the release job's conformance run fails the build on a missing
+name, and the exceptions live in `tests/conformance/harness.py`.
 
 ## Context
 
