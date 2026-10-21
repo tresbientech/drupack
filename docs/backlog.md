@@ -224,22 +224,6 @@ No test ties the workflow's artifact names to the Go table. Lean: Go owns one
 table and prints it as JSON, and the workflow and `release-files.py` read that
 output. A source-scan test, like `test_environment.py`, checks the workflow.
 
-## One parser for the extension allowlist
-
-Five places parse `runtime/php-extensions.txt`:
-
-- `extensions-list.sh`
-- `check-extensions.py`
-- `build.ps1`
-- `harness.py`
-- the Dockerfile
-
-`build.ps1` and `harness.py` each list the Windows exclusions. `ALWAYS_COMPILED`
-is `{"date"}` in `check-extensions.py` and eleven names in `harness.py`. Neither
-`expected_extensions()` nor `check-extensions.py` has a unit test. Lean: put the
-per-platform exclusions in the allowlist file. One parser takes a platform and
-prints the list, and the others call it.
-
 ## Steps checked before the lease and run under it
 
 `launch.php` checks what the owed steps need on the list it reads before the
