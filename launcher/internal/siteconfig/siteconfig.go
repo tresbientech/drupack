@@ -4,7 +4,9 @@ package siteconfig
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path"
@@ -155,7 +157,7 @@ var (
 	languageRe     = regexp.MustCompile(`^[a-z]{2,3}(-[a-z]+)?$`)
 	relativePathRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_./-]*$`)
 	pathRe         = regexp.MustCompile(`^/[A-Za-z0-9_./~-]*$`)
-	// One DNS label: the engine's serve.php holds the same rule for a Project folder.
+	// One DNS label.
 	subdomainRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 )
 
@@ -292,9 +294,11 @@ func Read(directory string) (Site, error) {
 			return Site{}, fieldError("settings", "%q is not a file in the site", site.Settings)
 		}
 	}
-	if err := composerSettings(directory, &site); err != nil {
+	composer, err := ReadComposer(directory, Packed)
+	if err != nil {
 		return Site{}, err
 	}
+	site.Docroot, site.Mercure, site.Subdomain = composer.Docroot, composer.Mercure, composer.Subdomain
 	site.Drupal, site.Drush, err = lockedReleases(directory)
 	return site, err
 }
@@ -327,53 +331,139 @@ func lockedReleases(directory string) (drupal, drush string, err error) {
 	return releases["drupal/core"], releases["drush/drush"], nil
 }
 
-// composerSettings sets site's web root (where drupal/core-composer-scaffold writes), Mercure hub
-// flag and subdomain. The site author sets all three, so each is checked like a drupack.yml field.
-func composerSettings(directory string, site *Site) error {
-	content, err := os.ReadFile(filepath.Join(directory, "composer.json"))
+// Mode names who reads a project's composer.json: a build packing the site, or the
+// engine serving the folder as it is.
+type Mode int
+
+const (
+	Packed Mode = iota
+	Folder
+)
+
+// Composer holds the settings a project's composer.json gives Drupack.
+type Composer struct {
+	// Docroot is where drupal/core-composer-scaffold writes, relative to the
+	// project. "." names the project itself, which only Folder accepts.
+	Docroot string `json:"docroot"`
+	// Mercure serves a Mercure hub at /.well-known/mercure.
+	Mercure bool `json:"mercure"`
+	// Subdomain is the Site host's label. Empty means the label comes from the
+	// site's or the folder's name.
+	Subdomain string `json:"subdomain,omitempty"`
+}
+
+// The scaffold's web root of a folder whose composer.json names none.
+const folderWebRoot = "web"
+
+const (
+	webRootField   = "extra.drupal-scaffold.locations.web-root"
+	webRootRule    = "name a directory inside the project"
+	subdomainField = "extra.drupack.subdomain"
+	subdomainRule  = "be one DNS label: a to z, 0 to 9 and dashes, at most 63, no dash at either end"
+)
+
+// ReadComposer reads the web root, the Mercure flag and the subdomain from the
+// composer.json in project. The project's author writes that file, so each
+// setting is checked, and a refusal names the file and the field.
+//
+// Folder takes a missing file or web root as "web", and a web root of "." as the
+// project itself. Packed refuses all three, since a packed site's settings.php
+// loads the engine's support files from the docroot's parent.
+func ReadComposer(project string, mode Mode) (Composer, error) {
+	file := project + "/composer.json"
+	content, err := os.ReadFile(file)
+	if errors.Is(err, fs.ErrNotExist) && mode == Folder {
+		return Composer{Docroot: folderWebRoot}, nil
+	}
 	if err != nil {
-		return err
+		return Composer{}, err
 	}
-	var composer struct {
-		Extra struct {
-			Scaffold struct {
-				Locations struct {
-					WebRoot string `json:"web-root"`
-				} `json:"locations"`
-			} `json:"drupal-scaffold"`
-			Drupack struct {
-				Mercure   any `json:"mercure"`
-				Subdomain any `json:"subdomain"`
-			} `json:"drupack"`
-		} `json:"extra"`
+	var root any
+	if err := json.Unmarshal(content, &root); err != nil {
+		return Composer{}, fmt.Errorf("%s: %w", file, err)
 	}
-	if err := json.Unmarshal(content, &composer); err != nil {
-		return fmt.Errorf("composer.json: %w", err)
+	composer, ok := root.(map[string]any)
+	if !ok {
+		return Composer{}, fmt.Errorf("%s must hold one JSON object", file)
 	}
-	webRoot := composer.Extra.Scaffold.Locations.WebRoot
-	cleaned := path.Clean(webRoot)
-	if webRoot == "" || cleaned == "." || !relativePathRe.MatchString(cleaned) || hasParentSegment(cleaned) {
-		return fmt.Errorf("composer.json: extra.drupal-scaffold.locations.web-root: %q must name a directory inside the project", webRoot)
+	extra, err := object(file, composer, "extra", "extra")
+	if err != nil {
+		return Composer{}, err
 	}
-	site.Docroot = cleaned
-	switch value := composer.Extra.Drupack.Mercure.(type) {
+	scaffold, err := object(file, extra, "drupal-scaffold", "extra.drupal-scaffold")
+	if err != nil {
+		return Composer{}, err
+	}
+	locations, err := object(file, scaffold, "locations", "extra.drupal-scaffold.locations")
+	if err != nil {
+		return Composer{}, err
+	}
+	drupack, err := object(file, extra, "drupack", "extra.drupack")
+	if err != nil {
+		return Composer{}, err
+	}
+	var settings Composer
+	if settings.Docroot, err = docroot(file, locations["web-root"], mode); err != nil {
+		return Composer{}, err
+	}
+	switch value := drupack["mercure"].(type) {
 	case nil:
 	case bool:
-		site.Mercure = value
+		settings.Mercure = value
 	default:
-		return fmt.Errorf("composer.json: extra.drupack.mercure: %v must be true or false", value)
+		return Composer{}, refusal(file, "extra.drupack.mercure", "be true or false", value)
 	}
-	switch value := composer.Extra.Drupack.Subdomain.(type) {
+	switch value := drupack["subdomain"].(type) {
 	case nil:
 	case string:
 		if !subdomainRe.MatchString(value) {
-			return fmt.Errorf("composer.json: extra.drupack.subdomain: %q must be one DNS label: a to z, 0 to 9 and dashes, at most 63, no dash at either end", value)
+			return Composer{}, refusal(file, subdomainField, subdomainRule, value)
 		}
-		site.Subdomain = value
+		settings.Subdomain = value
 	default:
-		return fmt.Errorf("composer.json: extra.drupack.subdomain: %v must be a string", value)
+		return Composer{}, refusal(file, subdomainField, subdomainRule, value)
 	}
-	return nil
+	return settings, nil
+}
+
+// object returns parent[key] as a JSON object, or an empty one when the key is absent.
+func object(file string, parent map[string]any, key, field string) (map[string]any, error) {
+	switch value := parent[key].(type) {
+	case nil:
+		return map[string]any{}, nil
+	case map[string]any:
+		return value, nil
+	default:
+		return nil, refusal(file, field, "be a JSON object", value)
+	}
+}
+
+func docroot(file string, value any, mode Mode) (string, error) {
+	if value == nil && mode == Folder {
+		return folderWebRoot, nil
+	}
+	webRoot, ok := value.(string)
+	if !ok || webRoot == "" {
+		return "", refusal(file, webRootField, webRootRule, value)
+	}
+	cleaned := path.Clean(webRoot)
+	if cleaned == "." && mode == Folder {
+		return cleaned, nil
+	}
+	if !relativePathRe.MatchString(cleaned) || hasParentSegment(cleaned) {
+		return "", refusal(file, webRootField, webRootRule, value)
+	}
+	return cleaned, nil
+}
+
+// refusal names the file, the field and its rule, then the value the file holds, or
+// none when the field is absent.
+func refusal(file, field, rule string, value any) error {
+	if value == nil {
+		return fmt.Errorf("%s: %s must %s", file, field, rule)
+	}
+	shown, _ := json.Marshal(value)
+	return fmt.Errorf("%s: %s must %s, not %s", file, field, rule, shown)
 }
 
 func Write(site Site, directory string) error {

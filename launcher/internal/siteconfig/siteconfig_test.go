@@ -154,35 +154,67 @@ func scaffold(webRoot string) string {
 	return `{"extra": {"drupal-scaffold": {"locations": {"web-root": "` + webRoot + `"}}}}`
 }
 
-func TestReadTakesTheDocrootFromComposer(t *testing.T) {
-	cases := map[string]struct{ composer, want string }{
-		"docroot layout": {scaffold("docroot/"), "docroot"},
-		"no slash":       {scaffold("web"), "web"},
-		"nested":         {scaffold("app/public/"), "app/public"},
-		"leading dot":    {scaffold("./docroot/"), "docroot"},
+// testdata/composer.json holds one row per composer.json: the document, or null for
+// none, and what each mode reads from it. "both" stands for the two modes alike.
+func TestReadComposerAppliesTheCasesOfEachMode(t *testing.T) {
+	content, err := os.ReadFile(filepath.Join("testdata", "composer.json"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	for label, c := range cases {
-		read, err := siteconfig.Read(site(t, minimal, c.composer))
-		if err != nil {
-			t.Errorf("%s: %v", label, err)
-			continue
+	type outcome struct {
+		siteconfig.Composer
+		Refuses string
+	}
+	var rows []struct {
+		Composer json.RawMessage
+		Both     *outcome
+		Folder   *outcome
+		Packed   *outcome
+	}
+	if err := json.Unmarshal(content, &rows); err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range rows {
+		project := t.TempDir()
+		if string(row.Composer) != "null" {
+			if err := os.WriteFile(filepath.Join(project, "composer.json"), row.Composer, 0o644); err != nil {
+				t.Fatal(err)
+			}
 		}
-		if read.Docroot != c.want {
-			t.Errorf("%s: docroot = %q; want %q", label, read.Docroot, c.want)
+		for mode, want := range map[siteconfig.Mode]*outcome{siteconfig.Folder: row.Folder, siteconfig.Packed: row.Packed} {
+			if want == nil {
+				want = row.Both
+			}
+			read, err := siteconfig.ReadComposer(project, mode)
+			if want.Refuses != "" {
+				if err == nil || !strings.Contains(err.Error(), want.Refuses) {
+					t.Errorf("%s, mode %d: error = %v; want one holding %q", row.Composer, mode, err, want.Refuses)
+				}
+				continue
+			}
+			if err != nil || read != want.Composer {
+				t.Errorf("%s, mode %d: %+v, %v; want %+v", row.Composer, mode, read, err, want.Composer)
+			}
 		}
 	}
 }
 
-func TestReadRefusesADocrootOutsideTheSite(t *testing.T) {
-	composers := []string{`{"name": "acme/site"}`}
-	for _, webRoot := range []string{"/var/www/html", "../shared/web", "web/../..", "."} {
-		composers = append(composers, scaffold(webRoot))
+func TestReadComposerRefusalNamesTheFileAndTheValue(t *testing.T) {
+	project := site(t, minimal, scaffold("/var/www/html"))
+	_, err := siteconfig.ReadComposer(project, siteconfig.Folder)
+	want := project + `/composer.json: extra.drupal-scaffold.locations.web-root must name a directory inside the project, not "/var/www/html"`
+	if err == nil || err.Error() != want {
+		t.Errorf("error = %v; want %s", err, want)
 	}
-	for _, composer := range composers {
-		_, err := siteconfig.Read(site(t, minimal, composer))
-		if err == nil || !strings.Contains(err.Error(), "web-root") {
-			t.Errorf("%s: Read error = %v; want one naming web-root", composer, err)
-		}
+}
+
+func TestReadTakesTheComposerSettings(t *testing.T) {
+	read, err := siteconfig.Read(site(t, minimal, drupackExtra(`{"mercure": true, "subdomain": "shop"}`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read.Docroot != "web" || !read.Mercure || read.Subdomain != "shop" {
+		t.Errorf("Docroot, Mercure, Subdomain = %q, %v, %q; want web, true, shop", read.Docroot, read.Mercure, read.Subdomain)
 	}
 }
 
@@ -292,44 +324,6 @@ func TestParseRefusesMercureWithItsNewKey(t *testing.T) {
 
 func drupackExtra(drupack string) string {
 	return `{"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": ` + drupack + `}}`
-}
-
-// application/tests/composer-extra.json holds the extra.drupack cases engine/serve.php
-// shares with Read. Each row names the settings Read takes, or the field its refusal names.
-func TestReadAppliesTheSharedComposerExtraCases(t *testing.T) {
-	content, err := os.ReadFile(filepath.Join("..", "..", "..", "application", "tests", "composer-extra.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var rows []struct {
-		Drupack   json.RawMessage
-		Mercure   bool
-		Subdomain *string
-		Refuses   string
-	}
-	if err := json.Unmarshal(content, &rows); err != nil {
-		t.Fatal(err)
-	}
-	for _, row := range rows {
-		read, err := siteconfig.Read(site(t, minimal, drupackExtra(string(row.Drupack))))
-		if row.Refuses != "" {
-			if err == nil || !strings.Contains(err.Error(), row.Refuses) {
-				t.Errorf("%s: Read error = %v; want one naming %s", row.Drupack, err, row.Refuses)
-			}
-			continue
-		}
-		if err != nil {
-			t.Errorf("%s: %v", row.Drupack, err)
-			continue
-		}
-		want := ""
-		if row.Subdomain != nil {
-			want = *row.Subdomain
-		}
-		if read.Mercure != row.Mercure || read.Subdomain != want {
-			t.Errorf("%s: Mercure, Subdomain = %v, %q; want %v, %q", row.Drupack, read.Mercure, read.Subdomain, row.Mercure, want)
-		}
-	}
 }
 
 func TestParseAcceptsEveryNativeTarget(t *testing.T) {

@@ -55,7 +55,7 @@ the same reader filled at build time.
     `relativePathRe` and holds no `..` segment.
   - `mercure` must be a boolean.
   - `subdomain` must be one DNS label, matched by RE2.
-- D3. The modes differ in three cases, each a field of `Mode`:
+- D3. The modes differ in three cases:
 
   | Case | Folder | Packed |
   |---|---|---|
@@ -73,7 +73,8 @@ the same reader filled at build time.
 - D5. The engine's launcher handles `composer-settings DIR` before it prepares
   the cache, as it handles `lay-app`. A site's launcher does not. On success it
   prints one JSON object, `{"docroot", "mercure", "subdomain"}`, with `docroot`
-  relative to DIR and `subdomain` null when unset, and exits 0. On a refusal it
+  relative to DIR and `subdomain` left out when unset, as in `site.json`, and
+  exits 0. On a refusal it
   prints the message on stderr and exits 1. Evidence: `launcher/main.go` `run`,
   `DRUPACK_RUNTIME_LAUNCHER` set in `launcher/plan.go` `environment`.
 - D6. `engine/serve.php` gets the settings from one helper that runs the word

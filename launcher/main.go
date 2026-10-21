@@ -3,12 +3,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
 func main() {
@@ -26,6 +29,9 @@ func run() error {
 	// detach needs no cache.
 	if len(os.Args) > 1 && os.Args[1] == "detach" {
 		return detach(os.Args[2:])
+	}
+	if engine && len(os.Args) > 1 && os.Args[1] == "composer-settings" {
+		return composerSettings(os.Args[2:], os.Stdout)
 	}
 	launcher, err := os.Executable()
 	if err != nil {
@@ -122,6 +128,19 @@ func cleanArguments(arguments []string) (bool, error) {
 
 // layApp lays the site's own application in Site data, or with --check exits 1
 // when the application there belongs to another release.
+// composerSettings prints, as one JSON object, the settings engine/serve.php serves
+// the folder with.
+func composerSettings(arguments []string, out io.Writer) error {
+	if len(arguments) != 1 {
+		return fmt.Errorf("composer-settings takes one folder, not %q", arguments)
+	}
+	settings, err := siteconfig.ReadComposer(arguments[0], siteconfig.Folder)
+	if err != nil {
+		return err
+	}
+	return json.NewEncoder(out).Encode(settings)
+}
+
 func layApp(arguments []string) error {
 	data, writable, check, err := runtime.LayArguments(arguments)
 	if err != nil {
