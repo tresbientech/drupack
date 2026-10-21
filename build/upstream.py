@@ -35,6 +35,7 @@ PACKAGIST_METADATA = "https://repo.packagist.org/p2/"
 # engine. A newer release in the line is bumped as usual.
 FRANKENPHP_SKIPS = {
     "1.13.0": "php-cli puts the binary name in $argv[0] on PHP 8.5, php/frankenphp#2690",
+    "1.13.2": "its static builder moved to static-php-cli v3, which build-builder.sh and embed.sh do not run yet",
 }
 
 RELEASE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)(\d+))?", re.IGNORECASE)
