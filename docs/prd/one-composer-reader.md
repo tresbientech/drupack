@@ -66,7 +66,7 @@ the same reader filled at build time.
   Packed refuses `.` because `application/settings.php` loads
   `$app_root/../support`. Evidence: `engine/serve.php` `docroot`,
   `tests/conformance/engine_cases.py` `test_a_start_refuses_a_folder_without_drupal_core`.
-- D4. Every refusal reads `<project>/composer.json: <field> must <rule>`, with
+- D4. A refused field reads `<project>/composer.json: <field> must <rule>`, with
   the field's dotted path directly before `must`. The project path joins with
   `/`. The offending value follows the rule. Evidence: `engine_cases.py`
   asserts `extra.drupack.subdomain must be one DNS label`.

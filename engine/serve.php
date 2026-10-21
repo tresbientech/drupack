@@ -262,7 +262,7 @@ function drush(string $binary, array $arguments): never
     $project = project();
     $entry = folderEntry($project);
     useTlsBundle($entry);
-    if (is_file("$entry/" . MERCURE_URL_FILE) && composerSettings($project)['mercure']) {
+    if (composerSettings($project)['mercure'] && is_file("$entry/" . MERCURE_URL_FILE)) {
         exportEngineMercure($entry, file_get_contents("$entry/" . MERCURE_URL_FILE), true);
     }
     runScript($binary, drushScript($project), $arguments);

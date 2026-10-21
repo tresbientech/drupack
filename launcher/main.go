@@ -126,8 +126,6 @@ func cleanArguments(arguments []string) (bool, error) {
 	return false, fmt.Errorf("clean takes --dry-run alone")
 }
 
-// layApp lays the site's own application in Site data, or with --check exits 1
-// when the application there belongs to another release.
 // composerSettings prints, as one JSON object, the settings engine/serve.php serves
 // the folder with.
 func composerSettings(arguments []string, out io.Writer) error {
@@ -141,6 +139,8 @@ func composerSettings(arguments []string, out io.Writer) error {
 	return json.NewEncoder(out).Encode(settings)
 }
 
+// layApp lays the site's own application in Site data, or with --check exits 1
+// when the application there belongs to another release.
 func layApp(arguments []string) error {
 	data, writable, check, err := runtime.LayArguments(arguments)
 	if err != nil {

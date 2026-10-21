@@ -34,8 +34,8 @@ by PHP alone.
       table rows for: an absolute `web-root`, `C:/web`, `./` per mode, no
       `web-root` key per mode, no `composer.json` per mode, the subdomain
       `demo\n`, a non-object `composer.json`, a non-object `extra.drupack`.
-- [ ] A test in `launcher/` checks the word's JSON for a folder and its exit
-      status and stderr for a refusal.
+- [ ] A test in `launcher/` checks the word's JSON for a folder, and the error
+      it returns for a refusal, which `main` prints on stderr with exit 1.
 - [ ] `go vet ./...` in `launcher/` is clean.
 
 ---

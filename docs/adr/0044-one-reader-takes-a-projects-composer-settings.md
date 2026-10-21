@@ -25,8 +25,9 @@ A shared table of cases covered `extra.drupack` and missed each of these.
     engine's support files from the docroot's parent.
   - `Folder`, for the engine. It takes a missing file or web root as `web`, and
     `.` as the project itself.
-- Every other rule holds in both modes. A refusal names the file, the field,
-  its rule and the value.
+- Every other rule holds in both modes. A refused field names the file, the
+  field, its rule and the value. A missing file, broken JSON or a document that
+  is no object names the file and what is wrong with it.
 - The engine's launcher answers the internal word `composer-settings DIR`
   before it prepares the cache, as it answers `lay-app`. It prints the settings
   as one JSON object, or the refusal with exit 1.
@@ -35,8 +36,8 @@ A shared table of cases covered `extra.drupack` and missed each of these.
 
 ## Consequences
 
-- An engine start and a `drupack drush` in a folder whose last start served a
-  Mercure hub each run one more short process.
+- An engine start and each `drupack drush` run one more short process. `drush`
+  refuses a `composer.json` that a start refuses.
 - The engine refuses a web root that is absolute or names a drive, as a build
   does.
 - A `composer.json` rule changes in one Go function and one table,

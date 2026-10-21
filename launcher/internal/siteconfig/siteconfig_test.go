@@ -2,6 +2,7 @@ package siteconfig_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -174,27 +175,35 @@ func TestReadComposerAppliesTheCasesOfEachMode(t *testing.T) {
 	if err := json.Unmarshal(content, &rows); err != nil {
 		t.Fatal(err)
 	}
-	for _, row := range rows {
+	for index, row := range rows {
 		project := t.TempDir()
 		if string(row.Composer) != "null" {
 			if err := os.WriteFile(filepath.Join(project, "composer.json"), row.Composer, 0o644); err != nil {
 				t.Fatal(err)
 			}
 		}
-		for mode, want := range map[siteconfig.Mode]*outcome{siteconfig.Folder: row.Folder, siteconfig.Packed: row.Packed} {
-			if want == nil {
-				want = row.Both
-			}
-			read, err := siteconfig.ReadComposer(project, mode)
-			if want.Refuses != "" {
-				if err == nil || !strings.Contains(err.Error(), want.Refuses) {
-					t.Errorf("%s, mode %d: error = %v; want one holding %q", row.Composer, mode, err, want.Refuses)
+		modes := []struct {
+			name string
+			mode siteconfig.Mode
+			want *outcome
+		}{{"folder", siteconfig.Folder, row.Folder}, {"packed", siteconfig.Packed, row.Packed}}
+		for _, mode := range modes {
+			t.Run(fmt.Sprintf("row %d %s", index+1, mode.name), func(t *testing.T) {
+				want := mode.want
+				if want == nil {
+					want = row.Both
 				}
-				continue
-			}
-			if err != nil || read != want.Composer {
-				t.Errorf("%s, mode %d: %+v, %v; want %+v", row.Composer, mode, read, err, want.Composer)
-			}
+				read, err := siteconfig.ReadComposer(project, mode.mode)
+				if want.Refuses != "" {
+					if err == nil || !strings.Contains(err.Error(), want.Refuses) {
+						t.Errorf("%s: error = %v; want one holding %q", row.Composer, err, want.Refuses)
+					}
+					return
+				}
+				if err != nil || read != want.Composer {
+					t.Errorf("%s: %+v, %v; want %+v", row.Composer, read, err, want.Composer)
+				}
+			})
 		}
 	}
 }

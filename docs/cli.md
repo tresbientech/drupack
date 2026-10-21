@@ -330,8 +330,8 @@ and says it already serves.
 
 - The docroot is the scaffold web root `composer.json` names, `web` when it
   names none or the folder has no `composer.json`. `./` serves the folder
-  itself. The start refuses an absolute web root, and one with a `..` segment,
-  by the rules `drupack-build` applies.
+  itself. The start refuses an absolute web root, one with a `..` segment, and
+  one holding a character `drupack-build` refuses.
 - The start refuses a docroot without `core/lib/Drupal.php`. The Caddyfile's
   guards and front controller are Drupal's, and would not suit a WordPress site.
 - `--listen` defaults to `127.0.0.1:3787`.
