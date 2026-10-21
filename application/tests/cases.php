@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-// The runner every test file here shares. test() registers a case, same() and
-// throws() fail it, and runCases() runs them all and returns the exit status.
 
 $cases = [];
 

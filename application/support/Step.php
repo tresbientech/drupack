@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Drupack\Support;
 
-// One initialization step a first start owes. The values are the names the progress file
-// records, so a start resumes an initialization an earlier start of this release began.
+// The values are the names the progress file records.
 enum Step: string
 {
     case Seed = 'seed';
@@ -15,8 +14,7 @@ enum Step: string
     case Modules = 'modules';
     case Adopt = 'adopt';
 
-    // What the step tells the person waiting. A first start spends minutes inside one
-    // step, and prints nothing else until the site answers.
+    // A first start spends minutes inside one step and prints nothing else until the site answers.
     public function report(): string
     {
         return match ($this) {

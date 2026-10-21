@@ -1,3 +1,2 @@
-# HTTPS from the certificate the reader's mkcert wrote. Caddy loads the files and
-# manages no certificate itself.
+# HTTPS from the mkcert certificate. Caddy manages none itself.
 auto_https off

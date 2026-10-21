@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Drupack\Support;
 
-// The fields of the Site contract this application reads, from the site.json the build
-// writes. The build checks every field, so a missing or mistyped one fails here with the
-// parameter's name.
+// The build checks every field of site.json, so a missing or mistyped one fails here with
+// the parameter's name.
 final readonly class SiteContract
 {
     public function __construct(

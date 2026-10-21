@@ -2,17 +2,12 @@
 
 declare(strict_types=1);
 
-// The Mercure hub's secrets and variables, which launch.php and the engine executable's
-// serve.php share. Both load process.php first.
-
-// The hub's address on a listener, which is also the iss and aud of every token.
+// Also the iss and aud of every token.
 function mercureUrl(string $scheme, string $bind, int $port): string
 {
     return siteUrl($scheme, probeHost($bind), $port) . '.well-known/mercure';
 }
 
-// The server variables that mount the hub, or that import none.caddy when $on is false.
-// The hub keeps its history in $directory.
 function mercureServerEnvironment(bool $on, string $directory): array
 {
     return [
@@ -21,9 +16,7 @@ function mercureServerEnvironment(bool $on, string $directory): array
     ];
 }
 
-// A start creates each missing secret, readable by its owner alone. Both a start and
-// `drush` then export the hub's address and both secrets to the PHP they run. `drush`
-// creates nothing, so before a start has created the secrets it exports no hub.
+// `drush` creates nothing, so before a start has created the secrets it exports no hub.
 function exportMercure(string $publisherSecret, string $subscriberSecret, string $url, bool $drush): void
 {
     $secrets = [

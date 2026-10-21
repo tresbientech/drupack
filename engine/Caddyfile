@@ -4,8 +4,7 @@
 {
 	admin off
 	persist_config off
-	# tls-none-global.caddy, tls-mkcert-global.caddy or tls-drupack-global.caddy, the half
-	# of the source that a global option carries. The site block below names the other half.
+	# The global half of the TLS source. The site block below names the other half.
 	import "tls-{$DRUPACK_RUNTIME_TLS}-global.caddy"
 	# Windows PHP keys its opcache segment per user account. The cache id gives each
 	# served folder its own segment, as application/Caddyfile does per Site data.
@@ -20,7 +19,6 @@
 	}
 }
 
-# The site, which the source's site block imports under its address.
 (site) {
 	bind "{$DRUPACK_RUNTIME_BIND}"
 	root * "{$DRUPACK_RUNTIME_DOCROOT}"
@@ -41,9 +39,8 @@
 		respond @drupackIdentityOther 404
 
 		import "guards.caddy"
-		# mercure.caddy for a project whose composer.json sets extra.drupack.mercure,
-		# none.caddy otherwise. The hub sits in php_server's route block, where
-		# FrankenPHP finds it for mercure_publish().
+		# mercure.caddy for a project whose composer.json sets extra.drupack.mercure, none.caddy
+		# otherwise. The hub sits in php_server's route block, where FrankenPHP finds it.
 		import "{$DRUPACK_RUNTIME_MERCURE_SNIPPET}"
 		php_server {
 			root "{$DRUPACK_RUNTIME_DOCROOT}"

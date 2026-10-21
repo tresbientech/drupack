@@ -2,26 +2,22 @@
 
 declare(strict_types=1);
 
-// Process and path helpers that launch.php and the engine executable's serve.php
-// share. Neither loads a Composer autoloader for them.
+// Shared by launch.php and serve.php, neither of which loads an autoloader for these.
 
 function windows(): bool
 {
     return PHP_OS_FAMILY === 'Windows';
 }
 
-// realpath() returns the native form, backslashes included on Windows. Every path
-// Drupack exports or prints takes the canonical form instead, so a Windows reader's
-// terminal agrees with the forward slashes Drupal's own stack traces already carry.
+// realpath() returns backslashes on Windows. Every exported or printed path takes the
+// canonical forward slashes instead.
 function canonical(string $path): string
 {
     return canonicalSeparator($path, DIRECTORY_SEPARATOR);
 }
 
-// canonicalSeparator takes the separator, the same way canonical.go's internal helper
-// does, so a test on any host can drive the Windows case. A backslash is a legal
-// character in a file name where it is not the separator, so a host whose separator
-// is already '/' gets the path back untouched.
+// Takes the separator so a test on any host can drive the Windows case. A backslash is a legal
+// file name character where it is not the separator, so a '/' host gets the path back untouched.
 function canonicalSeparator(string $path, string $separator): string
 {
     if ($separator === '/') {
@@ -61,8 +57,7 @@ function environment(string $name): ?string
     return $value === false || $value === '' ? null : $value;
 }
 
-// The executable the reader ran, which the launcher exports. Every message naming a
-// command names it, since one engine serves every site built on it.
+// The executable the reader ran, exported by the launcher. One engine serves every site.
 function executableName(): string
 {
     return getenv('DRUPACK_RUNTIME_NAME');
@@ -92,9 +87,8 @@ function directory(string $path): void
     }
 }
 
-// Carries the reason Drush gave for a failed mint, since a start that can still serve
-// without the link reports that reason; getMessage() stays the fixed text a start that
-// cannot serve without the link exits with.
+// Carries Drush's reason for a failed mint, which a start that can serve without the link
+// reports. getMessage() stays the fixed text a start that cannot serve exits with.
 final class LoginLinkFailure extends RuntimeException
 {
     public function __construct(public readonly string $reason)
@@ -103,9 +97,8 @@ final class LoginLinkFailure extends RuntimeException
     }
 }
 
-// Runs the Drush script at $drush from $directory for a one-time login link, opening no
-// browser. The link is a working credential arriving from a subprocess and heading for a
-// terminal or a browser command, so it must start with $url.
+// $link is a working credential from a subprocess, bound for a terminal or a browser
+// command, so it must start with $url.
 function drushLoginLink(string $binary, string $drush, string $directory, array $arguments, string $url): string
 {
     $errors = tempnam(sys_get_temp_dir(), 'drupack-mint-');
@@ -113,13 +106,11 @@ function drushLoginLink(string $binary, string $drush, string $directory, array 
         throw new RuntimeException('Cannot create a temporary file for the mint diagnostic');
     }
     try {
-        // stderr is a file, not a pipe: two pipes deadlock if Drush fills one's kernel
-        // buffer while this drains only the other to exhaustion first, and nothing here
-        // reads both at once.
+        // stderr is a file: with two pipes, Drush filling one's buffer while this drains the other
+        // to exhaustion deadlocks.
         $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => ['file', $errors, 'w']];
-        // Drush wraps its boxed error text to a column count it reads from COLUMNS, defaulting
-        // to 80 with no terminal attached; a wide one keeps a failed mint's reason on one line
-        // instead of hard-wrapping mid-word.
+        // Drush wraps error text at COLUMNS, 80 with no terminal; a wide value keeps a failed
+        // mint's reason on one line.
         $environment = getenv();
         $environment['COLUMNS'] = '1000';
         $child = proc_open(array_merge([$binary, 'php-cli', $drush, 'user:login', '--no-browser'], $arguments), $descriptors, $pipes, $directory, $environment);
@@ -139,8 +130,7 @@ function drushLoginLink(string $binary, string $drush, string $directory, array 
     return $link;
 }
 
-// Whether a file manager's console started this process, which closing the window would end
-// along with a background server.
+// A file manager's console started this process; closing it would end a background server.
 function consoleOwned(): bool
 {
     return environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1';
@@ -153,18 +143,14 @@ function personPresent(): bool
     return stream_isatty(STDIN) || consoleOwned() || environment('DRUPACK_RUNTIME_PERSON') === '1';
 }
 
-// The state one server holds while it serves: the Serving lease, the stop record and the
-// server log. A site keeps them in Site data, a folder in its cache entry.
 final class Serving
 {
     // How long `stop` waits for the lease to free. runtime/entrypoint.go forces the
     // server's own exit at 10 seconds.
     private const STOP_WAIT_SECONDS = 15;
 
-    // The server writes its stop channel's port, token and PID here once it answers.
     public readonly string $stopRecord;
     private readonly string $lease;
-    // What a background server writes to standard output and error, truncated per start.
     private readonly string $log;
     private $handle;
 
@@ -175,11 +161,9 @@ final class Serving
         $this->log = "$logDirectory/server.log";
     }
 
-    // The lease belongs to the data rather than to a port: two servers over one set of
-    // data would corrupt both, whatever addresses they bind. The lock lives on the open
-    // file description, which survives the exec into the server, so the kernel holds it
-    // for that process and releases it when the process ends, a kill included. On
-    // Windows this process waits for the server it starts, so the handle lives exactly
+    // The lease belongs to the data, not a port. The lock lives on the open file description,
+    // which survives the exec into the server, so the kernel releases it when that process
+    // ends, a kill included. On Windows this process waits for the server, so the handle lives
     // as long. False means another start serves this data.
     public function claim(): bool
     {
@@ -187,15 +171,11 @@ final class Serving
         return $this->handle !== null;
     }
 
-    // What a start does once it holds the lease. A record from an earlier server names
-    // a port and a token nobody listens on, and `stop` reads a missing record as a start
-    // still preparing, so it goes. A double-click owns its console, which closing the
-    // window would end along with a background server, so it serves where the reader
-    // can stop it. Every other start detaches unless it was asked to serve in the
-    // foreground: it runs again through the launcher's detach word, with the same
-    // arguments and working directory, and relays the server's log until it answers.
-    // The lease is released first, so the server takes it. $stopCommand is what the
-    // relay prints for ending the server.
+    // A record from an earlier server names a port and token nobody listens on, and `stop` reads
+    // a missing record as a start still preparing, so it goes. A double-click owns its console,
+    // which closing would end along with a background server, so it serves in the foreground.
+    // Every other start runs again through the launcher's detach word and relays the server's
+    // log until it answers. The lease is released first so the server takes it.
     public function detach(bool $foreground, string $stopCommand, array $arguments): void
     {
         if (file_exists($this->stopRecord)) {
@@ -213,10 +193,8 @@ final class Serving
             startDirectory(), 'Cannot start the server in the background');
     }
 
-    // Ends the server that holds the lease, through the stop channel its record names,
-    // and waits for the lease to free. $what and $named name the state for a message.
-    // Returns the exit code. A free lease means no server runs, whatever a stale record
-    // says.
+    // Ends the server through the stop channel its record names and waits for the lease to
+    // free. A free lease means no server runs, whatever a stale record says.
     public function stop(string $what, string $named): int
     {
         if (!is_file($this->lease) || $this->free()) {
@@ -248,7 +226,7 @@ final class Serving
         return 0;
     }
 
-    // Whether no server holds the lease. Taking it to ask drops it again.
+    // Taking the lease to ask drops it again.
     private function free(): bool
     {
         $handle = $this->lock();
@@ -273,13 +251,11 @@ final class Serving
     }
 }
 
-// An IPv6 address takes brackets inside a URL authority.
 function urlHost(string $host): string
 {
     return str_contains($host, ':') ? "[$host]" : $host;
 }
 
-// The URL a reader types for a site served with $scheme on $host and $port.
 function siteUrl(string $scheme, string $host, int $port): string
 {
     return "$scheme://" . urlHost($host) . ":$port/";
@@ -292,9 +268,7 @@ function loopback(string $bind): bool
     return $bind === '::1' || str_starts_with($bind, '127.');
 }
 
-// What a start on $bind serves and the host its URL names, as the runtime answers from the
-// user's local root and the resolver. $site names the site: ['--name', NAME] for a packed
-// site, ['--folder', NAME] for the engine. $host is the host the reader asked for.
+// $site is ['--name', NAME] for a packed site, ['--folder', NAME] for the engine.
 function tlsChoice(string $binary, string $bind, array $site, ?string $host): TlsChoice
 {
     $arguments = [$binary, 'tls-source', '--bind', $bind, ...$site];
@@ -314,21 +288,16 @@ function tlsChoice(string $binary, string $bind, array $site, ?string $host): Tl
     return TlsChoice::fromArray(json_decode((string) $output, true, flags: JSON_THROW_ON_ERROR));
 }
 
-// PHP verifies HTTPS against DRUPACK_CA_FILE, which holds public roots alone. A site
-// served over HTTPS keeps that bundle plus its own root here, in a directory of its own,
-// so Drush and cron reach the site's own hub.
+// PHP verifies HTTPS against DRUPACK_CA_FILE, which holds public roots alone. An HTTPS site
+// keeps that bundle plus its own root here, so Drush and cron reach the site's own hub.
 const TLS_BUNDLE = 'ca-bundle.pem';
 
-// What a start serves, from the JSON runtime/tls's tls-source prints:
-// 'none' for plain HTTP, 'mkcert' with the files mkcert wrote, or 'drupack' with the root
-// Caddy signs from. application/tests/tls-choices.json holds one of each as Go writes it.
+// The JSON runtime/tls's tls-source prints. tests/tls-choices.json holds one of each as Go writes it.
 final readonly class TlsChoice
 {
     public function __construct(
         public string $source,
-        // What the start's URL names.
         public string $host,
-        // The site's drupack.site name.
         public string $alias,
         // Why host is not alias when the start tried the name, or ''.
         public string $reason,
@@ -368,7 +337,6 @@ final readonly class TlsChoice
         return $this->source === 'none' ? 'http' : 'https';
     }
 
-    // The line a start prints when its drupack.site name did not resolve to the listener, or ''.
     public function nameHint(): string
     {
         if ($this->reason === '') {
@@ -377,7 +345,6 @@ final readonly class TlsChoice
         return "Name: {$this->alias} did not resolve to 127.0.0.1 ({$this->reason}), so the URL uses {$this->host}.\n";
     }
 
-    // The line a start prints when `trust` would move it to HTTPS, or ''.
     public function trustHint(): string
     {
         // An account with no config folder has nowhere to keep a root, so `trust` cannot help.
@@ -408,7 +375,6 @@ final readonly class TlsChoice
         putenv("DRUPACK_CA_FILE=$bundle");
     }
 
-    // The server variables that name the site and pick the TLS snippets.
     public function serverEnvironment(): array
     {
         return ['DRUPACK_RUNTIME_ALIAS' => $this->alias] + match ($this->source) {
@@ -438,8 +404,6 @@ function useTlsBundle(string $directory): void
     }
 }
 
-// Where a start on $bind:$port serves, under the host and scheme its caller chose: the URL
-// a reader types, and the URL a probe on this computer reaches.
 function listenerPlan(string $bind, int $port, string $host, string $scheme): array
 {
     return [
@@ -452,8 +416,7 @@ function listenerPlan(string $bind, int $port, string $host, string $scheme): ar
     ];
 }
 
-// The variables Caddy fills the fixed Caddyfile from: the listener in $plan, the TLS
-// snippets for $tls, and the caller's own $values. exportServerEnvironment checks them.
+// exportServerEnvironment checks the values.
 function serverEnvironment(array $plan, TlsChoice $tls, array $values): array
 {
     return [
@@ -462,9 +425,8 @@ function serverEnvironment(array $plan, TlsChoice $tls, array $values): array
     ] + $values + $tls->serverEnvironment();
 }
 
-// The address a probe on this computer reaches a server bound to $bind, which a wildcard
-// reaches through its own family's loopback, since an IPv6-only listener never answers on
-// 127.0.0.1.
+// A wildcard is reached through its own family's loopback, since an IPv6-only listener never
+// answers on 127.0.0.1.
 function probeHost(string $bind): string
 {
     $bind = trim($bind, '[]');
@@ -475,7 +437,6 @@ function probeHost(string $bind): string
     };
 }
 
-// One word of a command a reader pastes into their shell.
 function shellWord(string $value): string
 {
     // cmd and PowerShell read a backslash as itself, and PowerShell reads a quoted first
@@ -486,9 +447,7 @@ function shellWord(string $value): string
     return windows() ? '"' . $value . '"' : "'" . str_replace("'", "'\\''", $value) . "'";
 }
 
-// The command that stops what this start runs, in the words the reader ran it with.
-// $target is the quoted words `stop` needs to find the same server, empty when its
-// default does.
+// $target is the quoted words `stop` needs to find the same server, empty when its default does.
 function stopCommand(string $target): string
 {
     $invoked = environment('DRUPACK_RUNTIME_INVOKED');

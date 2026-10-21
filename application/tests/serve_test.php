@@ -12,7 +12,6 @@ require __DIR__ . '/../../engine/serve.php';
 require __DIR__ . '/cases.php';
 $root = sys_get_temp_dir() . '/drupack-serve-test-' . bin2hex(random_bytes(8));
 
-// A project directory holding the given files, each path relative to it.
 function project_with(string $name, array $files): string
 {
     $project = "{$GLOBALS['root']}/$name";

@@ -4,8 +4,7 @@
 {
 	admin off
 	persist_config off
-	# tls-none-global.caddy, tls-mkcert-global.caddy or tls-drupack-global.caddy, the half
-	# of the source that a global option carries. The site block below names the other half.
+	# The global half of the TLS source. The site block below names the other half.
 	import "tls-{$DRUPACK_RUNTIME_TLS}-global.caddy"
 	# Windows PHP keys its opcache segment per user account, so a second server attaches to
 	# the first one's segment, finds opcode handlers from a differently based image and aborts
@@ -24,21 +23,17 @@
 	}
 }
 
-# The site, which the source's site block imports under its address.
 (site) {
 	bind "{$DRUPACK_RUNTIME_BIND}"
 	root * "{$DRUPACK_RUNTIME_DOCROOT}"
 	encode zstd br gzip
 
-	# Caddy sorts directives by kind, which puts a file route ahead of every
-	# matcher that guards it. One route block keeps the written order instead, so
-	# each guard is stated once and runs before the routes it protects.
+	# Caddy sorts directives by kind, which puts a file route ahead of the matchers guarding it.
+	# One route block keeps the written order.
 	route {
-		# The readiness probe runtime/watch/watch.go polls until this server answers. The
-		# token names the Site data this server serves, and a caller without it gets 404,
-		# so the route tells it nothing. Caddy answers it without reaching Drupal, which
-		# keeps a cold start from rendering a page nobody reads.
-		# Placed ahead of the protected-file matchers, which answer 403 for any dot path.
+		# The readiness probe runtime/watch/watch.go polls. The token names this Site data, and a
+		# caller without it gets 404. Caddy answers without reaching Drupal. Placed ahead of the
+		# protected-file matchers, which answer 403 for any dot path.
 		@drupackIdentity {
 			path /.drupack-id
 			query "id={$DRUPACK_RUNTIME_ID}"
@@ -48,20 +43,18 @@
 		respond @drupackIdentityOther 404
 
 		import "guards.caddy"
-		# mercure.caddy for a site whose site.json sets mercure, none.caddy otherwise. The hub
-		# sits in php_server's route block, where FrankenPHP finds it for mercure_publish().
+		# mercure.caddy for a site whose site.json sets mercure, none.caddy otherwise. The hub sits
+		# in php_server's route block, where FrankenPHP finds it.
 		import "{$DRUPACK_RUNTIME_MERCURE_SNIPPET}"
-		# Public files live in the files directory, Site data's "files" unless a start
-		# names another, never under the application, which one release shares across
-		# sites. The address stays root-relative, so it survives a restart on another port.
+		# Public files live outside the application, which one release shares across sites. The
+		# address stays root-relative, so it survives a restart on another port.
 		route /sites/default/files/* {
 			root * "{$DRUPACK_RUNTIME_FILES_DIR}"
 			uri strip_prefix /sites/default/files
 			@stored file
 			file_server @stored
-			# An image style derivative exists only once the site has generated
-			# it. A request finding no file carries on to the site, under the
-			# address the reader asked for, with its query.
+			# A derivative exists only once generated; a request finding no file carries on to the
+			# site with its query.
 			@absent not file
 			rewrite @absent /sites/default/files{path}
 		}

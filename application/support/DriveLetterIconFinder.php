@@ -6,15 +6,9 @@ namespace Drupack\Support;
 
 use Drupal\Core\Theme\Icon\IconFinder;
 
-/**
- * Reads a local icon file by path, where a Windows drive letter is not a
- * URL scheme.
- */
+// Reads a local icon file by path, where a Windows drive letter is not a URL scheme.
 class DriveLetterIconFinder extends IconFinder {
 
-  /**
-   * {@inheritdoc}
-   */
   public function getFileContents(string $uri): string|bool {
     if (!LocalFileUri::permitsRead($uri)) {
       return FALSE;

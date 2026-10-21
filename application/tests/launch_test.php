@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 // Unit cases for the pure functions in application/launch.php. Run with:
 //   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/launch_test.php"
-// launch.php requires vendor/autoload.php, whose lock targets a PHP the host
-// may not have, so the bundled runtime runs this file. The constant loads
-// launch.php for its functions alone; the guard above its main block answers
-// to it.
+// launch.php requires a vendor/autoload.php whose lock targets a PHP the host may lack, so
+// the bundled runtime runs this file.
 
 define('DRUPACK_LAUNCH_LIBRARY', true);
 require __DIR__ . '/../launch.php';
@@ -17,7 +15,6 @@ use Drupack\Support\SiteContract;
 use Drupack\Support\SiteData;
 use Drupack\Support\Step;
 
-// Every variable options() reads for a default.
 const OPTION_VARIABLES = [
     'DRUPACK_DATA_DIR',
     'DRUPACK_DATABASE',
@@ -44,8 +41,7 @@ putenv('DRUPACK_RUNTIME_NAME=' . FIXTURE_NAME);
 require __DIR__ . '/cases.php';
 $scratches = [];
 
-// Clears every option variable, then sets the named ones, so a case reads the same
-// defaults whatever the shell holds.
+// Clears every option variable, then sets the named ones.
 function parse(array $arguments, bool $drush = false, array $environment = []): array
 {
     foreach (OPTION_VARIABLES as $name) {
@@ -225,7 +221,6 @@ test('a site URL takes the scheme and brackets an IPv6 host', function (): void 
     same('http://[::1]:8080/', siteUrl('http', '::1', 8080));
 });
 
-// A runtime whose tls-source prints $answer and writes its arguments beside itself.
 function fakeRuntime(array $answer): string
 {
     $directory = scratch();
@@ -496,10 +491,8 @@ test('a database port defaults per backend', function (): void {
     same('15432', databasePort(['database' => 'pgsql', 'db-port' => '15432']));
 });
 
-// The launcher that ships with this settings file always exports
-// DRUPACK_RUNTIME_APP_DIR in its canonical form, so settings.php produces one
-// identifier for whichever value it is handed, by hashing that value with no
-// normalising step of its own.
+// settings.php hashes DRUPACK_RUNTIME_APP_DIR as the launcher exports it, in canonical form,
+// with no normalising step of its own.
 test('the deployment identifier hashes the exported application directory directly', function (): void {
     $data = scratch();
     file_put_contents("$data/hash_salt", 'test-hash-salt');
@@ -601,8 +594,7 @@ test('the public files template loader resolves the files address in the files d
         'a name climbing out of the files directory');
 });
 
-// The command line is described in three places. options() is the contract, and the
-// other two are asserted against it here. docs/adr/0014 records the decision.
+// options() is the command line's contract; the other two descriptions are asserted against it.
 const REPOSITORY = __DIR__ . '/../..';
 
 // command() and the runtime answer these two, so neither reaches an option key.
@@ -623,7 +615,6 @@ function parserOptions(): array
     return $names;
 }
 
-// The Options: block alone. The examples under it repeat options and add --dry-run.
 function helpOptions(): array
 {
     if (!preg_match('/\nOptions:\n(.*?)\nCommands:\n/s', HELP, $block)) {

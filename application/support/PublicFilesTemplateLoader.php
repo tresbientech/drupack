@@ -8,38 +8,24 @@ use Twig\Error\LoaderError;
 use Twig\Loader\FilesystemLoader;
 
 /**
- * Loads Twig templates stored as public files, named by their address.
- *
- * A module such as Site Studio compiles templates into public files and names
- * them relative to the Drupal root, as "sites/default/files/...". Public files
- * live in the files directory the start names, outside the application, so
- * this loader resolves those names there. Twig's own name validation keeps a
- * name inside that directory.
+ * Loads Twig templates stored as public files, named by their address. A module such as Site
+ * Studio compiles templates into public files and names them relative to the Drupal root.
+ * Those files live outside the application, in the files directory the start names, so this
+ * loader resolves the names there. Twig's name validation keeps a name inside it.
  */
 final class PublicFilesTemplateLoader extends FilesystemLoader {
 
-  /**
-   * The address public files carry, as SiteDataPublicStream serves them.
-   */
   private const ADDRESS = 'sites/default/files/';
 
   public function __construct() {
     parent::__construct([getenv('DRUPACK_RUNTIME_FILES_DIR')]);
   }
 
-  /**
-   * {@inheritdoc}
-   *
-   * The parent answers from its cache first, which holds names without the
-   * address, so every lookup goes through findTemplate() here.
-   */
+  // The parent answers from its cache first, which holds names without the address.
   public function exists(string $name) {
     return $this->findTemplate($name, FALSE) !== NULL;
   }
 
-  /**
-   * {@inheritdoc}
-   */
   protected function findTemplate(string $name, bool $throw = TRUE) {
     if (!str_starts_with($name, self::ADDRESS)) {
       if (!$throw) {

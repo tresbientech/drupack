@@ -2,7 +2,6 @@
 
 // Prints yes when the database the project's settings name holds an installed Drupal
 // site, no when it holds none. A database it cannot reach ends this script with an error.
-// php-cli runs it as `installed.php PROJECT DOCROOT`.
 
 use Drupal\Core\Database\Database;
 use Drupal\Core\DrupalKernel;

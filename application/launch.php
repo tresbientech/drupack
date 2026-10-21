@@ -14,8 +14,7 @@ use Drupack\Support\SiteData;
 use Drupack\Support\Step;
 use Symfony\Component\Filesystem\Path;
 
-// The option set also reaches a reader through docs/cli.md.
-// application/tests/launch_test.php asserts both against options().
+// launch_test.php asserts this text against options().
 const HELP = <<<'TEXT'
 Usage: %1$s [start] [OPTIONS]
        %1$s drush [OPTIONS] DRUSH_COMMAND
@@ -85,8 +84,7 @@ function fromStartDirectory(string $path): string
     return Path::makeAbsolute($path, $start);
 }
 
-// The application the site runs: the release's shared copy, or once a start or `drush` has
-// checked it, the site's own copy in Site data. The launcher exports the shared copy.
+// The release's shared copy, or the site's own copy in Site data once a start or `drush` has checked it.
 function application(): string
 {
     return getenv('DRUPACK_RUNTIME_APP_DIR');
@@ -111,26 +109,20 @@ function useSiteApplication(SiteData $site, bool $drush): void
     putenv('DRUPACK_RUNTIME_APP_DIR=' . $site->application());
 }
 
-// Site data when neither --data-dir nor DRUPACK_DATA_DIR names one.
 const DEFAULT_DATA_DIR = './data';
 
-// The packaged site's Site contract, written from its drupack.yml when the application was built.
 function siteContract(): SiteContract
 {
     static $site;
     return $site ??= SiteContract::read(__DIR__ . '/site.json');
 }
 
-// The tls-source arguments that name the site's label: the subdomain from composer.json
-// when the site set one, otherwise the executable's name.
 function siteLabelSource(SiteContract $site): array
 {
     return ['--name', $site->subdomain ?? executableName()];
 }
 
-// The launcher hands this script the reader's whole line. Its first word names the
-// command, and a line with none, or opening with an option, starts the site. A Node
-// word arrives only from a file that carries no Node.
+// A Node word arrives only from a file that carries no Node.
 function command(array $arguments, SiteContract $site): array
 {
     $word = $arguments[0] ?? null;
@@ -201,9 +193,8 @@ function options(array $arguments, bool $drush, SiteContract $site): array
     return [$options, $command];
 }
 
-// The generated password is never shown: the printed one-time login link signs the reader
-// in directly, landing on the dashboard, so the password only keeps the account from being
-// passwordless. It reaches only the Drupal step that sets it.
+// The generated password is never shown: the one-time login link signs the reader in, so the
+// password only keeps the account from being passwordless. It reaches only the step that sets it.
 function administratorCredentials(array $options, array $steps): array
 {
     if (!in_array(Need::Credentials, Step::owed($steps), true)) {
@@ -214,12 +205,9 @@ function administratorCredentials(array $options, array $steps): array
     return $options;
 }
 
-// The server process waits for its own first response, prints the readiness line and opens
-// the browser when asked. A request spends a one-time login link, so readiness is polled on
-// $url, the bind's own address, and the browser opens on $target. $target is a working
-// credential for uid 1, so it enters the serving process's environment only when a browser
-// will actually spend it: any PHP running inside that process can otherwise read it through
-// getenv, $_ENV or phpinfo.
+// $target is a working credential for uid 1. It enters the serving process's environment only
+// when a browser will spend it, since any PHP in that process can read it through getenv,
+// $_ENV or phpinfo. Readiness is polled on $url, the bind's own address.
 function openWhenServing(string $url, ?string $target, bool $browser): void
 {
     putenv("DRUPACK_RUNTIME_URL=$url");
@@ -228,15 +216,13 @@ function openWhenServing(string $url, ?string $target, bool $browser): void
     putenv($browser ? "DRUPACK_RUNTIME_OPEN=$target" : 'DRUPACK_RUNTIME_OPEN');
 }
 
-// The token names this Site data over HTTP without disclosing its path. Windows spells one
-// path in several casings, so the hash reads a single one.
+// Windows spells one path in several casings, so the hash reads a single one.
 function siteToken(string $data): string
 {
     return hash('sha256', windows() ? strtolower($data) : $data);
 }
 
-// `stop` takes --data-dir alone. Any other option is refused, so a start's options cannot
-// reach a command that changes no site.
+// `stop` takes --data-dir alone, so a start's options cannot reach a command that changes no site.
 function stopDataDirectory(array $arguments): string
 {
     $directory = environment('DRUPACK_DATA_DIR') ?? DEFAULT_DATA_DIR;
@@ -258,8 +244,7 @@ function stopDataDirectory(array $arguments): string
     return $directory;
 }
 
-// Ends the server that holds the Serving lease over $directory. The directory is resolved
-// but never created, so a stop on a mistyped path leaves nothing behind.
+// The directory is never created, so a stop on a mistyped path leaves nothing behind.
 function stopSite(string $directory): int
 {
     $resolved = realpath($directory);
@@ -270,7 +255,6 @@ function stopSite(string $directory): int
     return (new Serving($site->directory, $site->logs()))->stop('Site data', $site->directory);
 }
 
-// Splits IP:PORT, an IPv6 address in brackets, into the bare address and the port.
 function listenerParts(string $listen): array
 {
     // Listener values enter Caddy configuration and must contain only an IP address and port.
@@ -294,10 +278,8 @@ function portTaken(string $bind, int $port): bool
     return true;
 }
 
-// Where the running server serves, read from the record that start wrote, so a handover
-// names the address that server took rather than the one this start planned. Site data
-// written before the record existed falls back to this start's plan. Returns the bind
-// address and the URL.
+// Read from the record start wrote, so a handover names the address that server took, not the
+// one this start planned. Site data without a record falls back to the plan.
 function servedListener(SiteData $site, array $plan): array
 {
     $record = $site->listener();
@@ -308,8 +290,6 @@ function servedListener(SiteData $site, array $plan): array
     return [$bind, siteUrl($record['scheme'], $record['host'], $port)];
 }
 
-// An option the reader gave beats the recorded listener. Site data written before the
-// record exists falls back to the listener defaults.
 function recordedListener(array $options, ?array $record): array
 {
     if ($record === null) {
@@ -321,17 +301,12 @@ function recordedListener(array $options, ?array $record): array
     return $options;
 }
 
-// Every start and `drush` keep the files directory the last start named, since the
-// site's files live there.
 function recordedFilesDirectory(array $options, ?array $record): array
 {
     $options['files-dir'] ??= $record['files-dir'] ?? null;
     return $options;
 }
 
-// What Drush and every PHP process of the site read: where its data, files and temporary
-// files live, the address it answers on, and the options the reader gave for the
-// connection and the accounts.
 function siteEnvironment(array $plan, string $data, string $files, string $runtime, array $options): array
 {
     $environment = [
@@ -343,7 +318,6 @@ function siteEnvironment(array $plan, string $data, string $files, string $runti
         // The address a reader types, never the bind address. Without it Drupal falls back
         // to http://default, and every printed or mailed link names an unreachable host.
         'DRUSH_OPTIONS_URI' => $plan['url'],
-        // Caddy state and every temporary file stay beside the site they belong to.
         'TMPDIR' => $runtime,
         'TEMP' => $runtime,
         'TMP' => $runtime,
@@ -368,8 +342,7 @@ function siteEnvironment(array $plan, string $data, string $files, string $runti
     return $environment;
 }
 
-// A first start refuses before it changes anything when its owed steps need what neither
-// the build nor the reader gave. The administrator's credentials are generated instead.
+// Refuses before anything changes. The administrator's credentials are generated instead.
 function requireNeeds(array $steps, array $options, SiteContract $site): void
 {
     foreach (Step::owed($steps) as $need) {
@@ -383,8 +356,6 @@ function requireNeeds(array $steps, array $options, SiteContract $site): void
     }
 }
 
-// A first start on a database server takes its connection from the command line. SQLite
-// needs none.
 function requireConnection(array $options): void
 {
     if ($options['database'] === 'sqlite') {
@@ -397,7 +368,6 @@ function requireConnection(array $options): void
     }
 }
 
-// One start at a time initializes a Site data directory. The resolved path gives equivalent paths one lock.
 function databasePort(array $options): string
 {
     return $options['db-port'] ?? ($options['database'] === 'mysql' ? '3306' : '5432');
@@ -452,7 +422,6 @@ function writeSettings(string $path, string $template, array $database, string $
     }
 }
 
-// The recorded settings decide the backend once they exist, so later starts need no database options.
 function recordedOptions(array $options, SiteData $site): array
 {
     $recorded = $site->connection();
@@ -467,13 +436,11 @@ function recordedOptions(array $options, SiteData $site): array
     return $options;
 }
 
-// DIAGNOSTIC_LIMIT bounds how much of a failed step's explanation reaches the terminal.
 // Drush prints its reason first and its backtrace after, so the head is the useful end.
 const DIAGNOSTIC_LIMIT = 400;
 
-// Reads what Drush wrote to stderr, as one line a reader can act on. A failing step can
-// print the connection as a URL carrying its password, so the credentials go before
-// anything prints.
+// A failing step can print the connection as a URL carrying its password, so credentials go
+// before anything prints.
 function diagnostic(string $path): string
 {
     $text = preg_replace('#(?<=://)[^:@/\s]+:[^@/\s]+(?=@)#', 'USER:PASSWORD', (string) file_get_contents($path));
@@ -488,8 +455,7 @@ function runDrush(string $binary, array $command, string $failure): void
         throw new RuntimeException('Cannot create a temporary file for the step diagnostic');
     }
     try {
-        // stderr is a file, not a pipe, for the reason drushLoginLink() states: nothing here
-        // drains a pipe while the child runs, so a full one would deadlock.
+        // stderr is a file because nothing here drains a pipe while the child runs; a full one would deadlock.
         $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['file', nullDevice(), 'w'], 2 => ['file', $errors, 'w']];
         $exitCode = process($binary, array_merge(['php-cli'], $command), $descriptors, application(), $failure);
         $reason = $exitCode === 0 ? '' : diagnostic($errors);
@@ -520,14 +486,12 @@ function drushField(string $binary, array $command): string
     return trim((string) $output);
 }
 
-// Drush addresses the site through DRUSH_OPTIONS_URI. The site is not serving yet, and the
-// Go entrypoint opens a browser once it answers.
+// The site is not serving yet; the Go entrypoint opens a browser once it answers.
 function loginLink(string $binary, string $url, string $destination): string
 {
     return drushLoginLink($binary, drushPath(), application(), [$destination], $url);
 }
 
-// Names the reason Drush gave for a failed mint, and the command that mints one by hand.
 function explainMintFailure(LoginLinkFailure $failure, string $data): void
 {
     $reason = rtrim($failure->reason, '. ');
@@ -686,8 +650,7 @@ function configureAdministrator(string $binary): void
     runDrush($binary, [drushPath(), 'php:eval', '$account = \\Drupal\\user\\Entity\\User::load(1); $account->set("name", getenv("DRUPACK_ADMIN_USER")); $account->setPassword(getenv("DRUPACK_ADMIN_PASSWORD")); $account->save();'], 'Cannot configure Drupal administrator');
 }
 
-// Drush names the seed when the Dockerfile installs it. The first start renames it, so a
-// seeded site and an installed one carry the same name.
+// The first start renames the seed's Dockerfile-time name.
 function configureSeedSiteName(string $binary, string $name): void
 {
     runDrush($binary, [drushPath(), 'config:set', 'system.site', 'name', $name, '--yes'], 'Cannot set the site name');
@@ -706,7 +669,6 @@ function removeRecipeModules(string $binary): void
     }
 }
 
-// Returns whether the step found a site already installed in the database.
 function runStep(Step $step, SiteData $site, array $options, string $binary, bool $adopted): bool
 {
     switch ($step) {
@@ -773,14 +735,13 @@ try {
         throw new InvalidArgumentException('--database requires sqlite, mysql, or pgsql');
     }
     $steps = [];
-    // The directory as named, before it exists and resolves.
     $named = new SiteData($options['data-dir']);
     if ($drush) {
         // `drush` initializes nothing and takes no lease, so Drush works while the server runs.
         if (!file_exists($named->settings())) {
             throw new RuntimeException("This Site data has no site yet: {$options['data-dir']}. Start " . executableName() . " once to create one.");
         }
-        // `drush` serves nothing of its own, so it addresses the site where the last start served.
+        // `drush` addresses the site where the last start served.
         $options = recordedListener($options, $named->listener());
     } else {
         $steps = $named->steps($options['database']);
@@ -822,8 +783,6 @@ try {
     if ($options['files-dir'] !== null) {
         $options['files-dir'] = $files;
     }
-    // A start serves the host and scheme the runtime chose. `drush` asks nothing, so it
-    // addresses the site where its last start served.
     $tls = $drush ? null : tlsChoice($binary, $bind, siteLabelSource(siteContract()), $options['host']);
     $plan = $drush
         ? listenerPlan($bind, $port, $options['host'] ?? SiteData::UNRECORDED_HOST, $options['scheme'] ?? SiteData::UNRECORDED_SCHEME)
@@ -836,9 +795,8 @@ try {
     foreach (siteEnvironment($plan, $data, $files, $runtime, $options) as $name => $value) {
         putenv("$name=$value");
     }
-    // Both questions are asked before the listener record and every install step, so a
-    // served site and a taken port each reach their reader as a sentence rather than as
-    // a bind error or a corrupted database.
+    // Both checks run before the listener record and every install step, so a served site or a
+    // taken port reaches the reader as a sentence, not a bind error or a corrupted database.
     if (!$drush) {
         // The object holds the lease until the exec into the server.
         $serving = new Serving($site->directory, $site->logs());
@@ -875,11 +833,8 @@ try {
         // the first read and the moment this one claimed the Site data.
         $steps = $site->steps($options['database']);
     }
-    // A start refreshes the recorded settings from the template this release ships, so a
-    // site installed by an earlier release gains the settings this one added. The
-    // recorded connection details come back unchanged. A `drush` command reads that site
-    // and writes nothing to it, since the file it would rewrite is being required by
-    // the server answering requests.
+    // A start refreshes the recorded settings from this release's template. `drush` writes nothing,
+    // since the server answering requests requires that file.
     if (!$drush && file_exists($site->settings())) {
         // A pending settings step writes the file itself, so its contents are read once they are final.
         if (!in_array(Step::Settings, $steps, true)) {
@@ -903,10 +858,9 @@ try {
     if ($drush) {
         exit(process($binary, array_merge(['php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], application(), 'Cannot run Drush'));
     }
-    // Every start hands its reader a one-time way in, signed in as the administrator account,
-    // uid 1, landing on the dashboard. A start that generated the password has no other way
-    // in, so it still fails when the mint fails. An adopted site keeps its own accounts, and
-    // it and every other start serve without the link.
+    // Every start hands its reader a one-time login link for uid 1. A start that generated the
+    // password has no other way in, so it fails when the mint fails. An adopted site keeps its own
+    // accounts and serves without the link.
     fwrite(STDOUT, "Creating a one-time login link.\n");
     try {
         $link = loginLink($binary, $plan['url'], '/admin/dashboard');
@@ -921,10 +875,8 @@ try {
     // process execs into it, so the process that answers a request announces that itself.
     $details = "  URL:       {$plan['url']}\n" . ($link === null ? '' : "  Login:     $link\n");
     fwrite(STDOUT, $details . "  Site data: $data\n  Log:       $logPath\n");
-    // A start with a terminal on standard input opens the browser for the person who ran
-    // it, first start or later. A script, a container and a test have none, so they get
-    // none. A file manager on Windows has no other way to reach its reader. A start with
-    // no link has nothing to open.
+    // A start with a terminal on standard input opens the browser. A script, a container and a test
+    // have none. A start with no link has nothing to open.
     $browser = $link !== null && $options['no-browser'] === null && personPresent() && loopback($bind);
     if ($link !== null && !loopback($bind)) {
         fwrite(STDOUT, "No browser opens: {$options['listen']} accepts other computers over plain HTTP."
@@ -937,7 +889,6 @@ try {
     // site runs, so the credential stops here.
     putenv('DRUPACK_ADMIN_PASSWORD');
     fwrite(STDOUT, "Starting the web server.\n");
-    // The Caddyfile the application ships is fixed, and Caddy fills its values from this environment.
     exportServerEnvironment(serverEnvironment($plan, $tls, [
         'DRUPACK_RUNTIME_ID' => siteToken($data),
         // Absolute, because FrankenPHP resolves a relative docroot against the directory

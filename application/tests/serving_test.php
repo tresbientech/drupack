@@ -27,7 +27,6 @@ function scratch(): string
     return $path;
 }
 
-// Starts the stub over $directory, answering $status, and returns once its record exists.
 function stub(string $directory, string $status): array
 {
     $process = proc_open([getenv('DRUPACK_RUNTIME_BINARY'), 'php-cli', __DIR__ . '/stop_channel_stub.php', $directory, $status],
@@ -69,7 +68,6 @@ test('stop with a free lease and a stale record reports a server not running', f
 
 test('stop with a held lease and no record says a start is still preparing', function (): void {
     $state = scratch();
-    // The holder keeps the lease for as long as it lives.
     $holder = new Serving($state, $state);
     same(true, $holder->claim());
     throws('A fixture-site start is still preparing this folder', fn () => (new Serving($state, $state))->stop('folder', $state));

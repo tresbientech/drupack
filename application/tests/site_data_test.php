@@ -28,7 +28,6 @@ function scratch(): SiteData
     return new SiteData($path);
 }
 
-// A $run that records each call by step name and answers from $found, keyed by step name.
 function recorder(array &$calls, array $found = []): callable
 {
     return function (Step $step, bool $adopted) use (&$calls, $found): bool {

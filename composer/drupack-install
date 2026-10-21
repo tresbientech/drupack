@@ -3,9 +3,9 @@
 
 declare(strict_types=1);
 
-// Installs the drupack build for this host into the project root, from the
-// release whose tag matches this package's installed version. The release's own
-// install script downloads the build and checks its SHA-256.
+// Installs the drupack build for this host into the project root, from the release whose
+// tag matches this package's installed version. The release's install script downloads the
+// build and checks its SHA-256.
 
 use Composer\InstalledVersions;
 use Composer\Semver\VersionParser;
@@ -47,10 +47,9 @@ function installCommand(bool $windows, string $script): array
         : ['sh', $script];
 }
 
-// Runs the fetched script in $root and returns its exit status. The script
-// inherits this process's environment, so a libc override reaches it. Its output
-// tells how to move the executable onto PATH, which a project keeps in its root,
-// so only its errors reach the terminal.
+// Runs the fetched script in $root and returns its exit status. The script inherits this
+// process's environment, so a libc override reaches it. Its output explains moving the
+// executable onto PATH, which a project keeps in its root, so only errors reach the terminal.
 function runScript(bool $windows, string $script, string $root): int
 {
     $pipes = [];
@@ -74,7 +73,6 @@ function isRelease(string $binary, string $checksums, string $version): bool
 
 function download(string $url): string
 {
-    // The exception names the URL, which PHP's own warning would repeat.
     $contents = @file_get_contents($url);
     if ($contents === false) {
         throw new RuntimeException("Cannot download $url");
@@ -82,7 +80,6 @@ function download(string $url): string
     return $contents;
 }
 
-// Whether $directory or a parent holds a git repository.
 function inRepository(string $directory): bool
 {
     while (!file_exists("$directory/.git")) {

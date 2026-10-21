@@ -1,2 +1,1 @@
-# Plain HTTP. Caddy manages no certificate.
 auto_https off

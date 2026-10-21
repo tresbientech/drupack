@@ -7,20 +7,13 @@ namespace Drupack\Support;
 use Composer\Autoload\ClassLoader;
 use RuntimeException;
 
-// One Site data directory: the paths a start uses, the records it keeps, and the
-// initialization state a first start leaves on disk until its last step.
 final class SiteData
 {
-    // Written after the last step.
     private const FINISHED = 'site-installed';
-    // The steps still owed, as JSON, while an initialization runs.
     private const PROGRESS = 'installation-progress';
     // The install step found a site already in the database, so the modules step changes nothing.
     private const ADOPTED = 'site-adopted';
-    // The install step found the database empty and began installing into it.
     private const INSTALL_STARTED = 'install-started';
-    // Every start records where it serves, so a later `drush` addresses the site on the
-    // port it actually uses, and keeps the files directory the last start named.
     // The scheme of a site no record names, from a release that served HTTP alone.
     public const UNRECORDED_SCHEME = 'http';
     // The host `drush` addresses on Site data no start has served yet.
@@ -56,13 +49,11 @@ final class SiteData
         return "$this->directory/mercure_subscriber_secret";
     }
 
-    // The site's own application, laid here when its contract names writable directories.
     public function application(): string
     {
         return "$this->directory/app";
     }
 
-    // The files directory when no start named another.
     public function files(): string
     {
         return "$this->directory/files";
@@ -85,8 +76,6 @@ final class SiteData
         }
     }
 
-    // The record the last start wrote, or null when none has. A record written before
-    // --files-dir existed names no files directory.
     public function listener(): ?array
     {
         $path = $this->path(self::LISTENER);
@@ -113,7 +102,6 @@ final class SiteData
             'Cannot record the listener');
     }
 
-    // The database block of the recorded settings.
     public function connection(): array
     {
         // settings.php expects the two variables Settings::initialize() gives it. This read
@@ -125,16 +113,14 @@ final class SiteData
         return $databases['default']['default'];
     }
 
-    // Whether an initialization finished here.
     public function installed(): bool
     {
         return file_exists($this->path(self::FINISHED));
     }
 
     /**
-     * The steps a start owes, from what the directory holds. Progress lives beside the
-     * recorded settings, so a start tells a finished site from an interrupted one and
-     * repeats no step that already wrote to a database.
+     * The steps a start owes. Progress lives beside the recorded settings, so a start tells a
+     * finished site from an interrupted one and repeats no step that already wrote to a database.
      *
      * @return list<Step>
      */
@@ -207,13 +193,11 @@ final class SiteData
         return $adopted;
     }
 
-    // Records that the install step found the database empty, before it writes to it.
     public function startInstall(): void
     {
         $this->write(self::INSTALL_STARTED, '', 'Cannot record that the installation began');
     }
 
-    // Whether an install step of this initialization found the database empty and began.
     public function installStarted(): bool
     {
         return file_exists($this->path(self::INSTALL_STARTED));

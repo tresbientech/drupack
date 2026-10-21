@@ -1,5 +1,5 @@
-# The request guards and cache headers every Drupack server applies ahead of Drupal.
-# A Caddyfile imports this file inside its route block, which keeps the order below.
+# Request guards and cache headers applied ahead of Drupal. Imported inside a route block,
+# which keeps the order.
 @hiddenPhpFilesRegexp path_regexp \..*/.*\.php$
 respond @hiddenPhpFilesRegexp 403
 @notFoundPhpFiles path_regexp /vendor/.*\.php$
@@ -20,17 +20,14 @@ respond @siteConfiguration 404
 	path_regexp \.(engine|inc|install|make|module|profile|po|sh|.*sql(ite3?)?|theme|twig|tpl(\.php)?|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?$|/\..*|/(Entries.*|Repository|Root|Tag|Template|composer\.(json|lock)|web\.config|yarn\.lock|package\.json)$|/#.*#$|\.php(~|\.sw[op]|\.bak|\.orig|\.save)$
 }
 respond @protectedFilesRegexp 403
-# Drupal core, module, theme and library assets are versioned by release,
-# so they are safe to cache forever.
 @versionedAssetPath {
 	file
 	path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
 	path_regexp ^/(core|modules|themes|libraries)/
 }
-# Public storage can change at the same URL: an upload is replaced, and an image
-# style derivative is regenerated from a replaced source under the same "itok"
-# token, which names the style and the path, never the contents. A browser
-# revalidates both rather than trust a year-old copy.
+# Public storage can change at the same URL: an upload is replaced, and an image style
+# derivative regenerates under the same "itok" token, which names the style and path, not
+# the contents. A browser revalidates both.
 @publicStorage {
 	path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
 	path_regexp ^/(sites/[^/]+/files/|files/)

@@ -17,7 +17,6 @@ require __DIR__ . '/cases.php';
 $root = sys_get_temp_dir() . '/drupack-install-test-' . bin2hex(random_bytes(8));
 mkdir($root);
 
-// An empty directory of its own for one case.
 function directory(string $name): string
 {
     $directory = $GLOBALS['root'] . "/$name";

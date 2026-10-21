@@ -2,10 +2,8 @@
 
 declare(strict_types=1);
 
-// The engine executable's entry script. The launcher runs it for every line but
-// `php`, `clean`, `self-update` and a bare `--version`, from the directory the reader
-// started in. `start` and `stop` are reserved, so a folder with either name takes
-// ./start or ./stop. Any other first word that names no command starts the server.
+// `start` and `stop` are reserved, so a folder with either name takes ./start or ./stop.
+// Any other first word that names no command starts the server.
 
 require_once __DIR__ . '/process.php';
 require_once __DIR__ . '/mercure.php';
@@ -42,10 +40,9 @@ TEXT;
 
 const DEFAULT_LISTEN = '127.0.0.1:3787';
 
-// composer.json is the reader's file, so a docroot it names is checked before use: a
-// .. segment would name a directory outside the project. The Caddyfile's guards and
-// front controller are Drupal's, so a docroot without Drupal core, such as a WordPress
-// site's, is refused.
+// composer.json is the reader's file: a docroot with a .. segment would leave the project.
+// The Caddyfile's guards and front controller are Drupal's, so a docroot without Drupal
+// core, such as a WordPress site's, is refused.
 function docroot(string $project): string
 {
     $composer = json_decode((string) @file_get_contents("$project/composer.json"), true);
@@ -65,7 +62,6 @@ function docroot(string $project): string
     return $docroot;
 }
 
-// The script a project's Composer install put at $path, named for the refusal.
 function projectScript(string $project, string $path, string $name, string $remedy): string
 {
     $script = "$project/$path";
@@ -82,7 +78,6 @@ function drushScript(string $project): string
     return projectScript($project, DRUSH_SCRIPT, 'Drush', 'Run composer require drush/drush in it.');
 }
 
-// Drupal core ships its own command line, vendor/bin/dr, from Drupal 11.4 on.
 function coreScript(string $project): string
 {
     return projectScript($project, 'vendor/bin/dr', "Drupal core command line", 'Drupal 11.4 and later ship it.');
@@ -129,18 +124,15 @@ function checkPlatform(string $binary, string $project): void
     }
 }
 
-// One served folder's state: the lease, the stop record, the log and the Mercure hub's files. The entry sits in the
-// cache beside the unpacked engine, keyed by the folder, so the folder itself gains no file.
-// Windows spells one path in several casings, so the key reads a single one.
+// One served folder's state lives in the cache beside the unpacked engine, keyed by the
+// folder, so the folder gains no file. Windows spells one path in several casings, so the
+// key reads a single one.
 function folderEntry(string $project): string
 {
-    // The letter keeps the name inside ADR 0010's cache segment form.
     return getenv('DRUPACK_RUNTIME_CACHE_ROOT') . '/folders/f'
         . substr(hash('sha256', windows() ? strtolower($project) : $project), 0, 16);
 }
 
-// The project folder a word names, the reader's directory with none. A directory the
-// reader typed may not exist.
 function projectFolder(?string $directory): string
 {
     $project = realpath($directory ?? '.');
@@ -150,8 +142,7 @@ function projectFolder(?string $directory): string
     return canonical($project);
 }
 
-// `stop` takes the folder alone. A folder that was never served has no entry, and the
-// lookup creates none.
+// A folder that was never served has no entry, and the lookup creates none.
 function stopFolder(array $arguments): int
 {
     if (count($arguments) > 1 || str_starts_with($arguments[0] ?? '', '-')) {
@@ -190,8 +181,6 @@ function serve(string $binary, array $arguments): never
     $docroot = canonical(docroot($project));
     checkPlatform($binary, $project);
     $mercure = mercureKey($project);
-    // The engine's URL names the folder's drupack.site name when it resolves, otherwise the
-    // bind address itself.
     $bind = trim($bind, '[]');
     $tls = tlsChoice($binary, $bind, folderLabelSource($project), null);
     $plan = listenerPlan($bind, (int) $port, $tls->host, $tls->scheme());
@@ -207,7 +196,6 @@ function serve(string $binary, array $arguments): never
     $serving->detach($foreground,
         stopCommand($directory === null ? '' : ' ' . shellWord($directory)), array_merge(['start'], $typed));
 
-    // The engine's URL has no trailing slash, as before HTTPS.
     $url = rtrim($plan['url'], '/');
     $tls->storeBundle($entry);
     $link = null;
@@ -230,7 +218,6 @@ function serve(string $binary, array $arguments): never
         . ($install === null ? '' : "  Install: $install\n") . "  Project: $project\n");
     fwrite(STDOUT, $tls->nameHint() . $tls->trustHint());
     fwrite(STDOUT, "Starting the web server.\n");
-    // The Caddyfile beside this file is fixed, and Caddy fills its values from this environment.
     // The server opens no browser, so a value inherited from an earlier start is cleared.
     putenv('DRUPACK_RUNTIME_OPEN');
     if ($mercure) {
@@ -251,8 +238,7 @@ function serve(string $binary, array $arguments): never
     replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }
 
-// The project's composer.json extra.drupack settings. composer.json is the reader's file,
-// so a file that is not a JSON object is refused.
+// composer.json is the reader's file, so one that is not a JSON object is refused.
 function drupackExtra(string $project): array
 {
     $path = "$project/composer.json";
@@ -270,7 +256,6 @@ function drupackExtra(string $project): array
     return $drupack;
 }
 
-// Whether the project turns the Mercure hub on. A value other than true or false is refused.
 function mercureKey(string $project): bool
 {
     $value = drupackExtra($project)['mercure'] ?? false;
@@ -280,9 +265,8 @@ function mercureKey(string $project): bool
     return $value;
 }
 
-// The tls-source arguments that name the folder's label: its subdomain, otherwise the
-// folder's name. composer.json is the reader's file, so a subdomain that is not one DNS
-// label is refused; pack's siteconfig holds the same rule.
+// composer.json is the reader's file, so a subdomain that is not one DNS label is refused;
+// pack's siteconfig holds the same rule.
 function folderLabelSource(string $project): array
 {
     $value = drupackExtra($project)['subdomain'] ?? null;
@@ -296,8 +280,6 @@ function folderLabelSource(string $project): array
     return ['--folder', $value];
 }
 
-// The engine keeps the hub's secrets and address in the folder's cache entry, so the
-// project folder gains no file.
 const MERCURE_URL_FILE = 'mercure_url';
 
 function exportEngineMercure(string $entry, string $url, bool $drush): void
@@ -305,8 +287,7 @@ function exportEngineMercure(string $entry, string $url, bool $drush): void
     exportMercure("$entry/mercure_publisher_secret", "$entry/mercure_subscriber_secret", $url, $drush);
 }
 
-// Drush in a project with the hub sees the variables the last start created. It creates
-// nothing, so a project no start has served exports no hub.
+// Creates nothing, so a project no start has served exports no hub.
 function drush(string $binary, array $arguments): never
 {
     $project = project();
@@ -318,8 +299,7 @@ function drush(string $binary, array $arguments): never
     runScript($binary, drushScript($project), $arguments);
 }
 
-// The nearest installed Composer project at or above the working directory. Drupal
-// core and many modules carry a composer.json of their own, and no vendor/.
+// Drupal core and many modules carry a composer.json and no vendor/.
 function project(): string
 {
     $start = canonical(getcwd());
@@ -333,8 +313,7 @@ function project(): string
     }
 }
 
-// Whether the database the project's settings name holds an installed site, or null when
-// the probe cannot tell, such as for a database it cannot reach.
+// Null when the probe cannot tell, such as for a database it cannot reach.
 function siteInstalled(string $binary, string $project, string $docroot): ?bool
 {
     $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => ['file', nullDevice(), 'w']];
@@ -348,8 +327,8 @@ function siteInstalled(string $binary, string $project, string $docroot): ?bool
     return $status === 0 ? $answer === 'yes' : null;
 }
 
-// Drush, core's command line, the installer and Package Manager start Composer and their
-// own child processes with the php on PATH, which bin/ points back at this runtime.
+// These start Composer and child processes with the php on PATH, which bin/ points back at
+// this runtime.
 function runtimePhpOnPath(): void
 {
     putenv('PATH=' . __DIR__ . '/bin' . PATH_SEPARATOR . getenv('PATH'));
