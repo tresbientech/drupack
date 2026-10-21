@@ -146,15 +146,26 @@ func (s store) holdReady(sp spec) (string, bool, error) {
 	return entry, sp.ready(entry), nil
 }
 
-// readyEntry reports the directory already holding the entry sp describes: the
-// one named sp.name, or the one the directory's active file names, since a
-// start that found the name held by a running site staged under a name of its own.
+// readyEntry reports the directory already holding the entry sp describes. A
+// start that found the name held by a running site staged under a name of its
+// own: the active file names it, or for a kind without one it is the first
+// ready name.N. target fills the first free name.N, so the scan stops at the
+// first missing one.
 func (s store) readyEntry(sp spec) (string, bool) {
-	if entry := filepath.Join(s.dir, sp.name); sp.ready(entry) {
-		return entry, true
+	path := filepath.Join(s.dir, sp.name)
+	if sp.ready(path) {
+		return path, true
 	}
 	if !s.active {
-		return "", false
+		for n := 1; ; n++ {
+			candidate := fmt.Sprintf("%s.%d", path, n)
+			if _, err := os.Lstat(candidate); err != nil {
+				return "", false
+			}
+			if sp.ready(candidate) {
+				return candidate, true
+			}
+		}
 	}
 	name, err := activeKey(s.dir)
 	if err != nil || name == sp.name {

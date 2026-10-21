@@ -236,6 +236,38 @@ func TestPrepareAppUnpacksAnEmptyArchive(t *testing.T) {
 	}
 }
 
+// A running site holds an unready entry, so the first start stages beside it.
+// Later starts reuse that copy instead of staging name.2, name.3 and onward.
+func TestPrepareAppReusesTheCopyStagedBesideAHeldEntry(t *testing.T) {
+	root := t.TempDir()
+	held := filepath.Join(AppRoot(root), entryName("abc123def4567890"))
+	if err := os.MkdirAll(held, 0700); err != nil {
+		t.Fatal(err)
+	}
+	holdUsageInChild(t, t.TempDir(), held)
+	payload := &bytes.Buffer{}
+	compressor, err := zstd.NewWriter(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := compressor.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := NewCache(root, noHold).PrepareApp("abc123def4567890", payload.Bytes(), io.Discard)
+	if err != nil || first != held+".1" {
+		t.Fatalf("the first PrepareApp = %s, %v", first, err)
+	}
+	notice := &bytes.Buffer{}
+	again, err := NewCache(root, noHold).PrepareApp("abc123def4567890", payload.Bytes(), notice)
+	if err != nil || again != first || notice.Len() != 0 {
+		t.Fatalf("a second PrepareApp = %s, %v, printed %q", again, err, notice.String())
+	}
+	if _, err := os.Lstat(held + ".2"); err == nil {
+		t.Fatal("a second PrepareApp staged another copy")
+	}
+}
+
 func TestPrepareNodeUnpacksOnceUnderTheNodeDirectory(t *testing.T) {
 	tree := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(tree, "bin"), 0700); err != nil {
