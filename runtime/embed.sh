@@ -15,7 +15,7 @@ symbols=/go/src/app/dist/buildroot/lib/libphp.a.dynsym
 # single file that runs on any host.
 # -z now resolves every relocation at load, which leaves the GOT read-only for
 # the process lifetime. The static-pie link already reports BIND_NOW.
-# SPC_TARGET and SPC_TOOLCHAIN pick the toolchain as build-static.sh picks it:
+# SPC_TARGET and SPC_TOOLCHAIN pick the toolchain the builder compiled with:
 # the image's gcc for gnu, zig for musl.
 case "$LIBC" in
     gnu)
@@ -26,7 +26,8 @@ case "$LIBC" in
         ;;
     musl)
         libc=musl
-        export SPC_TARGET=native-native-musl SPC_TOOLCHAIN=
+        # The builder image names the architecture's baseline CPU.
+        export SPC_TARGET=${SPC_TARGET:?the musl builder image names no SPC_TARGET} SPC_TOOLCHAIN=
         static_flags=-static-pie
         # musl sizes every new thread's stack from this header, 128 KB without it.
         # PHP threads get 8 MB, glibc's default and musl's largest.

@@ -60,9 +60,16 @@ env -u GO_VERSION VERSION=$frankenphp_version docker buildx bake --load \
 token=$(mktemp)
 trap 'rm -f "$token"' EXIT
 printf '%s' "${GITHUB_TOKEN:-}" >"$token"
+# zig compiles a native target for the build host's CPU, so musl names its
+# architecture's baseline. docker commit keeps it for embed.sh.
+target=()
+if [ "$libc" = musl ]; then
+    target=(-e "SPC_TARGET=$(uname -m)-linux-musl")
+fi
 # zig, the musl linker, opens a file per object while it links.
 docker run --name "$container" --ulimit nofile=8192:8192 \
     -v "$token:/run/github-token:ro" \
+    "${target[@]}" \
     -e "PHP_VERSION=$php_version" \
     -e "PHP_EXTENSIONS=$extensions" \
     -e "PHP_EXTENSION_LIBS=$extension_libs" \

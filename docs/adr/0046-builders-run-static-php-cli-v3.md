@@ -31,6 +31,11 @@ before.
 - `runtime/build-builder.sh` builds FrankenPHP's toolchain image, runs
   `build-static.sh` on the checkout in a container, and commits that container
   as the builder image.
+- The musl build targets `ARCH-linux-musl`, the architecture's baseline CPU.
+  FrankenPHP's `native-native-musl` makes zig compile for the build host's
+  CPU, and that runtime stops with SIGILL on an older CPU.
+- `builder-tag.sh` digests `build-builder.sh` and `spc-craft.sh`, so a recipe
+  change builds a new image.
 - `build/install.sh` installs the glibc build only on glibc 2.28 or later.
   Self-update applies the same floor. Below it, both take the musl build.
 
