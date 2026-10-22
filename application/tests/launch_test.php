@@ -229,6 +229,73 @@ function fakeRuntime(array $answer): string
     return "$directory/drupack";
 }
 
+// A runtime whose Drush prints one answer per command name, and nothing for any other.
+// drushField runs it as RUNTIME php-cli DRUSH COMMAND, from the application directory.
+function fakeDrush(array $answers): string
+{
+    $directory = scratch();
+    $cases = '';
+    foreach ($answers as $command => $answer) {
+        $cases .= "  $command) echo " . escapeshellarg($answer) . " ;;\n";
+    }
+    file_put_contents("$directory/drupack", "#!/bin/sh\ncase \"\$3\" in\n$cases esac\n");
+    chmod("$directory/drupack", 0700);
+    putenv("DRUPACK_RUNTIME_APP_DIR=$directory");
+    return "$directory/drupack";
+}
+
+// Site data whose initialization progress names $steps, as a start that stopped partway leaves it.
+function siteOwing(array $steps): SiteData
+{
+    $directory = scratch();
+    file_put_contents("$directory/installation-progress", json_encode($steps));
+    return new SiteData($directory);
+}
+
+test('the steps a start reads are checked against its options', function (): void {
+    throws('Missing database connection details for mysql',
+        fn() => owedSteps(siteOwing(['settings', 'install', 'modules']), connection(['db-password' => null]), contract()));
+    [$steps] = owedSteps(siteOwing(['modules']), connection(['db-password' => null]), contract());
+    same([Step::Modules], $steps);
+});
+
+test('steps that owe the administrator get generated credentials, and others get none', function (): void {
+    $options = connection(['admin-user' => null, 'admin-password' => null]);
+    [, $owing] = owedSteps(siteOwing(['administrator', 'modules']), $options, contract());
+    same('admin', $owing['admin-user']);
+    same(64, strlen($owing['admin-password']));
+    [, $owed] = owedSteps(siteOwing(['modules']), $options, contract());
+    same(null, $owed['admin-password']);
+});
+
+test('an interrupted installation without its settings refuses before Drush runs', function (): void {
+    $site = new SiteData(scratch());
+    $site->startInstall();
+    throws('holds an interrupted installation but no settings.php', fn() => installSite($site, connection(), fakeDrush([]), contract()));
+});
+
+test('a database that already holds a site is kept', function (): void {
+    same(true, installSite(new SiteData(scratch()), connection(), fakeDrush(['status' => 'Successful']), contract()));
+});
+
+test('a site without a recipe refuses a database that holds no site', function (): void {
+    throws('has no recipe to install one',
+        fn() => installSite(new SiteData(scratch()), connection(), fakeDrush([]), contract(recipe: '')));
+});
+
+test('adoption refuses Site data whose database holds no site', function (): void {
+    throws('holds settings but no installed site', fn() => adoptSite(scratch(), fakeDrush([])));
+});
+
+test('adoption refuses a site whose administrator accepts the seed password', function (): void {
+    throws('still accepts the packaged seed password',
+        fn() => adoptSite(scratch(), fakeDrush(['status' => 'Successful', 'php:eval' => 'yes'])));
+});
+
+test('adoption takes a site whose administrator has a password of its own', function (): void {
+    adoptSite(scratch(), fakeDrush(['status' => 'Successful', 'php:eval' => 'no']));
+});
+
 // One tls-source answer per source, as runtime/tls encodes it. Its own test fails when
 // this file no longer matches.
 function tlsAnswer(string $source): array

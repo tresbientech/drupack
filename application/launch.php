@@ -342,7 +342,23 @@ function siteEnvironment(array $plan, string $data, string $files, string $runti
     return $environment;
 }
 
-// Refuses before anything changes. The administrator's credentials are generated instead.
+function exportSiteEnvironment(array $plan, string $data, string $files, string $runtime, array $options): void
+{
+    foreach (siteEnvironment($plan, $data, $files, $runtime, $options) as $name => $value) {
+        putenv("$name=$value");
+    }
+}
+
+// Reads the steps this Site data owes, refuses before any of them runs when the options lack
+// what one needs, and returns them with the options. The administrator's credentials are
+// generated instead.
+function owedSteps(SiteData $site, array $options, SiteContract $contract): array
+{
+    $steps = $site->steps($options['database']);
+    requireNeeds($steps, $options, $contract);
+    return [$steps, administratorCredentials($options, $steps)];
+}
+
 function requireNeeds(array $steps, array $options, SiteContract $site): void
 {
     foreach (Step::owed($steps) as $need) {
@@ -536,10 +552,10 @@ function databaseHoldsTables(array $options): bool
     return (int) $statement->fetchColumn() > 0;
 }
 
-function installDrupal(array $options, string $binary): void
+function installDrupal(array $options, string $binary, SiteContract $contract): void
 {
     $drush = drushPath();
-    $recipe = application() . '/' . siteContract()->recipe;
+    $recipe = application() . '/' . $contract->recipe;
     if (!is_file($drush) || !is_dir($recipe)) {
         throw new RuntimeException('Bundled Drupal installation files are unavailable');
     }
@@ -560,7 +576,7 @@ function installDrupal(array $options, string $binary): void
 // A database this initialization began installing into held no tables then, so a site that
 // boots there now may have been cut off mid-recipe, and it is never adopted. Its tables stay
 // until a person empties the database: nothing here proves they are still the install's own.
-function installSite(SiteData $site, array $options, string $binary): bool
+function installSite(SiteData $site, array $options, string $binary, SiteContract $contract): bool
 {
     $started = $site->installStarted();
     // Without the recorded settings the options come from the command line, which may name
@@ -573,7 +589,7 @@ function installSite(SiteData $site, array $options, string $binary): bool
         fwrite(STDOUT, "This database already holds a site. " . executableName() . " enabled nothing on it, and keeps its own administrator account.\n");
         return true;
     }
-    if (siteContract()->recipe === '') {
+    if ($contract->recipe === '') {
         throw new RuntimeException("The database for $site->directory holds no installed site, and " . executableName()
             . " has no recipe to install one. Name the database that holds its site, then start " . executableName() . " again.");
     }
@@ -589,7 +605,7 @@ function installSite(SiteData $site, array $options, string $binary): bool
     if (!$started) {
         $site->startInstall();
     }
-    installDrupal($options, $binary);
+    installDrupal($options, $binary, $contract);
     return false;
 }
 
@@ -689,7 +705,7 @@ function runStep(Step $step, SiteData $site, array $options, string $binary, boo
             configureSeedSiteName($binary, $options['site-name']);
             return false;
         case Step::Install:
-            return installSite($site, $options, $binary);
+            return installSite($site, $options, $binary, siteContract());
         case Step::Modules:
             if (!$adopted) {
                 removeRecipeModules($binary);
@@ -744,9 +760,8 @@ try {
         // `drush` addresses the site where the last start served.
         $options = recordedListener($options, $named->listener());
     } else {
-        $steps = $named->steps($options['database']);
-        requireNeeds($steps, $options, siteContract());
-        $options = administratorCredentials($options, $steps);
+        // A refusal here writes no Site data.
+        [$steps, $options] = owedSteps($named, $options, siteContract());
     }
     $options['listen'] ??= '127.0.0.1:' . siteContract()->port;
     [$bind, $port] = listenerParts($options['listen']);
@@ -792,9 +807,7 @@ try {
     if ($drush) {
         useTlsBundle($runtime);
     }
-    foreach (siteEnvironment($plan, $data, $files, $runtime, $options) as $name => $value) {
-        putenv("$name=$value");
-    }
+    exportSiteEnvironment($plan, $data, $files, $runtime, $options);
     // Both checks run before the listener record and every install step, so a served site or a
     // taken port reaches the reader as a sentence, not a bind error or a corrupted database.
     if (!$drush) {
@@ -829,9 +842,12 @@ try {
         useSiteApplication($site, $drush);
     }
     if ($steps !== []) {
-        // Read again under the lease: another start may have finished initializing between
+        // Read again under the lease: another start may have changed the owed steps between
         // the first read and the moment this one claimed the Site data.
-        $steps = $site->steps($options['database']);
+        [$steps, $options] = owedSteps($site, $options, siteContract());
+        // That list can owe the administrator step the first one did not, with credentials
+        // generated just now.
+        exportSiteEnvironment($plan, $data, $files, $runtime, $options);
     }
     // A start refreshes the recorded settings from this release's template. `drush` writes nothing,
     // since the server answering requests requires that file.

@@ -210,15 +210,6 @@ reads only its own cache and main's, so a release during such an outage fails on
 Windows. Lean: point `X_VCPKG_ASSET_SOURCES` at our own copy of each download,
 keyed by its SHA-512.
 
-## Steps checked before the lease and run under it
-
-`launch.php` checks what the owed steps need on the list it reads before the
-Serving lease. It runs the list it reads again under the lease, which can
-differ from the checked one. The refusals in `installSite` and the `adoptSite`
-path run only in the Docker suite. Lean: one runner takes the list read under
-the lease and checks its needs, with Drush behind a stub binary in tests, as
-`fakeRuntime()` stubs `tls-source`.
-
 ## Code size and test time
 
 Measured on 2026-10-21 at `171ab00`. Tests hold 37% of the tracked lines,
