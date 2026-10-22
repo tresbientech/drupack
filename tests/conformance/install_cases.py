@@ -184,8 +184,10 @@ class InstallScript(harness.ConformanceCase):
         self.assertEqual(list(directory.iterdir()), [])
 
     def test_the_script_names_the_builds_of_a_release_without_one_for_the_host(self):
-        # A Windows host runs the PowerShell script, which only a release with a Windows build carries.
-        other = "windows-arm64" if self.windows else "windows-amd64"
+        # A release carries the PowerShell script only with windows-amd64, the one Windows target.
+        if self.windows:
+            self.skipTest("a release with a Windows build has the Windows host's build")
+        other = "windows-amd64"
         build = harness.fresh_dir(self.class_dir / "other-build") / f"{self.name}-{other}"
         build.write_bytes(b"another platform's build")
         result, directory = self.install(self.release("elsewhere", build))
