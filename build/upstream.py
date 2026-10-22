@@ -19,6 +19,9 @@ WINDOWS_BUILD = "build/windows/build.ps1"
 PHP_RELEASES = "https://www.php.net/releases/index.php?json&version="
 WINDOWS_CHECKSUMS = "https://downloads.php.net/~windows/releases/sha256sum.txt"
 FRANKENPHP_API = "https://api.github.com/repos/php/frankenphp"
+# static-php-cli v3 has no tagged release. Its branch head moves with each FrankenPHP
+# bump, since FrankenPHP's own builder runs that branch's nightly.
+SPC_BRANCH = "https://api.github.com/repos/crazywhalecc/static-php-cli/branches/v3"
 
 # Each pin's line in its file, its value captured.
 PHP_PIN = r"^php_version=(.+)$"
@@ -28,6 +31,7 @@ FRANKENPHP_PIN = r"^frankenphp_version=(.+)$"
 FRANKENPHP_COMMIT_PIN = r"^frankenphp_commit=(.+)$"
 FRANKENPHP_WINDOWS_PIN = r"^\$frankenphpVersion = '(.+)'$"
 FRANKENPHP_WINDOWS_COMMIT_PIN = r"^\$frankenphpCommit = '(.+)'$"
+SPC_PIN = r"^spc_commit=(.+)$"
 STABLE_TAG = re.compile(r"v\d+\.\d+\.\d+")
 PACKAGIST_METADATA = "https://repo.packagist.org/p2/"
 
@@ -35,7 +39,6 @@ PACKAGIST_METADATA = "https://repo.packagist.org/p2/"
 # engine. A newer release in the line is bumped as usual.
 FRANKENPHP_SKIPS = {
     "1.13.0": "php-cli puts the binary name in $argv[0] on PHP 8.5, php/frankenphp#2690",
-    "1.13.2": "its static builder moved to static-php-cli v3, which build-builder.sh and embed.sh do not run yet",
 }
 
 RELEASE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)(\d+))?", re.IGNORECASE)
@@ -163,6 +166,13 @@ def frankenphp(summary):
     rewrite(WINDOWS_BUILD, FRANKENPHP_WINDOWS_PIN, newest)
     rewrite(WINDOWS_BUILD, FRANKENPHP_WINDOWS_COMMIT_PIN, target["sha"])
     summary.row("FrankenPHP", current, newest, "bumped")
+    spc_current = read(BUILDER_INPUTS, SPC_PIN)
+    # The branch head is remote input.
+    spc_head = json.loads(fetch(SPC_BRANCH))["commit"]["sha"]
+    if not re.fullmatch(r"[0-9a-f]{40}", spc_head):
+        sys.exit(f"static-php-cli v3 names {spc_head!r}, not a commit")
+    rewrite(BUILDER_INPUTS, SPC_PIN, spc_head)
+    summary.row("static-php-cli", spc_current[:12], spc_head[:12], "current" if spc_head == spc_current else "bumped")
 
 
 def main():

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# PHP_EXTENSIONS takes effect while the image is built, so a published image
-# cannot carry a narrowed PHP.
+# PHP_EXTENSIONS takes effect while the builder image is made, so a published
+# image cannot carry a narrowed PHP.
 #
 # Usage: build-builder.sh musl|gnu TAG [WORK_DIRECTORY]
 # EXTENSIONS_FILE names the extension list, runtime/php-extensions.txt by default.
@@ -39,15 +39,35 @@ if [ "$head" != "$frankenphp_commit" ]; then
     exit 1
 fi
 
+# The toolchain image copies the checkout, so the build runs the pinned spc.
+bash "$repository/runtime/fetch-spc.sh" "$source/static-php-cli"
+cp "$repository/runtime/spc-craft.sh" "$source/spc-craft.sh"
+
 target=static-builder-$libc
-# bake reads GITHUB_TOKEN for the secret build-static.sh expects. It would also
-# read the workflow's GO_VERSION, a patch release the gnu Dockerfile cannot find
-# once go.dev stops listing it, so unset it for the pinned FrankenPHP's own.
+container=drupack-builder-$libc-$$
+# The image holds only the toolchain. build-static.sh compiles PHP when the
+# container runs, and the stopped container, committed, is the builder image.
+# bake would read the workflow's GO_VERSION, so it is unset for the pinned
+# FrankenPHP's own.
 cd "$source"
 env -u GO_VERSION VERSION=$frankenphp_version docker buildx bake --load \
     --set "$target.platform=$platform" \
-    --set "$target.tags=$tag" \
-    --set "$target.args.PHP_VERSION=$php_version" \
-    --set "$target.args.PHP_EXTENSIONS=$extensions" \
-    --set "$target.args.PHP_EXTENSION_LIBS=$extension_libs" \
+    --set "$target.tags=$tag-toolchain" \
     "$target"
+# build-static.sh reads GITHUB_TOKEN to raise its GitHub API rate limit. The
+# token enters through a mounted file, since docker commit keeps every -e value
+# in the image it writes, and the release publishes that image.
+token=$(mktemp)
+trap 'rm -f "$token"' EXIT
+printf '%s' "${GITHUB_TOKEN:-}" >"$token"
+# zig, the musl linker, opens a file per object while it links.
+docker run --name "$container" --ulimit nofile=8192:8192 \
+    -v "$token:/run/github-token:ro" \
+    -e "PHP_VERSION=$php_version" \
+    -e "PHP_EXTENSIONS=$extensions" \
+    -e "PHP_EXTENSION_LIBS=$extension_libs" \
+    "$tag-toolchain" \
+    ./spc-craft.sh
+docker commit "$container" "$tag"
+docker rm "$container"
+docker image rm "$tag-toolchain"

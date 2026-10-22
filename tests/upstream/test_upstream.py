@@ -21,6 +21,7 @@ spec.loader.exec_module(upstream)
 
 PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD]
 COMMIT = "c0ffee" * 6 + "c0ff"
+SPC_COMMIT = "5bc" * 13 + "5"
 
 
 def checksums(*names):
@@ -59,7 +60,8 @@ class Bumper(unittest.TestCase):
         source(summary)
         return summary
 
-    def serve_frankenphp(self, *tags, annotated=True):
+    def serve_frankenphp(self, *tags, annotated=True, spc=SPC_COMMIT):
+        self.indexes[upstream.SPC_BRANCH] = json.dumps({"commit": {"sha": spc}})
         api = upstream.FRANKENPHP_API
         self.indexes[f"{api}/releases?per_page=100"] = json.dumps(
             [{"tag_name": tag, "draft": False, "prerelease": False} for tag in tags])
@@ -137,6 +139,20 @@ class Bumper(unittest.TestCase):
         windows = self.text(upstream.WINDOWS_BUILD)
         self.assertIn("$frankenphpVersion = '1.99.0'", windows)
         self.assertIn(f"$frankenphpCommit = '{COMMIT}'", windows)
+        self.assertIn(f"\nspc_commit={SPC_COMMIT}\n", inputs)
+        self.assertEqual(summary.rows[1][0::3], ("static-php-cli", "bumped"))
+
+    def test_a_current_frankenphp_leaves_static_php_cli_alone(self):
+        current = upstream.read(upstream.BUILDER_INPUTS, r"^frankenphp_version=(.+)$")
+        pinned = upstream.read(upstream.BUILDER_INPUTS, upstream.SPC_PIN)
+        self.serve_frankenphp(f"v{current}")
+        self.run_bumper(upstream.frankenphp)
+        self.assertEqual(upstream.read(upstream.BUILDER_INPUTS, upstream.SPC_PIN), pinned)
+
+    def test_a_static_php_cli_head_that_is_no_commit_stops_the_run(self):
+        self.serve_frankenphp("v1.99.0", spc="main")
+        with self.assertRaises(SystemExit):
+            self.run_bumper(upstream.frankenphp)
 
     def test_a_lightweight_frankenphp_tag_names_its_commit_directly(self):
         self.serve_frankenphp("v1.99.0", annotated=False)

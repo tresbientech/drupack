@@ -1,6 +1,8 @@
 # A Linux file carries one runtime
 
 Accepted on 2026-09-29. Supersedes [ADR 0015](0015-two-runtimes-in-one-executable.md).
+Amended on 2026-10-22 by [ADR 0046](0046-builders-run-static-php-cli-v3.md):
+the install script and self-update take the glibc file only on glibc 2.28 or later.
 
 ## Context
 

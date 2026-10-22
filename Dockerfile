@@ -105,9 +105,17 @@ COPY application /opt/drupack/engine/application
 COPY build /opt/drupack/engine/build
 COPY engine /opt/drupack/engine/engine
 COPY launcher /opt/drupack/engine/launcher
-COPY runtime/php-extensions.txt runtime/check-extensions.py /opt/drupack/engine/runtime/
-RUN python3 /opt/drupack/engine/runtime/check-extensions.py --fetch-spc /opt/drupack/spc
+COPY runtime/php-extensions.txt runtime/check-extensions.py runtime/builder-inputs.sh runtime/fetch-spc.sh /opt/drupack/engine/runtime/
 COPY tests /opt/drupack/engine/tests
+ENV DRUPACK_PHP=/opt/drupack/runtimes/linux-${TARGETARCH}-musl/drupack \
+    DRUPACK_SPC=/opt/drupack/static-php-cli \
+    DRUPACK_COMPOSER=/opt/composer.phar
+# check-extensions.py runs this checkout on the musl runtime.
+RUN bash /opt/drupack/engine/runtime/fetch-spc.sh "$DRUPACK_SPC" \
+    && PHPRC=$(dirname "$DRUPACK_PHP") DRUPACK_CA_FILE=/opt/drupack/engine/application/cacert.pem \
+        "$DRUPACK_PHP" php-cli "$DRUPACK_COMPOSER" install \
+        --working-dir="$DRUPACK_SPC" --no-dev --no-interaction --prefer-dist \
+    && chmod -R a+rX "$DRUPACK_SPC"
 # The packer builds the launcher from this module on every run, so its modules are
 # fetched once here and the build runs as whichever user the CI host picks.
 RUN cd /opt/drupack/engine/launcher \
@@ -116,11 +124,8 @@ RUN cd /opt/drupack/engine/launcher \
     && chmod -R a+rX /go/pkg/mod
 ENV DRUPACK_ENGINE=/opt/drupack/engine \
     DRUPACK_ENGINE_VERSION=${DRUPACK_VERSION:-dev} \
-    DRUPACK_PHP=/opt/drupack/runtimes/linux-${TARGETARCH}-musl/drupack \
     DRUPACK_RUNTIMES=/opt/drupack/runtimes \
     DRUPACK_RUNTIME_COMPONENTS=/opt/drupack/runtime-components \
-    DRUPACK_SPC=/opt/drupack/spc \
-    DRUPACK_COMPOSER=/opt/composer.phar \
     HOME=/tmp \
     GOCACHE=/tmp/go-build \
     GOTOOLCHAIN=local

@@ -19,14 +19,13 @@ repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 # The FrankenPHP and PHP pins every Linux builder image compiles.
 . "$repository/runtime/builder-inputs.sh"
 drupack_version=${DRUPACK_VERSION:-dev}
-spc_version=2.8.5
 # The allowlist every builder compiles. spc resolves the libraries each name needs.
 extensions=$(bash "$repository/runtime/extensions-list.sh" "$repository/runtime/php-extensions.txt")
 extension_libs=$(bash "$repository/runtime/extensions-list.sh" "$repository/runtime/php-extension-libs.txt")
 
 case "$(uname -m)" in
-    arm64) spc_archive=spc-macos-aarch64.tar.gz; spc_sha256=acf2f25d56d0cbf8e65aa82e5054fef555f7be7c5c38046c6e0819f266d83225; target=macos-arm64 ;;
-    x86_64) spc_archive=spc-macos-x86_64.tar.gz; spc_sha256=e8b798048f62ca4960764196543b60ae703f7174aa418824cf542aeec1d2cd6a; target=macos-amd64 ;;
+    arm64) target=macos-arm64 ;;
+    x86_64) target=macos-amd64 ;;
     *) printf 'Unsupported macOS architecture: %s\n' "$(uname -m)" >&2; exit 1 ;;
 esac
 
@@ -35,18 +34,19 @@ mkdir -p "$work"
 cd "$work"
 # The script changes directory again below, so the caller's path resolves here.
 work=$(pwd)
-curl -fsSL -o "$spc_archive" "https://github.com/crazywhalecc/static-php-cli/releases/download/$spc_version/$spc_archive"
-printf '%s  %s\n' "$spc_sha256" "$spc_archive" | shasum -a 256 -c -
-tar -xzf "$spc_archive"
+# static-php-cli runs from the pinned checkout, on the runner's PHP and Composer.
+bash "$repository/runtime/fetch-spc.sh" "$work/static-php-cli"
+composer install --working-dir="$work/static-php-cli" --no-dev --no-interaction --prefer-dist
+spc=(php "$work/static-php-cli/bin/spc")
 
 # Installs pkg-config and the other build tools static-php-cli needs.
-./spc doctor --auto-fix
+"${spc[@]}" doctor --auto-fix
 # static-php-cli's pre-built archives lag the libraries' own releases, so each
 # library compiles from its source release.
-./spc download --with-php="$php_version" --for-extensions="$extensions" --for-libs="$extension_libs" --retry 5
-./spc build --enable-zts --build-embed --disable-opcache-jit "$extensions" --with-libs="$extension_libs"
-php_includes=$(./spc spc-config "$extensions" --with-libs="$extension_libs" --includes)
-php_libraries=$(./spc spc-config "$extensions" --with-libs="$extension_libs" --libs)
+"${spc[@]}" download --with-php="$php_version" --for-extensions="$extensions" --for-libs="$extension_libs" --retry 5
+"${spc[@]}" build --enable-zts --build-embed --disable-opcache-jit "$extensions" --with-libs="$extension_libs"
+php_includes=$("${spc[@]}" spc-config "$extensions" --with-libs="$extension_libs" --includes)
+php_libraries=$("${spc[@]}" spc-config "$extensions" --with-libs="$extension_libs" --libs)
 # --version names the SQLite release static-php-cli compiled into PHP.
 sqlite_version=$(sed -n 's/^#define SQLITE_VERSION *"\(.*\)"$/\1/p' "$work/buildroot/include/sqlite3.h")
 if [[ -z $sqlite_version ]]; then

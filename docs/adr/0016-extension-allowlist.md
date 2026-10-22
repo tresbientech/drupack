@@ -4,6 +4,8 @@ Accepted on 2026-09-22.
 Amended on 2026-10-22 by [ADR 0045](0045-the-harness-holds-the-extension-platform-facts.md):
 on Windows, the release job's conformance run fails the build on a missing
 name, and the exceptions live in `tests/conformance/harness.py`.
+Amended on 2026-10-22 by [ADR 0046](0046-builders-run-static-php-cli-v3.md):
+the Linux builder compiles PHP when its container runs, with static-php-cli v3.
 
 ## Context
 

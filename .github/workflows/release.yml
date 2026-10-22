@@ -696,6 +696,11 @@ jobs:
         shell: bash
         run: bash build/go-tests.sh
 
+      # static-php-cli runs on PHP and Composer, which the arm64 runner image lacks.
+      - name: Install PHP and Composer
+        if: matrix.arch == 'arm64'
+        run: brew install --quiet php composer
+
       - uses: actions/download-artifact@v8
         with:
           name: payload-archive

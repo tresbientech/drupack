@@ -8,27 +8,12 @@ every extension it misses.
 """
 
 import argparse
-import hashlib
 import json
 import os
-import shutil
-import platform
 import subprocess
 import sys
-import tarfile
 import tempfile
-import urllib.request
 from pathlib import Path
-
-SPC_VERSION = "2.8.5"
-# Published digests from the static-php-cli release of the pinned version.
-SPC_ARCHIVES = {
-    "x86_64": ("spc-linux-x86_64.tar.gz", "523ba4279c54c7a377156c0dd3a36adf92ee64b01e9a7f5e9e2ec084b8e458e5"),
-    "aarch64": ("spc-linux-aarch64.tar.gz", "675a3840dcdc4ed041fe20eaa54310ce019a9984c1c03951df9ec66df5795213"),
-}
-# spc reports date, and PHP compiles it whatever the build selects, so it
-# cannot appear in PHP_EXTENSIONS.
-ALWAYS_COMPILED = frozenset({"date"})
 
 ROOT = Path(__file__).resolve().parent.parent
 ALLOWLIST = ROOT / "runtime" / "php-extensions.txt"
@@ -43,32 +28,12 @@ def allowlist() -> set[str]:
     return names
 
 
-def fetch_spc(work: Path) -> Path:
-    machine = platform.machine()
-    if machine not in SPC_ARCHIVES:
-        sys.exit(f"No pinned spc build for {machine}. Pass --spc with a binary.")
-    archive_name, digest = SPC_ARCHIVES[machine]
-    url = f"https://github.com/crazywhalecc/static-php-cli/releases/download/{SPC_VERSION}/{archive_name}"
-    archive = work / archive_name
-    with urllib.request.urlopen(url) as response:
-        archive.write_bytes(response.read())
-    found = hashlib.sha256(archive.read_bytes()).hexdigest()
-    if found != digest:
-        sys.exit(f"{archive_name} has checksum {found}, expected {digest}")
-    # The archive's member names never become paths: the one binary is read out
-    # by name and written where this script chooses.
-    binary = work / "spc"
-    with tarfile.open(archive) as tar:
-        binary.write_bytes(tar.extractfile("spc").read())
-    binary.chmod(0o755)
-    return binary
-
-
-def declared(spc: Path, work: Path, project: Path) -> list[str]:
-    # spc writes a log directory into its working directory.
+def declared(php: Path, spc: Path, work: Path, project: Path) -> list[str]:
+    # spc writes a log directory into its working directory. The runtime reads
+    # php.ini beside itself only through PHPRC.
     result = subprocess.run(
-        [str(spc), "dump-extensions", str(project), "--no-dev", "--format=json"],
-        capture_output=True, text=True, cwd=work,
+        [str(php), "php-cli", str(spc / "bin" / "spc"), "dump-extensions", str(project), "--no-dev", "--format=json"],
+        capture_output=True, text=True, cwd=work, env={**os.environ, "PHPRC": str(php.parent)},
     )
     if result.returncode != 0:
         sys.exit(f"spc dump-extensions failed:\n{result.stderr}")
@@ -89,27 +54,21 @@ def declaring_packages(extension: str, project: Path) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("site", type=Path, nargs="?", help="the site's composer project directory")
-    # The job image fetches spc once, so a build needs no download.
+    parser.add_argument("site", type=Path, help="the site's composer project directory")
+    parser.add_argument("--php", type=Path, default=os.environ.get("DRUPACK_PHP"),
+                        help="the Drupack runtime that runs spc, DRUPACK_PHP by default")
     parser.add_argument("--spc", type=Path, default=os.environ.get("DRUPACK_SPC"),
-                        help="an spc binary to use instead of downloading one, DRUPACK_SPC by default")
-    parser.add_argument("--fetch-spc", type=Path, metavar="PATH",
-                        help="download the pinned spc binary to PATH, verify it, and exit")
+                        help="a static-php-cli checkout with its dependencies installed, DRUPACK_SPC by default")
     parser.add_argument("--extensions", default="", help="the site's additions, comma-separated")
     arguments = parser.parse_args()
-    if arguments.fetch_spc:
-        with tempfile.TemporaryDirectory() as directory:
-            shutil.move(fetch_spc(Path(directory)), arguments.fetch_spc)
-        return 0
-    if arguments.site is None:
-        parser.error("the site directory is required")
+    if arguments.php is None or arguments.spc is None:
+        parser.error("--php and --spc are required outside the job image")
 
     with tempfile.TemporaryDirectory() as directory:
-        work = Path(directory)
-        extensions = declared(arguments.spc or fetch_spc(work), work, arguments.site.resolve())
+        extensions = declared(arguments.php, arguments.spc, Path(directory), arguments.site.resolve())
 
     additions = {name for name in arguments.extensions.split(",") if name}
-    missing = sorted(set(extensions) - allowlist() - additions - ALWAYS_COMPILED)
+    missing = sorted(set(extensions) - allowlist() - additions)
     if missing:
         print(f"{ALLOWLIST.relative_to(ROOT)} and drupack.yml's extensions omit extensions the lock declares:",
               file=sys.stderr)
