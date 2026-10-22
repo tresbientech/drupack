@@ -39,7 +39,7 @@ A project whose `composer.lock` needs a PHP extension the bundled PHP lacks is r
 
 ## Linux builds
 
-A Linux release publishes a glibc build and a musl build per processor. `drupack-install` installs the glibc build when the host has the glibc loader, and the musl build otherwise. `DRUPACK_LIBC` set to `glibc` or `musl` overrides that pick:
+A Linux release publishes a glibc build and a musl build per processor. `drupack-install` installs the glibc build when the host has the glibc loader at glibc 2.28 or later, and the musl build otherwise. `DRUPACK_LIBC` set to `glibc` or `musl` overrides that pick:
 
 ```sh
 DRUPACK_LIBC=musl vendor/bin/drupack-install

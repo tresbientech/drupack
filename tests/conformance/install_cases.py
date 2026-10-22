@@ -94,14 +94,21 @@ class InstallScript(harness.ConformanceCase):
         shutil.copyfile(harness.BINARY, build)
         return build
 
-    def install(self, release, libc=None):
+    def install(self, release, libc=None, glibc=None):
         """Runs the one-liner for this host against release in an empty directory, with
-        DRUPACK_LIBC set to libc when given, and returns the result and the directory."""
+        DRUPACK_LIBC set to libc when given and getconf reporting glibc as the host's
+        glibc version when given, and returns the result and the directory."""
         directory = harness.fresh_dir(self.class_dir / f"install-{release.name}")
         env = dict(os.environ)
         env.pop("DRUPACK_LIBC", None)
         if libc is not None:
             env["DRUPACK_LIBC"] = libc
+        if glibc is not None:
+            tools = harness.fresh_dir(self.class_dir / f"getconf-{release.name}")
+            getconf = tools / "getconf"
+            getconf.write_text(f"#!/bin/sh\necho 'glibc {glibc}'\n")
+            getconf.chmod(0o755)
+            env["PATH"] = f"{tools}{os.pathsep}{env['PATH']}"
         if self.windows:
             # Windows PowerShell wraps an uncaught error at the console width, even when redirected.
             command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
@@ -190,6 +197,13 @@ class InstallScript(harness.ConformanceCase):
         for glibc_host, libc in ((True, "glibc"), (False, "musl")):
             with self.subTest(libc=libc):
                 result, directory = self.install(self.linux_release(f"pick-{libc}", glibc_host=glibc_host))
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual((directory / self.name).read_bytes(), f"a {libc} build".encode())
+
+    def test_the_script_picks_the_musl_build_below_glibc_2_28(self):
+        for glibc, libc in (("2.27", "musl"), ("2.28", "glibc"), ("3.0", "glibc")):
+            with self.subTest(glibc=glibc):
+                result, directory = self.install(self.linux_release(f"glibc-{glibc}"), glibc=glibc)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertEqual((directory / self.name).read_bytes(), f"a {libc} build".encode())
 

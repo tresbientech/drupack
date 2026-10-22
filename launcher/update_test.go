@@ -149,6 +149,23 @@ func TestTargetNamesTheReleaseAssets(t *testing.T) {
 	}
 }
 
+func TestGlibcBelowFloor(t *testing.T) {
+	cases := map[string]bool{
+		"glibc 2.17\n": true,
+		"glibc 2.27":   true,
+		"glibc 2.28\n": false,
+		"glibc 2.43":   false,
+		"glibc 3.0":    false,
+		"":             true,
+		"musl 1.2.5":   true,
+	}
+	for answer, want := range cases {
+		if got := glibcBelowFloor(answer); got != want {
+			t.Errorf("glibcBelowFloor(%q) = %t; want %t", answer, got, want)
+		}
+	}
+}
+
 func TestPickNamesTheTargetsAReleaseLacksItsOwn(t *testing.T) {
 	packedAs(t, "drupack", "1.0.0", true)
 	latest := release{Version: "1.0.1", Assets: []asset{

@@ -32,7 +32,14 @@ if [ "$os" = macos ] && [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = 1 
 fi
 target=$os-$arch
 # A Linux release publishes a glibc build and a musl build. A host holding the
-# glibc program interpreter of its architecture runs the faster glibc one.
+# glibc program interpreter of its architecture, at glibc 2.28 or later, runs
+# the faster glibc one. The glibc build links against the glibc of its RHEL 8
+# builder image, 2.28.
+glibc_recent() {
+    # getconf prints "glibc 2.28" on a glibc host.
+    set -- $(getconf GNU_LIBC_VERSION 2>/dev/null | sed -n 's/^glibc \([0-9]*\)\.\([0-9]*\).*/\1 \2/p')
+    [ $# -eq 2 ] && { [ "$1" -gt 2 ] || { [ "$1" -eq 2 ] && [ "$2" -ge 28 ]; }; }
+}
 if [ "$os" = linux ]; then
     case $arch in
         amd64) interpreter=/lib64/ld-linux-x86-64.so.2 ;;
@@ -41,7 +48,7 @@ if [ "$os" = linux ]; then
     # DRUPACK_LIBC comes from the reader's environment, so a value naming no build stops here.
     case ${DRUPACK_LIBC:-} in
         glibc | musl) libc=$DRUPACK_LIBC ;;
-        '') if [ -e "$interpreter" ]; then libc=glibc; else libc=musl; fi ;;
+        '') if [ -e "$interpreter" ] && glibc_recent; then libc=glibc; else libc=musl; fi ;;
         *) fail "DRUPACK_LIBC=$DRUPACK_LIBC names no build. Set it to glibc or musl, or leave it unset." ;;
     esac
     if [ "$libc" = musl ]; then

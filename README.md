@@ -70,11 +70,13 @@ The script picks the build for your system and processor, and checks its SHA-256
 
 A Linux release publishes two builds per processor. `linux-amd64` carries a
 runtime built against glibc, and `linux-amd64-musl` one built against musl. The
-script checks the host for the glibc loader and installs the matching build.
+script checks the host for the glibc loader and its version, and installs the
+matching build.
 
 | Your host | Build it installs | Why |
 |---|---|---|
-| glibc, which covers Debian, Ubuntu, Fedora, RHEL and Arch | glibc | serves a rendered page faster |
+| glibc 2.28 or later, which covers current Debian, Ubuntu, Fedora, RHEL and Arch | glibc | serves a rendered page faster |
+| glibc older than 2.28, such as CentOS 7 or Ubuntu 18.04 | musl | the glibc build needs glibc 2.28 |
 | musl, which covers Alpine and most slim containers | musl | the only one that runs there |
 | anything without the glibc loader | musl | runs on any host |
 

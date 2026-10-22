@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	goruntime "runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -95,7 +96,13 @@ func selfUpdate(arguments []string, url, executable string, out io.Writer) error
 	// A release lacking this file's build is recorded as none, so no run names it.
 	var chosen asset
 	if later {
-		if chosen, err = pick(latest, target(goruntime.GOOS, goruntime.GOARCH, musl)); err != nil {
+		takeMusl := musl
+		if !musl && goruntime.GOOS == "linux" {
+			// A host without getconf answers nothing, which counts as below the floor.
+			answer, _ := exec.Command("getconf", "GNU_LIBC_VERSION").Output()
+			takeMusl = glibcBelowFloor(string(answer))
+		}
+		if chosen, err = pick(latest, target(goruntime.GOOS, goruntime.GOARCH, takeMusl)); err != nil {
 			return err
 		}
 	}
@@ -214,6 +221,23 @@ func recordCheck(root, newest string) error {
 		return err
 	}
 	return os.Rename(staged.Name(), filepath.Join(root, updateCheckName))
+}
+
+var glibcVersion = regexp.MustCompile(`^glibc (\d+)\.(\d+)`)
+
+// glibcBelowFloor reports whether getconf's GNU_LIBC_VERSION answer, such as
+// "glibc 2.28", names a glibc older than 2.28, the glibc of the RHEL 8 image the
+// glibc runtime links in. build/install.sh holds the same floor. getconf's answer
+// comes from the host, and one naming no version counts as older, since the musl
+// runtime runs on any Linux host.
+func glibcBelowFloor(answer string) bool {
+	match := glibcVersion.FindStringSubmatch(strings.TrimSpace(answer))
+	if match == nil {
+		return true
+	}
+	major, _ := strconv.Atoi(match[1])
+	minor, _ := strconv.Atoi(match[2])
+	return major < 2 || major == 2 && minor < 28
 }
 
 func target(goos, goarch string, musl bool) string {
