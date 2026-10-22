@@ -1,0 +1,13 @@
+{
+  "platforms": {
+    "linux-amd64": "amd64",
+    "linux-arm64": "arm64",
+    "macos-amd64": "amd64",
+    "macos-arm64": "arm64",
+    "windows-amd64": "amd64"
+  },
+  "libcs": [
+    {"name": "glibc", "builder": "gnu", "suffix": ""},
+    {"name": "musl", "builder": "musl", "suffix": "-musl"}
+  ]
+}

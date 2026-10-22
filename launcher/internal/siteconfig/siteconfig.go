@@ -27,29 +27,26 @@ const OutputName = "site.json"
 const DefaultLibc = "both"
 
 // Libcs lists the values libc takes, and the C library of each Linux file each
-// one packs. glibc comes first, so a build that packs both tests its glibc file.
-var Libcs = map[string][]string{
-	"both":  {"glibc", "musl"},
-	"glibc": {"glibc"},
-	"musl":  {"musl"},
-}
+// one packs, in the order of runtime.Libcs.
+var Libcs = libcValues()
 
-var Platforms = map[string]string{
-	"linux-amd64":   "amd64",
-	"linux-arm64":   "arm64",
-	"macos-amd64":   "amd64",
-	"macos-arm64":   "arm64",
-	"windows-amd64": "amd64",
+func libcValues() map[string][]string {
+	values := map[string][]string{"both": nil}
+	for _, libc := range runtime.Libcs {
+		values["both"] = append(values["both"], libc.Name)
+		values[libc.Name] = []string{libc.Name}
+	}
+	return values
 }
 
 func PlatformNames() []string {
-	return slices.Sorted(maps.Keys(Platforms))
+	return slices.Sorted(maps.Keys(runtime.Platforms))
 }
 
 // Native reports whether platform is a macOS or Windows target, which builds on
 // a runner of its own system with a runtime Drupack's release publishes.
 func Native(platform string) bool {
-	_, listed := Platforms[platform]
+	_, listed := runtime.Platforms[platform]
 	return listed && !strings.HasPrefix(platform, "linux-")
 }
 
@@ -239,7 +236,7 @@ func validate(site Site) error {
 		return fieldError("platforms", "names no target")
 	}
 	for _, platform := range site.Platforms {
-		if _, ok := Platforms[platform]; !ok {
+		if _, ok := runtime.Platforms[platform]; !ok {
 			return fieldError("platforms", "%q is not one of %s", platform, strings.Join(PlatformNames(), ", "))
 		}
 	}

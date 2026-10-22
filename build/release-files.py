@@ -23,18 +23,21 @@ import shutil
 import subprocess
 from pathlib import Path
 
-NATIVE = r"(?:macos|windows)-(?:amd64|arm64)"
-# A Linux target names a musl build with a -musl suffix, and a glibc build with none.
+TEMPLATES = Path(__file__).resolve().parent
+TARGETS = json.loads((TEMPLATES.parent / "launcher" / "internal" / "runtime" / "targets.json").read_text())
+NATIVE = [platform for platform in TARGETS["platforms"] if not platform.startswith("linux-")]
+# A Linux target ends with the suffix of the libc its build ran against.
+LINUX = [platform + libc["suffix"] for platform in TARGETS["platforms"] if platform.startswith("linux-")
+         for libc in TARGETS["libcs"]]
 BUILD = re.compile(r"(?P<name>[a-z0-9][a-z0-9-]*)"
-                   rf"-(?P<target>linux-(?:amd64|arm64)(?:-musl)?|{NATIVE})(?P<extension>\.exe)?")
+                   rf"-(?P<target>{'|'.join(map(re.escape, LINUX + NATIVE))})(?P<extension>\.exe)?")
 # The job image carries the Linux runtimes, so a release publishes none of them.
-RUNTIME = re.compile(rf"runtime-(?P<target>{NATIVE})")
+RUNTIME = re.compile(rf"runtime-(?P<target>{'|'.join(map(re.escape, NATIVE))})")
 # The scripts carry these values inside quoted shell and PowerShell strings, so a
 # value holding a character either language reads there is refused. The version
 # also names files, so it holds no path separator.
 VERSION = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]*")
 URL = re.compile(r"[A-Za-z0-9._+:/-]+")
-TEMPLATES = Path(__file__).resolve().parent
 
 
 def stamp(template, output, name, version, base_url, builds):

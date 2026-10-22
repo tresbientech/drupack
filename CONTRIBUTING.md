@@ -161,7 +161,7 @@ Neither start needs more options. A site whose contract names writable directori
 
 Every published executable is a launcher carrying the real executable, compressed with `github.com/klauspost/compress/zstd`. The first run of a version unpacks it under the user's cache directory, then replaces its own process with it on Linux and macOS, or starts it as a child on Windows, which has no `exec`. Later runs compare a stored manifest and file sizes, then start. `DRUPACK_CACHE_DIR` moves that cache.
 
-`launcher/` holds the launcher and its packer, at the path its `go.mod` declares. A Linux release publishes a file per C library, each carrying one runtime built from that library's builder image. `drupack-build` runs the packer once per file, over the runtime directory it is given. `docker build --target uncompressed` gives you the musl runtime executable on its own, and `--target uncompressed-gnu` the glibc one.
+`launcher/` holds the launcher and its packer, at the path its `go.mod` declares. A Linux release publishes a file per C library, each carrying one runtime built from that library's builder image. `drupack-build` runs the packer once per file, over the runtime directory it is given. `docker build --target uncompressed` gives you the musl runtime executable on its own, and `--target uncompressed-gnu` the glibc one. `launcher/internal/runtime/targets.json` lists the platforms and C libraries, with each library's builder image and file-name suffix. The launcher, the release workflow and `build/release-files.py` read it. A new target starts there, and `tests/conformance/test_targets.py` names the workflow line to add with it.
 
 ## Releases
 

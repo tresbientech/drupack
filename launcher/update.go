@@ -220,7 +220,11 @@ func target(goos, goarch string, musl bool) string {
 	if goos == "darwin" {
 		goos = "macos"
 	}
-	return runtime.Target(goos+"-"+goarch, musl)
+	libc := "glibc"
+	if musl {
+		libc = "musl"
+	}
+	return runtime.Target(goos+"-"+goarch, libc)
 }
 
 func pick(latest release, target string) (asset, error) {

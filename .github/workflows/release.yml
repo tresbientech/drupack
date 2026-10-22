@@ -84,6 +84,7 @@ jobs:
           SHA: ${{ github.sha }}
           PLATFORM: ${{ inputs.platform || 'all' }}
           NAMED: ${{ inputs.version }}
+          TARGETS: launcher/internal/runtime/targets.json
         run: |
           # Every job that builds a runtime or packs one names the same version.
           if [ "$GITHUB_REF_TYPE" = tag ]; then
@@ -119,18 +120,15 @@ jobs:
           if [ -n "$candidate" ]; then
             echo "Publishing the files of candidate run $candidate."
           elif [ "$GITHUB_REF_TYPE" = tag ] || [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
-            case "$PLATFORM" in
-              all)
-                linux='[{"arch":"amd64"},{"arch":"arm64"}]'
-                macos='[{"arch":"arm64"},{"arch":"amd64"}]'
-                windows='[{"arch":"amd64"}]'
-                ;;
-              linux-amd64) linux='[{"arch":"amd64"}]' ;;
-              linux-arm64) linux='[{"arch":"arm64"}]' ;;
-              macos-arm64) macos='[{"arch":"arm64"}]' ;;
-              macos-amd64) macos='[{"arch":"amd64"}]' ;;
-              windows-amd64) windows='[{"arch":"amd64"}]' ;;
-            esac
+            # One matrix row per architecture of SYSTEM that the platform input names.
+            matrix() {
+              jq -c --arg system "$1-" --arg platform "$PLATFORM" \
+                '[.platforms | keys[] | select(startswith($system) and ($platform == "all" or . == $platform))
+                  | {arch: ltrimstr($system)}]' "$TARGETS"
+            }
+            linux=$(matrix linux)
+            macos=$(matrix macos)
+            windows=$(matrix windows)
           # A new branch reports an all-zero before, which compares against nothing.
           elif [ "$BEFORE" = 0000000000000000000000000000000000000000 ]; then
             linux='[{"arch":"amd64"}]'
@@ -149,15 +147,19 @@ jobs:
               echo 'Documentation alone changed. Nothing to build.'
             fi
           fi
-          linux_runtime=$(jq -cn --argjson linux "$linux" \
-            '[$linux[] | ({arch: .arch, libc: "musl"}, {arch: .arch, libc: "gnu"})]')
+          # One runtime row per Linux architecture and libc, naming the libc's builder image.
+          runtimes() {
+            jq -c --argjson arches "$1" \
+              '[$arches[] as $arch | .libcs[] | {arch: $arch.arch, libc: .name, builder: .builder, suffix: .suffix}]' "$TARGETS"
+          }
+          linux_runtime=$(runtimes "$linux")
           # Every platform packs the payload job's output, so any target calls for it.
           build=true
           [ "$linux$macos$windows" != '[][][]' ] || build=false
           # The payload job runs PHP from the amd64 musl runtime, so any build compiles it.
           if [ "$build" = true ]; then
-            linux_runtime=$(jq -cn --argjson runtimes "$linux_runtime" \
-              '$runtimes + [{arch: "amd64", libc: "musl"}] | unique')
+            linux_runtime=$(jq -cn --argjson runtimes "$linux_runtime" --argjson payload "$(runtimes '[{"arch":"amd64"}]')" \
+              '$runtimes + [$payload[] | select(.libc == "musl")] | unique')
           fi
           {
             printf 'version=%s\n' "$version"
@@ -204,9 +206,9 @@ jobs:
       - id: builder
         name: Name the builder image
         env:
-          LIBC: ${{ matrix.libc }}
+          BUILDER: ${{ matrix.builder }}
         run: |
-          tag=$(bash runtime/builder-tag.sh "$LIBC")
+          tag=$(bash runtime/builder-tag.sh "$BUILDER")
           printf 'image=ghcr.io/%s-builder:%s\n' "$GITHUB_REPOSITORY" "$tag" >>"$GITHUB_OUTPUT"
 
       - name: Log in to the registry
@@ -222,12 +224,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           IMAGE: ${{ steps.builder.outputs.image }}
-          LIBC: ${{ matrix.libc }}
+          BUILDER: ${{ matrix.builder }}
         run: |
           if docker pull -q "$IMAGE"; then
             exit 0
           fi
-          bash runtime/build-builder.sh "$LIBC" "$IMAGE" "$RUNNER_TEMP/builder"
+          bash runtime/build-builder.sh "$BUILDER" "$IMAGE" "$RUNNER_TEMP/builder"
           echo 'built=true' >>"$GITHUB_OUTPUT"
 
       # A fork holds a read-only token. The image it built stays on the runner,
@@ -243,11 +245,12 @@ jobs:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
           IMAGE: ${{ steps.builder.outputs.image }}
           LIBC: ${{ matrix.libc }}
-          BUILDER_ARG: ${{ matrix.libc == 'musl' && 'MUSL_BUILDER' || 'GNU_BUILDER' }}
+          BUILDER: ${{ matrix.builder }}
         run: |
-          docker build --target "runtime-$LIBC-files" \
+          # The Dockerfile names each builder image's argument after the builder, upper case.
+          docker build --target "runtime-$BUILDER-files" \
             --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" \
-            --build-arg "$BUILDER_ARG=$IMAGE" \
+            --build-arg "${BUILDER^^}_BUILDER=$IMAGE" \
             --output "type=local,dest=runtime-$LIBC" .
           df -h /
 
@@ -261,13 +264,11 @@ jobs:
       # carries the report for site builds, and the publish job merges it.
       - name: Report the runtime's components
         env:
-          ARCH: ${{ matrix.arch }}
           LIBC: ${{ matrix.libc }}
+          TARGET: linux-${{ matrix.arch }}${{ matrix.suffix }}
         run: |
-          target=linux-$ARCH
-          if [ "$LIBC" = musl ]; then target=$target-musl; fi
           mkdir runtime-components
-          python3 build/sbom.py runtime --target "$target" "runtime-$LIBC/out/drupack" >"runtime-components/$target.json"
+          python3 build/sbom.py runtime --target "$TARGET" "runtime-$LIBC/out/drupack" >"runtime-components/$TARGET.json"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -325,8 +326,6 @@ jobs:
           fi
           for artifact in runtime-artifacts/runtime-linux-*; do
             target=${artifact#runtime-artifacts/runtime-}
-            # The runtime jobs name the glibc build gnu, after its builder image.
-            case "$target" in *-gnu) target=${target%-gnu}-glibc ;; esac
             mv "$artifact/out" "runtimes/$target"
           done
           chmod +x runtimes/*/drupack
@@ -441,8 +440,8 @@ jobs:
 
       - uses: actions/download-artifact@v7
         with:
-          name: runtime-linux-${{ matrix.arch }}-gnu
-          path: runtime-gnu
+          name: runtime-linux-${{ matrix.arch }}-glibc
+          path: runtime-glibc
 
       - uses: actions/download-artifact@v7
         with:
@@ -462,9 +461,9 @@ jobs:
           CGO_ENABLED: '0'
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
-          chmod +x ../runtime-musl/out/drupack ../runtime-gnu/out/drupack
+          chmod +x ../runtime-musl/out/drupack ../runtime-glibc/out/drupack
           mkdir -p ../dist/musl ../dist/engine/musl
-          for libc in gnu musl; do
+          for libc in glibc musl; do
             # The musl files land in their own directories, since each artifact holds one file named NAME.
             directory=
             # The glibc file carries the payload's Node archive, and the musl file none.

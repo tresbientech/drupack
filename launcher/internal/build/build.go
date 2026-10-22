@@ -177,7 +177,7 @@ func NewPlan(r Request) (Plan, error) {
 	tested := ""
 	for _, platform := range r.Platforms {
 		for _, libc := range libcs {
-			target := runtime.Target(platform, libc == "musl")
+			target := runtime.Target(platform, libc)
 			if tested != "" || platform != r.Host {
 				plan.Untested = append(plan.Untested, target)
 				continue
@@ -210,7 +210,7 @@ func nodeTargets(r Request, libcs, natives []string) []string {
 	targets := slices.Clone(natives)
 	for _, platform := range r.Platforms {
 		for _, libc := range libcs {
-			targets = append(targets, runtime.Target(platform, libc == "musl"))
+			targets = append(targets, runtime.Target(platform, libc))
 		}
 	}
 	return targets
@@ -240,13 +240,13 @@ func packSteps(r Request, libcs []string, resolved map[string]string, step, name
 	var steps []Step
 	for _, platform := range r.Platforms {
 		for _, libc := range libcs {
-			target := runtime.Target(platform, libc == "musl")
+			target := runtime.Target(platform, libc)
 			command := append([]string{"go", "run", "./cmd/pack", "-runtime", resolved[platform+"/"+libc],
 				"-entry", "drupack", "-version", r.EngineVersion,
 				"-source", filepath.Join(r.Engine, "launcher"),
 				"-output", filepath.Join(r.Output, Executable(name, target)),
 				"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
-				"-goarch", siteconfig.Platforms[platform]}, extra...)
+				"-goarch", runtime.Platforms[platform]}, extra...)
 			if libc == "musl" {
 				command = append(command, "-musl")
 			}
@@ -274,7 +274,7 @@ func requestLibcs(libc string) ([]string, error) {
 func resolveRuntimes(r Request, libcs []string) (map[string]string, error) {
 	resolved := map[string]string{}
 	for _, platform := range r.Platforms {
-		if _, ok := siteconfig.Platforms[platform]; !ok || siteconfig.Native(platform) && !r.PayloadOnly {
+		if _, ok := runtime.Platforms[platform]; !ok || siteconfig.Native(platform) && !r.PayloadOnly {
 			return nil, fmt.Errorf("target %q is not built by drupack-build, which packs the Linux targets; a macOS or Windows target builds in the GitHub workflow build.yml, called at a tag or with its runtime-release input", platform)
 		}
 		if r.PayloadOnly {

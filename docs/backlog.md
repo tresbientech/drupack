@@ -210,20 +210,6 @@ reads only its own cache and main's, so a release during such an outage fails on
 Windows. Lean: point `X_VCPKG_ASSET_SOURCES` at our own copy of each download,
 keyed by its SHA-512.
 
-## One table of build targets
-
-A target's name lives in five forms:
-
-- `Target()` and `payloadTargets` in `build.go`
-- `siteconfig.Platforms` and `Libcs`
-- the `BUILD` regex in `build/release-files.py`
-- the jq matrix in `release.yml`
-- the `gnu` to `glibc` rename in `release.yml`
-
-No test ties the workflow's artifact names to the Go table. Lean: Go owns one
-table and prints it as JSON, and the workflow and `release-files.py` read that
-output. A source-scan test, like `test_environment.py`, checks the workflow.
-
 ## Steps checked before the lease and run under it
 
 `launch.php` checks what the owed steps need on the list it reads before the
