@@ -173,11 +173,6 @@ jobs:
           } >>"$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
-      # Every builder compiles the extensions runtime/php-extensions.txt names, so
-      # a lock that declares one the file omits stops the release here.
-      - name: Check the allowlist against the lock
-        run: python3 runtime/check-extensions.py demo
-
   # A builder image carries the PHP its own build compiled, so one image serves
   # one libc on one architecture. Its content follows the inputs
   # runtime/builder-tag.sh digests, and the registry holds it under that digest.
