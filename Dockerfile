@@ -105,7 +105,7 @@ COPY application /opt/drupack/engine/application
 COPY build /opt/drupack/engine/build
 COPY engine /opt/drupack/engine/engine
 COPY launcher /opt/drupack/engine/launcher
-COPY runtime/php-extensions.txt runtime/check-extensions.py runtime/builder-inputs.sh runtime/fetch-spc.sh /opt/drupack/engine/runtime/
+COPY runtime/php-extensions.txt runtime/check-extensions.py runtime/builder-inputs.sh runtime/fetch-spc.sh runtime/spc-sqlite.patch /opt/drupack/engine/runtime/
 COPY tests /opt/drupack/engine/tests
 ENV DRUPACK_PHP=/opt/drupack/runtimes/linux-${TARGETARCH}-musl/drupack \
     DRUPACK_SPC=/opt/drupack/static-php-cli \

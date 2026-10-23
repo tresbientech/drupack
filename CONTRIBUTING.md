@@ -38,7 +38,7 @@ The build packs one file per platform and C library. The demo's `drupack.yml` al
 
 A release tag publishes the image as `ghcr.io/tresbientech/drupack-build:VERSION`, carrying all four Linux runtimes. The image itself runs on amd64 only.
 
-The release workflow names the same image after its inputs. `runtime/builder-tag.sh` digests the FrankenPHP and static-php-cli commits, the PHP version, both extension list files, the C library, the machine type and the two scripts that compile the image, and the workflow pulls `ghcr.io/tresbientech/drupack-builder` under that tag. A run whose inputs are unchanged pulls the published image; a run that changes one builds the image and publishes it under the new tag. `runtime/builder-inputs.sh` holds the version pins both scripts read.
+The release workflow names the same image after its inputs. `runtime/builder-tag.sh` digests the FrankenPHP and static-php-cli commits, the PHP version, both extension list files, the C library, the machine type, the three scripts that compile the image and the static-php-cli patch, and the workflow pulls `ghcr.io/tresbientech/drupack-builder` under that tag. A run whose inputs are unchanged pulls the published image; a run that changes one builds the image and publishes it under the new tag. `runtime/builder-inputs.sh` holds the version pins both scripts read.
 
 The output is `dist/drupacked-demo-linux-amd64` and `dist/drupacked-demo-linux-amd64-musl` on an amd64 host, with `dist/site.json` beside them. The build tests the glibc file. The host needs no PHP, Composer or database server: the job image runs Composer, Drush and the seed install with the musl runtime's own PHP.
 

@@ -1,0 +1,30 @@
+diff --git a/config/pkg/lib/sqlite.yml b/config/pkg/lib/sqlite.yml
+index 442629d..04cca9f 100644
+--- a/config/pkg/lib/sqlite.yml
++++ b/config/pkg/lib/sqlite.yml
+@@ -1,7 +1,7 @@
+ sqlite:
+   type: library
+   artifact:
+-    source: 'https://www.sqlite.org/2024/sqlite-autoconf-3450200.tar.gz'
++    source: 'https://www.sqlite.org/2026/sqlite-autoconf-3540100.tar.gz'
+     metadata:
+       license-files: ['@/sqlite.txt']
+       license: Unlicense
+diff --git a/src/Package/Library/sqlite.php b/src/Package/Library/sqlite.php
+index 9d4ce0f..bfe7e21 100644
+--- a/src/Package/Library/sqlite.php
++++ b/src/Package/Library/sqlite.php
+@@ -23,8 +23,11 @@ class sqlite
+             ->appendEnv([
+                 'CFLAGS' => '-DSQLITE_ENABLE_COLUMN_METADATA=1',
+             ])
++            // autosetup, SQLite's configure since 3.48, rejects these and builds PIC itself.
++            ->removeConfigureArgs('--with-pic', '--enable-pic')
+             ->configure()
+-            ->make();
++            // The sqlite3 shell fails to link under spc's --as-needed, and PHP needs the library alone.
++            ->make('libsqlite3.a', 'install-lib install-headers install-pc');
+         $lib->patchPkgconfPrefix(['sqlite3.pc']);
+     }
+ 

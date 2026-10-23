@@ -34,8 +34,13 @@ before.
 - The musl build targets `ARCH-linux-musl`, the architecture's baseline CPU.
   FrankenPHP's `native-native-musl` makes zig compile for the build host's
   CPU, and that runtime stops with SIGILL on an older CPU.
-- `builder-tag.sh` digests `build-builder.sh` and `spc-craft.sh`, so a recipe
-  change builds a new image.
+- `fetch-spc.sh` applies `runtime/spc-sqlite.patch` to the checkout. static-php-cli
+  pins SQLite 3.45.2, and its recipe passes `--with-pic` and `--enable-pic`.
+  SQLite's configure rejects both since 3.48. The patch names a current release,
+  drops the two flags and builds the library alone. The `sqlite3` shell fails to
+  link under static-php-cli's `--as-needed`.
+- `builder-tag.sh` digests `build-builder.sh`, `spc-craft.sh`, `fetch-spc.sh`
+  and the patch, so a recipe change builds a new image.
 - `build/install.sh` installs the glibc build only on glibc 2.28 or later.
   Self-update applies the same floor. Below it, both take the musl build.
 
@@ -57,3 +62,7 @@ before.
   the macOS runners carry them. The job image runs spc on its musl runtime.
 - A static-php-cli fix reaches Drupack with the next FrankenPHP bump, or by
   hand.
+- A `spc_commit` bump that changes the SQLite recipe fails at `git apply`. The
+  patch then moves to the new recipe, or goes once static-php-cli ships a
+  current SQLite.
+- The SQLite release moves by hand, in the patch.
