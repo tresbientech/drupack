@@ -1,37 +1,101 @@
-# Request guards and cache headers applied ahead of Drupal. Imported inside a route block,
-# which keeps the order.
-@hiddenPhpFilesRegexp path_regexp \..*/.*\.php$
-respond @hiddenPhpFilesRegexp 403
-@notFoundPhpFiles path_regexp /vendor/.*\.php$
-respond @notFoundPhpFiles 404
-# Public storage is writable. FrankenPHP still executes a script when a
-# PATH_INFO suffix follows it, so block every casing and path shape here,
-# not only a filename ending exactly in ".php". Win32 also strips trailing
-# dots and spaces from a path component, so "probe.php." and "probe.php "
-# open "probe.php" on the Windows build.
-@publicStoragePhpRegexp path_regexp "(?i)^/(sites/[^/]+/files/|files/).*\.php[. ]*(/|$)"
-respond @publicStoragePhpRegexp 404
-@privateDirRegexp path_regexp ^/(private|sites/.*/private)/
-respond @privateDirRegexp 403
-@siteConfiguration path /sites/*/settings* /sites/*/services* /sites/*/site-templates.php /sites/*/files/config_*
-respond @siteConfiguration 404
-@protectedFilesRegexp {
-	not path /.well-known*
-	path_regexp \.(engine|inc|install|make|module|profile|po|sh|.*sql(ite3?)?|theme|twig|tpl(\.php)?|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?$|/\..*|/(Entries.*|Repository|Root|Tag|Template|composer\.(json|lock)|web\.config|yarn\.lock|package\.json)$|/#.*#$|\.php(~|\.sw[op]|\.bak|\.orig|\.save)$
+# Request guards and cache headers ahead of Drupal, imported inside a route block, which
+# keeps this order. Each rule names its line in core's .htaccess (assets/scaffold/files/htaccess),
+# vendor/.htaccess or FileSecurity.php. A script rule ignores case and ends with [. ]*(/|$):
+# FrankenPHP runs a script with a PATH_INFO tail, and Win32 opens "probe.php." as "probe.php".
+
+# .htaccess 204-207. defer replaces a header PHP set.
+header {
+	defer
+	X-Content-Type-Options nosniff
 }
-respond @protectedFilesRegexp 403
-# Core, module, theme and library assets are versioned by release, so they cache forever.
-@versionedAssetPath {
+request_header -Proxy
+# A raw path opening with //, /\ or a control character reads as a host in a Location
+# header. The path matchers see a cleaned path; the expression sees the raw one.
+@hostLikePath expression `{http.request.uri.path}.matches("^/[/\\\\]|[\\x00-\\x1f\\x7f]")`
+respond @hostLikePath 403
+
+# files/.htaccess. 404, ahead of the 403 below.
+@publicStoragePhp path_regexp "(?i)^/(sites/[^/]+/files/|files/).*\.php[. ]*(/|$)"
+respond @publicStoragePhp 404
+# .htaccess 143-149. The core exemption is anchored at the root and takes no tail.
+@phpBelowRoot {
+	path_regexp "(?i)^/(.+/.*|autoload)\.php[. ]*(/|$)"
+	not path_regexp "^/core/([^/]+|modules/system/tests/(https?|modules/legacy_front_controller_test/test_index))\.php$"
+}
+respond @phpBelowRoot 403
+# A directory request php_server would rewrite to its index.php after these guards.
+@phpIndexBelowRoot {
+	path_regexp "^/.+/$"
+	file {path}index.php
+}
+respond @phpIndexBelowRoot 403
+# .htaccess 6 and 93: a dotted segment, except /.well-known/ with none below it.
+@dotSegment {
+	path_regexp "/\."
+	not path_regexp "^/\.well-known/([^./][^/]*/)*([^./][^/]*)?$"
+}
+respond @dotSegment 403
+# .htaccess 6, plus SQLite files. A name that is not a script takes no tail and the CVS
+# names keep their case, so /clients/acme.inc/edit and /tag reach Drupal.
+@protectedName path_regexp "(?i)(\.(engine|inc|install|make|module|profile|po|sh|[^/]*sql(ite3?)?|theme|twig|tpl|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?|/(composer\.(json|lock)|web\.config|yarn\.lock|package(-lock)?\.json)|(?-i:/(Entries[^/]*|Repository|Root|Tag|Template))|/#[^/]*#)[. ]*$|(?i)\.(tpl\.php|php(~|\.sw[op]|\.bak|\.orig|\.save))[. ]*(/|$)"
+respond @protectedName 403
+# vendor/.htaccess and the files FileSecurity writes, when the directory exists. A file
+# matcher matches a directory only through an entry ending in /.
+@protectedDirectory {
+	path_regexp "(?i)^/(vendor|private|sites/.*/private|sites/[^/]+/files/config_[^/]*)(/|$)"
+	file {path} {path}/
+}
+respond @protectedDirectory 403
+# Settings and services under any suffix.
+@siteConfiguration path_regexp "(?i)^/sites/[^/]+/((settings|services)[^/]*|site-templates\.php[. ]*)(/|$)"
+respond @siteConfiguration 403
+# .htaccess 135.
+@missingFavicon {
+	path /favicon.ico
+	not file
+}
+respond @missingFavicon 404
+# .htaccess 121-129. The refusals above run first, so only a root-level request redirects.
+@legacyInstaller {
+	path_regexp installer "^(.*)/(install|rebuild)\.php$"
+	not path_regexp "core"
+}
+redir @legacyInstaller "{re.installer.1}/core/{re.installer.2}.php{http.request.uri.prefixed_query}" 301
+@coreInstaller path /core/install.php
+uri @coreInstaller query +rewrite ok
+# .htaccess 19: DirectoryIndex index.html, then index.htm, after the slash redirect mod_dir makes.
+@htmlIndexNoSlash {
+	not path */
+	not file {path}/index.php
+	file {path}/index.html {path}/index.htm
+}
+redir @htmlIndexNoSlash "{path}/{http.request.uri.prefixed_query}" 301
+@htmlIndex {
+	path */
+	not file {path}index.php
+	file {path}index.html {path}index.htm
+}
+rewrite @htmlIndex {http.matchers.file.relative}
+# static.caddy for a file under the docroot. A bare file matcher never matches a directory.
+@staticFile {
 	file
-	path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
+	not path *.php
+}
+import cachedForAYear @staticFile
+# Named by release.
+@releaseAsset {
+	file
+	not path *.php
 	path_regexp ^/(core|modules|themes|libraries)/
 }
-# Public storage can change at the same URL: an upload is replaced, and an image style
-# derivative regenerates under the same "itok" token, which names the style and path, not
-# the contents. A browser revalidates both.
-@publicStorage {
-	path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
-	path_regexp ^/(sites/[^/]+/files/|files/)
+header @releaseAsset Cache-Control "max-age=31536000,public,immutable"
+@svgz {
+	file
+	path *.svgz
 }
-header @publicStorage Cache-Control "max-age=0,must-revalidate"
-header @versionedAssetPath Cache-Control "max-age=31536000,public,immutable"
+import svgzEncoding @svgz
+@aggregate {
+	path_regexp "(?i)/(css_[a-zA-Z0-9_-]+\.css|js_[a-zA-Z0-9_-]+\.js)$"
+	file
+}
+import precompressedCopies @aggregate

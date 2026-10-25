@@ -26,6 +26,7 @@ echo json_encode([
     'loaded_ini' => php_ini_loaded_file(),
     'memory_limit' => ini_get('memory_limit'),
     'cainfo' => ini_get('curl.cainfo'),
+    'zend_assertions' => ini_get('zend.assertions'),
 ]);
 """
 
@@ -79,6 +80,10 @@ class RuntimeConfiguration(harness.ConformanceCase):
             values["loaded_ini"] and values["loaded_ini"].startswith(cache_root),
             f"loaded ini {values['loaded_ini']!r} is not under the runtime cache {cache_root!r}",
         )
+
+    def test_assertions_are_off_as_in_drupal_htaccess(self):
+        # PHP compiles zend.assertions on; Drupal's .htaccess turns it off for Apache.
+        self.assertEqual(self.php_cli(INI_PROBE)["zend_assertions"], "0")
 
     def test_memory_limit_is_512m(self):
         values = self.php_cli(INI_PROBE)
@@ -189,3 +194,4 @@ class RuntimeConfigurationServed(harness.ConformanceCase):
             _phpinfo_local_value(page, "upload_max_filesize"), "64M",
             "phase 6: a 64M upload succeeds on a site started from a release build",
         )
+        self.assertEqual(_phpinfo_local_value(page, "zend.assertions"), "0")

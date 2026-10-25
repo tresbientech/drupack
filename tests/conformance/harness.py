@@ -527,10 +527,14 @@ class Site:
             f"inspect {self.log_path}"
         )
 
-    def fetch(self, path):
-        request = Request(f"{self.scheme}://localhost:{self.port}{path}")
+    def fetch_bytes(self, path, headers=None):
+        request = Request(f"{self.scheme}://localhost:{self.port}{path}", headers=headers or {})
         with urlopen(request, timeout=WAITS["http_request"].seconds, context=self._context) as response:
-            return response.status, response.headers, response.read().decode(errors="replace")
+            return response.status, response.headers, response.read()
+
+    def fetch(self, path, headers=None):
+        status, response_headers, body = self.fetch_bytes(path, headers)
+        return status, response_headers, body.decode(errors="replace")
 
     def http(self, path):
         return self.fetch(path)[2]

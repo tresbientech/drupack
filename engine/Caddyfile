@@ -19,6 +19,9 @@
 	}
 }
 
+# A snippet is defined before its first import.
+import "static.caddy"
+
 (site) {
 	bind "{$DRUPACK_RUNTIME_BIND}"
 	root * "{$DRUPACK_RUNTIME_DOCROOT}"

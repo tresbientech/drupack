@@ -1,5 +1,6 @@
 """Exercise a seeded embedded Drupal site without network access."""
 
+import gzip
 import json
 import shutil
 import tempfile
@@ -216,13 +217,12 @@ class SeededSite(harness.ConformanceCase):
 
     def test_protected_files(self):
         self.served()
-        # The settings and sites-scoped private paths answer one exact code; site.sqlite and
-        # the top-level private alias are not both guaranteed one.
+        # A packaged site keeps private storage in Site data, so the docroot path answers 404.
         checks = {
             "/site.sqlite": (403, 404),
             "/private/probe.txt": (403, 404),
-            "/sites/default/settings.php": (404,),
-            "/sites/default/private/": (403,),
+            "/sites/default/settings.php": (403,),
+            "/sites/default/private/": (403, 404),
         }
         for path, expected in checks.items():
             with self.subTest(path=path):
@@ -272,15 +272,31 @@ class SeededSite(harness.ConformanceCase):
         self.site.start(data)
         self.assertEqual(self.site.http("/sites/default/files/probe.txt"), "served from the files directory")
 
+    def test_public_storage_serves_precompressed_aggregates(self):
+        data = self.served()
+        css = data / "files" / "css"
+        css.mkdir(exist_ok=True)
+        (css / "css_probe.css").write_text("aggregate marker")
+        (css / "css_probe.css.gz").write_bytes(gzip.compress(b"aggregate marker"))
+        status, headers, body = self.site.fetch_bytes("/sites/default/files/css/css_probe.css",
+                                                      {"Accept-Encoding": "gzip"})
+        self.assertEqual((status, headers.get("Content-Encoding")), (200, "gzip"))
+        self.assertIn("Accept-Encoding", headers.get("Vary", ""))
+        self.assertEqual(gzip.decompress(body), b"aggregate marker")
+        status, headers, body = self.site.fetch("/sites/default/files/css/css_probe.css")
+        self.assertEqual((status, headers.get("Content-Encoding"), body), (200, None, "aggregate marker"))
+
     def test_public_storage_cache_headers(self):
-        # An upload and a derivative can change at the same URL, so both revalidate. A
-        # versioned application asset's URL changes with its content, so it caches immutably.
+        # A missing file carries Drupal's header alone.
         data = self.served()
         (data / "files" / "upload.png").write_bytes(b"not-a-real-png")
         _, headers, _ = self.site.fetch("/sites/default/files/upload.png")
-        self.assertEqual(headers.get("Cache-Control"), "max-age=0,must-revalidate")
+        self.assertEqual(headers.get_all("Cache-Control"), ["max-age=31536000"])
         _, headers, _ = self.site.fetch("/core/misc/drupal.js")
-        self.assertEqual(headers.get("Cache-Control"), "max-age=31536000,public,immutable")
+        self.assertEqual(headers.get_all("Cache-Control"), ["max-age=31536000,public,immutable"])
+        status, headers, _ = self.revalidate("/sites/default/files/absent.png")
+        self.assertEqual(status, 404)
+        self.assertEqual(len(headers.get_all("Cache-Control")), 1, headers.get_all("Cache-Control"))
         source = "public://derivative-source.png"
         drawn = self.run_drush(data, "php:eval", draw_image(source, "255, 0, 0")
                                + f" echo \\Drupal\\image\\Entity\\ImageStyle::load('thumbnail')->buildUrl('{source}');")
@@ -291,17 +307,7 @@ class SeededSite(harness.ConformanceCase):
         # once the file exists on disk.
         status, _, _ = self.site.fetch(derivative)
         self.assertEqual(status, 200)
-        status, headers, previous = self.revalidate(derivative)
+        status, headers, _ = self.revalidate(derivative)
         self.assertEqual(status, 200)
-        self.assertEqual(headers.get("Cache-Control"), "max-age=0,must-revalidate")
-        etag = headers["ETag"]
-        self.assertEqual(self.revalidate(derivative, etag)[0], 304)
-        # Replacing the source and flushing its derivatives, as a Drupal file update does, keeps
-        # the URL token, so only revalidation hands the browser the new derivative.
-        replaced = self.run_drush(data, "php:eval", draw_image(source, "0, 0, 255") + f" image_path_flush('{source}');")
-        self.assertEqual(replaced.returncode, 0, replaced.stderr)
-        for request in ("generated", "served"):
-            with self.subTest(request=request):
-                status, headers, body = self.revalidate(derivative, etag)
-                self.assertEqual(status, 200, "the browser kept the derivative of the replaced source")
-                self.assertNotEqual(body, previous)
+        self.assertEqual(headers.get_all("Cache-Control"), ["max-age=31536000"])
+        self.assertEqual(self.revalidate(derivative, headers["ETag"])[0], 304)

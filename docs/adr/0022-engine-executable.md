@@ -3,6 +3,9 @@
 Accepted on 2026-09-26. Amended on 2026-10-21 by
 [ADR 0044](0044-one-reader-takes-a-projects-composer-settings.md): the launcher
 reads the folder's `composer.json` settings, by the rules a build applies.
+Amended on 2026-10-25 by
+[ADR 0047](0047-request-guards-match-htaccess.md): the request guards reproduce
+Drupal's `.htaccess` family.
 
 ## Context
 

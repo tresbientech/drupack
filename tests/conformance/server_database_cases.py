@@ -71,10 +71,11 @@ class _ServerDatabaseBackend:
             self.assertEqual(site.fetch("/")[0], 200)
             with self.assertRaises(HTTPError) as error:
                 site.fetch("/sites/default/settings.php")
-            self.assertEqual(error.exception.code, 404)
+            self.assertEqual(error.exception.code, 403)
+            # Private storage lives in Site data, so the docroot path reaches Drupal.
             with self.assertRaises(HTTPError) as error:
                 site.fetch("/sites/default/private/")
-            self.assertEqual(error.exception.code, 403)
+            self.assertIn(error.exception.code, (403, 404))
         finally:
             site.stop()
 

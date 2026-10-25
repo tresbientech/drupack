@@ -5,6 +5,8 @@ the seed database outside the folder, so every write Drupal makes inside the
 folder lands in its public files directory.
 """
 
+import gzip
+import hashlib
 import http.client
 import json
 import os
@@ -18,7 +20,7 @@ import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 import harness
 import version_cases
@@ -36,6 +38,21 @@ $settings['hash_salt'] = 'engine-executable-case';
 """
 
 USAGE = "Usage: drupack php SCRIPT [ARGUMENTS]\n       drupack php -r CODE"
+
+PHP_MARKER_OUTPUT = "guard-probe-executed"
+PHP_MARKER = f"<?php echo '{PHP_MARKER_OUTPUT}';"
+TEXT_MARKER = "guard-probe-served"
+SVG_MARKER = b'<svg xmlns="http://www.w3.org/2000/svg"><title>guard-probe-svgz</title></svg>'
+
+
+class KeepRedirects(HTTPRedirectHandler):
+    """Leaves a 3xx answer to the caller, where urllib would follow it."""
+
+    def redirect_request(self, *_):
+        return None
+
+
+REDIRECTS_KEPT = build_opener(KeepRedirects())
 
 
 class EngineExecutable(harness.ConformanceCase):
@@ -114,6 +131,17 @@ class EngineExecutable(harness.ConformanceCase):
         except (URLError, ConnectionError, TimeoutError):
             return None
 
+    @staticmethod
+    def fetch(port, path, headers=None):
+        """The status, headers and body of one request, whatever the status, a redirect
+        unfollowed. The body is latin-1 text, so encode("latin-1") returns the original bytes."""
+        request = Request(f"http://127.0.0.1:{port}{path}", headers=headers or {})
+        try:
+            with REDIRECTS_KEPT.open(request, timeout=harness.WAITS["http_request"].seconds) as response:
+                return response.status, response.headers, response.read().decode("latin-1")
+        except HTTPError as error:
+            return error.code, error.headers, error.read().decode("latin-1")
+
     def detached_start(self, *arguments, cwd=None, env=None):
         """Starts the engine executable in the background on a port of its own, which the
         case's cleanup stops, and returns the port and the finished start."""
@@ -160,11 +188,156 @@ class EngineExecutable(harness.ConformanceCase):
         for line in lines:
             self.assertRegex(line, rf" {version_cases.RELEASE}$")
 
+    def marker(self, relative, content):
+        """Writes a file into the served docroot for the length of the test, with the
+        directories it has to create."""
+        path = self.docroot / relative
+        created = None
+        ancestor = path.parent
+        while not ancestor.exists():
+            created, ancestor = ancestor, ancestor.parent
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(content, bytes):
+            path.write_bytes(content)
+        else:
+            path.write_text(content)
+        if created is None:
+            self.addCleanup(path.unlink)
+        else:
+            self.addCleanup(shutil.rmtree, created)
+
+    def test_the_htaccess_sources_are_the_ones_the_guards_reproduce(self):
+        # The files guards.caddy reproduces by hand. The scaffold copy is core's own.
+        sources = {
+            self.docroot / "core/assets/scaffold/files/htaccess":
+                "1422931a25b6b7cdccd344b29ff93dcc6e5d99640f5a5eba6160a3f2b3d721b5",
+            self.project / "vendor/.htaccess":
+                "4f62c1eb3b42589fccb318763f5012794152d667d159a930a90e5081b83fe1ef",
+            self.docroot / "core/lib/Drupal/Component/FileSecurity/FileSecurity.php":
+                "3459cec95df72c653f90db84f1f964f73bbe34f7edf29622960467c2aaf9a840",
+        }
+        for path, expected in sources.items():
+            relative = path.relative_to(self.project)
+            with self.subTest(source=str(relative)):
+                self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), expected,
+                                 f"{relative} changed: re-read application/guards.caddy against it, then move this hash")
+
+    def test_the_guards_reproduce_the_htaccess_rules(self):
+        # A body holding a marker means the file was served or the script ran.
+        for relative in ("modules/probe/probe.php", "modules/probe/upper.PHP", "core/probe-core.php",
+                         "probe-root.php", "sites/default/files/probe.php"):
+            self.marker(relative, PHP_MARKER)
+        for relative in ("vendor/notes.txt", "sites/default/files/config_probe/sync/plain.txt",
+                         "package-lock.json", ".well-known/probe.txt", ".well-known/.hidden",
+                         ".well-known-evil/x.txt", "probe.sqlite", "sites/default/files/.probe"):
+            self.marker(relative, TEXT_MARKER)
+        self.marker("probe.svgz", gzip.compress(SVG_MARKER))
+        self.marker("probe-proxy.php", '<?php echo "proxy=", var_export($_SERVER["HTTP_PROXY"] ?? null, true);')
+        self.marker("css/css_probe.css", TEXT_MARKER)
+        self.marker("css/css_probe.css.gz", gzip.compress(TEXT_MARKER.encode()))
+        self.marker("probe-dir/index.html", TEXT_MARKER)
+        self.marker("probe-both/index.html", TEXT_MARKER)
+        self.marker("probe-both/index.php", PHP_MARKER)
+        # Core's installer stands in for a marker, since the exemption names its path.
+        installer = self.docroot / "core" / "install.php"
+        original = installer.read_bytes()
+        self.addCleanup(installer.write_bytes, original)
+        installer.write_text('<?php echo "rewrite=", $_GET["rewrite"] ?? "unset", " x=", $_GET["x"] ?? "unset";')
+        port, _ = self.start("htaccess-rules", str(self.project))
+        refused = {
+            "php below the root": (403, ["/modules/probe/probe.php", "/modules/probe/probe.php/x",
+                                         "/modules/probe/PROBE.PHP", "/modules/probe/probe%2ephp",
+                                         "/modules/probe/probe.php.", "/modules/probe/probe.php%20/x",
+                                         "/core/lib/Drupal.php", "/autoload.php", "/core/probe-core.php/x"]),
+            "site configuration": (403, ["/sites/default/settings.php", "/sites/default/settings.php/x",
+                                         "/sites/default/SETTINGS.PHP", "/sites/default/default.services.yml",
+                                         "/sites/default/settings.txt"]),
+            "dotted segment": (403, ["/.well-known/.hidden", "/.well-known-evil/x.txt",
+                                     "/sites/default/files/.probe"]),
+            "protected name": (403, ["/package-lock.json", "/PACKAGE-LOCK.JSON", "/probe.sqlite",
+                                     "/core/composer.json", "/clients/acme.inc", "/Tag"]),
+            "protected directory": (403, ["/vendor/notes.txt", "/vendor/",
+                                          "/sites/default/files/config_probe/sync/plain.txt"]),
+            "public storage php": (404, ["/sites/default/files/probe.php", "/sites/default/files/probe.php/x",
+                                         "/sites/default/files/PROBE.PHP"]),
+            # A browser drops the tab from the third shape.
+            "host-like path": (403, ["//evil.example/../probe-dir", "/%5Cevil.example/../probe-dir",
+                                     "/%09/evil.example/../../probe-dir", "//probe-both"]),
+        }
+        for rule, (expected, paths) in refused.items():
+            for path in paths:
+                with self.subTest(rule=rule, path=path):
+                    status, _, body = self.fetch(port, path)
+                    self.assertEqual(status, expected, body[:200])
+                    self.assertNotIn(PHP_MARKER_OUTPUT, body)
+                    self.assertNotIn(TEXT_MARKER, body)
+        for path, expected in (("/.well-known/probe.txt", TEXT_MARKER), ("/core/probe-core.php", PHP_MARKER_OUTPUT),
+                               ("/probe-root.php", PHP_MARKER_OUTPUT)):
+            with self.subTest(rule="allowed", path=path):
+                status, _, body = self.fetch(port, path)
+                self.assertEqual(status, 200, body[:200])
+                self.assertIn(expected, body)
+        # A refused name matches by name and case alone.
+        for path in ("/tag", "/template", "/entries/2024", "/vendor/acme", "/private", "/clients/acme.inc/edit",
+                     "/core/rebuild.php"):
+            with self.subTest(rule="reaches drupal", path=path):
+                self.assertNotEqual(self.fetch(port, path)[0], 403)
+        with self.subTest(rule="missing favicon"):
+            self.assertEqual(self.fetch(port, "/favicon.ico")[::2], (404, ""))
+        # Once per response, a page's own header replaced.
+        for path in ("/user/login", "/core/misc/drupal.js", "/autoload.php"):
+            with self.subTest(rule="nosniff", path=path):
+                _, headers, _ = self.fetch(port, path)
+                self.assertEqual(headers.get_all("X-Content-Type-Options"), ["nosniff"])
+        with self.subTest(rule="svgz"):
+            status, headers, body = self.fetch(port, "/probe.svgz")
+            self.assertEqual(status, 200)
+            self.assertEqual(headers.get("Content-Type"), "image/svg+xml")
+            self.assertEqual(headers.get("Content-Encoding"), "gzip")
+            self.assertEqual(gzip.decompress(body.encode("latin-1")), SVG_MARKER)
+            status, headers, _ = self.fetch(port, "/missing.svgz")
+            self.assertEqual((status, headers.get("Content-Encoding")), (404, None))
+        with self.subTest(rule="proxy header"):
+            _, _, body = self.fetch(port, "/probe-proxy.php", {"Proxy": "http://evil.example"})
+            self.assertEqual(body, "proxy=NULL")
+        for path, location in (("/install.php?a=1", "/core/install.php?a=1"), ("/rebuild.php", "/core/rebuild.php")):
+            with self.subTest(rule="installer redirect", path=path):
+                status, headers, _ = self.fetch(port, path)
+                self.assertEqual((status, headers.get("Location")), (301, location))
+        with self.subTest(rule="installer below the root refused, not redirected"):
+            self.assertEqual(self.fetch(port, "/modules/core/install.php")[0], 403)
+        with self.subTest(rule="rewrite=ok"):
+            self.assertEqual(self.fetch(port, "/core/install.php?x=1")[2], "rewrite=ok x=1")
+        with self.subTest(rule="precompressed aggregate"):
+            status, headers, body = self.fetch(port, "/css/css_probe.css", {"Accept-Encoding": "gzip"})
+            self.assertEqual(status, 200)
+            self.assertEqual(headers.get("Content-Encoding"), "gzip")
+            self.assertIn("Accept-Encoding", headers.get("Vary", ""))
+            self.assertEqual(gzip.decompress(body.encode("latin-1")).decode(), TEXT_MARKER)
+            status, headers, body = self.fetch(port, "/css/css_probe.css")
+            self.assertEqual((status, headers.get("Content-Encoding"), body), (200, None, TEXT_MARKER))
+        with self.subTest(rule="html index"):
+            status, headers, _ = self.fetch(port, "/probe-dir?q=1")
+            self.assertEqual((status, headers.get("Location")), (301, "/probe-dir/?q=1"))
+            self.assertEqual(self.fetch(port, "/probe-dir/")[2], TEXT_MARKER)
+            self.assertEqual(self.fetch(port, "/probe-both/")[0], 403)
+        # A missing file or a directory carries Drupal's header alone.
+        for path, expected in (("/core/misc/drupal.js", "max-age=31536000,public,immutable"),
+                               ("/robots.txt", "max-age=31536000"), ("/probe-dir/", "max-age=31536000"),
+                               ("/css/css_probe.css", "max-age=31536000")):
+            with self.subTest(rule="cache", path=path):
+                self.assertEqual(self.fetch(port, path)[1].get_all("Cache-Control"), [expected])
+        for path in ("/sites/default/files/absent.png", "/modules/probe/", "/user/login"):
+            with self.subTest(rule="cache", path=path):
+                values = self.fetch(port, path)[1].get_all("Cache-Control")
+                self.assertEqual(len(values), 1, values)
+                self.assertIn("no-cache", values[0])
+
     def test_a_start_serves_the_folder_and_writes_only_its_files(self):
         before = self.snapshot()
         port, log = self.start("start-directory", str(self.project))
         self.assertEqual(self.status(port, "/"), 200)
-        self.assertEqual(self.status(port, "/sites/default/settings.php"), 404)
+        self.assertEqual(self.status(port, "/sites/default/settings.php"), 403)
         link = urlsplit(harness.wait_for_line(log, 0, "  Login:", harness.WAITS["start"].seconds))
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=harness.WAITS["http_request"].seconds)
         connection.request("GET", link.path)
