@@ -228,6 +228,34 @@ The hub speaks Mercure protocol 1.0. Each token is an HS256 access token with:
 symfony/mercure 0.9 and later mints this shape by default. A subscriber names
 its topics with `?match=`.
 
+## A site's own Caddy rules
+
+A `drupack.caddy` at the project root, beside `composer.json`, holds Caddyfile
+directives of your own. The engine executable reads it from the folder it
+serves, and a packaged site reads the copy its build packed. A start reads the
+file once, so a change takes a restart.
+
+```caddyfile
+header /reports/* X-Robots-Tag noindex
+redir /old-path /new-path 301
+respond /status "ok" 200
+```
+
+The snippet runs inside the request route after Drupack's own guards, which
+reproduce Drupal's `.htaccess` family, and before Drupal. It adds headers,
+redirects, rewrites, refusals and proxies. A rule on a path the guards refuse,
+such as `settings.php` or a PHP file below the docroot root, is dead text,
+since the guard answers first. A rewrite the snippet makes is not checked
+again. The guards also refuse `/drupack.caddy` itself.
+
+A header Drupal also sends, such as `X-Frame-Options`, needs Caddy's `defer`
+block, or the response carries both values. A matcher name Drupack's own rules
+define, such as `@staticFile`, fails the start with Caddy's message; pick
+another.
+
+A snippet the Caddyfile adapter rejects stops the start. The output carries
+Caddy's error, then a line naming the snippet's path.
+
 ## A site's own Site host
 
 A loopback start serves the site on `NAME.drupack.site`, which

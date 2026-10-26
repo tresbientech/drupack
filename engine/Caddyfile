@@ -42,6 +42,15 @@ import "static.caddy"
 		respond @drupackIdentityOther 404
 
 		import "guards.caddy"
+		# The project's drupack.caddy, or none.caddy.
+		import "{$DRUPACK_RUNTIME_PROJECT_SNIPPET}"
+		# The aggregates Drupal writes under the docroot. A file_server ends the request, so
+		# it runs after the project's rules.
+		@aggregate {
+			path_regexp "(?i)/(css_[a-zA-Z0-9_-]+\.css|js_[a-zA-Z0-9_-]+\.js)$"
+			file
+		}
+		import precompressedCopies @aggregate
 		# mercure.caddy for a project whose composer.json sets extra.drupack.mercure, none.caddy
 		# otherwise. The hub sits in php_server's route block, where FrankenPHP finds it.
 		import "{$DRUPACK_RUNTIME_MERCURE_SNIPPET}"

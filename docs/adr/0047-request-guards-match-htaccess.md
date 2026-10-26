@@ -1,6 +1,9 @@
 # Request guards match Drupal's .htaccess
 
-Accepted on 2026-10-25. Amends [ADR 0022](0022-engine-executable.md).
+Accepted on 2026-10-25. Amends [ADR 0022](0022-engine-executable.md). Amended
+on 2026-10-26 by [ADR 0048](0048-a-project-adds-its-own-caddy-rules.md): a
+project's `drupack.caddy` runs after these guards, and `/drupack.caddy` joins
+the refused names.
 
 ## Context
 

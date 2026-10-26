@@ -913,7 +913,7 @@ try {
         'DRUPACK_RUNTIME_DOCROOT' => application() . '/' . siteContract()->docroot,
         'DRUPACK_RUNTIME_LOG_PATH' => $logPath,
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
-    ] + mercureServerEnvironment(siteContract()->mercure, $data)));
+    ] + mercureServerEnvironment(siteContract()->mercure, $data) + projectSnippetEnvironment(application())));
     replaceProcess($binary, ['php-server', application() . '/Caddyfile'], application(), 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");

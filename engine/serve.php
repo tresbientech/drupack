@@ -244,7 +244,7 @@ function serve(string $binary, array $arguments): never
         'DRUPACK_RUNTIME_ID' => basename($entry),
         'DRUPACK_RUNTIME_URL' => $plan['probe'],
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
-    ] + mercureServerEnvironment($mercure, $entry)));
+    ] + mercureServerEnvironment($mercure, $entry) + projectSnippetEnvironment($project)));
     runtimePhpOnPath();
     replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }

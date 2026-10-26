@@ -28,6 +28,7 @@ NODE           writers=launcher/plan.go  readers=runtime/entrypoint.go
 OPEN           writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go
 PERSON         writers=application/process.php  readers=application/process.php
 PORT           writers=application/process.php  readers=application/tls-drupack-site.caddy,application/tls-mkcert-site.caddy,application/tls-none-site.caddy
+PROJECT_SNIPPET  writers=application/process.php  readers=application/Caddyfile,engine/Caddyfile,runtime/entrypoint.go
 SITE_VERSION   writers=launcher/plan.go  readers=runtime/entrypoint.go
 STOP_RECORD    writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go
 TLS            writers=application/process.php  readers=application/Caddyfile,engine/Caddyfile

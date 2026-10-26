@@ -653,7 +653,7 @@ jobs:
           go run ./cmd/pack -goarch amd64 -runtime "$env:RUNNER_TEMP\drupack\runtime" -entry frankenphp.exe -version $env:DRUPACK_VERSION -source . -output ..\dist\variant\variant-demo.exe -app ..\dist\variant-payload\app-payload.tar -app-checksum ..\dist\variant-payload\app_checksum.txt -site ..\dist\variant-payload\site.json -site-version $env:DRUPACK_VERSION -node ..\dist\variant-payload\node\windows-amd64.zip
           Pop-Location
           Copy-Item dist\variant-payload\site.json dist\variant\site.json
-          python tests/conformance dist\variant\variant-demo.exe test-results\variant -k Node -k MercureHub
+          python tests/conformance dist\variant\variant-demo.exe test-results\variant -k Node -k MercureHub -k ProjectRules
 
       - name: Upload test results
         if: failure()
@@ -775,7 +775,7 @@ jobs:
             -site ../dist/variant-payload/site.json -site-version "$DRUPACK_VERSION" \
             -node "../dist/variant-payload/node/macos-${{ matrix.arch }}.tar.gz")
           cp dist/variant-payload/site.json dist/variant/site.json
-          python3 tests/conformance dist/variant/variant-demo test-results/variant -k Node -k MercureHub
+          python3 tests/conformance dist/variant/variant-demo test-results/variant -k Node -k MercureHub -k ProjectRules
 
       - name: Check the unsigned launch steps
         run: |

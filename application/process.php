@@ -425,6 +425,14 @@ function serverEnvironment(array $plan, TlsChoice $tls, array $values): array
     ] + $values + $tls->serverEnvironment();
 }
 
+// The project's own Caddy rules, which the Caddyfile imports after the guards. none.caddy is
+// the empty snippet beside the Caddyfile.
+function projectSnippetEnvironment(string $project): array
+{
+    $snippet = "$project/drupack.caddy";
+    return ['DRUPACK_RUNTIME_PROJECT_SNIPPET' => is_file($snippet) ? $snippet : 'none.caddy'];
+}
+
 // A wildcard is reached through its own family's loopback, since an IPv6-only listener never
 // answers on 127.0.0.1.
 function probeHost(string $bind): string

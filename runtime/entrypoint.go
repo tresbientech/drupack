@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
+	"github.com/caddyserver/caddy/v2/caddyconfig"
 	"github.com/dunglas/frankenphp"
 )
 
@@ -213,7 +214,21 @@ const cronFirstDelay = 2 * time.Minute
 
 // PHPRC already names the runtime directory in every hop, including this one,
 // so php.ini loads from there without a scan path naming the application too.
+// Caddy's run logs an adapter error into its early-start buffer after flushing it, so
+// the error never prints. The adapter runs once here, without Caddy's logger. A project
+// snippet is an absolute path; the shipped empty snippet is a bare name.
 func serveCaddyfile(config string) {
+	body, err := os.ReadFile(config)
+	if err != nil {
+		panic(err)
+	}
+	if _, _, err := caddyconfig.GetAdapter("caddyfile").Adapt(body, map[string]any{"filename": config}); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		if snippet := os.Getenv("DRUPACK_RUNTIME_PROJECT_SNIPPET"); filepath.IsAbs(snippet) {
+			fmt.Fprintf(os.Stderr, "The project's %s is part of this configuration.\n", snippet)
+		}
+		os.Exit(1)
+	}
 	os.Args = []string{os.Args[0], "run", "--config", config, "--adapter", "caddyfile"}
 }
 

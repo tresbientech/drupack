@@ -85,17 +85,6 @@ class EngineExecutable(harness.ConformanceCase):
         (cls.lacking / "composer.lock").write_text(json.dumps(
             {"packages": [{"name": "acme/absent", "require": {"ext-drupack-absent": "*"}}]}))
 
-    @classmethod
-    def site_application(cls):
-        """The site executable's own unpacked application, which a php-cli probe names."""
-        probe = cls.class_dir / "application.php"
-        probe.write_text("<?php echo getenv('DRUPACK_RUNTIME_APP_DIR');")
-        result = harness.run([str(harness.BINARY), "php-cli", str(probe)], capture_output=True, text=True,
-                             timeout=harness.WAITS["php_cli"].seconds)
-        if result.returncode != 0:
-            raise AssertionError(result.stderr)
-        return Path(result.stdout)
-
     def engine_run(self, *arguments, cwd=None, env=None):
         return harness.run([str(self.engine), *arguments], cwd=cwd or self.class_dir, env=env,
                            capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
@@ -229,7 +218,7 @@ class EngineExecutable(harness.ConformanceCase):
             self.marker(relative, PHP_MARKER)
         for relative in ("vendor/notes.txt", "sites/default/files/config_probe/sync/plain.txt",
                          "package-lock.json", ".well-known/probe.txt", ".well-known/.hidden",
-                         ".well-known-evil/x.txt", "probe.sqlite", "sites/default/files/.probe"):
+                         ".well-known-evil/x.txt", "probe.sqlite", "sites/default/files/.probe", "drupack.caddy"):
             self.marker(relative, TEXT_MARKER)
         self.marker("probe.svgz", gzip.compress(SVG_MARKER))
         self.marker("probe-proxy.php", '<?php echo "proxy=", var_export($_SERVER["HTTP_PROXY"] ?? null, true);')
@@ -255,7 +244,7 @@ class EngineExecutable(harness.ConformanceCase):
             "dotted segment": (403, ["/.well-known/.hidden", "/.well-known-evil/x.txt",
                                      "/sites/default/files/.probe"]),
             "protected name": (403, ["/package-lock.json", "/PACKAGE-LOCK.JSON", "/probe.sqlite",
-                                     "/core/composer.json", "/clients/acme.inc", "/Tag"]),
+                                     "/core/composer.json", "/clients/acme.inc", "/Tag", "/drupack.caddy"]),
             "protected directory": (403, ["/vendor/notes.txt", "/vendor/",
                                           "/sites/default/files/config_probe/sync/plain.txt"]),
             "public storage php": (404, ["/sites/default/files/probe.php", "/sites/default/files/probe.php/x",
@@ -332,6 +321,36 @@ class EngineExecutable(harness.ConformanceCase):
                 values = self.fetch(port, path)[1].get_all("Cache-Control")
                 self.assertEqual(len(values), 1, values)
                 self.assertIn("no-cache", values[0])
+
+    def test_a_project_snippet_runs_after_the_guards(self):
+        # drupack.caddy at the project root is imported after the guards, so its respond on a
+        # guarded path never answers.
+        self.marker("modules/probe/probe.php", PHP_MARKER)
+        self.marker("css/css_probe.css", TEXT_MARKER)
+        snippet = self.project / "drupack.caddy"
+        snippet.write_text('header X-Project-Rule applied\n'
+                           'redir /old-path /new-path 301\n'
+                           'respond /modules/probe/probe.php "unlocked" 200\n')
+        self.addCleanup(snippet.unlink)
+        port, _ = self.start("project-snippet", str(self.project))
+        for path in ("/user/login", "/core/misc/drupal.js", "/css/css_probe.css"):
+            with self.subTest(path=path):
+                self.assertEqual(self.fetch(port, path)[1].get("X-Project-Rule"), "applied")
+        status, headers, _ = self.fetch(port, "/old-path")
+        self.assertEqual((status, headers.get("Location")), (301, "/new-path"))
+        status, _, body = self.fetch(port, "/modules/probe/probe.php")
+        self.assertEqual(status, 403)
+        self.assertNotIn("unlocked", body)
+
+    def test_a_broken_project_snippet_stops_the_start(self):
+        snippet = self.project / "drupack.caddy"
+        snippet.write_text("not_a_directive foo\n")
+        self.addCleanup(snippet.unlink)
+        result = self.engine_run("start", str(self.project), "--foreground", "--listen", f"127.0.0.1:{harness.pick_port()}")
+        self.assertNotEqual(result.returncode, 0)
+        output = result.stdout + result.stderr
+        self.assertIn("unrecognized directive: not_a_directive", output)
+        self.assertIn(snippet.resolve().as_posix(), output)
 
     def test_a_start_serves_the_folder_and_writes_only_its_files(self):
         before = self.snapshot()

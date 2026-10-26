@@ -1,5 +1,6 @@
 # Static-file snippets, imported at the top level of both Caddyfiles and applied under a
-# matcher of the caller's: guards.caddy for the docroot, application/Caddyfile for the files directory.
+# matcher of the caller's: guards.caddy and engine/Caddyfile for the docroot,
+# application/Caddyfile for the files directory.
 
 # .htaccess 45. Caddy writes no Expires date.
 (cachedForAYear) {

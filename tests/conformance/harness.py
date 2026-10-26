@@ -630,6 +630,17 @@ class ConformanceCase(unittest.TestCase):
         cls.class_dir = RESULTS / cls.__name__
         cls.class_dir.mkdir(parents=True, exist_ok=True)
 
+    @classmethod
+    def site_application(cls):
+        """The site executable's own unpacked application, which a php-cli probe names."""
+        probe = cls.class_dir / "application.php"
+        probe.write_text("<?php echo getenv('DRUPACK_RUNTIME_APP_DIR');")
+        result = run([str(BINARY), "php-cli", str(probe)], capture_output=True, text=True,
+                     timeout=WAITS["php_cli"].seconds)
+        if result.returncode != 0:
+            raise AssertionError(result.stderr)
+        return Path(result.stdout)
+
     def setUp(self):
         self.case_dir = self.class_dir / self._testMethodName
         self.case_dir.mkdir(parents=True, exist_ok=True)

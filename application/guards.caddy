@@ -35,9 +35,9 @@ respond @phpIndexBelowRoot 403
 	not path_regexp "^/\.well-known/([^./][^/]*/)*([^./][^/]*)?$"
 }
 respond @dotSegment 403
-# .htaccess 6, plus SQLite files. A name that is not a script takes no tail and the CVS
-# names keep their case, so /clients/acme.inc/edit and /tag reach Drupal.
-@protectedName path_regexp "(?i)(\.(engine|inc|install|make|module|profile|po|sh|[^/]*sql(ite3?)?|theme|twig|tpl|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?|/(composer\.(json|lock)|web\.config|yarn\.lock|package(-lock)?\.json)|(?-i:/(Entries[^/]*|Repository|Root|Tag|Template))|/#[^/]*#)[. ]*$|(?i)\.(tpl\.php|php(~|\.sw[op]|\.bak|\.orig|\.save))[. ]*(/|$)"
+# .htaccess 6, plus SQLite files and drupack.caddy. A name that is not a script takes no
+# tail and the CVS names keep their case, so /clients/acme.inc/edit and /tag reach Drupal.
+@protectedName path_regexp "(?i)(\.(engine|inc|install|make|module|profile|po|sh|[^/]*sql(ite3?)?|theme|twig|tpl|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?|/(composer\.(json|lock)|web\.config|yarn\.lock|package(-lock)?\.json|drupack\.caddy)|(?-i:/(Entries[^/]*|Repository|Root|Tag|Template))|/#[^/]*#)[. ]*$|(?i)\.(tpl\.php|php(~|\.sw[op]|\.bak|\.orig|\.save))[. ]*(/|$)"
 respond @protectedName 403
 # vendor/.htaccess and the files FileSecurity writes, when the directory exists. A file
 # matcher matches a directory only through an entry ending in /.
@@ -94,8 +94,3 @@ header @releaseAsset Cache-Control "max-age=31536000,public,immutable"
 	path *.svgz
 }
 import svgzEncoding @svgz
-@aggregate {
-	path_regexp "(?i)/(css_[a-zA-Z0-9_-]+\.css|js_[a-zA-Z0-9_-]+\.js)$"
-	file
-}
-import precompressedCopies @aggregate

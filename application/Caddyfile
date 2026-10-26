@@ -46,6 +46,8 @@ import "static.caddy"
 		respond @drupackIdentityOther 404
 
 		import "guards.caddy"
+		# The project's drupack.caddy, or none.caddy.
+		import "{$DRUPACK_RUNTIME_PROJECT_SNIPPET}"
 		# mercure.caddy for a site whose site.json sets mercure, none.caddy otherwise. The hub sits
 		# in php_server's route block, where FrankenPHP finds it.
 		import "{$DRUPACK_RUNTIME_MERCURE_SNIPPET}"

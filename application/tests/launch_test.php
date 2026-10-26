@@ -414,6 +414,13 @@ test('every value a source\'s TLS snippets read is in its server environment', f
     }
 });
 
+test('the project snippet is the project\'s drupack.caddy when it exists, else none.caddy', function (): void {
+    $project = scratch();
+    same(['DRUPACK_RUNTIME_PROJECT_SNIPPET' => 'none.caddy'], projectSnippetEnvironment($project));
+    file_put_contents("$project/drupack.caddy", "header X-Probe on\n");
+    same(['DRUPACK_RUNTIME_PROJECT_SNIPPET' => "$project/drupack.caddy"], projectSnippetEnvironment($project));
+});
+
 test('a served listener without a record is the one this start planned, over HTTP', function (): void {
     same(['127.0.0.1', 'http://demo.drupack.site:7000/'],
         servedListener(new SiteData(scratch()), listenerPlan('127.0.0.1', 7000, 'demo.drupack.site', 'https')));

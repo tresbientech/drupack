@@ -5,7 +5,9 @@ Accepted on 2026-09-26. Amended on 2026-10-21 by
 reads the folder's `composer.json` settings, by the rules a build applies.
 Amended on 2026-10-25 by
 [ADR 0047](0047-request-guards-match-htaccess.md): the request guards reproduce
-Drupal's `.htaccess` family.
+Drupal's `.htaccess` family. Amended on 2026-10-26 by
+[ADR 0048](0048-a-project-adds-its-own-caddy-rules.md): the engine imports the
+folder's `drupack.caddy` after the guards.
 
 ## Context
 
