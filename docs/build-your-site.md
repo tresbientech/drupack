@@ -16,6 +16,8 @@ The site repository can be private. The examples use a site named `acme`.
   build refuses a lock without `drupal/core` and `drush/drush`, whose releases
   `--version` names.
 - `drupack.yml`, the site contract.
+- `drupack.caddy`, optional Caddy rules of the site's own, which
+  [a later section](#a-sites-own-caddy-rules) describes.
 - `tests/`, optional conformance cases the suite runs after the engine's own.
 
 [drupacked-demo](https://github.com/tresbientech/drupacked-demo) is a complete site repository.

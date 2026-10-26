@@ -246,3 +246,10 @@ site's single-file limits. Gaps found in the tresbien.tech review on 2026-10-21:
   name needs a proxy in front, since ADR 0036 rules out ACME on demand.
 - Behind a proxy, the project's own `settings.php` sets `reverse_proxy` and the
   trusted hosts.
+- A project's `drupack.caddy` (ADR 0048) is read at start. Open: a reload on
+  change, which Caddy's `--watch` cannot give (its watcher stops on an adapter
+  error and misses a file created after the start), a hook before the guards,
+  a copy in Site data an install edits without a rebuild, and a `validate`
+  word that checks the snippet without a start.
+- The guards refuse `drupack.caddy` by name and not `drupack.yml`, which a
+  project whose docroot is its root serves as text.
