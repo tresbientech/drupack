@@ -51,7 +51,7 @@ $downloads = [ordered]@{
 $phpMinor = ($phpVersion -split '\.')[0..1] -join '.'
 $peclExtensions = [ordered]@{
   'apcu' = @{ Version = '5.1.28'; Sha256 = 'ade68cbc6ace5002a2ecac3fda9ab38ec188d4322dd83d6867213ab8411951f0' }
-  'brotli' = @{ Version = '0.21.0'; Sha256 = '5615f4e6b808dc09cd54799f068ac9ff27763317306f03a35cafef77d01a541f' }
+  'brotli' = @{ Version = '0.21.0'; Sha256 = 'd364e7f671c525926a555b1011cf9bd3c24abf780728f476ec91c9fb8c155023' }
   'yaml' = @{ Version = '2.3.0'; Sha256 = 'def9671417f65c830d0c2475012f37a1866edbfbe2c754befb32fdec6b41b666' }
 }
 foreach ($name in $peclExtensions.Keys) {
