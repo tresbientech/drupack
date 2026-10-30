@@ -17,8 +17,10 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
-// index lists releases out of order, and v25.1.0 lacks a linux-arm64 build.
+// index lists releases out of order, leads with a prerelease, and v25.1.0
+// lacks a linux-arm64 build.
 const index = `[
+  {"version": "v27.0.0-alpha.0.0.0", "lts": false, "files": ["linux-x64", "linux-arm64", "osx-x64-tar", "osx-arm64-tar", "win-x64-zip"]},
   {"version": "v24.20.0", "lts": "Krypton", "files": ["linux-x64", "linux-arm64", "osx-x64-tar", "osx-arm64-tar", "win-x64-zip"]},
   {"version": "v26.10.0", "lts": false, "files": ["linux-x64", "linux-arm64", "osx-x64-tar", "osx-arm64-tar", "win-x64-zip"]},
   {"version": "v25.1.0", "lts": false, "files": ["linux-x64", "osx-x64-tar", "osx-arm64-tar", "win-x64-zip"]},
@@ -154,7 +156,7 @@ func TestAMuslOnlyBuildResolvesTheVersionAndFetchesNothing(t *testing.T) {
 
 func TestAVersionMissingFromTheIndexStops(t *testing.T) {
 	d := newDist(t)
-	for value, want := range map[siteconfig.Node]string{"24.99.0": "node 24.99.0", "23": "node 23"} {
+	for value, want := range map[siteconfig.Node]string{"24.99.0": "node 24.99.0", "23": "node 23", "27": "node 27"} {
 		if _, err := node.Resolve(d.request(t, value, "linux-amd64")); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%s: Resolve error = %v; want one naming %q", value, err, want)
 		}

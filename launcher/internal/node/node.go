@@ -87,7 +87,7 @@ type release struct {
 }
 
 var (
-	indexVersionRe = regexp.MustCompile(`^v([0-9]+)\.([0-9]+)\.([0-9]+)$`)
+	indexVersionRe = regexp.MustCompile(`^v([0-9]+)\.([0-9]+)\.([0-9]+)(-.+)?$`)
 	checksumRe     = regexp.MustCompile(`^([0-9a-f]{64})  (\S+)$`)
 )
 
@@ -162,6 +162,10 @@ func choose(value siteconfig.Node, releases []release) (release, string, error) 
 		parts := indexVersionRe.FindStringSubmatch(candidate.Version)
 		if parts == nil {
 			return release{}, "", fmt.Errorf("the release index names version %q, which is not vMAJOR.MINOR.PATCH", candidate.Version)
+		}
+		// The index lists prereleases such as v27.0.0-alpha.0.0.0; a site pins releases only.
+		if parts[4] != "" {
+			continue
 		}
 		var number [3]int
 		for i := range number {
