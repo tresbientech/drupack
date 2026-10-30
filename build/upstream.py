@@ -22,6 +22,11 @@ FRANKENPHP_API = "https://api.github.com/repos/php/frankenphp"
 # static-php-cli v3 has no tagged release. Its branch head moves with each FrankenPHP
 # bump, since FrankenPHP's own builder runs that branch's nightly.
 SPC_BRANCH = "https://api.github.com/repos/crazywhalecc/static-php-cli/branches/v3"
+# FrankenPHP's vcpkg.json names a vcpkg baseline, which names the vcpkg-tool release
+# that reads it. The Windows build checks out vcpkg at that baseline.
+FRANKENPHP_RAW = "https://raw.githubusercontent.com/php/frankenphp"
+VCPKG_RAW = "https://raw.githubusercontent.com/microsoft/vcpkg"
+VCPKG_TOOL_RELEASES = "https://api.github.com/repos/microsoft/vcpkg-tool/releases/tags/"
 
 # Each pin's line in its file, its value captured.
 PHP_PIN = r"^php_version=(.+)$"
@@ -32,6 +37,9 @@ FRANKENPHP_COMMIT_PIN = r"^frankenphp_commit=(.+)$"
 FRANKENPHP_WINDOWS_PIN = r"^\$frankenphpVersion = '(.+)'$"
 FRANKENPHP_WINDOWS_COMMIT_PIN = r"^\$frankenphpCommit = '(.+)'$"
 SPC_PIN = r"^spc_commit=(.+)$"
+VCPKG_PIN = r"^\$vcpkgCommit = '(.+)'$"
+VCPKG_TOOL_PIN = r"^    Urls = @\('https://github\.com/microsoft/vcpkg-tool/releases/download/(.+)/vcpkg\.exe'\)$"
+VCPKG_TOOL_SHA_PIN = r"^  'vcpkg\.exe' = @\{\n.*\n    Sha256 = '([0-9a-f]{64})'$"
 STABLE_TAG = re.compile(r"v\d+\.\d+\.\d+")
 PACKAGIST_METADATA = "https://repo.packagist.org/p2/"
 
@@ -173,6 +181,27 @@ def frankenphp(summary):
         sys.exit(f"static-php-cli v3 names {spc_head!r}, not a commit")
     rewrite(BUILDER_INPUTS, SPC_PIN, spc_head)
     summary.row("static-php-cli", spc_current[:12], spc_head[:12], "current" if spc_head == spc_current else "bumped")
+    vcpkg(summary, target["sha"])
+
+
+def vcpkg(summary, frankenphp_commit):
+    current = read(WINDOWS_BUILD, VCPKG_PIN)
+    # The manifest, the tool metadata and the release digest are remote input.
+    baseline = json.loads(fetch(f"{FRANKENPHP_RAW}/{frankenphp_commit}/vcpkg.json")).get("builtin-baseline")
+    if not isinstance(baseline, str) or not re.fullmatch(r"[0-9a-f]{40}", baseline):
+        sys.exit(f"FrankenPHP {frankenphp_commit[:12]}'s vcpkg.json names baseline {baseline!r}, not a commit")
+    metadata = fetch(f"{VCPKG_RAW}/{baseline}/scripts/vcpkg-tool-metadata.txt")
+    tool = re.search(r"^VCPKG_TOOL_RELEASE_TAG=(\d{4}-\d{2}-\d{2})$", metadata, re.MULTILINE)
+    if not tool:
+        sys.exit(f"vcpkg {baseline[:12]} names no vcpkg-tool release")
+    assets = json.loads(fetch(VCPKG_TOOL_RELEASES + tool[1]))["assets"]
+    digest = next((asset.get("digest") for asset in assets if asset["name"] == "vcpkg.exe"), None)
+    if not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+        sys.exit(f"vcpkg-tool {tool[1]} gives vcpkg.exe the digest {digest!r}")
+    rewrite(WINDOWS_BUILD, VCPKG_PIN, baseline)
+    rewrite(WINDOWS_BUILD, VCPKG_TOOL_PIN, tool[1])
+    rewrite(WINDOWS_BUILD, VCPKG_TOOL_SHA_PIN, digest.removeprefix("sha256:"))
+    summary.row("vcpkg", current[:12], baseline[:12], "current" if baseline == current else "bumped")
 
 
 def main():

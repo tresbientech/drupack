@@ -22,6 +22,8 @@ spec.loader.exec_module(upstream)
 PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD]
 COMMIT = "c0ffee" * 6 + "c0ff"
 SPC_COMMIT = "5bc" * 13 + "5"
+BASELINE = "ba5e" * 10
+TOOL_SHA = "70" * 32
 
 
 def checksums(*names):
@@ -60,8 +62,15 @@ class Bumper(unittest.TestCase):
         source(summary)
         return summary
 
-    def serve_frankenphp(self, *tags, annotated=True, spc=SPC_COMMIT):
+    def serve_frankenphp(self, *tags, annotated=True, spc=SPC_COMMIT, manifest=None):
         self.indexes[upstream.SPC_BRANCH] = json.dumps({"commit": {"sha": spc}})
+        self.indexes[f"{upstream.FRANKENPHP_RAW}/{COMMIT}/vcpkg.json"] = json.dumps(
+            manifest if manifest is not None else {"dependencies": ["brotli"], "builtin-baseline": BASELINE})
+        self.indexes[f"{upstream.VCPKG_RAW}/{BASELINE}/scripts/vcpkg-tool-metadata.txt"] = (
+            "VCPKG_TOOL_RELEASE_TAG=2099-01-02\nVCPKG_MACOS_SHA=00\n")
+        self.indexes[upstream.VCPKG_TOOL_RELEASES + "2099-01-02"] = json.dumps({"assets": [
+            {"name": "vcpkg-arm64.exe", "digest": "sha256:" + "11" * 32},
+            {"name": "vcpkg.exe", "digest": "sha256:" + TOOL_SHA}]})
         api = upstream.FRANKENPHP_API
         self.indexes[f"{api}/releases?per_page=100"] = json.dumps(
             [{"tag_name": tag, "draft": False, "prerelease": False} for tag in tags])
@@ -141,6 +150,15 @@ class Bumper(unittest.TestCase):
         self.assertIn(f"$frankenphpCommit = '{COMMIT}'", windows)
         self.assertIn(f"\nspc_commit={SPC_COMMIT}\n", inputs)
         self.assertEqual(summary.rows[1][0::3], ("static-php-cli", "bumped"))
+        self.assertIn(f"$vcpkgCommit = '{BASELINE}'", windows)
+        self.assertIn("vcpkg-tool/releases/download/2099-01-02/vcpkg.exe", windows)
+        self.assertIn(f"Sha256 = '{TOOL_SHA}'", windows)
+        self.assertEqual(summary.rows[2][0::3], ("vcpkg", "bumped"))
+
+    def test_a_frankenphp_manifest_without_a_vcpkg_baseline_stops_the_run(self):
+        self.serve_frankenphp("v1.99.0", manifest={"dependencies": ["brotli"]})
+        with self.assertRaises(SystemExit):
+            self.run_bumper(upstream.frankenphp)
 
     def test_a_current_frankenphp_leaves_static_php_cli_alone(self):
         current = upstream.read(upstream.BUILDER_INPUTS, r"^frankenphp_version=(.+)$")
