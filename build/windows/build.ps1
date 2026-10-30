@@ -160,6 +160,8 @@ $env:CC = 'clang --target=x86_64-pc-windows-msvc'
 $env:CXX = 'clang++ --target=x86_64-pc-windows-msvc'
 $env:CGO_CFLAGS = "-DFRANKENPHP_VERSION=$frankenphpVersion -I$vcpkgRoot\include -I$watcherRoot -I$phpDevelRoot\include -I$phpDevelRoot\include\main -I$phpDevelRoot\include\TSRM -I$phpDevelRoot\include\Zend -I$phpDevelRoot\include\ext"
 $env:CGO_LDFLAGS = "-L$vcpkgRoot\lib -lbrotlienc -L$watcherRoot -llibwatcher-c -L$php -L$phpDevelRoot\lib -lphp8ts -lphp8embed"
+# github.com/google/brotli/go/cbrotli finds the vcpkg brotli libraries through pkg-config.
+$env:PKG_CONFIG_PATH = "$vcpkgRoot\lib\pkgconfig"
 # The SQLite release the zip's PHP loads, for --version.
 $sqliteVersion = & (Join-Path $php 'php.exe') -n -d "extension_dir=$php\ext" -d extension=sqlite3 -r 'echo current(SQLite3::version());'
 if (-not $sqliteVersion) { throw 'php.exe named no SQLite release' }
