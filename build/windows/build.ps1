@@ -21,13 +21,13 @@ if ($EnginePayloadDirectory) {
   $engineOutputPath = Join-Path (Resolve-Path $engineDirectory).Path (Split-Path -Leaf $EngineOutput)
 }
 
-$frankenphpVersion = '1.13.3'
-$frankenphpCommit = 'ae3d5b949d0963111bd895ffdd730e63c120665c'
+$frankenphpVersion = '1.13.4'
+$frankenphpCommit = '7f50be9d86261bf7cff9b051ab4fb572e95020ed'
 $phpVersion = '8.5.12'
 $phpToolset = 'vs17-x64'
 # The newest PHP release lives under releases/, older ones under releases/archives/.
 $phpDownloadBases = @('https://downloads.php.net/~windows/releases', 'https://downloads.php.net/~windows/releases/archives')
-$vcpkgCommit = '9e593bb18ea69cc5095e012465dcd675a822ed0d'
+$vcpkgCommit = '817892b0ecbc6af994dd6df999c73faf795adbf2'
 $downloads = [ordered]@{
   'php.zip' = @{
     Urls = $phpDownloadBases | ForEach-Object { "$_/php-$phpVersion-Win32-$phpToolset.zip" }
@@ -42,8 +42,8 @@ $downloads = [ordered]@{
     Sha256 = '43034cbb07252751246afab8880da74c0340429f1865fd5bd6ce7c17e83c104f'
   }
   'vcpkg.exe' = @{
-    Urls = @('https://github.com/microsoft/vcpkg-tool/releases/download/2026-07-27/vcpkg.exe')
-    Sha256 = '13b8175e99a884c5ad34249218754b45541a1a63f216e92603aee57a285ac741'
+    Urls = @('https://github.com/microsoft/vcpkg-tool/releases/download/2026-09-26/vcpkg.exe')
+    Sha256 = '2a4ae1467b9e797964c60c919d057b9e5dc1ec03f4b9632c1150026db25201f2'
   }
 }
 # The php.net zip leaves these out. PECL publishes a DLL per PHP minor release
