@@ -120,6 +120,14 @@ jobs:
       run:
         shell: bash
     steps:
+      # The runner mounts its tool cache at /__t, and this job runs no toolchain from
+      # it. The conformance suite needs the space.
+      - name: Free disk space
+        run: |
+          df -h /
+          rm -rf /__t/*
+          df -h /
+
       # composer install runs the site's plugins and scripts, so the checkout keeps no token.
       # checkout reads an empty repository or ref as the calling run's.
       - uses: actions/checkout@v7
