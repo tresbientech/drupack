@@ -149,3 +149,23 @@ Consequences:
 - A tag run with a candidate publishes its files, where a hand tag builds.
 - The provenance attestation names the tag run, while the candidate run built
   the files from the same workflow at the same commit.
+
+## Amendment, 2026-11-05: Windows PECL extensions
+
+php_brotli 0.21.1 reached PECL on 2026-10-26. Linux and macOS took it at their
+next build, since static-php-cli fetches the newest tag. The Windows pin stayed
+at 0.21.0 until a hand bump on 2026-11-05.
+
+- The daily run moves each `$peclExtensions` entry of `build/windows/build.ps1`
+  to its newest stable PECL release inside its major.
+- The bump waits until downloads.php.net has the zip for the pinned PHP minor
+  and toolset.
+- php.net lists no checksums for these zips. The run downloads the zip and pins
+  its SHA-256.
+- A newer major is printed as `MAJOR` and never written.
+
+Consequences:
+
+- A PECL release alone tags a Drupack version, as a PHP patch does.
+- A zip replaced under the same name still fails the Windows build, as it did
+  on 2026-10-26.

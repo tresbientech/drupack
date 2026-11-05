@@ -4,6 +4,7 @@ Run with:
     python3 -m unittest discover -s tests/upstream
 """
 
+import hashlib
 import importlib.util
 import json
 import re
@@ -40,15 +41,36 @@ class Bumper(unittest.TestCase):
             shutil.copy(ROOT / path, self.tree / path)
         self.addCleanup(setattr, upstream, "ROOT", upstream.ROOT)
         self.addCleanup(setattr, upstream, "fetch", upstream.fetch)
+        self.addCleanup(setattr, upstream, "download", upstream.download)
         upstream.ROOT = self.tree
         self.php = upstream.read(upstream.BUILDER_INPUTS, r"^php_version=(.+)$")
         self.indexes = {}
+        self.archives = {}
         upstream.fetch = self.fetch
+        upstream.download = self.download
 
     def fetch(self, url):
         if url not in self.indexes:
             raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
         return self.indexes[url]
+
+    def download(self, url):
+        if url not in self.archives:
+            raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+        return self.archives[url]
+
+    def pecl_pins(self):
+        return dict(re.findall(upstream.pecl_pin(), self.text(upstream.WINDOWS_BUILD), re.MULTILINE))
+
+    def serve_pecl(self, name, *versions, dll=True):
+        """Lists `versions` as the stable releases of `name`, and every other pin at its own version."""
+        for pinned, current in self.pecl_pins().items():
+            listed = versions if pinned == name else (current,)
+            self.indexes[f"{upstream.PECL_RELEASES}{pinned}/allreleases.xml"] = "".join(
+                f" <r><v>{version}</v><s>stable</s></r>\n" for version in listed)
+        if dll:
+            newest = versions[0]
+            self.archives[f"{upstream.PECL_WINDOWS}{name}/{newest}/php_{name}-{newest}-8.5-ts-vs17-x64.zip"] = b"dll"
 
     def serve_php(self, line_version, major_version=None, windows=None):
         self.indexes[upstream.PHP_RELEASES + "8.5"] = json.dumps({"version": line_version})
@@ -190,6 +212,42 @@ class Bumper(unittest.TestCase):
         summary = self.run_bumper(upstream.frankenphp)
         self.assertEqual(summary.rows, [("FrankenPHP", current, current, "current")])
         self.assertEqual(summary.notes, [f"SKIPPED FrankenPHP 1.13.0: {upstream.FRANKENPHP_SKIPS['1.13.0']}"])
+
+    def test_a_newer_pecl_release_rewrites_its_version_and_checksum(self):
+        current = self.pecl_pins()["brotli"]
+        self.serve_pecl("brotli", "0.99.0", current)
+        summary = self.run_bumper(upstream.pecl)
+        self.assertIn(("php_brotli", current, "0.99.0", "bumped"), summary.rows)
+        self.assertIn(f"'brotli' = @{{ Version = '0.99.0'; Sha256 = '{hashlib.sha256(b'dll').hexdigest()}' }}",
+                      self.text(upstream.WINDOWS_BUILD))
+        self.assertEqual([row[3] for row in summary.rows].count("current"), len(self.pecl_pins()) - 1)
+
+    def test_current_pecl_releases_write_nothing(self):
+        self.serve_pecl("brotli", self.pecl_pins()["brotli"])
+        before = self.text(upstream.WINDOWS_BUILD)
+        summary = self.run_bumper(upstream.pecl)
+        self.assertEqual({row[3] for row in summary.rows}, {"current"})
+        self.assertEqual(self.text(upstream.WINDOWS_BUILD), before)
+
+    def test_a_missing_windows_dll_holds_the_pecl_pin_back(self):
+        current = self.pecl_pins()["brotli"]
+        self.serve_pecl("brotli", "0.99.0", current, dll=False)
+        before = self.text(upstream.WINDOWS_BUILD)
+        summary = self.run_bumper(upstream.pecl)
+        self.assertIn(("php_brotli", current, "0.99.0", "waits for the Windows DLL"), summary.rows)
+        self.assertEqual(self.text(upstream.WINDOWS_BUILD), before)
+
+    def test_a_newer_pecl_major_is_reported_and_not_taken(self):
+        current = self.pecl_pins()["apcu"]
+        self.serve_pecl("apcu", "6.0.0", current)
+        summary = self.run_bumper(upstream.pecl)
+        self.assertIn(("php_apcu", current, current, "current"), summary.rows)
+        self.assertEqual(summary.notes, [f"MAJOR php_apcu 6.0.0 is out, outside the {current.split('.')[0]} line"])
+
+    def test_a_malformed_pecl_version_stops_the_run(self):
+        self.serve_pecl("yaml", "2.9.0;id")
+        with self.assertRaises(SystemExit):
+            self.run_bumper(upstream.pecl)
 
 
 def build_script(case, name):

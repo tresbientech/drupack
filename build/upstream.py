@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Moves the PHP and FrankenPHP pins to their newest version inside their line,
+"""Moves the PHP, FrankenPHP and Windows PECL pins to their newest version inside their line,
 and prints what it did as a Markdown summary. It edits the working tree and never commits.
 
     python3 build/upstream.py
 """
 
+import hashlib
 import json
 import os
 import re
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -27,6 +29,8 @@ SPC_BRANCH = "https://api.github.com/repos/crazywhalecc/static-php-cli/branches/
 FRANKENPHP_RAW = "https://raw.githubusercontent.com/php/frankenphp"
 VCPKG_RAW = "https://raw.githubusercontent.com/microsoft/vcpkg"
 VCPKG_TOOL_RELEASES = "https://api.github.com/repos/microsoft/vcpkg-tool/releases/tags/"
+PECL_RELEASES = "https://pecl.php.net/rest/r/"
+PECL_WINDOWS = "https://downloads.php.net/~windows/pecl/releases/"
 
 # Each pin's line in its file, its value captured.
 PHP_PIN = r"^php_version=(.+)$"
@@ -39,6 +43,8 @@ FRANKENPHP_WINDOWS_COMMIT_PIN = r"^\$frankenphpCommit = '(.+)'$"
 SPC_PIN = r"^spc_commit=(.+)$"
 VCPKG_PIN = r"^\$vcpkgCommit = '(.+)'$"
 VCPKG_TOOL_PIN = r"^    Urls = @\('https://github\.com/microsoft/vcpkg-tool/releases/download/(.+)/vcpkg\.exe'\)$"
+# A PECL extension the Windows build downloads, with its version and checksum.
+PECL_ENTRY = r"^  '{name}' = @\{{ Version = '{version}'; Sha256 = '{sha256}' \}}$"
 VCPKG_TOOL_SHA_PIN = r"^  'vcpkg\.exe' = @\{\n.*\n    Sha256 = '([0-9a-f]{64})'$"
 STABLE_TAG = re.compile(r"v\d+\.\d+\.\d+")
 PACKAGIST_METADATA = "https://repo.packagist.org/p2/"
@@ -53,13 +59,17 @@ RELEASE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)(\d+))?", re.IGNO
 STABILITY = {"alpha": 0, "beta": 1, "rc": 2, None: 3}
 
 
-def fetch(url):
+def download(url):
     request = urllib.request.Request(url)
     # A GitHub runner's token lifts the API's per-address rate limit.
     if url.startswith("https://api.github.com/") and os.environ.get("GITHUB_TOKEN"):
         request.add_header("Authorization", f"Bearer {os.environ['GITHUB_TOKEN']}")
     with urllib.request.urlopen(request, timeout=60) as response:
-        return response.read().decode()
+        return response.read()
+
+
+def fetch(url):
+    return download(url).decode()
 
 
 def version_key(version):
@@ -146,6 +156,39 @@ def php(summary):
     summary.row("PHP", current, newest, "bumped")
 
 
+def pecl_pin(name="([a-z_]+)", version="([^']+)", sha256="[0-9a-f]{64}"):
+    """PECL_ENTRY with each field's pattern; the defaults capture name and version."""
+    return PECL_ENTRY.format(name=name, version=version, sha256=sha256)
+
+
+def pecl(summary):
+    php_minor = ".".join(read(WINDOWS_BUILD, PHP_WINDOWS_PIN).split(".")[:2])
+    toolset = read(WINDOWS_BUILD, PHP_TOOLSET)
+    for name, current in re.findall(pecl_pin(), (ROOT / WINDOWS_BUILD).read_text(), re.MULTILINE):
+        line = current.split(".")[0]
+        # PECL's release list is remote input.
+        stable = re.findall(r"<v>([^<]+)</v><s>stable</s>", fetch(f"{PECL_RELEASES}{name}/allreleases.xml"))
+        if not stable or not all(re.fullmatch(r"\d+\.\d+\.\d+", version) for version in stable):
+            sys.exit(f"PECL lists the stable {name} releases {stable!r}")
+        newest = max((v for v in stable if v.split(".")[0] == line), key=version_key)
+        above = max(stable, key=version_key)
+        if above.split(".")[0] != line:
+            summary.notes.append(f"MAJOR php_{name} {above} is out, outside the {line} line")
+        if version_key(newest) <= version_key(current):
+            summary.row(f"php_{name}", current, newest, "current")
+            continue
+        try:
+            archive = download(f"{PECL_WINDOWS}{name}/{newest}/php_{name}-{newest}-{php_minor}-ts-{toolset}.zip")
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+            summary.row(f"php_{name}", current, newest, "waits for the Windows DLL")
+            continue
+        rewrite(WINDOWS_BUILD, pecl_pin(name), newest)
+        rewrite(WINDOWS_BUILD, pecl_pin(name, version="[^']+", sha256="([0-9a-f]{64})"), hashlib.sha256(archive).hexdigest())
+        summary.row(f"php_{name}", current, newest, "bumped")
+
+
 def frankenphp(summary):
     current = read(BUILDER_INPUTS, FRANKENPHP_PIN)
     line = current.split(".")[0]
@@ -207,6 +250,7 @@ def vcpkg(summary, frankenphp_commit):
 def main():
     summary = Summary()
     php(summary)
+    pecl(summary)
     frankenphp(summary)
     sys.stdout.write(summary.render())
 
