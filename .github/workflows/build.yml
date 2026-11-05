@@ -440,7 +440,7 @@ jobs:
           mv "$RUNNER_TEMP/sbom.cdx.json" release/
 
       - name: Attest the release files
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: release/*
 

@@ -293,12 +293,12 @@ jobs:
           path: demo
           persist-credentials: false
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: runtime-linux-*
           path: runtime-artifacts
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: runtime-components-linux-*
           path: runtime-components
@@ -428,22 +428,22 @@ jobs:
         shell: bash
         run: bash build/go-tests.sh
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: runtime-linux-${{ matrix.arch }}-musl
           path: runtime-musl
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: runtime-linux-${{ matrix.arch }}-glibc
           path: runtime-glibc
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: payload-archive
           path: dist/payload
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: engine-payload-archive
           path: dist/engine-payload
@@ -947,7 +947,7 @@ jobs:
           jq -s add runtime-components/*.json >release/runtime-components.json
 
       - name: Attest the release files
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: release/*
 
