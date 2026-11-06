@@ -53,12 +53,6 @@ GO_LINE = r"^go (\d+\.\d+(?:\.\d+)?)$"
 STABLE_TAG = re.compile(r"v\d+\.\d+\.\d+")
 PACKAGIST_METADATA = "https://repo.packagist.org/p2/"
 
-# FrankenPHP releases the bumper passes over, each with the reason it breaks the
-# engine. A newer release in the line is bumped as usual.
-FRANKENPHP_SKIPS = {
-    "1.13.0": "php-cli puts the binary name in $argv[0] on PHP 8.5, php/frankenphp#2690",
-}
-
 RELEASE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)(\d+))?", re.IGNORECASE)
 STABILITY = {"alpha": 0, "beta": 1, "rc": 2, None: 3}
 
@@ -200,10 +194,6 @@ def frankenphp(summary):
                 if not release["draft"] and not release["prerelease"]]
     # GitHub release tags are remote input.
     versions = [tag[1:] for tag in releases if STABLE_TAG.fullmatch(tag)]
-    for version, reason in FRANKENPHP_SKIPS.items():
-        if version in versions:
-            versions.remove(version)
-            summary.notes.append(f"SKIPPED FrankenPHP {version}: {reason}")
     newest = max((v for v in versions if v.split(".")[0] == line), key=version_key)
     above = max(versions, key=version_key)
     if above.split(".")[0] != line:

@@ -234,13 +234,6 @@ class Bumper(unittest.TestCase):
         self.assertEqual(summary.rows, [("FrankenPHP", current, current, "current")])
         self.assertEqual(summary.notes, ["MAJOR FrankenPHP 2.0.0 is out, outside the 1 line"])
 
-    def test_a_skipped_frankenphp_is_reported_and_not_taken(self):
-        current = upstream.read(upstream.BUILDER_INPUTS, r"^frankenphp_version=(.+)$")
-        self.serve_frankenphp("v1.13.0", f"v{current}")
-        summary = self.run_bumper(upstream.frankenphp)
-        self.assertEqual(summary.rows, [("FrankenPHP", current, current, "current")])
-        self.assertEqual(summary.notes, [f"SKIPPED FrankenPHP 1.13.0: {upstream.FRANKENPHP_SKIPS['1.13.0']}"])
-
     def test_a_newer_pecl_release_rewrites_its_version_and_checksum(self):
         current = self.pecl_pins()["brotli"]
         self.serve_pecl("brotli", "0.99.0", current)
