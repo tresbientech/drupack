@@ -65,6 +65,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The forge writes the bump table into the candidate commit's message.
+      - name: Show the candidate's bump
+        if: github.ref_type == 'tag' || inputs.version != ''
+        run: git log -1 --format='### %s%n%n%b' >>"$GITHUB_STEP_SUMMARY"
+
       - id: demo
         name: Name the demo commit
         run: |
