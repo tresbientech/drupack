@@ -20,7 +20,7 @@ spec = importlib.util.spec_from_file_location("upstream", ROOT / "build" / "upst
 upstream = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(upstream)
 
-PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD]
+PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD, upstream.RELEASE_WORKFLOW]
 COMMIT = "c0ffee" * 6 + "c0ff"
 SPC_COMMIT = "5bc" * 13 + "5"
 BASELINE = "ba5e" * 10
@@ -84,8 +84,9 @@ class Bumper(unittest.TestCase):
         source(summary)
         return summary
 
-    def serve_frankenphp(self, *tags, annotated=True, spc=SPC_COMMIT, manifest=None):
+    def serve_frankenphp(self, *tags, annotated=True, spc=SPC_COMMIT, manifest=None, go_mod="go 1.1\n"):
         self.indexes[upstream.SPC_BRANCH] = json.dumps({"commit": {"sha": spc}})
+        self.indexes[f"{upstream.FRANKENPHP_RAW}/{COMMIT}/caddy/go.mod"] = f"module example\n\n{go_mod}"
         self.indexes[f"{upstream.FRANKENPHP_RAW}/{COMMIT}/vcpkg.json"] = json.dumps(
             manifest if manifest is not None else {"dependencies": ["brotli"], "builtin-baseline": BASELINE})
         self.indexes[f"{upstream.VCPKG_RAW}/{BASELINE}/scripts/vcpkg-tool-metadata.txt"] = (
@@ -176,6 +177,33 @@ class Bumper(unittest.TestCase):
         self.assertIn("vcpkg-tool/releases/download/2099-01-02/vcpkg.exe", windows)
         self.assertIn(f"Sha256 = '{TOOL_SHA}'", windows)
         self.assertEqual(summary.rows[2][0::3], ("vcpkg", "bumped"))
+        self.assertEqual(summary.rows[3][0::3], ("Go", "current"))
+
+    def test_a_newer_go_line_in_frankenphp_raises_go_version(self):
+        self.serve_frankenphp("v1.99.0", go_mod="go 1.99.3\n")
+        summary = self.run_bumper(upstream.frankenphp)
+        self.assertEqual(upstream.read(upstream.RELEASE_WORKFLOW, upstream.GO_PIN), "1.99.3")
+        self.assertEqual(summary.rows[3][2:], ("1.99.3", "bumped"))
+
+    def test_a_go_line_without_a_patch_names_its_first_release(self):
+        self.serve_frankenphp("v1.99.0", go_mod="go 1.99\n")
+        self.run_bumper(upstream.frankenphp)
+        self.assertEqual(upstream.read(upstream.RELEASE_WORKFLOW, upstream.GO_PIN), "1.99.0")
+
+    def test_a_go_line_below_go_version_writes_nothing(self):
+        self.serve_frankenphp("v1.99.0", go_mod="go 1.1\n")
+        before = self.text(upstream.RELEASE_WORKFLOW)
+        self.run_bumper(upstream.frankenphp)
+        self.assertEqual(self.text(upstream.RELEASE_WORKFLOW), before)
+
+    def test_a_malformed_go_line_stops_the_run(self):
+        for go_mod in ("go 1.99rc1\n", "", "go 1.99.3\ngo 1.99.4\n"):
+            with self.subTest(go_mod), self.assertRaises(SystemExit):
+                # The bump before the go line moves FrankenPHP, so each case starts from the real pins.
+                for path in PINNED:
+                    shutil.copy(ROOT / path, self.tree / path)
+                self.serve_frankenphp("v1.99.0", go_mod=go_mod)
+                self.run_bumper(upstream.frankenphp)
 
     def test_a_frankenphp_manifest_without_a_vcpkg_baseline_stops_the_run(self):
         self.serve_frankenphp("v1.99.0", manifest={"dependencies": ["brotli"]})

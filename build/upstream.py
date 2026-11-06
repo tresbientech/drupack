@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Moves the PHP, FrankenPHP and Windows PECL pins to their newest version inside their line,
-and prints what it did as a Markdown summary. It edits the working tree and never commits.
+raises the release workflow's Go to the one FrankenPHP needs, and prints what it did as a
+Markdown summary. It edits the working tree and never commits.
 
     python3 build/upstream.py
 """
@@ -17,6 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BUILDER_INPUTS = "runtime/builder-inputs.sh"
 WINDOWS_BUILD = "build/windows/build.ps1"
+RELEASE_WORKFLOW = ".github/workflows/release.yml"
 
 PHP_RELEASES = "https://www.php.net/releases/index.php?json&version="
 WINDOWS_CHECKSUMS = "https://downloads.php.net/~windows/releases/sha256sum.txt"
@@ -46,6 +48,8 @@ VCPKG_TOOL_PIN = r"^    Urls = @\('https://github\.com/microsoft/vcpkg-tool/rele
 # A PECL extension the Windows build downloads, with its version and checksum.
 PECL_ENTRY = r"^  '{name}' = @\{{ Version = '{version}'; Sha256 = '{sha256}' \}}$"
 VCPKG_TOOL_SHA_PIN = r"^  'vcpkg\.exe' = @\{\n.*\n    Sha256 = '([0-9a-f]{64})'$"
+GO_PIN = r"^  GO_VERSION: '(.+)'$"
+GO_LINE = r"^go (\d+\.\d+(?:\.\d+)?)$"
 STABLE_TAG = re.compile(r"v\d+\.\d+\.\d+")
 PACKAGIST_METADATA = "https://repo.packagist.org/p2/"
 
@@ -225,6 +229,7 @@ def frankenphp(summary):
     rewrite(BUILDER_INPUTS, SPC_PIN, spc_head)
     summary.row("static-php-cli", spc_current[:12], spc_head[:12], "current" if spc_head == spc_current else "bumped")
     vcpkg(summary, target["sha"])
+    go(summary, target["sha"])
 
 
 def vcpkg(summary, frankenphp_commit):
@@ -245,6 +250,22 @@ def vcpkg(summary, frankenphp_commit):
     rewrite(WINDOWS_BUILD, VCPKG_TOOL_PIN, tool[1])
     rewrite(WINDOWS_BUILD, VCPKG_TOOL_SHA_PIN, digest.removeprefix("sha256:"))
     summary.row("vcpkg", current[:12], baseline[:12], "current" if baseline == current else "bumped")
+
+
+def go(summary, frankenphp_commit):
+    current = read(RELEASE_WORKFLOW, GO_PIN)
+    # The macOS and Windows builds compile FrankenPHP's caddy module with GOTOOLCHAIN=local.
+    # Its go.mod is remote input.
+    lines = re.findall(GO_LINE, fetch(f"{FRANKENPHP_RAW}/{frankenphp_commit}/caddy/go.mod"), re.MULTILINE)
+    if len(lines) != 1:
+        sys.exit(f"FrankenPHP {frankenphp_commit[:12]}'s caddy/go.mod names the go lines {lines!r}")
+    # A go line without a patch names the line's first release, X.Y.0.
+    floor = lines[0] if lines[0].count(".") == 2 else lines[0] + ".0"
+    if version_key(floor) <= version_key(current):
+        summary.row("Go", current, floor, "current")
+        return
+    rewrite(RELEASE_WORKFLOW, GO_PIN, floor)
+    summary.row("Go", current, floor, "bumped")
 
 
 def main():

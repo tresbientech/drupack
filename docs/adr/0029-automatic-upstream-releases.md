@@ -19,6 +19,8 @@ PHP security release behind, and nothing had reported it.
   - FrankenPHP 1.x, with the commit its tag names
   - the Windows vcpkg commit, set to the `builtin-baseline` of FrankenPHP's
     `vcpkg.json`, with the vcpkg-tool release that baseline names
+  - `GO_VERSION` in `release.yml`, raised to the `go` line of FrankenPHP's
+    `caddy/go.mod` when that line is newer
   - Node 24 LTS, which the demo now pins exactly
   - each exact Composer pin, within its major, at equal or better stability
 - A newer major is printed as `MAJOR` in the run log and never written.
