@@ -161,6 +161,12 @@ class StaticSiteOff(harness.ConformanceCase):
                                 "--static-listen", "127.0.0.1:1")
         self.assertIn("--static-listen needs a site whose composer.json sets extra.drupack.static", output)
 
+    def test_export_refuses_and_names_the_key(self):
+        result = harness.run([str(harness.BINARY), "export", "--data-dir", str(self.data)], cwd=self.case_dir,
+                             capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("export needs a site whose composer.json sets extra.drupack.static", result.stdout + result.stderr)
+
 
 class StaticSiteTls(harness.ConformanceCase):
     """The static port under the drupack TLS source, as tls_cases.TlsSources starts a site."""
@@ -243,6 +249,15 @@ class StaticSiteExport(harness.ConformanceCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn(str(data), result.stdout + result.stderr)
         self.assertFalse(data.exists(), "a refused export wrote Site data")
+
+    def test_an_export_without_tome_static_refuses_naming_the_module(self):
+        uninstall = harness.run_drush(harness.BINARY, self.class_dir, self.data, "pm:uninstall", "tome_static", "--yes")
+        self.assertEqual(uninstall.returncode, 0, uninstall.stderr)
+        self.addCleanup(harness.run_drush, harness.BINARY, self.class_dir, self.data, "pm:install", "tome_static", "--yes")
+        result = self.export(self.data)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("no tome_static module enabled. Enable it: " + harness.SITE["name"] + " drush pm:install tome_static",
+                      result.stdout + result.stderr)
 
     def test_a_drush_child_runs_php_from_the_runtime_with_no_php_on_path(self):
         empty = harness.fresh_dir(self.case_dir / "empty-path")

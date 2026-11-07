@@ -310,11 +310,12 @@ function export(string $binary, array $arguments): never
             throw new RuntimeException("Cannot read a recorded static URL for $project. Start it once, or pass --uri URL.");
         }
     }
-    runProjectDrush($binary, $project, $entry, $settings, exportCommand($url, $arguments));
+    runProjectDrush($binary, $project, $entry, $settings, exportCommand($url, $arguments), true);
 }
 
-// Creates nothing, so a project no start has served exports no hub.
-function runProjectDrush(string $binary, string $project, string $entry, array $settings, array $words): never
+// Creates nothing, so a project no start has served exports no hub. $export runs Tome's
+// command, so the project's Drupal must have tome_static enabled.
+function runProjectDrush(string $binary, string $project, string $entry, array $settings, array $words, bool $export = false): never
 {
     useTlsBundle($entry);
     if ($settings['mercure'] && is_file("$entry/" . MERCURE_URL_FILE)) {
@@ -322,6 +323,9 @@ function runProjectDrush(string $binary, string $project, string $entry, array $
     }
     // engine/drush requires the project's Drush, so Tome's children rerun an extensionless argv[0].
     putenv('DRUPACK_DRUSH_SCRIPT=' . drushScript($project));
+    if ($export) {
+        requireTomeStatic($binary, __DIR__ . '/drush', getcwd());
+    }
     runScript($binary, __DIR__ . '/drush', $words);
 }
 

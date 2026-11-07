@@ -280,7 +280,9 @@ without the key.
 
 The lock of a site with the key names `drupal/tome`, or the build and an
 engine start exit 1 naming it. The site enables `tome_static` itself, as
-[the build guide](build-your-site.md#a-static-site) describes.
+[the build guide](build-your-site.md#a-static-site) describes. An `export`
+from a Drupal without it enabled exits 1 and names the `drush pm:install`
+command that enables it.
 
 ## `start` and `stop`
 

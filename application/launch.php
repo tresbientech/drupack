@@ -894,6 +894,7 @@ try {
     }
     if ($drush) {
         if ($mode === 'export') {
+            requireTomeStatic($binary, drushPath(), application());
             $command = exportCommand($static['url'], $command);
         }
         exit(process($binary, array_merge(['php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], application(), 'Cannot run Drush'));

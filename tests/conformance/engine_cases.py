@@ -788,6 +788,18 @@ class EngineExecutable(harness.ConformanceCase):
         result = self.engine_run(str(self.project), "--listen", f"127.0.0.1:{harness.pick_port()}")
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("composer.lock: packages names no drupal/tome release", result.stderr)
+        export = self.engine_run("export", "--uri", "http://127.0.0.1:1/", cwd=self.project)
+        self.assertEqual(export.returncode, 1, export.stdout)
+        self.assertIn("composer.lock: packages names no drupal/tome release", export.stderr)
+
+    def test_export_without_tome_static_refuses_naming_the_module(self):
+        uninstall = self.engine_run("drush", "pm:uninstall", "tome_static", "--yes", cwd=self.project)
+        self.assertEqual(uninstall.returncode, 0, uninstall.stderr)
+        self.addCleanup(self.engine_run, "drush", "pm:install", "tome_static", "--yes", cwd=self.project)
+        export = self.engine_run("export", "--uri", "http://127.0.0.1:1/", cwd=self.project)
+        self.assertEqual(export.returncode, 1, export.stdout)
+        self.assertIn("no tome_static module enabled. Enable it: drupack drush pm:install tome_static",
+                      export.stderr)
 
     def alias_run(self, *commands):
         """Runs each shell command from class_dir inside Drush, whose PATH names the php alias, and returns
