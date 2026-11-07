@@ -1,6 +1,7 @@
 # Drupack records its listener and serves on port 7225
 
-Accepted on 2026-09-18.
+Accepted on 2026-09-18. Amended on 2026-11-06 by
+[ADR 0049](0049-a-site-serves-its-tome-export-on-a-second-port.md): a site with a static listener serves a second port, the site's plus one.
 
 ## Context
 

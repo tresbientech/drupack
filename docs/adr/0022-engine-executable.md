@@ -7,7 +7,8 @@ Amended on 2026-10-25 by
 [ADR 0047](0047-request-guards-match-htaccess.md): the request guards reproduce
 Drupal's `.htaccess` family. Amended on 2026-10-26 by
 [ADR 0048](0048-a-project-adds-its-own-caddy-rules.md): the engine imports the
-folder's `drupack.caddy` after the guards.
+folder's `drupack.caddy` after the guards. Amended on 2026-11-06 by
+[ADR 0049](0049-a-site-serves-its-tome-export-on-a-second-port.md): the engine serves a project's Tome export on a second port, and `drupack export` runs the export.
 
 ## Context
 

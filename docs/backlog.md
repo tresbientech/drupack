@@ -285,3 +285,25 @@ alone. Lean: `composer.json` `extra.drupack` names one command per moment. The
 watch runner starts the long-running one and stops it with the server. A command
 finds the host's PATH, with Bundled Node first on a Packaged site. ADR 0027
 stands: the engine carries no Node, and a developer running vite has one.
+
+## An export that follows content changes
+
+`SITE export` runs when a reader asks. The post ADR 0049 makes real says the
+export updates whenever content changes. A timer in the watch runner was
+rejected: it boots Drupal on a period with nothing to do most of the time. Lean:
+a cache-tag invalidation subscriber in Drupack's `support/` layer, which the
+generated settings already load, touches a marker in Site data. The watch
+runner runs `export` when the marker moves, debounced. The engine never touches
+a project's settings, so an engine project would add the subscriber itself.
+
+## The Mercure hub on the static port
+
+A site with `mercure` and `static` on serves the hub on the site port alone.
+Caddy's Mercure module allows one unnamed hub per config and pools transports by
+hub name. A second `mercure` directive would share nothing with the first.
+Lean: the static block forwards `/.well-known/mercure*` to the site listener
+with `reverse_proxy`. `resource_identifier` keeps tokens valid on both ports,
+and browsers send the host-keyed cookie to both. About half a day and no Go
+change. No use case today. A page exported for the static port names the hub by
+a root-relative path. A dynamic endpoint on that port publishes over HTTP,
+since `mercure_publish()` finds no hub on its route.
