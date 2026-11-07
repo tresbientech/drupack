@@ -56,8 +56,9 @@ a project folder the engine serves. Drupacked Demo ships with the listener on.
 
 - D1: `composer.json` `extra.drupack.static` is an object. Present, it turns
   the static listener on. Its optional `dynamic` is a list of Caddy `path`
-  matcher patterns. Each opens with `/` and holds no whitespace and no double
-  quote, since it reaches the Caddyfile through an environment value. Absent
+  matcher patterns. Each opens with `/` and holds no whitespace, control
+  character, double quote or brace: it reaches the Caddyfile through an
+  environment value, where a brace opens a placeholder. Absent
   `dynamic` means the static port runs no PHP. `siteconfig.ReadComposer` reads
   it in both modes, `Composer` and `Site` gain a `Static` field, `Write` puts it
   in `site.json`, and `SiteContract` gains `static`. A wrong value is refused by
@@ -79,11 +80,12 @@ a project folder the engine serves. Drupacked Demo ships with the listener on.
   `MERCURE_URL_FILE` in `engine/serve.php`.
 - D4: `staticPlan(string $bind, int $port, string $host, string $scheme): array`
   in a new `application/static.php`, linked into `engine/`, gives the static
-  port and URL. `staticServerEnvironment(?array $static, array $plan, string
-  $root, string $tls): array` gives Caddy its five variables.
-  `DRUPACK_RUNTIME_STATIC_PORT` and `DRUPACK_RUNTIME_STATIC_ROOT` hold the port
-  and the directory. `DRUPACK_RUNTIME_STATIC_SNIPPET` names
-  `static-site-<tls>.caddy` or `none.caddy`.
+  port and URL. `staticServerEnvironment(?array $static, ?array $plan, string
+  $tls): array` gives Caddy its variables. `DRUPACK_RUNTIME_STATIC_BIND` and
+  `DRUPACK_RUNTIME_STATIC_PORT` hold the static listener's address, and
+  `DRUPACK_RUNTIME_STATIC_ROOT` comes from `siteEnvironment()` alone (D7).
+  `DRUPACK_RUNTIME_STATIC_SNIPPET` names `static-site-<tls>.caddy` or
+  `none.caddy`, the one variable a site without the key exports.
   `DRUPACK_RUNTIME_STATIC_DYNAMIC_SNIPPET` names `static-dynamic.caddy` or
   `none.caddy`. `DRUPACK_RUNTIME_STATIC_DYNAMIC` holds the patterns joined by
   spaces, exported only when the list has one. Evidence: `listenerPlan()`,
@@ -130,32 +132,44 @@ a project folder the engine serves. Drupacked Demo ships with the listener on.
 
 ### The Drush launch
 
-- D9: `drush` and `export` on both executables launch `vendor/bin/drush`,
-  Composer's shebang proxy, in place of `drush.php`, with `bin/` on PATH.
-  `engine/bin` moves to `application/bin` and is linked back. Tome's rebuilt
-  command line then names a file the shell runs through the `php` on PATH.
-  The Go cron runner keeps `drush.php`. Evidence: `coreScript()` already runs
-  the shebang proxy `vendor/bin/dr` through `php-cli`, which
-  `test_dr_runs_drupal_cores_command_line` covers; `runtimePhpOnPath()`;
+- D9: `drush` and `export` on both executables launch Drupack's own Drush
+  entry through `php-cli`, with `bin/` on PATH: `application/drush` requires
+  the site's `vendor/drush/drush/drush.php`, and `engine/drush` requires the
+  script `DRUPACK_DRUSH_SCRIPT` names, which `serve.php` sets to the project's.
+  The entry has no extension, so Tome's rebuilt command line, which reruns
+  argv[0], runs through sh's shebang or through the `.cmd` twin on Windows,
+  each reaching the `php` shim on PATH. `engine/bin` moves to
+  `application/bin` and is linked back. The Go cron runner keeps `drush.php`.
+  Evidence: `vendor/bin/drush` is Composer's shell proxy, which `php-cli`
+  cannot run; PHP 8 strips a shebang on `include`; `drush.php` finds its
+  autoloader from its own directory; `runtimePhpOnPath()`;
   `ExecutableFinderTrait::findExecutable()` and `ProcessTrait::runCommands()`
-  in Tome 1.13.
+  in Tome 1.16.
 - D10: The entry point answers the `php` word on a Packaged site as it does on
-  the engine, both forms, so the shim works on both. `docs/cli.md` lists it.
-  Evidence: `entrypoint.go` routes `php` only when `application == ""`;
+  the engine, both forms, so the shim works on both. The launcher passes the
+  word through on both executables, and the entry point routes it before it
+  changes into the application, so a script path resolves from the reader's
+  directory. `docs/cli.md` lists it. Evidence: `arguments()` in
+  `launcher/plan.go` passed `php` through for the engine alone;
+  `entrypoint.go` routed `php` only when `application == ""`;
   `phpArguments()` holds the two forms.
-- D11: The build writes `vendor/bin/drush.cmd`, Composer's proxy
-  `@php "%~dp0drush" %*`, into the staged application, since Composer writes
-  `.bat` proxies on Windows alone. Evidence: tresbien.tech's Linux-built
-  `vendor/bin` has no `drush.bat`; `NewPlan` in `launcher/internal/build/build.go`
-  lists the stage steps.
+- D11: The engine ships `application/drush.cmd`, `@php "%~dp0drush" %*`, which
+  `layEngine()` lays over the site with the entry, since Composer writes `.bat`
+  proxies on Windows alone. The build writes nothing of its own. Evidence:
+  tresbien.tech's Linux-built `vendor/bin` has no `drush.bat`; `layEngine()`
+  copies `application/` and `copyFile()` keeps each file's mode.
 
 ### The demo
 
 - D12: Drupacked Demo requires `drupal/tome`, gains `recipes/static_site`
-  that installs `tome_static`, applies it from `drupacked_demo_site`, and sets
-  `extra.drupack.static` to `{"dynamic": ["/search*"]}`. Its README names the
-  two ports. The demo change lands and tags first; this repository then moves
-  its demo pin. Evidence: `recipes/drupacked_demo_site/recipe.yml` applies
+  that installs `tome_static` and core `search_node`, imports the module's
+  optional config for its `/search/node` page, grants anonymous readers
+  `search content`, applies it from `drupacked_demo_site`, and sets
+  `extra.drupack.static` to `{"dynamic": ["/search*"]}`. Drupal CMS's search
+  recipe defines a block alone, so core content search at `/search/node` is
+  the demo's dynamic page. Its README names the
+  two ports. The demo change lands first; this repository then names its commit
+  in `build/demo-pin.sh`, with an empty `demo_release`. Evidence: `recipes/drupacked_demo_site/recipe.yml` applies
   `mercury_demo` and `agent_access`; `ReadComposer` ignores an unknown key, so
   the demo builds on the current release meanwhile.
 

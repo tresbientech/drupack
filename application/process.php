@@ -433,6 +433,13 @@ function projectSnippetEnvironment(string $project): array
     return ['DRUPACK_RUNTIME_PROJECT_SNIPPET' => is_file($snippet) ? $snippet : 'none.caddy'];
 }
 
+// Drush's, Tome's and a request's child processes run the php on PATH, which bin/ points
+// back at this runtime.
+function runtimePhpOnPath(string $directory): void
+{
+    putenv("PATH=$directory/bin" . PATH_SEPARATOR . getenv('PATH'));
+}
+
 // A wildcard is reached through its own family's loopback, since an IPv6-only listener never
 // answers on 127.0.0.1.
 function probeHost(string $bind): string

@@ -223,6 +223,10 @@ func TestTheEngineLaysTheSettingsStubInTheDocroot(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// The Drush entry Tome's children rerun keeps its executable mode through the copy.
+	if err := os.WriteFile(filepath.Join(engine, "application", "drush"), []byte("#!/usr/bin/env php\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	r := request([]string{"linux-amd64"}, "both")
 	r.Engine, r.Work = engine, t.TempDir()
 	plan, err := build.NewPlan(r)
@@ -237,6 +241,9 @@ func TestTheEngineLaysTheSettingsStubInTheDocroot(t *testing.T) {
 		if content, err := os.ReadFile(filepath.Join(sites, name)); err != nil || string(content) != want {
 			t.Errorf("%s = %q, %v; want %q", name, content, err, want)
 		}
+	}
+	if info, err := os.Stat(filepath.Join(r.Work, "app", "drush")); err != nil || info.Mode().Perm()&0o100 == 0 {
+		t.Errorf("drush = %v, %v; want an executable copy", info, err)
 	}
 }
 

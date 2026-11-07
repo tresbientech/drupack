@@ -200,7 +200,8 @@ func TestReadComposerAppliesTheCasesOfEachMode(t *testing.T) {
 					}
 					return
 				}
-				if err != nil || read != want.Composer {
+				// Static is a pointer, so the structs compare by value through reflect.
+				if err != nil || !reflect.DeepEqual(read, want.Composer) {
 					t.Errorf("%s: %+v, %v; want %+v", row.Composer, read, err, want.Composer)
 				}
 			})
@@ -249,6 +250,83 @@ func TestReadRefusesALockWithoutDrupalOrDrush(t *testing.T) {
 		if _, err := siteconfig.Read(directory); err == nil || !strings.Contains(err.Error(), missing) {
 			t.Errorf("Read error = %v; want one naming %s", err, missing)
 		}
+	}
+}
+
+const lockedWithTome = `{"packages": [{"name": "drupal/core", "version": "11.4.7"}, {"name": "drush/drush", "version": "13.8.0"}, {"name": "drupal/tome", "version": "1.16.0"}]}`
+
+func TestReadRefusesStaticOnALockWithoutTome(t *testing.T) {
+	directory := site(t, minimal, drupackExtra(`{"static": {"dynamic": ["/search*"]}}`))
+	if _, err := siteconfig.Read(directory); err == nil || !strings.Contains(err.Error(), "drupal/tome") {
+		t.Fatalf("Read error = %v; want one naming drupal/tome", err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "composer.lock"), []byte(lockedWithTome), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	read, err := siteconfig.Read(directory)
+	if err != nil || !reflect.DeepEqual(read.Static, &siteconfig.Static{Dynamic: []string{"/search*"}}) {
+		t.Fatalf("Static, err = %+v, %v; want the composer.json value and no error", read.Static, err)
+	}
+}
+
+func TestCheckStaticReadsTheLockOnlyWithTheKey(t *testing.T) {
+	directory := t.TempDir()
+	if err := siteconfig.CheckStatic(directory, siteconfig.Composer{}); err != nil {
+		t.Fatalf("CheckStatic without the key = %v; want no lock read", err)
+	}
+	err := siteconfig.CheckStatic(directory, siteconfig.Composer{Static: &siteconfig.Static{}})
+	if err == nil || !strings.Contains(err.Error(), "composer.lock") {
+		t.Fatalf("CheckStatic with the key and no lock = %v; want one naming composer.lock", err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "composer.lock"), []byte(locked), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err = siteconfig.CheckStatic(directory, siteconfig.Composer{Static: &siteconfig.Static{}})
+	if err == nil || !strings.Contains(err.Error(), "drupal/tome") {
+		t.Fatalf("CheckStatic on a lock without Tome = %v; want one naming drupal/tome", err)
+	}
+}
+
+func TestWriteKeepsAnEmptyStaticApartFromNone(t *testing.T) {
+	for want, static := range map[string]*siteconfig.Static{`"static": {}`: {}, "\"static\": {\n    \"dynamic\": [\n      \"/search*\"\n    ]\n  }": {Dynamic: []string{"/search*"}}} {
+		read, err := siteconfig.Parse([]byte(minimal))
+		if err != nil {
+			t.Fatal(err)
+		}
+		read.Static = static
+		directory := t.TempDir()
+		if err := siteconfig.Write(read, directory); err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(filepath.Join(directory, siteconfig.OutputName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(got), want) {
+			t.Errorf("site.json holds no %s:\n%s", want, got)
+		}
+	}
+	read, err := siteconfig.Parse([]byte(minimal))
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	if err := siteconfig.Write(read, directory); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(directory, siteconfig.OutputName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(got), "static") {
+		t.Errorf("site.json names static for a site without the key:\n%s", got)
+	}
+}
+
+func TestParseRefusesStaticInDrupackYml(t *testing.T) {
+	_, err := siteconfig.Parse([]byte(minimal + "static: {}\n"))
+	if err == nil || !strings.Contains(err.Error(), "composer.json extra.drupack.static") {
+		t.Fatalf("Parse error = %v; want one naming composer.json extra.drupack.static", err)
 	}
 }
 

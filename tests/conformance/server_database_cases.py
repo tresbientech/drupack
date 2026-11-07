@@ -24,7 +24,7 @@ def collect_drush_arguments(seen, stop):
                 arguments = cmdline.read_bytes().split(b"\0")
             except OSError:
                 continue
-            if any(b"drush.php" in argument for argument in arguments):
+            if any(argument.endswith(b"/drush") for argument in arguments):
                 seen.add(tuple(argument.decode(errors="replace") for argument in arguments if argument))
         stop.wait(0.02)
 

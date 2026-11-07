@@ -1,0 +1,9 @@
+# The names tls-drupack-site.caddy fixes, on the static port.
+"https://{$DRUPACK_RUNTIME_ALIAS}:{$DRUPACK_RUNTIME_STATIC_PORT}", "https://localhost:{$DRUPACK_RUNTIME_STATIC_PORT}", "https://127.0.0.1:{$DRUPACK_RUNTIME_STATIC_PORT}", "https://[::1]:{$DRUPACK_RUNTIME_STATIC_PORT}" {
+	tls {
+		issuer internal {
+			ca "{$DRUPACK_RUNTIME_TLS_CA}"
+		}
+	}
+	import static_site
+}

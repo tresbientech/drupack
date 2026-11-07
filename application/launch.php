@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/process.php';
 require __DIR__ . '/mercure.php';
+require __DIR__ . '/static.php';
 
 use Drupack\Support\Need;
 use Drupack\Support\SiteContract;
@@ -18,6 +19,9 @@ use Symfony\Component\Filesystem\Path;
 const HELP = <<<'TEXT'
 Usage: %1$s [start] [OPTIONS]
        %1$s drush [OPTIONS] DRUSH_COMMAND
+       %1$s export [OPTIONS] [DRUSH_OPTIONS]
+       %1$s php SCRIPT [ARGUMENTS]
+       %1$s php -r CODE
        %1$s node|npm|npx [ARGUMENTS]
        %1$s stop [--data-dir PATH]
        %1$s trust [--uninstall]
@@ -26,6 +30,7 @@ Usage: %1$s [start] [OPTIONS]
 Options:
   --data-dir PATH            Site data directory, ./data by default
   --listen IP:PORT           Listener address, 127.0.0.1 on the site's port by default
+  --static-listen IP:PORT    Static site listener, the site listener's address on the next port by default
   --host HOST                Permitted request host, by default the site's drupack.site host or localhost
   --files-dir PATH           Public files directory, files in Site data by default
   --database sqlite|mysql|pgsql
@@ -45,6 +50,10 @@ Options:
 Commands:
   start                      Start the site, which a bare command does too
   drush                      Run a Drush command against the site
+  export                     Export the site with Tome into the static directory,
+                             for a site with a static export
+  php                        Run a script or -r CODE on the bundled PHP, with no
+                             PHP option
   stop                       Stop the site serving the Site data, for a site
                              another terminal started
   trust                      Install the local root that lets every Drupack site on
@@ -62,14 +71,15 @@ Examples:
   %1$s --admin-user admin --admin-password 'choose-a-password'
   %1$s drush --data-dir ./site status
   %1$s drush --data-dir ./site user:login
+  %1$s export --data-dir ./site
   %1$s clean --dry-run
 
 docs/cli.md explains every option.
 TEXT;
 
-// The commands this script runs. The executable runs clean, and node, npm and npx where
-// it carries Node, before this script starts.
-const COMMANDS = ['start', 'drush', 'stop', 'trust'];
+// The commands this script runs. The executable runs clean and php, and node, npm and npx
+// where it carries Node, before this script starts.
+const COMMANDS = ['start', 'drush', 'export', 'stop', 'trust'];
 const NODE_COMMANDS = ['node', 'npm', 'npx'];
 
 // The server runs from the application directory, which every site of a release
@@ -148,6 +158,7 @@ function options(array $arguments, bool $drush, SiteContract $site): array
         'data-dir' => environment('DRUPACK_DATA_DIR') ?? DEFAULT_DATA_DIR,
         // The listener defaults after the recorded one is read, so an absent option is still visible here.
         'listen' => null,
+        'static-listen' => null,
         'host' => null,
         // The files directory falls back to the recorded one, then to Site data, once the Site data is known.
         'files-dir' => null,
@@ -255,11 +266,11 @@ function stopSite(string $directory): int
     return (new Serving($site->directory, $site->logs()))->stop('Site data', $site->directory);
 }
 
-function listenerParts(string $listen): array
+function listenerParts(string $listen, string $option = '--listen'): array
 {
     // Listener values enter Caddy configuration and must contain only an IP address and port.
     if (!preg_match('/^(\[[0-9a-fA-F:]+\]|[0-9.]+):([0-9]+)$/D', $listen, $listener)) {
-        throw new InvalidArgumentException('--listen requires IP:PORT, with IPv6 enclosed in brackets');
+        throw new InvalidArgumentException("$option requires IP:PORT, with IPv6 enclosed in brackets");
     }
     return [trim($listener[1], '[]'), (int) $listener[2]];
 }
@@ -296,6 +307,7 @@ function recordedListener(array $options, ?array $record): array
         return $options;
     }
     $options['listen'] ??= $record['listen'];
+    $options['static-listen'] ??= $record['static-listen'];
     $options['host'] ??= $record['host'];
     $options['scheme'] = $record['scheme'];
     return $options;
@@ -307,7 +319,7 @@ function recordedFilesDirectory(array $options, ?array $record): array
     return $options;
 }
 
-function siteEnvironment(array $plan, string $data, string $files, string $runtime, array $options): array
+function siteEnvironment(array $plan, string $data, string $files, string $runtime, array $options, ?string $staticRoot): array
 {
     $environment = [
         'DRUPACK_RUNTIME_DATA_DIR' => $data,
@@ -339,12 +351,16 @@ function siteEnvironment(array $plan, string $data, string $files, string $runti
             $environment[$name] = $options[$option];
         }
     }
+    // settings.php sets tome_static_directory from it, for the server and for Drush.
+    if ($staticRoot !== null) {
+        $environment['DRUPACK_RUNTIME_STATIC_ROOT'] = $staticRoot;
+    }
     return $environment;
 }
 
-function exportSiteEnvironment(array $plan, string $data, string $files, string $runtime, array $options): void
+function exportSiteEnvironment(array $plan, string $data, string $files, string $runtime, array $options, ?string $staticRoot): void
 {
-    foreach (siteEnvironment($plan, $data, $files, $runtime, $options) as $name => $value) {
+    foreach (siteEnvironment($plan, $data, $files, $runtime, $options, $staticRoot) as $name => $value) {
         putenv("$name=$value");
     }
 }
@@ -483,9 +499,10 @@ function runDrush(string $binary, array $command, string $failure): void
     }
 }
 
+// Drupack's Drush entry, laid over the site from application/drush.
 function drushPath(): string
 {
-    return application() . '/vendor/drush/drush/drush.php';
+    return application() . '/drush';
 }
 
 // Reads one Drush field. An unusable site answers with anything but the expected value.
@@ -734,8 +751,12 @@ try {
     if ($mode === 'trust') {
         replaceProcess(getenv('DRUPACK_RUNTIME_BINARY'), array_merge(['tls-trust'], $arguments), __DIR__, 'Cannot run trust');
     }
-    $drush = $mode === 'drush';
+    // `export` is a Drush run with Tome's command ahead of the reader's words.
+    $drush = $mode === 'drush' || $mode === 'export';
     [$options, $command] = options($arguments, $drush, siteContract());
+    if ($mode === 'export' && siteContract()->static === null) {
+        throw new InvalidArgumentException('export needs a site whose composer.json sets extra.drupack.static');
+    }
     $written = $options['data-dir'];
     $options['data-dir'] = fromStartDirectory($written);
     if ($options['files-dir'] !== null) {
@@ -743,7 +764,7 @@ try {
     }
     // PHP_BINARY is empty in embedded FrankenPHP; the Go entrypoint exports its own path.
     $binary = getenv('DRUPACK_RUNTIME_BINARY');
-    if ($drush && in_array($command[0] ?? '', ['--help', '-h', 'list'], true)) {
+    if ($mode === 'drush' && in_array($command[0] ?? '', ['--help', '-h', 'list'], true)) {
         replaceProcess($binary, array_merge(['php-cli', drushPath()], $command), application(), 'Cannot run Drush');
     }
     // Launch arguments are user input, so the backend must name a supported driver.
@@ -768,6 +789,18 @@ try {
     if (!filter_var($bind, FILTER_VALIDATE_IP) || $port < 1 || $port > 65535) {
         throw new InvalidArgumentException('Invalid listener address or port');
     }
+    if (siteContract()->static !== null) {
+        $options['static-listen'] ??= urlHost($bind) . ':' . ($port + 1);
+        [$staticBind, $staticPort] = listenerParts($options['static-listen'], '--static-listen');
+        if (!filter_var($staticBind, FILTER_VALIDATE_IP) || $staticPort < 1 || $staticPort > 65535) {
+            throw new InvalidArgumentException('Invalid --static-listen address or port');
+        }
+        if ($staticPort === $port) {
+            throw new InvalidArgumentException("--static-listen must name a port other than the site's $port");
+        }
+    } elseif ($options['static-listen'] !== null) {
+        throw new InvalidArgumentException('--static-listen needs a site whose composer.json sets extra.drupack.static');
+    }
     // The permitted request host is external input and is converted to an exact Drupal pattern.
     if ($options['host'] !== null && !filter_var($options['host'], FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)
         && !filter_var($options['host'], FILTER_VALIDATE_IP)) {
@@ -789,7 +822,8 @@ try {
     // before it travels into every export, hash and printed line that follows.
     $data = canonical(realpath($options['data-dir']));
     $site = new SiteData($data);
-    $site->prepare();
+    $site->prepare(siteContract()->static !== null);
+    $staticRoot = siteContract()->static === null ? null : $site->static();
     $options = recordedFilesDirectory($options, $site->listener());
     $files = $options['files-dir'] ?? $site->files();
     directory("$files/translations");
@@ -802,12 +836,13 @@ try {
     $plan = $drush
         ? listenerPlan($bind, $port, $options['host'] ?? SiteData::UNRECORDED_HOST, $options['scheme'] ?? SiteData::UNRECORDED_SCHEME)
         : listenerPlan($bind, $port, $tls->host, $tls->scheme());
+    $static = siteContract()->static === null ? null : staticPlan($staticBind, $staticPort, $plan['host'], $plan['scheme']);
     $logPath = $site->logs() . '/caddy.log';
     $runtime = canonical(realpath($site->runtime()));
     if ($drush) {
         useTlsBundle($runtime);
     }
-    exportSiteEnvironment($plan, $data, $files, $runtime, $options);
+    exportSiteEnvironment($plan, $data, $files, $runtime, $options, $staticRoot);
     // Both checks run before the listener record and every install step, so a served site or a
     // taken port reaches the reader as a sentence, not a bind error or a corrupted database.
     if (!$drush) {
@@ -830,9 +865,13 @@ try {
             throw new RuntimeException("Another program is listening on {$options['listen']}. Stop it, or start on"
                 . " a free port: " . executableName() . " --listen $bind:" . ($port + 1));
         }
+        if ($static !== null && portTaken($static['bind'], $static['port'])) {
+            throw new RuntimeException("Another program is listening on {$options['static-listen']}. Stop it, or serve the static"
+                . " site on a free port: " . executableName() . ' --static-listen ' . urlHost($static['bind']) . ':' . ($static['port'] + 1));
+        }
         $serving->detach($options['foreground'] !== null,
             stopCommand($written === DEFAULT_DATA_DIR ? '' : ' --data-dir ' . shellWord($written)), array_slice($argv, 1));
-        $site->recordListener($options['listen'], $plan['host'], $options['files-dir'], $plan['scheme']);
+        $site->recordListener($options['listen'], $plan['host'], $options['files-dir'], $plan['scheme'], $options['static-listen']);
         $tls->storeBundle($runtime);
     }
     if (siteContract()->mercure) {
@@ -841,13 +880,14 @@ try {
     if (siteContract()->writable !== []) {
         useSiteApplication($site, $drush);
     }
+    runtimePhpOnPath(application());
     if ($steps !== []) {
         // Read again under the lease: another start may have changed the owed steps between
         // the first read and the moment this one claimed the Site data.
         [$steps, $options] = owedSteps($site, $options, siteContract());
         // That list can owe the administrator step the first one did not, with credentials
         // generated just now.
-        exportSiteEnvironment($plan, $data, $files, $runtime, $options);
+        exportSiteEnvironment($plan, $data, $files, $runtime, $options, $staticRoot);
     }
     // A start refreshes the recorded settings from this release's template. `drush` writes nothing,
     // since the server answering requests requires that file.
@@ -872,6 +912,9 @@ try {
         }
     }
     if ($drush) {
+        if ($mode === 'export') {
+            $command = exportCommand($static['url'], $command);
+        }
         exit(process($binary, array_merge(['php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], application(), 'Cannot run Drush'));
     }
     // Every start hands its reader a one-time login link for uid 1. A start that generated the
@@ -889,7 +932,8 @@ try {
     }
     // The addresses and paths only, never a readiness claim: the server binds after this
     // process execs into it, so the process that answers a request announces that itself.
-    $details = "  URL:       {$plan['url']}\n" . ($link === null ? '' : "  Login:     $link\n");
+    $details = "  URL:       {$plan['url']}\n" . ($static === null ? '' : "  Static:    {$static['url']}\n")
+        . ($link === null ? '' : "  Login:     $link\n");
     fwrite(STDOUT, $details . "  Site data: $data\n  Log:       $logPath\n");
     // A start with a terminal on standard input opens the browser. A script, a container and a test
     // have none. A start with no link has nothing to open.
@@ -913,7 +957,8 @@ try {
         'DRUPACK_RUNTIME_DOCROOT' => application() . '/' . siteContract()->docroot,
         'DRUPACK_RUNTIME_LOG_PATH' => $logPath,
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
-    ] + mercureServerEnvironment(siteContract()->mercure, $data) + projectSnippetEnvironment(application())));
+    ] + mercureServerEnvironment(siteContract()->mercure, $data) + staticServerEnvironment(siteContract()->static, $static, $tls->source)
+        + projectSnippetEnvironment(application())));
     replaceProcess($binary, ['php-server', application() . '/Caddyfile'], application(), 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");

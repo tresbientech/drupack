@@ -139,6 +139,8 @@ WAIT_TABLE = [
     # openBrowser runs in the goroutine that printed the ready line: a process spawn, no poll.
     Wait("browser_open", 10, None, "a start's background browser-open handing its target to the recorder"),
     Wait("drush", 120, None, "a drush command"),
+    # Tome renders every path of the site in child Drush processes, one bootstrap per batch.
+    Wait("export", 600, None, "a Tome export of the whole site"),
     Wait("php_cli", 30, None, "a php-cli probe"),
     Wait("docker_probe", 10, None, "docker info answering, or reporting no daemon"),
     # An argument refusal fails before any connection attempt.
@@ -450,8 +452,12 @@ class Site:
         self.port = None
         self._pty_thread = None
 
-    def start(self, data_dir, *options, listen=True, bind="127.0.0.1", ready_wait="start", attach_pty=False, env=None):
-        self.port = pick_port() if listen else SITE["port"]
+    def start(self, data_dir, *options, listen=True, bind="127.0.0.1", ready_wait="start", attach_pty=False, env=None, port=None):
+        # A case names port when a neighbouring port matters to it.
+        if port is not None:
+            self.port = port
+        else:
+            self.port = pick_port() if listen else SITE["port"]
         # --foreground: a detached start would return at once.
         args = [str(self.binary), "--foreground", "--data-dir", str(data_dir)]
         if listen:

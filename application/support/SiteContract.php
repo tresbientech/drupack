@@ -23,6 +23,13 @@ final readonly class SiteContract
         public array $writable,
         public string $docroot,
         public bool $mercure,
+        /**
+         * The static listener's settings, or null when the key is absent: an empty array for a
+         * bare object, and 'dynamic' when the site names patterns.
+         *
+         * @var array{dynamic?: list<string>}|null
+         */
+        public ?array $static,
     ) {
     }
 
@@ -40,6 +47,7 @@ final readonly class SiteContract
             writable: $site['writable'],
             docroot: $site['docroot'],
             mercure: $site['mercure'],
+            static: $site['static'] ?? null,
         );
     }
 }

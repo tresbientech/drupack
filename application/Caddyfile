@@ -1,6 +1,6 @@
 # Caddy splices each DRUPACK_RUNTIME environment reference into this text before it
 # reads quotes, so a reference stays inside double quotes and a start refuses a value
-# holding one.
+# holding one. static-dynamic.caddy alone leaves its reference bare, to read a list as tokens.
 {
 	admin off
 	persist_config off
@@ -25,6 +25,7 @@
 
 # A snippet is defined before its first import.
 import "static.caddy"
+import "static-site.caddy"
 
 (site) {
 	bind "{$DRUPACK_RUNTIME_BIND}"
@@ -79,3 +80,5 @@ import "static.caddy"
 # tls-none-site.caddy serves http on any address of the bind, tls-mkcert-site.caddy and
 # tls-drupack-site.caddy https on the loopback names a local root covers.
 import "tls-{$DRUPACK_RUNTIME_TLS}-site.caddy"
+# static-site-<tls>.caddy for a site whose site.json sets static, none.caddy otherwise.
+import "{$DRUPACK_RUNTIME_STATIC_SNIPPET}"

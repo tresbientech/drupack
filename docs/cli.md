@@ -37,6 +37,7 @@ One line per component follows, each naming the component and its release:
 |---|---|---|---|---|
 | `--data-dir` | PATH | `./data` | `DRUPACK_DATA_DIR` | every start, `drush` |
 | `--listen` | IP:PORT | `127.0.0.1` on the site's port, `7225` for the Drupacked Demo | none | every start |
+| `--static-listen` | IP:PORT | the site listener's address on its port plus one | none | every start of a site with a static export |
 | `--host` | HOST | the site's drupack.site host when it resolves to 127.0.0.1, `localhost` otherwise (see [Site hosts](#site-hosts)) | none | every start |
 | `--files-dir` | PATH | `files` in Site data | none | every start, `drush` |
 | `--database` | `sqlite`, `mysql`, `pgsql` | `sqlite` | `DRUPACK_DATABASE` | first start |

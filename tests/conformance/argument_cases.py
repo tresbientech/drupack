@@ -48,12 +48,14 @@ class ArgumentCases(harness.ConformanceCase):
         self.assertIn(f"Usage: {harness.SITE['name']}", diagnostic)
         self.assertNotIn("caddy", diagnostic)
 
-    def test_php_is_an_unknown_command(self):
+    def test_php_runs_a_script_from_the_working_directory_and_code(self):
         (self.case_dir / "x.php").write_text("<?php echo 'php-ran';")
-        data = self.case_dir / "data"
-        diagnostic = self.refuse(data, "php", "x.php")
-        self.assertIn("Unknown command: php", diagnostic)
-        self.assertNotIn("php-ran", diagnostic)
+        for words, want in ((["php", "x.php"], r"^php-ran$"), (["php", "-r", "echo PHP_VERSION;"], r"^8\.\d+\.\d+")):
+            with self.subTest(words[1]):
+                result = harness.run([str(harness.BINARY), *words], cwd=self.case_dir, capture_output=True, text=True,
+                                     timeout=harness.WAITS["php_cli"].seconds)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertRegex(result.stdout, want)
 
     def test_drush_without_a_site_refuses(self):
         data = self.case_dir / "drush"

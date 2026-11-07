@@ -69,10 +69,19 @@ final class SiteData
         return "$this->directory/runtime";
     }
 
-    public function prepare(): void
+    // The Tome export, which the static port serves.
+    public function static(): string
+    {
+        return "$this->directory/static";
+    }
+
+    public function prepare(bool $static): void
     {
         foreach (['runtime', 'private', 'tmp', 'config', 'logs'] as $name) {
             \directory("$this->directory/$name");
+        }
+        if ($static) {
+            \directory($this->static());
         }
     }
 
@@ -93,13 +102,15 @@ final class SiteData
             'files-dir' => $record['files-dir'] ?? null,
             // Site data a release up to 1.0.0-beta8 recorded names no scheme. Those served HTTP.
             'scheme' => $record['scheme'] ?? self::UNRECORDED_SCHEME,
+            // Null for a site without a static port, and for a record from a release without one.
+            'static-listen' => $record['static-listen'] ?? null,
         ];
     }
 
-    public function recordListener(string $listen, string $host, ?string $filesDirectory, string $scheme): void
+    public function recordListener(string $listen, string $host, ?string $filesDirectory, string $scheme, ?string $staticListen): void
     {
-        $this->write(self::LISTENER, json_encode(['listen' => $listen, 'host' => $host, 'files-dir' => $filesDirectory, 'scheme' => $scheme]),
-            'Cannot record the listener');
+        $record = ['listen' => $listen, 'host' => $host, 'files-dir' => $filesDirectory, 'scheme' => $scheme, 'static-listen' => $staticListen];
+        $this->write(self::LISTENER, json_encode($record), 'Cannot record the listener');
     }
 
     public function connection(): array

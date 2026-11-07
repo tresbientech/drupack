@@ -174,10 +174,11 @@ test('site data with no listener record changes nothing', function (): void {
     same($options, recordedListener($options, null));
 });
 
-test('a listener record fills an absent address and host', function (): void {
-    $record = ['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => null, 'scheme' => 'https'];
-    $filled = recordedListener(['listen' => null, 'host' => null], $record);
+test('a listener record fills an absent address, static address and host', function (): void {
+    $record = ['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => null, 'scheme' => 'https', 'static-listen' => '127.0.0.1:8081'];
+    $filled = recordedListener(['listen' => null, 'static-listen' => null, 'host' => null], $record);
     same('127.0.0.1:8080', $filled['listen']);
+    same('127.0.0.1:8081', $filled['static-listen']);
     same('example.test', $filled['host']);
     same('https', $filled['scheme']);
 });
@@ -198,21 +199,22 @@ test('a record without a files directory leaves the default to Site data', funct
 });
 
 test('an explicit option beats the listener record', function (): void {
-    $record = ['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => null, 'scheme' => 'http'];
-    $given = recordedListener(['listen' => '127.0.0.1:9000', 'host' => null], $record);
+    $record = ['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => null, 'scheme' => 'http', 'static-listen' => '127.0.0.1:8081'];
+    $given = recordedListener(['listen' => '127.0.0.1:9000', 'static-listen' => '127.0.0.1:9001', 'host' => null], $record);
     same('127.0.0.1:9000', $given['listen']);
+    same('127.0.0.1:9001', $given['static-listen']);
     same('example.test', $given['host']);
 });
 
 test('a served listener brackets an IPv6 host in its URL', function (): void {
     $site = new SiteData(scratch());
-    $site->recordListener('[::]:8080', '::1', null, 'http');
+    $site->recordListener('[::]:8080', '::1', null, 'http', null);
     same(['::', 'http://[::1]:8080/'], servedListener($site, listenerPlan('127.0.0.1', 7000, 'localhost', 'http')));
 });
 
 test('a served listener names the scheme its start served', function (): void {
     $site = new SiteData(scratch());
-    $site->recordListener('127.0.0.1:8080', 'localhost', null, 'https');
+    $site->recordListener('127.0.0.1:8080', 'localhost', null, 'https', null);
     same(['127.0.0.1', 'https://localhost:8080/'], servedListener($site, listenerPlan('127.0.0.1', 7000, 'localhost', 'http')));
 });
 
@@ -313,7 +315,7 @@ test('a start hands the runtime its bind, its site and the host the reader asked
 
 test('the reference site.json reads as the Site contract', function (): void {
     same(['port' => 7225, 'recipe' => '', 'settings' => '', 'siteName' => 'Fixture Site', 'subdomain' => 'fixture', 'node' => true,
-        'writable' => [], 'docroot' => 'web', 'mercure' => false], get_object_vars(SiteContract::read(__DIR__ . '/site.json')));
+        'writable' => [], 'docroot' => 'web', 'mercure' => false, 'static' => null], get_object_vars(SiteContract::read(__DIR__ . '/site.json')));
 });
 
 test('a site that sets a subdomain hands the runtime that label, and one without hands its name', function (): void {
@@ -469,7 +471,48 @@ test('the site environment names the plan\'s host and URL, the site\'s paths and
         'DRUPACK_DATABASE' => 'mysql',
         'DRUPACK_DB_HOST' => 'db.test',
         'DRUPACK_SITE_NAME' => 'Fixture Site',
-    ], siteEnvironment(listenerPlan('::', 8080, '::1', 'http'), '/data', '/data/files', '/data/runtime', $options));
+    ], siteEnvironment(listenerPlan('::', 8080, '::1', 'http'), '/data', '/data/files', '/data/runtime', $options, null));
+});
+
+test('a static site exports its export directory to the server and Drush, and another site exports none', function (): void {
+    $plan = listenerPlan('127.0.0.1', 8080, 'localhost', 'http');
+    same('/data/static', siteEnvironment($plan, '/data', '/data/files', '/data/runtime', connection(), '/data/static')['DRUPACK_RUNTIME_STATIC_ROOT']);
+    same(false, array_key_exists('DRUPACK_RUNTIME_STATIC_ROOT', siteEnvironment($plan, '/data', '/data/files', '/data/runtime', connection(), null)));
+});
+
+test('a static plan names the static URL on the site host and scheme', function (): void {
+    same(['bind' => '::', 'port' => 8081, 'url' => 'https://[::1]:8081/'], staticPlan('::', 8081, '::1', 'https'));
+});
+
+test('a site without a static export names the empty snippet alone', function (): void {
+    same(['DRUPACK_RUNTIME_STATIC_SNIPPET' => 'none.caddy'], staticServerEnvironment(null, null, 'drupack'));
+});
+
+test('a static export names its snippet by TLS source, its listener, and the empty dynamic snippet', function (): void {
+    $plan = staticPlan('127.0.0.1', 8081, 'localhost', 'http');
+    foreach (['none', 'mkcert', 'drupack'] as $tls) {
+        foreach ([[], ['dynamic' => []]] as $static) {
+            same([
+                'DRUPACK_RUNTIME_STATIC_SNIPPET' => "static-site-$tls.caddy",
+                'DRUPACK_RUNTIME_STATIC_BIND' => '127.0.0.1',
+                'DRUPACK_RUNTIME_STATIC_PORT' => '8081',
+                'DRUPACK_RUNTIME_STATIC_DYNAMIC_SNIPPET' => 'none.caddy',
+            ], staticServerEnvironment($static, $plan, $tls), "$tls with " . json_encode($static));
+        }
+    }
+});
+
+test('dynamic patterns name the dynamic snippet and travel space joined', function (): void {
+    $plan = staticPlan('127.0.0.1', 8081, 'localhost', 'http');
+    foreach ([[['/search*'], '/search*'], [['/search*', '/contact'], '/search* /contact']] as [$patterns, $joined]) {
+        same([
+            'DRUPACK_RUNTIME_STATIC_SNIPPET' => 'static-site-none.caddy',
+            'DRUPACK_RUNTIME_STATIC_BIND' => '127.0.0.1',
+            'DRUPACK_RUNTIME_STATIC_PORT' => '8081',
+            'DRUPACK_RUNTIME_STATIC_DYNAMIC_SNIPPET' => 'static-dynamic.caddy',
+            'DRUPACK_RUNTIME_STATIC_DYNAMIC' => $joined,
+        ], staticServerEnvironment(['dynamic' => $patterns], $plan, 'none'), $joined);
+    }
 });
 
 test('only a loopback address opens a browser', function (): void {
@@ -724,7 +767,17 @@ test('a line opening with an option starts the site with every word', function (
 test('a command word names the mode and leaves the rest', function () {
     same(['start', ['--foreground']], command(['start', '--foreground'], contract()));
     same(['drush', ['status']], command(['drush', 'status'], contract()));
+    same(['export', ['--data-dir', 'site']], command(['export', '--data-dir', 'site'], contract()));
     same(['stop', ['--data-dir', 'site']], command(['stop', '--data-dir', 'site'], contract()));
+});
+
+test('an export runs Tome at the static URL unless the words name one', function (): void {
+    $url = 'http://localhost:8081/';
+    same(['tome:static', '--yes', "--uri=$url", '--path-count=10'], exportCommand($url, ['--path-count=10']));
+    foreach ([['--uri', 'https://x.test/'], ['--uri=https://x.test/'], ['-l', 'https://x.test/'], ['-lhttps://x.test/']] as $words) {
+        same(array_merge(['tome:static', '--yes'], $words), exportCommand($url, $words), implode(' ', $words));
+    }
+    same(['tome:static', '--yes', "--uri=$url", '--', '--uri=x'], exportCommand($url, ['--', '--uri=x']), 'a --uri after -- is no option');
 });
 
 test('a first -h or --help asks for the usage', function () {

@@ -1,0 +1,10 @@
+# The dynamic paths of the static port: extra.drupack.static.dynamic, space joined in the
+# variable. Caddy splices the bare reference before it tokenizes, one path token per pattern.
+@dynamic path {$DRUPACK_RUNTIME_STATIC_DYNAMIC}
+route @dynamic {
+	root * "{$DRUPACK_RUNTIME_DOCROOT}"
+	import "guards.caddy"
+	php_server {
+		root "{$DRUPACK_RUNTIME_DOCROOT}"
+	}
+}

@@ -63,8 +63,9 @@ Tome ships no recipe, and drupal.org has none.
 ### The demo
 
 - Drupacked Demo requires `drupal/tome`, ships a recipe that enables
-  `tome_static`, and sets `static` with one `dynamic` path. The engine cases run
-  on the same checkout as a project folder.
+  `tome_static` and core content search, and sets `static` with one `dynamic`
+  path, `/search*`. The engine cases run on the same checkout as a project
+  folder.
 
 ## Considered options
 

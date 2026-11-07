@@ -43,6 +43,10 @@ $config['automated_cron.settings']['interval'] = 0;
 $config['locale.settings']['translation']['use_source'] = 'local';
 $config['project_browser.admin_settings']['allow_ui_install'] = FALSE;
 $config['project_browser.admin_settings']['enabled_sources'] = [];
+// Tome writes its export where the static port serves it.
+if (getenv('DRUPACK_RUNTIME_STATIC_ROOT') !== false) {
+  $settings['tome_static_directory'] = getenv('DRUPACK_RUNTIME_STATIC_ROOT');
+}
 // Loads last, so the site's own settings override the ones above.
 $drupack_site_settings = __DRUPACK_SITE_SETTINGS__;
 if ($drupack_site_settings !== '') {

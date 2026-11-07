@@ -252,6 +252,12 @@ func init() {
 	if application == "" {
 		application = frankenphp.EmbeddedAppPath
 	}
+	// The php word runs a script from the reader's directory on both executables, so it
+	// goes before the change into the application.
+	if len(os.Args) > 1 && os.Args[1] == "php" {
+		os.Args = append([]string{os.Args[0]}, phpArguments(os.Args[2:])...)
+		return
+	}
 	// A build step runs this binary on its own to read its version, with no
 	// launcher to name a directory and no embedded application to fall back to.
 	if application != "" {
@@ -267,12 +273,6 @@ func init() {
 		if err := os.Chdir(application); err != nil {
 			panic(err)
 		}
-	}
-	// The Engine executable alone has no application, and a Packaged site's
-	// command line has no php word.
-	if application == "" && len(os.Args) > 1 && os.Args[1] == "php" {
-		os.Args = append([]string{os.Args[0]}, phpArguments(os.Args[2:])...)
-		return
 	}
 	if len(os.Args) == 3 && os.Args[1] == "php-server" {
 		// On Windows the handle PHP's proc_open hands this process writes at a stale

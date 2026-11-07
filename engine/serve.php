@@ -245,7 +245,7 @@ function serve(string $binary, array $arguments): never
         'DRUPACK_RUNTIME_URL' => $plan['probe'],
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
     ] + mercureServerEnvironment($mercure, $entry) + projectSnippetEnvironment($project)));
-    runtimePhpOnPath();
+    runtimePhpOnPath(__DIR__);
     replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }
 
@@ -265,7 +265,9 @@ function drush(string $binary, array $arguments): never
     if (composerSettings($project)['mercure'] && is_file("$entry/" . MERCURE_URL_FILE)) {
         exportEngineMercure($entry, file_get_contents("$entry/" . MERCURE_URL_FILE), true);
     }
-    runScript($binary, drushScript($project), $arguments);
+    // engine/drush requires the project's Drush, so Tome's children rerun an extensionless argv[0].
+    putenv('DRUPACK_DRUSH_SCRIPT=' . drushScript($project));
+    runScript($binary, __DIR__ . '/drush', $arguments);
 }
 
 // Drupal core and many modules carry a composer.json and no vendor/.
@@ -296,16 +298,9 @@ function siteInstalled(string $binary, string $project, string $docroot): ?bool
     return $status === 0 ? $answer === 'yes' : null;
 }
 
-// These start Composer and child processes with the php on PATH, which bin/ points back at
-// this runtime.
-function runtimePhpOnPath(): void
-{
-    putenv('PATH=' . __DIR__ . '/bin' . PATH_SEPARATOR . getenv('PATH'));
-}
-
 function runScript(string $binary, string $script, array $arguments): never
 {
-    runtimePhpOnPath();
+    runtimePhpOnPath(__DIR__);
     replaceProcess($binary, array_merge(['php-cli', $script], $arguments), getcwd(), "Cannot run $script");
 }
 

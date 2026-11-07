@@ -68,16 +68,16 @@ current engine, which ignores the new key.
 
 ### Acceptance criteria
 
-- [ ] `composer show drupal/tome` in the demo checkout prints version 8.x-1.16
+- [x] `composer show drupal/tome` in the demo checkout prints version 8.x-1.16
       or later.
-- [ ] `recipes/static_site/recipe.yml` installs `tome_static`, and
+- [x] `recipes/static_site/recipe.yml` installs `tome_static`, and
       `recipes/drupacked_demo_site/recipe.yml` lists `static_site`.
-- [ ] `python3 -c` reading the demo's `composer.json` prints
-      `{"mercure": true, "static": {"dynamic": ["/search*"]}}` for
+- [x] `python3 -c` reading the demo's `composer.json` prints
+      `{"subdomain": "demo", "static": {"dynamic": ["/search*"]}}` for
       `extra.drupack`.
-- [ ] `build/demo-pin.sh` sets `demo_ref` to the pushed commit and
+- [x] `build/demo-pin.sh` sets `demo_ref` to the pushed commit and
       `demo_release` to the empty string.
-- [ ] The `drupack-build --site "$demo"` step of `build/qa.sh` builds the
+- [x] The `drupack-build --site "$demo"` step of `build/qa.sh` builds the
       pinned demo, and `python3 tests/conformance EXECUTABLE RESULTS -k
       SeededSite` passes on it.
 
@@ -98,16 +98,16 @@ key, and an engine start on a project without it, change nothing.
 
 ### Acceptance criteria
 
-- [ ] `go test ./internal/siteconfig/...` in `launcher/` passes with cases for
+- [x] `go test ./internal/siteconfig/...` in `launcher/` passes with cases for
       `static` absent, `{}` and with `dynamic`.
-- [ ] The same run covers each refusal. A non-object `static`. A non-list
+- [x] The same run covers each refusal. A non-object `static`. A non-list
       `dynamic`. A pattern without a leading `/`, one with whitespace, and one
       with a double quote. A lock without `drupal/tome`.
-- [ ] `drupack composer-settings DIR` on the demo checkout prints a `static`
+- [x] `drupack composer-settings DIR` on the demo checkout prints a `static`
       member with `dynamic: ["/search*"]`.
-- [ ] `drupack composer-settings DIR` on a copy whose lock lacks `drupal/tome`
+- [x] `drupack composer-settings DIR` on a copy whose lock lacks `drupal/tome`
       exits 1 naming `composer.lock` and `drupal/tome`.
-- [ ] `dist/site.json` of a demo build holds `static`, and
+- [x] `dist/site.json` of a demo build holds `static`, and
       `SiteContract::read()` returns it.
 
 ---
@@ -131,22 +131,22 @@ static address file.
 
 ### Acceptance criteria
 
-- [ ] `application/tests/launch_test.php` covers `staticPlan()` and
+- [x] `application/tests/launch_test.php` covers `staticPlan()` and
       `staticServerEnvironment()` for `static` absent, `{}` and with `dynamic`,
       and passes.
-- [ ] `StaticSite` in `tests/conformance/static_site_cases.py` passes. A start
+- [x] `StaticSite` in `tests/conformance/static_site_cases.py` passes. A start
       with `--static-listen 127.0.0.1:PORT` answers 404 on `/` of that port
       before any export.
-- [ ] A file written to `static/hello/index.html` in Site data answers 200 on
+- [x] A file written to `static/hello/index.html` in Site data answers 200 on
       `/hello` and `/hello/index.html` with no redirect.
-- [ ] A `static/404/index.html` is the body of a 404 on `/missing`.
-- [ ] The Listener record of that site holds `static-listen` with the given
+- [x] A `static/404/index.html` is the body of a 404 on `/missing`.
+- [x] The Listener record of that site holds `static-listen` with the given
       address, and `drush` runs after the start with no option.
-- [ ] A start without `--static-listen` serves the static port on the site's
+- [x] A start without `--static-listen` serves the static port on the site's
       port plus one, asserted by a request to it.
-- [ ] A site whose `site.json` has no `static` refuses connections on its port
-      plus one. `SeededSite` asserts it on a build without the key.
-- [ ] `TlsSources` still passes, and a `--static-listen` start under the
+- [x] A site whose `site.json` has no `static` refuses connections on its port
+      plus one. `StaticSiteOff` asserts it on the no-node build.
+- [x] `TlsSources` still passes, and a `--static-listen` start under the
       `drupack` TLS source answers HTTPS on the static port.
 
 ---
@@ -158,28 +158,28 @@ static address file.
 
 ### What to build
 
-`drush` and `export` on a Packaged site launch `vendor/bin/drush` with
+`drush` and `export` on a Packaged site launch Drupack's Drush entry, laid
+over the site from `application/drush` with its `.cmd` twin, with
 `application/bin` on PATH, and the entry point answers the `php` word on a
 Packaged site. `SITE export` runs `tome:static --yes --uri URL` with the
 recorded static URL and the reader's words. It adds no `--uri` when the reader
-passed one, and it needs an installed site. The build writes
-`vendor/bin/drush.cmd` into the staged application. After an export the static
-port serves the front page with the static URL in its markup.
+passed one, and it needs an installed site. After an export the static port
+serves the front page with the static URL in its markup.
 
 ### Acceptance criteria
 
-- [ ] `StaticSite` passes: `SITE export` exits 0 and `static/index.html` exists
+- [x] `StaticSite` passes: `SITE export` exits 0 and `static/index.html` exists
       in Site data.
-- [ ] `/` on the static port answers 200 with the static URL in the body.
-- [ ] `SITE export --uri https://example.test/` writes markup naming
+- [x] `/` on the static port answers 200 with the static URL in the body.
+- [x] `SITE export --uri https://example.test/` writes markup naming
       `https://example.test/`.
-- [ ] `SITE export` on an empty Site data exits 1 naming the directory.
-- [ ] `SITE php -r 'echo PHP_VERSION;'` prints the runtime's version, and
+- [x] `SITE export` on an empty Site data exits 1 naming the directory.
+- [x] `SITE php -r 'echo PHP_VERSION;'` prints the runtime's version, and
       `SITE drush php:eval "passthru('php -r \"echo 1;\"');"` prints 1 with an
       empty PATH.
-- [ ] `tar -tf dist/work/payload/app-payload.tar | grep -c 'vendor/bin/drush.cmd'`
-      prints 1.
-- [ ] `test_drush_child_processes_run_on_the_runtime_php_with_no_php_on_path`
+- [x] `tar -tf dist/work/payload/app-payload.tar | grep -cE '^\./drush(\.cmd)?$'`
+      prints 2.
+- [x] `test_drush_child_processes_run_on_the_runtime_php_with_no_php_on_path`
       and `test_dr_runs_drupal_cores_command_line` still pass.
 
 ---
@@ -194,16 +194,17 @@ port serves the front page with the static URL in its markup.
 `static-dynamic.caddy` matches the `dynamic` patterns, roots at the Drupal
 docroot, imports `guards.caddy` and runs `php_server`. The start exports the
 patterns and names the snippet only when the list has one. On the demo,
-`/search?keys=drupal` on the static port answers from Drupal, and
-`/user/login` answers 404 from the export.
+`/search/node?keys=drupal` on the static port answers from Drupal, core content
+search, and `/user/login` answers 404 from the export.
 
 ### Acceptance criteria
 
-- [ ] `StaticSite` passes: `/search?keys=drupal` on the static port answers
-      200 with `X-Generator: Drupal` in its headers.
-- [ ] `/user/login` on the static port answers 404.
-- [ ] `/search/x.php` on the static port answers 403, the guards' answer.
-- [ ] `launch_test.php` asserts `staticServerEnvironment()` names
+- [x] `StaticSite` passes: `/search/node?keys=drupal` on the static port
+      answers 200 with `X-Generator: Drupal` in its headers, with an exported
+      copy under `static/search/node/` left unserved.
+- [x] `/user/login` on the static port answers 404.
+- [x] `/search/x.php` on the static port answers 403, the guards' answer.
+- [x] `launch_test.php` asserts `staticServerEnvironment()` names
       `none.caddy` for the dynamic snippet and omits
       `DRUPACK_RUNTIME_STATIC_DYNAMIC` when `dynamic` is absent.
 

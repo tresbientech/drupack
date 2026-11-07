@@ -135,7 +135,9 @@ class NodeOnPath(NodeCase):
             site.stop()
         path = next(entry for entry in environment if entry.startswith(b"PATH="))[5:].decode()
         bundled = executables(release(self.cache))
-        self.assertEqual(Path(path.split(os.pathsep)[0]), bundled, f"the server's PATH is {path}")
+        # The application's bin/ holds the php shims alone, so it precedes Node without hiding it.
+        self.assertEqual([Path(entry) for entry in path.split(os.pathsep)[:2]], [data / "app" / "bin", bundled],
+                         f"the server's PATH is {path}")
 
         result = harness.run(
             [str(harness.BINARY), "drush", "--data-dir", str(data), "php:eval",

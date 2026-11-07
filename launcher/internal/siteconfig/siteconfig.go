@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"sigs.k8s.io/yaml"
@@ -82,6 +83,9 @@ type Site struct {
 	// Mercure serves a Mercure hub at /.well-known/mercure on every start. Read
 	// sets it from composer.json extra.drupack.mercure. Parse leaves it false.
 	Mercure bool `json:"mercure"`
+	// Static turns the static listener on. Read sets it from composer.json
+	// extra.drupack.static; nil leaves the key out of site.json. Parse leaves it nil.
+	Static *Static `json:"static,omitempty"`
 	// Subdomain is the Site host's label, read from composer.json
 	// extra.drupack.subdomain. Empty means the label comes from Name.
 	Subdomain string `json:"subdomain,omitempty"`
@@ -170,6 +174,9 @@ func Parse(content []byte) (Site, error) {
 		}
 		if _, misplaced := keys["subdomain"]; misplaced {
 			return Site{}, fmt.Errorf("%s: subdomain belongs in composer.json extra.drupack.subdomain", FileName)
+		}
+		if _, misplaced := keys["static"]; misplaced {
+			return Site{}, fmt.Errorf("%s: static belongs in composer.json extra.drupack.static", FileName)
 		}
 	}
 	var site Site
@@ -295,17 +302,23 @@ func Read(directory string) (Site, error) {
 	if err != nil {
 		return Site{}, err
 	}
-	site.Docroot, site.Mercure, site.Subdomain = composer.Docroot, composer.Mercure, composer.Subdomain
-	site.Drupal, site.Drush, err = lockedReleases(directory)
-	return site, err
+	site.Docroot, site.Mercure, site.Static, site.Subdomain = composer.Docroot, composer.Mercure, composer.Static, composer.Subdomain
+	packages, err := lockedPackages(directory)
+	if err != nil {
+		return Site{}, err
+	}
+	if site.Drupal, site.Drush, err = coreReleases(packages); err != nil {
+		return Site{}, err
+	}
+	return site, checkStatic(packages, composer.Static)
 }
 
-// lockedReleases reads the drupal/core and drush/drush releases from the
-// composer.lock the site author commits, which --version names.
-func lockedReleases(directory string) (drupal, drush string, err error) {
+// lockedPackages maps each package of the composer.lock the site author commits to
+// its version.
+func lockedPackages(directory string) (map[string]string, error) {
 	content, err := os.ReadFile(filepath.Join(directory, "composer.lock"))
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 	var lock struct {
 		Packages []struct {
@@ -314,18 +327,46 @@ func lockedReleases(directory string) (drupal, drush string, err error) {
 		} `json:"packages"`
 	}
 	if err := json.Unmarshal(content, &lock); err != nil {
-		return "", "", fmt.Errorf("composer.lock: %w", err)
+		return nil, fmt.Errorf("composer.lock: %w", err)
 	}
-	releases := map[string]string{}
+	packages := map[string]string{}
 	for _, locked := range lock.Packages {
-		releases[locked.Name] = locked.Version
+		packages[locked.Name] = locked.Version
 	}
+	return packages, nil
+}
+
+// coreReleases returns the drupal/core and drush/drush releases, which --version names.
+func coreReleases(packages map[string]string) (drupal, drush string, err error) {
 	for _, name := range []string{"drupal/core", "drush/drush"} {
-		if releases[name] == "" {
+		if packages[name] == "" {
 			return "", "", fmt.Errorf("composer.lock: packages names no %s release", name)
 		}
 	}
-	return releases["drupal/core"], releases["drush/drush"], nil
+	return packages["drupal/core"], packages["drush/drush"], nil
+}
+
+const tomePackage = "drupal/tome"
+
+// CheckStatic refuses extra.drupack.static on a project whose composer.lock names no
+// drupal/tome release, the module the export runs. A project without the key reads
+// no lock, so the engine serves a folder that has none.
+func CheckStatic(directory string, composer Composer) error {
+	if composer.Static == nil {
+		return nil
+	}
+	packages, err := lockedPackages(directory)
+	if err != nil {
+		return err
+	}
+	return checkStatic(packages, composer.Static)
+}
+
+func checkStatic(packages map[string]string, static *Static) error {
+	if static != nil && packages[tomePackage] == "" {
+		return fmt.Errorf("composer.lock: packages names no %s release, which extra.drupack.static needs", tomePackage)
+	}
+	return nil
 }
 
 // Mode names who reads a project's composer.json: a build packing the site, or the
@@ -344,9 +385,17 @@ type Composer struct {
 	Docroot string `json:"docroot"`
 	// Mercure serves a Mercure hub at /.well-known/mercure.
 	Mercure bool `json:"mercure"`
+	// Static serves the Tome export on a second port. Nil keeps the listener off.
+	Static *Static `json:"static,omitempty"`
 	// Subdomain is the Site host's label. Empty means the label comes from the
 	// site's or the folder's name.
 	Subdomain string `json:"subdomain,omitempty"`
+}
+
+// Static holds extra.drupack.static. Dynamic lists the Caddy path matcher patterns
+// the static port hands to Drupal; empty, the port runs no PHP.
+type Static struct {
+	Dynamic []string `json:"dynamic,omitempty"`
 }
 
 // The scaffold's web root of a folder whose composer.json names none.
@@ -357,10 +406,14 @@ const (
 	webRootRule    = "name a directory inside the project"
 	subdomainField = "extra.drupack.subdomain"
 	subdomainRule  = "be one DNS label: a to z, 0 to 9 and dashes, at most 63, no dash at either end"
+	staticField    = "extra.drupack.static"
+	dynamicField   = "extra.drupack.static.dynamic"
+	dynamicRule    = "be a list of path patterns, each opening with / and holding no whitespace, control character, double quote or brace"
+	objectRule     = "be a JSON object"
 )
 
-// ReadComposer reads the web root, the Mercure flag and the subdomain from the
-// composer.json in project. The project's author writes that file, so each
+// ReadComposer reads the web root, the Mercure flag, the subdomain and the static
+// settings from the composer.json in project. The project's author writes that file, so each
 // setting is checked, and a refusal names the file and the field.
 //
 // Folder takes a missing file or web root as "web", and a web root of "." as the
@@ -420,7 +473,55 @@ func ReadComposer(project string, mode Mode) (Composer, error) {
 	default:
 		return Composer{}, refusal(file, subdomainField, subdomainRule, value)
 	}
+	if settings.Static, err = static(file, drupack); err != nil {
+		return Composer{}, err
+	}
 	return settings, nil
+}
+
+// static reads extra.drupack.static. An absent key leaves nil; a present one must be
+// an object, so null is refused with the other non-objects.
+func static(file string, drupack map[string]any) (*Static, error) {
+	value, present := drupack["static"]
+	if !present {
+		return nil, nil
+	}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return nil, refusal(file, staticField, objectRule, value)
+	}
+	settings := &Static{}
+	patterns, present := object["dynamic"]
+	if !present {
+		return settings, nil
+	}
+	list, ok := patterns.([]any)
+	if !ok {
+		return nil, refusal(file, dynamicField, dynamicRule, patterns)
+	}
+	for _, item := range list {
+		pattern, ok := item.(string)
+		if !ok || !pathPattern(pattern) {
+			return nil, refusal(file, dynamicField, dynamicRule, item)
+		}
+		settings.Dynamic = append(settings.Dynamic, pattern)
+	}
+	return settings, nil
+}
+
+// pathPattern holds for one Caddy path matcher token. The patterns reach the
+// Caddyfile joined by spaces in an environment value, where whitespace ends a token,
+// a double quote opens a string and a brace opens a placeholder.
+func pathPattern(pattern string) bool {
+	if !strings.HasPrefix(pattern, "/") {
+		return false
+	}
+	for _, r := range pattern {
+		if unicode.IsSpace(r) || isControl(r) || r == '"' || r == '{' || r == '}' {
+			return false
+		}
+	}
+	return true
 }
 
 // object returns parent[key] as a JSON object, or an empty one when the key is absent.
@@ -431,7 +532,7 @@ func object(file string, parent map[string]any, key, field string) (map[string]a
 	case map[string]any:
 		return value, nil
 	default:
-		return nil, refusal(file, field, "be a JSON object", value)
+		return nil, refusal(file, field, objectRule, value)
 	}
 }
 

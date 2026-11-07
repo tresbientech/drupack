@@ -31,5 +31,20 @@
   {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"subdomain": ""}}}, "both": {"refuses": "extra.drupack.subdomain must be one DNS label"}},
   {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"subdomain": "demo\n"}}}, "both": {"refuses": "extra.drupack.subdomain must be one DNS label"}},
   {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"subdomain": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}}, "both": {"refuses": "extra.drupack.subdomain must be one DNS label"}},
-  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"subdomain": 7}}}, "both": {"refuses": "extra.drupack.subdomain must be one DNS label"}}
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"subdomain": 7}}}, "both": {"refuses": "extra.drupack.subdomain must be one DNS label"}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": {}}}}, "both": {"docroot": "web", "static": {}}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": {"dynamic": ["/search*", "/webform/*"]}}}}, "both": {"docroot": "web", "static": {"dynamic": ["/search*", "/webform/*"]}}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": {"dynamic": []}}}}, "both": {"docroot": "web", "static": {}}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": null}}}, "both": {"refuses": "extra.drupack.static must be a JSON object"}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": "on"}}}, "both": {"refuses": "extra.drupack.static must be a JSON object"}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": {"dynamic": null}}}}, "both": {"refuses": "extra.drupack.static.dynamic must be a list of path patterns"}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": {"dynamic": "/x"}}}}, "both": {"refuses": "extra.drupack.static.dynamic must be a list of path patterns"}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": {"dynamic": ["search*"]}}}}, "both": {"refuses": "extra.drupack.static.dynamic must be a list of path patterns"}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": {"dynamic": ["/a b"]}}}}, "both": {"refuses": "extra.drupack.static.dynamic must be a list of path patterns"}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": {"dynamic": ["/a\u00a0b"]}}}}, "both": {"refuses": "extra.drupack.static.dynamic must be a list of path patterns"}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": {"dynamic": ["/a\"b"]}}}}, "both": {"refuses": "extra.drupack.static.dynamic must be a list of path patterns"}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": {"dynamic": ["/a{b}"]}}}}, "both": {"refuses": "extra.drupack.static.dynamic must be a list of path patterns"}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": {"dynamic": ["/a\tb"]}}}}, "both": {"refuses": "extra.drupack.static.dynamic must be a list of path patterns"}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": {"dynamic": ["/a\u0001b"]}}}}, "both": {"refuses": "extra.drupack.static.dynamic must be a list of path patterns"}},
+  {"composer": {"extra": {"drupal-scaffold": {"locations": {"web-root": "web"}}, "drupack": {"static": {"dynamic": [7]}}}}, "both": {"refuses": "extra.drupack.static.dynamic must be a list of path patterns"}}
 ]

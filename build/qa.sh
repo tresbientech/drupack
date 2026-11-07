@@ -40,15 +40,16 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -v "$
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -w /src drupack-job \
     drupack-build --engine-executable --platform "$platform" --libc glibc --output dist/engine --work "$work/engine-work"
 
-# Drupacked Demo again without Node, for the case of a site that carries none.
-# launch.php reads the site.json inside the payload, so the copy swaps that file
-# too, and its checksum names an application cache entry of its own.
+# Drupacked Demo again without Node and without the static key, for the cases of a site
+# that carries neither. launch.php reads the site.json inside the payload, so the copy swaps
+# that file too, and its checksum names an application cache entry of its own.
 no_node=$work/no-node
 mkdir -p dist/no-node "$no_node"
 python3 -c 'import json, sys
 with open(sys.argv[1]) as handle:
     site = json.load(handle)
 del site["node"]
+del site["static"]
 with open(sys.argv[2], "w") as handle:
     json.dump(site, handle, indent=2)' dist/site.json dist/no-node/site.json
 cp "$work/work/payload/app-payload.tar" "$no_node/app-payload.tar"
@@ -71,6 +72,6 @@ bash build/go-tests.sh
 bash build/unit-tests.sh
 DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" "$work/results/conformance" --site-tests "$demo/tests" \
     -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \
-    -k ExistingSiteAdoption -k EngineExecutable -k TlsSources -k TrustCommand
+    -k ExistingSiteAdoption -k EngineExecutable -k TlsSources -k TrustCommand -k StaticSite
 python3 tests/conformance "dist/variant/variant-demo-$platform-musl" "$work/results/variant-musl" -k NodeRefusals -k MercureHub -k ProjectRules
-python3 tests/conformance "dist/no-node/drupacked-demo-$platform" "$work/results/no-node" -k NodeRefusals
+python3 tests/conformance "dist/no-node/drupacked-demo-$platform" "$work/results/no-node" -k NodeRefusals -k StaticSite

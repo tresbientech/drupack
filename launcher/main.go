@@ -136,6 +136,9 @@ func composerSettings(arguments []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if err := siteconfig.CheckStatic(arguments[0], settings); err != nil {
+		return err
+	}
 	return json.NewEncoder(out).Encode(settings)
 }
 
