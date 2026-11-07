@@ -410,7 +410,12 @@ function listenerParts(string $listen, string $option = '--listen'): array
     if (!preg_match('/^(\[[0-9a-fA-F:]+\]|[0-9.]+):([0-9]+)$/D', $listen, $listener)) {
         throw new InvalidArgumentException("$option requires IP:PORT, with IPv6 enclosed in brackets");
     }
-    return [trim($listener[1], '[]'), (int) $listener[2]];
+    $bind = trim($listener[1], '[]');
+    $port = (int) $listener[2];
+    if (!filter_var($bind, FILTER_VALIDATE_IP) || $port < 1 || $port > 65535) {
+        throw new InvalidArgumentException("Invalid $option address or port");
+    }
+    return [$bind, $port];
 }
 
 // --static-listen resolved: $option, or the site listener's address on the port after $port.
@@ -419,9 +424,6 @@ function staticListener(?string $option, string $bind, int $port): array
 {
     $listen = $option ?? urlHost($bind) . ':' . ($port + 1);
     [$staticBind, $staticPort] = listenerParts($listen, '--static-listen');
-    if (!filter_var($staticBind, FILTER_VALIDATE_IP) || $staticPort < 1 || $staticPort > 65535) {
-        throw new InvalidArgumentException('Invalid --static-listen address or port');
-    }
     if ($staticPort === $port) {
         throw new InvalidArgumentException("--static-listen must name a port other than the site's $port");
     }

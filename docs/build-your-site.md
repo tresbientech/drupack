@@ -230,6 +230,31 @@ The hub speaks Mercure protocol 1.0. Each token is an HS256 access token with:
 symfony/mercure 0.9 and later mints this shape by default. A subscriber names
 its topics with `?match=`.
 
+## A static site
+
+`extra.drupack.static` in the site's `composer.json` serves the site's Tome
+export on a second port and adds the `export` word:
+
+```json
+{"extra": {"drupack": {"static": {"dynamic": ["/search*"]}}}}
+```
+
+`dynamic` lists the Caddy path patterns the static port hands to Drupal. Each
+opens with `/` and holds no whitespace, control character, double quote or
+brace. An empty object serves files alone.
+
+The site requires `drupal/tome` and enables `tome_static`, through its recipe
+or its configuration. A lock without `drupal/tome` stops the build. The
+Drupacked Demo's `recipes/static_site` enables `tome_static` and core content
+search, whose `/search/node` page is its one dynamic path.
+
+`SITE export` writes the export; [the CLI reference](cli.md#static-site) has
+the words and the listener. Tome writes the files the rendered pages
+reference, so a file the browser fetches on its own, such as a client-side
+search index, needs a copy step after the export. Tome rewrites the pages
+whose cache tags changed since the last export; `drush cr` before `export`
+rewrites every page.
+
 ## A site's own Caddy rules
 
 A `drupack.caddy` at the project root, beside `composer.json`, holds Caddyfile

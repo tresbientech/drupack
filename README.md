@@ -42,7 +42,7 @@ vendor/bin/drupack-install
 
 The project's own `settings.php` names the database, the files paths and the hash salt. Drupack writes nothing into the project, and Drupal writes files where those settings put them. For a ddev project, point `settings.local.php` at the database's published port on `127.0.0.1`. The ddev host name `db` resolves only inside ddev.
 
-`drupack drush COMMAND` runs the project's own Drush on the bundled PHP, from any directory inside the project. Drush's own child processes run on that PHP too. `drupack dr COMMAND` runs Drupal core's own command line the same way, on Drupal 11.4 and later. `drupack php SCRIPT [ARGUMENTS]` and `drupack php -r CODE` run the bundled PHP. Any other PHP option stops with a message naming it.
+`drupack drush COMMAND` runs the project's own Drush on the bundled PHP, from any directory inside the project. Drush's own child processes run on that PHP too. `drupack dr COMMAND` runs Drupal core's own command line the same way, on Drupal 11.4 and later. `drupack php SCRIPT [ARGUMENTS]` and `drupack php -r CODE` run the bundled PHP. Any other PHP option stops with a message naming it. A project whose `composer.json` sets `extra.drupack.static` serves `html` beside its docroot on `--static-listen`, the next port by default, and `drupack export` writes it with Tome.
 
 A project whose `composer.lock` needs a PHP extension the bundled PHP lacks is refused, with the extension and the packages that need it.
 
@@ -170,6 +170,16 @@ A listener beyond loopback, such as `--listen 0.0.0.0:7225`, serves plain HTTP. 
 ./drupacked-demo drush pm:list --status=enabled
 ```
 
+## Export a static site
+
+The demo serves its Tome export on the port after the site's, `7226` by default, and keeps `/search/node` live there. `export` writes the export:
+
+```sh
+./drupacked-demo export
+```
+
+[The command line reference](docs/cli.md#static-site) has the listener option and what `export` passes to Drush.
+
 ## Convert a WordPress theme
 
 The Drupacked Demo carries WordPal, which converts a WordPress block theme into a Drupal theme and Canvas pages. Start the site, then convert a theme:
@@ -194,7 +204,7 @@ Conversion runs WordPress in WordPress Playground, so it needs network access to
 
 ## Site data
 
-Site data lives in the `data` directory. It holds your database, uploads, private files, configuration exports and generated settings. Copy that directory to back your site up, with the site stopped. Keep the copy private: it holds your content and your site's secrets.
+Site data lives in the `data` directory. It holds your database, uploads, private files, configuration exports, generated settings and, for the demo, the static export. Copy that directory to back your site up, with the site stopped. Keep the copy private: it holds your content and your site's secrets.
 
 A newer Drupack keeps working with existing Site data, which every release is tested for.
 

@@ -30,7 +30,7 @@ Usage: %1$s [start] [OPTIONS]
 Options:
   --data-dir PATH            Site data directory, ./data by default
   --listen IP:PORT           Listener address, 127.0.0.1 on the site's port by default
-  --static-listen IP:PORT    Static site listener, the site listener's address on the next port by default
+  --static-listen IP:PORT    Static listener, the site listener's address on the next port by default
   --host HOST                Permitted request host, by default the site's drupack.site host or localhost
   --files-dir PATH           Public files directory, files in Site data by default
   --database sqlite|mysql|pgsql
@@ -777,9 +777,6 @@ try {
     }
     $options['listen'] ??= '127.0.0.1:' . siteContract()->port;
     [$bind, $port] = listenerParts($options['listen']);
-    if (!filter_var($bind, FILTER_VALIDATE_IP) || $port < 1 || $port > 65535) {
-        throw new InvalidArgumentException('Invalid listener address or port');
-    }
     if (siteContract()->static !== null) {
         [$staticBind, $staticPort, $options['static-listen']] = staticListener($options['static-listen'], $bind, $port);
     } elseif ($options['static-listen'] !== null) {
@@ -850,8 +847,8 @@ try {
                 . " a free port: " . executableName() . " --listen $bind:" . ($port + 1));
         }
         if ($static !== null && portTaken($static['bind'], $static['port'])) {
-            throw new RuntimeException("Another program is listening on {$options['static-listen']}. Stop it, or serve the static"
-                . " site on a free port: " . executableName() . ' --static-listen ' . urlHost($static['bind']) . ':' . ($static['port'] + 1));
+            throw new RuntimeException("Another program is listening on {$options['static-listen']}. Stop it, or move the static"
+                . " listener to a free port: " . executableName() . ' --static-listen ' . urlHost($static['bind']) . ':' . ($static['port'] + 1));
         }
         $serving->detach($options['foreground'] !== null,
             stopCommand($written === DEFAULT_DATA_DIR ? '' : ' --data-dir ' . shellWord($written)), array_slice($argv, 1));

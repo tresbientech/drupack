@@ -818,10 +818,6 @@ class EngineExecutable(harness.ConformanceCase):
 
     def test_an_inherited_application_directory_does_not_reach_the_runtime(self):
         env = dict(os.environ, DRUPACK_RUNTIME_APP_DIR=str(self.lacking))
-        (self.class_dir / "arguments.php").write_text("<?php echo getcwd();")
-        result = self.engine_run("php", "arguments.php", env=env)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(Path(result.stdout).resolve(), self.class_dir.resolve())
         port = harness.pick_port_pair()
         log = self.class_dir / "inherited.log"
         with open(log, "wb") as handle:

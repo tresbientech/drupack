@@ -15,7 +15,7 @@ and nothing lets a form or an API on the exported site reach Drupal.
 A site turns the static listener on in `composer.json`. The executable then
 serves two ports: the Drupal site on its port, and the Tome export on the next
 one. `SITE export` runs Tome's own Drush command with the static port's URL, on
-a Drush launch whose child processes start. A site names the path prefixes the
+a Drush launch whose child processes start. A site names the path patterns the
 static port hands to Drupal, for a webform or an API. A site that names none
 runs no PHP on that port. The same key and words work on a Packaged site and on
 a project folder the engine serves. Drupacked Demo ships with the listener on.
@@ -83,7 +83,8 @@ a project folder the engine serves. Drupacked Demo ships with the listener on.
   port and URL. `staticServerEnvironment(?array $static, ?array $plan, string
   $tls): array` gives Caddy its variables. `DRUPACK_RUNTIME_STATIC_BIND` and
   `DRUPACK_RUNTIME_STATIC_PORT` hold the static listener's address, and
-  `DRUPACK_RUNTIME_STATIC_ROOT` comes from `siteEnvironment()` alone (D7).
+  `DRUPACK_RUNTIME_STATIC_ROOT` comes from `siteEnvironment()` on a Packaged
+  site and from the engine's start on a project, never from this function (D7).
   `DRUPACK_RUNTIME_STATIC_SNIPPET` names `static-site-<tls>.caddy` or
   `none.caddy`, the one variable a site without the key exports.
   `DRUPACK_RUNTIME_STATIC_DYNAMIC_SNIPPET` names `static-dynamic.caddy` or
@@ -102,7 +103,7 @@ a project folder the engine serves. Drupacked Demo ships with the listener on.
   `tls-*-site.caddy` files and the `(site)` snippet of each Caddyfile.
 - D6: The `(static_site)` snippet roots at `DRUPACK_RUNTIME_STATIC_ROOT` and
   runs one route. The dynamic snippet comes first, then a `try_files` of the
-  path and its `index.html` with no redirect, then `file_server`.
+  path's `index.html` and then the path, with no redirect, then `file_server`.
   `static-dynamic.caddy` matches `path` on `DRUPACK_RUNTIME_STATIC_DYNAMIC`,
   roots at the Drupal docroot, imports `guards.caddy` and runs `php_server`. A
   miss answers `404/index.html` from the export with status 404 when the file
@@ -125,15 +126,18 @@ a project folder the engine serves. Drupacked Demo ships with the listener on.
 - D8: `export` joins `COMMANDS` on a Packaged site and the engine's words. It
   runs the site's Drush with `tome:static --yes --uri URL` followed by every
   word after `export`, where URL is the recorded static URL. When those words
-  carry `--uri`, `--uri=` or `-l`, Drupack adds none. On a Packaged site it
-  takes the options `drush` takes and needs an installed site. Its exit code
-  is Drush's. Evidence: the `drush` branch of `launch.php` and `drush()` in
-  `engine/serve.php`.
+  carry `--uri`, `--uri=URL`, `-l URL` or `-lURL` before any `--`, Drupack
+  adds none. On a Packaged site it takes the options `drush` takes and needs
+  an installed site. On the engine, a project no start has recorded needs the
+  words to name the URL. Both refuse a site or project without the key, as
+  `--static-listen` does. Its exit code is Drush's. Evidence: the `drush`
+  branch of `launch.php` and `drush()` in `engine/serve.php`.
 
 ### The Drush launch
 
 - D9: `drush` and `export` on both executables launch Drupack's own Drush
-  entry through `php-cli`, with `bin/` on PATH: `application/drush` requires
+  entry through `php-cli`, with `bin/` on PATH, which a start gives its server
+  too: `application/drush` requires
   the site's `vendor/drush/drush/drush.php`, and `engine/drush` requires the
   script `DRUPACK_DRUSH_SCRIPT` names, which `serve.php` sets to the project's.
   The entry has no extension, so Tome's rebuilt command line, which reruns
@@ -183,9 +187,10 @@ a project folder the engine serves. Drupacked Demo ships with the listener on.
   when the site contract has no `static`. It starts a site with
   `--static-listen` and asserts a 404 before any export. It runs `export`, then
   asserts `static/index.html` in Site data and a 200 on `/` whose markup names
-  the static URL. It asserts a Drupal answer on `/search?keys=drupal` and a 404
-  on `/user/login`. `EngineExecutable` gains the same on the copied project and
-  `drupack export`. `build/qa.sh` adds the class to the demo run. Evidence:
+  the static URL. It asserts a Drupal answer on `/search/node?keys=drupal` and
+  a 404 on `/user/login`. `EngineExecutable` gains the same on the copied
+  project and `drupack export`. `build/qa.sh` adds the class to the demo run
+  and to the no-node run, whose site drops the key. Evidence:
   `MercureHub` skips on the contract; `EngineExecutable.setUpClass` copies
   `site_application()`.
 - D15: `docs/cli.md` gains the `export` word, `--static-listen`, a "Static
@@ -225,8 +230,8 @@ a project folder the engine serves. Drupacked Demo ships with the listener on.
 
 ## Further Notes
 
-Tome may still export a page under a dynamic prefix. The static port never
-serves that file, so the copy is stale text on disk and nothing more.
+Tome may still export a page under a dynamic pattern. The static port never
+serves that file, so the copy is stale text on disk.
 
 The `php` word on a Packaged site is a command-line addition. It exists so the
 one `php` shim serves both executables.

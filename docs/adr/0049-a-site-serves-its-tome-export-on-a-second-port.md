@@ -16,8 +16,8 @@ files into `tome_static_directory`, `../html` beside the docroot by default. A
 second run rewrites only the pages whose cache tags changed. `drush tome:static`
 splits the paths across child Drush processes. It rebuilds their command line
 from `$_SERVER['argv']`. Under Drupack's `php-cli` that line starts with
-`drush.php`, a file with no shebang, and the children fail. Tome's form exports
-in one process.
+`drush.php`, whose shebang asks for a `php` on PATH, so the children fail or
+run another PHP. Tome's form exports in one process.
 
 Some site owners want a purely static site. Others want a form or an API on it.
 Tome ships no recipe, and drupal.org has none.
@@ -28,7 +28,7 @@ Tome ships no recipe, and drupal.org has none.
 
 - `composer.json` `extra.drupack.static`, an object, turns the static listener
   on for a Packaged site and for a project the engine serves. `dynamic`, an
-  optional list of path prefixes, names the paths the listener hands to Drupal.
+  optional list of path patterns, names the paths the listener hands to Drupal.
   Without `dynamic` the listener runs no PHP.
 - The build writes the value into `site.json`, as it does `mercure`. A build and
   an engine start refuse the key when `composer.lock` lacks `drupal/tome`.
@@ -51,12 +51,13 @@ Tome ships no recipe, and drupal.org has none.
 ### The export
 
 - A new word, `export`, runs `drush tome:static --yes --uri URL`. The URL is the
-  static listener's address; a `--uri` after `export` replaces it. Every other
+  static URL, the static listener's scheme, host and port; a `--uri` after
+  `export` replaces it. Every other
   word after `export` reaches Drush unchanged.
-- `drush` and `export` launch Drush through `vendor/bin/drush` with the
-  runtime's `php` on PATH, the engine's `bin/` shims, and the `php` word answers
-  on both executables. Tome's child processes then start from the command line
-  it rebuilds.
+- `drush` and `export` launch Drush through Drupack's own entry, `drush`
+  beside the application, with the runtime's `php` shim on PATH, and the `php`
+  word answers on both executables. Tome's child processes then start from the
+  command line it rebuilds, which names that entry.
 - The export runs when the reader asks, through the word or Tome's form. The
   server runs none of its own.
 
@@ -89,15 +90,14 @@ Tome ships no recipe, and drupal.org has none.
 
 - The demo's lock gains `drupal/tome` and the five projects it requires: token,
   ctools, pathauto, redirect and book.
-- On Windows Tome's children start through a `drush.cmd` proxy the build writes
-  beside `vendor/bin/drush`, since Composer writes one on Windows alone. Only a
-  tag run tests it.
+- On Windows Tome's children start through the `drush.cmd` twin of the entry,
+  which runs `php` from PATH on the entry. Only a tag run tests it.
 - Both Caddyfiles gain a `static-site.caddy` snippet with a `none.caddy`
   default, named through `DRUPACK_RUNTIME_STATIC_SNIPPET` as the Mercure snippet
   is.
 - `siteconfig.go`, the listener plan in `process.php`, `launch.php`,
   `serve.php`, `application/settings.php`, the parser's word table,
-  `docs/cli.md` and `docs/build-your-site.md` change. A `static_cases.py`
+  `docs/cli.md` and `docs/build-your-site.md` change. A `static_site_cases.py`
   module and new engine cases cover both modes.
 - An exported page's absolute URLs name the static listener. A copy published
   elsewhere needs `export --uri` with its address.

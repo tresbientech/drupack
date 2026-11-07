@@ -107,7 +107,7 @@ func environment(l Launch) []string {
 	e.put("DRUPACK_RUNTIME_INVOKED=" + l.Args[0])
 	if l.Engine {
 		// The engine serves a folder named from the reader's directory. An application
-		// directory would send the runtime down the site path, which refuses the php word.
+		// directory would make the entry point change into it before serve.php runs.
 		e.drop("DRUPACK_RUNTIME_APP_DIR")
 		e.put("DRUPACK_RUNTIME_CACHE_ROOT=" + runtime.Canonical(l.Root))
 	} else {

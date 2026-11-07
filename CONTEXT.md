@@ -20,7 +20,7 @@ A distributable Drupal application. One built from a Site template carries a See
 The Drupal CMS recipe that gives a new site its starting configuration and content. A Packaged site carries at most one, named in its Site contract. Drupacked Demo carries its own.
 
 **Site contract**:
-The `drupack.yml` beside a site's `composer.json`, naming its executable, port, Site template, default site name, translations, settings file, build targets, added PHP extensions, Writable directories, and whether it carries Bundled Node. A build writes it out as `site.json`, with the docroot, the Mercure hub key and the subdomain `composer.json` names, and every other reader takes that file.
+The `drupack.yml` beside a site's `composer.json`, naming its executable, port, Site template, default site name, translations, settings file, build targets, added PHP extensions, Writable directories, and whether it carries Bundled Node. A build writes it out as `site.json`, with the docroot, the Mercure hub key, the static settings and the subdomain `composer.json` names, and every other reader takes that file.
 
 **Site repository**:
 A repository holding one site's Composer project and Site contract. Its releases publish that Packaged site.
@@ -78,7 +78,7 @@ An environment variable that selects the default Site data directory for a Packa
 The Drupack and Drupal versions that last served a Site data directory.
 
 **Listener record**:
-The listen address, permitted host and scheme the last start served, and the Files directory it named, held in Site data.
+The listen address, static listener address, permitted host and scheme the last start served, and the Files directory it named, held in Site data.
 
 **Site host**:
 A site's own host name, `<label>.drupack.site`, whose public DNS answers `127.0.0.1`. The label comes from `composer.json` `extra.drupack.subdomain`, otherwise from the Site contract's name or the Project folder's name. A start's URL names it when the resolver answers it with `127.0.0.1`.

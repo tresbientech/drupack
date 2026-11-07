@@ -301,7 +301,7 @@ function export(string $binary, array $arguments): never
     $entry = folderEntry($project);
     $settings = composerSettings($project);
     if ($settings['static'] === null) {
-        throw new RuntimeException("$project/composer.json sets no extra.drupack.static, so there is no static site to export.");
+        throw new RuntimeException("$project/composer.json sets no extra.drupack.static, so there is nothing to export.");
     }
     $url = null;
     if (!namesUri($arguments)) {

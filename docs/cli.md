@@ -13,6 +13,9 @@ SITE [start] [OPTIONS]
 SITE stop [--data-dir PATH]
 SITE trust [--uninstall]
 SITE drush [OPTIONS] DRUSH_COMMAND
+SITE export [OPTIONS] [DRUSH_OPTIONS]
+SITE php SCRIPT [ARGUMENTS]
+SITE php -r CODE
 SITE node|npm|npx [ARGUMENTS]
 SITE clean [--dry-run]
 SITE --help
@@ -37,7 +40,7 @@ One line per component follows, each naming the component and its release:
 |---|---|---|---|---|
 | `--data-dir` | PATH | `./data` | `DRUPACK_DATA_DIR` | every start, `drush` |
 | `--listen` | IP:PORT | `127.0.0.1` on the site's port, `7225` for the Drupacked Demo | none | every start |
-| `--static-listen` | IP:PORT | the site listener's address on its port plus one | none | every start of a site with a static export |
+| `--static-listen` | IP:PORT | the site listener's address on its port plus one | none | every start, `drush` and `export` of a site with a static export |
 | `--host` | HOST | the site's drupack.site host when it resolves to 127.0.0.1, `localhost` otherwise (see [Site hosts](#site-hosts)) | none | every start |
 | `--files-dir` | PATH | `files` in Site data | none | every start, `drush` |
 | `--database` | `sqlite`, `mysql`, `pgsql` | `sqlite` | `DRUPACK_DATABASE` | first start |
@@ -95,10 +98,11 @@ A browser opens only on a loopback listener, 127.0.0.0/8 or `::1`. Any other
 listener, `0.0.0.0` included, prints the login link and opens nothing.
 
 Every start writes both values into the Listener record in Site data, beside the
-files directory and the scheme it served. A start reads only the files directory
-back, so `--listen` does not become sticky. `drush` reads all four, which is how
-`SITE drush user:login` prints a working link whatever port and scheme the site
-runs on.
+files directory, the scheme it served and the static listener's address. A start
+reads only the files directory back, so `--listen` does not become sticky. `drush`
+and `export` read all five, which is how `SITE drush user:login` prints a working
+link whatever port and scheme the site runs on, and how `export` names the static
+URL.
 
 ## Site hosts
 
@@ -240,6 +244,44 @@ the address the last start listened on.
 
 [The build guide](build-your-site.md#a-site-that-pushes-live-updates) describes the two ways to publish.
 
+## Static site
+
+A site or project whose `composer.json` sets `extra.drupack.static` serves a
+static listener. It answers with the files of the site's Tome export, and hands
+the paths `dynamic` lists to Drupal.
+
+`--static-listen IP:PORT` names that listener. Its default is the site
+listener's address on the next port, `7226` for the Drupacked Demo. The two
+ports differ. A site start records the address in Site data, as it records
+`--listen`, and refuses a static port another program holds. On a site or
+project without the key the option exits 1.
+
+The export lives in `static` in Site data. The engine serves `html` beside the
+docroot, Tome's default directory, and creates nothing. A project whose
+settings move `tome_static_directory` serves an empty static port.
+
+A request answers the path's file, or `index.html` under it, with no redirect.
+A miss answers the export's own `404/index.html` with status 404. A path
+`dynamic` matches reaches Drupal through the guards of the site's port. Tome
+may have exported a page under such a path; the static port never serves it.
+
+### `export`
+
+`SITE export` runs the site's Drush with `tome:static --yes --uri URL`, URL
+the static URL a start prints as `Static:`, then every word after `export`
+unchanged. A
+word naming `--uri`, `--uri=URL`, `-l URL` or `-lURL` replaces the URL, and
+Drupack adds none. The exit code is Drush's.
+
+On a site, `export` takes the options `drush` takes and needs an installed
+site. On the engine, `drupack export` reads the URL the last start recorded,
+so a project no start has served needs `--uri`. Both refuse a site or project
+without the key.
+
+The lock of a site with the key names `drupal/tome`, or the build and an
+engine start exit 1 naming it. The site enables `tome_static` itself, as
+[the build guide](build-your-site.md#a-static-site) describes.
+
 ## `start` and `stop`
 
 `SITE` and `SITE start` are one command. A start takes the Serving lease, then
@@ -301,6 +343,7 @@ drupack [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground
 drupack stop [DIR]
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
+drupack export [DRUSH_OPTIONS]
 drupack php SCRIPT [ARGUMENTS]
 drupack php -r CODE
 drupack clean [--dry-run]
@@ -340,7 +383,6 @@ and says it already serves.
   bind address otherwise.
 - The start refuses a folder whose PHP version or `composer.lock` extensions
   the bundled PHP does not meet, and names what is missing.
-drupack export [DRUSH_OPTIONS]
 - The start prints a one-time login link for uid 1, through the folder's Drush.
   It still serves when that fails, or when the folder has no Drush.
 - A folder whose database holds no installed site prints `Install:` with
@@ -348,6 +390,10 @@ drupack export [DRUSH_OPTIONS]
   Database API for the `key_value` table first.
 - A request's child processes, such as Package Manager's Composer, find a
   `php` on `PATH` that runs the bundled PHP.
+- A folder whose `composer.json` sets `extra.drupack.static` serves `html`
+  beside its docroot on `--static-listen`, and `drupack export` writes it, as
+  [Static site](#static-site) describes. The start writes the static URL into
+  the folder's cache entry.
 - Caddy's errors go to standard error.
 
 `drush` runs the Drush of the nearest directory at or above the working directory
@@ -404,10 +450,15 @@ standard error naming it. The check stays off in these cases:
 `lay-app` is internal: a start or `drush` runs it to lay or check a site's own
 application.
 
-`drupack composer-settings DIR` is internal too: an engine start or `drush`
-runs it to read the docroot, the Mercure flag and the subdomain from
-`DIR/composer.json`. It prints them as one JSON object, or the refusal a start
-would print.
+`drupack composer-settings DIR` is internal too: an engine start, `drush` or
+`export` runs it to read the docroot, the Mercure flag, the static settings and
+the subdomain from `DIR/composer.json`, and to check the lock for `drupal/tome`
+when the static key is set. It prints them as one JSON object, or the refusal a
+start would print.
+
+On a site, `php` runs PHP from the working directory in the two forms
+[the engine's `php`](#the-engine-executable) takes, with no PHP option. Drush's,
+Tome's and a request's child processes reach it as the `php` on their `PATH`.
 
 On a site, `self-update` exits 1 and says the site's publisher ships its new
 release.
