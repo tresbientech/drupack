@@ -2,7 +2,8 @@
 
 The project is a copy of the site's own application. Its settings name a copy of
 the seed database outside the folder, so every write Drupal makes inside the
-folder lands in its public files directory.
+folder lands in its public files directory. `export` alone adds `html` beside the
+docroot, which its case removes.
 """
 
 import gzip
@@ -85,15 +86,15 @@ class EngineExecutable(harness.ConformanceCase):
         (cls.lacking / "composer.lock").write_text(json.dumps(
             {"packages": [{"name": "acme/absent", "require": {"ext-drupack-absent": "*"}}]}))
 
-    def engine_run(self, *arguments, cwd=None, env=None):
+    def engine_run(self, *arguments, cwd=None, env=None, wait="drush"):
         return harness.run([str(self.engine), *arguments], cwd=cwd or self.class_dir, env=env,
-                           capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
+                           capture_output=True, text=True, timeout=harness.WAITS[wait].seconds)
 
-    def start(self, name, *arguments, cwd=None, env=None):
-        """Starts the engine executable on a port of its own, waits for /user/login and the ready line, and
-        returns the port and log. Drupal can answer before the server writes its stop record, which precedes
-        the ready line."""
-        port = harness.pick_port()
+    def start(self, name, *arguments, cwd=None, env=None, port=None):
+        """Starts the engine executable on a port of its own, whose successor is free for the static site,
+        waits for /user/login and the ready line, and returns the port and log. Drupal can answer before
+        the server writes its stop record, which precedes the ready line."""
+        port = port or harness.pick_port_pair()
         log = self.class_dir / f"{name}.log"
         with open(log, "wb") as handle:
             process = harness.popen([str(self.engine), *arguments, "--foreground", "--listen", f"127.0.0.1:{port}"],
@@ -134,19 +135,21 @@ class EngineExecutable(harness.ConformanceCase):
     def detached_start(self, *arguments, cwd=None, env=None):
         """Starts the engine executable in the background on a port of its own, which the
         case's cleanup stops, and returns the port and the finished start."""
-        port = harness.pick_port()
+        port = harness.pick_port_pair()
         target = str(cwd or self.class_dir)
         self.addCleanup(self.engine_run, "stop", str(self.project), cwd=target, env=env)
         start = harness.run([str(self.engine), *arguments, "--listen", f"127.0.0.1:{port}"], cwd=target, env=env,
                             capture_output=True, text=True, timeout=harness.WAITS["start"].seconds)
         return port, start
 
-    def snapshot(self):
-        """Size and modification time of every project file outside the public files directory."""
+    def snapshot(self, *excluded):
+        """Size and modification time of every project file outside the public files directory and
+        the excluded project directories."""
+        outside = [self.files, *(self.project / name for name in excluded)]
         return {
             path.relative_to(self.project): (path.lstat().st_size, path.lstat().st_mtime_ns)
             for path in self.project.rglob("*")
-            if not path.is_relative_to(self.files) and not path.is_dir()
+            if not any(path.is_relative_to(directory) for directory in outside) and not path.is_dir()
         }
 
     def test_a_trusted_root_serves_the_folder_over_https(self):
@@ -155,7 +158,7 @@ class EngineExecutable(harness.ConformanceCase):
             self.skipTest("needs Linux and openssl")
         case_dir = self.class_dir / "https"
         root = write_root(case_dir / "tls")
-        port = harness.pick_port()
+        port = harness.pick_port_pair()
         log = case_dir / "start.log"
         with open(log, "wb") as handle:
             process = harness.popen(
@@ -619,15 +622,19 @@ class EngineExecutable(harness.ConformanceCase):
         # serve.php prints paths in Drupack's canonical form, forward slashes on Windows too.
         self.assertIn(f"{self.lacking.as_posix()}/vendor/drush/drush/drush.php does not exist", result.stderr)
 
+    def edit_json(self, path, edit):
+        """Rewrites the project's JSON file through edit, until the case ends."""
+        original = path.read_text()
+        self.addCleanup(path.write_text, original)
+        content = json.loads(original)
+        edit(content)
+        path.write_text(json.dumps(content, indent=4))
+
     def with_mercure(self, value=True):
         """Sets extra.drupack.mercure in the project's composer.json and adds the probe that
         publishes through mercure_publish(), until the case ends."""
-        composer = self.project / "composer.json"
-        original = composer.read_text()
-        self.addCleanup(composer.write_text, original)
-        content = json.loads(original)
-        content.setdefault("extra", {}).setdefault("drupack", {})["mercure"] = value
-        composer.write_text(json.dumps(content, indent=4))
+        self.edit_json(self.project / "composer.json",
+                       lambda content: content.setdefault("extra", {}).setdefault("drupack", {}).update(mercure=value))
         probe = self.docroot / "mercure-probe.php"
         probe.write_text("<?php echo mercure_publish('drupack/probe', (string) ($_GET['data'] ?? ''), true);")
         self.addCleanup(probe.unlink)
@@ -695,6 +702,93 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("extra.drupack.mercure must be true or false", result.stderr)
 
+    def export_directory(self):
+        """Tome's default directory beside the docroot, removed once the case ends."""
+        html = self.project / "html"
+        self.addCleanup(shutil.rmtree, html, ignore_errors=True)
+        return html
+
+    def test_a_start_serves_the_static_port_and_export_fills_it(self):
+        before = self.snapshot()
+        html = self.export_directory()
+        port = harness.pick_port_pair()
+        while (static := harness.pick_port()) == port:
+            pass
+        _, log = self.start("static", str(self.project), "--static-listen", f"127.0.0.1:{static}", port=port)
+        url = f"http://127.0.0.1:{static}/"
+        self.assertIn(f"  Static:  {url}\n", log.read_text(errors="replace"))
+        self.assertEqual(self.status(static, "/"), 404)
+        self.assertFalse(html.exists(), "the start created the export directory")
+        export = self.engine_run("export", cwd=self.project, wait="export")
+        self.assertEqual(export.returncode, 0, export.stdout + export.stderr)
+        self.assertTrue((html / "index.html").is_file(), export.stdout)
+        status, _, body = self.fetch(static, "/")
+        self.assertEqual(status, 200)
+        self.assertIn(url, body)
+        self.assertEqual(self.snapshot("html"), before, "the export wrote outside html")
+
+    def test_the_static_port_hands_dynamic_paths_to_drupal(self):
+        port = harness.pick_port_pair()
+        _, log = self.start("dynamic", str(self.project), port=port)
+        static = port + 1
+        self.assertIn(f"  Static:  http://127.0.0.1:{static}/\n", log.read_text(errors="replace"))
+        page = self.export_directory() / "search" / "node" / "index.html"
+        page.parent.mkdir(parents=True)
+        page.write_text("exported copy")
+        status, headers, body = self.fetch(static, "/search/node?keys=drupal")
+        self.assertEqual(status, 200, body[:300])
+        self.assertTrue(headers.get("X-Generator", "").startswith("Drupal"), dict(headers))
+        self.assertNotIn("exported copy", body)
+        self.assertEqual(self.status(static, "/user/login"), 404)
+        self.assertEqual(self.status(static, "/search/x.php"), 403)
+
+    def test_export_without_a_recorded_start_needs_a_uri(self):
+        stub = self.class_dir / "unserved"
+        (stub / "web" / "core" / "lib").mkdir(parents=True)
+        (stub / "web" / "index.php").write_text("<?php")
+        (stub / "web" / "core" / "lib" / "Drupal.php").write_text("<?php")
+        (stub / "vendor").mkdir()
+        (stub / "vendor" / "autoload.php").write_text("<?php")
+        (stub / "composer.json").write_text(json.dumps({"extra": {"drupack": {"static": {}}}}))
+        (stub / "composer.lock").write_text(json.dumps({"packages": [{"name": "drupal/tome", "version": "1.16.0"}]}))
+        result = self.engine_run("export", cwd=stub)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn(f"Cannot read a recorded static URL for {stub.as_posix()}", result.stderr)
+        self.assertIn("--uri URL", result.stderr)
+        named = self.engine_run("export", "--uri", "http://example.test/", cwd=stub)
+        self.assertEqual(named.returncode, 1, named.stdout)
+        self.assertIn("has no Drush", named.stderr)
+
+    def test_a_project_without_the_static_key_serves_no_second_port(self):
+        self.edit_json(self.project / "composer.json", lambda content: content["extra"]["drupack"].pop("static"))
+        port = harness.pick_port_pair()
+        _, log = self.start("no-static", str(self.project), port=port)
+        self.assertIsNone(self.status(port + 1, "/"), f"the next port answered: inspect {log}")
+        self.assertNotIn("  Static:", log.read_text(errors="replace"))
+        result = self.engine_run("export", cwd=self.project)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("sets no extra.drupack.static", result.stderr)
+        refused = self.engine_run(str(self.project), "--static-listen", "127.0.0.1:1")
+        self.assertEqual(refused.returncode, 1, refused.stdout)
+        self.assertIn("--static-listen needs a project whose composer.json sets extra.drupack.static", refused.stderr)
+
+    def test_a_static_listener_that_is_invalid_or_the_sites_port_refuses(self):
+        port = harness.pick_port()
+        for value, message in (("nowhere", "--static-listen requires IP:PORT"),
+                               (f"127.0.0.1:{port}", f"--static-listen must name a port other than the site's {port}")):
+            with self.subTest(value):
+                result = self.engine_run(str(self.project), "--listen", f"127.0.0.1:{port}", "--static-listen", value)
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn(message, result.stderr)
+
+    def test_a_lock_without_tome_stops_the_start(self):
+        def drop(lock):
+            lock["packages"] = [package for package in lock["packages"] if package["name"] != "drupal/tome"]
+        self.edit_json(self.project / "composer.lock", drop)
+        result = self.engine_run(str(self.project), "--listen", f"127.0.0.1:{harness.pick_port()}")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("composer.lock: packages names no drupal/tome release", result.stderr)
+
     def alias_run(self, *commands):
         """Runs each shell command from class_dir inside Drush, whose PATH names the php alias, and returns
         each one's merged output and exit status."""
@@ -728,7 +822,7 @@ class EngineExecutable(harness.ConformanceCase):
         result = self.engine_run("php", "arguments.php", env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(Path(result.stdout).resolve(), self.class_dir.resolve())
-        port = harness.pick_port()
+        port = harness.pick_port_pair()
         log = self.class_dir / "inherited.log"
         with open(log, "wb") as handle:
             process = harness.popen([str(self.engine), str(self.project), "--foreground", "--listen", f"127.0.0.1:{port}"],

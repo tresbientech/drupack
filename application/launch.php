@@ -266,15 +266,6 @@ function stopSite(string $directory): int
     return (new Serving($site->directory, $site->logs()))->stop('Site data', $site->directory);
 }
 
-function listenerParts(string $listen, string $option = '--listen'): array
-{
-    // Listener values enter Caddy configuration and must contain only an IP address and port.
-    if (!preg_match('/^(\[[0-9a-fA-F:]+\]|[0-9.]+):([0-9]+)$/D', $listen, $listener)) {
-        throw new InvalidArgumentException("$option requires IP:PORT, with IPv6 enclosed in brackets");
-    }
-    return [trim($listener[1], '[]'), (int) $listener[2]];
-}
-
 // Reports whether anything holds $bind:$port. A connect answers this on every platform,
 // where a trial bind would report a taken port as free under Windows SO_REUSEADDR. A
 // wildcard is probed on its own family's loopback, since an IPv6-only listener never
@@ -790,14 +781,7 @@ try {
         throw new InvalidArgumentException('Invalid listener address or port');
     }
     if (siteContract()->static !== null) {
-        $options['static-listen'] ??= urlHost($bind) . ':' . ($port + 1);
-        [$staticBind, $staticPort] = listenerParts($options['static-listen'], '--static-listen');
-        if (!filter_var($staticBind, FILTER_VALIDATE_IP) || $staticPort < 1 || $staticPort > 65535) {
-            throw new InvalidArgumentException('Invalid --static-listen address or port');
-        }
-        if ($staticPort === $port) {
-            throw new InvalidArgumentException("--static-listen must name a port other than the site's $port");
-        }
+        [$staticBind, $staticPort, $options['static-listen']] = staticListener($options['static-listen'], $bind, $port);
     } elseif ($options['static-listen'] !== null) {
         throw new InvalidArgumentException('--static-listen needs a site whose composer.json sets extra.drupack.static');
     }

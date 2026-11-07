@@ -220,22 +220,22 @@ search, and `/user/login` answers 404 from the export.
 An engine start on a project with `static` serves `html` beside the docroot on
 the static port, `--static-listen` included. It writes the static URL into the
 folder's cache entry, and refuses a lock without Tome. `drupack export` reads
-that URL, runs the project's Drush through `vendor/bin/drush`, and writes
+that URL, runs the project's Drush through Drupack's Drush entry, and writes
 `html/`. A project without the key serves no second port.
 
 ### Acceptance criteria
 
-- [ ] `EngineExecutable` passes: a start on the copied project answers 404 on
+- [x] `EngineExecutable` passes: a start on the copied project answers 404 on
       the static port before an export.
-- [ ] `drupack export` exits 0 and writes `html/index.html`, and `/` on the
+- [x] `drupack export` exits 0 and writes `html/index.html`, and `/` on the
       static port answers 200 with the static URL in the body.
-- [ ] The folder gains `html/` and nothing else, asserted by the existing
+- [x] The folder gains `html/` and nothing else, asserted by the existing
       snapshot helper with `html` excluded.
-- [ ] A start with `--static-listen 127.0.0.1:PORT` serves the export there,
+- [x] A start with `--static-listen 127.0.0.1:PORT` serves the export there,
       and `drupack export` after it names that URL.
-- [ ] A copy whose lock lacks `drupal/tome` exits 1 on start naming
+- [x] A copy whose lock lacks `drupal/tome` exits 1 on start naming
       `drupal/tome`.
-- [ ] `test_a_detached_start_and_stop_leave_the_project_unchanged` still
+- [x] `test_a_detached_start_and_stop_leave_the_project_unchanged` still
       passes.
 
 ---
@@ -257,7 +257,8 @@ demo build. The plan is deleted once its last criterion is ticked.
 
 - [ ] `application/tests/launch_test.php` passes its assertion of `docs/cli.md`,
       `HELP` and the entry point's usage against `options()`.
-- [ ] `grep -c 'StaticSite' build/qa.sh` prints 1.
+- [ ] `grep -c 'StaticSite' build/qa.sh` prints 2: the demo run and the
+      no-node run, which asserts the off state.
 - [ ] `grep -n '^## A static site' docs/build-your-site.md` and
       `grep -n '^## Static site' docs/cli.md` each print one line.
 - [ ] `docs/plans/static-site.md` is deleted in the commit that ticks the last

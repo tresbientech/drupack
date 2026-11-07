@@ -7,12 +7,14 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/process.php';
 require_once __DIR__ . '/mercure.php';
+require_once __DIR__ . '/static.php';
 
 const USAGE = <<<'TEXT'
-Usage: %1$s [start] [DIR] [--listen IP:PORT] [--foreground]
+Usage: %1$s [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground]
        %1$s stop [DIR]
        %1$s drush DRUSH_COMMAND
        %1$s dr DRUPAL_COMMAND
+       %1$s export [DRUSH_OPTIONS]
        %1$s php SCRIPT [ARGUMENTS]
        %1$s php -r CODE
        %1$s clean [--dry-run]
@@ -21,13 +23,17 @@ Usage: %1$s [start] [DIR] [--listen IP:PORT] [--foreground]
 
 Serves the Drupal project in DIR, the working directory by default, with its
 own settings, in the background. --foreground serves in this terminal until a
-signal stops it. --listen defaults to %2$s.
+signal stops it. --listen defaults to %2$s. A project whose composer.json sets
+extra.drupack.static serves its Tome export, html beside the docroot, on
+--static-listen, the listener's address on the next port by default.
 
 Commands:
   start    Serve the project, which a bare command does too
   stop     Stop the server of the project in DIR
   drush    Run the Drush of the project holding the working directory
   dr       Run Drupal core's command line of that project
+  export   Export that project with Tome at the static URL its last start
+           served, or at the --uri given
   php      Run a script or -r CODE on the bundled PHP, with no PHP option
   clean    Remove the unpacked engine files and stopped folders' state
            from the cache
@@ -41,8 +47,9 @@ TEXT;
 const DEFAULT_LISTEN = '127.0.0.1:3787';
 
 // The engine's launcher reads composer.json, the reader's file, by the rules a build packs a
-// site by. It answers with the docroot relative to the project, the Mercure flag, and the
-// subdomain when the file sets one.
+// site by. It answers with the docroot relative to the project, the Mercure flag, the static
+// settings, and the subdomain when the file sets one. It leaves static out when the file
+// sets none, which reads as null here.
 function composerSettings(string $project): array
 {
     $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
@@ -55,7 +62,7 @@ function composerSettings(string $project): array
     if (proc_close($child) !== 0) {
         throw new RuntimeException(trim($refusal));
     }
-    return json_decode($output, true, flags: JSON_THROW_ON_ERROR);
+    return json_decode($output, true, flags: JSON_THROW_ON_ERROR) + ['static' => null];
 }
 
 // The Caddyfile's guards and front controller are Drupal's, so a docroot without Drupal
@@ -168,6 +175,7 @@ function serve(string $binary, array $arguments): never
     $typed = $arguments;
     $directory = null;
     $listen = DEFAULT_LISTEN;
+    $staticListen = null;
     $foreground = false;
     while ($arguments !== []) {
         $argument = array_shift($arguments);
@@ -175,6 +183,10 @@ function serve(string $binary, array $arguments): never
             $listen = array_shift($arguments) ?? throw new RuntimeException('--listen takes IP:PORT');
         } elseif (str_starts_with($argument, '--listen=')) {
             $listen = substr($argument, strlen('--listen='));
+        } elseif ($argument === '--static-listen') {
+            $staticListen = array_shift($arguments) ?? throw new RuntimeException('--static-listen takes IP:PORT');
+        } elseif (str_starts_with($argument, '--static-listen=')) {
+            $staticListen = substr($argument, strlen('--static-listen='));
         } elseif ($argument === '--foreground') {
             $foreground = true;
         } elseif ($directory === null && !str_starts_with($argument, '-')) {
@@ -195,6 +207,13 @@ function serve(string $binary, array $arguments): never
     $bind = trim($bind, '[]');
     $tls = tlsChoice($binary, $bind, ['--folder', $settings['subdomain'] ?? basename($project)], null);
     $plan = listenerPlan($bind, (int) $port, $tls->host, $tls->scheme());
+    $static = null;
+    if ($settings['static'] !== null) {
+        [$staticBind, $staticPort] = staticListener($staticListen, $bind, $plan['port']);
+        $static = staticPlan($staticBind, $staticPort, $tls->host, $tls->scheme());
+    } elseif ($staticListen !== null) {
+        throw new RuntimeException('--static-listen needs a project whose composer.json sets extra.drupack.static');
+    }
 
     // The reader's terminal gets every refusal above and the lease's below, so a start that
     // detaches has nothing left to refuse but the server's own failures.
@@ -226,7 +245,8 @@ function serve(string $binary, array $arguments): never
         }
     }
     fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n")
-        . ($install === null ? '' : "  Install: $install\n") . "  Project: $project\n");
+        . ($install === null ? '' : "  Install: $install\n") . ($static === null ? '' : "  Static:  {$static['url']}\n")
+        . "  Project: $project\n");
     fwrite(STDOUT, $tls->nameHint() . $tls->trustHint());
     fwrite(STDOUT, "Starting the web server.\n");
     // The server opens no browser, so a value inherited from an earlier start is cleared.
@@ -239,12 +259,22 @@ function serve(string $binary, array $arguments): never
             throw new RuntimeException("Cannot write $entry/" . MERCURE_URL_FILE);
         }
     }
+    $root = [];
+    if ($static !== null) {
+        // export reads the URL back from here, as drush reads the hub's.
+        if (file_put_contents("$entry/" . STATIC_URL_FILE, $static['url']) !== strlen($static['url'])) {
+            throw new RuntimeException("Cannot write $entry/" . STATIC_URL_FILE);
+        }
+        // Tome's default directory, html beside the docroot. The server creates none.
+        $root = ['DRUPACK_RUNTIME_STATIC_ROOT' => dirname($docroot) . '/html'];
+    }
     exportServerEnvironment(serverEnvironment($plan, $tls, [
         'DRUPACK_RUNTIME_DOCROOT' => $docroot,
         'DRUPACK_RUNTIME_ID' => basename($entry),
         'DRUPACK_RUNTIME_URL' => $plan['probe'],
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
-    ] + mercureServerEnvironment($mercure, $entry) + projectSnippetEnvironment($project)));
+    ] + $root + staticServerEnvironment($settings['static'], $static, $tls->source)
+        + mercureServerEnvironment($mercure, $entry) + projectSnippetEnvironment($project)));
     runtimePhpOnPath(__DIR__);
     replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
 }
@@ -256,18 +286,43 @@ function exportEngineMercure(string $entry, string $url, bool $drush): void
     exportMercure("$entry/mercure_publisher_secret", "$entry/mercure_subscriber_secret", $url, $drush);
 }
 
-// Creates nothing, so a project no start has served exports no hub.
+const STATIC_URL_FILE = 'static_url';
+
 function drush(string $binary, array $arguments): never
 {
     $project = project();
+    runProjectDrush($binary, $project, folderEntry($project), composerSettings($project), $arguments);
+}
+
+// A project exported before its first start has no recorded URL, so the words must name one.
+function export(string $binary, array $arguments): never
+{
+    $project = project();
     $entry = folderEntry($project);
+    $settings = composerSettings($project);
+    if ($settings['static'] === null) {
+        throw new RuntimeException("$project/composer.json sets no extra.drupack.static, so there is no static site to export.");
+    }
+    $url = null;
+    if (!namesUri($arguments)) {
+        $url = @file_get_contents("$entry/" . STATIC_URL_FILE);
+        if ($url === false) {
+            throw new RuntimeException("Cannot read a recorded static URL for $project. Start it once, or pass --uri URL.");
+        }
+    }
+    runProjectDrush($binary, $project, $entry, $settings, exportCommand($url, $arguments));
+}
+
+// Creates nothing, so a project no start has served exports no hub.
+function runProjectDrush(string $binary, string $project, string $entry, array $settings, array $words): never
+{
     useTlsBundle($entry);
-    if (composerSettings($project)['mercure'] && is_file("$entry/" . MERCURE_URL_FILE)) {
+    if ($settings['mercure'] && is_file("$entry/" . MERCURE_URL_FILE)) {
         exportEngineMercure($entry, file_get_contents("$entry/" . MERCURE_URL_FILE), true);
     }
     // engine/drush requires the project's Drush, so Tome's children rerun an extensionless argv[0].
     putenv('DRUPACK_DRUSH_SCRIPT=' . drushScript($project));
-    runScript($binary, __DIR__ . '/drush', $arguments);
+    runScript($binary, __DIR__ . '/drush', $words);
 }
 
 // Drupal core and many modules carry a composer.json and no vendor/.
@@ -315,6 +370,7 @@ try {
         'stop' => exit(stopFolder(array_slice($argv, 2))),
         'start' => serve($binary, array_slice($argv, 2)),
         'drush' => drush($binary, array_slice($argv, 2)),
+        'export' => export($binary, array_slice($argv, 2)),
         'dr' => runScript($binary, coreScript(project()), array_slice($argv, 2)),
         'trust' => replaceProcess($binary, array_merge(['tls-trust'], array_slice($argv, 2)), __DIR__, 'Cannot run trust'),
         '--help', '-h' => fwrite(STDOUT, sprintf(USAGE, executableName(), DEFAULT_LISTEN) . "\n"),

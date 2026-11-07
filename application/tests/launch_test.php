@@ -776,6 +776,7 @@ test('an export runs Tome at the static URL unless the words name one', function
     same(['tome:static', '--yes', "--uri=$url", '--path-count=10'], exportCommand($url, ['--path-count=10']));
     foreach ([['--uri', 'https://x.test/'], ['--uri=https://x.test/'], ['-l', 'https://x.test/'], ['-lhttps://x.test/']] as $words) {
         same(array_merge(['tome:static', '--yes'], $words), exportCommand($url, $words), implode(' ', $words));
+        same(array_merge(['tome:static', '--yes'], $words), exportCommand(null, $words), 'null ' . implode(' ', $words));
     }
     same(['tome:static', '--yes', "--uri=$url", '--', '--uri=x'], exportCommand($url, ['--', '--uri=x']), 'a --uri after -- is no option');
 });

@@ -18,20 +18,6 @@ import harness
 from tls_cases import trusted_environment, write_root
 
 
-def pick_port_pair():
-    """A free port whose successor is free too, so a start without --static-listen lands on it."""
-    while True:
-        port = harness.pick_port()
-        if port == 65535:
-            continue
-        with socket.socket() as probe:
-            try:
-                probe.bind(("127.0.0.1", port + 1))
-            except OSError:
-                continue
-        return port
-
-
 def request(port, path, context=None):
     """The status, headers and body of one request to localhost, a redirect unfollowed."""
     timeout = harness.WAITS["http_request"].seconds
@@ -115,7 +101,7 @@ class StaticSite(harness.ConformanceCase):
         self.assertEqual(Path(result.stdout.strip()), self.data / "static")
 
     def test_a_start_without_the_option_serves_the_static_site_on_the_next_port(self):
-        port = pick_port_pair()
+        port = harness.pick_port_pair()
         site = harness.Site(harness.BINARY, self.case_dir / "site")
         site.start(self.case_dir / "data", port=port)
         self.addCleanup(site.stop)
@@ -156,7 +142,7 @@ class StaticSiteOff(harness.ConformanceCase):
         if harness.SITE.get("static") is not None:
             raise unittest.SkipTest("the site's contract has a static export")
         cls.data = cls.class_dir / "data"
-        cls.port = pick_port_pair()
+        cls.port = harness.pick_port_pair()
         cls.site = harness.Site(harness.BINARY, cls.class_dir / "site")
         cls.site.start(cls.data, port=cls.port)
 

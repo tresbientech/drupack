@@ -188,6 +188,20 @@ def pick_port():
         return probe.getsockname()[1]
 
 
+def pick_port_pair():
+    """A free port whose successor is free too, which a start with a static site binds as well."""
+    while True:
+        port = pick_port()
+        if port == 65535:
+            continue
+        with socket.socket() as probe:
+            try:
+                probe.bind(("127.0.0.1", port + 1))
+            except OSError:
+                continue
+        return port
+
+
 def fresh_dir(path):
     """Recreate path as an empty directory, for a case that needs its own cache, home or root."""
     shutil.rmtree(path, ignore_errors=True)

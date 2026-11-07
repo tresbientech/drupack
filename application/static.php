@@ -30,9 +30,9 @@ function staticServerEnvironment(?array $static, ?array $plan, string $tls): arr
     return $environment;
 }
 
-// The Drush words of `export`: Tome's export at the static URL, then the reader's words. A
-// reader who names the URL gets none added.
-function exportCommand(string $url, array $words): array
+// The Drush words of `export`: Tome's export at $url, then the reader's words. A reader who
+// names the URL gets none added, and the engine passes null then, having read no record.
+function exportCommand(?string $url, array $words): array
 {
     $command = ['tome:static', '--yes'];
     if (!namesUri($words)) {

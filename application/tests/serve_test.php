@@ -38,9 +38,11 @@ function launcher_answering(string $name, string $stdout, string $stderr = ''): 
     putenv("DRUPACK_RUNTIME_LAUNCHER=$stub/launcher");
 }
 
-test('the launcher\'s settings reach serve.php', function () {
+test('the launcher\'s settings reach serve.php, static null when the launcher leaves it out', function () {
     launcher_answering('settings', '{"docroot":"web","mercure":true,"subdomain":"shop"}');
-    same(['docroot' => 'web', 'mercure' => true, 'subdomain' => 'shop'], composerSettings('/project'));
+    same(['docroot' => 'web', 'mercure' => true, 'subdomain' => 'shop', 'static' => null], composerSettings('/project'));
+    launcher_answering('static-settings', '{"docroot":"web","mercure":false,"static":{"dynamic":["/search*"]}}');
+    same(['docroot' => 'web', 'mercure' => false, 'static' => ['dynamic' => ['/search*']]], composerSettings('/project'));
 });
 
 test('the launcher\'s refusal reaches the reader as it is', function () {
@@ -131,7 +133,7 @@ test('docs/cli.md names every engine command the usage names', function () {
             throw new RuntimeException("docs/cli.md's engine section omits $command");
         }
     }
-    same(['start', 'stop', 'drush', 'dr', 'php', 'clean', 'self-update', 'trust'], $commands[1]);
+    same(['start', 'stop', 'drush', 'dr', 'export', 'php', 'clean', 'self-update', 'trust'], $commands[1]);
 });
 
 $status = runCases();

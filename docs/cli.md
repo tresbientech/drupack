@@ -297,7 +297,7 @@ Five variables have no option:
 ## The engine executable
 
 ```
-drupack [start] [DIR] [--listen IP:PORT] [--foreground]
+drupack [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground]
 drupack stop [DIR]
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
@@ -340,6 +340,7 @@ and says it already serves.
   bind address otherwise.
 - The start refuses a folder whose PHP version or `composer.lock` extensions
   the bundled PHP does not meet, and names what is missing.
+drupack export [DRUSH_OPTIONS]
 - The start prints a one-time login link for uid 1, through the folder's Drush.
   It still serves when that fails, or when the folder has no Drush.
 - A folder whose database holds no installed site prints `Install:` with

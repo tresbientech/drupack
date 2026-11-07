@@ -4,7 +4,7 @@
 # or absent. tests/conformance/test_environment.py checks every line against the
 # sources.
 
-ALIAS          writers=application/process.php  readers=application/settings.php,application/tls-drupack-site.caddy,application/tls-mkcert-site.caddy
+ALIAS          writers=application/process.php  readers=application/settings.php,application/static-site-drupack.caddy,application/static-site-mkcert.caddy,application/tls-drupack-site.caddy,application/tls-mkcert-site.caddy
 APP_DIR        writers=launcher/plan.go,application/launch.php,build/seed.sh,build/dev/dev-entry.sh  readers=runtime/entrypoint.go,application/launch.php,application/settings.php,build/dev/dev-entry.sh
 BIND           writers=application/process.php  readers=application/Caddyfile,engine/Caddyfile
 BINARY         writers=runtime/entrypoint.go  readers=application/launch.php,engine/serve.php
@@ -14,7 +14,7 @@ CONSOLE_OWNED  writers=launcher/plan.go  readers=application/process.php
 CWD            writers=runtime/entrypoint.go  readers=application/launch.php,application/process.php,launcher/detach.go,runtime/entrypoint.go
 DATA_DIR       writers=application/launch.php,build/seed.sh  readers=application/settings.php,build/site-settings.php
 DETACHED       writers=launcher/detach.go  readers=launcher/launch_windows.go,runtime/entrypoint.go
-DOCROOT        writers=application/launch.php,engine/serve.php  readers=application/Caddyfile,engine/Caddyfile
+DOCROOT        writers=application/launch.php,engine/serve.php  readers=application/Caddyfile,application/static-dynamic.caddy,engine/Caddyfile
 FILES_DIR      writers=application/launch.php  readers=application/Caddyfile,application/launch.php,application/support/PublicFilesTemplateLoader.php,application/support/SiteDataPublicStream.php
 HOST           writers=application/launch.php  readers=application/settings.php
 ID             writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go,application/Caddyfile,engine/Caddyfile
@@ -30,11 +30,17 @@ PERSON         writers=application/process.php  readers=application/process.php
 PORT           writers=application/process.php  readers=application/tls-drupack-site.caddy,application/tls-mkcert-site.caddy,application/tls-none-site.caddy
 PROJECT_SNIPPET  writers=application/process.php  readers=application/Caddyfile,engine/Caddyfile,runtime/entrypoint.go
 SITE_VERSION   writers=launcher/plan.go  readers=runtime/entrypoint.go
+STATIC_BIND    writers=application/static.php  readers=application/static-site.caddy
+STATIC_DYNAMIC  writers=application/static.php  readers=application/static-dynamic.caddy
+STATIC_DYNAMIC_SNIPPET  writers=application/static.php  readers=application/static-site.caddy
+STATIC_PORT    writers=application/static.php  readers=application/static-site-drupack.caddy,application/static-site-mkcert.caddy,application/static-site-none.caddy
+STATIC_ROOT    writers=application/launch.php,engine/serve.php  readers=application/settings.php,application/static-site.caddy
+STATIC_SNIPPET  writers=application/static.php  readers=application/Caddyfile,engine/Caddyfile
 STOP_RECORD    writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go
 TLS            writers=application/process.php  readers=application/Caddyfile,engine/Caddyfile
-TLS_CA         writers=application/process.php  readers=application/tls-drupack-global.caddy,application/tls-drupack-site.caddy
-TLS_CERT       writers=application/process.php  readers=application/tls-mkcert-site.caddy
-TLS_KEY        writers=application/process.php  readers=application/tls-mkcert-site.caddy
+TLS_CA         writers=application/process.php  readers=application/static-site-drupack.caddy,application/tls-drupack-global.caddy,application/tls-drupack-site.caddy
+TLS_CERT       writers=application/process.php  readers=application/static-site-mkcert.caddy,application/tls-mkcert-site.caddy
+TLS_KEY        writers=application/process.php  readers=application/static-site-mkcert.caddy,application/tls-mkcert-site.caddy
 TLS_ROOT       writers=application/process.php  readers=application/tls-drupack-global.caddy,runtime/entrypoint.go
 TLS_ROOT_KEY   writers=application/process.php  readers=application/tls-drupack-global.caddy
 URL            writers=application/launch.php,engine/serve.php  readers=runtime/entrypoint.go

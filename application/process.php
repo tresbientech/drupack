@@ -404,6 +404,30 @@ function useTlsBundle(string $directory): void
     }
 }
 
+function listenerParts(string $listen, string $option = '--listen'): array
+{
+    // Listener values enter Caddy configuration and must contain only an IP address and port.
+    if (!preg_match('/^(\[[0-9a-fA-F:]+\]|[0-9.]+):([0-9]+)$/D', $listen, $listener)) {
+        throw new InvalidArgumentException("$option requires IP:PORT, with IPv6 enclosed in brackets");
+    }
+    return [trim($listener[1], '[]'), (int) $listener[2]];
+}
+
+// --static-listen resolved: $option, or the site listener's address on the port after $port.
+// Returns the bind, the port and the IP:PORT text the record keeps.
+function staticListener(?string $option, string $bind, int $port): array
+{
+    $listen = $option ?? urlHost($bind) . ':' . ($port + 1);
+    [$staticBind, $staticPort] = listenerParts($listen, '--static-listen');
+    if (!filter_var($staticBind, FILTER_VALIDATE_IP) || $staticPort < 1 || $staticPort > 65535) {
+        throw new InvalidArgumentException('Invalid --static-listen address or port');
+    }
+    if ($staticPort === $port) {
+        throw new InvalidArgumentException("--static-listen must name a port other than the site's $port");
+    }
+    return [$staticBind, $staticPort, $listen];
+}
+
 function listenerPlan(string $bind, int $port, string $host, string $scheme): array
 {
     return [

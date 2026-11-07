@@ -24,7 +24,7 @@ PATTERNS = {
         [rf'os\.Getenv\("{NAME}"\)'],
     ),
     ".php": (
-        [rf"putenv\(.*?{NAME}", rf"['\"]{NAME}['\"]\s*=>"],
+        [rf"putenv\(.*?{NAME}", rf"['\"]{NAME}['\"]\s*=>", rf"\[['\"]{NAME}['\"]\]\s*=(?!=)"],
         [rf"getenv\(['\"]{NAME}['\"]\)", rf"environment\(['\"]{NAME}['\"]\)"],
     ),
     ".sh": (
@@ -110,11 +110,13 @@ class EnvironmentContract(unittest.TestCase):
     def test_every_caddyfile_reference_sits_inside_double_quotes(self):
         # Caddy splices the value into the text before it reads quotes, so a start refuses a
         # value holding a double quote only where the reference has quotes around it.
+        # STATIC_DYNAMIC stays bare to splice one path token per pattern; siteconfig's
+        # pathPattern refuses whitespace, quotes and braces in each pattern.
         for path in sources():
             if Path(path).name == "Caddyfile" or Path(path).suffix == ".caddy":
                 with self.subTest(path=path):
                     for number, line in enumerate((ROOT / path).read_text().splitlines(), 1):
-                        unquoted = re.sub(r'"[^"]*"', "", line)
+                        unquoted = re.sub(r'"[^"]*"', "", line).replace("{$DRUPACK_RUNTIME_STATIC_DYNAMIC}", "")
                         self.assertNotIn("{$DRUPACK_RUNTIME_", unquoted, f"{path}:{number}")
 
 
