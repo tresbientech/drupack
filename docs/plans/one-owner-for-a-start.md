@@ -82,7 +82,7 @@ The launcher parser reads `stop` and its options for both executables. The state
 - [ ] `conformance -k StopCases -k StopRecordModeCases` passes.
 - [ ] A new `PreviousRelease` test starts the previous release's server and stops it with the new `stop`. It passes with `DRUPACK_TEST_PREVIOUS` set.
 - [ ] Go table tests cover the parser's `stop` rows and the state store's lease test against a PHP `flock` holder.
-- [ ] The help and `docs/cli.md` assertion moves to a Go test and passes.
+- [ ] A Go test asserts `stop`'s options against the help text and `docs/cli.md`.
 
 ---
 
@@ -114,8 +114,8 @@ An engine start with `--foreground` runs from the launcher. It parses, reads the
 
 ### Acceptance criteria
 
-- [ ] `conformance -k EngineExecutable -k KeepRedirects -k TlsSources -k StaticSite -k StaticSiteTls -k NetworkListener` passes.
-- [ ] The variant's musl run of `-k MercureHub -k ProjectRules` passes, including the broken-snippet message.
+- [ ] `conformance -k EngineExecutable -k KeepRedirects` passes. It covers TLS, Mercure, the static port and both project snippet cases.
+- [ ] The help and `docs/cli.md` assertion moves to a Go test over every option and passes.
 - [ ] Go table tests compare rendered Caddyfiles for each TLS source, each static setting and Mercure on and off.
 - [ ] A Go test in the builder image adapts each rendered file with the pinned Caddy and runs the adapted config. It also checks a quoted value holding `\"`.
 - [ ] A Go test refuses `{` and `}` in both directory options.
@@ -136,6 +136,8 @@ A Packaged site start with `--foreground` runs from the launcher, on the start p
 - [ ] `conformance -k FirstStartAndListener -k RecordedBackendAndAdoption -k InterruptedStartAndRace -k EquivalentPathLock -k SiteName` passes.
 - [ ] `conformance -k MysqlServerDatabase -k PostgresqlServerDatabase -k PostgresqlLifecycle -k ExistingSiteAdoption -k OfflineRun` passes.
 - [ ] `conformance -k HandoverCases -k ServingLeaseCases -k TakenPortCases -k MercureHubHttps -k MercureHubOff` passes.
+- [ ] `conformance -k TlsSources -k StaticSite -k StaticSiteTls -k NetworkListener` passes.
+- [ ] The variant's musl run of `-k MercureHub -k ProjectRules` passes, including the broken-snippet message.
 - [ ] PHP tests call `prepare`, `check` and `login` and assert their result records.
 - [ ] `conformance -k PreviousRelease` passes with `DRUPACK_TEST_PREVIOUS` set.
 
@@ -170,7 +172,7 @@ The PHP start scripts, the replaced Caddy files and the `engine/` directory go. 
 
 ### Acceptance criteria
 
-- [ ] `rg -ln 'launch\.php|serve\.php|lay-app|tls-source|browser-open|_SNIPPET' -g '!docs/adr/**' -g '!docs/prd/**' -g '!docs/plans/**'` prints nothing.
+- [ ] `rg -ln 'launch\.php|serve\.php|lay-app|tls-source|browser-open|_SNIPPET' -g '!*.md'` prints nothing.
 - [ ] `test ! -e engine` succeeds.
 - [ ] The unfiltered conformance run passes on the demo, the variant and the engine executable.
 
@@ -187,11 +189,11 @@ The seed build runs PHP's preparation code against the seed's SQLite database. T
 
 ### Acceptance criteria
 
-- [ ] `test ! -e build/seed.sh` succeeds, and `conformance -k SeededSite -k InstallScript` passes.
+- [ ] `test ! -e build/seed.sh` succeeds, and `conformance -k SeededSite` passes.
 - [ ] A Go test packs two files from one payload and asserts one compression.
 - [ ] A Go test asserts the checksum changes when a file the payload excludes changes.
 - [ ] A Go test builds the engine plan and asserts it names no docroot.
-- [ ] `php tests` pass from a clean checkout with no `dist/` directory.
+- [ ] `php tests` pass with their own Composer install and no `application/vendor` link into `dist/work`.
 
 ---
 
@@ -207,5 +209,6 @@ A new ADR records D1 to D20 and D26. It supersedes ADR 0030, 0039 and 0040, and 
 ### Acceptance criteria
 
 - [ ] `rg -n 'Superseded|Amended' docs/adr/0014* docs/adr/0028* docs/adr/0030* docs/adr/0039* docs/adr/0040* docs/adr/0044* docs/adr/0047* docs/adr/0048*` names the new ADR in each file.
-- [ ] The Go test over `docs/cli.md` from phase 2 passes.
+- [ ] The Go test over `docs/cli.md` from phase 4 passes.
+- [ ] `rg -ln 'launch\.php|serve\.php|lay-app|tls-source|_SNIPPET' -g '*.md' -g '!docs/adr/**' -g '!docs/prd/**' -g '!docs/plans/**'` prints nothing.
 - [ ] `bash build/qa.sh` and the unfiltered conformance run pass.
