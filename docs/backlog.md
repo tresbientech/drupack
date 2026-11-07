@@ -34,13 +34,20 @@ maintained package would replace them, at the cost of the first Python
 dependency in a repo that has none. Lean: judge the dependency against those 14
 calls.
 
-## A Windows start without a terminal
+## A start without a terminal
 
 A double-click on the Windows executable opens a console window that closes
-before its message can be read. A tray app would run a site in the background
-and show a notification icon, which needs a second GUI executable built from the
-same source. Parked in favour of a clearer command line first. The console
-detection and the browser open have since removed the worst of it.
+before its message can be read. On macOS a reader asked for an app in
+`/Applications` to keep in the Dock, installed from a DMG, with a preferences
+pane that picks the Project folder. Both need a second GUI executable built from
+the same source: a tray app on Windows, an app bundle on macOS. It starts and
+stops a site and shows whether it runs, which needs `status`. The
+`dockapp-experiment` branch of frees-au/ce builds such a bundle in
+`scripts/build-local-app.sh`. It is an ad-hoc signed AppKit and WebKit wrapper
+that stops its server when the app quits. A DMG downloaded in a browser carries
+the quarantine mark, so it waits on Signing. Parked in favour of a clearer
+command line first. The console detection and the browser open have since
+removed the worst of it.
 
 ## Signing
 
@@ -146,6 +153,15 @@ winget installs a bare `.exe` as a `portable` package and puts it on PATH. Its
 manifests live in `microsoft/winget-pkgs`, and a first package waits days for
 review. Lean: submit `drupack` with `wingetcreate new` after a release with
 versioned names, then update it from the release workflow.
+
+## A Homebrew formula
+
+A reader on macOS asked to install with Homebrew. A formula installs `drupack`
+onto PATH from a release's versioned file, checked against its SHA-256. It
+needs no GUI and no signing, as the install script needs none. A cask would
+install the app that "A start without a terminal" covers. Lean: publish a
+formula in a `homebrew-tap` repository beside `drupack`, and update it from the
+release workflow, as the winget package plans.
 
 ## Whether the forge refuses a version tag pushed by a person
 
@@ -253,3 +269,19 @@ site's single-file limits. Gaps found in the tresbien.tech review on 2026-10-21:
   word that checks the snippet without a start.
 - The guards refuse `drupack.caddy` by name and not `drupack.yml`, which a
   project whose docroot is its root serves as text.
+
+## Project commands around a start
+
+A reader asked Drupack to run a project's own commands, so serving a site needs
+no terminal of its own. Three moments come from frees-au/ce and a front-end
+build:
+
+- before serving: build the site from code when its SQLite database is missing
+- for the server's whole life: `vite watch`
+- at stop, while the site still answers: export content to code
+
+Drupack runs no project command today, and the watch runner supervises cron
+alone. Lean: `composer.json` `extra.drupack` names one command per moment. The
+watch runner starts the long-running one and stops it with the server. A command
+finds the host's PATH, with Bundled Node first on a Packaged site. ADR 0027
+stands: the engine carries no Node, and a developer running vite has one.
