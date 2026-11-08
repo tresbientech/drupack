@@ -9,24 +9,47 @@ import (
 )
 
 var (
-	listenRe = regexp.MustCompile(`^(\[[0-9a-fA-F:]+\]|[0-9.]+):([0-9]+)$`)
+	// listenRe splits HOST:PORT at the colon before the port.
+	listenRe = regexp.MustCompile(`^(.+):([0-9]+)$`)
+	// ipShapeRe is the host a site's listener takes: IPv4, or IPv6 in brackets.
+	ipShapeRe = regexp.MustCompile(`^(\[[0-9a-fA-F:]+\]|[0-9.]+)$`)
 	// hostRe is one or more DNS labels, as PHP's FILTER_FLAG_HOSTNAME reads them.
 	hostRe = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?$`)
 )
 
+// splitListen splits HOST:PORT. ok is false for a value with no port.
+func splitListen(listen string) (host, port string, ok bool) {
+	parts := listenRe.FindStringSubmatch(listen)
+	if parts == nil {
+		return "", "", false
+	}
+	return parts[1], parts[2], true
+}
+
 // parseListen splits an IP:PORT the reader wrote. option names the option in
 // the refusal.
 func parseListen(listen, option string) (bind string, port int, err error) {
-	parts := listenRe.FindStringSubmatch(listen)
-	if parts == nil {
+	host, digits, ok := splitListen(listen)
+	if !ok || !ipShapeRe.MatchString(host) {
 		return "", 0, fmt.Errorf("%s requires IP:PORT, with IPv6 enclosed in brackets", option)
 	}
-	bind = strings.Trim(parts[1], "[]")
-	port, convertErr := strconv.Atoi(parts[2])
+	bind = strings.Trim(host, "[]")
+	port, convertErr := strconv.Atoi(digits)
 	if net.ParseIP(bind) == nil || convertErr != nil || port < 1 || port > 65535 {
 		return "", 0, fmt.Errorf("Invalid %s address or port", option)
 	}
 	return bind, port, nil
+}
+
+// engineListen splits the engine's --listen, which takes any host before a
+// port of up to five digits, and the Listener record the engine wrote from it.
+func engineListen(listen string) (bind string, port int, err error) {
+	host, digits, ok := splitListen(listen)
+	port, _ = strconv.Atoi(digits)
+	if !ok || len(digits) > 5 || port > 65535 {
+		return "", 0, fmt.Errorf("--listen takes IP:PORT, got %s", listen)
+	}
+	return strings.Trim(host, "[]"), port, nil
 }
 
 // staticListener resolves --static-listen: option, or the site listener's
@@ -63,7 +86,7 @@ func siteURL(scheme, host string, port int) string {
 func probeHost(bind string) string {
 	switch bind {
 	case "0.0.0.0":
-		return "127.0.0.1"
+		return loopbackIP
 	case "::":
 		return "::1"
 	}

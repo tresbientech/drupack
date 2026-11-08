@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -109,6 +110,23 @@ func openBrowser(address string) {
 		command = exec.Command("xdg-open", address)
 	}
 	_ = command.Start()
+}
+
+// closeInherited marks every descriptor past stderr close-on-exec. The launcher
+// hands the server the Serving lease without that flag, and a browser the
+// server starts would otherwise hold the lease after the server exits.
+// syscall.CloseOnExec takes an int on Unix and a Handle on Windows, which
+// never calls this.
+func closeInherited[F ~int | ~uintptr](closeOnExec func(F)) {
+	entries, err := os.ReadDir("/dev/fd")
+	if err != nil {
+		panic(err)
+	}
+	for _, entry := range entries {
+		if fd, _ := strconv.Atoi(entry.Name()); fd > 2 {
+			closeOnExec(F(fd))
+		}
+	}
 }
 
 // A healthy stop takes about three seconds.
@@ -246,6 +264,8 @@ func init() {
 		// A Windows server redirected to a file writes from the file's end.
 		if runtime.GOOS == "windows" {
 			writeFromRedirectedEnd()
+		} else {
+			closeInherited(syscall.CloseOnExec)
 		}
 		// The server waits for itself. A separate process would first extract its own copy
 		// of the embedded application, which takes longer than the wait on a slow disk.

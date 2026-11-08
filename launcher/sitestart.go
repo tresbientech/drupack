@@ -102,7 +102,7 @@ func startSite(l Launch, c command) error {
 	if err := operate(l, withInputs(e, inputs), &owed, false, "check", "site", runtime.Canonical(data)); err != nil {
 		return err
 	}
-	listen := cmp.Or(c.options["listen"], "127.0.0.1:"+strconv.Itoa(site.Port))
+	listen := cmp.Or(c.options["listen"], loopbackIP+":"+strconv.Itoa(site.Port))
 	bind, port, err := parseListen(listen, "--listen")
 	if err != nil {
 		return err
@@ -147,6 +147,13 @@ func startSite(l Launch, c command) error {
 	named := files != ""
 	files, scratch, err := siteDirs(data, files, site.Static != nil)
 	if err != nil {
+		return err
+	}
+	// The Caddyfile holds the resolved paths, and a link can lead to a brace.
+	if err := caddyfile.RefuseBraces("--data-dir", runtime.Canonical(data)); err != nil {
+		return err
+	}
+	if err := caddyfile.RefuseBraces("--files-dir", runtime.Canonical(files)); err != nil {
 		return err
 	}
 	s := packagedStart{l: l, c: c, site: site, e: e, inputs: inputs, data: runtime.Canonical(data), files: runtime.Canonical(files), scratch: runtime.Canonical(scratch), choice: choice, plan: plan, listen: listen}
@@ -277,6 +284,9 @@ func (s packagedStart) served(installed bool) error {
 		return fmt.Errorf("Another %s start is preparing this Site data: %s", s.l.Name, s.data)
 	}
 	// The record names the address that server took, not the one this start planned.
+	// A Site data a release before 0.6.0 installed holds no record, and neither does
+	// one whose unreadable record the reader removed as readListener says. Those
+	// fall back to this start's plan.
 	bind, url := s.plan.Bind, siteURL(state.UnrecordedScheme, s.plan.Host, s.plan.Port)
 	record, recorded, err := readListener(state.At(s.data), s.l.Name)
 	if err != nil {
@@ -318,13 +328,13 @@ func (s packagedStart) served(installed bool) error {
 // through application's Drush. failure is Drush's reason when it mints none.
 func (s packagedStart) login(application, url string) (link, failure string, err error) {
 	e := environ{entries: slices.Clone(s.e.entries), fold: s.e.fold}
-	e.put("DRUPACK_DRUSH_SCRIPT=" + runtime.Canonical(filepath.Join(application, drushScript)))
+	e.put("DRUPACK_DRUSH_SCRIPT=" + runtime.Canonical(filepath.Join(application, runtime.DrushScript)))
 	return mint(s.l, e.entries, url, filepath.Join(application, "drush"), application, "/admin/dashboard")
 }
 
 // mint runs Drush's user:login for uid 1 at url and returns the link, or the
 // reason Drush gave when it mints none. The link is a working credential bound
-// for a terminal or a browser command, so it must start with url.
+// for a terminal or a browser command, so it must start with url and its slash.
 func mint(l Launch, env []string, url, drush, directory string, path ...string) (link, failure string, err error) {
 	command := exec.Command(l.Entry, append([]string{"php-cli", drush, "user:login", "--no-browser", "--uri=" + url}, path...)...)
 	command.Dir = directory
@@ -339,7 +349,7 @@ func mint(l Launch, env []string, url, drush, directory string, path ...string) 
 			return "", "", errors.New("Cannot run Drush")
 		}
 	}
-	if link = strings.TrimSpace(out.String()); !strings.HasPrefix(link, url) {
+	if link = strings.TrimSpace(out.String()); !strings.HasPrefix(link, strings.TrimSuffix(url, "/")+"/") {
 		return "", strings.Join(strings.Fields(reason.String()), " "), nil
 	}
 	return link, "", nil
@@ -388,7 +398,7 @@ func (s packagedStart) serve(lease *state.Lease) error {
 	// points back at this runtime.
 	path, _ := s.e.get("PATH")
 	s.e.put("PATH=" + filepath.Join(application, "bin") + string(os.PathListSeparator) + path)
-	s.e.put("DRUPACK_DRUSH_SCRIPT=" + application + "/" + filepath.ToSlash(drushScript))
+	s.e.put("DRUPACK_DRUSH_SCRIPT=" + application + "/" + filepath.ToSlash(runtime.DrushScript))
 	prepared, err := s.prepare()
 	if err != nil {
 		return err

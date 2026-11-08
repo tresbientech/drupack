@@ -64,8 +64,14 @@ var engineOptions = []option{
 // defaultDataDir is the Site data of a reader who names none.
 const defaultDataDir = "./data"
 
+// defaultFolder is the engine's project folder when the reader names none.
+const defaultFolder = "."
+
+// loopbackIP is the address a start binds when the reader names no listener.
+const loopbackIP = "127.0.0.1"
+
 // defaultListen is where the engine serves a reader who names no listener.
-const defaultListen = "127.0.0.1:3787"
+const defaultListen = loopbackIP + ":3787"
 
 // parse reads args, os.Args, for the words the launcher answers. lookup reads
 // the environment.
@@ -137,7 +143,7 @@ func parseFolderStop(arguments []string) (command, error) {
 	if len(arguments) > 1 || len(arguments) == 1 && strings.HasPrefix(arguments[0], "-") {
 		return command{}, fmt.Errorf("stop takes a folder alone. Run %s --help.", siteName)
 	}
-	target := "."
+	target := defaultFolder
 	if len(arguments) == 1 {
 		target = arguments[0]
 	}

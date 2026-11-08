@@ -40,7 +40,8 @@ func runStop(c command, root string, out io.Writer) error {
 	return stop(state.At(data), "Site data", data, stopWait, out)
 }
 
-// projectFolder resolves links before it makes the path absolute, as PHP's realpath did.
+// projectFolder resolves links first, then makes the path absolute. The folder's
+// cache entry is keyed by this path, which must match the previous release's.
 func projectFolder(written string) (string, error) {
 	missing := fmt.Errorf("No such directory: %s. Run %s --help.", written, siteName)
 	resolved, err := filepath.EvalSymlinks(written)

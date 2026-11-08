@@ -24,3 +24,22 @@ func TestLeaseNobodyCanOpenIsAnError(t *testing.T) {
 		t.Errorf("Lease() = %v", err)
 	}
 }
+
+// Only a missing lease means no server. A Site data nobody may search could hold one.
+func TestLeaseNobodyCanStatIsAnError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root searches any directory")
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, state.LeaseName), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+	_, err := state.At(dir).Lease()
+	if err == nil || err.Error() != "Cannot open the serving lease: "+filepath.Join(dir, state.LeaseName) {
+		t.Errorf("Lease() = %v", err)
+	}
+}

@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"regexp"
 	goruntime "runtime"
 	"strconv"
 	"strings"
@@ -21,20 +20,6 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/tls"
 )
-
-// engineListenRe is the engine's --listen: anything before a port of up to five digits.
-var engineListenRe = regexp.MustCompile(`^(.+):([0-9]{1,5})$`)
-
-func engineListen(listen string) (bind string, port int, err error) {
-	parts := engineListenRe.FindStringSubmatch(listen)
-	if parts != nil {
-		port, _ = strconv.Atoi(parts[2])
-	}
-	if parts == nil || port > 65535 {
-		return "", 0, fmt.Errorf("--listen takes IP:PORT, got %s", listen)
-	}
-	return strings.Trim(parts[1], "[]"), port, nil
-}
 
 // startPlan is every listener value a start serves with. Nothing after it
 // chooses a listener, a scheme or a static value again.
@@ -137,7 +122,7 @@ func operate(l Launch, env []string, record any, stream bool, arguments ...strin
 // a child that does all of it.
 func startEngine(l Launch, c command) error {
 	if c.options["foreground"] == "" && !l.ConsoleOwned {
-		project, err := projectFolder(cmp.Or(c.target, "."))
+		project, err := projectFolder(cmp.Or(c.target, defaultFolder))
 		if err != nil {
 			return err
 		}
@@ -160,7 +145,7 @@ func startEngine(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
-	project, err := projectFolder(cmp.Or(c.target, "."))
+	project, err := projectFolder(cmp.Or(c.target, defaultFolder))
 	if err != nil {
 		return err
 	}
@@ -311,7 +296,7 @@ func entrance(l Launch, env []string, project string, installed *bool, url strin
 	if installed != nil && !*installed {
 		return "", url + "/core/install.php", nil
 	}
-	drush := project + "/" + filepath.ToSlash(drushScript)
+	drush := project + "/" + filepath.ToSlash(runtime.DrushScript)
 	if info, err := os.Stat(drush); err != nil || !info.Mode().IsRegular() {
 		fmt.Fprintf(os.Stderr, "No login link: %s has no Drush. composer require drush/drush adds one.\n", project)
 		return "", "", nil

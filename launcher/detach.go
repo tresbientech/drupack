@@ -27,8 +27,9 @@ const relayPoll = 100 * time.Millisecond
 
 // childWord opens the line a detaching start gives its child, before the
 // reader's words: LOG PERSON. LOG is the server log the child writes once it
-// holds the lease; PERSON is 1 when a terminal started the parent.
-const childWord = "detached"
+// holds the lease; PERSON is 1 when a terminal started the parent. The leading
+// dashes keep it apart from a folder the engine serves, and the help names it nowhere.
+const childWord = "--detached-child"
 
 // logMarker is the line a detached child prints on its stdout once it holds
 // the lease and writes to the server log. No line a start prints holds a NUL.

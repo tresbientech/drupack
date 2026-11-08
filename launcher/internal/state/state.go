@@ -34,8 +34,9 @@ func At(path string) Dir {
 }
 
 // FolderEntry is the entry of project, a canonical path, under root. Windows
-// spells one path in several casings, so fold lowercases ASCII letters first,
-// as PHP's strtolower did in the previous release.
+// spells one path in several casings, so fold lowercases ASCII letters first.
+// The key must match the one the previous release computed, which lowered
+// ASCII letters alone and kept every other byte.
 func FolderEntry(root, project string, fold bool) Dir {
 	key := []byte(project)
 	if fold {
@@ -55,6 +56,11 @@ func (d Dir) Path() string {
 
 func (d Dir) lease() string {
 	return filepath.Join(d.path, LeaseName)
+}
+
+// leaseRefusal is the error for a lease this process cannot open.
+func leaseRefusal(path string) error {
+	return fmt.Errorf("Cannot open the serving lease: %s", filepath.ToSlash(path))
 }
 
 // Channel is the stop channel a running server's stop record names.

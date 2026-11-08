@@ -17,9 +17,6 @@ import (
 // unrecordedHost is the host drush addresses on Site data no start has served.
 const unrecordedHost = "localhost"
 
-// drushScript is where Drush lives under an application or a project.
-var drushScript = filepath.Join("vendor", "drush", "drush", "drush.php")
-
 // drushCall runs application's drush entry on script with words. Drush's
 // children, and Tome's, run the php on PATH, which bin/ points back at the runtime.
 func drushCall(l Launch, e environ, application, script string, words []string) Command {
@@ -46,7 +43,7 @@ func siteDrush(l Launch, c command, cwd string, e environ) (Command, error) {
 	}
 	// Drush's own help and list read no site.
 	if len(c.words) > 0 && slices.Contains([]string{"--help", "-h", "list"}, c.words[0]) {
-		return drushCall(l, e, l.Application, filepath.Join(l.Application, drushScript), c.words), nil
+		return drushCall(l, e, l.Application, filepath.Join(l.Application, runtime.DrushScript), c.words), nil
 	}
 	s, err := openSite(l, site, c, cwd, e)
 	if err != nil {
@@ -65,7 +62,7 @@ type openedSite struct {
 }
 
 func (s openedSite) drush(l Launch, words []string) Command {
-	return drushCall(l, s.e, s.application, filepath.Join(s.application, drushScript), words)
+	return drushCall(l, s.e, s.application, filepath.Join(s.application, runtime.DrushScript), words)
 }
 
 // openSite reads the Site data c names and gives Drush and settings.php the
@@ -97,7 +94,7 @@ func openSite(l Launch, site siteconfig.Site, c command, cwd string, e environ) 
 		scheme = record.Scheme
 		files = cmp.Or(files, record.FilesDir)
 	}
-	listen = cmp.Or(listen, "127.0.0.1:"+strconv.Itoa(site.Port))
+	listen = cmp.Or(listen, loopbackIP+":"+strconv.Itoa(site.Port))
 	bind, port, err := parseListen(listen, "--listen")
 	if err != nil {
 		return openedSite{}, err
@@ -226,7 +223,7 @@ func (f engineProject) drush(l Launch, e environ, words []string) (Command, erro
 			return Command{}, err
 		}
 		if recorded {
-			bind, port, err := parseListen(record.Listen, "--listen")
+			bind, port, err := engineListen(record.Listen)
 			if err != nil {
 				return Command{}, err
 			}
@@ -235,7 +232,7 @@ func (f engineProject) drush(l Launch, e environ, words []string) (Command, erro
 			}
 		}
 	}
-	script := filepath.Join(f.project, drushScript)
+	script := filepath.Join(f.project, runtime.DrushScript)
 	if info, err := os.Stat(script); err != nil || !info.Mode().IsRegular() {
 		return Command{}, fmt.Errorf("%s has no Drush: %s does not exist. Run composer require drush/drush in it.", runtime.Canonical(f.project), runtime.Canonical(script))
 	}

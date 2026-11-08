@@ -140,9 +140,15 @@ Each row records a decision as built, with its reason.
   engine's minting Drush and the server all hold the lease, so no process that
   writes Site data outlives it. A step's long-lived grandchild would keep the
   lease after the start dies.
+- The server marks its inherited descriptors close-on-exec, so a browser it
+  opens holds no lease. Its cron Drush holds none either, and the server waits
+  for that Drush before it exits.
 - The brace refusal covers the engine's project folder and docroot, and the
-  absolute `--data-dir` and typed `--files-dir`. A recorded files directory from
-  an older release goes unchecked, as the double-quote check left it.
+  site's `--data-dir` and `--files-dir`, as typed and once links resolve. The
+  resolved check also covers a files directory an older release recorded.
+- A value whose backslash precedes a double quote or ends it goes into the
+  Caddyfile between backticks, since no double-quote escape holds it. A value
+  that also holds a backtick is refused.
 - The runtime feeds the adapted JSON to `run --config -` through a pipe set as
   `os.Stdin`, so no file holds the secrets twice. A SIGUSR1 reload rereads an
   empty pipe, so a reload
@@ -157,8 +163,11 @@ Each row records a decision as built, with its reason.
   tells the parent with a marker line. A losing start leaves the winner's log
   alone. The child catches SIGPIPE, so a closed parent fails a write and ends
   nothing.
-- The hidden leading argument `--console-owned` marks a start from a Windows file
-  manager. The parser rejects that spelling from a reader.
+- Two hidden leading arguments are stripped before the parser reads the line.
+  `--console-owned` marks a start from a Windows file manager, and
+  `--detached-child LOG PERSON` marks the child of a detached start. A reader
+  who types either gets that mode, not an unknown-argument error. A leading `-`
+  keeps each apart from an engine folder name.
 - A typed `--database`, `--db-*`, `--admin-*` and `--site-name` reach `prepare`
   and `check` under their `DRUPACK_*` input names, and never the server's
   environment.
@@ -189,6 +198,9 @@ Decisions for the build were made after the PRD, and stay out of this ADR:
 
 - `build/app-payload.sh` stays. The Go build compresses its tar once and every
   pack step carries that file. The PRD removed the script.
+- The test that the checksum changes with a file the payload leaves out lives in
+  `tests/conformance/test_app_payload.py`, beside the script that owns the
+  exclusions. The plan had a Go test.
 - Engine and site plans share one `Request` type, and the engine passes no
   docroot to the script. The PRD asked for separate input types. A split would
   touch `resolveRuntimes` and `packSteps` for no change in behaviour.

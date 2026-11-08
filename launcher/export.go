@@ -32,9 +32,6 @@ func siteExport(l Launch, c command, cwd string, e environ) (exportCall, error) 
 	if site.Static == nil {
 		return exportCall{}, errors.New("export needs a site whose composer.json sets extra.drupack.static")
 	}
-	if err := checkDatabase(c, e); err != nil {
-		return exportCall{}, err
-	}
 	s, err := openSite(l, site, c, cwd, e)
 	if err != nil {
 		return exportCall{}, err

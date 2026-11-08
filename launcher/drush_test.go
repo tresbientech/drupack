@@ -404,6 +404,25 @@ func TestEngineDrushEnvironment(t *testing.T) {
 	}
 }
 
+// The engine's --listen takes a hostname, and drush reads back the record that start wrote.
+func TestEngineDrushReadsAHostnameListener(t *testing.T) {
+	f := newProject(t, `{"extra": {"drupack": {"mercure": true}}}`)
+	put(t, filepath.Join(f.project, "vendor", "drush", "drush", "drush.php"), "<?php")
+	entry := state.FolderEntry(f.root, f.project, false)
+	put(t, filepath.Join(entry.Path(), "mercure_publisher_secret"), "pub")
+	put(t, filepath.Join(entry.Path(), "mercure_subscriber_secret"), "sub")
+	if err := entry.WriteListener(state.Listener{Listen: "localhost:8080", Host: "localhost", Scheme: "http"}); err != nil {
+		t.Fatal(err)
+	}
+	call, err := drushPlan(f.launch(), parseDrush(t, true, "status"), f.cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := environmentOf(call)["DRUPACK_MERCURE_URL"], "http://localhost:8080/.well-known/mercure"; got != want {
+		t.Errorf("DRUPACK_MERCURE_URL = %q, want %q", got, want)
+	}
+}
+
 func TestEngineDrushWithoutAServedHub(t *testing.T) {
 	f := newProject(t, `{"extra": {"drupack": {"mercure": true}}}`)
 	put(t, filepath.Join(f.project, "vendor", "drush", "drush", "drush.php"), "<?php")

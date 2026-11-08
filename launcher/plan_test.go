@@ -88,28 +88,6 @@ func TestPlanEnvironment(t *testing.T) {
 			lacks: []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "GLIBC_TUNABLES"},
 		},
 		{
-			name: "the TLS folder is named",
-			edit: func(l *Launch) { l.TLSDir = "/home/user/.config/drupack/tls" },
-			want: map[string]string{"DRUPACK_TLS_DIR": "/home/user/.config/drupack/tls"},
-		},
-		{
-			name: "the TLS folder replaces an inherited one",
-			edit: func(l *Launch) {
-				l.TLSDir = "/caller/tls"
-				l.Parent = []string{"DRUPACK_TLS_DIR=caller/tls"}
-			},
-			want: map[string]string{"DRUPACK_TLS_DIR": "/caller/tls"},
-		},
-		{
-			name:  "an account with no config folder gets no TLS folder",
-			lacks: []string{"DRUPACK_TLS_DIR"},
-		},
-		{
-			name: "a caller who empties DRUPACK_TLS_DIR keeps it empty",
-			edit: func(l *Launch) { l.Parent = []string{"DRUPACK_TLS_DIR="} },
-			want: map[string]string{"DRUPACK_TLS_DIR": ""},
-		},
-		{
 			name: "a site names itself and its release",
 			want: map[string]string{
 				"DRUPACK_RUNTIME_NAME":         "demo",

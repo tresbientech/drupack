@@ -58,6 +58,26 @@ class BrowserOpenCases(harness.ConformanceCase):
         finally:
             restart.stop()
 
+    def test_the_browser_holds_no_lease(self):
+        # A browser the server starts can outlive the server, and stop waits for the lease.
+        if harness.current_platform() != harness.LINUX:
+            self.skipTest("/proc lists a process's descriptors on Linux alone")
+        env, recorded = _recorder_env(self.case_dir / "recorder")
+        self._install(env, recorded)
+        descriptors = self.case_dir / "recorder" / "descriptors"
+        script = self.case_dir / "recorder" / harness.opener_name()
+        script.write_text(f'#!/bin/sh\nfor fd in /proc/$$/fd/*; do readlink "$fd"; done > "{descriptors}"\n'
+                          f'echo "$1" >> "{recorded}"\n')
+
+        restart = harness.Site(harness.BINARY, self.case_dir / "restart")
+        restart.start(self.data, attach_pty=True, env=env)
+        try:
+            harness.wait_for_recorded_url(recorded, harness.WAITS["browser_open"].seconds)
+            held = [line for line in descriptors.read_text().splitlines() if line.endswith("serving.lock")]
+            self.assertEqual(held, [], "the browser opener holds the Serving lease")
+        finally:
+            restart.stop()
+
     def test_no_browser_start_opens_nothing(self):
         env, recorded = _recorder_env(self.case_dir / "recorder")
         self._install(env, recorded)

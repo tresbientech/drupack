@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"syscall"
 	"unsafe"
 )
@@ -28,7 +29,9 @@ func launch(c Command) error {
 	command.Stderr = os.Stderr
 	command.Env = c.Env
 	command.Dir = c.Dir
-
+	// The child shares the console and gets a Ctrl+C itself. This process waits
+	// for it, so its handle holds the lease until the server exits.
+	signal.Notify(make(chan os.Signal, 1), os.Interrupt)
 	err := command.Run()
 	if err == nil {
 		os.Exit(0)

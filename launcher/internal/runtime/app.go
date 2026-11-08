@@ -16,6 +16,9 @@ import (
 
 const appDirName = "app"
 
+// DrushScript is where Drush lives under an application or a project.
+var DrushScript = filepath.Join("vendor", "drush", "drush", "drush.php")
+
 // completeName is the last file created, so a directory without it was interrupted.
 const completeName = ".complete"
 

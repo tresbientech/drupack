@@ -68,10 +68,18 @@ func TestQuote(t *testing.T) {
 		`/we"b/docroot`: `"/we\"b/docroot"`,
 		`two "quotes"`:  `"two \"quotes\""`,
 		``:              `""`,
+		`/a\b`:          `"/a\b"`,
+		// The lexer reads \" inside double quotes as a quote, so these go between backticks.
+		`/srv/site\`: "`/srv/site\\`",
+		`/a\"b`:      "`/a\\\"b`",
 	} {
-		if got := quote(value); got != want {
-			t.Errorf("quote(%q) = %s, want %s", value, got, want)
+		if got, err := quote(value); got != want || err != nil {
+			t.Errorf("quote(%q) = %s, %v, want %s", value, got, err, want)
 		}
+	}
+	value := "/a`b\\"
+	if _, err := quote(value); err == nil || err.Error() != "A Caddyfile token cannot hold a backtick together with a backslash before a quote or at the end: "+value {
+		t.Errorf("quote(%q) = %v", value, err)
 	}
 }
 
@@ -91,12 +99,12 @@ func TestRefuseBraces(t *testing.T) {
 
 func TestAddresses(t *testing.T) {
 	c := Config{TLS: tls.Choice{Source: "none"}}
-	if got := c.Addresses(3787); got != `"http://:3787"` {
+	if got, err := c.Addresses(3787); got != `"http://:3787"` || err != nil {
 		t.Errorf("none: %s", got)
 	}
 	c = Config{TLS: tls.Choice{Source: "mkcert", Alias: "a.drupack.site"}}
 	want := `"https://a.drupack.site:3788", "https://localhost:3788", "https://127.0.0.1:3788", "https://[::1]:3788"`
-	if got := c.Addresses(3788); got != want {
+	if got, err := c.Addresses(3788); got != want || err != nil {
 		t.Errorf("mkcert: %s", got)
 	}
 }

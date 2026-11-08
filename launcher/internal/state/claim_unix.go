@@ -3,7 +3,8 @@
 package state
 
 import (
-	"fmt"
+	"errors"
+	"io/fs"
 	"os"
 	"syscall"
 )
@@ -21,7 +22,7 @@ type Lease struct {
 func lockFile(path string, flags int) (file *os.File, err error) {
 	fd, err := syscall.Open(path, flags, 0o600)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot open the serving lease: %s", path)
+		return nil, leaseRefusal(path)
 	}
 	if err := syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		syscall.Close(fd)
@@ -40,10 +41,17 @@ func (d Dir) Claim() (*Lease, error) {
 }
 
 // Lease reports whether a server holds the Serving lease. No lease file means
-// no server ever ran from the directory. PHP opens the lease write-only, so
+// no server ever ran from the directory, and a state path that names a file
+// holds none. PHP opens the lease write-only, so
 // this open asks for no more.
 func (d Dir) Lease() (bool, error) {
-	if info, err := os.Stat(d.lease()); err != nil || !info.Mode().IsRegular() {
+	info, err := os.Stat(d.lease())
+	switch {
+	case errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR):
+		return false, nil
+	case err != nil:
+		return false, leaseRefusal(d.lease())
+	case !info.Mode().IsRegular():
 		return false, nil
 	}
 	file, err := lockFile(d.lease(), os.O_WRONLY)

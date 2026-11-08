@@ -3,9 +3,9 @@
 package state
 
 import (
-	"fmt"
+	"errors"
+	"io/fs"
 	"os"
-	"path/filepath"
 
 	"golang.org/x/sys/windows"
 )
@@ -20,7 +20,7 @@ type Lease struct {
 // flock does. The handle is 0 when another server holds it. PHP opens the file
 // and shares reading and writing, so these opens do the same.
 func lockFile(path string, access, disposition uint32) (windows.Handle, error) {
-	refused := fmt.Errorf("Cannot open the serving lease: %s", filepath.ToSlash(path))
+	refused := leaseRefusal(path)
 	pointer, err := windows.UTF16PtrFromString(path)
 	if err != nil {
 		return 0, refused
@@ -49,7 +49,13 @@ func (d Dir) Claim() (*Lease, error) {
 // Lease reports whether a server holds the Serving lease. No lease file means
 // no server ever ran from the directory.
 func (d Dir) Lease() (bool, error) {
-	if info, err := os.Stat(d.lease()); err != nil || !info.Mode().IsRegular() {
+	info, err := os.Stat(d.lease())
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return false, nil
+	case err != nil:
+		return false, leaseRefusal(d.lease())
+	case !info.Mode().IsRegular():
 		return false, nil
 	}
 	handle, err := lockFile(d.lease(), windows.GENERIC_WRITE, windows.OPEN_EXISTING)

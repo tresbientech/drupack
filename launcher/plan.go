@@ -82,9 +82,6 @@ func environment(l Launch) []string {
 	if _, set := e.get("DRUPACK_CA_FILE"); !set {
 		e.put("DRUPACK_CA_FILE=" + runtime.Canonical(filepath.Join(directory, caFileName)))
 	}
-	if l.TLSDir != "" {
-		e.put("DRUPACK_TLS_DIR=" + runtime.Canonical(l.TLSDir))
-	}
 	// The runtime and operate.php are shared by every site built on this engine, so
 	// the site's name and release reach them from here.
 	e.put("DRUPACK_RUNTIME_NAME=" + l.Name)

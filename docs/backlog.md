@@ -320,16 +320,9 @@ second applies `application/`. Lean: leave it, as a developer restarts anyway.
 name, and neither module imports the other, so the two copies can drift. Lean: a
 shared Go module both import holds it once, if a third caller appears.
 
-## `operate.php` sets `DRUPACK_DRUSH_SCRIPT` the launcher already sets
-
-`drushPath()` in `application/operate.php` calls `putenv()` for
-`DRUPACK_DRUSH_SCRIPT`. The launcher sets that variable for `prepare`, and the
-seed build now runs the same script. Lean: read the variable, delete the
-`putenv()`, and run the seed build and `prepare` to confirm nothing else sets it.
-
 ## Windows checks that only a tag run makes
 
-The one-owner start changed four Windows paths that no Linux job runs. Each
+The one-owner start changed six Windows paths that no Linux job runs. Each
 compiled under `GOOS=windows go vet`, and none ran.
 
 - The lease probe in `launcher/internal/state/claim_windows.go` locks the whole
@@ -340,6 +333,10 @@ compiled under `GOOS=windows go vet`, and none ran.
 - The launcher's `openBrowser`, called by the handover.
 - The hidden leading `--console-owned` argument, which marks a start from a
   file manager as console-owned.
+- Ctrl+C in a console start. The launcher ignores it and waits for the runtime,
+  so a start made within the server's 10-second drain finds the lease held.
+- A record read in `launcher/internal/state/read_windows.go`, which shares
+  deletion, so a start can replace `listener` while a `drush` call reads it.
 
-Lean: dispatch a windows-amd64 run and read these four before tagging the
+Lean: dispatch a windows-amd64 run and read these six before tagging the
 release.

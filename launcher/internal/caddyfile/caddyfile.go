@@ -5,6 +5,7 @@ package caddyfile
 import (
 	"bytes"
 	"embed"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -57,22 +58,42 @@ type Static struct {
 
 // Addresses lists the names the TLS source serves on port. A source with no
 // certificate answers any address of the bind.
-func (c Config) Addresses(port int) string {
+func (c Config) Addresses(port int) (string, error) {
 	p := strconv.Itoa(port)
 	if c.TLS.Source == "none" {
 		return quote("http://:" + p)
 	}
 	names := []string{c.TLS.Alias, "localhost", "127.0.0.1", "[::1]"}
 	for i, name := range names {
-		names[i] = quote("https://" + name + ":" + p)
+		var err error
+		if names[i], err = quote("https://" + name + ":" + p); err != nil {
+			return "", err
+		}
 	}
-	return strings.Join(names, ", ")
+	return strings.Join(names, ", "), nil
+}
+
+// unquotable is a value no Caddyfile token can hold.
+type unquotable struct {
+	value string
+}
+
+func (u unquotable) Error() string {
+	return "A Caddyfile token cannot hold a backtick together with a backslash before a quote or at the end: " + u.value
 }
 
 // quote writes one value as a Caddyfile token. Inside double quotes the lexer
-// reads \" as a quote and keeps every other backslash.
-func quote(value string) string {
-	return `"` + strings.ReplaceAll(value, `"`, `\"`) + `"`
+// reads \" as a quote and keeps every other backslash, so no escape gives a
+// backslash before a quote or at the end. Between backticks it keeps every
+// character up to the next backtick.
+func quote(value string) (string, error) {
+	switch {
+	case !strings.Contains(value, `\"`) && !strings.HasSuffix(value, `\`):
+		return `"` + strings.ReplaceAll(value, `"`, `\"`) + `"`, nil
+	case !strings.Contains(value, "`"):
+		return "`" + value + "`", nil
+	}
+	return "", unquotable{value}
 }
 
 // indent puts n tabs before each line that holds text.
@@ -111,6 +132,11 @@ var templates = func() *template.Template {
 func Render(c Config) ([]byte, error) {
 	var out bytes.Buffer
 	if err := templates.ExecuteTemplate(&out, "caddyfile.caddy", c); err != nil {
+		// The template's position means nothing to the reader who chose the value.
+		var refused unquotable
+		if errors.As(err, &refused) {
+			return nil, refused
+		}
 		return nil, err
 	}
 	return out.Bytes(), nil

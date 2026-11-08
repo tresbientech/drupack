@@ -141,8 +141,14 @@ func TestTheStopCommandIsTypedForTheReadersShell(t *testing.T) {
 
 func TestTakeChildReadsTheParentsWordsAndLeavesTheReaders(t *testing.T) {
 	t.Cleanup(func() { child = nil })
-	if got := takeChild([]string{"./demo", "--data-dir", "d"}); !slices.Equal(got, []string{"./demo", "--data-dir", "d"}) || child != nil {
-		t.Fatalf("a reader's line became %q, child %v", got, child)
+	for _, line := range [][]string{
+		{"./demo", "--data-dir", "d"},
+		// The engine serving a folder named detached.
+		{"drupack", "detached", "--listen", "127.0.0.1:9000"},
+	} {
+		if got := takeChild(slices.Clone(line)); !slices.Equal(got, line) || child != nil {
+			t.Fatalf("a reader's line became %q, child %v", got, child)
+		}
 	}
 	got := takeChild([]string{"./demo", childWord, "/data/logs/server.log", "1", "--data-dir", "d", "--foreground"})
 	if !slices.Equal(got, []string{"./demo", "--data-dir", "d", "--foreground"}) || *child != (detachedChild{log: "/data/logs/server.log", person: true}) {

@@ -241,10 +241,9 @@ function runDrush(string $binary, array $command, string $failure): void
 }
 
 // Drupack's Drush entry, laid over the site from application/drush. The entry requires the
-// script DRUPACK_DRUSH_SCRIPT names, so this points it at the Drush of the application in use.
+// script DRUPACK_DRUSH_SCRIPT names, which the launcher and the seed build set.
 function drushPath(): string
 {
-    putenv('DRUPACK_DRUSH_SCRIPT=' . application() . '/vendor/drush/drush/drush.php');
     return application() . '/drush';
 }
 

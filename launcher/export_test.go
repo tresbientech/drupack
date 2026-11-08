@@ -181,8 +181,9 @@ func TestSiteExportRefusals(t *testing.T) {
 	}
 	f := newSite(t, siteconfig.Site{Port: 1, Static: &siteconfig.Static{}})
 	_, err = siteExport(f.launch(), parseLine(t, false, "export", "--data-dir", f.data, "--database", "oracle"), f.cwd, e)
-	if want := "--database requires sqlite, mysql, or pgsql"; err == nil || err.Error() != want {
-		t.Errorf("database: %v, want %q", err, want)
+	// The recorded settings.php names the database, so an export reads no --database.
+	if err != nil {
+		t.Errorf("database: %v, want none", err)
 	}
 	os.Remove(filepath.Join(f.data, "settings.php"))
 	_, err = siteExport(f.launch(), parseLine(t, false, "export", "--data-dir", f.data), f.cwd, e)
