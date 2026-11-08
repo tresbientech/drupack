@@ -125,7 +125,7 @@ func (d Dir) writeWhole(name string, content []byte) error {
 		err = closeErr
 	}
 	if err == nil {
-		err = os.Rename(partial.Name(), path)
+		err = replaceFile(partial.Name(), path)
 	}
 	if err != nil {
 		os.Remove(partial.Name())

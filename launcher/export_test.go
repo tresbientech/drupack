@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
@@ -25,7 +26,7 @@ func staticProject(t *testing.T) engineFixture {
 
 func TestEngineExportReadsTheRecordedStaticAddress(t *testing.T) {
 	f := staticProject(t)
-	entry := state.FolderEntry(f.root, f.project, false)
+	entry := state.FolderEntry(f.root, runtime.Canonical(f.project), false)
 	if err := os.MkdirAll(entry.Path(), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -37,14 +38,14 @@ func TestEngineExportReadsTheRecordedStaticAddress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"drupack", "php-cli", "/cache/app/drush", "tome:static", "--yes", "--uri=https://shop.drupack.site:3788/", "--", "--extra"}
+	want := []string{"drupack", "php-cli", filepath.FromSlash("/cache/app/drush"), "tome:static", "--yes", "--uri=https://shop.drupack.site:3788/", "--", "--extra"}
 	if !slices.Equal(x.run.Args, want) {
 		t.Errorf("export Args = %q, want %q", x.run.Args, want)
 	}
-	if got := environmentOf(x.run)["DRUPACK_DRUSH_SCRIPT"]; got != filepath.Join(f.project, "vendor/drush/drush/drush.php") {
+	if got := environmentOf(x.run)["DRUPACK_DRUSH_SCRIPT"]; got != runtime.Canonical(filepath.Join(f.project, "vendor/drush/drush/drush.php")) {
 		t.Errorf("DRUPACK_DRUSH_SCRIPT = %q", got)
 	}
-	if want := []string{"drupack", "php-cli", "/cache/app/drush", "php:eval", tomeProbe}; !slices.Equal(x.probe.Args, want) {
+	if want := []string{"drupack", "php-cli", filepath.FromSlash("/cache/app/drush"), "php:eval", tomeProbe}; !slices.Equal(x.probe.Args, want) {
 		t.Errorf("probe Args = %q, want %q", x.probe.Args, want)
 	}
 	// A reader who names the URL gets none added, and the record is not read.
@@ -52,7 +53,7 @@ func TestEngineExportReadsTheRecordedStaticAddress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"drupack", "php-cli", "/cache/app/drush", "tome:static", "--yes", "-l", "http://other:1/"}; !slices.Equal(x.run.Args, want) {
+	if want := []string{"drupack", "php-cli", filepath.FromSlash("/cache/app/drush"), "tome:static", "--yes", "-l", "http://other:1/"}; !slices.Equal(x.run.Args, want) {
 		t.Errorf("Args with a URL = %q, want %q", x.run.Args, want)
 	}
 }
@@ -61,17 +62,17 @@ func TestEngineExportRefusals(t *testing.T) {
 	e := environ{entries: []string{"PATH=/usr/bin"}}
 	none := newProject(t, `{}`)
 	_, err := engineExport(none.launch(), parseLine(t, true, "export"), none.cwd, e)
-	if want := none.project + "/composer.json sets no extra.drupack.static, so there is nothing to export."; err == nil || err.Error() != want {
+	if want := runtime.Canonical(none.project) + "/composer.json sets no extra.drupack.static, so there is nothing to export."; err == nil || err.Error() != want {
 		t.Errorf("no static: %v, want %q", err, want)
 	}
 	f := staticProject(t)
-	want := "Cannot read a recorded static URL for " + f.project + ". Start it once, or pass --uri URL."
+	want := "Cannot read a recorded static URL for " + runtime.Canonical(f.project) + ". Start it once, or pass --uri URL."
 	_, err = engineExport(f.launch(), parseLine(t, true, "export"), f.cwd, e)
 	if err == nil || err.Error() != want {
 		t.Errorf("never started: %v, want %q", err, want)
 	}
 	// A folder an earlier release served holds the old files alone, which read as never started.
-	entry := state.FolderEntry(f.root, f.project, false)
+	entry := state.FolderEntry(f.root, runtime.Canonical(f.project), false)
 	put(t, filepath.Join(entry.Path(), "static_url"), "http://127.0.0.1:3788/")
 	if _, err = engineExport(f.launch(), parseLine(t, true, "export"), f.cwd, e); err == nil || err.Error() != want {
 		t.Errorf("old files: %v, want %q", err, want)
@@ -116,7 +117,7 @@ func TestEngineCore(t *testing.T) {
 	e := environ{entries: []string{"PATH=/usr/bin"}}
 	_, err := engineCore(l, parseLine(t, true, "dr", "list"), f.cwd, e)
 	script := filepath.Join(f.project, "vendor/bin/dr")
-	if want := f.project + " has no Drupal core command line: " + script + " does not exist. Drupal 11.4 and later ship it."; err == nil || err.Error() != want {
+	if want := runtime.Canonical(f.project) + " has no Drupal core command line: " + runtime.Canonical(script) + " does not exist. Drupal 11.4 and later ship it."; err == nil || err.Error() != want {
 		t.Errorf("error = %v, want %q", err, want)
 	}
 	put(t, script, "<?php")
@@ -127,7 +128,7 @@ func TestEngineCore(t *testing.T) {
 	if want := []string{"drupack", "php-cli", script, "list", "--raw"}; !slices.Equal(call.Args, want) {
 		t.Errorf("Args = %q, want %q", call.Args, want)
 	}
-	if got := environmentOf(call)["PATH"]; got != "/cache/app/bin:/usr/bin" {
+	if got := environmentOf(call)["PATH"]; got != filepath.FromSlash("/cache/app/bin")+string(os.PathListSeparator)+"/usr/bin" {
 		t.Errorf("PATH = %q", got)
 	}
 }
@@ -148,7 +149,7 @@ func TestSiteExportAddressesTheRecordedStaticListener(t *testing.T) {
 	if want := []string{"SITE", "php-cli", filepath.Join(f.application, "drush"), "php:eval", tomeProbe}; !slices.Equal(x.probe.Args, want) {
 		t.Errorf("probe Args = %q, want %q", x.probe.Args, want)
 	}
-	if got := environmentOf(x.run)["DRUPACK_RUNTIME_STATIC_ROOT"]; got != filepath.Join(f.data, "static") {
+	if got := environmentOf(x.run)["DRUPACK_RUNTIME_STATIC_ROOT"]; got != runtime.Canonical(filepath.Join(f.data, "static")) {
 		t.Errorf("DRUPACK_RUNTIME_STATIC_ROOT = %q", got)
 	}
 	// A reader who names the URL gets none added.
@@ -187,7 +188,7 @@ func TestSiteExportRefusals(t *testing.T) {
 	}
 	os.Remove(filepath.Join(f.data, "settings.php"))
 	_, err = siteExport(f.launch(), parseLine(t, false, "export", "--data-dir", f.data), f.cwd, e)
-	if want := "This Site data has no site yet: " + f.data + ". Start fixture-site once to create one."; err == nil || err.Error() != want {
+	if want := "This Site data has no site yet: " + runtime.Canonical(f.data) + ". Start fixture-site once to create one."; err == nil || err.Error() != want {
 		t.Errorf("no site: %v, want %q", err, want)
 	}
 }

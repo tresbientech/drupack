@@ -3,10 +3,12 @@ package main
 import (
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"slices"
 	"strings"
 	"testing"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
@@ -99,7 +101,7 @@ func drushPlan(l Launch, c command, cwd string) (Command, error) {
 }
 
 func TestSiteDrushEnvironment(t *testing.T) {
-	scratch := func(f siteFixture) string { return filepath.Join(f.data, "runtime") }
+	scratch := func(f siteFixture) string { return runtime.Canonical(filepath.Join(f.data, "runtime")) }
 	for _, row := range []struct {
 		name    string
 		site    siteconfig.Site
@@ -114,8 +116,8 @@ func TestSiteDrushEnvironment(t *testing.T) {
 			words: []string{"status"},
 			want: func(f siteFixture) map[string]string {
 				return map[string]string{
-					"DRUPACK_RUNTIME_DATA_DIR":  f.data,
-					"DRUPACK_RUNTIME_FILES_DIR": filepath.Join(f.data, "files"),
+					"DRUPACK_RUNTIME_DATA_DIR":  runtime.Canonical(f.data),
+					"DRUPACK_RUNTIME_FILES_DIR": runtime.Canonical(filepath.Join(f.data, "files")),
 					"DRUPACK_RUNTIME_HOST":      "localhost",
 					"DRUSH_OPTIONS_URI":         "http://localhost:8123/",
 					"TMPDIR":                    scratch(f),
@@ -123,9 +125,9 @@ func TestSiteDrushEnvironment(t *testing.T) {
 					"TMP":                       scratch(f),
 					"XDG_DATA_HOME":             scratch(f),
 					"XDG_CONFIG_HOME":           scratch(f),
-					"DRUPACK_RUNTIME_APP_DIR":   f.application,
-					"DRUPACK_DRUSH_SCRIPT":      filepath.Join(f.application, "vendor/drush/drush/drush.php"),
-					"PATH":                      filepath.Join(f.application, "bin") + ":/usr/bin",
+					"DRUPACK_RUNTIME_APP_DIR":   runtime.Canonical(f.application),
+					"DRUPACK_DRUSH_SCRIPT":      runtime.Canonical(filepath.Join(f.application, "vendor/drush/drush/drush.php")),
+					"PATH":                      filepath.Join(f.application, "bin") + string(os.PathListSeparator) + "/usr/bin",
 					"KEEP":                      "1",
 					"DRUPACK_DB_HOST":           "inherited",
 				}
@@ -136,7 +138,7 @@ func TestSiteDrushEnvironment(t *testing.T) {
 			name: "an HTTPS record brings its scheme, files directory and bundle",
 			site: siteconfig.Site{Port: 8123},
 			prepare: func(t *testing.T, f siteFixture) {
-				f.record(t, `{"listen":"[::1]:9000","host":"::1","files-dir":"`+filepath.Join(filepath.Dir(f.data), "pub")+`","scheme":"https","static-listen":null}`)
+				f.record(t, `{"listen":"[::1]:9000","host":"::1","files-dir":"`+runtime.Canonical(filepath.Join(filepath.Dir(f.data), "pub"))+`","scheme":"https","static-listen":null}`)
 				put(t, filepath.Join(f.data, "runtime", "ca-bundle.pem"), "roots")
 				if err := os.MkdirAll(filepath.Join(filepath.Dir(f.data), "pub"), 0o700); err != nil {
 					t.Fatal(err)
@@ -145,10 +147,10 @@ func TestSiteDrushEnvironment(t *testing.T) {
 			words: []string{"status"},
 			want: func(f siteFixture) map[string]string {
 				return map[string]string{
-					"DRUPACK_RUNTIME_FILES_DIR": filepath.Join(filepath.Dir(f.data), "pub"),
+					"DRUPACK_RUNTIME_FILES_DIR": runtime.Canonical(filepath.Join(filepath.Dir(f.data), "pub")),
 					"DRUPACK_RUNTIME_HOST":      "[::1]",
 					"DRUSH_OPTIONS_URI":         "https://[::1]:9000/",
-					"DRUPACK_CA_FILE":           filepath.Join(f.data, "runtime", "ca-bundle.pem"),
+					"DRUPACK_CA_FILE":           runtime.Canonical(filepath.Join(f.data, "runtime", "ca-bundle.pem")),
 				}
 			},
 		},
@@ -161,7 +163,7 @@ func TestSiteDrushEnvironment(t *testing.T) {
 			words: []string{"--listen", "127.0.0.1:9100", "--host=typed.test", "--files-dir", "pub", "status"},
 			want: func(f siteFixture) map[string]string {
 				return map[string]string{
-					"DRUPACK_RUNTIME_FILES_DIR": filepath.Join(f.cwd, "pub"),
+					"DRUPACK_RUNTIME_FILES_DIR": runtime.Canonical(filepath.Join(f.cwd, "pub")),
 					"DRUPACK_RUNTIME_HOST":      "typed.test",
 					"DRUSH_OPTIONS_URI":         "https://typed.test:9100/",
 				}
@@ -172,7 +174,7 @@ func TestSiteDrushEnvironment(t *testing.T) {
 			site:  siteconfig.Site{Port: 8123, Static: &siteconfig.Static{}},
 			words: []string{"status"},
 			want: func(f siteFixture) map[string]string {
-				return map[string]string{"DRUPACK_RUNTIME_STATIC_ROOT": filepath.Join(f.data, "static")}
+				return map[string]string{"DRUPACK_RUNTIME_STATIC_ROOT": runtime.Canonical(filepath.Join(f.data, "static"))}
 			},
 		},
 		{
@@ -211,9 +213,9 @@ func TestSiteDrushEnvironment(t *testing.T) {
 			words: []string{"status"},
 			want: func(f siteFixture) map[string]string {
 				return map[string]string{
-					"DRUPACK_RUNTIME_APP_DIR": filepath.Join(f.data, "app"),
-					"DRUPACK_DRUSH_SCRIPT":    filepath.Join(f.data, "app", "vendor/drush/drush/drush.php"),
-					"PATH":                    filepath.Join(f.data, "app", "bin") + ":/usr/bin",
+					"DRUPACK_RUNTIME_APP_DIR": runtime.Canonical(filepath.Join(f.data, "app")),
+					"DRUPACK_DRUSH_SCRIPT":    runtime.Canonical(filepath.Join(f.data, "app", "vendor/drush/drush/drush.php")),
+					"PATH":                    filepath.Join(f.data, "app", "bin") + string(os.PathListSeparator) + "/usr/bin",
 				}
 			},
 		},
@@ -223,8 +225,8 @@ func TestSiteDrushEnvironment(t *testing.T) {
 			words: []string{"--data-dir", "missing", "list"},
 			want: func(f siteFixture) map[string]string {
 				return map[string]string{
-					"DRUPACK_RUNTIME_APP_DIR": f.application,
-					"DRUPACK_DRUSH_SCRIPT":    filepath.Join(f.application, "vendor/drush/drush/drush.php"),
+					"DRUPACK_RUNTIME_APP_DIR": runtime.Canonical(f.application),
+					"DRUPACK_DRUSH_SCRIPT":    runtime.Canonical(filepath.Join(f.application, "vendor/drush/drush/drush.php")),
 				}
 			},
 			absent: []string{"DRUPACK_RUNTIME_DATA_DIR", "DRUSH_OPTIONS_URI"},
@@ -275,7 +277,8 @@ func TestSiteDrushPreparesTheSiteData(t *testing.T) {
 	}
 	for _, name := range []string{"runtime", "private", "tmp", "config", "logs", "static", "files/translations"} {
 		info, err := os.Stat(filepath.Join(f.data, name))
-		if err != nil || !info.IsDir() || info.Mode().Perm()&0o077 != 0 {
+		// Windows reports no owner-only mode.
+		if err != nil || !info.IsDir() || (goruntime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0) {
 			t.Errorf("%s = %v, %v, want an owner-only directory", name, info, err)
 		}
 	}
@@ -297,7 +300,7 @@ func TestSiteDrushRefusals(t *testing.T) {
 	}{
 		{"Site data with no settings", siteconfig.Site{Port: 1}, func(t *testing.T, f siteFixture) { os.Remove(filepath.Join(f.data, "settings.php")) },
 			nil, func(f siteFixture) string {
-				return "This Site data has no site yet: " + f.data + ". Start fixture-site once to create one."
+				return "This Site data has no site yet: " + runtime.Canonical(f.data) + ". Start fixture-site once to create one."
 			}},
 		{"an unreadable record", siteconfig.Site{Port: 1}, func(t *testing.T, f siteFixture) { f.record(t, "not json") },
 			nil, func(f siteFixture) string {
@@ -320,7 +323,7 @@ func TestSiteDrushRefusals(t *testing.T) {
 		{"another release's application", siteconfig.Site{Port: 1, Writable: []string{"files"}}, func(t *testing.T, f siteFixture) {
 			put(t, filepath.Join(f.data, "app", ".release"), "release-0")
 		}, nil, func(f siteFixture) string {
-			return "This Site data holds another release's application. Start fixture-site once to lay this release's: " + f.data
+			return "This Site data holds another release's application. Start fixture-site once to lay this release's: " + runtime.Canonical(f.data)
 		}},
 	} {
 		t.Run(row.name, func(t *testing.T) {
@@ -369,7 +372,7 @@ func (f engineFixture) launch() Launch {
 func TestEngineDrushEnvironment(t *testing.T) {
 	f := newProject(t, `{"extra": {"drupack": {"mercure": true}}}`)
 	put(t, filepath.Join(f.project, "vendor", "drush", "drush", "drush.php"), "<?php")
-	entry := state.FolderEntry(f.root, f.project, false)
+	entry := state.FolderEntry(f.root, runtime.Canonical(f.project), false)
 	dir := entry.Path()
 	put(t, filepath.Join(dir, "ca-bundle.pem"), "roots")
 	if err := entry.WriteListener(state.Listener{Listen: "127.0.0.1:3787", Host: "shop.drupack.site", Scheme: "https"}); err != nil {
@@ -384,9 +387,9 @@ func TestEngineDrushEnvironment(t *testing.T) {
 	}
 	got := environmentOf(call)
 	for name, want := range map[string]string{
-		"DRUPACK_DRUSH_SCRIPT":              filepath.Join(f.project, "vendor/drush/drush/drush.php"),
-		"PATH":                              "/cache/app/bin:/usr/bin",
-		"DRUPACK_CA_FILE":                   filepath.Join(dir, "ca-bundle.pem"),
+		"DRUPACK_DRUSH_SCRIPT":              runtime.Canonical(filepath.Join(f.project, "vendor/drush/drush/drush.php")),
+		"PATH":                              filepath.FromSlash("/cache/app/bin") + string(os.PathListSeparator) + "/usr/bin",
+		"DRUPACK_CA_FILE":                   runtime.Canonical(filepath.Join(dir, "ca-bundle.pem")),
 		"DRUPACK_MERCURE_URL":               "https://127.0.0.1:3787/.well-known/mercure",
 		"DRUPACK_MERCURE_PUBLISHER_SECRET":  "pub",
 		"DRUPACK_MERCURE_SUBSCRIBER_SECRET": "sub",
@@ -399,7 +402,7 @@ func TestEngineDrushEnvironment(t *testing.T) {
 	if value, set := got["DRUPACK_RUNTIME_APP_DIR"]; set {
 		t.Errorf("DRUPACK_RUNTIME_APP_DIR = %q, want it unset", value)
 	}
-	if want := []string{"drupack", "php-cli", "/cache/app/drush", "status", "--field=db-driver"}; !slices.Equal(call.Args, want) {
+	if want := []string{"drupack", "php-cli", filepath.FromSlash("/cache/app/drush"), "status", "--field=db-driver"}; !slices.Equal(call.Args, want) {
 		t.Errorf("Args = %q, want %q", call.Args, want)
 	}
 }
@@ -408,7 +411,7 @@ func TestEngineDrushEnvironment(t *testing.T) {
 func TestEngineDrushReadsAHostnameListener(t *testing.T) {
 	f := newProject(t, `{"extra": {"drupack": {"mercure": true}}}`)
 	put(t, filepath.Join(f.project, "vendor", "drush", "drush", "drush.php"), "<?php")
-	entry := state.FolderEntry(f.root, f.project, false)
+	entry := state.FolderEntry(f.root, runtime.Canonical(f.project), false)
 	put(t, filepath.Join(entry.Path(), "mercure_publisher_secret"), "pub")
 	put(t, filepath.Join(entry.Path(), "mercure_subscriber_secret"), "sub")
 	if err := entry.WriteListener(state.Listener{Listen: "localhost:8080", Host: "localhost", Scheme: "http"}); err != nil {
@@ -444,12 +447,12 @@ func TestEngineDrushRefusals(t *testing.T) {
 	f := newProject(t, `{}`)
 	_, err := drushPlan(f.launch(), parseDrush(t, true, "status"), f.cwd)
 	script := filepath.Join(f.project, "vendor/drush/drush/drush.php")
-	if want := f.project + " has no Drush: " + script + " does not exist. Run composer require drush/drush in it."; err == nil || err.Error() != want {
+	if want := runtime.Canonical(f.project) + " has no Drush: " + runtime.Canonical(script) + " does not exist. Run composer require drush/drush in it."; err == nil || err.Error() != want {
 		t.Errorf("error = %v, want %q", err, want)
 	}
 	bare := realDir(t)
 	_, err = drushPlan(f.launch(), parseDrush(t, true, "status"), bare)
-	if want := "No vendor/autoload.php in " + bare + " or any directory above it. Run composer install in the project."; err == nil || err.Error() != want {
+	if want := "No vendor/autoload.php in " + runtime.Canonical(bare) + " or any directory above it. Run composer install in the project."; err == nil || err.Error() != want {
 		t.Errorf("error = %v, want %q", err, want)
 	}
 	broken := newProject(t, `{"extra": {"drupack": {"mercure": "yes"}}}`)

@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	goruntime "runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -595,7 +596,8 @@ func TestStagingTheEngineCopiesItsListedApplicationFiles(t *testing.T) {
 	if want := []string{"bin/php", "bin/php.cmd", "drush", "drush.cmd", "installed.php", "operate.php"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("staged %v; want %v", got, want)
 	}
-	if info, err := os.Stat(filepath.Join(staged, "drush")); err != nil || info.Mode().Perm() != 0o755 {
+	// NTFS keeps no mode bits, so a staged file reads back as 0666.
+	if info, err := os.Stat(filepath.Join(staged, "drush")); err != nil || (goruntime.GOOS != "windows" && info.Mode().Perm() != 0o755) {
 		t.Fatalf("drush staged as %v, %v; want mode 755", info, err)
 	}
 }

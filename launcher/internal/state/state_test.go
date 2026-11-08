@@ -146,6 +146,7 @@ func TestClaim(t *testing.T) {
 	if err != nil || lease == nil {
 		t.Fatalf("Claim() = %v, %v", lease, err)
 	}
+	t.Cleanup(func() { lease.Release() })
 	if on, err := held.Lease(); err != nil || !on {
 		t.Errorf("Lease() after Claim() = %v, %v", on, err)
 	}
