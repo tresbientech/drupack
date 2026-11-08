@@ -257,7 +257,7 @@ func startEngine(l Launch, c command) error {
 // or Tome's default. It refuses a directory the static port must not serve.
 func engineStaticRoot(l Launch, env []string, project, docroot, cacheEntry string) (string, error) {
 	var setting struct {
-		// Directory is null when settings.php sets none.
+		// Directory is "" when settings.php sets none.
 		Directory string `json:"directory"`
 	}
 	if err := operate(l, env, &setting, false, "static-directory", project, docroot); err != nil {

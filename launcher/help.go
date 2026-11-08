@@ -80,8 +80,9 @@ const engineUsage = `Usage: %[1]s [start] [DIR] [--listen IP:PORT] [--static-lis
 Serves the Drupal project in DIR, the working directory by default, with its
 own settings, in the background. --foreground serves in this terminal until a
 signal stops it. --listen defaults to %[2]s. A project whose composer.json sets
-extra.drupack.static serves its Tome export, html beside the docroot, on
---static-listen, the listener's address on the next port by default.
+extra.drupack.static serves its Tome export on --static-listen, the
+listener's address on the next port by default. The export is the
+tome_static_directory its settings.php sets, or html beside the docroot.
 
 Commands:
   start    Serve the project, which a bare command does too
