@@ -1,12 +1,16 @@
 """SITE stop: ending a site a start serves in the foreground, what it says when nothing runs,
-and the stop channel's own token check and loopback binding.
+the stop channel's own token check and loopback binding, and a server the previous release
+started.
 """
 
 import json
+import os
 import socket
 import stat
 import urllib.error
+import unittest
 import urllib.request
+from pathlib import Path
 
 import harness
 
@@ -94,6 +98,16 @@ class StopCases(harness.ConformanceCase):
         self.assertIn("is not running", result.stdout)
         self.assertFalse(missing.exists(), "stop created the Site data it was asked about")
 
+    def test_stop_unpacks_nothing(self):
+        # The launcher creates the cache root owner-only, and refuses one any other user can read.
+        cache = self.case_dir / "cache"
+        result = harness.run([str(harness.BINARY), "stop", "--data-dir", str(self.case_dir / "never-made")],
+                             cwd=self.case_dir, env={**os.environ, "DRUPACK_CACHE_DIR": str(cache)},
+                             capture_output=True, text=True, timeout=harness.WAITS["refusal"].seconds)
+        self.assertEqual(result.returncode, 0, f"stop exited non-zero: {result.stderr}")
+        self.assertIn("is not running", result.stdout)
+        self.assertEqual(sorted(path.name for path in cache.iterdir()), [], "stop unpacked into the cache")
+
     def test_stop_refuses_an_option_that_is_not_data_dir(self):
         result = harness.run([str(harness.BINARY), "stop", "--listen", "127.0.0.1:1"], cwd=self.case_dir,
                              capture_output=True, text=True, timeout=harness.WAITS["refusal"].seconds)
@@ -131,3 +145,28 @@ class StopRecordModeCases(harness.ConformanceCase):
         self.addCleanup(site.stop)
         mode = stat.S_IMODE((data / "stop.json").stat().st_mode)
         self.assertEqual(mode, 0o600, f"stop.json has mode {mode:o}")
+
+
+class PreviousReleaseStop(harness.ConformanceCase):
+    """DRUPACK_TEST_PREVIOUS names the executable of the site's previous release."""
+
+    PLATFORMS = (harness.LINUX, harness.MACOS, harness.WINDOWS)
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        previous = os.environ.get("DRUPACK_TEST_PREVIOUS")
+        if not previous:
+            raise unittest.SkipTest("DRUPACK_TEST_PREVIOUS names no previous release")
+        cls.previous = Path(previous).resolve()
+
+    def test_stop_ends_a_server_the_previous_release_started(self):
+        data = self.case_dir / "data"
+        earlier = harness.Site(self.previous, self.case_dir / "previous")
+        earlier.start(data, "--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
+        self.addCleanup(earlier.stop)
+        result = _stop(data, cwd=self.case_dir)
+        self.assertEqual(result.returncode, 0, f"stop exited non-zero: {result.stderr}")
+        self.assertIn("stopped", result.stdout)
+        earlier.process.wait(timeout=harness.WAITS["stop"].seconds)
+        self.assertTrue(_refuses("127.0.0.1", earlier.port), "the previous release's port still accepts connections")

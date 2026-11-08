@@ -77,9 +77,9 @@ Examples:
 docs/cli.md explains every option.
 TEXT;
 
-// The commands this script runs. The executable runs clean, trust and php, and node, npm
-// and npx where it carries Node, before this script starts.
-const COMMANDS = ['start', 'drush', 'export', 'stop'];
+// The commands this script runs. The executable runs clean, trust, stop and php, and node,
+// npm and npx where it carries Node, before this script starts.
+const COMMANDS = ['start', 'drush', 'export'];
 const NODE_COMMANDS = ['node', 'npm', 'npx'];
 
 // The server runs from the application directory, which every site of a release
@@ -231,39 +231,6 @@ function openWhenServing(string $url, ?string $target, bool $browser): void
 function siteToken(string $data): string
 {
     return hash('sha256', windows() ? strtolower($data) : $data);
-}
-
-// `stop` takes --data-dir alone, so a start's options cannot reach a command that changes no site.
-function stopDataDirectory(array $arguments): string
-{
-    $directory = environment('DRUPACK_DATA_DIR') ?? DEFAULT_DATA_DIR;
-    while ($arguments !== []) {
-        $argument = array_shift($arguments);
-        if ($argument === '--help') {
-            printf(HELP . "\n", executableName());
-            exit(0);
-        }
-        $parts = explode('=', $argument, 2);
-        if ($parts[0] !== '--data-dir') {
-            throw new InvalidArgumentException("Unknown argument: $argument");
-        }
-        $directory = $parts[1] ?? array_shift($arguments);
-        if ($directory === null || $directory === '' || str_starts_with($directory, '--')) {
-            throw new InvalidArgumentException('Missing value for --data-dir');
-        }
-    }
-    return $directory;
-}
-
-// The directory is never created, so a stop on a mistyped path leaves nothing behind.
-function stopSite(string $directory): int
-{
-    $resolved = realpath($directory);
-    if ($resolved === false) {
-        return notRunning();
-    }
-    $site = new SiteData(canonical($resolved));
-    return (new Serving($site->directory, $site->logs()))->stop('Site data', $site->directory);
 }
 
 // Reports whether anything holds $bind:$port. A connect answers this on every platform,
@@ -735,9 +702,6 @@ try {
     if ($mode === 'help') {
         printf(HELP . "\n", executableName());
         exit(0);
-    }
-    if ($mode === 'stop') {
-        exit(stopSite(fromStartDirectory(stopDataDirectory($arguments))));
     }
     // `export` is a Drush run with Tome's command ahead of the reader's words.
     $drush = $mode === 'drush' || $mode === 'export';

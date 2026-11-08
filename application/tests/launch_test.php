@@ -768,7 +768,6 @@ test('a command word names the mode and leaves the rest', function () {
     same(['start', ['--foreground']], command(['start', '--foreground'], contract()));
     same(['drush', ['status']], command(['drush', 'status'], contract()));
     same(['export', ['--data-dir', 'site']], command(['export', '--data-dir', 'site'], contract()));
-    same(['stop', ['--data-dir', 'site']], command(['stop', '--data-dir', 'site'], contract()));
 });
 
 test('an export runs Tome at the static URL unless the words name one', function (): void {

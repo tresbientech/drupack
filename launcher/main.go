@@ -76,6 +76,20 @@ func run() error {
 	if engine {
 		updateNotice(root, executable, os.Stderr, runtime.Terminal(os.Stderr), time.Now(), func() error { return startCheck(launcher) })
 	}
+	c, err := parse(os.Args, engine, os.LookupEnv)
+	if err != nil {
+		return err
+	}
+	// A stop unpacks nothing.
+	if c.word == "stop" {
+		return runStop(c, root, os.Stdout)
+	}
+	// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.
+	args := os.Args
+	// launch.php prints the help until the launcher parses the start's options.
+	if c.word == "help" {
+		args = []string{os.Args[0], "--help"}
+	}
 	m, err := runtime.ParseManifest(runtimeManifest)
 	if err != nil {
 		return err
@@ -94,8 +108,7 @@ func run() error {
 		return err
 	}
 	return launch(Plan(Launch{
-		// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.
-		Args:         os.Args,
+		Args:         args,
 		Parent:       os.Environ(),
 		Entry:        filepath.Join(directory, m.Entry),
 		Application:  application,

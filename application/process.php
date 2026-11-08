@@ -145,10 +145,6 @@ function personPresent(): bool
 
 final class Serving
 {
-    // How long `stop` waits for the lease to free. runtime/entrypoint.go forces the
-    // server's own exit at 10 seconds.
-    private const STOP_WAIT_SECONDS = 15;
-
     public readonly string $stopRecord;
     private readonly string $lease;
     private readonly string $log;
@@ -191,50 +187,6 @@ final class Serving
         replaceProcess(getenv('DRUPACK_RUNTIME_LAUNCHER'),
             array_merge(['detach', $this->log, $stopCommand, '--'], $arguments, ['--foreground']),
             startDirectory(), 'Cannot start the server in the background');
-    }
-
-    // Ends the server through the stop channel its record names and waits for the lease to
-    // free. A free lease means no server runs, whatever a stale record says.
-    public function stop(string $what, string $named): int
-    {
-        if (!is_file($this->lease) || $this->free()) {
-            return notRunning();
-        }
-        if (!is_file($this->stopRecord)) {
-            throw new RuntimeException('A ' . executableName() . " start is still preparing this $what: $named");
-        }
-        $channel = json_decode((string) file_get_contents($this->stopRecord), true, 512, JSON_THROW_ON_ERROR);
-        $context = stream_context_create(['http' => [
-            'method' => 'POST',
-            'header' => "Authorization: Bearer {$channel['token']}\r\nContent-Length: 0\r\n",
-            'timeout' => 10,
-            'ignore_errors' => true,
-        ]]);
-        @file_get_contents("http://127.0.0.1:{$channel['port']}/stop", false, $context);
-        $status = $http_response_header[0] ?? 'no answer';
-        if (!str_contains($status, ' 204')) {
-            throw new RuntimeException('The stop channel of ' . executableName() . " refused the request ($status): $named");
-        }
-        $deadline = microtime(true) + self::STOP_WAIT_SECONDS;
-        while (!$this->free()) {
-            if (microtime(true) >= $deadline) {
-                throw new RuntimeException(executableName() . ' did not stop within ' . self::STOP_WAIT_SECONDS . " seconds: $named");
-            }
-            usleep(200000);
-        }
-        fwrite(STDOUT, executableName() . " stopped.\n");
-        return 0;
-    }
-
-    // Taking the lease to ask drops it again.
-    private function free(): bool
-    {
-        $handle = $this->lock();
-        if ($handle === null) {
-            return false;
-        }
-        fclose($handle);
-        return true;
     }
 
     private function lock()
@@ -513,10 +465,3 @@ function startDirectory(): string
 {
     return environment('DRUPACK_RUNTIME_CWD') ?? getcwd();
 }
-
-function notRunning(): int
-{
-    fwrite(STDOUT, executableName() . " is not running.\n");
-    return 0;
-}
-

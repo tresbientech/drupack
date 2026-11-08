@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-// `start` and `stop` are reserved, so a folder with either name takes ./start or ./stop.
-// Any other first word that names no command starts the server.
+// `start` is reserved, so a folder with that name takes ./start. The executable answers
+// stop, a reserved word too. Any other first word that names no command starts the server.
 
 require_once __DIR__ . '/process.php';
 require_once __DIR__ . '/mercure.php';
@@ -157,17 +157,6 @@ function projectFolder(?string $directory): string
         throw new RuntimeException("No such directory: $directory. Run " . executableName() . ' --help.');
     }
     return canonical($project);
-}
-
-// A folder that was never served has no entry, and the lookup creates none.
-function stopFolder(array $arguments): int
-{
-    if (count($arguments) > 1 || str_starts_with($arguments[0] ?? '', '-')) {
-        throw new RuntimeException('stop takes a folder alone. Run ' . executableName() . ' --help.');
-    }
-    $project = projectFolder($arguments[0] ?? null);
-    $entry = folderEntry($project);
-    return (new Serving($entry, $entry))->stop('folder', $project);
 }
 
 function serve(string $binary, array $arguments): never
@@ -371,7 +360,6 @@ if (defined('DRUPACK_SERVE_LIBRARY')) {
 try {
     $binary = getenv('DRUPACK_RUNTIME_BINARY');
     match ($argv[1] ?? null) {
-        'stop' => exit(stopFolder(array_slice($argv, 2))),
         'start' => serve($binary, array_slice($argv, 2)),
         'drush' => drush($binary, array_slice($argv, 2)),
         'export' => export($binary, array_slice($argv, 2)),

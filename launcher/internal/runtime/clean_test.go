@@ -7,10 +7,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state/statetest"
 )
 
 func holdMarker(t *testing.T, entry string) {
 	holdUsageInChild(t, t.TempDir(), entry)
+}
+
+func holdLease(t *testing.T, entry string) {
+	statetest.HoldLease(t, entry)
 }
 
 // cleanKinds names each kind clean walks: where its entries live under the
@@ -24,7 +31,7 @@ var cleanKinds = []struct {
 	{"runtime", "", "unpacked runtime", "unpacked runtimes", func(root string) string { return root }, holdMarker},
 	{"application", "", "unpacked application", "unpacked applications", AppRoot, holdMarker},
 	{"Node", "node/", "unpacked Node release", "unpacked Node releases", NodeRoot, holdMarker},
-	{"folder", "folders/", "folder entry", "folder entries", func(root string) string { return filepath.Join(root, folderDirName) }, holdLease},
+	{"folder", "folders/", "folder entry", "folder entries", func(root string) string { return filepath.Join(root, state.FoldersName) }, holdLease},
 }
 
 func cleanEntry(t *testing.T, path string) {

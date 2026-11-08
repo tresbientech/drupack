@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
 type Cache struct {
@@ -63,11 +65,18 @@ func (c Cache) nodes() store {
 		label: nodeDirName + "/", one: "unpacked Node release", many: "unpacked Node releases"}
 }
 
-// folders holds the engine's served folders' state, one entry each, which
-// serve.php writes. A served folder's server holds the lease in its entry.
+// folders holds the engine's served folders' state, one entry each. A served
+// folder's server holds the lease in its entry.
 func (c Cache) folders() store {
-	return store{dir: filepath.Join(c.root, folderDirName), noun: "folder", owns: anyDirectory, inUse: leaseHeld,
-		label: folderDirName + "/", one: "folder entry", many: "folder entries"}
+	return store{dir: filepath.Join(c.root, state.FoldersName), noun: "folder", owns: anyDirectory, inUse: leaseHeld,
+		label: state.FoldersName + "/", one: "folder entry", many: "folder entries"}
+}
+
+// leaseHeld reports whether a server holds the lease in entry. A lease clean
+// cannot test counts as held, so clean keeps the entry.
+func leaseHeld(entry string) bool {
+	held, err := state.At(entry).Lease()
+	return held || err != nil
 }
 
 // anyDirectory owns every directory: the application, Node and folder
