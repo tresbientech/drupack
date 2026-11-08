@@ -170,7 +170,7 @@ class TlsSources(harness.ConformanceCase):
         alias = site_host()
         site = self.start(root=False, trusted=False, answer="127.0.0.1")
         site.stop()
-        login = harness.run_drush(harness.BINARY, self.case_dir, self.data, "user:login")
+        login = harness.run_drush(harness.BINARY, self.case_dir, self.data, "user:login", "--no-browser")
         self.assertEqual(login.returncode, 0, login.stderr)
         self.assertTrue(login.stdout.strip().startswith(f"http://{alias}:{site.port}/user/reset/"), login.stdout)
 
