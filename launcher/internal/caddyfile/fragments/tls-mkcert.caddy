@@ -1,0 +1,3 @@
+{{define "tls-mkcert-global"}}# HTTPS from the mkcert certificate. Caddy manages none itself.
+auto_https off{{end}}
+{{define "tls-mkcert-site"}}tls {{quote .TLS.Certificate}} {{quote .TLS.Key}}{{end}}

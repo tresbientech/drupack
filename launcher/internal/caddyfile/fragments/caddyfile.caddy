@@ -1,0 +1,64 @@
+{
+	admin off
+	persist_config off
+{{include (print "tls-" .TLS.Source "-global") . | indent 1}}
+	# Windows PHP keys its opcache segment per user account, so a second server attaches to
+	# the first one's segment, finds opcode handlers from a differently based image and
+	# aborts before it binds. The cache id gives each served state its own segment. Other
+	# platforms do not register the directive and ignore it.
+	frankenphp {
+		php_ini "opcache.cache_id" {{quote .ID}}
+	}
+	order php_server before file_server
+{{include (print .Mode "-log") . | indent 1}}
+}
+
+# Snippets are defined before their first import.
+{{include "static.caddy" .}}
+
+# One address per name the TLS source covers, so Caddy issues no certificate for a name
+# a page asks for.
+{{.Addresses .Port}} {
+{{- with include (print "tls-" .TLS.Source "-site") .}}
+{{indent 1 .}}
+{{- end}}
+	bind {{quote .Bind}}
+	root * {{quote .Docroot}}
+	encode zstd br gzip
+
+	# One route block keeps the written order, so every guard runs before Drupal.
+	route {
+		# The readiness probe runtime/watch/watch.go polls until this server answers. The
+		# token names this state, and a caller without it gets 404. Caddy answers without
+		# reaching Drupal. Placed ahead of the guards, which refuse any dot path.
+		@drupackIdentity {
+			path /.drupack-id
+			query {{quote (print "id=" .ID)}}
+		}
+		respond @drupackIdentity 204
+		@drupackIdentityOther path /.drupack-id
+		respond @drupackIdentityOther 404
+
+{{include "guards.caddy" . | indent 2}}
+{{- if .ProjectRules}}
+		# The project's own rules, after the guards.
+		import {{quote .ProjectRules}}
+{{- end}}
+{{include (print .Mode "-files") . | indent 2}}
+{{- if .Mercure}}
+{{include "mercure.caddy" . | indent 2}}
+{{- end}}
+		php_server {
+			root {{quote .Docroot}}
+		}
+	}
+}
+{{- if .Static}}
+
+{{.Addresses .Static.Port}} {
+{{- with include (print "tls-" .TLS.Source "-site") .}}
+{{indent 1 .}}
+{{- end}}
+{{include "static-site.caddy" . | indent 1}}
+}
+{{- end}}

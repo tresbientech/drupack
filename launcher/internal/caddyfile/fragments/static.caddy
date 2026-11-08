@@ -1,0 +1,22 @@
+# Static-file snippets, defined at the top level and applied under a matcher of the
+# caller's: the guards and the engine's aggregates for the docroot, the site's files
+# route for the files directory.
+
+# .htaccess 45. Caddy writes no Expires date.
+(cachedForAYear) {
+	header {args[0]} Cache-Control "max-age=31536000"
+}
+# .htaccess 153-192: a .br or .gz copy beside an aggregate.
+(precompressedCopies) {
+	file_server {args[0]} {
+		precompressed br gzip
+	}
+}
+# .htaccess 22-23. The mime table names .svgz image/svg+xml-compressed.
+(svgzEncoding) {
+	header {args[0]} {
+		defer
+		Content-Type image/svg+xml
+		Content-Encoding gzip
+	}
+}

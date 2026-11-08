@@ -1,0 +1,13 @@
+{{define "engine-log"}}log {
+	output stderr
+	format console
+	level ERROR
+}{{end}}
+{{define "engine-files"}}# The aggregates Drupal writes under the docroot, where the folder's settings put public
+# files, and php_server serves the rest as static files. A file_server ends the request,
+# so it runs after the project's rules.
+@aggregate {
+	path_regexp "(?i)/(css_[a-zA-Z0-9_-]+\.css|js_[a-zA-Z0-9_-]+\.js)$"
+	file
+}
+import precompressedCopies @aggregate{{end}}

@@ -12,10 +12,10 @@ import (
 	"path/filepath"
 	"regexp"
 	goruntime "runtime"
-	"slices"
 	"strconv"
 	"strings"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
@@ -49,6 +49,15 @@ type startPlan struct {
 	Probe string
 	// Static is nil for a project that serves no static listener.
 	Static *staticPlan
+}
+
+// record is the Listener record a start writes into its state directory.
+func (p startPlan) record() state.Listener {
+	record := state.Listener{Listen: urlHost(p.Bind) + ":" + strconv.Itoa(p.Port), Host: p.Host, Scheme: p.Scheme}
+	if p.Static != nil {
+		record.StaticListen = urlHost(p.Static.Bind) + ":" + strconv.Itoa(p.Static.Port)
+	}
+	return record
 }
 
 type staticPlan struct {
@@ -95,6 +104,16 @@ func drupalDocroot(project, relative string) (string, error) {
 	return docroot, nil
 }
 
+// refuseBraces refuses a project or docroot holding { or }, which Caddy reads as a
+// placeholder. The engine has no --data-dir or --files-dir, so these are the paths
+// of its Caddyfile that a reader chooses.
+func refuseBraces(project, docroot string) error {
+	if err := caddyfile.RefuseBraces("The project folder", project); err != nil {
+		return err
+	}
+	return caddyfile.RefuseBraces("The docroot", docroot)
+}
+
 // operate runs one operation of the engine's operate.php through the runtime's
 // php-cli and returns the record it printed. Its failure message is the error.
 func operate(l Launch, env []string, arguments ...string) ([]byte, error) {
@@ -135,6 +154,9 @@ func startEngine(l Launch, c command) error {
 	}
 	docroot, err := drupalDocroot(project, composer.Docroot)
 	if err != nil {
+		return err
+	}
+	if err := refuseBraces(project, docroot); err != nil {
 		return err
 	}
 	e := environ{entries: environment(l), fold: l.FoldCase}
@@ -227,30 +249,44 @@ func (s engineStart) serve() error {
 	fmt.Fprintln(os.Stdout, "Starting the web server.")
 	// The server opens no browser, so a value inherited from an earlier start is cleared.
 	e.drop("DRUPACK_RUNTIME_OPEN")
-	hub := ""
+	entryPath := runtime.Canonical(entry.Path())
+	var hub *caddyfile.Mercure
 	if composer.Mercure {
 		publisher, subscriber, err := entry.CreateMercureSecrets()
 		if err != nil {
 			return err
 		}
-		hub = mercureURL(plan.Scheme, plan.Bind, plan.Port)
+		hub = &caddyfile.Mercure{
+			URL: mercureURL(plan.Scheme, plan.Bind, plan.Port), Publisher: publisher, Subscriber: subscriber, DB: entryPath + "/mercure.db",
+		}
 		e.put("DRUPACK_MERCURE_PUBLISHER_SECRET=" + publisher)
 		e.put("DRUPACK_MERCURE_SUBSCRIBER_SECRET=" + subscriber)
-		e.put("DRUPACK_MERCURE_URL=" + hub)
-	}
-	staticURL := ""
-	if plan.Static != nil {
-		staticURL = plan.Static.URL
+		e.put("DRUPACK_MERCURE_URL=" + hub.URL)
 	}
 	// The start's --listen chooses the ports, so drush and export read the addresses back from here.
-	if err := entry.WriteFolderURLs(hub, staticURL); err != nil {
+	if err := entry.WriteListener(plan.record()); err != nil {
 		return err
 	}
-	values, err := serverEnvironment(project, docroot, runtime.Canonical(entry.Path()), composer, choice, plan)
+	config := caddyfile.Config{
+		Mode: caddyfile.Engine, ID: path.Base(entryPath), Bind: plan.Bind, Port: plan.Port,
+		Docroot: docroot, TLS: choice, Mercure: hub,
+	}
+	if info, err := os.Stat(project + "/drupack.caddy"); err == nil && info.Mode().IsRegular() {
+		config.ProjectRules = project + "/drupack.caddy"
+	}
+	if plan.Static != nil {
+		// Tome's default directory, html beside the docroot. The server creates none.
+		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: path.Dir(docroot) + "/html", Dynamic: composer.Static.Dynamic}
+	}
+	rendered, err := caddyfile.Render(config)
 	if err != nil {
 		return err
 	}
-	for _, value := range values {
+	file, err := entry.WriteCaddyfile(rendered)
+	if err != nil {
+		return err
+	}
+	for _, value := range serverEnvironment(entryPath, choice, plan) {
 		e.put(value)
 	}
 	// Drush's, Tome's and a request's child processes run the php on PATH, which bin/ points
@@ -260,9 +296,14 @@ func (s engineStart) serve() error {
 	if err := lease.Inherit(); err != nil {
 		return err
 	}
+	serverArguments := []string{l.Args[0], "php-server", file}
+	if config.ProjectRules != "" {
+		// The runtime names the file when its rules fail to adapt.
+		serverArguments = append(serverArguments, config.ProjectRules)
+	}
 	err = launch(Command{
 		Path: l.Entry,
-		Args: []string{l.Args[0], "php-server", filepath.Join(l.Application, "Caddyfile")},
+		Args: serverArguments,
 		Env:  e.entries,
 		Dir:  project,
 	})
@@ -343,56 +384,16 @@ func trustHint(l Launch, choice tls.Choice) string {
 	return fmt.Sprintf("HTTPS: run \"%s trust\" once to serve this site over HTTPS.\n", siteName)
 }
 
-// serverEnvironment lists the variables the engine's Caddyfile reads. Caddy
-// splices each into the file before it reads quotes, so a value holding a
-// double quote would end a string there.
-func serverEnvironment(project, docroot, entry string, composer siteconfig.Composer, choice tls.Choice, plan startPlan) ([]string, error) {
-	snippet := "none.caddy"
-	if info, err := os.Stat(project + "/drupack.caddy"); err == nil && info.Mode().IsRegular() {
-		snippet = project + "/drupack.caddy"
-	}
+// serverEnvironment lists the variables the runtime's watch reads: the readiness
+// address and token, the stop record and the root a client verifies HTTPS with.
+func serverEnvironment(entry string, choice tls.Choice, plan startPlan) []string {
 	entries := []string{
-		"DRUPACK_RUNTIME_PORT=" + strconv.Itoa(plan.Port),
-		"DRUPACK_RUNTIME_BIND=" + plan.Bind,
-		"DRUPACK_RUNTIME_DOCROOT=" + docroot,
 		"DRUPACK_RUNTIME_ID=" + path.Base(entry),
 		"DRUPACK_RUNTIME_URL=" + plan.Probe,
 		"DRUPACK_RUNTIME_STOP_RECORD=" + entry + "/stop.json",
-		"DRUPACK_RUNTIME_ALIAS=" + choice.Alias,
-		"DRUPACK_RUNTIME_TLS=" + choice.Source,
-		"DRUPACK_RUNTIME_MERCURE_DB=" + entry + "/mercure.db",
-		"DRUPACK_RUNTIME_PROJECT_SNIPPET=" + snippet,
 	}
-	switch choice.Source {
-	case "mkcert":
-		entries = append(entries, "DRUPACK_RUNTIME_TLS_ROOT="+choice.Root,
-			"DRUPACK_RUNTIME_TLS_CERT="+choice.Certificate, "DRUPACK_RUNTIME_TLS_KEY="+choice.Key)
-	case "drupack":
-		entries = append(entries, "DRUPACK_RUNTIME_TLS_ROOT="+choice.Root,
-			"DRUPACK_RUNTIME_TLS_ROOT_KEY="+choice.RootKey, "DRUPACK_RUNTIME_TLS_CA="+choice.Authority)
+	if choice.Root != "" {
+		entries = append(entries, "DRUPACK_RUNTIME_TLS_ROOT="+choice.Root)
 	}
-	mercureSnippet, staticSnippet := "none.caddy", "none.caddy"
-	if composer.Mercure {
-		mercureSnippet = "mercure.caddy"
-	}
-	if plan.Static != nil {
-		staticSnippet = "static-site-" + choice.Source + ".caddy"
-		dynamicSnippet := "none.caddy"
-		if dynamic := composer.Static.Dynamic; len(dynamic) > 0 {
-			dynamicSnippet = "static-dynamic.caddy"
-			entries = append(entries, "DRUPACK_RUNTIME_STATIC_DYNAMIC="+strings.Join(dynamic, " "))
-		}
-		// Tome's default directory, html beside the docroot. The server creates none.
-		entries = append(entries, "DRUPACK_RUNTIME_STATIC_ROOT="+path.Dir(docroot)+"/html",
-			"DRUPACK_RUNTIME_STATIC_BIND="+plan.Static.Bind, "DRUPACK_RUNTIME_STATIC_PORT="+strconv.Itoa(plan.Static.Port),
-			"DRUPACK_RUNTIME_STATIC_DYNAMIC_SNIPPET="+dynamicSnippet)
-	}
-	entries = append(entries, "DRUPACK_RUNTIME_MERCURE_SNIPPET="+mercureSnippet, "DRUPACK_RUNTIME_STATIC_SNIPPET="+staticSnippet)
-	slices.Sort(entries)
-	for _, entry := range entries {
-		if name, value, _ := strings.Cut(entry, "="); strings.Contains(value, `"`) {
-			return nil, fmt.Errorf("%s must not contain a double quote: %s", name, value)
-		}
-	}
-	return entries, nil
+	return entries
 }

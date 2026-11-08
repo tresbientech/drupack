@@ -807,6 +807,7 @@ try {
     // site runs, so the credential stops here.
     putenv('DRUPACK_ADMIN_PASSWORD');
     fwrite(STDOUT, "Starting the web server.\n");
+    $projectRules = projectSnippetEnvironment(application());
     exportServerEnvironment(serverEnvironment($plan, $tls, [
         'DRUPACK_RUNTIME_ID' => siteToken($data),
         // Absolute, because FrankenPHP resolves a relative docroot against the directory
@@ -816,8 +817,9 @@ try {
         'DRUPACK_RUNTIME_LOG_PATH' => $logPath,
         'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
     ] + mercureServerEnvironment(siteContract()->mercure, $data) + staticServerEnvironment(siteContract()->static, $static, $tls->source)
-        + projectSnippetEnvironment(application())));
-    replaceProcess($binary, ['php-server', application() . '/Caddyfile'], application(), 'Cannot start FrankenPHP');
+        + $projectRules));
+    // The runtime names the project's rules when they fail to adapt.
+    replaceProcess($binary, array_merge(['php-server', application() . '/Caddyfile'], array_values(array_diff($projectRules, ['none.caddy']))), application(), 'Cannot start FrankenPHP');
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
     exit(1);

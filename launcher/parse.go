@@ -9,9 +9,9 @@ import (
 // command is a reader's line as the launcher answers it.
 type command struct {
 	// word is "stop", "drush", "help", "start" for an engine start or a site
-	// start the launcher has checked, "export" for a site export it has
-	// checked, "node" for a site's Node word, or "" for a line the runtime
-	// reads. A site's start and export go to launch.php, which reads their
+	// start the launcher has checked, "export" for an engine export or a site
+	// export it has checked, "dr" for the engine's, "node" for a site's Node
+	// word, or "" for a line the runtime reads. A site's start and export go to launch.php, which reads their
 	// options again until it moves into the launcher.
 	word string
 	// target is stop's Site data or folder, or the engine start's folder, as
@@ -94,7 +94,7 @@ func parse(args []string, engine bool, lookup func(string) (string, bool)) (comm
 	case word == "php" || len(args) == 2 && (word == "--version" || word == "-v"):
 		return command{}, nil
 	case engine && (word == "export" || word == "dr"):
-		return command{}, nil
+		return command{word: word, words: rest}, nil
 	case engine && (word == "--help" || word == "-h"):
 		return command{word: "help"}, nil
 	case engine && word == "start":

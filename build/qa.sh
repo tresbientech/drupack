@@ -69,6 +69,7 @@ for file in application/tests/*_test.php; do
     "$executable" php-cli "$PWD/$file" a b
 done
 bash build/go-tests.sh
+bash runtime/adapt-test.sh gnu
 bash build/unit-tests.sh
 DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" "$work/results/conformance" --site-tests "$demo/tests" \
     -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \

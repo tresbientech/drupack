@@ -202,20 +202,20 @@ func TestBundleAndFolderRecords(t *testing.T) {
 	if _, ok := dir.Bundle(); ok {
 		t.Error("the bundle is still there")
 	}
-	if err := dir.WriteFolderURLs("https://h:1/.well-known/mercure", ""); err != nil {
+	written := state.Listener{Listen: "127.0.0.1:3787", Host: "shop.drupack.site", Scheme: "https", StaticListen: "127.0.0.1:3788"}
+	if err := dir.WriteListener(written); err != nil {
 		t.Fatal(err)
 	}
-	if url, ok, err := dir.FolderMercureURL(); err != nil || !ok || url != "https://h:1/.well-known/mercure" {
-		t.Errorf("FolderMercureURL() = %q, %v, %v", url, ok, err)
+	if got, ok, err := dir.Listener(); err != nil || !ok || got != written {
+		t.Errorf("Listener() = %+v, %v, %v, want %+v", got, ok, err, written)
 	}
-	if _, err := os.Stat(filepath.Join(dir.Path(), "static_url")); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("an empty static address wrote a file: %v", err)
-	}
-	if err := dir.WriteFolderURLs("", "http://h:2/"); err != nil {
+	// A start without a static listener or a files directory records null for both, as Site data does.
+	if err := dir.WriteListener(state.Listener{Listen: "[::1]:80", Host: "::1", Scheme: "http"}); err != nil {
 		t.Fatal(err)
 	}
-	if content, _ := os.ReadFile(filepath.Join(dir.Path(), "static_url")); string(content) != "http://h:2/" {
-		t.Errorf("static_url = %q", content)
+	content, _ := os.ReadFile(filepath.Join(dir.Path(), "listener"))
+	if want := `{"listen":"[::1]:80","host":"::1","files-dir":null,"scheme":"http","static-listen":null}`; string(content) != want {
+		t.Errorf("listener = %s, want %s", content, want)
 	}
 }
 

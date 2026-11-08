@@ -3,9 +3,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -30,9 +28,6 @@ func run() error {
 	// detach needs no cache.
 	if len(os.Args) > 1 && os.Args[1] == "detach" {
 		return detach(os.Args[2:])
-	}
-	if engine && len(os.Args) > 1 && os.Args[1] == "composer-settings" {
-		return composerSettings(os.Args[2:], os.Stdout)
 	}
 	tlsFolder, err := tlsDir()
 	if err != nil {
@@ -127,18 +122,36 @@ func run() error {
 		return nodeRefusal(application, os.Args[1])
 	case c.word == "start" && engine:
 		return startEngine(l, c)
-	case c.word == "drush":
-		cwd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		call, err := drushPlan(l, c, cwd)
-		if err != nil {
-			return err
-		}
-		return launch(call)
+	case c.word == "drush", engine && (c.word == "export" || c.word == "dr"):
+		return runInFolder(l, c)
 	}
 	return launch(Plan(l))
+}
+
+// runInFolder runs drush, or the engine's export or dr, from the reader's directory.
+func runInFolder(l Launch, c command) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	var call Command
+	switch {
+	case c.word == "drush":
+		call, err = drushPlan(l, c, cwd)
+	case c.word == "dr":
+		call, err = engineCore(l, c, cwd, environ{entries: environment(l), fold: l.FoldCase})
+	default:
+		var export exportCall
+		export, err = engineExport(l, c, cwd, environ{entries: environment(l), fold: l.FoldCase})
+		if err == nil {
+			err = export.requireTomeStatic()
+		}
+		call = export.run
+	}
+	if err != nil {
+		return err
+	}
+	return launch(call)
 }
 
 // nodeRefusal answers a Node word on a file that carries no Node. A site whose
@@ -192,22 +205,6 @@ func cleanArguments(arguments []string) (bool, error) {
 		return true, nil
 	}
 	return false, fmt.Errorf("clean takes --dry-run alone")
-}
-
-// composerSettings prints, as one JSON object, the settings engine/serve.php's
-// export reads the folder with.
-func composerSettings(arguments []string, out io.Writer) error {
-	if len(arguments) != 1 {
-		return fmt.Errorf("composer-settings takes one folder, not %q", arguments)
-	}
-	settings, err := siteconfig.ReadComposer(arguments[0], siteconfig.Folder)
-	if err != nil {
-		return err
-	}
-	if err := siteconfig.CheckStatic(arguments[0], settings); err != nil {
-		return err
-	}
-	return json.NewEncoder(out).Encode(settings)
 }
 
 // layApp lays the site's own application in Site data, or with --check exits 1

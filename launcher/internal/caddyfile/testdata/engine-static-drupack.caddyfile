@@ -1,0 +1,212 @@
+{
+	admin off
+	persist_config off
+	# HTTPS from the user's local root, which `trust` installed. auto_https off would stop
+	# Caddy issuing for the named site addresses, so only its HTTP redirects are off.
+	auto_https disable_redirects
+	# Caddy would otherwise install the root on every start, which asks for a password.
+	skip_install_trust
+	pki {
+		ca "Drupack local root" {
+			root {
+				cert "/drupack-test/tls/root.pem"
+				key "/drupack-test/tls/root.key"
+			}
+		}
+	}
+	# Windows PHP keys its opcache segment per user account, so a second server attaches to
+	# the first one's segment, finds opcode handlers from a differently based image and
+	# aborts before it binds. The cache id gives each served state its own segment. Other
+	# platforms do not register the directive and ignore it.
+	frankenphp {
+		php_ini "opcache.cache_id" "f0123456789abcdef"
+	}
+	order php_server before file_server
+	log {
+		output stderr
+		format console
+		level ERROR
+	}
+}
+
+# Snippets are defined before their first import.
+# Static-file snippets, defined at the top level and applied under a matcher of the
+# caller's: the guards and the engine's aggregates for the docroot, the site's files
+# route for the files directory.
+
+# .htaccess 45. Caddy writes no Expires date.
+(cachedForAYear) {
+	header {args[0]} Cache-Control "max-age=31536000"
+}
+# .htaccess 153-192: a .br or .gz copy beside an aggregate.
+(precompressedCopies) {
+	file_server {args[0]} {
+		precompressed br gzip
+	}
+}
+# .htaccess 22-23. The mime table names .svgz image/svg+xml-compressed.
+(svgzEncoding) {
+	header {args[0]} {
+		defer
+		Content-Type image/svg+xml
+		Content-Encoding gzip
+	}
+}
+
+# One address per name the TLS source covers, so Caddy issues no certificate for a name
+# a page asks for.
+"https://shop.drupack.site:3787", "https://localhost:3787", "https://127.0.0.1:3787", "https://[::1]:3787" {
+	tls {
+		issuer internal {
+			ca "Drupack local root"
+		}
+	}
+	bind "127.0.0.1"
+	root * "/drupack-test/project/web"
+	encode zstd br gzip
+
+	# One route block keeps the written order, so every guard runs before Drupal.
+	route {
+		# The readiness probe runtime/watch/watch.go polls until this server answers. The
+		# token names this state, and a caller without it gets 404. Caddy answers without
+		# reaching Drupal. Placed ahead of the guards, which refuse any dot path.
+		@drupackIdentity {
+			path /.drupack-id
+			query "id=f0123456789abcdef"
+		}
+		respond @drupackIdentity 204
+		@drupackIdentityOther path /.drupack-id
+		respond @drupackIdentityOther 404
+
+		# Request guards and cache headers ahead of Drupal, rendered inside a route block, which
+		# keeps this order. Each rule names its line in core's .htaccess (assets/scaffold/files/htaccess),
+		# vendor/.htaccess or FileSecurity.php. A script rule ignores case and ends with [. ]*(/|$):
+		# FrankenPHP runs a script with a PATH_INFO tail, and Win32 opens "probe.php." as "probe.php".
+
+		# .htaccess 204-207. defer replaces a header PHP set.
+		header {
+			defer
+			X-Content-Type-Options nosniff
+		}
+		request_header -Proxy
+		# A raw path opening with //, /\ or a control character reads as a host in a Location
+		# header. The path matchers see a cleaned path; the expression sees the raw one.
+		@hostLikePath expression `{http.request.uri.path}.matches("^/[/\\\\]|[\\x00-\\x1f\\x7f]")`
+		respond @hostLikePath 403
+
+		# files/.htaccess. 404, ahead of the 403 below.
+		@publicStoragePhp path_regexp "(?i)^/(sites/[^/]+/files/|files/).*\.php[. ]*(/|$)"
+		respond @publicStoragePhp 404
+		# .htaccess 143-149. The core exemption is anchored at the root and takes no tail.
+		@phpBelowRoot {
+			path_regexp "(?i)^/(.+/.*|autoload)\.php[. ]*(/|$)"
+			not path_regexp "^/core/([^/]+|modules/system/tests/(https?|modules/legacy_front_controller_test/test_index))\.php$"
+		}
+		respond @phpBelowRoot 403
+		# A directory request php_server would rewrite to its index.php after these guards.
+		@phpIndexBelowRoot {
+			path_regexp "^/.+/$"
+			file {path}index.php
+		}
+		respond @phpIndexBelowRoot 403
+		# .htaccess 6 and 93: a dotted segment, except /.well-known/ with none below it.
+		@dotSegment {
+			path_regexp "/\."
+			not path_regexp "^/\.well-known/([^./][^/]*/)*([^./][^/]*)?$"
+		}
+		respond @dotSegment 403
+		# .htaccess 6, plus SQLite files and drupack.caddy. A name that is not a script takes no
+		# tail and the CVS names keep their case, so /clients/acme.inc/edit and /tag reach Drupal.
+		@protectedName path_regexp "(?i)(\.(engine|inc|install|make|module|profile|po|sh|[^/]*sql(ite3?)?|theme|twig|tpl|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?|/(composer\.(json|lock)|web\.config|yarn\.lock|package(-lock)?\.json|drupack\.caddy)|(?-i:/(Entries[^/]*|Repository|Root|Tag|Template))|/#[^/]*#)[. ]*$|(?i)\.(tpl\.php|php(~|\.sw[op]|\.bak|\.orig|\.save))[. ]*(/|$)"
+		respond @protectedName 403
+		# vendor/.htaccess and the files FileSecurity writes, when the directory exists. A file
+		# matcher matches a directory only through an entry ending in /.
+		@protectedDirectory {
+			path_regexp "(?i)^/(vendor|private|sites/.*/private|sites/[^/]+/files/config_[^/]*)(/|$)"
+			file {path} {path}/
+		}
+		respond @protectedDirectory 403
+		# Settings and services under any suffix.
+		@siteConfiguration path_regexp "(?i)^/sites/[^/]+/((settings|services)[^/]*|site-templates\.php[. ]*)(/|$)"
+		respond @siteConfiguration 403
+		# .htaccess 135.
+		@missingFavicon {
+			path /favicon.ico
+			not file
+		}
+		respond @missingFavicon 404
+		# .htaccess 121-129. The refusals above run first, so only a root-level request redirects.
+		@legacyInstaller {
+			path_regexp installer "^(.*)/(install|rebuild)\.php$"
+			not path_regexp "core"
+		}
+		redir @legacyInstaller "{re.installer.1}/core/{re.installer.2}.php{http.request.uri.prefixed_query}" 301
+		@coreInstaller path /core/install.php
+		uri @coreInstaller query +rewrite ok
+		# .htaccess 19: DirectoryIndex index.html, then index.htm, after the slash redirect mod_dir makes.
+		@htmlIndexNoSlash {
+			not path */
+			not file {path}/index.php
+			file {path}/index.html {path}/index.htm
+		}
+		redir @htmlIndexNoSlash "{path}/{http.request.uri.prefixed_query}" 301
+		@htmlIndex {
+			path */
+			not file {path}index.php
+			file {path}index.html {path}index.htm
+		}
+		rewrite @htmlIndex {http.matchers.file.relative}
+		# The static-file snippets apply to a file under the docroot. A bare file matcher never matches a directory.
+		@staticFile {
+			file
+			not path *.php
+		}
+		import cachedForAYear @staticFile
+		# Named by release.
+		@releaseAsset {
+			file
+			not path *.php
+			path_regexp ^/(core|modules|themes|libraries)/
+		}
+		header @releaseAsset Cache-Control "max-age=31536000,public,immutable"
+		@svgz {
+			file
+			path *.svgz
+		}
+		import svgzEncoding @svgz
+		# The aggregates Drupal writes under the docroot, where the folder's settings put public
+		# files, and php_server serves the rest as static files. A file_server ends the request,
+		# so it runs after the project's rules.
+		@aggregate {
+			path_regexp "(?i)/(css_[a-zA-Z0-9_-]+\.css|js_[a-zA-Z0-9_-]+\.js)$"
+			file
+		}
+		import precompressedCopies @aggregate
+		php_server {
+			root "/drupack-test/project/web"
+		}
+	}
+}
+
+"https://shop.drupack.site:3788", "https://localhost:3788", "https://127.0.0.1:3788", "https://[::1]:3788" {
+	tls {
+		issuer internal {
+			ca "Drupack local root"
+		}
+	}
+	# The static port: the Tome export as files. A directory answers its index.html with no
+	# redirect, and a miss answers the export's own 404 page with status 404. The dynamic
+	# fragment hands its paths to Drupal ahead of the files.
+	bind "127.0.0.1"
+	root * "/drupack-test/project/html"
+	encode zstd br gzip
+	route {
+		try_files {path}/index.html {path}
+		file_server
+	}
+	handle_errors {
+		@notFound expression `{err.status_code} == 404`
+		rewrite @notFound /404/index.html
+		file_server
+	}
+}

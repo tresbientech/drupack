@@ -359,7 +359,9 @@ func TestEngineDrushEnvironment(t *testing.T) {
 	entry := state.FolderEntry(f.root, f.project, false)
 	dir := entry.Path()
 	put(t, filepath.Join(dir, "ca-bundle.pem"), "roots")
-	put(t, filepath.Join(dir, "mercure_url"), "https://localhost:3787/.well-known/mercure")
+	if err := entry.WriteListener(state.Listener{Listen: "127.0.0.1:3787", Host: "shop.drupack.site", Scheme: "https"}); err != nil {
+		t.Fatal(err)
+	}
 	put(t, filepath.Join(dir, "mercure_publisher_secret"), "pub")
 	put(t, filepath.Join(dir, "mercure_subscriber_secret"), "sub")
 
@@ -372,7 +374,7 @@ func TestEngineDrushEnvironment(t *testing.T) {
 		"DRUPACK_DRUSH_SCRIPT":              filepath.Join(f.project, "vendor/drush/drush/drush.php"),
 		"PATH":                              "/cache/app/bin:/usr/bin",
 		"DRUPACK_CA_FILE":                   filepath.Join(dir, "ca-bundle.pem"),
-		"DRUPACK_MERCURE_URL":               "https://localhost:3787/.well-known/mercure",
+		"DRUPACK_MERCURE_URL":               "https://127.0.0.1:3787/.well-known/mercure",
 		"DRUPACK_MERCURE_PUBLISHER_SECRET":  "pub",
 		"DRUPACK_MERCURE_SUBSCRIBER_SECRET": "sub",
 	} {

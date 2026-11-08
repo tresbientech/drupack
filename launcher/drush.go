@@ -36,12 +36,18 @@ func drushPlan(l Launch, c command, cwd string) (Command, error) {
 // children, and Tome's, run the php on PATH, which bin/ points back at the runtime.
 func drushCall(l Launch, e environ, application, script string, words []string) Command {
 	e.put("DRUPACK_DRUSH_SCRIPT=" + runtime.Canonical(script))
+	return runtimePHPCall(l, e, application, append([]string{filepath.Join(application, "drush")}, words...))
+}
+
+// runtimePHPCall runs arguments through the runtime's php-cli with application's
+// bin/ first on PATH, so a child that runs php reaches the runtime again.
+func runtimePHPCall(l Launch, e environ, application string, arguments []string) Command {
 	path, _ := e.get("PATH")
 	e.put("PATH=" + filepath.Join(application, "bin") + string(os.PathListSeparator) + path)
 	return Command{
 		Path: l.Entry,
-		Args: append([]string{l.Args[0], "php-cli", filepath.Join(application, "drush")}, words...),
-		Env:  e.entries,
+		Args: append([]string{l.Args[0], "php-cli"}, arguments...),
+		Env:  slices.Clone(e.entries),
 	}
 }
 
@@ -202,42 +208,69 @@ func putMercure(e *environ, dir state.Dir, url string) error {
 	return nil
 }
 
-func engineDrush(l Launch, c command, cwd string, e environ) (Command, error) {
+// engineProject is the engine project a call addresses and the cache entry holding
+// what its last start served.
+type engineProject struct {
+	project  string
+	composer siteconfig.Composer
+	entry    state.Dir
+}
+
+// openFolder finds the project holding cwd, the nearest directory at or above it
+// with a vendor/autoload.php, and reads its composer.json.
+func openFolder(l Launch, cwd string) (engineProject, error) {
 	start, err := filepath.EvalSymlinks(cwd)
 	if err != nil {
-		return Command{}, err
+		return engineProject{}, err
 	}
 	project, err := vendorRoot(start)
 	if err != nil {
-		return Command{}, err
+		return engineProject{}, err
 	}
 	composer, err := siteconfig.ReadComposer(project, siteconfig.Folder)
 	if err != nil {
-		return Command{}, err
+		return engineProject{}, err
 	}
 	if err := siteconfig.CheckStatic(project, composer); err != nil {
-		return Command{}, err
+		return engineProject{}, err
 	}
-	entry := state.FolderEntry(l.Root, runtime.Canonical(project), l.FoldCase)
-	if bundle, ok := entry.Bundle(); ok {
+	return engineProject{project, composer, state.FolderEntry(l.Root, runtime.Canonical(project), l.FoldCase)}, nil
+}
+
+// drush returns the call that runs words in the project's Drush. Drush and
+// settings.php get the CA bundle and hub of the last start.
+func (f engineProject) drush(l Launch, e environ, words []string) (Command, error) {
+	if bundle, ok := f.entry.Bundle(); ok {
 		e.put("DRUPACK_CA_FILE=" + runtime.Canonical(bundle))
 	}
-	if composer.Mercure {
-		hub, ok, err := entry.FolderMercureURL()
+	if f.composer.Mercure {
+		record, recorded, err := f.entry.Listener()
 		if err != nil {
 			return Command{}, err
 		}
-		if ok {
-			if err := putMercure(&e, entry, hub); err != nil {
+		if recorded {
+			bind, port, err := parseListen(record.Listen, "--listen")
+			if err != nil {
+				return Command{}, err
+			}
+			if err := putMercure(&e, f.entry, mercureURL(record.Scheme, bind, port)); err != nil {
 				return Command{}, err
 			}
 		}
 	}
-	script := filepath.Join(project, drushScript)
+	script := filepath.Join(f.project, drushScript)
 	if info, err := os.Stat(script); err != nil || !info.Mode().IsRegular() {
-		return Command{}, fmt.Errorf("%s has no Drush: %s does not exist. Run composer require drush/drush in it.", runtime.Canonical(project), runtime.Canonical(script))
+		return Command{}, fmt.Errorf("%s has no Drush: %s does not exist. Run composer require drush/drush in it.", runtime.Canonical(f.project), runtime.Canonical(script))
 	}
-	return drushCall(l, e, l.Application, script, c.words), nil
+	return drushCall(l, e, l.Application, script, words), nil
+}
+
+func engineDrush(l Launch, c command, cwd string, e environ) (Command, error) {
+	f, err := openFolder(l, cwd)
+	if err != nil {
+		return Command{}, err
+	}
+	return f.drush(l, e, c.words)
 }
 
 // vendorRoot finds the project holding start: the nearest directory at or above

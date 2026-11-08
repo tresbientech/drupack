@@ -1,0 +1,22 @@
+# The Mercure hub, protocol 1.0. Subscribers and HTTP publishers present an HS256 token
+# signed with a secret that Site data or the engine's folder entry holds; iss and aud are
+# the hub's address. PHP publishes through mercure_publish() with none. A browser's
+# EventSource sends no Authorization header, so its token rides in a cookie. A site may
+# serve plain http, where browsers drop the protocol's default __Secure- cookie name.
+# The hub sits in php_server's route block, where FrankenPHP finds it.
+mercure {
+	resource_identifier {{quote .Mercure.URL}}
+	cookie_name mercure_access_token
+	issuer {{quote .Mercure.URL}} {
+		publisher {
+			jwt {{quote .Mercure.Publisher}} HS256
+		}
+		subscriber {
+			jwt {{quote .Mercure.Subscriber}} HS256
+		}
+	}
+	transport bolt {
+		path {{quote .Mercure.DB}}
+		size 1000
+	}
+}

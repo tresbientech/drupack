@@ -179,21 +179,34 @@ const cronFirstDelay = 2 * time.Minute
 // PHPRC already names the runtime directory in every hop, including this one,
 // so php.ini loads from there without a scan path naming the application too.
 // Caddy's run logs an adapter error into its early-start buffer after flushing it, so
-// the error never prints. The adapter runs once here, without Caddy's logger. A project
-// snippet is an absolute path; the shipped empty snippet is a bare name.
-func serveCaddyfile(config string) {
+// the error never prints. The adapter runs once here, without Caddy's logger, and run
+// reads the adapted JSON from a pipe on its stdin. Caddy names the line that imports
+// a project's drupack.caddy when the error sits inside it, so the file's path, when
+// the start passes one, follows the error.
+func serveCaddyfile(config, projectRules string) {
 	body, err := os.ReadFile(config)
 	if err != nil {
 		panic(err)
 	}
-	if _, _, err := caddyconfig.GetAdapter("caddyfile").Adapt(body, map[string]any{"filename": config}); err != nil {
+	adapted, _, err := caddyconfig.GetAdapter("caddyfile").Adapt(body, map[string]any{"filename": config})
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		if snippet := os.Getenv("DRUPACK_RUNTIME_PROJECT_SNIPPET"); filepath.IsAbs(snippet) {
-			fmt.Fprintf(os.Stderr, "The project's %s is part of this configuration.\n", snippet)
+		if projectRules != "" {
+			fmt.Fprintf(os.Stderr, "The project's %s is part of this configuration.\n", projectRules)
 		}
 		os.Exit(1)
 	}
-	os.Args = []string{os.Args[0], "run", "--config", config, "--adapter", "caddyfile"}
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+	// The pipe holds less than the JSON, so a goroutine feeds it while run reads.
+	go func() {
+		_, _ = writer.Write(adapted)
+		_ = writer.Close()
+	}()
+	os.Stdin = reader
+	os.Args = []string{os.Args[0], "run", "--config", "-"}
 }
 
 // This file builds inside frankenphp's own module, which cannot import the
@@ -238,7 +251,7 @@ func init() {
 			panic(err)
 		}
 	}
-	if len(os.Args) == 3 && os.Args[1] == "php-server" {
+	if (len(os.Args) == 3 || len(os.Args) == 4) && os.Args[1] == "php-server" {
 		// On Windows the handle PHP's proc_open hands this process writes at a stale
 		// offset, over the log's first lines. A detached server appends through its own
 		// handle, and a foreground one redirected to a file writes from the file's end.
@@ -277,7 +290,11 @@ func init() {
 			firstCron:   cronFirstDelay,
 			cronEvery:   cronInterval,
 		}, os.Stdout, os.Stderr, openBrowser, func() { stopServer(guardSignals) })
-		serveCaddyfile(os.Args[2])
+		projectRules := ""
+		if len(os.Args) == 4 {
+			projectRules = os.Args[3]
+		}
+		serveCaddyfile(os.Args[2], projectRules)
 		return
 	}
 	// launch.php replaces itself with this command when its Site data is already served,

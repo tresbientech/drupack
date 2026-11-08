@@ -1,0 +1,2 @@
+{{define "tls-none-global"}}auto_https off{{end}}
+{{define "tls-none-site"}}{{end}}

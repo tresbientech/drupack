@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/tls"
 )
 
@@ -113,98 +112,37 @@ func TestDrupalDocroot(t *testing.T) {
 	}
 }
 
-func values(t *testing.T, entries []string) map[string]string {
-	t.Helper()
-	got := map[string]string{}
-	for _, entry := range entries {
-		name, value, _ := strings.Cut(entry, "=")
-		got[name] = value
+func TestServerEnvironment(t *testing.T) {
+	plan := startPlan{Probe: "http://127.0.0.1:3787/"}
+	entry := "/cache/folders/f0123456789abcdef"
+	base := []string{
+		"DRUPACK_RUNTIME_ID=f0123456789abcdef",
+		"DRUPACK_RUNTIME_URL=http://127.0.0.1:3787/",
+		"DRUPACK_RUNTIME_STOP_RECORD=/cache/folders/f0123456789abcdef/stop.json",
 	}
-	return got
+	if got := serverEnvironment(entry, tls.Choice{Source: "none"}, plan); !slices.Equal(got, base) {
+		t.Errorf("plain http: %v", got)
+	}
+	// The runtime's watch verifies HTTPS with the root of every TLS source that serves it.
+	for _, source := range []string{"mkcert", "drupack"} {
+		got := serverEnvironment(entry, tls.Choice{Source: source, Root: "/r.pem"}, plan)
+		if want := append(slices.Clone(base), "DRUPACK_RUNTIME_TLS_ROOT=/r.pem"); !slices.Equal(got, want) {
+			t.Errorf("%s: %v", source, got)
+		}
+	}
 }
 
-// The rows are the variables the engine's Caddyfile reads, per TLS source, static
-// setting and Mercure flag.
-func TestServerEnvironment(t *testing.T) {
-	project := t.TempDir()
-	plain := startPlan{Bind: "127.0.0.1", Port: 3787, Probe: "http://127.0.0.1:3787/"}
-	withStatic := plain
-	withStatic.Static = &staticPlan{Bind: "127.0.0.1", Port: 3788}
-	entry := "/cache/folders/f0123456789abcdef"
-	docroot := project + "/web"
-	base := map[string]string{
-		"DRUPACK_RUNTIME_PORT":            "3787",
-		"DRUPACK_RUNTIME_BIND":            "127.0.0.1",
-		"DRUPACK_RUNTIME_DOCROOT":         docroot,
-		"DRUPACK_RUNTIME_ID":              "f0123456789abcdef",
-		"DRUPACK_RUNTIME_URL":             "http://127.0.0.1:3787/",
-		"DRUPACK_RUNTIME_STOP_RECORD":     entry + "/stop.json",
-		"DRUPACK_RUNTIME_ALIAS":           "shop.drupack.site",
-		"DRUPACK_RUNTIME_TLS":             "none",
-		"DRUPACK_RUNTIME_STATIC_SNIPPET":  "none.caddy",
-		"DRUPACK_RUNTIME_MERCURE_SNIPPET": "none.caddy",
-		"DRUPACK_RUNTIME_MERCURE_DB":      entry + "/mercure.db",
-		"DRUPACK_RUNTIME_PROJECT_SNIPPET": "none.caddy",
+func TestRefuseBraces(t *testing.T) {
+	if err := refuseBraces(`/work/we"b`, `/work/we"b/web`); err != nil {
+		t.Errorf("a double quote: %v", err)
 	}
-	with := func(changes map[string]string) map[string]string {
-		want := map[string]string{}
-		for name, value := range base {
-			want[name] = value
-		}
-		for name, value := range changes {
-			want[name] = value
-		}
-		return want
-	}
-	for _, row := range []struct {
-		name     string
-		composer siteconfig.Composer
-		choice   tls.Choice
-		plan     startPlan
-		want     map[string]string
-	}{
-		{"plain http", siteconfig.Composer{}, tls.Choice{Source: "none", Alias: "shop.drupack.site"}, plain, with(nil)},
-		{"mkcert", siteconfig.Composer{}, tls.Choice{Source: "mkcert", Alias: "shop.drupack.site", Root: "/r.pem", Certificate: "/c.pem", Key: "/k.pem"}, plain,
-			with(map[string]string{"DRUPACK_RUNTIME_TLS": "mkcert", "DRUPACK_RUNTIME_TLS_ROOT": "/r.pem", "DRUPACK_RUNTIME_TLS_CERT": "/c.pem", "DRUPACK_RUNTIME_TLS_KEY": "/k.pem"})},
-		{"drupack root", siteconfig.Composer{}, tls.Choice{Source: "drupack", Alias: "shop.drupack.site", Root: "/r.pem", RootKey: "/r.key", Authority: "Drupack local root"}, plain,
-			with(map[string]string{"DRUPACK_RUNTIME_TLS": "drupack", "DRUPACK_RUNTIME_TLS_ROOT": "/r.pem", "DRUPACK_RUNTIME_TLS_ROOT_KEY": "/r.key", "DRUPACK_RUNTIME_TLS_CA": "Drupack local root"})},
-		{"mercure", siteconfig.Composer{Mercure: true}, tls.Choice{Source: "none", Alias: "shop.drupack.site"}, plain,
-			with(map[string]string{"DRUPACK_RUNTIME_MERCURE_SNIPPET": "mercure.caddy"})},
-		{"static without dynamic paths", siteconfig.Composer{Static: &siteconfig.Static{}}, tls.Choice{Source: "none", Alias: "shop.drupack.site"}, withStatic,
-			with(map[string]string{
-				"DRUPACK_RUNTIME_STATIC_ROOT": project + "/html", "DRUPACK_RUNTIME_STATIC_SNIPPET": "static-site-none.caddy",
-				"DRUPACK_RUNTIME_STATIC_BIND": "127.0.0.1", "DRUPACK_RUNTIME_STATIC_PORT": "3788", "DRUPACK_RUNTIME_STATIC_DYNAMIC_SNIPPET": "none.caddy"})},
-		{"static with dynamic paths over mkcert", siteconfig.Composer{Static: &siteconfig.Static{Dynamic: []string{"/api/*", "/search"}}},
-			tls.Choice{Source: "mkcert", Alias: "shop.drupack.site", Root: "/r.pem", Certificate: "/c.pem", Key: "/k.pem"}, withStatic,
-			with(map[string]string{
-				"DRUPACK_RUNTIME_TLS": "mkcert", "DRUPACK_RUNTIME_TLS_ROOT": "/r.pem", "DRUPACK_RUNTIME_TLS_CERT": "/c.pem", "DRUPACK_RUNTIME_TLS_KEY": "/k.pem",
-				"DRUPACK_RUNTIME_STATIC_ROOT": project + "/html", "DRUPACK_RUNTIME_STATIC_SNIPPET": "static-site-mkcert.caddy",
-				"DRUPACK_RUNTIME_STATIC_BIND": "127.0.0.1", "DRUPACK_RUNTIME_STATIC_PORT": "3788",
-				"DRUPACK_RUNTIME_STATIC_DYNAMIC_SNIPPET": "static-dynamic.caddy", "DRUPACK_RUNTIME_STATIC_DYNAMIC": "/api/* /search"})},
+	for _, row := range []struct{ project, docroot, want string }{
+		{"/work/a{b", "/work/a{b/web", "The project folder must not contain { or }: /work/a{b"},
+		{"/work/a}b", "/work/a}b/web", "The project folder must not contain { or }: /work/a}b"},
+		{"/work/shop", "/work/shop/{$HOME}", "The docroot must not contain { or }: /work/shop/{$HOME}"},
 	} {
-		entries, err := serverEnvironment(project, docroot, entry, row.composer, row.choice, row.plan)
-		if err != nil {
-			t.Errorf("%s: %v", row.name, err)
-			continue
+		if err := refuseBraces(row.project, row.docroot); err == nil || err.Error() != row.want {
+			t.Errorf("refuseBraces(%s, %s) = %v, want %s", row.project, row.docroot, err, row.want)
 		}
-		if got := values(t, entries); !reflect.DeepEqual(got, row.want) {
-			t.Errorf("%s: got %v, want %v", row.name, got, row.want)
-		}
-	}
-
-	snippet := filepath.Join(project, "drupack.caddy")
-	if err := os.WriteFile(snippet, nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	entries, err := serverEnvironment(project, docroot, entry, siteconfig.Composer{}, tls.Choice{Source: "none"}, plain)
-	if err != nil || values(t, entries)["DRUPACK_RUNTIME_PROJECT_SNIPPET"] != snippet {
-		t.Errorf("a project with a drupack.caddy: %v, %v", entries, err)
-	}
-	_, err = serverEnvironment(project, project+`/we"b`, entry, siteconfig.Composer{}, tls.Choice{Source: "none"}, plain)
-	if err == nil || err.Error() != `DRUPACK_RUNTIME_DOCROOT must not contain a double quote: `+project+`/we"b` {
-		t.Errorf("a docroot holding a double quote: %v", err)
-	}
-	if !slices.IsSorted(entries) {
-		t.Errorf("the entries are not in name order: %v", entries)
 	}
 }

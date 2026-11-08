@@ -1,0 +1,18 @@
+{{define "tls-drupack-global"}}# HTTPS from the user's local root, which `trust` installed. auto_https off would stop
+# Caddy issuing for the named site addresses, so only its HTTP redirects are off.
+auto_https disable_redirects
+# Caddy would otherwise install the root on every start, which asks for a password.
+skip_install_trust
+pki {
+	ca {{quote .TLS.Authority}} {
+		root {
+			cert {{quote .TLS.Root}}
+			key {{quote .TLS.RootKey}}
+		}
+	}
+}{{end}}
+{{define "tls-drupack-site"}}tls {
+	issuer internal {
+		ca {{quote .TLS.Authority}}
+	}
+}{{end}}

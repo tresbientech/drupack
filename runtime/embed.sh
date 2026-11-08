@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Links the runtime executable for the libc the builder image names in LIBC,
-# gnu or musl.
+# gnu or musl. With the argument test and a test name, it runs that test of the
+# frankenphp package instead.
 
 cd /go/src/app
 # frankenphp's embed.go needs the file to exist, and its init returns early on
@@ -77,8 +78,14 @@ export GOTOOLCHAIN=local
 # Go moves to the next entry after a "|" on any error, so a dropped fetch gets
 # a second attempt. go.sum checks either answer.
 export GOPROXY='https://proxy.golang.org|https://proxy.golang.org,direct'
-mkdir -p /out
 cd caddy
+# adapt-test.sh runs the adapter test, linked as the build is.
+if [ "${1:-}" = test ]; then
+    exec "$GOROOT/bin/go" test -mod=readonly -buildmode=pie -tags="$build_tags" \
+        -ldflags="-s -w -linkmode=external -extldflags '$linker_flags'" \
+        -run "${2:?embed.sh test takes a test name}" -v ./frankenphp
+fi
+mkdir -p /out
 "$GOROOT/bin/go" build -mod=readonly -buildmode=pie -tags="$build_tags" \
     -ldflags="-s -w -linkmode=external -extldflags '$linker_flags' -X 'main.version=${DRUPACK_VERSION:-dev}' -X 'main.libc=$libc' -X 'main.frankenphpVersion=$frankenphp_version' -X 'main.sqliteVersion=$sqlite_version' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $($php_config --version) Caddy'" \
     -o /out/drupack ./frankenphp

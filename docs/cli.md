@@ -452,12 +452,6 @@ standard error naming it. The check stays off in these cases:
 `lay-app` is internal: a start or `drush` runs it to lay or check a site's own
 application.
 
-`drupack composer-settings DIR` is internal too: an engine start, `drush` or
-`export` runs it to read the docroot, the Mercure flag, the static settings and
-the subdomain from `DIR/composer.json`, and to check the lock for `drupal/tome`
-when the static key is set. It prints them as one JSON object, or the refusal a
-start would print.
-
 On a site, `php` runs PHP from the working directory in the two forms
 [the engine's `php`](#the-engine-executable) takes, with no PHP option. Drush's,
 Tome's and a request's child processes reach it as the `php` on their `PATH`.

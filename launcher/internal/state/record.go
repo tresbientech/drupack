@@ -12,12 +12,11 @@ import (
 )
 
 const (
-	listenerName     = "listener"
-	bundleName       = "ca-bundle.pem"
-	publisherName    = "mercure_publisher_secret"
-	subscriberName   = "mercure_subscriber_secret"
-	folderMercureURL = "mercure_url"
-	folderStaticURL  = "static_url"
+	listenerName   = "listener"
+	bundleName     = "ca-bundle.pem"
+	caddyfileName  = "Caddyfile"
+	publisherName  = "mercure_publisher_secret"
+	subscriberName = "mercure_subscriber_secret"
 	// unrecordedScheme is the scheme of a record that names none.
 	unrecordedScheme = "http"
 )
@@ -108,16 +107,6 @@ func (d Dir) MercureSecrets() (publisher, subscriber string, ok bool, err error)
 	return values[0], values[1], true, nil
 }
 
-// FolderMercureURL reads the hub address the last start of a folder served.
-// ok is false when none recorded one.
-func (d Dir) FolderMercureURL() (url string, ok bool, err error) {
-	content, err := os.ReadFile(filepath.Join(d.path, folderMercureURL))
-	if errors.Is(err, fs.ErrNotExist) {
-		return "", false, nil
-	}
-	return string(content), err == nil, err
-}
-
 // StopRecordPath is where the server writes its stop record, which Stop reads.
 func (d Dir) StopRecordPath() string {
 	return filepath.Join(d.path, stopRecordName)
@@ -136,22 +125,34 @@ func (d Dir) ClearStopRecord() error {
 // WriteBundle replaces the CA bundle whole, since a running server's cron
 // reads it.
 func (d Dir) WriteBundle(content []byte) error {
-	partial, err := os.CreateTemp(d.path, bundleName+".")
+	return d.writeWhole(bundleName, content)
+}
+
+// writeWhole replaces a file whole, so a reader sees the old content or the new.
+func (d Dir) writeWhole(name string, content []byte) error {
+	path := filepath.Join(d.path, name)
+	partial, err := os.CreateTemp(d.path, name+".")
 	if err != nil {
-		return fmt.Errorf("Cannot write %s", filepath.Join(d.path, bundleName))
+		return fmt.Errorf("Cannot write %s", path)
 	}
 	_, err = partial.Write(content)
 	if closeErr := partial.Close(); err == nil {
 		err = closeErr
 	}
 	if err == nil {
-		err = os.Rename(partial.Name(), filepath.Join(d.path, bundleName))
+		err = os.Rename(partial.Name(), path)
 	}
 	if err != nil {
 		os.Remove(partial.Name())
-		return fmt.Errorf("Cannot write %s", filepath.Join(d.path, bundleName))
+		return fmt.Errorf("Cannot write %s", path)
 	}
 	return nil
+}
+
+// WriteCaddyfile replaces the start's rendered Caddyfile and returns its path.
+// The file holds the Mercure secrets, so it is owner-only like the directory.
+func (d Dir) WriteCaddyfile(content []byte) (string, error) {
+	return filepath.Join(d.path, caddyfileName), d.writeWhole(caddyfileName, content)
 }
 
 // RemoveBundle deletes the bundle after an HTTP start, so Drush stops trusting
@@ -194,17 +195,21 @@ func (d Dir) CreateMercureSecrets() (publisher, subscriber string, err error) {
 	return values[0], values[1], nil
 }
 
-// WriteFolderURLs records the hub and static addresses the folder's start
-// serves, which drush and export read back. An empty address records nothing.
-func (d Dir) WriteFolderURLs(mercure, static string) error {
-	for name, url := range map[string]string{folderMercureURL: mercure, folderStaticURL: static} {
-		if url == "" {
-			continue
+// WriteListener records the addresses a folder's start serves, which drush and
+// export read back. It replaces the record whole, in Site data's format.
+func (d Dir) WriteListener(record Listener) error {
+	text := func(value string) *string {
+		if value == "" {
+			return nil
 		}
-		path := filepath.Join(d.path, name)
-		if err := os.WriteFile(path, []byte(url), 0o600); err != nil {
-			return fmt.Errorf("Cannot write %s", path)
-		}
+		return &value
 	}
-	return nil
+	content, _ := json.Marshal(struct {
+		Listen       string  `json:"listen"`
+		Host         string  `json:"host"`
+		FilesDir     *string `json:"files-dir"`
+		Scheme       string  `json:"scheme"`
+		StaticListen *string `json:"static-listen"`
+	}{record.Listen, record.Host, text(record.FilesDir), record.Scheme, text(record.StaticListen)})
+	return d.writeWhole(listenerName, content)
 }

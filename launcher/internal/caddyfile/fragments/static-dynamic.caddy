@@ -1,0 +1,10 @@
+# The dynamic paths of the static port: extra.drupack.static.dynamic, one quoted path token
+# per pattern, handed to Drupal ahead of the files.
+@dynamic path{{range .Static.Dynamic}} {{quote .}}{{end}}
+route @dynamic {
+	root * {{quote .Docroot}}
+{{include "guards.caddy" . | indent 1}}
+	php_server {
+		root {{quote .Docroot}}
+	}
+}

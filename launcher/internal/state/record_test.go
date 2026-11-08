@@ -78,12 +78,4 @@ func TestBundleAndMercure(t *testing.T) {
 	if publisher, subscriber, ok, err := d.MercureSecrets(); publisher != "pub" || subscriber != "sub" || !ok || err != nil {
 		t.Errorf("MercureSecrets() = %q, %q, %v, %v", publisher, subscriber, ok, err)
 	}
-
-	if _, ok, err := d.FolderMercureURL(); ok || err != nil {
-		t.Errorf("no record: FolderMercureURL() ok = %v, err = %v", ok, err)
-	}
-	write(t, dir, "mercure_url", "https://localhost:3787/.well-known/mercure")
-	if url, ok, err := d.FolderMercureURL(); url != "https://localhost:3787/.well-known/mercure" || !ok || err != nil {
-		t.Errorf("FolderMercureURL() = %q, %v, %v", url, ok, err)
-	}
 }

@@ -642,9 +642,10 @@ class EngineExecutable(harness.ConformanceCase):
     def hub_entry(self, port):
         """The folder's cache entry holding the hub a start on port recorded."""
         root = self.engine_run("php", "-r", "echo getenv('DRUPACK_RUNTIME_CACHE_ROOT');", cwd=self.project).stdout
-        hub = f"http://127.0.0.1:{port}{HUB}"
-        entries = [path.parent for path in Path(root, "folders").glob("*/mercure_url") if path.read_text() == hub]
-        self.assertEqual(len(entries), 1, f"entries recording {hub}: {entries}")
+        listen = f"127.0.0.1:{port}"
+        entries = [path.parent for path in Path(root, "folders").glob("*/listener")
+                   if json.loads(path.read_text())["listen"] == listen]
+        self.assertEqual(len(entries), 1, f"entries recording {listen}: {entries}")
         return entries[0]
 
     def test_a_project_with_the_mercure_key_serves_the_hub_from_its_cache_entry(self):

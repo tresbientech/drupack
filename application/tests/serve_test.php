@@ -29,44 +29,6 @@ test('the engine treats only 127.0.0.0/8 and ::1 as loopback', function () {
     }
 });
 
-// A stub stands in for the engine's launcher: it prints $stdout, and $stderr then exits 1
-// when $stderr is set.
-function launcher_answering(string $name, string $stdout, string $stderr = ''): void
-{
-    $stub = project_with($name, ['launcher' => "#!/bin/sh\nprintf '%s' " . escapeshellarg($stdout)
-        . ($stderr === '' ? '' : "\nprintf '%s\\n' " . escapeshellarg($stderr) . " >&2\nexit 1") . "\n"]);
-    chmod("$stub/launcher", 0700);
-    putenv("DRUPACK_RUNTIME_LAUNCHER=$stub/launcher");
-}
-
-test('the launcher\'s settings reach serve.php, static null when the launcher leaves it out', function () {
-    launcher_answering('settings', '{"docroot":"web","mercure":true,"subdomain":"shop"}');
-    same(['docroot' => 'web', 'mercure' => true, 'subdomain' => 'shop', 'static' => null], composerSettings('/project'));
-    launcher_answering('static-settings', '{"docroot":"web","mercure":false,"static":{"dynamic":["/search*"]}}');
-    same(['docroot' => 'web', 'mercure' => false, 'static' => ['dynamic' => ['/search*']]], composerSettings('/project'));
-});
-
-test('the launcher\'s refusal reaches the reader as it is', function () {
-    launcher_answering('refusal', '', '/project/composer.json: extra.drupack.mercure must be true or false, not "on"');
-    throws('/project/composer.json: extra.drupack.mercure must be true or false, not "on"', fn () => composerSettings('/project'));
-});
-
-test('a project without Drush names the missing path', function () {
-    $project = project_with('nodrush', ['composer.json' => '{}']);
-    throws("$project/vendor/drush/drush/drush.php does not exist", fn () => drushScript($project));
-});
-
-test('a project on a Drupal core without its command line names the missing path', function () {
-    $project = project_with('nocore', ['composer.json' => '{}']);
-    throws("$project has no Drupal core command line: $project/vendor/bin/dr does not exist", fn () => coreScript($project));
-});
-
-test('the project is the nearest installed Composer project above', function () {
-    $project = project_with('walk', ['vendor/autoload.php' => '<?php', 'web/core/composer.json' => '{}']);
-    chdir("$project/web/core");
-    same($project, project());
-});
-
 test('a lock declaring an extension the runtime lacks is refused, naming its package', function () {
     $project = project_with('missing', ['composer.lock' => json_encode([
         'platform' => ['ext-json' => '*', 'ext-drupack-absent-root' => '*'],

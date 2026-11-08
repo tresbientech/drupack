@@ -1,0 +1,25 @@
+{{define "site-log"}}log {
+	output file {{quote .LogPath}} {
+		roll_size 100MiB
+		roll_keep 10
+	}
+	format json
+}{{end}}
+{{define "site-files"}}# Public files live outside the application, which one release shares across sites. The
+# address stays root-relative, so it survives a restart on another port.
+route /sites/default/files/* {
+	root * {{quote .FilesDir}}
+	uri strip_prefix /sites/default/files
+	@stored file
+	import cachedForAYear @stored
+	@storedSvgz {
+		file
+		path *.svgz
+	}
+	import svgzEncoding @storedSvgz
+	import precompressedCopies @stored
+	# A missing file or a directory goes to the site with its query; a derivative exists
+	# once generated.
+	@absent not file
+	rewrite @absent /sites/default/files{path}
+}{{end}}
