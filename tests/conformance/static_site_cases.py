@@ -93,6 +93,17 @@ class StaticSite(harness.ConformanceCase):
     def test_a_php_file_under_a_dynamic_path_meets_the_guards(self):
         self.assertEqual(request(self.static_port, "/search/x.php")[0], 403)
 
+    def test_the_export_meets_the_site_ports_refusals_and_refuses_any_php(self):
+        for path in (".env", "index.php", "about/x.PHP", "composer.json", "sites/default/settings.php",
+                     "vendor/a.js", "notes.yml", ".well-known/security.txt"):
+            self.write(path, "kept out")
+        expected = {"/.env": 403, "/index.php": 403, "/index.php/tail": 403, "/about/x.PHP": 403,
+                    "/composer.json": 403, "/sites/default/settings.php": 403, "/vendor/a.js": 403,
+                    "/notes.yml": 403, "/.well-known/security.txt": 200}
+        for path, status in expected.items():
+            with self.subTest(path):
+                self.assertEqual(request(self.static_port, path)[0], status)
+
     def test_drush_sees_the_static_directory(self):
         code = "echo getenv('DRUPACK_RUNTIME_STATIC_ROOT');"
         result = harness.run([str(harness.BINARY), "drush", "--data-dir", str(self.data), "php:eval", code],

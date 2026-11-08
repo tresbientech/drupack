@@ -212,7 +212,7 @@ class EngineExecutable(harness.ConformanceCase):
             relative = path.relative_to(self.project)
             with self.subTest(source=str(relative)):
                 self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), expected,
-                                 f"{relative} changed: re-read launcher/internal/caddyfile/fragments/guards.caddy against it, then move this hash")
+                                 f"{relative} changed: re-read launcher/internal/caddyfile/fragments/guards.caddy and refusals.caddy against it, then move this hash")
 
     def test_the_guards_reproduce_the_htaccess_rules(self):
         # A body holding a marker means the file was served or the script ran.
@@ -742,6 +742,57 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertNotIn("exported copy", body)
         self.assertEqual(self.status(static, "/user/login"), 404)
         self.assertEqual(self.status(static, "/search/x.php"), 403)
+
+    def test_the_static_port_serves_the_directory_the_projects_settings_name(self):
+        settings = self.docroot / "sites" / "default" / "settings.php"
+        original = settings.read_text()
+        self.addCleanup(settings.write_text, original)
+        settings.write_text(original + "$settings['tome_static_directory'] = '../export';\n")
+        export = self.project / "export"
+        self.addCleanup(shutil.rmtree, export, ignore_errors=True)
+        export.mkdir()
+        (export / "index.html").write_text("exported into the setting")
+        port = harness.pick_port_pair()
+        self.start("static-setting", str(self.project), port=port)
+        status, _, body = self.fetch(port + 1, "/")
+        self.assertEqual(status, 200, body[:300])
+        self.assertIn("exported into the setting", body)
+
+    def test_a_tome_static_directory_that_is_not_a_path_refuses_the_start(self):
+        settings = self.docroot / "sites" / "default" / "settings.php"
+        original = settings.read_text()
+        self.addCleanup(settings.write_text, original)
+        settings.write_text(original + "$settings['tome_static_directory'] = ['html'];\n")
+        result = self.engine_run(str(self.project), "--listen", f"127.0.0.1:{harness.pick_port()}")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("tome_static_directory in the project's settings.php must name a directory", result.stderr)
+        self.assertIn("Cannot read tome_static_directory from the settings of", result.stderr)
+
+    def test_the_static_port_meets_the_site_ports_refusals_and_refuses_any_php(self):
+        html = self.export_directory()
+        for path in (".env", "index.php", "composer.json", "sites/default/settings.php", "page/index.html"):
+            (html / path).parent.mkdir(parents=True, exist_ok=True)
+            (html / path).write_text("kept out")
+        port = harness.pick_port_pair()
+        self.start("refusals", str(self.project), port=port)
+        expected = {"/.env": 403, "/index.php": 403, "/composer.json": 403,
+                    "/sites/default/settings.php": 403, "/page/": 200}
+        for path, status in expected.items():
+            with self.subTest(path):
+                self.assertEqual(self.status(port + 1, path), status)
+
+    def test_a_static_directory_holding_the_docroot_or_a_brace_refuses_the_start(self):
+        settings = self.docroot / "sites" / "default" / "settings.php"
+        original = settings.read_text()
+        self.addCleanup(settings.write_text, original)
+        refusals = {".": "holds", "..": "holds", "../export-{http.request.host}": "holds a brace"}
+        for setting, message in refusals.items():
+            with self.subTest(setting):
+                settings.write_text(original + f"$settings['tome_static_directory'] = '{setting}';\n")
+                result = self.engine_run(str(self.project), "--listen", f"127.0.0.1:{harness.pick_port()}")
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn("The static directory ", result.stderr)
+                self.assertIn(message, result.stderr)
 
     def test_export_without_a_recorded_start_needs_a_uri(self):
         stub = self.class_dir / "unserved"

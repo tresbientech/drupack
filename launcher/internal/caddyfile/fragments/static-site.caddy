@@ -1,6 +1,6 @@
 # The static port: the Tome export as files. A directory answers its index.html with no
 # redirect, and a miss answers the export's own 404 page with status 404. The dynamic
-# fragment hands its paths to Drupal ahead of the files.
+# fragment hands its paths to Drupal ahead of the files, and the site port's refusals apply.
 bind {{quote .Static.Bind}}
 root * {{quote .Static.Root}}
 encode zstd br gzip
@@ -8,8 +8,16 @@ route {
 {{- if .Static.Dynamic}}
 {{include "static-dynamic.caddy" . | indent 1}}
 {{- end}}
-	try_files {path}/index.html {path}
-	file_server
+	# A nested route inherits its parent's matcher names, and the dynamic fragment's guards
+	# define the ones refusals.caddy defines, so the refusals take a sibling route.
+	route {
+{{include "refusals.caddy" . | indent 2}}
+		# This port runs no PHP, so a PHP file under the root would answer its source.
+		@phpSource path_regexp "(?i)\.php[. ]*(/|$)"
+		respond @phpSource 403
+		try_files {path}/index.html {path}
+		file_server
+	}
 }
 handle_errors {
 	@notFound expression `{err.status_code} == 404`

@@ -5,16 +5,20 @@ declare(strict_types=1);
 // One named operation per call, run by the launcher through php-cli:
 //   operate.php check folder PROJECT DOCROOT
 //   operate.php check site DATA
+//   operate.php static-directory PROJECT DOCROOT
 //   operate.php prepare DATA
 //   operate.php seed DATA
 // An operation prints its step lines on stderr and one JSON record on stdout. A refusal prints
 // its message on stderr and exits 1. A site operation reads the start's database, administrator
 // and site name options from their DRUPACK_* variables, so no credential reaches argv.
 
+use Drupal\Core\DrupalKernel;
+use Drupal\Core\Site\Settings;
 use Drupack\Support\Need;
 use Drupack\Support\SiteContract;
 use Drupack\Support\SiteData;
 use Drupack\Support\Step;
+use Symfony\Component\HttpFoundation\Request;
 
 function nullDevice(): string
 {
@@ -486,6 +490,20 @@ function check(string $binary, string $project, string $docroot): array
     return ['installed' => siteInstalled($binary, $project, $docroot)];
 }
 
+// The tome_static_directory the project's settings.php sets, or null when it sets none. Reads
+// settings.php alone: no kernel boots and no database opens.
+function staticDirectory(string $project, string $docroot): array
+{
+    $autoloader = require "$project/vendor/autoload.php";
+    chdir($docroot);
+    Settings::initialize($docroot, DrupalKernel::findSitePath(Request::create('/')), $autoloader);
+    $directory = Settings::get('tome_static_directory');
+    if ($directory !== null && (!is_string($directory) || $directory === '')) {
+        throw new RuntimeException("tome_static_directory in the project's settings.php must name a directory.");
+    }
+    return ['directory' => $directory];
+}
+
 // Whether the Packaged site at $data owes no step. Refuses, before the launcher writes any Site
 // data, when the options lack what an owed step needs.
 function checkSite(string $data, SiteContract $contract): array
@@ -543,6 +561,7 @@ function operate(string $binary, array $words): array
     return match (true) {
         $words[0] === 'check' && $words[1] === 'folder' => check($binary, $words[2], $words[3]),
         $words[0] === 'check' && $words[1] === 'site' => checkSite($words[2], siteContract()),
+        $words[0] === 'static-directory' => staticDirectory($words[1], $words[2]),
         $words[0] === 'prepare' => prepare($binary, $words[1], siteContract()),
         $words[0] === 'seed' => seed($binary, $words[1], siteContract()),
     };

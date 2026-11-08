@@ -30,9 +30,11 @@ in `/`.
 ## Decision
 
 - `guards.caddy` reproduces every rule of the `.htaccess` family. Each matcher
-  carries a comment naming its source line. `static.caddy` holds the snippets
-  for a static file, which `guards.caddy` applies under the docroot and the
-  application's files route applies in the files directory.
+  carries a comment naming its source line. Its refusals sit in the
+  `refusals.caddy` fragment, which it renders first and the static port renders
+  alone. `static.caddy` holds the snippets for a static file, which
+  `guards.caddy` applies under the docroot and the application's files route
+  applies in the files directory.
 - A rule on a script starts with `(?i)` and ends with `[. ]*(/|$)`. FrankenPHP
   executes a script followed by a PATH_INFO suffix, and Win32 strips trailing
   dots and spaces from a path component.

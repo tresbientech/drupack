@@ -62,7 +62,10 @@
 		respond @drupackIdentityOther 404
 
 		# Request guards and cache headers ahead of Drupal, rendered inside a route block, which
-		# keeps this order. Each rule names its line in core's .htaccess (assets/scaffold/files/htaccess),
+		# keeps this order. refusals.caddy holds the refusals, which the static port applies too.
+
+		# The refusals of guards.caddy, which the static port renders as well, inside a route
+		# block. Each rule names its line in core's .htaccess (assets/scaffold/files/htaccess),
 		# vendor/.htaccess or FileSecurity.php. A script rule ignores case and ends with [. ]*(/|$):
 		# FrankenPHP runs a script with a PATH_INFO tail, and Win32 opens "probe.php." as "probe.php".
 
@@ -112,6 +115,7 @@
 		# Settings and services under any suffix.
 		@siteConfiguration path_regexp "(?i)^/sites/[^/]+/((settings|services)[^/]*|site-templates\.php[. ]*)(/|$)"
 		respond @siteConfiguration 403
+
 		# .htaccess 135.
 		@missingFavicon {
 			path /favicon.ico

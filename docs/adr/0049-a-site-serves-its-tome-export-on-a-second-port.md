@@ -44,9 +44,18 @@ Tome ships no recipe, and drupal.org has none.
   inside the same Caddy process. Every other path is a file from the export,
   else the export's 404 page. Tome may still export a page under a dynamic
   prefix; the static port never serves that file.
+- A file path meets `refusals.caddy`, the refusals of the site's port, and any
+  `.php` path answers 403. The static port runs no PHP, so a script would
+  answer its source. The site port's redirects and one-year cache stay off it.
+- On the engine the launcher reads the project's `tome_static_directory`
+  through the `static-directory` operation of `application/operate.php`, which
+  loads `settings.php` alone. A start refuses a static directory that is or
+  holds the docroot or the folder's cache entry, compared through symlinks, or
+  whose path holds a brace, which Caddy would fill as a placeholder.
 - On a Packaged site the export lives in `static` in Site data, and the
   generated `settings.php` sets `tome_static_directory` to it. On the engine the
-  listener serves `html` beside the docroot, Tome's default.
+  listener serves the project's own `tome_static_directory`, or `html` beside
+  the docroot, Tome's default, when the project sets none.
 
 ### The export
 

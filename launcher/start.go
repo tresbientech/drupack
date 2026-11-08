@@ -185,6 +185,12 @@ func startEngine(l Launch, c command) error {
 		return err
 	}
 	entry := state.FolderEntry(l.Root, project, l.FoldCase)
+	staticRoot := ""
+	if plan.Static != nil {
+		if staticRoot, err = engineStaticRoot(l, e.entries, project, docroot, entry.Path()); err != nil {
+			return err
+		}
+	}
 	if err := os.MkdirAll(entry.Path(), 0o700); err != nil {
 		return err
 	}
@@ -237,14 +243,28 @@ func startEngine(l Launch, c command) error {
 	}
 	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: docroot, Mercure: hub}
 	if plan.Static != nil {
-		// Tome's default directory, html beside the docroot. The server creates none.
-		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: path.Dir(docroot) + "/html", Dynamic: composer.Static.Dynamic}
+		// The server creates no export directory.
+		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: staticRoot, Dynamic: composer.Static.Dynamic}
 	}
 	// Drush's, Tome's and a request's child processes run the php on PATH, which bin/ points
 	// back at this runtime.
 	searchPath, _ := e.get("PATH")
 	e.put("PATH=" + filepath.Join(l.Application, "bin") + string(os.PathListSeparator) + searchPath)
 	return execServer(l, e, entry, lease, config, choice, plan, project, l.Args[0], project)
+}
+
+// engineStaticRoot returns the directory Tome exports into: the project's tome_static_directory,
+// or Tome's default. It refuses a directory the static port must not serve.
+func engineStaticRoot(l Launch, env []string, project, docroot, cacheEntry string) (string, error) {
+	var setting struct {
+		// Directory is null when settings.php sets none.
+		Directory string `json:"directory"`
+	}
+	if err := operate(l, env, &setting, false, "static-directory", project, docroot); err != nil {
+		return "", fmt.Errorf("%w\nCannot read tome_static_directory from the settings of %s", err, project)
+	}
+	root := staticDirectory(docroot, cmp.Or(setting.Directory, defaultStaticDirectory))
+	return checkStaticRoot(root, []string{docroot, cacheEntry}, l.FoldCase)
 }
 
 // serveHub creates dir's Mercure secrets and gives the server and its children
