@@ -59,7 +59,7 @@ func TestCheckStaticRootFollowsLinks(t *testing.T) {
 		t.Skip("no symlinks here")
 	}
 	real, _ := filepath.EvalSymlinks(web)
-	if _, err := checkStaticRoot(link, []string{web}, false); err == nil || !strings.Contains(err.Error(), "holds "+real+",") {
+	if _, err := checkStaticRoot(link, []string{web}, false); err == nil || !strings.Contains(err.Error(), "holds "+filepath.ToSlash(real)+",") {
 		t.Errorf("a link to the docroot gave %v", err)
 	}
 }

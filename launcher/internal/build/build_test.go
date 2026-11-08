@@ -222,6 +222,10 @@ func TestTheEngineLaysTheSettingsStubInTheDocroot(t *testing.T) {
 			t.Errorf("%s = %q, %v; want %q", name, content, err, want)
 		}
 	}
+	// NTFS stores no exec bit.
+	if goruntime.GOOS == "windows" {
+		return
+	}
 	if info, err := os.Stat(filepath.Join(r.Work, "app", "drush")); err != nil || info.Mode().Perm()&0o100 == 0 {
 		t.Errorf("drush = %v, %v; want an executable copy", info, err)
 	}

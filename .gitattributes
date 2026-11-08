@@ -8,3 +8,6 @@
 # Go tests compare these reference files byte for byte, so a Windows checkout
 # keeps their LF endings.
 /application/tests/site.json text eol=lf
+/docs/cli.md text eol=lf
+/launcher/internal/caddyfile/fragments/*.caddy text eol=lf
+/launcher/internal/caddyfile/testdata/*.caddyfile text eol=lf
