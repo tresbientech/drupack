@@ -1,5 +1,6 @@
 # The launcher routes the reader's words
 
+Superseded on 2026-11-08 by [ADR 0050](0050-the-launcher-owns-a-start.md).
 Accepted on 2026-10-05. Amends [ADR 0014](0014-the-parser-owns-the-command-line.md).
 Amended on 2026-10-05 by [ADR 0031](0031-the-engine-updates-itself.md): the
 launcher handles `self-update` before routing, beside `detach` and `lay-app`.

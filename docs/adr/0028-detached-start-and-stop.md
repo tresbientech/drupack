@@ -1,6 +1,6 @@
 # A start detaches, and a token-checked channel stops it
 
-Accepted on 2026-09-30.
+Accepted on 2026-09-30. Amended on 2026-11-08 by [ADR 0050](0050-the-launcher-owns-a-start.md): a start detaches first, and the child claims the lease once.
 
 ## Context
 

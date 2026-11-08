@@ -4,6 +4,7 @@ Accepted on 2026-10-25. Amends [ADR 0022](0022-engine-executable.md). Amended
 on 2026-10-26 by [ADR 0048](0048-a-project-adds-its-own-caddy-rules.md): a
 project's `drupack.caddy` runs after these guards, and `/drupack.caddy` joins
 the refused names.
+Amended on 2026-11-08 by [ADR 0050](0050-the-launcher-owns-a-start.md): the guards ship as a launcher fragment, `guards.caddy`, rendered into one Caddyfile.
 
 ## Context
 

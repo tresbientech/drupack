@@ -3,6 +3,7 @@
 Accepted on 2026-10-21. Amends [ADR 0022](0022-engine-executable.md) and
 [ADR 0030](0030-the-launcher-routes-the-readers-words.md). Amended on 2026-11-06 by
 [ADR 0049](0049-a-site-serves-its-tome-export-on-a-second-port.md): `extra.drupack.static` joins the settings the reader takes.
+Amended on 2026-11-08 by [ADR 0050](0050-the-launcher-owns-a-start.md): the engine calls `siteconfig.ReadComposer` in-process, and the `composer-settings` word is gone.
 
 ## Context
 

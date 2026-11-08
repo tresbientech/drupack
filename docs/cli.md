@@ -1,10 +1,10 @@
 # Drupack command line
 
 Every option a site's executable accepts, what it sets, and when it takes
-effect, then the commands of the engine executable, `drupack`. The parser in
-`application/launch.php` is the contract the options record, and the usage
-in `engine/serve.php` the contract the engine commands record. A test in
-`application/tests/launch_test.php` fails when the two disagree.
+effect, then the commands of the engine executable, `drupack`. The launcher's
+parser (`launcher/parse.go`) is the contract the options record, and its usage
+text (`launcher/help.go`) the contract the engine commands record. A test in
+`launcher/parse_test.go` fails when they disagree.
 
 ## Synopsis
 
@@ -286,9 +286,10 @@ command that enables it.
 
 ## `start` and `stop`
 
-`SITE` and `SITE start` are one command. A start takes the Serving lease, then
-runs itself again in the background with `--foreground`. It shows that
-server's output until the site answers, then prints the log file and the
+`SITE` and `SITE start` are one command. A start checks its words, then
+runs itself in the background with `--foreground`. That child takes the Serving
+lease once and runs the whole start. The terminal shows the child's output
+until the site answers, then prints the log file and the
 command that stops the site, and returns 0. A server that exits before it
 answers makes the start exit with its code. Its output after that goes to
 `logs/server.log` in Site data, which each start empties.
@@ -448,9 +449,6 @@ standard error naming it. The check stays off in these cases:
 - The file is a Composer copy.
 
 ## Other words
-
-`lay-app` is internal: a start or `drush` runs it to lay or check a site's own
-application.
 
 On a site, `php` runs PHP from the working directory in the two forms
 [the engine's `php`](#the-engine-executable) takes, with no PHP option. Drush's,

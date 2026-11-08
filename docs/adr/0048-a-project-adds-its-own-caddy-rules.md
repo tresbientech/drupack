@@ -1,7 +1,7 @@
 # A project adds its own Caddy rules
 
 Accepted on 2026-10-26. Amends [ADR 0022](0022-engine-executable.md) and
-[ADR 0047](0047-request-guards-match-htaccess.md).
+[ADR 0047](0047-request-guards-match-htaccess.md). Amended on 2026-11-08 by [ADR 0050](0050-the-launcher-owns-a-start.md): the Caddyfile imports the file by absolute path, and the runtime adapts once.
 
 ## Context
 

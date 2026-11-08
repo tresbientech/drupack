@@ -1,5 +1,6 @@
 # A start plans its listener
 
+Superseded on 2026-11-08 by [ADR 0050](0050-the-launcher-owns-a-start.md).
 Accepted on 2026-10-20. Amended on 2026-11-06 by
 [ADR 0049](0049-a-site-serves-its-tome-export-on-a-second-port.md): the plan gains the static listener's bind and URL.
 

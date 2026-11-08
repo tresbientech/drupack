@@ -21,8 +21,9 @@ month picks up the rest.
 `--data-dir`, `--listen` and `--host`. It consumes the other ten and drops
 them, so `drush --admin-password x user:login` spends a secret for nothing and
 `drush --database bogus status` exits 1 over a value it never reads. Lean: give
-`options()` the accepted set per mode, so an option `drush` cannot use raises the
-unknown-argument error it already has for an unknown word. `docs/cli.md`
+the launcher's parser (`siteOptions` in `launcher/parse.go`) the accepted set per
+word, so an option `drush` cannot use raises the unknown-argument error it
+already has for an unknown word. `docs/cli.md`
 records the current behaviour until then.
 
 ## Container lifecycle in the conformance suite
@@ -127,7 +128,7 @@ for any domain the machine trusts. A Node client still needs
 
 ## Whether automatic_updates still stalls cron
 
-`build/seed.sh` uninstalls `automatic_updates` because it stalled a cron request,
+The `seed` operation of `application/operate.php` uninstalls `automatic_updates` because it stalled a cron request,
 and `package_manager` because it cannot write into the read-only application.
 Nobody has checked the stall against the current module release. Lean: keep the
 uninstall, and retest the stall when the recipe's version of the module changes.
@@ -175,10 +176,10 @@ allowlist on a scratch repository before any change here.
 ## A cold `--help` unpacks the release
 
 A cold `drupack --help` unpacks the whole release before it prints usage. The
-launcher routes the words, but `launch.php` holds the usage and runs only after
-preparation. A usage in the launcher would put the option contract in a fourth
-place, against [ADR 0014](adr/0014-the-parser-owns-the-command-line.md). Lean:
-leave it as it is.
+usage text lives in the launcher (`launcher/help.go`), but conformance reads
+`--help` as the call that unpacks a release, so the launcher prints it after the
+unpack. Lean: leave it as it is, and print the help before the unpack only with
+a conformance trigger that does not depend on it.
 
 ## When `drupack php` takes PHP's own options
 
@@ -233,15 +234,12 @@ production code 24% and docs 18%. Every CI job spends most of its time in the
 conformance suite, because each case starts a real site. Still open, keeping
 every feature and platform:
 
-- PHP start code that Go already holds: about 286 lines
 - the release candidate's wall time once Windows arm64 runs in two shards,
   against 77 minutes before
 
 Kept as they are: the browser cases' 10-second waits for an absence, which
 match the budget a real browser gets, and the QA and Linux amd64 suite runs,
-which test `drupack-build`'s chain and the shipped files. Moving the start flow
-from PHP to Go was sized and dropped: its net runs from 350 lines fewer to
-1,110 more.
+which test `drupack-build`'s chain and the shipped files.
 
 ## A Composer project served in production
 
@@ -307,3 +305,41 @@ and browsers send the host-keyed cookie to both. About half a day and no Go
 change. No use case today. A page exported for the static port names the hub by
 a root-relative path. A dynamic endpoint on that port publishes over HTTP,
 since `mercure_publish()` finds no hub on its route.
+
+## The dev loop's first start with writable directories
+
+`build/dev/dev-server.sh` lays `application/` over the unpacked release before a
+start. A site whose contract names writable directories runs the copy the
+launcher lays in Site data, so its first start runs the built release and the
+second applies `application/`. Lean: leave it, as a developer restarts anyway.
+
+## One `openBrowser` for the launcher and the runtime
+
+`launcher/browser.go` and `runtime/entrypoint.go` each hold a 12-line
+`openBrowser`. The build copies the runtime's files into FrankenPHP's package by
+name, and neither module imports the other, so the two copies can drift. Lean: a
+shared Go module both import holds it once, if a third caller appears.
+
+## `operate.php` sets `DRUPACK_DRUSH_SCRIPT` the launcher already sets
+
+`drushPath()` in `application/operate.php` calls `putenv()` for
+`DRUPACK_DRUSH_SCRIPT`. The launcher sets that variable for `prepare`, and the
+seed build now runs the same script. Lean: read the variable, delete the
+`putenv()`, and run the seed build and `prepare` to confirm nothing else sets it.
+
+## Windows checks that only a tag run makes
+
+The one-owner start changed four Windows paths that no Linux job runs. Each
+compiled under `GOOS=windows go vet`, and none ran.
+
+- The lease probe in `launcher/internal/state/claim_windows.go` locks the whole
+  range, as `Claim` does. A probe that misreads a PHP `flock` holder from the
+  previous release shows as a `stop` that reports no server.
+- The detached child's two pipes to the parent's terminal. A console that
+  rejects them shows as a start that prints nothing before the ready line.
+- The launcher's `openBrowser`, called by the handover.
+- The hidden leading `--console-owned` argument, which marks a start from a
+  file manager as console-owned.
+
+Lean: dispatch a windows-amd64 run and read these four before tagging the
+release.

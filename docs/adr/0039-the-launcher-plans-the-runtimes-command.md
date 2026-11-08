@@ -1,5 +1,6 @@
 # The launcher plans the runtime's command
 
+Superseded on 2026-11-08 by [ADR 0050](0050-the-launcher-owns-a-start.md).
 Accepted on 2026-10-20. Amends [ADR 0030](0030-the-launcher-routes-the-readers-words.md):
 `Plan` routes the reader's words.
 

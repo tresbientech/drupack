@@ -40,7 +40,7 @@ A release tag publishes the image as `ghcr.io/tresbientech/drupack-build:VERSION
 
 The release workflow names the same image after its inputs. `runtime/builder-tag.sh` digests the FrankenPHP and static-php-cli commits, the PHP version, both extension list files, the C library, the machine type, the three scripts that compile the image and the static-php-cli patch, and the workflow pulls `ghcr.io/tresbientech/drupack-builder` under that tag. A run whose inputs are unchanged pulls the published image; a run that changes one builds the image and publishes it under the new tag. `runtime/builder-inputs.sh` holds the version pins both scripts read.
 
-The output is `dist/drupacked-demo-linux-amd64` and `dist/drupacked-demo-linux-amd64-musl` on an amd64 host, with `dist/site.json` beside them. The build tests the glibc file. The host needs no PHP, Composer or database server: the job image runs Composer, Drush and the seed install with the musl runtime's own PHP.
+The output is `dist/drupacked-demo-linux-amd64` and `dist/drupacked-demo-linux-amd64-musl` on an amd64 host, with `dist/site.json` beside them. The build tests the glibc file. The host needs no PHP, Composer or database server: the job image runs Composer, Drush and the seed install, which runs `application/operate.php`, with the musl runtime's own PHP.
 
 The engine executable builds without a site:
 
@@ -49,9 +49,9 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
     drupack-build --engine-executable --output dist/engine --work dist/engine-work
 ```
 
-It packs `engine/` in place of an application, to `dist/engine/drupack-linux-amd64` and `dist/engine/drupack-linux-amd64-musl`. `--libc` picks one of them, as for a site. `--payload-only` stops at the archive, in `dist/engine/payload`, for the macOS and Windows builds.
+It packs the engine's PHP files, six files of `application/` that `launcher/internal/build/engine.go` lists, in place of an application, to `dist/engine/drupack-linux-amd64` and `dist/engine/drupack-linux-amd64-musl`. `--libc` picks one of them, as for a site. `--payload-only` stops at the archive, in `dist/engine/payload`, for the macOS and Windows builds.
 
-`application/` holds the engine's PHP files, which the build lays over a site's Composer project to make the application root. `launcher/internal/siteconfig` validates a site's `drupack.yml` and writes it out as `site.json`. `runtime/` holds the PHP and FrankenPHP compile. `launcher/` is the Go module for the launcher, its packer and `drupack-build`. `engine/` holds the engine executable's own files, two of them links into `application/`. `build/` holds the scripts `drupack-build` runs, the macOS and Windows builds and the development loop. The `Dockerfile` at the root compiles the Linux runtimes and builds the `job` image. [ADR 0017](docs/adr/0017-one-directory-per-artifact.md) records the shape.
+`application/` holds the PHP files both payloads carry, which the build lays over a site's Composer project to make the application root. The launcher plans and runs every start, and `application/operate.php` runs only the Drupal work of one: `prepare`, `check` and `seed`. `launcher/internal/siteconfig` validates a site's `drupack.yml` and writes it out as `site.json`. `runtime/` holds the PHP and FrankenPHP compile. `launcher/` is the Go module for the launcher, its packer and `drupack-build`. `build/` holds the scripts `drupack-build` runs, the macOS and Windows builds and the development loop. The `Dockerfile` at the root compiles the Linux runtimes and builds the `job` image. [ADR 0017](docs/adr/0017-one-directory-per-artifact.md) records the shape.
 
 ### macOS
 
@@ -72,7 +72,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
     drupack-build --site demo --payload-only --output dist
 ```
 
-That writes `app-payload.tar`, `app_checksum.txt` and `site.json` to `dist/payload`. A site asking for Node also gets `node/`, holding the verified Linux glibc, macOS and Windows archives the release workflow's builds pack.
+That writes `app-payload.tar.zst`, `app_checksum.txt` and `site.json` to `dist/payload`. A site asking for Node also gets `node/`, holding the verified Linux glibc, macOS and Windows archives the release workflow's builds pack.
 
 ```powershell
 ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version dev -WorkDirectory $env:TEMP\drupack -Output dist\drupacked-demo.exe -EnginePayloadDirectory dist\engine\payload -EngineOutput dist\engine\drupack.exe
@@ -112,13 +112,15 @@ With no Docker daemon, the site cases run on the host and the other container ca
 
 One conformance run happens at a time on a machine. A second run waits for the first, and says so on standard error. Two at once bind the same ports and collide on container names, which times out site starts in both. `DRUPACK_SUITE_LOCK` names the lock file, so a machine that needs two independent runs can give each its own.
 
-The PHP unit files run through the bundled runtime, because `launch.php`
-requires `vendor/autoload.php` and the lock targets a PHP the host may not
-have. They read `application/vendor`, a link `build/qa.sh` points at the vendor
-directory of the site it built:
+The PHP unit files run through the bundled runtime, because the lock targets a
+PHP the host may not have. They read `application/tests/vendor`, which
+`application/tests/composer.lock` pins and `build/qa.sh` installs:
 
 ```sh
-ln -sfn ../dist/work/app/vendor application/vendor
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+    -e DRUPACK_CA_FILE=/opt/drupack/engine/application/cacert.pem -v "$PWD:/src" -w /src drupack-job sh -c \
+    'PHPRC=$(dirname "$DRUPACK_PHP") "$DRUPACK_PHP" php-cli "$DRUPACK_COMPOSER" \
+    install --working-dir=application/tests --no-interaction --prefer-dist --no-plugins'
 ```
 
 Then:
