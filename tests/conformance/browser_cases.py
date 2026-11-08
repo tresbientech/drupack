@@ -75,8 +75,8 @@ class BrowserOpenCases(harness.ConformanceCase):
             restart.stop()
 
     def test_interactive_adoption_start_opens_browser_on_dashboard(self):
-        # Site data holding settings but no completion marker takes the browser-opening
-        # branch: remainingSteps() returns ['adopt'], a non-empty list.
+        # Site data holding settings but no completion marker opens the browser
+        # for the adoption step it still owes.
         env, recorded = _recorder_env(self.case_dir / "recorder")
         self._install(env, recorded)
         # missing_ok: a rerun can find it gone if the last run failed before adoption recreated it.
@@ -107,7 +107,7 @@ class BrowserOpenCases(harness.ConformanceCase):
         try:
             text = restart.log_path.read_text(errors="replace")
             self.assertNotIn(LINK_PREFIX, text, "the readiness block printed a login link despite a failed mint")
-            # The positive case's budget, so a late browser-open is still caught.
+            # The positive case's budget, so a late browser opening is still caught.
             time.sleep(harness.WAITS["browser_open"].seconds)
             self.assertFalse(recorded.exists(),
                               f"the recorder was called although the mint failed: inspect {recorded}")

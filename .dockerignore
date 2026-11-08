@@ -5,8 +5,6 @@
 application/vendor
 !build/
 !build/**
-!engine/
-!engine/**
 !runtime/
 !runtime/**
 !launcher/

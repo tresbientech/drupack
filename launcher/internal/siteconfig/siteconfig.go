@@ -1,5 +1,5 @@
 // Package siteconfig reads a site's drupack.yml and writes the site.json that
-// the build, launch.php and the conformance suite read in its place.
+// the build, operate.php and the conformance suite read in its place.
 package siteconfig
 
 import (

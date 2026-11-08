@@ -28,7 +28,7 @@ func runStop(c command, root string, out io.Writer) error {
 		}
 		return stop(state.FolderEntry(root, project, foldCase), "folder", project, stopWait, out)
 	}
-	// launch.php made the path absolute before it resolved links, so `link/..` names the link's parent.
+	// The path is made absolute before links resolve, so `link/..` names the link's parent.
 	data, err := filepath.Abs(c.target)
 	if err == nil {
 		data, err = filepath.EvalSymlinks(data)
@@ -40,7 +40,7 @@ func runStop(c command, root string, out io.Writer) error {
 	return stop(state.At(data), "Site data", data, stopWait, out)
 }
 
-// projectFolder resolves links before it makes the path absolute, as serve.php's realpath did.
+// projectFolder resolves links before it makes the path absolute, as PHP's realpath did.
 func projectFolder(written string) (string, error) {
 	missing := fmt.Errorf("No such directory: %s. Run %s --help.", written, siteName)
 	resolved, err := filepath.EvalSymlinks(written)

@@ -139,8 +139,8 @@ class DetachedHandoverCases(harness.ConformanceCase):
         self.assertEqual(first.returncode, 0, first.stderr)
         try:
             env, recorded = handover_cases._console_env(self.case_dir / "recorder")
-            second = harness.run(command, cwd=self.case_dir, capture_output=True, text=True,
-                                 timeout=harness.WAITS["start"].seconds, env=env)
+            second = harness.run([command[0], handover_cases.CONSOLE_OWNED, *command[1:]], cwd=self.case_dir,
+                                 capture_output=True, text=True, timeout=harness.WAITS["start"].seconds, env=env)
             self.assertEqual(second.returncode, 0, second.stderr)
             self.assertIn("already serving this Site data", second.stdout)
             self.assertIn("/user/reset/1/", harness.wait_for_recorded_url(recorded, harness.WAITS["browser_open"].seconds))

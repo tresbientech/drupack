@@ -212,7 +212,7 @@ func TestASiteWithoutARecipeHasNoSeedStep(t *testing.T) {
 func TestTheEngineLaysTheSettingsStubInTheDocroot(t *testing.T) {
 	engine := t.TempDir()
 	for name, content := range map[string]string{
-		"application/launch.php": "<?php", "build/site-settings.php": "<?php // stub",
+		"application/operate.php": "<?php", "build/site-settings.php": "<?php // stub",
 		"build/site-templates.php": "<?php // templates",
 	} {
 		path := filepath.Join(engine, name)
@@ -593,18 +593,16 @@ func TestTheEnginePlanTakesTheLibcFlag(t *testing.T) {
 	}
 }
 
-func TestStagingTheEngineFollowsItsLinksIntoTheApplication(t *testing.T) {
+func TestStagingTheEngineCopiesItsListedApplicationFiles(t *testing.T) {
 	engine := t.TempDir()
-	for path, content := range map[string]string{"application/process.php": "<?php // shared", "engine/serve.php": "<?php"} {
-		if err := os.MkdirAll(filepath.Join(engine, filepath.Dir(path)), 0o755); err != nil {
+	for _, path := range []string{"operate.php", "installed.php", "drush", "drush.cmd", "bin/php", "bin/php.cmd", "settings.php", "support/Step.php"} {
+		path = filepath.Join(engine, "application", filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(engine, path), []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte("<?php // "+filepath.Base(path)), 0o755); err != nil {
 			t.Fatal(err)
 		}
-	}
-	if err := os.Symlink("../application/process.php", filepath.Join(engine, "engine", "process.php")); err != nil {
-		t.Fatal(err)
 	}
 	r := request([]string{"linux-amd64"}, "")
 	r.Engine, r.Work = engine, t.TempDir()
@@ -615,13 +613,23 @@ func TestStagingTheEngineFollowsItsLinksIntoTheApplication(t *testing.T) {
 	if err := step(t, plan, "stage the engine files").Func(io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	staged := filepath.Join(r.Work, "engine", "process.php")
-	info, err := os.Lstat(staged)
-	if err != nil || info.Mode()&os.ModeSymlink != 0 {
-		t.Fatalf("process.php staged as %v, %v; want a regular file", info, err)
+	staged := filepath.Join(r.Work, "engine")
+	var got []string
+	err = filepath.WalkDir(staged, func(path string, entry os.DirEntry, err error) error {
+		if err == nil && !entry.IsDir() {
+			relative, _ := filepath.Rel(staged, path)
+			got = append(got, filepath.ToSlash(relative))
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if content, _ := os.ReadFile(staged); string(content) != "<?php // shared" {
-		t.Fatalf("process.php holds %q", content)
+	if want := []string{"bin/php", "bin/php.cmd", "drush", "drush.cmd", "installed.php", "operate.php"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("staged %v; want %v", got, want)
+	}
+	if info, err := os.Stat(filepath.Join(staged, "drush")); err != nil || info.Mode().Perm() != 0o755 {
+		t.Fatalf("drush staged as %v, %v; want mode 755", info, err)
 	}
 }
 

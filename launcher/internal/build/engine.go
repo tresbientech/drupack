@@ -48,11 +48,18 @@ func NewEnginePlan(r Request) (Plan, error) {
 	return plan, nil
 }
 
-// stageEngine copies engine/ into files. The files engine/ shares with the
-// application are links into application/, which the copy follows.
+// engineFiles are the files of application/ the engine executable carries, relative to it.
+var engineFiles = []string{"operate.php", "installed.php", "drush", "drush.cmd", "bin/php", "bin/php.cmd"}
+
+// stageEngine copies engineFiles from the engine's application/ into files.
 func stageEngine(engine, files string) error {
 	if err := os.RemoveAll(files); err != nil {
 		return err
 	}
-	return CopyTree(filepath.Join(engine, "engine"), files, func(string) bool { return false })
+	for _, name := range engineFiles {
+		if err := copyFile(filepath.Join(engine, "application", filepath.FromSlash(name)), filepath.Join(files, filepath.FromSlash(name))); err != nil {
+			return err
+		}
+	}
+	return nil
 }

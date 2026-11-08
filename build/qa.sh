@@ -41,7 +41,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -w /s
     drupack-build --engine-executable --platform "$platform" --libc glibc --output dist/engine --work "$work/engine-work"
 
 # Drupacked Demo again without Node and without the static key, for the cases of a site
-# that carries neither. launch.php reads the site.json inside the payload, so the copy swaps
+# that carries neither. operate.php reads the site.json inside the payload, so the copy swaps
 # that file too, and its checksum names an application cache entry of its own.
 no_node=$work/no-node
 mkdir -p dist/no-node "$no_node"

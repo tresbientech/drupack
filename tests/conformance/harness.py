@@ -137,7 +137,7 @@ WAIT_TABLE = [
     # watch.go forces the exit 10s after the first stop signal.
     Wait("stop", 30, 10, "stop after the first signal"),
     # openBrowser runs in the goroutine that printed the ready line: a process spawn, no poll.
-    Wait("browser_open", 10, None, "a start's background browser-open handing its target to the recorder"),
+    Wait("browser_open", 10, None, "a start's background browser opening handing its target to the recorder"),
     Wait("drush", 120, None, "a drush command"),
     # Tome renders every path of the site in child Drush processes, one bootstrap per batch.
     Wait("export", 600, None, "a Tome export of the whole site"),
@@ -390,7 +390,7 @@ def install_recorder(directory):
 
 
 def wait_for_recorded_url(recorded, timeout):
-    """Poll recorded until a start's browser-open has written a line; a browser that never
+    """Poll recorded until a start's browser opening has written a line; a browser that never
     opens fails the case."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:

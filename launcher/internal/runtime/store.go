@@ -80,7 +80,7 @@ func leaseHeld(entry string) bool {
 }
 
 // anyDirectory owns every directory: the application, Node and folder
-// directories hold nothing this program and serve.php did not write.
+// directories hold nothing this program did not write.
 func anyDirectory(string) bool { return true }
 
 type spec struct {

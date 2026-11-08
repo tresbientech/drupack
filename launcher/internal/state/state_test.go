@@ -16,8 +16,8 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state/statetest"
 )
 
-// The keys serve.php's folderEntry() gives these paths, printed by PHP's hash and strtolower.
-func TestFolderEntryMatchesServePhp(t *testing.T) {
+// The keys the previous release's PHP gave these paths, printed by its hash and strtolower.
+func TestFolderEntryMatchesThePreviousRelease(t *testing.T) {
 	for _, row := range []struct {
 		project string
 		fold    bool

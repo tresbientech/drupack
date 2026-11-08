@@ -2,17 +2,15 @@
 
 declare(strict_types=1);
 
-// Unit cases for the functions in engine/serve.php and the engine's operations in
-// application/operate.php. Run with:
-//   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/serve_test.php"
+// Unit cases for the engine's operations in application/operate.php. Run with:
+//   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/operate_test.php"
 // The constant loads operate.php for its functions alone.
 
-define('DRUPACK_SERVE_LIBRARY', true);
-require __DIR__ . '/../../engine/serve.php';
+define('DRUPACK_OPERATE_LIBRARY', true);
 require __DIR__ . '/../operate.php';
 
 require __DIR__ . '/cases.php';
-$root = sys_get_temp_dir() . '/drupack-serve-test-' . bin2hex(random_bytes(8));
+$root = sys_get_temp_dir() . '/drupack-operate-test-' . bin2hex(random_bytes(8));
 
 function project_with(string $name, array $files): string
 {
@@ -65,17 +63,6 @@ test('login records the link Drush mints at the URL', function () {
 test('login records the reason Drush gave when it mints no link', function () {
     $runtime = runtime_minting('login-failure', '', "Account is\nblocked");
     same(['failure' => 'Account is blocked'], operate($runtime, ['login', 'http://localhost:3787', 'drush.php', sys_get_temp_dir()]));
-});
-
-test('a folder keeps its state in a cache entry its canonical path names', function () {
-    putenv('DRUPACK_RUNTIME_CACHE_ROOT=/cache');
-    $entry = folderEntry('/home/reader/project');
-    same('/cache/folders/', substr($entry, 0, strlen('/cache/folders/')));
-    same(1, preg_match('/^[a-z][a-z0-9.-]{0,31}$/', basename($entry)));
-    same($entry, folderEntry('/home/reader/project'));
-    if ($entry === folderEntry('/home/reader/other')) {
-        throw new RuntimeException('two folders share an entry');
-    }
 });
 
 $status = runCases();

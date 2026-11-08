@@ -17,7 +17,7 @@ import harness
 PASSWORD = "Initialization.test.2026"
 SITE_NAME = "Drupack initialization check"
 LOGIN_LINE = "  Login:     http"
-# Dockerfile installs the seed under this account; launch.php's seedPassword() carries its password.
+# Dockerfile installs the seed under this account; operate.php's seedPassword() carries its password.
 SEED_ADMIN = "drupack-admin"
 
 # A helper process for the serving-lease case: holds an exclusive flock on the path in argv[1],
@@ -53,7 +53,7 @@ def follow_link(link):
 
 
 def assert_readiness(case, log_path, caddy_log):
-    """Assert both halves of a start's terminal output, launch.php's addresses and paths and
+    """Assert both halves of a start's terminal output, the launcher's addresses and paths and
     the serving process's readiness line, and that Caddy's log never reaches it. Returns the
     log text.
     """

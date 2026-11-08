@@ -58,36 +58,14 @@ type Command struct {
 	Dir string
 }
 
-// Plan returns the runtime's command, or Node's for a Node word where this file
-// carries Node. A file without Node sends the word to launch.php, which refuses it.
+// Plan returns the runtime's command for a line it reads itself: php, php-cli, the
+// version flags, and Node's words where this file carries Node.
 func Plan(l Launch) Command {
 	if len(l.Args) > 1 && l.NodeBin != "" && slices.Contains(nodeWords, l.Args[1]) {
 		path := filepath.Join(l.NodeBin, nodeFile(l.Args[1]))
 		return Command{Path: path, Args: append([]string{path}, l.Args[2:]...), Env: environment(l)}
 	}
-	return Command{
-		Path: l.Entry,
-		Args: arguments(l.Args, l.Application, l.Engine),
-		Env:  environment(l),
-	}
-}
-
-// arguments turns the reader's words into the runtime's. A site's php-cli, the version
-// flags and php pass unchanged. Every other line reaches launch.php, or the Engine's
-// serve.php, through php-cli.
-func arguments(args []string, application string, engine bool) []string {
-	switch {
-	case len(args) > 1 && !engine && args[1] == "php-cli":
-	case len(args) == 2 && (args[1] == "--version" || args[1] == "-v"):
-	case len(args) > 1 && args[1] == "php":
-	default:
-		script := "launch.php"
-		if engine {
-			script = "serve.php"
-		}
-		return append([]string{args[0], "php-cli", filepath.Join(application, script)}, args[1:]...)
-	}
-	return args
+	return Command{Path: l.Entry, Args: l.Args, Env: environment(l)}
 }
 
 // environment builds the runtime's environment from the launcher's own. A variable this
@@ -107,18 +85,16 @@ func environment(l Launch) []string {
 	if l.TLSDir != "" {
 		e.put("DRUPACK_TLS_DIR=" + runtime.Canonical(l.TLSDir))
 	}
-	// The runtime and launch.php are shared by every site built on this engine, so
+	// The runtime and operate.php are shared by every site built on this engine, so
 	// the site's name and release reach them from here.
 	e.put("DRUPACK_RUNTIME_NAME=" + l.Name)
 	e.put("DRUPACK_RUNTIME_SITE_VERSION=" + l.Version)
 	e.put("DRUPACK_RUNTIME_COMPONENTS=" + l.Components)
 	if l.Engine {
 		// The engine serves a folder named from the reader's directory. An application
-		// directory would make the entry point change into it before serve.php runs.
+		// directory would make the entry point change into it.
 		e.drop("DRUPACK_RUNTIME_APP_DIR")
-		e.put("DRUPACK_RUNTIME_CACHE_ROOT=" + runtime.Canonical(l.Root))
 	} else {
-		e.drop("DRUPACK_RUNTIME_CACHE_ROOT")
 		// The entry point changes into this directory, and PHP, Caddy and the reader's
 		// terminal read it, so it takes the canonical form.
 		e.put("DRUPACK_RUNTIME_APP_DIR=" + runtime.Canonical(l.Application))
@@ -126,9 +102,6 @@ func environment(l Launch) []string {
 	if l.NodeBin != "" {
 		path, _ := e.get("PATH")
 		e.put("PATH=" + l.NodeBin + string(os.PathListSeparator) + path)
-	}
-	if l.ConsoleOwned {
-		e.put("DRUPACK_RUNTIME_CONSOLE_OWNED=1")
 	}
 	return e.entries
 }

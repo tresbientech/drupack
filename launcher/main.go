@@ -14,9 +14,22 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/tls"
 )
 
+// consoleWord is the leading word that stands in for a file manager's console on a
+// platform whose console no file manager creates. The conformance suite gives it.
+const consoleWord = "--console-owned"
+
+// takeConsole strips consoleWord from args and reports whether it led them.
+func takeConsole(args []string) ([]string, bool) {
+	if len(args) > 1 && args[1] == consoleWord {
+		return append([]string{args[0]}, args[2:]...), true
+	}
+	return args, false
+}
+
 func main() {
-	os.Args = takeChild(os.Args)
-	if err := run(); err != nil {
+	args, named := takeConsole(os.Args)
+	os.Args = takeChild(args)
+	if err := run(named); err != nil {
 		if !errors.Is(err, errReported) {
 			fmt.Fprintln(os.Stderr, err)
 		}
@@ -25,7 +38,7 @@ func main() {
 	}
 }
 
-func run() error {
+func run(consoleNamed bool) error {
 	tlsFolder, err := tlsDir()
 	if err != nil {
 		return err
@@ -104,7 +117,7 @@ func run() error {
 		Version:      siteVersion,
 		Components:   siteComponents,
 		Engine:       engine,
-		ConsoleOwned: consoleOwned(),
+		ConsoleOwned: consoleOwned() || consoleNamed,
 		FoldCase:     foldCase,
 	}
 	switch {

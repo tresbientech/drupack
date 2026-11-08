@@ -30,7 +30,7 @@ mysqlnd          # the driver library behind pdo_mysql
 opcache          # bytecode cache for every request
 openssl          # HTTPS requests and Drupal crypto
 password-argon2  # argon2 password hashing; loads no extension of its own
-pcntl            # launch.php replaces itself with the server outside Windows
+pcntl            # Drush and Symfony Console trap SIGINT through it
 pdo              # Drupal core database layer
 pdo_mysql        # MySQL database backend
 pdo_pgsql        # PostgreSQL database backend

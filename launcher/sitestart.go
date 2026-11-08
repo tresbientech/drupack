@@ -75,7 +75,7 @@ func startSite(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
-	if c.options["foreground"] == "" && !siteConsoleOwned(l) {
+	if c.options["foreground"] == "" && !l.ConsoleOwned {
 		data, err := filepath.Abs(c.options["data-dir"])
 		if err != nil {
 			return err
@@ -303,16 +303,10 @@ func loopback(bind string) bool {
 	return bind == "::1" || strings.HasPrefix(bind, "127.")
 }
 
-// siteConsoleOwned reports whether a file manager's console started the start,
-// which closing would end along with a background server.
-func siteConsoleOwned(l Launch) bool {
-	return l.ConsoleOwned || os.Getenv("DRUPACK_RUNTIME_CONSOLE_OWNED") == "1"
-}
-
 // personPresent reports whether someone watches the start: a terminal, a file
 // manager's console, or the terminal a detaching parent had.
 func (s packagedStart) personPresent() bool {
-	return runtime.Terminal(os.Stdin) || siteConsoleOwned(s.l) || child != nil && child.person
+	return runtime.Terminal(os.Stdin) || s.l.ConsoleOwned || child != nil && child.person
 }
 
 // served answers a start whose Site data another server holds. installed is
@@ -356,10 +350,8 @@ func (s packagedStart) served(installed bool) error {
 	if s.c.options["no-browser"] != "" || !loopback(bind) {
 		return nil
 	}
-	// The link is a working credential, so it reaches the opener through the
-	// environment, which only this user can read.
-	s.e.put("DRUPACK_RUNTIME_OPEN=" + link)
-	return launch(Command{Path: s.l.Entry, Args: []string{s.l.Args[0], "browser-open"}, Env: s.e.entries, Dir: s.l.Application})
+	openBrowser(link)
+	return nil
 }
 
 // login mints the one-time login link for uid 1 at url, opening the dashboard,

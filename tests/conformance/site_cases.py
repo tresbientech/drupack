@@ -154,8 +154,8 @@ class SeededSite(harness.ConformanceCase):
 
     def test_startup_ignores_working_directory_script(self):
         # exit(42) fails the readiness and bootstrap checks below if this script ever runs.
-        script = self.case_dir / "launch.php"
-        script.write_text('<?php fwrite(STDOUT, "cwd launch executed\\n"); exit(42);')
+        script = self.case_dir / "operate.php"
+        script.write_text('<?php fwrite(STDOUT, "cwd operate executed\\n"); exit(42);')
         data = self.case_dir / "data"
         self.site.start(data, *CREDENTIALS)
         self.assertEqual(self.site.fetch("/user/login")[0], 200)
@@ -163,7 +163,7 @@ class SeededSite(harness.ConformanceCase):
         self.assertEqual(bootstrap.returncode, 0, bootstrap.stderr)
         self.assertEqual(bootstrap.stdout.strip(), "Successful")
         output = self.site.log_path.read_text(errors="replace")
-        self.assertNotIn("cwd launch executed", output)
+        self.assertNotIn("cwd operate executed", output)
 
     def test_seeded_sqlite_site_and_drush(self):
         data = self.case_dir / "data"

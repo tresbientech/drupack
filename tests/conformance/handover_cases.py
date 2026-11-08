@@ -14,16 +14,18 @@ ADMIN_USER = "handover-admin"
 ADMIN_PASSWORD = "Handover.test.password.2026"
 
 
+CONSOLE_OWNED = "--console-owned"
+
+
 def _console_env(directory):
     """The environment a Windows file manager's double-click produces, with a recorder posing
-    as the browser opener first on PATH. DRUPACK_RUNTIME_CONSOLE_OWNED says a person is
+    as the browser opener first on PATH. A start gives CONSOLE_OWNED to say a person is
     watching, with no terminal.
     """
     script, recorded = harness.install_recorder(directory)
     env = dict(
         os.environ,
         PATH=f"{script.parent}{os.pathsep}{os.environ.get('PATH', '')}",
-        DRUPACK_RUNTIME_CONSOLE_OWNED="1",
     )
     return env, recorded
 
@@ -52,7 +54,7 @@ class HandoverCases(harness.ConformanceCase):
         site.start(self.data, "--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
         try:
             second = harness.run(
-                [str(harness.BINARY), "--data-dir", str(self.data),
+                [str(harness.BINARY), CONSOLE_OWNED, "--data-dir", str(self.data),
                  "--listen", f"127.0.0.1:{site.port}"],
                 cwd=self.case_dir, capture_output=True, text=True,
                 timeout=harness.WAITS["start"].seconds, env=env,
@@ -84,7 +86,7 @@ class HandoverCases(harness.ConformanceCase):
         threading.Thread(target=impostor.serve_forever, daemon=True).start()
         try:
             start = harness.run(
-                [str(harness.BINARY), "--data-dir", str(self.data), "--listen", f"127.0.0.1:{port}"],
+                [str(harness.BINARY), CONSOLE_OWNED, "--data-dir", str(self.data), "--listen", f"127.0.0.1:{port}"],
                 cwd=self.case_dir, capture_output=True, text=True,
                 timeout=harness.WAITS["refusal"].seconds, env=env,
             )
@@ -164,11 +166,10 @@ class TakenPortCases(harness.ConformanceCase):
             # A person is present, so the lease alone keeps this from becoming a handover:
             # this Site data has no server of its own, and the port belongs to another site.
             refused = harness.run(
-                [str(harness.BINARY), "--data-dir", str(other),
+                [str(harness.BINARY), CONSOLE_OWNED, "--data-dir", str(other),
                  "--listen", f"127.0.0.1:{site.port}"],
                 cwd=self.case_dir, capture_output=True, text=True,
                 timeout=harness.WAITS["refusal"].seconds,
-                env=dict(os.environ, DRUPACK_RUNTIME_CONSOLE_OWNED="1"),
             )
             self.assertNotEqual(refused.returncode, 0, "a start served over another site's port")
             self.assertIn(str(site.port), refused.stderr)

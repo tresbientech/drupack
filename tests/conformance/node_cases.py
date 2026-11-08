@@ -122,7 +122,7 @@ class NodeClean(NodeCase):
 
 
 class NodeOnPath(NodeCase):
-    """The launcher execs the runtime, and launch.php execs the server, so the start's
+    """The launcher execs the runtime, which runs the server, so the start's
     process is the server whose PHP answers each request, and its environment is the one
     that PHP and every program it runs inherit."""
 

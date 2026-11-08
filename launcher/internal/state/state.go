@@ -37,7 +37,7 @@ func At(path string) Dir {
 
 // FolderEntry is the entry of project, a canonical path, under root. Windows
 // spells one path in several casings, so fold lowercases ASCII letters first,
-// as serve.php's strtolower does.
+// as PHP's strtolower did in the previous release.
 func FolderEntry(root, project string, fold bool) Dir {
 	key := []byte(project)
 	if fold {

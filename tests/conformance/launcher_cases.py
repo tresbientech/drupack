@@ -201,7 +201,7 @@ class InstalledSiteLauncherCases(harness.ConformanceCase):
                 ["ps", "-o", "args=", "-p", str(site.process.pid)],
                 capture_output=True, text=True, timeout=harness.WAITS["probe"].seconds,
             ).stdout.strip()
-            # runtime/launch.php re-execs through DRUPACK_RUNTIME_BINARY: the served process
+            # The launcher execs the runtime from the cache entry: the served process
             # names the cache entry's drupack, never the path this test invoked.
             self.assertTrue(
                 args.startswith(expected_prefix), "the serving process does not run the cache entry executable"

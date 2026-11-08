@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-// Unit cases for the functions in application/launch.php and the site operations of
-// application/operate.php. Run with:
-//   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/launch_test.php"
-// launch.php requires a vendor/autoload.php whose lock targets a PHP the host may lack, so
-// the bundled runtime runs this file.
+// Unit cases for the preparation functions and the site operations of application/operate.php.
+// Run with:
+//   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/prepare_test.php"
+// The site's vendor/autoload.php has a lock that targets a PHP the host may lack, so the
+// bundled runtime runs this file.
 
-require __DIR__ . '/../launch.php';
-define('DRUPACK_SERVE_LIBRARY', true);
+define('DRUPACK_OPERATE_LIBRARY', true);
 require __DIR__ . '/../operate.php';
+registerSupport();
 
 use Drupack\Support\Need;
 use Drupack\Support\SiteContract;
@@ -53,7 +53,7 @@ function parse(array $environment = []): array
 
 function scratch(): string
 {
-    $path = sys_get_temp_dir() . '/drupack-launch-test-' . bin2hex(random_bytes(8));
+    $path = sys_get_temp_dir() . '/drupack-prepare-test-' . bin2hex(random_bytes(8));
     if (!mkdir($path, 0700, true)) {
         throw new RuntimeException("Cannot create $path");
     }
@@ -189,8 +189,7 @@ test('adoption takes a site whose administrator has a password of its own', func
 });
 
 test('the reference site.json reads as the Site contract', function (): void {
-    same(['port' => 7225, 'recipe' => '', 'settings' => '', 'siteName' => 'Fixture Site', 'subdomain' => 'fixture', 'node' => true,
-        'writable' => [], 'docroot' => 'web', 'mercure' => false, 'static' => null], get_object_vars(SiteContract::read(__DIR__ . '/site.json')));
+    same(['recipe' => '', 'settings' => '', 'siteName' => 'Fixture Site'], get_object_vars(SiteContract::read(__DIR__ . '/site.json')));
 });
 
 test('check records whether Site data owes a step, and refuses options a step lacks', function (): void {
@@ -244,15 +243,6 @@ test('a given administrator name and password survive', function (): void {
     $filled = administratorCredentials(['admin-user' => 'ann', 'admin-password' => 'given'], [Step::Install]);
     same('ann', $filled['admin-user']);
     same('given', $filled['admin-password']);
-});
-
-test('canonical rewrites backslashes as forward slashes on a host whose separator is one', function (): void {
-    same('C:/Users/theno/Downloads', canonicalSeparator('C:\\Users\\theno\\Downloads', '\\'));
-    same('/var/www/html', canonical('/var/www/html'), 'a path with no backslash comes back unchanged');
-});
-
-test('canonical leaves a backslash alone where it is not the separator', function (): void {
-    same('a\\b', canonicalSeparator('a\\b', '/'), 'a backslash is a legal character in a Linux file name');
 });
 
 test('a database port defaults per backend', function (): void {

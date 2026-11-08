@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 DECLARATION = ROOT / "runtime" / "environment.txt"
 # The product's own sources. Tests set variables to build states, so they stay out.
-SOURCES = ("application", "build", "engine", "launcher", "runtime")
+SOURCES = ("application", "build", "launcher", "runtime")
 NAME = r"DRUPACK_RUNTIME_([A-Z_]+)"
 
 # Per file type, the patterns that mark a line as writing or reading a variable.
@@ -40,10 +40,8 @@ def sources():
     """Tracked product files, with the paths the repository spells, relative to its root."""
     listed = subprocess.run(["git", "ls-files", *SOURCES], cwd=ROOT, capture_output=True,
                             text=True, check=True).stdout.split()
-    # A tracked symlink repeats the file it points at.
     return [path for path in listed
-            if "/tests/" not in path and not path.endswith("_test.go")
-            and (ROOT / path).is_file() and not (ROOT / path).is_symlink()]
+            if "/tests/" not in path and not path.endswith("_test.go") and (ROOT / path).is_file()]
 
 
 def found():

@@ -101,7 +101,6 @@ COPY --from=runtime-components / /opt/drupack/runtime-components/
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY application /opt/drupack/engine/application
 COPY build /opt/drupack/engine/build
-COPY engine /opt/drupack/engine/engine
 COPY launcher /opt/drupack/engine/launcher
 COPY runtime/php-extensions.txt runtime/check-extensions.py runtime/builder-inputs.sh runtime/fetch-spc.sh runtime/spc-sqlite.patch /opt/drupack/engine/runtime/
 COPY tests /opt/drupack/engine/tests

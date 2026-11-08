@@ -280,18 +280,10 @@ func init() {
 		serveCaddyfile(os.Args[2], projectRules)
 		return
 	}
-	// launch.php replaces itself with this command when its Site data is already served,
-	// since a handover starts no server to open the browser from. The target is a working
-	// credential, so it arrives in the environment, which only this user can read.
-	if len(os.Args) > 1 && os.Args[1] == "browser-open" {
-		openBrowser(os.Getenv("DRUPACK_RUNTIME_OPEN"))
-		os.Exit(0)
-	}
 	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
 		fmt.Println(release())
 		fmt.Println(strings.Join(components(), "\n"))
 		os.Exit(0)
 	}
-	// FrankenPHP's own command line takes every other line. The launcher sends the
-	// reader's words to launch.php or serve.php through its php-cli.
+	// FrankenPHP's own command line takes every other line.
 }

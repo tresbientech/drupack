@@ -26,7 +26,7 @@ printf 'drupack-seed-hash-salt' > "$application/seed/hash_salt"
 cp "$application/settings.php" "$docroot/sites/default/settings.php"
 sed -i -e "s|__DRUPACK_SITE_SETTINGS__|'$settings'|" -e "s|__DRUPACK_DATABASE_CONFIGURATION__|['driver' => 'sqlite', 'database' => '$application/seed/site.sqlite', 'namespace' => 'Drupal\\\\sqlite\\\\Driver\\\\Database\\\\sqlite', 'autoload' => 'core/modules/sqlite/src/Driver/Database/sqlite/']|" \
     "$docroot/sites/default/settings.php"
-# launch.php's seedPassword() carries this password, and the first start replaces it.
+# operate.php's seedPassword() carries this password, and the first start replaces it.
 drush site:install "$application/$recipe" --yes --db-url=sqlite://seed/site.sqlite \
     --account-name=drupack-admin --account-pass=drupack-seed-password
 # Drupal CMS recipes enable automatic_updates and package_manager. The first stalls a

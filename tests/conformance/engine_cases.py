@@ -619,7 +619,7 @@ class EngineExecutable(harness.ConformanceCase):
     def test_drush_names_the_drush_a_project_lacks(self):
         result = self.engine_run("drush", "status", cwd=self.lacking / "web")
         self.assertNotEqual(result.returncode, 0)
-        # serve.php prints paths in Drupack's canonical form, forward slashes on Windows too.
+        # The launcher prints paths in Drupack's canonical form, forward slashes on Windows too.
         self.assertIn(f"{self.lacking.as_posix()}/vendor/drush/drush/drush.php does not exist", result.stderr)
 
     def edit_json(self, path, edit):
@@ -641,7 +641,7 @@ class EngineExecutable(harness.ConformanceCase):
 
     def hub_entry(self, port):
         """The folder's cache entry holding the hub a start on port recorded."""
-        root = self.engine_run("php", "-r", "echo getenv('DRUPACK_RUNTIME_CACHE_ROOT');", cwd=self.project).stdout
+        root = os.environ["DRUPACK_CACHE_DIR"]
         listen = f"127.0.0.1:{port}"
         entries = [path.parent for path in Path(root, "folders").glob("*/listener")
                    if json.loads(path.read_text())["listen"] == listen]
