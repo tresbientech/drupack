@@ -70,11 +70,7 @@ func siteDrush(l Launch, c command, cwd string, e environ) (Command, error) {
 	if _, err := os.Stat(filepath.Join(data, "settings.php")); err != nil {
 		return Command{}, fmt.Errorf("This Site data has no site yet: %s. Start %s once to create one.", runtime.Canonical(data), l.Name)
 	}
-	record, recorded, err := state.At(data).Listener()
-	var unreadable *state.UnreadableError
-	if errors.As(err, &unreadable) {
-		return Command{}, fmt.Errorf("%w. Remove that file, then start %s again to record it.", err, l.Name)
-	}
+	record, recorded, err := readListener(state.At(data), l.Name)
 	if err != nil {
 		return Command{}, err
 	}
@@ -91,16 +87,9 @@ func siteDrush(l Launch, c command, cwd string, e environ) (Command, error) {
 		files = cmp.Or(files, record.FilesDir)
 	}
 	listen = cmp.Or(listen, "127.0.0.1:"+strconv.Itoa(site.Port))
-	bind, port, err := parseListen(listen, "--listen")
+	bind, port, err := siteListener(site, listen, staticListen)
 	if err != nil {
 		return Command{}, err
-	}
-	if site.Static != nil {
-		if _, _, _, err := staticListener(staticListen, bind, port); err != nil {
-			return Command{}, err
-		}
-	} else if staticListen != "" {
-		return Command{}, errors.New("--static-listen needs a site whose composer.json sets extra.drupack.static")
 	}
 	// A reader types --host. A recorded one is the launcher's own.
 	if typed := c.options["host"]; typed != "" && !validHost(typed) {
@@ -113,18 +102,10 @@ func siteDrush(l Launch, c command, cwd string, e environ) (Command, error) {
 	if err != nil {
 		return Command{}, err
 	}
-	for _, name := range []string{"runtime", "private", "tmp", "config", "logs"} {
-		if err := os.MkdirAll(filepath.Join(data, name), 0o700); err != nil {
-			return Command{}, err
-		}
+	if err := siteDirectories(data, site.Static != nil); err != nil {
+		return Command{}, err
 	}
 	files = cmp.Or(files, filepath.Join(data, "files"))
-	staticRoot := filepath.Join(data, "static")
-	if site.Static != nil {
-		if err := os.MkdirAll(staticRoot, 0o700); err != nil {
-			return Command{}, err
-		}
-	}
 	if err := os.MkdirAll(filepath.Join(files, "translations"), 0o700); err != nil {
 		return Command{}, err
 	}
@@ -136,20 +117,11 @@ func siteDrush(l Launch, c command, cwd string, e environ) (Command, error) {
 		return Command{}, err
 	}
 
-	e.put("DRUPACK_RUNTIME_DATA_DIR=" + runtime.Canonical(data))
-	e.put("DRUPACK_RUNTIME_FILES_DIR=" + runtime.Canonical(files))
-	// Drupal matches its trusted host patterns against the request's host, which keeps
-	// an IPv6 address's brackets.
-	e.put("DRUPACK_RUNTIME_HOST=" + urlHost(host))
-	// The address a reader types, never the bind address. Without it Drupal falls back
-	// to http://default, and every printed or mailed link names an unreachable host.
-	e.put("DRUSH_OPTIONS_URI=" + siteURL(scheme, host, port))
-	for _, name := range []string{"TMPDIR", "TEMP", "TMP", "XDG_DATA_HOME", "XDG_CONFIG_HOME"} {
-		e.put(name + "=" + runtime.Canonical(scratch))
-	}
+	staticRoot := ""
 	if site.Static != nil {
-		e.put("DRUPACK_RUNTIME_STATIC_ROOT=" + runtime.Canonical(staticRoot))
+		staticRoot = runtime.Canonical(filepath.Join(data, "static"))
 	}
+	putSiteEnvironment(&e, runtime.Canonical(data), runtime.Canonical(files), host, siteURL(scheme, host, port), runtime.Canonical(scratch), staticRoot)
 	if bundle, ok := state.At(scratch).Bundle(); ok {
 		e.put("DRUPACK_CA_FILE=" + runtime.Canonical(bundle))
 	}

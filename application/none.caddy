@@ -1,3 +1,0 @@
-# The empty snippet: no Mercure hub when composer.json leaves extra.drupack.mercure off, and
-# no project rules when the project has no drupack.caddy. Caddy warns about an empty import
-# file, and a comment keeps it quiet.

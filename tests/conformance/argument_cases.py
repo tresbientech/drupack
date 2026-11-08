@@ -36,10 +36,17 @@ class ArgumentCases(harness.ConformanceCase):
         data = self.case_dir / "data"
         self.refuse(data, "--data-dir", str(data), "--database", "invalid")
 
-    def test_quoted_data_dir_refuses(self):
-        data = self.case_dir / 'quoted"dir'
-        diagnostic = self.refuse(data, "--data-dir", str(data))
-        self.assertIn("double quote", diagnostic)
+    def test_braced_data_dir_refuses(self):
+        for name in ("open{dir", "close}dir"):
+            with self.subTest(name):
+                data = self.case_dir / name
+                diagnostic = self.refuse(data, "--data-dir", str(data))
+                self.assertIn(f"--data-dir must not contain {{ or }}: {data}", diagnostic)
+
+    def test_braced_files_dir_refuses(self):
+        data = self.case_dir / "data"
+        diagnostic = self.refuse(data, "--data-dir", str(data), "--files-dir", str(self.case_dir / "{files}"))
+        self.assertIn("--files-dir must not contain { or }", diagnostic)
 
     def test_an_unknown_command_prints_the_usage(self):
         data = self.case_dir / "data"

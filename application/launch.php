@@ -5,7 +5,7 @@ declare(strict_types=1);
 // The site's composer project builds vendor/, so the engine registers its own namespace.
 (require __DIR__ . '/vendor/autoload.php')->addPsr4('Drupack\\Support\\', __DIR__ . '/support');
 
-require __DIR__ . '/process.php';
+require_once __DIR__ . '/process.php';
 require __DIR__ . '/mercure.php';
 require __DIR__ . '/static.php';
 
@@ -34,20 +34,15 @@ function application(): string
 }
 
 // A site whose contract names writable directories runs its own application, laid in
-// Site data. A start lays it under the Serving lease. `export` takes no lease, so it only
-// checks that the last start laid this release.
-function useSiteApplication(SiteData $site, bool $drush): void
+// Site data by a start under the Serving lease. `export` takes no lease, so it only checks
+// that the last start laid this release.
+function useSiteApplication(SiteData $site): void
 {
     $data = $site->directory;
-    $launcher = getenv('DRUPACK_RUNTIME_LAUNCHER');
     $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => STDOUT, 2 => STDERR];
-    if ($drush) {
-        if (process($launcher, ['lay-app', '--check', $data], $descriptors, $data, 'Cannot run ' . executableName()) !== 0) {
-            throw new RuntimeException("This Site data holds another release's application. Start "
-                . executableName() . " once to lay this release's: $data");
-        }
-    } elseif (process($launcher, array_merge(['lay-app', $data], siteContract()->writable), $descriptors, $data, 'Cannot run ' . executableName()) !== 0) {
-        throw new RuntimeException("Cannot lay the application in Site data: $data");
+    if (process(getenv('DRUPACK_RUNTIME_LAUNCHER'), ['lay-app', '--check', $data], $descriptors, $data, 'Cannot run ' . executableName()) !== 0) {
+        throw new RuntimeException("This Site data holds another release's application. Start "
+            . executableName() . " once to lay this release's: $data");
     }
     putenv('DRUPACK_RUNTIME_APP_DIR=' . $site->application());
 }
@@ -60,22 +55,23 @@ function siteContract(): SiteContract
     return $site ??= SiteContract::read(__DIR__ . '/site.json');
 }
 
-function siteLabelSource(SiteContract $site): array
+// The options a start hands operate.php through these variables, which a reader may also set.
+function startOptions(SiteContract $site): array
 {
-    return ['--name', $site->subdomain ?? executableName()];
+    return [
+        'database' => environment('DRUPACK_DATABASE') ?? 'sqlite',
+        'db-host' => environment('DRUPACK_DB_HOST'),
+        'db-port' => environment('DRUPACK_DB_PORT'),
+        'db-name' => environment('DRUPACK_DB_NAME'),
+        'db-user' => environment('DRUPACK_DB_USER'),
+        'db-password' => environment('DRUPACK_DB_PASSWORD'),
+        'admin-user' => environment('DRUPACK_ADMIN_USER'),
+        'admin-password' => environment('DRUPACK_ADMIN_PASSWORD'),
+        'site-name' => environment('DRUPACK_SITE_NAME') ?? $site->siteName,
+    ];
 }
 
-// The launcher checked the line: its words are `start`, `export` or an option, and every option
-// is one options() reads. The launcher answers --help and refuses an unknown word.
-function command(array $arguments): array
-{
-    $word = $arguments[0] ?? null;
-    if ($word === 'start' || $word === 'export') {
-        return [$word, array_slice($arguments, 1)];
-    }
-    return ['start', $arguments];
-}
-
+// `export` reads every start option ahead of Drush's words, as the launcher checked them.
 function options(array $arguments, bool $drush, SiteContract $site): array
 {
     $options = [
@@ -86,18 +82,9 @@ function options(array $arguments, bool $drush, SiteContract $site): array
         'host' => null,
         // The files directory falls back to the recorded one, then to Site data, once the Site data is known.
         'files-dir' => null,
-        'database' => environment('DRUPACK_DATABASE') ?? 'sqlite',
-        'db-host' => environment('DRUPACK_DB_HOST'),
-        'db-port' => environment('DRUPACK_DB_PORT'),
-        'db-name' => environment('DRUPACK_DB_NAME'),
-        'db-user' => environment('DRUPACK_DB_USER'),
-        'db-password' => environment('DRUPACK_DB_PASSWORD'),
-        'admin-user' => environment('DRUPACK_ADMIN_USER'),
-        'admin-password' => environment('DRUPACK_ADMIN_PASSWORD'),
-        'site-name' => environment('DRUPACK_SITE_NAME') ?? $site->siteName,
         'no-browser' => null,
         'foreground' => null,
-    ];
+    ] + startOptions($site);
     $command = [];
     while ($arguments !== []) {
         $argument = array_shift($arguments);
@@ -134,49 +121,6 @@ function administratorCredentials(array $options, array $steps): array
     $options['admin-user'] ??= 'admin';
     $options['admin-password'] ??= bin2hex(random_bytes(32));
     return $options;
-}
-
-// $target is a working credential for uid 1. It enters the serving process's environment only
-// when a browser will spend it, since any PHP in that process can read it through getenv,
-// $_ENV or phpinfo. Readiness is polled on $url, the bind's own address.
-function openWhenServing(string $url, ?string $target, bool $browser): void
-{
-    putenv("DRUPACK_RUNTIME_URL=$url");
-    // The server opens a browser when this variable is set, so a start that opens none
-    // clears whatever the environment it inherited held.
-    putenv($browser ? "DRUPACK_RUNTIME_OPEN=$target" : 'DRUPACK_RUNTIME_OPEN');
-}
-
-// Windows spells one path in several casings, so the hash reads a single one.
-function siteToken(string $data): string
-{
-    return hash('sha256', windows() ? strtolower($data) : $data);
-}
-
-// Reports whether anything holds $bind:$port. A connect answers this on every platform,
-// where a trial bind would report a taken port as free under Windows SO_REUSEADDR. A
-// wildcard is probed on its own family's loopback, since an IPv6-only listener never
-// answers on 127.0.0.1.
-function portTaken(string $bind, int $port): bool
-{
-    $probe = @stream_socket_client('tcp://' . urlHost(probeHost($bind)) . ":$port", $code, $error, 1);
-    if ($probe === false) {
-        return false;
-    }
-    fclose($probe);
-    return true;
-}
-
-// Read from the record start wrote, so a handover names the address that server took, not the
-// one this start planned. Site data without a record falls back to the plan.
-function servedListener(SiteData $site, array $plan): array
-{
-    $record = $site->listener();
-    if ($record === null) {
-        return [$plan['bind'], siteUrl(SiteData::UNRECORDED_SCHEME, $plan['host'], $plan['port'])];
-    }
-    [$bind, $port] = listenerParts($record['listen']);
-    return [$bind, siteUrl($record['scheme'], $record['host'], $port)];
 }
 
 function recordedListener(array $options, ?array $record): array
@@ -399,42 +343,6 @@ function drushField(string $binary, array $command): string
     return trim((string) $output);
 }
 
-// The site is not serving yet; the Go entrypoint opens a browser once it answers.
-function loginLink(string $binary, string $url, string $destination): string
-{
-    return drushLoginLink($binary, drushPath(), application(), [$destination], $url);
-}
-
-function explainMintFailure(LoginLinkFailure $failure, string $data): void
-{
-    $reason = rtrim($failure->reason, '. ');
-    fwrite(STDERR, 'Cannot mint a one-time login link' . ($reason === '' ? '' : ": $reason")
-        . ". Get one with: " . executableName() . " drush --data-dir $data user:login /admin/dashboard\n");
-}
-
-// A start whose address this Site data already serves runs no server of its own: two
-// FrankenPHP processes over one database and one runtime directory would corrupt both.
-function handOver(string $binary, string $url, string $data, bool $browser): never
-{
-    fwrite(STDOUT, "Creating a one-time login link.\n");
-    try {
-        $link = loginLink($binary, $url, '/admin/dashboard');
-    } catch (LoginLinkFailure $failure) {
-        $link = null;
-        explainMintFailure($failure, $data);
-    }
-    fwrite(STDOUT, executableName() . " is already serving this Site data.\n\n  URL:    $url\n"
-        . ($link === null ? '' : "  Login:  $link\n"));
-    if ($link === null || !$browser) {
-        exit(0);
-    }
-    // The link is a working credential, so it reaches the opener through the environment,
-    // which only this user can read, rather than through a command line every local
-    // account can list.
-    putenv("DRUPACK_RUNTIME_OPEN=$link");
-    replaceProcess($binary, ['browser-open'], application(), 'Cannot open the browser');
-}
-
 function databaseHoldsTables(array $options): bool
 {
     $connection = new PDO(
@@ -483,7 +391,7 @@ function installSite(SiteData $site, array $options, string $binary, SiteContrac
             . "Restore its settings.php, or start " . executableName() . " with an empty Site data directory.");
     }
     if (!$started && drushField($binary, ['status', '--field=bootstrap']) === 'Successful') {
-        fwrite(STDOUT, "This database already holds a site. " . executableName() . " enabled nothing on it, and keeps its own administrator account.\n");
+        fwrite(STDERR, "This database already holds a site. " . executableName() . " enabled nothing on it, and keeps its own administrator account.\n");
         return true;
     }
     if ($contract->recipe === '') {
@@ -614,21 +522,35 @@ function runStep(Step $step, SiteData $site, array $options, string $binary, boo
     }
 }
 
+// The launcher has claimed and released the lease, refused what a start can refuse and handed
+// over to a running server. This claims the lease only to refuse a second server in the reader's
+// terminal, then runs the start again in the background and relays its log. $written is the
+// --data-dir the reader wrote, '' for the default, and $arguments their words.
+function detach(string $data, string $written, array $arguments): never
+{
+    $serving = new Serving($data, "$data/logs");
+    if (!$serving->claim()) {
+        throw new RuntimeException(executableName() . " already serves this Site data: $data");
+    }
+    $serving->detach(false, stopCommand($written === '' ? '' : ' --data-dir ' . shellWord($written)), $arguments);
+}
+
 // application/tests/launch_test.php defines this to load the functions above without starting a site.
 if (defined('DRUPACK_LAUNCH_LIBRARY')) {
     return;
 }
 
 try {
-    [$mode, $arguments] = command(array_slice($argv, 1));
-    // `export` is a Drush run with Tome's command ahead of the reader's words.
-    $drush = $mode === 'export';
-    [$options, $command] = options($arguments, $drush, siteContract());
-    if ($mode === 'export' && siteContract()->static === null) {
+    if ($argv[1] === 'detach') {
+        detach($argv[2], $argv[3], array_slice($argv, 4));
+    }
+    // The launcher sends `export` alone here. It is a Drush run with Tome's command ahead of the
+    // reader's words, initializes nothing and takes no lease, so Tome works while the server runs.
+    [$options, $command] = options(array_slice($argv, 2), true, siteContract());
+    if (siteContract()->static === null) {
         throw new InvalidArgumentException('export needs a site whose composer.json sets extra.drupack.static');
     }
-    $written = $options['data-dir'];
-    $options['data-dir'] = fromStartDirectory($written);
+    $options['data-dir'] = fromStartDirectory($options['data-dir']);
     if ($options['files-dir'] !== null) {
         $options['files-dir'] = fromStartDirectory($options['files-dir']);
     }
@@ -638,39 +560,19 @@ try {
     if (!in_array($options['database'], ['sqlite', 'mysql', 'pgsql'], true)) {
         throw new InvalidArgumentException('--database requires sqlite, mysql, or pgsql');
     }
-    $steps = [];
     $named = new SiteData($options['data-dir']);
-    if ($drush) {
-        // `export` initializes nothing and takes no lease, so Tome works while the server runs.
-        if (!file_exists($named->settings())) {
-            throw new RuntimeException("This Site data has no site yet: {$options['data-dir']}. Start " . executableName() . " once to create one.");
-        }
-        // `export` addresses the site where the last start served.
-        $options = recordedListener($options, $named->listener());
-    } else {
-        // A refusal here writes no Site data.
-        [$steps, $options] = owedSteps($named, $options, siteContract());
+    if (!file_exists($named->settings())) {
+        throw new RuntimeException("This Site data has no site yet: {$options['data-dir']}. Start " . executableName() . " once to create one.");
     }
+    // `export` addresses the site where the last start served.
+    $options = recordedListener($options, $named->listener());
     $options['listen'] ??= '127.0.0.1:' . siteContract()->port;
     [$bind, $port] = listenerParts($options['listen']);
-    if (siteContract()->static !== null) {
-        [$staticBind, $staticPort, $options['static-listen']] = staticListener($options['static-listen'], $bind, $port);
-    } elseif ($options['static-listen'] !== null) {
-        throw new InvalidArgumentException('--static-listen needs a site whose composer.json sets extra.drupack.static');
-    }
+    [$staticBind, $staticPort, $options['static-listen']] = staticListener($options['static-listen'], $bind, $port);
     // The permitted request host is external input and is converted to an exact Drupal pattern.
     if ($options['host'] !== null && !filter_var($options['host'], FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)
         && !filter_var($options['host'], FILTER_VALIDATE_IP)) {
         throw new InvalidArgumentException('Invalid --host value');
-    }
-    // The log path reaches the Caddyfile through the environment, which Caddy splices in before it
-    // reads quotes, so a quote breaks it.
-    if (str_contains($options['data-dir'], '"')) {
-        throw new InvalidArgumentException('--data-dir must not contain a double quote');
-    }
-    // The files directory reaches the Caddyfile the same way.
-    if (str_contains((string) $options['files-dir'], '"')) {
-        throw new InvalidArgumentException('--files-dir must not contain a double quote');
     }
 
     umask(0077);
@@ -679,147 +581,31 @@ try {
     // before it travels into every export, hash and printed line that follows.
     $data = canonical(realpath($options['data-dir']));
     $site = new SiteData($data);
-    $site->prepare(siteContract()->static !== null);
-    $staticRoot = siteContract()->static === null ? null : $site->static();
+    $site->prepare(true);
     $options = recordedFilesDirectory($options, $site->listener());
     $files = $options['files-dir'] ?? $site->files();
     directory("$files/translations");
     $files = canonical(realpath($files));
-    // A named directory is recorded resolved. The default stays unrecorded, so it moves with Site data.
-    if ($options['files-dir'] !== null) {
-        $options['files-dir'] = $files;
-    }
-    $tls = $drush ? null : tlsChoice(getenv('DRUPACK_RUNTIME_LAUNCHER'), $bind, siteLabelSource(siteContract()), $options['host']);
-    $plan = $drush
-        ? listenerPlan($bind, $port, $options['host'] ?? SiteData::UNRECORDED_HOST, $options['scheme'] ?? SiteData::UNRECORDED_SCHEME)
-        : listenerPlan($bind, $port, $tls->host, $tls->scheme());
-    $static = siteContract()->static === null ? null : staticPlan($staticBind, $staticPort, $plan['host'], $plan['scheme']);
-    $logPath = $site->logs() . '/caddy.log';
+    $plan = listenerPlan($bind, $port, $options['host'] ?? SiteData::UNRECORDED_HOST, $options['scheme'] ?? SiteData::UNRECORDED_SCHEME);
+    $static = staticPlan($staticBind, $staticPort, $plan['host'], $plan['scheme']);
     $runtime = canonical(realpath($site->runtime()));
-    if ($drush) {
-        useTlsBundle($runtime);
-    }
-    exportSiteEnvironment($plan, $data, $files, $runtime, $options, $staticRoot);
-    // Both checks run before the listener record and every install step, so a served site or a
-    // taken port reaches the reader as a sentence, not a bind error or a corrupted database.
-    if (!$drush) {
-        // The object holds the lease until the exec into the server.
-        $serving = new Serving($site->directory, $site->logs());
-        if (!$serving->claim()) {
-            // The holder is still installing while no completion marker exists, and
-            // serving once it does. A handover addresses a site that answers requests,
-            // so an installation in progress refuses instead.
-            if (!$site->installed()) {
-                throw new RuntimeException("Another " . executableName() . " start is preparing this Site data: $data");
-            }
-            [$servedBind, $served] = servedListener($site, $plan);
-            if (personPresent()) {
-                handOver($binary, $served, $data, $options['no-browser'] === null && loopback($servedBind));
-            }
-            throw new RuntimeException(executableName() . " already serves this Site data at $served: $data");
-        }
-        if (portTaken($bind, $port)) {
-            throw new RuntimeException("Another program is listening on {$options['listen']}. Stop it, or start on"
-                . " a free port: " . executableName() . " --listen $bind:" . ($port + 1));
-        }
-        if ($static !== null && portTaken($static['bind'], $static['port'])) {
-            throw new RuntimeException("Another program is listening on {$options['static-listen']}. Stop it, or move the static"
-                . " listener to a free port: " . executableName() . ' --static-listen ' . urlHost($static['bind']) . ':' . ($static['port'] + 1));
-        }
-        $serving->detach($options['foreground'] !== null,
-            stopCommand($written === DEFAULT_DATA_DIR ? '' : ' --data-dir ' . shellWord($written)), array_slice($argv, 1));
-        $site->recordListener($options['listen'], $plan['host'], $options['files-dir'], $plan['scheme'], $options['static-listen']);
-        $tls->storeBundle($runtime);
-    }
+    useTlsBundle($runtime);
+    exportSiteEnvironment($plan, $data, $files, $runtime, $options, $site->static());
     if (siteContract()->mercure) {
-        exportMercure($site->mercurePublisherSecret(), $site->mercureSubscriberSecret(), mercureUrl($plan['scheme'], $bind, $port), $drush);
+        exportMercure($site->mercurePublisherSecret(), $site->mercureSubscriberSecret(), mercureUrl($plan['scheme'], $bind, $port), true);
     }
     if (siteContract()->writable !== []) {
-        useSiteApplication($site, $drush);
+        useSiteApplication($site);
     }
     runtimePhpOnPath(application());
-    if ($steps !== []) {
-        // Read again under the lease: another start may have changed the owed steps between
-        // the first read and the moment this one claimed the Site data.
-        [$steps, $options] = owedSteps($site, $options, siteContract());
-        // That list can owe the administrator step the first one did not, with credentials
-        // generated just now.
-        exportSiteEnvironment($plan, $data, $files, $runtime, $options, $staticRoot);
-    }
-    // A start refreshes the recorded settings from this release's template. `export` writes nothing,
-    // since the server answering requests requires that file.
-    if (!$drush && file_exists($site->settings())) {
-        // A pending settings step writes the file itself, so its contents are read once they are final.
-        if (!in_array(Step::Settings, $steps, true)) {
-            $options = recordedOptions($options, $site);
-            writeSettings($site->settings(), application() . '/settings.php', databaseConfiguration($options, $site), siteContract()->settings);
-        }
-    }
-    // The remaining steps reach the disk before the first one changes anything, and the
-    // completion marker follows the last one.
-    $number = 0;
-    $adopted = $site->initialize($steps, function (Step $step, bool $adopted) use (&$number, $steps, $site, $options, $binary): bool {
-        fwrite(STDOUT, sprintf("[%d/%d] %s\n", ++$number, count($steps), $step->report()));
-        return runStep($step, $site, $options, $binary, $adopted);
-    });
     foreach (glob(application() . '/translations/*.po') as $translation) {
         $destination = "$files/translations/" . basename($translation);
         if (!file_exists($destination) && !copy($translation, $destination)) {
             throw new RuntimeException("Cannot install translation resource: $destination");
         }
     }
-    if ($drush) {
-        if ($mode === 'export') {
-            requireTomeStatic($binary, drushPath(), application());
-            $command = exportCommand($static['url'], $command);
-        }
-        exit(process($binary, array_merge(['php-cli', drushPath()], $command), [0 => STDIN, 1 => STDOUT, 2 => STDERR], application(), 'Cannot run Drush'));
-    }
-    // Every start hands its reader a one-time login link for uid 1. A start that generated the
-    // password has no other way in, so it fails when the mint fails. An adopted site keeps its own
-    // accounts and serves without the link.
-    fwrite(STDOUT, "Creating a one-time login link.\n");
-    try {
-        $link = loginLink($binary, $plan['url'], '/admin/dashboard');
-    } catch (LoginLinkFailure $failure) {
-        if (in_array(Need::Credentials, Step::owed($steps), true) && !$adopted) {
-            throw $failure;
-        }
-        $link = null;
-        explainMintFailure($failure, $data);
-    }
-    // The addresses and paths only, never a readiness claim: the server binds after this
-    // process execs into it, so the process that answers a request announces that itself.
-    $details = "  URL:       {$plan['url']}\n" . ($static === null ? '' : "  Static:    {$static['url']}\n")
-        . ($link === null ? '' : "  Login:     $link\n");
-    fwrite(STDOUT, $details . "  Site data: $data\n  Log:       $logPath\n");
-    // A start with a terminal on standard input opens the browser. A script, a container and a test
-    // have none. A start with no link has nothing to open.
-    $browser = $link !== null && $options['no-browser'] === null && personPresent() && loopback($bind);
-    if ($link !== null && !loopback($bind)) {
-        fwrite(STDOUT, "No browser opens: {$options['listen']} accepts other computers over plain HTTP."
-            . " Sign in from another computer only through a TLS proxy.\n");
-    }
-    fwrite(STDOUT, $tls->nameHint() . $tls->trustHint());
-    openWhenServing($plan['probe'], $link, $browser);
-    // Every step that needed the administrator password has run. The server inherits
-    // this environment and passes it to every process it starts, including PHP code a
-    // site runs, so the credential stops here.
-    putenv('DRUPACK_ADMIN_PASSWORD');
-    fwrite(STDOUT, "Starting the web server.\n");
-    $projectRules = projectSnippetEnvironment(application());
-    exportServerEnvironment(serverEnvironment($plan, $tls, [
-        'DRUPACK_RUNTIME_ID' => siteToken($data),
-        // Absolute, because FrankenPHP resolves a relative docroot against the directory
-        // its process started in, which on Unix is the shared application whatever the
-        // entry point changes to.
-        'DRUPACK_RUNTIME_DOCROOT' => application() . '/' . siteContract()->docroot,
-        'DRUPACK_RUNTIME_LOG_PATH' => $logPath,
-        'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
-    ] + mercureServerEnvironment(siteContract()->mercure, $data) + staticServerEnvironment(siteContract()->static, $static, $tls->source)
-        + $projectRules));
-    // The runtime names the project's rules when they fail to adapt.
-    replaceProcess($binary, array_merge(['php-server', application() . '/Caddyfile'], array_values(array_diff($projectRules, ['none.caddy']))), application(), 'Cannot start FrankenPHP');
+    requireTomeStatic($binary, drushPath(), application());
+    exit(process($binary, array_merge(['php-cli', drushPath()], exportCommand($static['url'], $command)), [0 => STDIN, 1 => STDOUT, 2 => STDERR], application(), 'Cannot run Drush'));
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
     exit(1);

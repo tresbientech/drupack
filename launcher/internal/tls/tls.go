@@ -10,10 +10,8 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -52,19 +50,19 @@ const mkcertRenewal = 30 * 24 * time.Hour
 // Choice is how a start serves. Source is "mkcert", "drupack" or "none" (plain
 // HTTP). Root is what a client verifies against.
 type Choice struct {
-	Source      string `json:"source"`
-	Root        string `json:"root,omitempty"`
-	RootKey     string `json:"rootKey,omitempty"`
-	Authority   string `json:"authority,omitempty"`
-	Certificate string `json:"certificate,omitempty"`
-	Key         string `json:"key,omitempty"`
+	Source      string
+	Root        string
+	RootKey     string
+	Authority   string
+	Certificate string
+	Key         string
 	// Host is what the start's URL names, Alias the site's drupack.site name, and Reason
 	// why Host is not Alias when the start tried the name. Eligible reports whether the
 	// bind and Host may serve HTTPS from a local root.
-	Host     string `json:"host"`
-	Alias    string `json:"alias"`
-	Reason   string `json:"reason"`
-	Eligible bool   `json:"eligible"`
+	Host     string
+	Alias    string
+	Reason   string
+	Eligible bool
 }
 
 // The root vouches only for loopback names and drupack.site, so its key signs
@@ -267,29 +265,6 @@ func fixedLookup(addresses string) lookupFunc {
 		}
 		return answer, nil
 	}
-}
-
-// WriteSource prints the start's TLS choice as one JSON object. A packed site passes
-// --name and falls back to localhost; the engine passes --folder and falls back to
-// its bind address.
-func WriteSource(out io.Writer, dir string, args []string) error {
-	flags := flag.NewFlagSet("tls-source", flag.ContinueOnError)
-	bind := flags.String("bind", "", "the address the server listens on")
-	name := flags.String("name", "", "the packed site's label: its subdomain, otherwise its name")
-	folder := flags.String("folder", "", "the Project folder's label: its subdomain, otherwise its name")
-	host := flags.String("host", "", "the host the reader asked for")
-	if err := flags.Parse(args); err != nil {
-		return err
-	}
-	label, fallback := *name, "localhost"
-	if *name == "" {
-		label, fallback = *folder, *bind
-	}
-	choice, err := Choose(dir, *bind, label, fallback, *host)
-	if err != nil {
-		return err
-	}
-	return json.NewEncoder(out).Encode(choice)
 }
 
 // Scheme is the scheme the start's URL takes.

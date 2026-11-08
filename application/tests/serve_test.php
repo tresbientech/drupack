@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
-// Unit cases for the functions in engine/serve.php and engine/operate.php. Run with:
+// Unit cases for the functions in engine/serve.php and the engine's operations in
+// application/operate.php. Run with:
 //   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/serve_test.php"
 // The constant loads both for their functions alone.
 
 define('DRUPACK_SERVE_LIBRARY', true);
 require __DIR__ . '/../../engine/serve.php';
-require __DIR__ . '/../../engine/operate.php';
+require __DIR__ . '/../operate.php';
 
 require __DIR__ . '/cases.php';
 $root = sys_get_temp_dir() . '/drupack-serve-test-' . bin2hex(random_bytes(8));
@@ -22,12 +23,6 @@ function project_with(string $name, array $files): string
     }
     return $project;
 }
-
-test('the engine treats only 127.0.0.0/8 and ::1 as loopback', function () {
-    foreach (['127.0.0.1' => true, '::1' => true, '0.0.0.0' => false, '::' => false, '10.0.0.2' => false] as $bind => $expected) {
-        same($expected, loopback($bind), $bind);
-    }
-});
 
 test('a lock declaring an extension the runtime lacks is refused, naming its package', function () {
     $project = project_with('missing', ['composer.lock' => json_encode([
@@ -49,7 +44,7 @@ test('a lock declaring loaded extensions alone passes', function () {
 
 test('check records that no probe ran for a platform check alone', function () {
     $project = project_with('check-platform', ['composer.json' => '{}']);
-    same(['installed' => null], check('', $project, null));
+    same(['installed' => null], operate('', ['check', 'folder', $project]));
 });
 
 test('check refuses a project the runtime cannot run before it probes', function () {
@@ -69,12 +64,12 @@ function runtime_minting(string $name, string $stdout, string $stderr = ''): str
 
 test('login records the link Drush mints at the URL', function () {
     $runtime = runtime_minting('login-link', 'http://localhost:3787/user/reset/1/abc');
-    same(['link' => 'http://localhost:3787/user/reset/1/abc'], mintLoginLink($runtime, 'http://localhost:3787', 'drush.php', sys_get_temp_dir()));
+    same(['link' => 'http://localhost:3787/user/reset/1/abc'], operate($runtime, ['login', 'http://localhost:3787', 'drush.php', sys_get_temp_dir()]));
 });
 
 test('login records the reason Drush gave when it mints no link', function () {
     $runtime = runtime_minting('login-failure', '', "Account is\nblocked");
-    same(['failure' => 'Account is blocked'], mintLoginLink($runtime, 'http://localhost:3787', 'drush.php', sys_get_temp_dir()));
+    same(['failure' => 'Account is blocked'], operate($runtime, ['login', 'http://localhost:3787', 'drush.php', sys_get_temp_dir()]));
 });
 
 test('a folder keeps its state in a cache entry its canonical path names', function () {

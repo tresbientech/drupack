@@ -8,14 +8,6 @@ function mercureUrl(string $scheme, string $bind, int $port): string
     return siteUrl($scheme, probeHost($bind), $port) . '.well-known/mercure';
 }
 
-function mercureServerEnvironment(bool $on, string $directory): array
-{
-    return [
-        'DRUPACK_RUNTIME_MERCURE_SNIPPET' => $on ? 'mercure.caddy' : 'none.caddy',
-        'DRUPACK_RUNTIME_MERCURE_DB' => "$directory/mercure.db",
-    ];
-}
-
 // `drush` creates nothing, so before a start has created the secrets it exports no hub.
 function exportMercure(string $publisherSecret, string $subscriberSecret, string $url, bool $drush): void
 {

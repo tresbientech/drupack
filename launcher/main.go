@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,7 +16,9 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		if !errors.Is(err, errReported) {
+			fmt.Fprintln(os.Stderr, err)
+		}
 		holdConsole()
 		os.Exit(1)
 	}
@@ -33,12 +36,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	// trust may ask for a password. launch.php reads tls-source's answer.
+	// trust may ask for a password.
 	if len(os.Args) > 1 && os.Args[1] == "trust" {
 		return tls.Trust(os.Stdout, tlsFolder, os.Args[2:])
-	}
-	if len(os.Args) > 1 && os.Args[1] == "tls-source" {
-		return tls.WriteSource(os.Stdout, tlsFolder, os.Args[2:])
 	}
 	launcher, err := os.Executable()
 	if err != nil {
@@ -122,6 +122,8 @@ func run() error {
 		return nodeRefusal(application, os.Args[1])
 	case c.word == "start" && engine:
 		return startEngine(l, c)
+	case c.word == "start":
+		return startSite(l, c)
 	case c.word == "drush", engine && (c.word == "export" || c.word == "dr"):
 		return runInFolder(l, c)
 	}

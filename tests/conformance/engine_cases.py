@@ -212,7 +212,7 @@ class EngineExecutable(harness.ConformanceCase):
             relative = path.relative_to(self.project)
             with self.subTest(source=str(relative)):
                 self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), expected,
-                                 f"{relative} changed: re-read application/guards.caddy against it, then move this hash")
+                                 f"{relative} changed: re-read launcher/internal/caddyfile/fragments/guards.caddy against it, then move this hash")
 
     def test_the_guards_reproduce_the_htaccess_rules(self):
         # A body holding a marker means the file was served or the script ran.

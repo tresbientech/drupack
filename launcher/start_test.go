@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/tls"
 )
 
@@ -114,18 +115,18 @@ func TestDrupalDocroot(t *testing.T) {
 
 func TestServerEnvironment(t *testing.T) {
 	plan := startPlan{Probe: "http://127.0.0.1:3787/"}
-	entry := "/cache/folders/f0123456789abcdef"
+	entry := state.At("/cache/folders/f0123456789abcdef")
 	base := []string{
 		"DRUPACK_RUNTIME_ID=f0123456789abcdef",
 		"DRUPACK_RUNTIME_URL=http://127.0.0.1:3787/",
 		"DRUPACK_RUNTIME_STOP_RECORD=/cache/folders/f0123456789abcdef/stop.json",
 	}
-	if got := serverEnvironment(entry, tls.Choice{Source: "none"}, plan); !slices.Equal(got, base) {
+	if got := serverEnvironment("f0123456789abcdef", entry, tls.Choice{Source: "none"}, plan); !slices.Equal(got, base) {
 		t.Errorf("plain http: %v", got)
 	}
 	// The runtime's watch verifies HTTPS with the root of every TLS source that serves it.
 	for _, source := range []string{"mkcert", "drupack"} {
-		got := serverEnvironment(entry, tls.Choice{Source: source, Root: "/r.pem"}, plan)
+		got := serverEnvironment("f0123456789abcdef", entry, tls.Choice{Source: source, Root: "/r.pem"}, plan)
 		if want := append(slices.Clone(base), "DRUPACK_RUNTIME_TLS_ROOT=/r.pem"); !slices.Equal(got, want) {
 			t.Errorf("%s: %v", source, got)
 		}

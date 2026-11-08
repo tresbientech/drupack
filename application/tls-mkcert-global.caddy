@@ -1,2 +1,0 @@
-# HTTPS from the mkcert certificate. Caddy manages none itself.
-auto_https off

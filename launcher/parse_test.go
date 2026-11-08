@@ -21,9 +21,9 @@ func TestParse(t *testing.T) {
 		want   command
 		err    string
 	}{
-		{"a bare line is a start launch.php reads", []string{"SITE"}, false, unset, command{word: "start"}, ""},
-		{"a start launch.php reads", []string{"SITE", "start", "--data-dir", "x"}, false, unset, command{word: "start"}, ""},
-		{"a line opening with an option is a start", []string{"SITE", "--listen", "127.0.0.1:9000", "--foreground"}, false, unset, command{word: "start"}, ""},
+		{"a bare line is a start on the default Site data", []string{"SITE"}, false, unset, command{word: "start", options: map[string]string{"data-dir": "./data"}}, ""},
+		{"a start reads its options", []string{"SITE", "start", "--data-dir", "x"}, false, unset, command{word: "start", options: map[string]string{"data-dir": "x"}}, ""},
+		{"a line opening with an option is a start", []string{"SITE", "--listen", "127.0.0.1:9000", "--foreground"}, false, unset, command{word: "start", options: map[string]string{"data-dir": "./data", "listen": "127.0.0.1:9000", "foreground": "1"}}, ""},
 		{"stop after an option is a start's unknown argument", []string{"SITE", "--data-dir", "x", "stop"}, false, unset, command{}, "Unknown argument: stop"},
 		{"a start refuses an unknown option", []string{"SITE", "start", "--frobnicate"}, false, unset, command{}, "Unknown argument: --frobnicate"},
 		{"a start refuses a stray word", []string{"SITE", "extra"}, false, unset, command{}, "Unknown command: extra\n\n" + siteHelpText()},

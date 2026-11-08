@@ -1,3 +1,0 @@
-"http://:{$DRUPACK_RUNTIME_STATIC_PORT}" {
-	import static_site
-}

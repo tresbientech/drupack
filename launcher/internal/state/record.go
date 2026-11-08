@@ -17,8 +17,8 @@ const (
 	caddyfileName  = "Caddyfile"
 	publisherName  = "mercure_publisher_secret"
 	subscriberName = "mercure_subscriber_secret"
-	// unrecordedScheme is the scheme of a record that names none.
-	unrecordedScheme = "http"
+	// UnrecordedScheme is the scheme of a record that names none.
+	UnrecordedScheme = "http"
 )
 
 // Listener is the address the last start served, as the Site data's `listener` record keeps it.
@@ -69,7 +69,7 @@ func (d Dir) Listener() (record Listener, ok bool, err error) {
 	if fields.Host == nil {
 		return Listener{}, false, errors.New("Recorded listener has no host")
 	}
-	record = Listener{Listen: *fields.Listen, Host: *fields.Host, Scheme: unrecordedScheme}
+	record = Listener{Listen: *fields.Listen, Host: *fields.Host, Scheme: UnrecordedScheme}
 	if fields.FilesDir != nil {
 		record.FilesDir = *fields.FilesDir
 	}

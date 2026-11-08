@@ -1,13 +1,11 @@
 package tls
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"io"
 	"math/big"
@@ -400,14 +398,12 @@ func TestAResolverThatDoesNotAnswerInTimeFallsBack(t *testing.T) {
 	}
 }
 
-func source(t *testing.T, args ...string) Choice {
+// source chooses as a start does: a packed site passes its label and falls back
+// to localhost, the engine passes its folder's and falls back to its bind.
+func source(t *testing.T, bind, label, fallback, host string) Choice {
 	t.Helper()
-	var out bytes.Buffer
-	if err := WriteSource(&out, "", args); err != nil {
-		t.Fatal(err)
-	}
-	var choice Choice
-	if err := json.Unmarshal(out.Bytes(), &choice); err != nil {
+	choice, err := Choose("", bind, label, fallback, host)
+	if err != nil {
 		t.Fatal(err)
 	}
 	return choice
@@ -415,21 +411,21 @@ func source(t *testing.T, args ...string) Choice {
 
 func TestTLSSourceNamesThePackedSiteOrFallsBackToLocalhost(t *testing.T) {
 	t.Setenv("DRUPACK_DNS_ANSWER", "127.0.0.1")
-	if c := source(t, "--bind", "127.0.0.1", "--name", "drupacked-demo"); c.Host != "drupacked-demo.drupack.site" || c.Alias != c.Host || c.Reason != "" {
+	if c := source(t, "127.0.0.1", "drupacked-demo", "localhost", ""); c.Host != "drupacked-demo.drupack.site" || c.Alias != c.Host || c.Reason != "" {
 		t.Errorf("resolved: %+v", c)
 	}
 	t.Setenv("DRUPACK_DNS_ANSWER", "none")
-	if c := source(t, "--bind", "127.0.0.1", "--name", "drupacked-demo"); c.Host != "localhost" || c.Alias != "drupacked-demo.drupack.site" || c.Reason != "no answer" {
+	if c := source(t, "127.0.0.1", "drupacked-demo", "localhost", ""); c.Host != "localhost" || c.Alias != "drupacked-demo.drupack.site" || c.Reason != "no answer" {
 		t.Errorf("unresolved: %+v", c)
 	}
-	if c := source(t, "--bind", "127.0.0.1", "--name", "drupacked-demo", "--host", "example.test"); c.Host != "example.test" || c.Reason != "" {
+	if c := source(t, "127.0.0.1", "drupacked-demo", "localhost", "example.test"); c.Host != "example.test" || c.Reason != "" {
 		t.Errorf("--host: %+v", c)
 	}
 }
 
 func TestTLSSourceFallsBackToTheEngineBind(t *testing.T) {
 	t.Setenv("DRUPACK_DNS_ANSWER", "none")
-	if c := source(t, "--bind", "127.0.0.1", "--folder", "My Shop"); c.Host != "127.0.0.1" || c.Alias != "my-shop.drupack.site" {
+	if c := source(t, "127.0.0.1", "My Shop", "127.0.0.1", ""); c.Host != "127.0.0.1" || c.Alias != "my-shop.drupack.site" {
 		t.Errorf("%+v", c)
 	}
 }
@@ -456,45 +452,20 @@ func TestAnMkcertCertificateWithoutTheSiteNameIsWrittenAgain(t *testing.T) {
 func TestOnlyALoopbackStartAddressedByAServedNameMayServeHTTPS(t *testing.T) {
 	t.Setenv("DRUPACK_DNS_ANSWER", "127.0.0.1")
 	for _, c := range []struct {
-		args     []string
-		eligible bool
+		bind, label, fallback, host string
+		eligible                    bool
 	}{
-		{[]string{"--bind", "127.0.0.1", "--name", "demo"}, true},
-		{[]string{"--bind", "127.0.0.1", "--name", "demo", "--host", "localhost"}, true},
-		{[]string{"--bind", "::1", "--name", "demo"}, true},
-		{[]string{"--bind", "127.0.0.1", "--folder", "shop", "--host", "127.0.0.1"}, true},
-		{[]string{"--bind", "127.0.0.1", "--name", "demo", "--host", "example.test"}, false},
-		{[]string{"--bind", "127.0.0.1", "--name", "demo", "--host", "site.localhost"}, false},
-		{[]string{"--bind", "0.0.0.0", "--name", "demo"}, false},
-		{[]string{"--bind", "192.168.1.5", "--folder", "shop"}, false},
+		{"127.0.0.1", "demo", "localhost", "", true},
+		{"127.0.0.1", "demo", "localhost", "localhost", true},
+		{"::1", "demo", "localhost", "", true},
+		{"127.0.0.1", "shop", "127.0.0.1", "127.0.0.1", true},
+		{"127.0.0.1", "demo", "localhost", "example.test", false},
+		{"127.0.0.1", "demo", "localhost", "site.localhost", false},
+		{"0.0.0.0", "demo", "localhost", "", false},
+		{"192.168.1.5", "shop", "192.168.1.5", "", false},
 	} {
-		if got := source(t, c.args...); got.Eligible != c.eligible {
-			t.Errorf("%v: eligible = %v", c.args, got.Eligible)
+		if got := source(t, c.bind, c.label, c.fallback, c.host); got.Eligible != c.eligible {
+			t.Errorf("%+v: eligible = %v", c, got.Eligible)
 		}
-	}
-}
-
-// application/tests/tls-choices.json holds one choice per source as tls-source encodes
-// it, and process.php's TlsChoice reads that file in the PHP tests. A renamed or dropped
-// field fails here until the file, and then TlsChoice, follow.
-func TestChoicesMatchThePHPReferenceFile(t *testing.T) {
-	choices := map[string]Choice{
-		"none": {Source: "none", Host: "localhost", Alias: "demo.drupack.site", Reason: "no answer", Eligible: true},
-		"mkcert": {Source: "mkcert", Root: "/caroot/rootCA.pem", Certificate: "/tls/mkcert/localhost.pem", Key: "/tls/mkcert/localhost-key.pem",
-			Host: "demo.drupack.site", Alias: "demo.drupack.site", Eligible: true},
-		"drupack": {Source: "drupack", Root: "/tls/root.pem", RootKey: "/tls/root.key", Authority: "drupack-0123456789abcdef",
-			Host: "demo.drupack.site", Alias: "demo.drupack.site", Eligible: true},
-	}
-	got, err := json.MarshalIndent(choices, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	reference := filepath.Join("..", "..", "..", "application", "tests", "tls-choices.json")
-	want, err := os.ReadFile(reference)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got)+"\n" != string(want) {
-		t.Fatalf("%s differs from what tls-source encodes. Replace it with:\n%s", reference, got)
 	}
 }

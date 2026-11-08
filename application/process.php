@@ -63,22 +63,6 @@ function executableName(): string
     return getenv('DRUPACK_RUNTIME_NAME');
 }
 
-// Sets each variable of $values in this process's environment, which the server inherits
-// and Caddy splices into its Caddyfile before it reads quotes. A value holding a double
-// quote would end a string there, and an empty value would leave the file's setting empty.
-function exportServerEnvironment(array $values): void
-{
-    foreach ($values as $name => $value) {
-        if ($value === '') {
-            throw new RuntimeException("$name is empty");
-        }
-        if (str_contains($value, '"')) {
-            throw new InvalidArgumentException("$name must not contain a double quote: $value");
-        }
-        putenv("$name=$value");
-    }
-}
-
 function directory(string $path): void
 {
     // Another start can create the same directory between the check and the call.
@@ -213,140 +197,9 @@ function siteUrl(string $scheme, string $host, int $port): string
     return "$scheme://" . urlHost($host) . ":$port/";
 }
 
-// A login link and the session it opens cross any other network in clear text, so only
-// a loopback listener opens a browser. 0.0.0.0 and :: accept other computers too.
-function loopback(string $bind): bool
-{
-    return $bind === '::1' || str_starts_with($bind, '127.');
-}
-
-// $site is ['--name', NAME] for a packed site, ['--folder', NAME] for the engine.
-// $launcher is the executable the reader ran, which answers tls-source.
-function tlsChoice(string $launcher, string $bind, array $site, ?string $host): TlsChoice
-{
-    $arguments = [$launcher, 'tls-source', '--bind', $bind, ...$site];
-    if ($host !== null) {
-        array_push($arguments, '--host', $host);
-    }
-    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => STDERR];
-    $child = proc_open($arguments, $descriptors, $pipes, __DIR__);
-    if (!is_resource($child)) {
-        throw new RuntimeException('Cannot read the local root');
-    }
-    $output = stream_get_contents($pipes[1]);
-    fclose($pipes[1]);
-    if (proc_close($child) !== 0) {
-        throw new RuntimeException('Cannot read the local root in ' . getenv('DRUPACK_TLS_DIR'));
-    }
-    return TlsChoice::fromArray(json_decode((string) $output, true, flags: JSON_THROW_ON_ERROR));
-}
-
 // PHP verifies HTTPS against DRUPACK_CA_FILE, which holds public roots alone. An HTTPS site
 // keeps that bundle plus its own root here, so Drush and cron reach the site's own hub.
 const TLS_BUNDLE = 'ca-bundle.pem';
-
-// The JSON the launcher's tls-source prints. tests/tls-choices.json holds one of each as Go writes it.
-final readonly class TlsChoice
-{
-    public function __construct(
-        public string $source,
-        public string $host,
-        public string $alias,
-        // Why host is not alias when the start tried the name, or ''.
-        public string $reason,
-        // Whether the bind and host may serve HTTPS from a local root.
-        public bool $eligible,
-        // What a client verifies against, '' for none.
-        public string $root,
-        // The local root's key, which Caddy signs from, '' unless drupack.
-        public string $rootKey,
-        // The name Caddy gives the local root's authority, '' unless drupack.
-        public string $authority,
-        // mkcert's certificate and key, '' unless mkcert.
-        public string $certificate,
-        public string $key,
-    ) {
-    }
-
-    public static function fromArray(array $choice): self
-    {
-        return new self(
-            source: $choice['source'],
-            host: $choice['host'],
-            alias: $choice['alias'],
-            reason: $choice['reason'],
-            eligible: $choice['eligible'],
-            // tls-source leaves out the files a source does not use.
-            root: $choice['root'] ?? '',
-            rootKey: $choice['rootKey'] ?? '',
-            authority: $choice['authority'] ?? '',
-            certificate: $choice['certificate'] ?? '',
-            key: $choice['key'] ?? '',
-        );
-    }
-
-    public function scheme(): string
-    {
-        return $this->source === 'none' ? 'http' : 'https';
-    }
-
-    public function nameHint(): string
-    {
-        if ($this->reason === '') {
-            return '';
-        }
-        return "Name: {$this->alias} did not resolve to 127.0.0.1 ({$this->reason}), so the URL uses {$this->host}.\n";
-    }
-
-    public function trustHint(): string
-    {
-        // An account with no config folder has nowhere to keep a root, so `trust` cannot help.
-        if ($this->source !== 'none' || !$this->eligible || environment('DRUPACK_TLS_DIR') === null) {
-            return '';
-        }
-        return 'HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n";
-    }
-
-    // Called under the Serving lease. An HTTPS start writes the bundle into $directory and
-    // points this process's children at it. An HTTP start deletes it, so Drush stops
-    // trusting a root the site no longer serves.
-    public function storeBundle(string $directory): void
-    {
-        $bundle = "$directory/" . TLS_BUNDLE;
-        if ($this->source === 'none') {
-            if (file_exists($bundle) && !unlink($bundle)) {
-                throw new RuntimeException("Cannot delete $bundle");
-            }
-            return;
-        }
-        $roots = file_get_contents(getenv('DRUPACK_CA_FILE')) . "\n" . file_get_contents($this->root);
-        // A running server's cron reads the bundle, so it is replaced whole, never rewritten in place.
-        $partial = "$bundle." . bin2hex(random_bytes(4));
-        if (file_put_contents($partial, $roots) !== strlen($roots) || !rename($partial, $bundle)) {
-            throw new RuntimeException("Cannot write $bundle");
-        }
-        putenv("DRUPACK_CA_FILE=$bundle");
-    }
-
-    public function serverEnvironment(): array
-    {
-        return ['DRUPACK_RUNTIME_ALIAS' => $this->alias] + match ($this->source) {
-            'none' => ['DRUPACK_RUNTIME_TLS' => 'none'],
-            'mkcert' => [
-                'DRUPACK_RUNTIME_TLS' => 'mkcert',
-                'DRUPACK_RUNTIME_TLS_ROOT' => $this->root,
-                'DRUPACK_RUNTIME_TLS_CERT' => $this->certificate,
-                'DRUPACK_RUNTIME_TLS_KEY' => $this->key,
-            ],
-            'drupack' => [
-                'DRUPACK_RUNTIME_TLS' => 'drupack',
-                'DRUPACK_RUNTIME_TLS_ROOT' => $this->root,
-                'DRUPACK_RUNTIME_TLS_ROOT_KEY' => $this->rootKey,
-                'DRUPACK_RUNTIME_TLS_CA' => $this->authority,
-            ],
-        };
-    }
-}
 
 // Points Drush at the bundle the last start wrote into $directory. A site whose last start
 // served HTTP has none, and keeps the public roots.
@@ -393,23 +246,6 @@ function listenerPlan(string $bind, int $port, string $host, string $scheme): ar
         'url' => siteUrl($scheme, $host, $port),
         'probe' => siteUrl($scheme, probeHost($bind), $port),
     ];
-}
-
-// exportServerEnvironment checks the values.
-function serverEnvironment(array $plan, TlsChoice $tls, array $values): array
-{
-    return [
-        'DRUPACK_RUNTIME_PORT' => (string) $plan['port'],
-        'DRUPACK_RUNTIME_BIND' => $plan['bind'],
-    ] + $values + $tls->serverEnvironment();
-}
-
-// The project's own Caddy rules, which the Caddyfile imports after the guards. none.caddy is
-// the empty snippet beside the Caddyfile.
-function projectSnippetEnvironment(string $project): array
-{
-    $snippet = "$project/drupack.caddy";
-    return ['DRUPACK_RUNTIME_PROJECT_SNIPPET' => is_file($snippet) ? $snippet : 'none.caddy'];
 }
 
 // Drush's, Tome's and a request's child processes run the php on PATH, which bin/ points

@@ -1,5 +1,0 @@
-# The names the mkcert certificate covers, as in tls-mkcert-site.caddy, on the static port.
-"https://{$DRUPACK_RUNTIME_ALIAS}:{$DRUPACK_RUNTIME_STATIC_PORT}", "https://localhost:{$DRUPACK_RUNTIME_STATIC_PORT}", "https://127.0.0.1:{$DRUPACK_RUNTIME_STATIC_PORT}", "https://[::1]:{$DRUPACK_RUNTIME_STATIC_PORT}" {
-	tls "{$DRUPACK_RUNTIME_TLS_CERT}" "{$DRUPACK_RUNTIME_TLS_KEY}"
-	import static_site
-}

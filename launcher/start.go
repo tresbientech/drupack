@@ -162,7 +162,7 @@ func startEngine(l Launch, c command) error {
 	e := environ{entries: environment(l), fold: l.FoldCase}
 	foreground := c.options["foreground"] != "" || l.ConsoleOwned
 	// The detaching start asks for the platform check alone, since the background start probes the site.
-	checkArguments := []string{"check", project}
+	checkArguments := []string{"check", "folder", project}
 	if foreground {
 		checkArguments = append(checkArguments, docroot)
 	}
@@ -286,7 +286,7 @@ func (s engineStart) serve() error {
 	if err != nil {
 		return err
 	}
-	for _, value := range serverEnvironment(entryPath, choice, plan) {
+	for _, value := range serverEnvironment(path.Base(entryPath), entry, choice, plan) {
 		e.put(value)
 	}
 	// Drush's, Tome's and a request's child processes run the php on PATH, which bin/ points
@@ -325,23 +325,16 @@ func (s engineStart) entrance(url string) (link, install string, err error) {
 		return "", "", nil
 	}
 	fmt.Fprintln(os.Stdout, "Creating a one-time login link.")
-	out, err := operate(s.l, s.e.entries, "login", url, drush, project)
+	link, failure, err := mint(s.l, s.e.entries, url, drush, project)
 	if err != nil {
 		return "", "", err
 	}
-	var minted struct {
-		Link    string `json:"link"`
-		Failure string `json:"failure"`
-	}
-	if err := json.Unmarshal(out, &minted); err != nil {
-		return "", "", err
-	}
-	if minted.Link == "" {
+	if link == "" {
 		// The folder's own settings may block uid 1 or name no reachable database yet;
 		// the server still starts, and Drupal's own error page says which.
-		fmt.Fprintf(os.Stderr, "Cannot mint a one-time login link: %s\nGet one once the site answers with: %s drush user:login --uri=%s\n", minted.Failure, siteName, url)
+		fmt.Fprintf(os.Stderr, "Cannot mint a one-time login link: %s\nGet one once the site answers with: %s drush user:login --uri=%s\n", failure, siteName, url)
 	}
-	return minted.Link, "", nil
+	return link, "", nil
 }
 
 // storeBundle writes an HTTPS start's CA bundle into the folder's entry and
@@ -385,12 +378,13 @@ func trustHint(l Launch, choice tls.Choice) string {
 }
 
 // serverEnvironment lists the variables the runtime's watch reads: the readiness
-// address and token, the stop record and the root a client verifies HTTPS with.
-func serverEnvironment(entry string, choice tls.Choice, plan startPlan) []string {
+// address and the token id names dir by, the stop record and the root a client
+// verifies HTTPS with.
+func serverEnvironment(id string, dir state.Dir, choice tls.Choice, plan startPlan) []string {
 	entries := []string{
-		"DRUPACK_RUNTIME_ID=" + path.Base(entry),
+		"DRUPACK_RUNTIME_ID=" + id,
 		"DRUPACK_RUNTIME_URL=" + plan.Probe,
-		"DRUPACK_RUNTIME_STOP_RECORD=" + entry + "/stop.json",
+		"DRUPACK_RUNTIME_STOP_RECORD=" + runtime.Canonical(dir.StopRecordPath()),
 	}
 	if choice.Root != "" {
 		entries = append(entries, "DRUPACK_RUNTIME_TLS_ROOT="+choice.Root)

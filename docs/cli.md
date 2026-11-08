@@ -61,8 +61,8 @@ One line per component follows, each naming the component and its release:
 the directory you started Drupack in, never against the unpacked application.
 `DRUPACK_DATA_DIR` sets the default.
 
-The value must not contain a double quote. The log path reaches the Caddyfile
-through the environment, which Caddy splices in before it reads quotes.
+A start refuses a value that contains `{` or `}`. The path reaches the
+Caddyfile, where Caddy reads a brace as a placeholder.
 
 A site whose `drupack.yml` lists `writable` directories keeps its own
 application in `app` in Site data. A start lays it there once per release.
@@ -75,8 +75,8 @@ application in `app` in Site data. A start lays it there once per release.
 addresses them as `/sites/default/files`. By default they live in `files` in
 Site data.
 
-A relative path resolves against the directory you started Drupack in. The
-value must not contain a double quote, for the same reason as `--data-dir`.
+A relative path resolves against the directory you started Drupack in. A start
+refuses a value that contains `{` or `}`, for the same reason as `--data-dir`.
 
 The Listener record keeps the directory a start names. Later starts and `drush`
 use it without the option, and a new `--files-dir` replaces it. A start copies

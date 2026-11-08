@@ -9,27 +9,6 @@ function staticPlan(string $bind, int $port, string $host, string $scheme): arra
     return ['bind' => $bind, 'port' => $port, 'url' => siteUrl($scheme, $host, $port)];
 }
 
-// The variables the Caddyfile reads for the static port. Off, the site imports none.caddy
-// and nothing else. $tls is the TLS source: none, mkcert or drupack. The dynamic patterns
-// travel space joined, in a variable the server environment refuses empty.
-function staticServerEnvironment(?array $static, ?array $plan, string $tls): array
-{
-    if ($static === null) {
-        return ['DRUPACK_RUNTIME_STATIC_SNIPPET' => 'none.caddy'];
-    }
-    $dynamic = $static['dynamic'] ?? [];
-    $environment = [
-        'DRUPACK_RUNTIME_STATIC_SNIPPET' => "static-site-$tls.caddy",
-        'DRUPACK_RUNTIME_STATIC_BIND' => $plan['bind'],
-        'DRUPACK_RUNTIME_STATIC_PORT' => (string) $plan['port'],
-        'DRUPACK_RUNTIME_STATIC_DYNAMIC_SNIPPET' => $dynamic === [] ? 'none.caddy' : 'static-dynamic.caddy',
-    ];
-    if ($dynamic !== []) {
-        $environment['DRUPACK_RUNTIME_STATIC_DYNAMIC'] = implode(' ', $dynamic);
-    }
-    return $environment;
-}
-
 // The Drush words of `export`: Tome's export at $url, then the reader's words. A reader who
 // names the URL gets none added, and the engine passes null then, having read no record.
 function exportCommand(?string $url, array $words): array

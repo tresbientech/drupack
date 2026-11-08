@@ -2,13 +2,16 @@
 
 declare(strict_types=1);
 
-// Unit cases for the pure functions in application/launch.php. Run with:
+// Unit cases for the functions in application/launch.php and the site operations of
+// application/operate.php. Run with:
 //   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/launch_test.php"
 // launch.php requires a vendor/autoload.php whose lock targets a PHP the host may lack, so
 // the bundled runtime runs this file.
 
 define('DRUPACK_LAUNCH_LIBRARY', true);
 require __DIR__ . '/../launch.php';
+define('DRUPACK_SERVE_LIBRARY', true);
+require __DIR__ . '/../operate.php';
 
 use Drupack\Support\Need;
 use Drupack\Support\SiteContract;
@@ -206,30 +209,10 @@ test('an explicit option beats the listener record', function (): void {
     same('example.test', $given['host']);
 });
 
-test('a served listener brackets an IPv6 host in its URL', function (): void {
-    $site = new SiteData(scratch());
-    $site->recordListener('[::]:8080', '::1', null, 'http', null);
-    same(['::', 'http://[::1]:8080/'], servedListener($site, listenerPlan('127.0.0.1', 7000, 'localhost', 'http')));
-});
-
-test('a served listener names the scheme its start served', function (): void {
-    $site = new SiteData(scratch());
-    $site->recordListener('127.0.0.1:8080', 'localhost', null, 'https', null);
-    same(['127.0.0.1', 'https://localhost:8080/'], servedListener($site, listenerPlan('127.0.0.1', 7000, 'localhost', 'http')));
-});
-
 test('a site URL takes the scheme and brackets an IPv6 host', function (): void {
     same('https://localhost:8080/', siteUrl('https', 'localhost', 8080));
     same('http://[::1]:8080/', siteUrl('http', '::1', 8080));
 });
-
-function fakeRuntime(array $answer): string
-{
-    $directory = scratch();
-    file_put_contents("$directory/drupack", "#!/bin/sh\necho \"\$@\" > '$directory/arguments'\necho '" . json_encode($answer) . "'\n");
-    chmod("$directory/drupack", 0700);
-    return "$directory/drupack";
-}
 
 // A runtime whose Drush prints one answer per command name, and nothing for any other.
 // drushField runs it as RUNTIME php-cli DRUSH COMMAND, from the application directory.
@@ -298,65 +281,16 @@ test('adoption takes a site whose administrator has a password of its own', func
     adoptSite(scratch(), fakeDrush(['status' => 'Successful', 'php:eval' => 'no']));
 });
 
-// One tls-source answer per source, as the launcher's TLS package encodes it. Its own test fails when
-// this file no longer matches.
-function tlsAnswer(string $source): array
-{
-    return json_decode((string) file_get_contents(__DIR__ . '/tls-choices.json'), true, flags: JSON_THROW_ON_ERROR)[$source];
-}
-
-test('a start hands the runtime its bind, its site and the host the reader asked for', function (): void {
-    $runtime = fakeRuntime(tlsAnswer('none'));
-    same(get_object_vars(TlsChoice::fromArray(tlsAnswer('none'))), get_object_vars(tlsChoice($runtime, '127.0.0.1', ['--name', 'demo'], null)));
-    same("tls-source --bind 127.0.0.1 --name demo\n", file_get_contents(dirname($runtime) . '/arguments'));
-    tlsChoice($runtime, '127.0.0.1', ['--folder', 'My Shop'], '127.0.0.1');
-    same("tls-source --bind 127.0.0.1 --folder My Shop --host 127.0.0.1\n", file_get_contents(dirname($runtime) . '/arguments'));
-});
-
 test('the reference site.json reads as the Site contract', function (): void {
     same(['port' => 7225, 'recipe' => '', 'settings' => '', 'siteName' => 'Fixture Site', 'subdomain' => 'fixture', 'node' => true,
         'writable' => [], 'docroot' => 'web', 'mercure' => false, 'static' => null], get_object_vars(SiteContract::read(__DIR__ . '/site.json')));
 });
 
-test('a site that sets a subdomain hands the runtime that label, and one without hands its name', function (): void {
-    same(['--name', 'demo'], siteLabelSource(contract(subdomain: 'demo')));
-    same(['--name', FIXTURE_NAME], siteLabelSource(contract(subdomain: null)));
-    $runtime = fakeRuntime(tlsAnswer('none'));
-    tlsChoice($runtime, '127.0.0.1', siteLabelSource(contract(subdomain: 'demo')), null);
-    same("tls-source --bind 127.0.0.1 --name demo\n", file_get_contents(dirname($runtime) . '/arguments'));
-});
-
-test('a start whose name did not resolve says which host its URL names instead', function (): void {
-    same("Name: demo.drupack.site did not resolve to 127.0.0.1 (no answer), so the URL uses localhost.\n",
-        TlsChoice::fromArray(tlsAnswer('none'))->nameHint());
-    same('', TlsChoice::fromArray(tlsAnswer('drupack'))->nameHint());
-});
-
-test('an HTTP loopback start names trust, and no other start does', function (): void {
-    $none = TlsChoice::fromArray(tlsAnswer('none'));
-    putenv('DRUPACK_TLS_DIR=/home/reader/.config/drupack/tls');
-    try {
-        same('HTTPS: run "' . executableName() . ' trust" once to serve this site over HTTPS.' . "\n", $none->trustHint());
-        same('', TlsChoice::fromArray(tlsAnswer('drupack'))->trustHint());
-        same('', TlsChoice::fromArray(['eligible' => false] + tlsAnswer('none'))->trustHint());
-    } finally {
-        putenv('DRUPACK_TLS_DIR');
-    }
-    // An account with no config folder cannot hold a root.
-    same('', $none->trustHint());
-});
-
-test('an HTTPS start writes the public roots and its own into one bundle, which Drush reuses', function (): void {
+test('export points Drush at the bundle the last HTTPS start wrote, and keeps the public roots without one', function (): void {
     $directory = scratch();
-    file_put_contents("$directory/public.pem", "PUBLIC\n");
-    file_put_contents("$directory/root.pem", "LOCAL\n");
+    file_put_contents("$directory/ca-bundle.pem", "PUBLIC\n\nLOCAL\n");
     $public = getenv('DRUPACK_CA_FILE');
-    putenv("DRUPACK_CA_FILE=$directory/public.pem");
     try {
-        TlsChoice::fromArray(['root' => "$directory/root.pem"] + tlsAnswer('drupack'))->storeBundle($directory);
-        same("$directory/ca-bundle.pem", getenv('DRUPACK_CA_FILE'));
-        same("PUBLIC\n\nLOCAL\n", file_get_contents("$directory/ca-bundle.pem"));
-        same(['ca-bundle.pem', 'public.pem', 'root.pem'], array_values(array_diff(scandir($directory), ['.', '..'])));
         putenv("DRUPACK_CA_FILE=$directory/public.pem");
         useTlsBundle($directory);
         same("$directory/ca-bundle.pem", getenv('DRUPACK_CA_FILE'));
@@ -366,66 +300,6 @@ test('an HTTPS start writes the public roots and its own into one bundle, which 
     } finally {
         putenv($public === false ? 'DRUPACK_CA_FILE' : "DRUPACK_CA_FILE=$public");
     }
-});
-
-test('an HTTP start deletes the bundle, so Drush returns to the public roots', function (): void {
-    $directory = scratch();
-    file_put_contents("$directory/ca-bundle.pem", "PUBLIC\n\nLOCAL\n");
-    $public = getenv('DRUPACK_CA_FILE');
-    putenv("DRUPACK_CA_FILE=$directory/public.pem");
-    try {
-        TlsChoice::fromArray(tlsAnswer('none'))->storeBundle($directory);
-        same(false, file_exists("$directory/ca-bundle.pem"));
-        TlsChoice::fromArray(tlsAnswer('none'))->storeBundle($directory);
-        useTlsBundle($directory);
-        same("$directory/public.pem", getenv('DRUPACK_CA_FILE'));
-    } finally {
-        putenv($public === false ? 'DRUPACK_CA_FILE' : "DRUPACK_CA_FILE=$public");
-    }
-});
-
-test('the TLS source picks its snippets and their files', function (): void {
-    same(['DRUPACK_RUNTIME_ALIAS' => 'demo.drupack.site', 'DRUPACK_RUNTIME_TLS' => 'none'],
-        TlsChoice::fromArray(tlsAnswer('none'))->serverEnvironment());
-    same([
-        'DRUPACK_RUNTIME_ALIAS' => 'demo.drupack.site',
-        'DRUPACK_RUNTIME_TLS' => 'drupack',
-        'DRUPACK_RUNTIME_TLS_ROOT' => '/tls/root.pem',
-        'DRUPACK_RUNTIME_TLS_ROOT_KEY' => '/tls/root.key',
-        'DRUPACK_RUNTIME_TLS_CA' => 'drupack-0123456789abcdef',
-    ], TlsChoice::fromArray(tlsAnswer('drupack'))->serverEnvironment());
-    same([
-        'DRUPACK_RUNTIME_ALIAS' => 'demo.drupack.site',
-        'DRUPACK_RUNTIME_TLS' => 'mkcert',
-        'DRUPACK_RUNTIME_TLS_ROOT' => '/caroot/rootCA.pem',
-        'DRUPACK_RUNTIME_TLS_CERT' => '/tls/mkcert/localhost.pem',
-        'DRUPACK_RUNTIME_TLS_KEY' => '/tls/mkcert/localhost-key.pem',
-    ], TlsChoice::fromArray(tlsAnswer('mkcert'))->serverEnvironment());
-    same('https', TlsChoice::fromArray(tlsAnswer('mkcert'))->scheme());
-    same('http', TlsChoice::fromArray(tlsAnswer('none'))->scheme());
-    same('https', TlsChoice::fromArray(tlsAnswer('drupack'))->scheme());
-});
-
-test('every value a source\'s TLS snippets read is in its server environment', function (): void {
-    foreach (['none', 'mkcert', 'drupack'] as $source) {
-        $environment = serverEnvironment(listenerPlan('127.0.0.1', 7225, 'localhost', 'http'), TlsChoice::fromArray(tlsAnswer($source)), []);
-        foreach (glob(dirname(__DIR__) . "/tls-$source-*.caddy") as $snippet) {
-            preg_match_all('/\{\$(DRUPACK_RUNTIME_[A-Z_]+)/', (string) file_get_contents($snippet), $names);
-            same([], array_values(array_diff($names[1], array_keys($environment))), basename($snippet));
-        }
-    }
-});
-
-test('the project snippet is the project\'s drupack.caddy when it exists, else none.caddy', function (): void {
-    $project = scratch();
-    same(['DRUPACK_RUNTIME_PROJECT_SNIPPET' => 'none.caddy'], projectSnippetEnvironment($project));
-    file_put_contents("$project/drupack.caddy", "header X-Probe on\n");
-    same(['DRUPACK_RUNTIME_PROJECT_SNIPPET' => "$project/drupack.caddy"], projectSnippetEnvironment($project));
-});
-
-test('a served listener without a record is the one this start planned, over HTTP', function (): void {
-    same(['127.0.0.1', 'http://demo.drupack.site:7000/'],
-        servedListener(new SiteData(scratch()), listenerPlan('127.0.0.1', 7000, 'demo.drupack.site', 'https')));
 });
 
 test('a plan names the URL a reader types and the one a probe reaches', function (): void {
@@ -443,17 +317,6 @@ test('a plan on an IPv6 wildcard brackets its hosts and probes IPv6 loopback', f
     $plan = listenerPlan('::', 8080, '::1', 'http');
     same('http://[::1]:8080/', $plan['url']);
     same('http://[::1]:8080/', $plan['probe']);
-});
-
-test('the server environment holds the listener, the caller\'s values and the TLS snippets', function (): void {
-    same([
-        'DRUPACK_RUNTIME_PORT' => '8080',
-        'DRUPACK_RUNTIME_BIND' => '::',
-        'DRUPACK_RUNTIME_ID' => 'token',
-        'DRUPACK_RUNTIME_ALIAS' => 'demo.drupack.site',
-        'DRUPACK_RUNTIME_TLS' => 'none',
-    ], serverEnvironment(listenerPlan('::', 8080, '::1', 'http'), TlsChoice::fromArray(tlsAnswer('none')),
-        ['DRUPACK_RUNTIME_ID' => 'token']));
 });
 
 test('the site environment names the plan\'s host and URL, the site\'s paths and the options given', function (): void {
@@ -484,51 +347,32 @@ test('a static plan names the static URL on the site host and scheme', function 
     same(['bind' => '::', 'port' => 8081, 'url' => 'https://[::1]:8081/'], staticPlan('::', 8081, '::1', 'https'));
 });
 
-test('a site without a static export names the empty snippet alone', function (): void {
-    same(['DRUPACK_RUNTIME_STATIC_SNIPPET' => 'none.caddy'], staticServerEnvironment(null, null, 'drupack'));
+test('check records whether Site data owes a step, and refuses options a step lacks', function (): void {
+    parse([]);
+    same(['installed' => false], checkSite(scratch(), contract(recipe: 'recipes/site')));
+    $installed = scratch();
+    touch("$installed/site-installed");
+    same(['installed' => true], checkSite($installed, contract()));
+    parse([], environment: ['DRUPACK_DATABASE' => 'mysql']);
+    throws('Missing database connection details for mysql', fn() => checkSite(scratch(), contract()));
+    parse([]);
 });
 
-test('a static export names its snippet by TLS source, its listener, and the empty dynamic snippet', function (): void {
-    $plan = staticPlan('127.0.0.1', 8081, 'localhost', 'http');
-    foreach (['none', 'mkcert', 'drupack'] as $tls) {
-        foreach ([[], ['dynamic' => []]] as $static) {
-            same([
-                'DRUPACK_RUNTIME_STATIC_SNIPPET' => "static-site-$tls.caddy",
-                'DRUPACK_RUNTIME_STATIC_BIND' => '127.0.0.1',
-                'DRUPACK_RUNTIME_STATIC_PORT' => '8081',
-                'DRUPACK_RUNTIME_STATIC_DYNAMIC_SNIPPET' => 'none.caddy',
-            ], staticServerEnvironment($static, $plan, $tls), "$tls with " . json_encode($static));
-        }
-    }
+test('prepare runs the owed steps and records whether they needed credentials', function (): void {
+    parse([]);
+    $site = siteOwing(['administrator']);
+    same(['adopted' => false, 'credentials' => true], prepare(fakeDrush([]), $site->directory, contract()));
+    same(true, $site->installed());
+    same(false, file_exists("$site->directory/installation-progress"));
+    same('admin', getenv('DRUPACK_ADMIN_USER'), 'the administrator step reads a generated name');
+    parse([]);
 });
 
-test('dynamic patterns name the dynamic snippet and travel space joined', function (): void {
-    $plan = staticPlan('127.0.0.1', 8081, 'localhost', 'http');
-    foreach ([[['/search*'], '/search*'], [['/search*', '/contact'], '/search* /contact']] as [$patterns, $joined]) {
-        same([
-            'DRUPACK_RUNTIME_STATIC_SNIPPET' => 'static-site-none.caddy',
-            'DRUPACK_RUNTIME_STATIC_BIND' => '127.0.0.1',
-            'DRUPACK_RUNTIME_STATIC_PORT' => '8081',
-            'DRUPACK_RUNTIME_STATIC_DYNAMIC_SNIPPET' => 'static-dynamic.caddy',
-            'DRUPACK_RUNTIME_STATIC_DYNAMIC' => $joined,
-        ], staticServerEnvironment(['dynamic' => $patterns], $plan, 'none'), $joined);
-    }
-});
-
-test('only a loopback address opens a browser', function (): void {
-    foreach (['127.0.0.1' => true, '127.0.0.2' => true, '::1' => true, '0.0.0.0' => false, '::' => false, '192.168.1.5' => false] as $bind => $expected) {
-        same($expected, loopback($bind), $bind);
-    }
-});
-
-test('an IPv6 wildcard is probed on IPv6 loopback', function (): void {
-    $server = stream_socket_server('tcp://[::1]:0');
-    $port = (int) substr(strrchr(stream_socket_get_name($server, false), ':'), 1);
-    try {
-        same(true, portTaken('::', $port));
-    } finally {
-        fclose($server);
-    }
+test('prepare on an installed site runs nothing and needed no credentials', function (): void {
+    parse([]);
+    $installed = scratch();
+    touch("$installed/site-installed");
+    same(['adopted' => false, 'credentials' => false], prepare(fakeDrush([]), $installed, contract()));
 });
 
 test('owed steps need a recipe, a connection and credentials by step', function (): void {
@@ -575,31 +419,6 @@ test('a relative data-dir resolves against the directory the reader started from
 test('a relative data-dir with no recorded start directory is returned unchanged', function (): void {
     putenv('DRUPACK_RUNTIME_CWD');
     same('./data', fromStartDirectory('./data'));
-});
-
-test('the site token hashes the path, lowercased on windows', function (): void {
-    $data = '/Users/Ann/Site Data';
-    same(hash('sha256', windows() ? strtolower($data) : $data), siteToken($data));
-    same(windows(), siteToken('/a/B') === siteToken('/a/b'),
-        'windows spells one path in several casings, so the hash reads one');
-});
-
-test('the server environment holds every value it is given', function (): void {
-    exportServerEnvironment(['DRUPACK_RUNTIME_PORT' => '8080', 'DRUPACK_RUNTIME_BIND' => '::1']);
-    same('8080', getenv('DRUPACK_RUNTIME_PORT'));
-    same('::1', getenv('DRUPACK_RUNTIME_BIND'));
-    putenv('DRUPACK_RUNTIME_PORT');
-    putenv('DRUPACK_RUNTIME_BIND');
-});
-
-test('an empty server environment value refuses', function (): void {
-    throws('DRUPACK_RUNTIME_PORT is empty', fn() => exportServerEnvironment(['DRUPACK_RUNTIME_PORT' => '']));
-});
-
-test('a server environment value holding a double quote refuses', function (): void {
-    throws('DRUPACK_RUNTIME_LOG_PATH must not contain a double quote',
-        fn() => exportServerEnvironment(['DRUPACK_RUNTIME_LOG_PATH' => '/a"b']));
-    same(false, getenv('DRUPACK_RUNTIME_LOG_PATH'));
 });
 
 test('a database port defaults per backend', function (): void {
@@ -709,19 +528,6 @@ test('the public files template loader resolves the files address in the files d
     same(false, $loader->exists('component.html.twig'), 'a name outside the address');
     same(false, $loader->exists('sites/default/files/../' . basename($outside) . '/outside.html.twig'),
         'a name climbing out of the files directory');
-});
-
-test('no word starts the site', function () {
-    same(['start', []], command([]));
-});
-
-test('a line opening with an option starts the site with every word', function () {
-    same(['start', ['--listen', '127.0.0.1:9000']], command(['--listen', '127.0.0.1:9000']));
-});
-
-test('a command word names the mode and leaves the rest', function () {
-    same(['start', ['--foreground']], command(['start', '--foreground']));
-    same(['export', ['--data-dir', 'site']], command(['export', '--data-dir', 'site']));
 });
 
 test('an export runs Tome at the static URL unless the words name one', function (): void {

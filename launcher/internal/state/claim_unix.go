@@ -39,3 +39,8 @@ func (l *Lease) Inherit() error {
 	}
 	return nil
 }
+
+// Release gives the lease up, so a process this one starts can claim it.
+func (l *Lease) Release() error {
+	return l.file.Close()
+}
