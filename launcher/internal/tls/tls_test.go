@@ -469,3 +469,11 @@ func TestOnlyALoopbackStartAddressedByAServedNameMayServeHTTPS(t *testing.T) {
 		}
 	}
 }
+
+func TestLoopback(t *testing.T) {
+	for bind, want := range map[string]bool{"127.0.0.1": true, "127.0.0.2": true, "::1": true, "0.0.0.0": false, "::": false, "192.168.1.5": false} {
+		if Loopback(bind) != want {
+			t.Errorf("Loopback(%s) = %v", bind, !want)
+		}
+	}
+}

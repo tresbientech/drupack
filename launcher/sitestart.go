@@ -5,7 +5,6 @@ import (
 	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -28,24 +27,13 @@ import (
 // errReported is a failure whose message a child process already printed.
 var errReported = errors.New("reported")
 
-// startInputs are the start options PHP's check and prepare read, by the
-// variable a reader may also set each with. A credential never reaches argv.
-var startInputs = map[string]string{
-	"database":       "DRUPACK_DATABASE",
-	"db-host":        "DRUPACK_DB_HOST",
-	"db-port":        "DRUPACK_DB_PORT",
-	"db-name":        "DRUPACK_DB_NAME",
-	"db-user":        "DRUPACK_DB_USER",
-	"db-password":    "DRUPACK_DB_PASSWORD",
-	"admin-user":     "DRUPACK_ADMIN_USER",
-	"admin-password": "DRUPACK_ADMIN_PASSWORD",
-	"site-name":      "DRUPACK_SITE_NAME",
-}
+// startInputs are the start options PHP's check and prepare read. Each also
+// has a DRUPACK_ variable a reader may set, and a credential never reaches argv.
+var startInputs = []string{"database", "db-host", "db-port", "db-name", "db-user", "db-password", "admin-user", "admin-password", "site-name"}
 
 // siteFallbackHost is the host a site's URL names when its drupack.site name does not resolve.
 const siteFallbackHost = "localhost"
 
-// packagedStart is a Packaged site's start once it has planned.
 type packagedStart struct {
 	l    Launch
 	c    command
@@ -62,8 +50,8 @@ type packagedStart struct {
 	staticRoot string
 	choice     tls.Choice
 	plan       startPlan
-	// listen and staticListen are the IP:PORT texts the refusals name.
-	listen, staticListen string
+	// listen is the IP:PORT text the refusals name.
+	listen string
 }
 
 // startSite plans a Packaged site's start, refuses what the reader's line or
@@ -99,27 +87,23 @@ func startSite(l Launch, c command) error {
 	}
 	e := environ{entries: environment(l), fold: l.FoldCase}
 	var inputs []string
-	for name, variable := range startInputs {
+	for _, name := range startInputs {
 		if value := c.options[name]; value != "" {
-			inputs = append(inputs, variable+"="+value)
+			inputs = append(inputs, "DRUPACK_"+strings.ToUpper(strings.ReplaceAll(name, "-", "_"))+"="+value)
 		}
 	}
 	if err := checkDatabase(c, e); err != nil {
 		return err
 	}
 	data := fromCwd(c.options["data-dir"])
-	out, err := operate(l, withInputs(e, inputs), "check", "site", runtime.Canonical(data))
-	if err != nil {
-		return err
-	}
 	var owed struct {
 		Installed bool `json:"installed"`
 	}
-	if err := json.Unmarshal(out, &owed); err != nil {
+	if err := operate(l, withInputs(e, inputs), &owed, false, "check", "site", runtime.Canonical(data)); err != nil {
 		return err
 	}
 	listen := cmp.Or(c.options["listen"], "127.0.0.1:"+strconv.Itoa(site.Port))
-	bind, port, _, err := siteListener(site, listen, c.options["static-listen"])
+	bind, port, err := parseListen(listen, "--listen")
 	if err != nil {
 		return err
 	}
@@ -137,15 +121,20 @@ func startSite(l Launch, c command) error {
 			return err
 		}
 	}
+	choice, err := tls.Choose(l.TLSDir, bind, cmp.Or(site.Subdomain, l.Name), siteFallbackHost, c.options["host"])
+	if err != nil {
+		return err
+	}
+	plan, err := planStart(bind, port, c.options["static-listen"], site.Static != nil, "site", choice.Host, choice.Scheme())
+	if err != nil {
+		return err
+	}
 
 	restrictUmask()
 	if err := os.MkdirAll(data, 0o700); err != nil {
 		return err
 	}
 	if data, err = filepath.EvalSymlinks(data); err != nil {
-		return err
-	}
-	if err := siteDirectories(data, site.Static != nil); err != nil {
 		return err
 	}
 	record, recorded, err := readListener(state.At(data), l.Name)
@@ -156,33 +145,16 @@ func startSite(l Launch, c command) error {
 		files = record.FilesDir
 	}
 	named := files != ""
-	files = cmp.Or(files, filepath.Join(data, "files"))
-	if err := os.MkdirAll(filepath.Join(files, "translations"), 0o700); err != nil {
-		return err
-	}
-	if files, err = filepath.EvalSymlinks(files); err != nil {
-		return err
-	}
-	s := packagedStart{l: l, c: c, site: site, e: e, inputs: inputs, data: runtime.Canonical(data), files: runtime.Canonical(files), listen: listen}
-	if named {
-		s.recordedFiles = s.files
-	}
-	scratch, err := filepath.EvalSymlinks(filepath.Join(data, "runtime"))
+	files, scratch, err := siteDirs(data, files, site.Static != nil)
 	if err != nil {
 		return err
 	}
-	s.scratch = runtime.Canonical(scratch)
+	s := packagedStart{l: l, c: c, site: site, e: e, inputs: inputs, data: runtime.Canonical(data), files: runtime.Canonical(files), scratch: runtime.Canonical(scratch), choice: choice, plan: plan, listen: listen}
+	if named {
+		s.recordedFiles = s.files
+	}
 	if site.Static != nil {
 		s.staticRoot = s.data + "/static"
-	}
-	if s.choice, err = tls.Choose(l.TLSDir, bind, cmp.Or(site.Subdomain, l.Name), siteFallbackHost, c.options["host"]); err != nil {
-		return err
-	}
-	if s.plan, err = planStart(bind, port, c.options["static-listen"], site.Static != nil, s.choice.Host, s.choice.Scheme()); err != nil {
-		return err
-	}
-	if s.plan.Static != nil {
-		_, _, s.staticListen, _ = staticListener(c.options["static-listen"], bind, port)
 	}
 	putSiteEnvironment(&s.e, s.data, s.files, s.choice.Host, s.plan.URL, s.scratch, s.staticRoot)
 
@@ -200,7 +172,7 @@ func startSite(l Launch, c command) error {
 		return fmt.Errorf("Another program is listening on %s. Stop it, or start on a free port: %s --listen %s:%d", listen, l.Name, s.plan.Bind, s.plan.Port+1)
 	}
 	if static := s.plan.Static; static != nil && portTaken(static.Bind, static.Port) {
-		return fmt.Errorf("Another program is listening on %s. Stop it, or move the static listener to a free port: %s --static-listen %s:%d", s.staticListen, l.Name, urlHost(static.Bind), static.Port+1)
+		return fmt.Errorf("Another program is listening on %s. Stop it, or move the static listener to a free port: %s --static-listen %s:%d", s.plan.record().StaticListen, l.Name, urlHost(static.Bind), static.Port+1)
 	}
 	if err := takeLog(); err != nil {
 		return err
@@ -208,28 +180,12 @@ func startSite(l Launch, c command) error {
 	return s.serve(lease)
 }
 
-// withInputs is e with inputs over it.
 func withInputs(e environ, inputs []string) []string {
 	with := environ{entries: slices.Clone(e.entries), fold: e.fold}
 	for _, input := range inputs {
 		with.put(input)
 	}
 	return with.entries
-}
-
-// siteListener splits a site's --listen and checks its static listener: the
-// one staticListen names, or listen's address on the next port. staticPort is
-// 0 for a site without one.
-func siteListener(site siteconfig.Site, listen, staticListen string) (bind string, port, staticPort int, err error) {
-	if bind, port, err = parseListen(listen, "--listen"); err != nil {
-		return "", 0, 0, err
-	}
-	if site.Static != nil {
-		_, staticPort, _, err = staticListener(staticListen, bind, port)
-	} else if staticListen != "" {
-		err = errors.New("--static-listen needs a site whose composer.json sets extra.drupack.static")
-	}
-	return bind, port, staticPort, err
 }
 
 // checkDatabase refuses a --database, or a DRUPACK_DATABASE, that names no driver.
@@ -241,18 +197,28 @@ func checkDatabase(c command, e environ) error {
 	return nil
 }
 
-// siteDirectories creates the directories a start and drush find in Site data.
-func siteDirectories(data string, static bool) error {
+// siteDirs creates the directories a start and drush find in Site data, and the
+// translations folder of files, Site data's own files directory when files is "".
+// It returns the resolved files and scratch directories.
+func siteDirs(data, files string, static bool) (resolved, scratch string, err error) {
 	names := []string{"runtime", "private", "tmp", "config", "logs"}
 	if static {
 		names = append(names, "static")
 	}
 	for _, name := range names {
 		if err := os.MkdirAll(filepath.Join(data, name), 0o700); err != nil {
-			return err
+			return "", "", err
 		}
 	}
-	return nil
+	files = cmp.Or(files, filepath.Join(data, "files"))
+	if err := os.MkdirAll(filepath.Join(files, "translations"), 0o700); err != nil {
+		return "", "", err
+	}
+	if resolved, err = filepath.EvalSymlinks(files); err != nil {
+		return "", "", err
+	}
+	scratch, err = filepath.EvalSymlinks(filepath.Join(data, "runtime"))
+	return resolved, scratch, err
 }
 
 // readListener reads the Listener record, naming the way out of an unreadable one.
@@ -295,12 +261,6 @@ func portTaken(bind string, port int) bool {
 	}
 	conn.Close()
 	return true
-}
-
-// loopback reports whether bind accepts this computer alone. A login link and
-// the session it opens cross any other network in clear text.
-func loopback(bind string) bool {
-	return bind == "::1" || strings.HasPrefix(bind, "127.")
 }
 
 // personPresent reports whether someone watches the start: a terminal, a file
@@ -347,7 +307,7 @@ func (s packagedStart) served(installed bool) error {
 		return nil
 	}
 	fmt.Printf("  Login:  %s\n", link)
-	if s.c.options["no-browser"] != "" || !loopback(bind) {
+	if s.c.options["no-browser"] != "" || !tls.Loopback(bind) {
 		return nil
 	}
 	openBrowser(link)
@@ -362,18 +322,27 @@ func (s packagedStart) login(application, url string) (link, failure string, err
 	return mint(s.l, e.entries, url, filepath.Join(application, "drush"), application, "/admin/dashboard")
 }
 
-// mint runs PHP's login operation, which prints the link or Drush's reason.
+// mint runs Drush's user:login for uid 1 at url and returns the link, or the
+// reason Drush gave when it mints none. The link is a working credential bound
+// for a terminal or a browser command, so it must start with url.
 func mint(l Launch, env []string, url, drush, directory string, path ...string) (link, failure string, err error) {
-	out, err := operate(l, env, append([]string{"login", url, drush, directory}, path...)...)
-	if err != nil {
-		return "", "", err
+	command := exec.Command(l.Entry, append([]string{"php-cli", drush, "user:login", "--no-browser", "--uri=" + url}, path...)...)
+	command.Dir = directory
+	// Drush wraps error text at COLUMNS, 80 with no terminal; a wide value keeps a
+	// failed mint's reason on one line.
+	command.Env = append(slices.Clone(env), "COLUMNS=1000")
+	var out, reason bytes.Buffer
+	command.Stdout, command.Stderr = &out, &reason
+	if err := command.Run(); err != nil {
+		var exit *exec.ExitError
+		if !errors.As(err, &exit) {
+			return "", "", errors.New("Cannot run Drush")
+		}
 	}
-	var minted struct {
-		Link    string `json:"link"`
-		Failure string `json:"failure"`
+	if link = strings.TrimSpace(out.String()); !strings.HasPrefix(link, url) {
+		return "", strings.Join(strings.Fields(reason.String()), " "), nil
 	}
-	err = json.Unmarshal(out, &minted)
-	return minted.Link, minted.Failure, err
+	return link, "", nil
 }
 
 func (s packagedStart) explainMintFailure(reason string) {
@@ -388,11 +357,6 @@ func (s packagedStart) explainMintFailure(reason string) {
 func (s packagedStart) serve(lease *state.Lease) error {
 	l, site, plan, choice := s.l, s.site, s.plan, s.choice
 	dir := state.At(s.data)
-	// Drush runs a step starts, and a child of theirs, hold the lease too, so it
-	// outlives no process that writes Site data.
-	if err := lease.Inherit(); err != nil {
-		return err
-	}
 	if err := dir.ClearStopRecord(); err != nil {
 		return err
 	}
@@ -406,14 +370,10 @@ func (s packagedStart) serve(lease *state.Lease) error {
 	}
 	var hub *caddyfile.Mercure
 	if site.Mercure {
-		publisher, subscriber, err := dir.CreateMercureSecrets()
-		if err != nil {
+		var err error
+		if hub, err = serveHub(&s.e, dir, plan, s.data+"/mercure.db"); err != nil {
 			return err
 		}
-		hub = &caddyfile.Mercure{URL: mercureURL(plan.Scheme, plan.Bind, plan.Port), Publisher: publisher, Subscriber: subscriber, DB: s.data + "/mercure.db"}
-		s.e.put("DRUPACK_MERCURE_PUBLISHER_SECRET=" + publisher)
-		s.e.put("DRUPACK_MERCURE_SUBSCRIBER_SECRET=" + subscriber)
-		s.e.put("DRUPACK_MERCURE_URL=" + hub.URL)
 	}
 	application := l.Application
 	if len(site.Writable) > 0 {
@@ -460,55 +420,32 @@ func (s packagedStart) serve(lease *state.Lease) error {
 	}
 	logPath := s.data + "/logs/caddy.log"
 	fmt.Printf("  Site data: %s\n  Log:       %s\n", s.data, logPath)
-	if link != "" && !loopback(plan.Bind) {
+	if link != "" && !tls.Loopback(plan.Bind) {
 		fmt.Printf("No browser opens: %s accepts other computers over plain HTTP. Sign in from another computer only through a TLS proxy.\n", s.listen)
 	}
 	fmt.Print(nameHint(choice), trustHint(l, choice))
 	// The server opens the browser once the site answers, so a start that opens none
 	// clears whatever the environment it inherited held.
 	s.e.drop("DRUPACK_RUNTIME_OPEN")
-	if link != "" && s.c.options["no-browser"] == "" && s.personPresent() && loopback(plan.Bind) {
+	if link != "" && s.c.options["no-browser"] == "" && s.personPresent() && tls.Loopback(plan.Bind) {
 		s.e.put("DRUPACK_RUNTIME_OPEN=" + link)
 	}
 	// Every step that needed the administrator password has run. The server passes
 	// its environment to every process it starts, including PHP code a site runs.
 	s.e.drop("DRUPACK_ADMIN_PASSWORD")
 	fmt.Println("Starting the web server.")
-	id := siteToken(s.data, l.FoldCase)
 	config := caddyfile.Config{
-		Mode: caddyfile.Site, ID: id, Bind: plan.Bind, Port: plan.Port,
-		Docroot: application + "/" + site.Docroot, TLS: choice, Mercure: hub,
+		Mode: caddyfile.Site, ID: siteToken(s.data, l.FoldCase),
+		Docroot: application + "/" + site.Docroot, Mercure: hub,
 		FilesDir: s.files, LogPath: logPath,
-	}
-	if info, err := os.Stat(application + "/drupack.caddy"); err == nil && info.Mode().IsRegular() {
-		config.ProjectRules = application + "/drupack.caddy"
 	}
 	if plan.Static != nil {
 		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: s.staticRoot, Dynamic: site.Static.Dynamic}
 	}
-	rendered, err := caddyfile.Render(config)
-	if err != nil {
-		return err
-	}
-	file, err := dir.WriteCaddyfile(rendered)
-	if err != nil {
-		return err
-	}
-	for _, value := range serverEnvironment(id, dir, choice, plan) {
-		s.e.put(value)
-	}
 	// settings.php trusts the drupack.site name as a request host.
 	s.e.put("DRUPACK_RUNTIME_ALIAS=" + choice.Alias)
 	// The server names the cache entry's executable, which ps and Tome's children read.
-	serverArguments := []string{l.Entry, "php-server", runtime.Canonical(file)}
-	if config.ProjectRules != "" {
-		// The runtime names the file when its rules fail to adapt.
-		serverArguments = append(serverArguments, config.ProjectRules)
-	}
-	err = launch(Command{Path: l.Entry, Args: serverArguments, Env: s.e.entries, Dir: application})
-	// A collected file would close its descriptor, and the lease with it, before the exec.
-	goruntime.KeepAlive(lease)
-	return err
+	return execServer(l, s.e, dir, lease, config, choice, plan, application, l.Entry, application)
 }
 
 // prepared is PHP's prepare record. Credentials reports whether an owed step
@@ -522,19 +459,9 @@ type prepared struct {
 // prepare runs PHP's prepare. Its step lines reach the reader as they run, and
 // so does its refusal.
 func (s packagedStart) prepare() (prepared, error) {
-	command := exec.Command(s.l.Entry, "php-cli", filepath.Join(s.l.Application, "operate.php"), "prepare", s.data)
-	command.Env = withInputs(s.e, s.inputs)
-	var out bytes.Buffer
-	command.Stdout, command.Stderr = &out, os.Stderr
-	if err := command.Run(); err != nil {
-		var exit *exec.ExitError
-		if errors.As(err, &exit) {
-			return prepared{}, errReported
-		}
-		return prepared{}, err
-	}
 	var record prepared
-	return record, json.Unmarshal(out.Bytes(), &record)
+	err := operate(s.l, withInputs(s.e, s.inputs), &record, true, "prepare", s.data)
+	return record, err
 }
 
 // siteToken names one Site data in the readiness probe and the PHP cache id.

@@ -127,11 +127,7 @@ func (x exportCall) requireTomeStatic() error {
 // engineCore plans the engine's `dr`, the Drupal core command line a project
 // ships from Drupal 11.4, in the project holding cwd.
 func engineCore(l Launch, c command, cwd string, e environ) (Command, error) {
-	start, err := filepath.EvalSymlinks(cwd)
-	if err != nil {
-		return Command{}, err
-	}
-	project, err := vendorRoot(start)
+	project, err := vendorRoot(cwd)
 	if err != nil {
 		return Command{}, err
 	}

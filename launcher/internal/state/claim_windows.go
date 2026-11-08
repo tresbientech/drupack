@@ -4,6 +4,7 @@ package state
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"golang.org/x/sys/windows"
@@ -15,27 +16,45 @@ type Lease struct {
 	handle windows.Handle
 }
 
-// Claim locks the file's whole range, as PHP's flock does. It returns nil when
-// another server holds the lease.
-func (d Dir) Claim() (*Lease, error) {
-	path := d.lease()
+// lockFile opens the lease and locks its whole range without waiting, as PHP's
+// flock does. The handle is 0 when another server holds it. PHP opens the file
+// and shares reading and writing, so these opens do the same.
+func lockFile(path string, access, disposition uint32) (windows.Handle, error) {
+	refused := fmt.Errorf("Cannot open the serving lease: %s", filepath.ToSlash(path))
 	pointer, err := windows.UTF16PtrFromString(path)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot open the serving lease: %s", filepath.ToSlash(path))
+		return 0, refused
 	}
-	handle, err := windows.CreateFile(pointer, windows.GENERIC_READ|windows.GENERIC_WRITE,
-		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, nil, windows.OPEN_ALWAYS, windows.FILE_ATTRIBUTE_NORMAL, 0)
+	handle, err := windows.CreateFile(pointer, access,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, nil, disposition, windows.FILE_ATTRIBUTE_NORMAL, 0)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot open the serving lease: %s", filepath.ToSlash(path))
+		return 0, refused
 	}
 	if err := windows.LockFileEx(handle, windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 0xFFFFFFFF, 0xFFFFFFFF, new(windows.Overlapped)); err != nil {
 		windows.CloseHandle(handle)
-		return nil, nil
+		return 0, nil
 	}
-	return &Lease{handle: handle}, nil
+	return handle, nil
 }
 
-// Inherit does nothing: the launcher waits for the server, so its handle holds the lease.
-func (l *Lease) Inherit() error {
-	return nil
+// Claim takes the lease. It returns nil when another server holds it.
+func (d Dir) Claim() (*Lease, error) {
+	handle, err := lockFile(d.lease(), windows.GENERIC_READ|windows.GENERIC_WRITE, windows.OPEN_ALWAYS)
+	if handle == 0 {
+		return nil, err
+	}
+	return &Lease{handle}, nil
+}
+
+// Lease reports whether a server holds the Serving lease. No lease file means
+// no server ever ran from the directory.
+func (d Dir) Lease() (bool, error) {
+	if info, err := os.Stat(d.lease()); err != nil || !info.Mode().IsRegular() {
+		return false, nil
+	}
+	handle, err := lockFile(d.lease(), windows.GENERIC_WRITE, windows.OPEN_EXISTING)
+	if handle == 0 {
+		return err == nil, err
+	}
+	return false, windows.CloseHandle(handle)
 }

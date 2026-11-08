@@ -1,6 +1,6 @@
 //go:build windows
 
-// Package statetest holds the Serving lease the way PHP's Serving class does,
+// Package statetest holds the Serving lease the way the previous release's PHP does, with flock,
 // for the tests of the packages that read it.
 package statetest
 

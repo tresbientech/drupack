@@ -70,7 +70,7 @@ func TestPlanStart(t *testing.T) {
 		{"static malformed", "127.0.0.1", 3787, "nine", true, "localhost", "http", startPlan{}, "--static-listen requires IP:PORT, with IPv6 enclosed in brackets"},
 		{"static typed for a project with none", "127.0.0.1", 3787, "127.0.0.1:9", false, "localhost", "http", startPlan{}, "--static-listen needs a project whose composer.json sets extra.drupack.static"},
 	} {
-		got, err := planStart(row.bind, row.port, row.staticListen, row.hasStatic, row.host, row.scheme)
+		got, err := planStart(row.bind, row.port, row.staticListen, row.hasStatic, "project", row.host, row.scheme)
 		message := ""
 		if err != nil {
 			message = err.Error()
@@ -129,21 +129,6 @@ func TestServerEnvironment(t *testing.T) {
 		got := serverEnvironment("f0123456789abcdef", entry, tls.Choice{Source: source, Root: "/r.pem"}, plan)
 		if want := append(slices.Clone(base), "DRUPACK_RUNTIME_TLS_ROOT=/r.pem"); !slices.Equal(got, want) {
 			t.Errorf("%s: %v", source, got)
-		}
-	}
-}
-
-func TestRefuseBraces(t *testing.T) {
-	if err := refuseBraces(`/work/we"b`, `/work/we"b/web`); err != nil {
-		t.Errorf("a double quote: %v", err)
-	}
-	for _, row := range []struct{ project, docroot, want string }{
-		{"/work/a{b", "/work/a{b/web", "The project folder must not contain { or }: /work/a{b"},
-		{"/work/a}b", "/work/a}b/web", "The project folder must not contain { or }: /work/a}b"},
-		{"/work/shop", "/work/shop/{$HOME}", "The docroot must not contain { or }: /work/shop/{$HOME}"},
-	} {
-		if err := refuseBraces(row.project, row.docroot); err == nil || err.Error() != row.want {
-			t.Errorf("refuseBraces(%s, %s) = %v, want %s", row.project, row.docroot, err, row.want)
 		}
 	}
 }

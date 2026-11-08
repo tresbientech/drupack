@@ -290,8 +290,7 @@ func Choose(dir, bind, label, fallback, host string) (Choice, error) {
 		}
 		chosen, reason = chooseHost(context.Background(), lookup, alias, bind, fallback)
 	}
-	loopback := bind == "::1" || strings.HasPrefix(bind, "127.")
-	eligible := loopback && (chosen == alias || slices.Contains(loopbackNames, chosen))
+	eligible := Loopback(bind) && (chosen == alias || slices.Contains(loopbackNames, chosen))
 	choice := Choice{Source: "none"}
 	if eligible {
 		var err error
@@ -301,6 +300,12 @@ func Choose(dir, bind, label, fallback, host string) (Choice, error) {
 	}
 	choice.Host, choice.Alias, choice.Reason, choice.Eligible = chosen, alias, reason, eligible
 	return choice, nil
+}
+
+// Loopback reports whether bind accepts this computer alone. A login link and
+// the session it opens cross any other network in clear text.
+func Loopback(bind string) bool {
+	return bind == "::1" || strings.HasPrefix(bind, "127.")
 }
 
 // Trust creates the local root on first use and installs it into the system's

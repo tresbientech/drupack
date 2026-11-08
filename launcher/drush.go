@@ -20,18 +20,6 @@ const unrecordedHost = "localhost"
 // drushScript is where Drush lives under an application or a project.
 var drushScript = filepath.Join("vendor", "drush", "drush", "drush.php")
 
-// drushPlan returns the runtime call that runs c's Drush words. cwd is the
-// reader's directory. A site's call reads the Site data c names, the engine's
-// the project holding cwd, and both give Drush and settings.php the environment
-// the last start served. Neither starts a server or takes a lease.
-func drushPlan(l Launch, c command, cwd string) (Command, error) {
-	e := environ{entries: environment(l), fold: l.FoldCase}
-	if l.Engine {
-		return engineDrush(l, c, cwd, e)
-	}
-	return siteDrush(l, c, cwd, e)
-}
-
 // drushCall runs application's drush entry on script with words. Drush's
 // children, and Tome's, run the php on PATH, which bin/ points back at the runtime.
 func drushCall(l Launch, e environ, application, script string, words []string) Command {
@@ -76,7 +64,6 @@ type openedSite struct {
 	staticURL string
 }
 
-// drush returns the call that runs words in the site's Drush.
 func (s openedSite) drush(l Launch, words []string) Command {
 	return drushCall(l, s.e, s.application, filepath.Join(s.application, drushScript), words)
 }
@@ -111,7 +98,7 @@ func openSite(l Launch, site siteconfig.Site, c command, cwd string, e environ) 
 		files = cmp.Or(files, record.FilesDir)
 	}
 	listen = cmp.Or(listen, "127.0.0.1:"+strconv.Itoa(site.Port))
-	bind, port, staticPort, err := siteListener(site, listen, staticListen)
+	bind, port, err := parseListen(listen, "--listen")
 	if err != nil {
 		return openedSite{}, err
 	}
@@ -119,34 +106,26 @@ func openSite(l Launch, site siteconfig.Site, c command, cwd string, e environ) 
 	if typed := c.options["host"]; typed != "" && !validHost(typed) {
 		return openedSite{}, errors.New("Invalid --host value")
 	}
-	host = cmp.Or(host, unrecordedHost)
+	plan, err := planStart(bind, port, staticListen, site.Static != nil, "site", cmp.Or(host, unrecordedHost), scheme)
+	if err != nil {
+		return openedSite{}, err
+	}
 
 	restrictUmask()
 	data, err = filepath.EvalSymlinks(data)
 	if err != nil {
 		return openedSite{}, err
 	}
-	if err := siteDirectories(data, site.Static != nil); err != nil {
-		return openedSite{}, err
-	}
-	files = cmp.Or(files, filepath.Join(data, "files"))
-	if err := os.MkdirAll(filepath.Join(files, "translations"), 0o700); err != nil {
-		return openedSite{}, err
-	}
-	if files, err = filepath.EvalSymlinks(files); err != nil {
-		return openedSite{}, err
-	}
-	scratch, err := filepath.EvalSymlinks(filepath.Join(data, "runtime"))
+	files, scratch, err := siteDirs(data, files, site.Static != nil)
 	if err != nil {
 		return openedSite{}, err
 	}
-
 	staticRoot, staticURL := "", ""
-	if site.Static != nil {
+	if plan.Static != nil {
 		staticRoot = runtime.Canonical(filepath.Join(data, "static"))
-		staticURL = siteURL(scheme, host, staticPort)
+		staticURL = plan.Static.URL
 	}
-	putSiteEnvironment(&e, runtime.Canonical(data), runtime.Canonical(files), host, siteURL(scheme, host, port), runtime.Canonical(scratch), staticRoot)
+	putSiteEnvironment(&e, runtime.Canonical(data), runtime.Canonical(files), plan.Host, plan.URL, runtime.Canonical(scratch), staticRoot)
 	if bundle, ok := state.At(scratch).Bundle(); ok {
 		e.put("DRUPACK_CA_FILE=" + runtime.Canonical(bundle))
 	}
@@ -199,10 +178,15 @@ func putMercure(e *environ, dir state.Dir, url string) error {
 	if err != nil || !ok {
 		return err
 	}
+	putMercureEnvironment(e, publisher, subscriber, url)
+	return nil
+}
+
+// putMercureEnvironment gives a process the hub's secrets and address.
+func putMercureEnvironment(e *environ, publisher, subscriber, url string) {
 	e.put("DRUPACK_MERCURE_PUBLISHER_SECRET=" + publisher)
 	e.put("DRUPACK_MERCURE_SUBSCRIBER_SECRET=" + subscriber)
 	e.put("DRUPACK_MERCURE_URL=" + url)
-	return nil
 }
 
 // engineProject is the engine project a call addresses and the cache entry holding
@@ -216,11 +200,7 @@ type engineProject struct {
 // openFolder finds the project holding cwd, the nearest directory at or above it
 // with a vendor/autoload.php, and reads its composer.json.
 func openFolder(l Launch, cwd string) (engineProject, error) {
-	start, err := filepath.EvalSymlinks(cwd)
-	if err != nil {
-		return engineProject{}, err
-	}
-	project, err := vendorRoot(start)
+	project, err := vendorRoot(cwd)
 	if err != nil {
 		return engineProject{}, err
 	}
@@ -270,10 +250,14 @@ func engineDrush(l Launch, c command, cwd string, e environ) (Command, error) {
 	return f.drush(l, e, c.words)
 }
 
-// vendorRoot finds the project holding start: the nearest directory at or above
+// vendorRoot finds the project holding cwd: the nearest directory at or above
 // it with a vendor/autoload.php. Drupal core and many modules carry a
 // composer.json and no vendor/.
-func vendorRoot(start string) (string, error) {
+func vendorRoot(cwd string) (string, error) {
+	start, err := filepath.EvalSymlinks(cwd)
+	if err != nil {
+		return "", err
+	}
 	for dir := start; ; dir = filepath.Dir(dir) {
 		if info, err := os.Stat(filepath.Join(dir, "vendor", "autoload.php")); err == nil && info.Mode().IsRegular() {
 			return dir, nil

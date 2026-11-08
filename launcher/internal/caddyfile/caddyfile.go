@@ -24,7 +24,6 @@ const (
 
 // Config is every value a rendered Caddyfile holds. A path is a canonical path.
 type Config struct {
-	// Mode is Engine or Site.
 	Mode string
 	// ID names the served state. The readiness probe and the PHP cache id read it.
 	ID      string
@@ -109,7 +108,6 @@ var templates = func() *template.Template {
 	return template.Must(root.ParseFS(fragments, "fragments/*.caddy"))
 }()
 
-// Render writes the Caddyfile for c.
 func Render(c Config) ([]byte, error) {
 	var out bytes.Buffer
 	if err := templates.ExecuteTemplate(&out, "caddyfile.caddy", c); err != nil {

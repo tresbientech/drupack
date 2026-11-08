@@ -75,13 +75,27 @@ func (f siteFixture) record(t *testing.T, json string) {
 	put(t, filepath.Join(f.data, "listener"), json)
 }
 
-func parseDrush(t *testing.T, engine bool, words ...string) command {
+func parseLine(t *testing.T, engine bool, words ...string) command {
 	t.Helper()
-	c, err := parse(append([]string{"SITE", "drush"}, words...), engine, func(string) (string, bool) { return "", false })
+	c, err := parse(append([]string{"SITE"}, words...), engine, func(string) (string, bool) { return "", false })
 	if err != nil {
 		t.Fatal(err)
 	}
 	return c
+}
+
+func parseDrush(t *testing.T, engine bool, words ...string) command {
+	t.Helper()
+	return parseLine(t, engine, append([]string{"drush"}, words...)...)
+}
+
+// drushPlan returns the call main runs for a drush command in cwd.
+func drushPlan(l Launch, c command, cwd string) (Command, error) {
+	e := environ{entries: environment(l), fold: l.FoldCase}
+	if l.Engine {
+		return engineDrush(l, c, cwd, e)
+	}
+	return siteDrush(l, c, cwd, e)
 }
 
 func TestSiteDrushEnvironment(t *testing.T) {
@@ -454,9 +468,9 @@ func TestParseListen(t *testing.T) {
 }
 
 func TestStaticListenerDefaultsToTheNextPort(t *testing.T) {
-	bind, port, listen, err := staticListener("", "::1", 8000)
-	if bind != "::1" || port != 8001 || listen != "[::1]:8001" || err != nil {
-		t.Errorf("staticListener = %q, %d, %q, %v", bind, port, listen, err)
+	bind, port, err := staticListener("", "::1", 8000)
+	if bind != "::1" || port != 8001 || err != nil {
+		t.Errorf("staticListener = %q, %d, %v", bind, port, err)
 	}
 }
 

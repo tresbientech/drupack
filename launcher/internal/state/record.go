@@ -1,6 +1,7 @@
 package state
 
 import (
+	"cmp"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -24,13 +25,13 @@ const (
 // Listener is the address the last start served, as the Site data's `listener` record keeps it.
 type Listener struct {
 	// Listen is IP:PORT.
-	Listen string
-	Host   string
+	Listen string `json:"listen"`
+	Host   string `json:"host"`
 	// FilesDir is "" when the start named no files directory.
-	FilesDir string
-	Scheme   string
+	FilesDir string `json:"files-dir"`
+	Scheme   string `json:"scheme"`
 	// StaticListen is "" for a site without a static listener.
-	StaticListen string
+	StaticListen string `json:"static-listen"`
 }
 
 // UnreadableError is a record that holds no JSON object.
@@ -53,32 +54,16 @@ func (d Dir) Listener() (record Listener, ok bool, err error) {
 	if err != nil {
 		return Listener{}, false, err
 	}
-	var fields struct {
-		Listen       *string `json:"listen"`
-		Host         *string `json:"host"`
-		FilesDir     *string `json:"files-dir"`
-		Scheme       *string `json:"scheme"`
-		StaticListen *string `json:"static-listen"`
-	}
-	if err := json.Unmarshal(content, &fields); err != nil {
+	if err := json.Unmarshal(content, &record); err != nil {
 		return Listener{}, false, &UnreadableError{Path: path}
 	}
-	if fields.Listen == nil {
+	if record.Listen == "" {
 		return Listener{}, false, errors.New("Recorded listener has no listen address")
 	}
-	if fields.Host == nil {
+	if record.Host == "" {
 		return Listener{}, false, errors.New("Recorded listener has no host")
 	}
-	record = Listener{Listen: *fields.Listen, Host: *fields.Host, Scheme: UnrecordedScheme}
-	if fields.FilesDir != nil {
-		record.FilesDir = *fields.FilesDir
-	}
-	if fields.Scheme != nil {
-		record.Scheme = *fields.Scheme
-	}
-	if fields.StaticListen != nil {
-		record.StaticListen = *fields.StaticListen
-	}
+	record.Scheme = cmp.Or(record.Scheme, UnrecordedScheme)
 	return record, true, nil
 }
 

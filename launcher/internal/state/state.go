@@ -16,17 +16,15 @@ import (
 // FoldersName is the cache directory holding one entry per folder the engine serves.
 const FoldersName = "folders"
 
-// LeaseName is the lock a server holds for as long as it runs. PHP's Serving
-// class takes it with flock.
+// LeaseName is the lock a server holds for as long as it runs. The previous
+// release's PHP takes it with flock.
 const LeaseName = "serving.lock"
 
 // stopRecordName is the record a server writes once it answers.
 const stopRecordName = "stop.json"
 
-// pollInterval paces WaitFree.
 const pollInterval = 200 * time.Millisecond
 
-// Dir is one state directory.
 type Dir struct {
 	path string
 }
@@ -51,7 +49,6 @@ func FolderEntry(root, project string, fold bool) Dir {
 	return At(filepath.Join(root, FoldersName, "f"+hex.EncodeToString(sum[:])[:16]))
 }
 
-// Path is the directory itself.
 func (d Dir) Path() string {
 	return d.path
 }

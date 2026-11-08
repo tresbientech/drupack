@@ -11,30 +11,6 @@ import (
 	"testing"
 )
 
-// Go opens files close-on-exec, which would drop the lease at the exec into the server.
-func TestInheritClearsCloseOnExec(t *testing.T) {
-	lease, err := At(t.TempDir()).Claim()
-	if err != nil || lease == nil {
-		t.Fatalf("Claim() = %v, %v", lease, err)
-	}
-	flags := func() uintptr {
-		value, _, errno := syscall.Syscall(syscall.SYS_FCNTL, lease.file.Fd(), syscall.F_GETFD, 0)
-		if errno != 0 {
-			t.Fatal(errno)
-		}
-		return value
-	}
-	if flags()&syscall.FD_CLOEXEC == 0 {
-		t.Fatal("the lease descriptor is not close-on-exec before Inherit")
-	}
-	if err := lease.Inherit(); err != nil {
-		t.Fatal(err)
-	}
-	if flags()&syscall.FD_CLOEXEC != 0 {
-		t.Error("the lease descriptor is still close-on-exec")
-	}
-}
-
 // leaseHolderDir names the Site data a re-run of this test binary claims, then
 // keeps across its exec into a shell.
 const leaseHolderDir = "DRUPACK_TEST_LEASE_HOLDER"
@@ -46,10 +22,6 @@ func TestAProcessExecdWithTheLeaseHoldsIt(t *testing.T) {
 		lease, err := At(dir).Claim()
 		if err != nil || lease == nil {
 			fmt.Printf("Claim() = %v, %v\n", lease, err)
-			os.Exit(1)
-		}
-		if err := lease.Inherit(); err != nil {
-			fmt.Println(err)
 			os.Exit(1)
 		}
 		err = syscall.Exec("/bin/sh", []string{"sh", "-c", "echo held; read line; exit 0"}, os.Environ())

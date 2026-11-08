@@ -8,4 +8,3 @@
 # Go tests compare these reference files byte for byte, so a Windows checkout
 # keeps their LF endings.
 /application/tests/site.json text eol=lf
-/application/tests/tls-choices.json text eol=lf

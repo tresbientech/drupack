@@ -30,18 +30,16 @@ func parseListen(listen, option string) (bind string, port int, err error) {
 }
 
 // staticListener resolves --static-listen: option, or the site listener's
-// address on the port after port. It returns the bind, the port and the
-// IP:PORT text a record keeps.
-func staticListener(option, bind string, port int) (staticBind string, staticPort int, listen string, err error) {
-	listen = option
-	if listen == "" {
-		listen = urlHost(bind) + ":" + strconv.Itoa(port+1)
+// address on the port after port.
+func staticListener(option, bind string, port int) (staticBind string, staticPort int, err error) {
+	if option == "" {
+		option = urlHost(bind) + ":" + strconv.Itoa(port+1)
 	}
-	staticBind, staticPort, err = parseListen(listen, "--static-listen")
+	staticBind, staticPort, err = parseListen(option, "--static-listen")
 	if err == nil && staticPort == port {
 		err = fmt.Errorf("--static-listen must name a port other than the site's %d", port)
 	}
-	return staticBind, staticPort, listen, err
+	return staticBind, staticPort, err
 }
 
 // validHost reports whether host, a reader's --host, is a hostname or an IP address.

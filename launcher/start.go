@@ -25,7 +25,6 @@ import (
 // engineListenRe is the engine's --listen: anything before a port of up to five digits.
 var engineListenRe = regexp.MustCompile(`^(.+):([0-9]{1,5})$`)
 
-// engineListen splits the engine's --listen into its bind and port.
 func engineListen(listen string) (bind string, port int, err error) {
 	parts := engineListenRe.FindStringSubmatch(listen)
 	if parts != nil {
@@ -68,8 +67,9 @@ type staticPlan struct {
 
 // planStart turns the bind and port of --listen, the typed --static-listen
 // ("" for none), whether the project sets a static listener, and the TLS
-// answer's host and scheme into the start's listeners.
-func planStart(bind string, port int, staticListen string, hasStatic bool, host, scheme string) (startPlan, error) {
+// answer's host and scheme into the start's listeners. noun names what the
+// static refusal calls the project.
+func planStart(bind string, port int, staticListen string, hasStatic bool, noun, host, scheme string) (startPlan, error) {
 	plan := startPlan{
 		Bind: bind, Port: port, Host: host, Scheme: scheme,
 		URL:   siteURL(scheme, host, port),
@@ -77,13 +77,13 @@ func planStart(bind string, port int, staticListen string, hasStatic bool, host,
 	}
 	switch {
 	case hasStatic:
-		staticBind, staticPort, _, err := staticListener(staticListen, bind, port)
+		staticBind, staticPort, err := staticListener(staticListen, bind, port)
 		if err != nil {
 			return startPlan{}, err
 		}
 		plan.Static = &staticPlan{Bind: staticBind, Port: staticPort, URL: siteURL(scheme, host, staticPort)}
 	case staticListen != "":
-		return startPlan{}, errors.New("--static-listen needs a project whose composer.json sets extra.drupack.static")
+		return startPlan{}, fmt.Errorf("--static-listen needs a %s whose composer.json sets extra.drupack.static", noun)
 	}
 	return plan, nil
 }
@@ -104,28 +104,31 @@ func drupalDocroot(project, relative string) (string, error) {
 	return docroot, nil
 }
 
-// refuseBraces refuses a project or docroot holding { or }, which Caddy reads as a
-// placeholder. The engine has no --data-dir or --files-dir, so these are the paths
-// of its Caddyfile that a reader chooses.
-func refuseBraces(project, docroot string) error {
-	if err := caddyfile.RefuseBraces("The project folder", project); err != nil {
-		return err
-	}
-	return caddyfile.RefuseBraces("The docroot", docroot)
-}
-
-// operate runs one operation of the engine's operate.php through the runtime's
-// php-cli and returns the record it printed. Its failure message is the error.
-func operate(l Launch, env []string, arguments ...string) ([]byte, error) {
+// operate runs one operation of operate.php through the runtime's php-cli and
+// decodes the record it printed into record. A refusal is the error, or with
+// stream the child has printed it already and the error is errReported. With
+// stream the step lines reach the reader as they run; without, they follow the
+// operation.
+func operate(l Launch, env []string, record any, stream bool, arguments ...string) error {
 	command := exec.Command(l.Entry, append([]string{"php-cli", filepath.Join(l.Application, "operate.php")}, arguments...)...)
 	command.Env = env
-	var out, refusal bytes.Buffer
-	command.Stdout, command.Stderr = &out, &refusal
-	if err := command.Run(); err != nil {
-		return nil, errors.New(strings.TrimSpace(refusal.String()))
+	var out, stderr bytes.Buffer
+	command.Stdout, command.Stderr = &out, &stderr
+	if stream {
+		command.Stderr = os.Stderr
 	}
-	os.Stderr.Write(refusal.Bytes())
-	return out.Bytes(), nil
+	if err := command.Run(); err != nil {
+		var exit *exec.ExitError
+		switch {
+		case !stream:
+			return errors.New(strings.TrimSpace(stderr.String()))
+		case errors.As(err, &exit):
+			return errReported
+		}
+		return err
+	}
+	os.Stderr.Write(stderr.Bytes())
+	return json.Unmarshal(out.Bytes(), record)
 }
 
 // startEngine plans and runs the engine's start. It refuses what a reader's
@@ -172,49 +175,30 @@ func startEngine(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
-	if err := refuseBraces(project, docroot); err != nil {
+	// The engine has no --data-dir or --files-dir, so these are the paths of its
+	// Caddyfile that a reader chooses.
+	if err := caddyfile.RefuseBraces("The project folder", project); err != nil {
+		return err
+	}
+	if err := caddyfile.RefuseBraces("The docroot", docroot); err != nil {
 		return err
 	}
 	e := environ{entries: environment(l), fold: l.FoldCase}
-	out, err := operate(l, e.entries, "check", "folder", project, docroot)
-	if err != nil {
-		return err
-	}
 	var probe struct {
 		// Installed is nil when the probe cannot tell, such as for a database it cannot reach.
 		Installed *bool `json:"installed"`
 	}
-	if err := json.Unmarshal(out, &probe); err != nil {
+	if err := operate(l, e.entries, &probe, false, "check", "folder", project, docroot); err != nil {
 		return err
 	}
 	choice, err := tls.Choose(l.TLSDir, bind, cmp.Or(composer.Subdomain, path.Base(project)), bind, "")
 	if err != nil {
 		return err
 	}
-	plan, err := planStart(bind, port, c.options["static-listen"], composer.Static != nil, choice.Host, choice.Scheme())
+	plan, err := planStart(bind, port, c.options["static-listen"], composer.Static != nil, "project", choice.Host, choice.Scheme())
 	if err != nil {
 		return err
 	}
-	return engineStart{l, e, project, docroot, composer, choice, plan, probe.Installed}.serve()
-}
-
-// engineStart is a foreground start once it has planned.
-type engineStart struct {
-	l        Launch
-	e        environ
-	project  string
-	docroot  string
-	composer siteconfig.Composer
-	choice   tls.Choice
-	plan     startPlan
-	// installed is nil when the probe cannot tell.
-	installed *bool
-}
-
-// serve claims the folder's lease, prints the addresses and execs the server.
-// e holds the environment the server and the start's children share.
-func (s engineStart) serve() error {
-	l, e, project, docroot, composer, choice, plan := s.l, s.e, s.project, s.docroot, s.composer, s.choice, s.plan
 	entry := state.FolderEntry(l.Root, project, l.FoldCase)
 	if err := os.MkdirAll(entry.Path(), 0o700); err != nil {
 		return err
@@ -236,7 +220,7 @@ func (s engineStart) serve() error {
 		return err
 	}
 	url := strings.TrimSuffix(plan.URL, "/")
-	link, install, err := s.entrance(url)
+	link, install, err := entrance(l, e.entries, project, probe.Installed, url)
 	if err != nil {
 		return err
 	}
@@ -258,80 +242,82 @@ func (s engineStart) serve() error {
 	entryPath := runtime.Canonical(entry.Path())
 	var hub *caddyfile.Mercure
 	if composer.Mercure {
-		publisher, subscriber, err := entry.CreateMercureSecrets()
-		if err != nil {
+		if hub, err = serveHub(&e, entry, plan, entryPath+"/mercure.db"); err != nil {
 			return err
 		}
-		hub = &caddyfile.Mercure{
-			URL: mercureURL(plan.Scheme, plan.Bind, plan.Port), Publisher: publisher, Subscriber: subscriber, DB: entryPath + "/mercure.db",
-		}
-		e.put("DRUPACK_MERCURE_PUBLISHER_SECRET=" + publisher)
-		e.put("DRUPACK_MERCURE_SUBSCRIBER_SECRET=" + subscriber)
-		e.put("DRUPACK_MERCURE_URL=" + hub.URL)
 	}
 	// The start's --listen chooses the ports, so drush and export read the addresses back from here.
 	if err := entry.WriteListener(plan.record()); err != nil {
 		return err
 	}
-	config := caddyfile.Config{
-		Mode: caddyfile.Engine, ID: path.Base(entryPath), Bind: plan.Bind, Port: plan.Port,
-		Docroot: docroot, TLS: choice, Mercure: hub,
-	}
-	if info, err := os.Stat(project + "/drupack.caddy"); err == nil && info.Mode().IsRegular() {
-		config.ProjectRules = project + "/drupack.caddy"
-	}
+	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: docroot, Mercure: hub}
 	if plan.Static != nil {
 		// Tome's default directory, html beside the docroot. The server creates none.
 		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: path.Dir(docroot) + "/html", Dynamic: composer.Static.Dynamic}
+	}
+	// Drush's, Tome's and a request's child processes run the php on PATH, which bin/ points
+	// back at this runtime.
+	searchPath, _ := e.get("PATH")
+	e.put("PATH=" + filepath.Join(l.Application, "bin") + string(os.PathListSeparator) + searchPath)
+	return execServer(l, e, entry, lease, config, choice, plan, project, l.Args[0], project)
+}
+
+// serveHub creates dir's Mercure secrets and gives the server and its children
+// the hub's address and secrets. db is the hub's database file.
+func serveHub(e *environ, dir state.Dir, plan startPlan, db string) (*caddyfile.Mercure, error) {
+	publisher, subscriber, err := dir.CreateMercureSecrets()
+	if err != nil {
+		return nil, err
+	}
+	hub := &caddyfile.Mercure{URL: mercureURL(plan.Scheme, plan.Bind, plan.Port), Publisher: publisher, Subscriber: subscriber, DB: db}
+	putMercureEnvironment(e, publisher, subscriber, hub.URL)
+	return hub, nil
+}
+
+// execServer renders config into dir's Caddyfile and becomes the runtime's
+// server on it, under lease. rules is the folder that may hold a drupack.caddy,
+// argv0 the name the server's process shows and cwd the folder it runs in.
+func execServer(l Launch, e environ, dir state.Dir, lease *state.Lease, config caddyfile.Config, choice tls.Choice, plan startPlan, rules, argv0, cwd string) error {
+	config.Bind, config.Port, config.TLS = plan.Bind, plan.Port, choice
+	if info, err := os.Stat(rules + "/drupack.caddy"); err == nil && info.Mode().IsRegular() {
+		config.ProjectRules = rules + "/drupack.caddy"
 	}
 	rendered, err := caddyfile.Render(config)
 	if err != nil {
 		return err
 	}
-	file, err := entry.WriteCaddyfile(rendered)
+	file, err := dir.WriteCaddyfile(rendered)
 	if err != nil {
 		return err
 	}
-	for _, value := range serverEnvironment(path.Base(entryPath), entry, choice, plan) {
+	for _, value := range serverEnvironment(config.ID, dir, choice, plan) {
 		e.put(value)
 	}
-	// Drush's, Tome's and a request's child processes run the php on PATH, which bin/ points
-	// back at this runtime.
-	path, _ := e.get("PATH")
-	e.put("PATH=" + filepath.Join(l.Application, "bin") + string(os.PathListSeparator) + path)
-	if err := lease.Inherit(); err != nil {
-		return err
-	}
-	serverArguments := []string{l.Args[0], "php-server", file}
+	serverArguments := []string{argv0, "php-server", runtime.Canonical(file)}
 	if config.ProjectRules != "" {
 		// The runtime names the file when its rules fail to adapt.
 		serverArguments = append(serverArguments, config.ProjectRules)
 	}
-	err = launch(Command{
-		Path: l.Entry,
-		Args: serverArguments,
-		Env:  e.entries,
-		Dir:  project,
-	})
+	err = launch(Command{Path: l.Entry, Args: serverArguments, Env: e.entries, Dir: cwd})
 	// A collected file would close its descriptor, and the lease with it, before the exec.
 	goruntime.KeepAlive(lease)
 	return err
 }
 
 // entrance returns the install address of a site not installed yet, or the
-// login link of an installed one. Either may be empty.
-func (s engineStart) entrance(url string) (link, install string, err error) {
-	if s.installed != nil && !*s.installed {
+// login link of an installed one. Either may be empty. installed is nil when
+// the probe cannot tell.
+func entrance(l Launch, env []string, project string, installed *bool, url string) (link, install string, err error) {
+	if installed != nil && !*installed {
 		return "", url + "/core/install.php", nil
 	}
-	project := s.project
 	drush := project + "/" + filepath.ToSlash(drushScript)
 	if info, err := os.Stat(drush); err != nil || !info.Mode().IsRegular() {
 		fmt.Fprintf(os.Stderr, "No login link: %s has no Drush. composer require drush/drush adds one.\n", project)
 		return "", "", nil
 	}
 	fmt.Fprintln(os.Stdout, "Creating a one-time login link.")
-	link, failure, err := mint(s.l, s.e.entries, url, drush, project)
+	link, failure, err := mint(l, env, url, drush, project)
 	if err != nil {
 		return "", "", err
 	}

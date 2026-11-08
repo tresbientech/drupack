@@ -157,9 +157,6 @@ func TestClaim(t *testing.T) {
 	if taken, err := state.At(other).Claim(); err != nil || taken != nil {
 		t.Errorf("Claim() against a PHP flock holder = %v, %v, want nil", taken, err)
 	}
-	if err := lease.Inherit(); err != nil {
-		t.Errorf("Inherit() = %v", err)
-	}
 }
 
 func TestStopRecord(t *testing.T) {

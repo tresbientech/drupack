@@ -227,17 +227,6 @@ test('owed steps need a recipe, a connection and credentials by step', function 
     same([], Step::owed([]));
 });
 
-test('a start that needs no credentials generates none', function (): void {
-    $options = ['admin-user' => null, 'admin-password' => null];
-    same($options, administratorCredentials($options, [Step::Adopt]));
-});
-
-test('a start that installs generates an administrator password', function (): void {
-    $filled = administratorCredentials(['admin-user' => null, 'admin-password' => null], [Step::Administrator]);
-    same('admin', $filled['admin-user']);
-    same(64, strlen((string) $filled['admin-password']));
-});
-
 test('a given administrator name and password survive', function (): void {
     $filled = administratorCredentials(['admin-user' => 'ann', 'admin-password' => 'given'], [Step::Install]);
     same('ann', $filled['admin-user']);

@@ -17,8 +17,7 @@ type command struct {
 	// options holds the options a reader wrote, by name. A flag holds "1".
 	// A site's start, drush and export always hold data-dir.
 	options map[string]string
-	// words are drush's own words, after the options a site's drush or export reads, or
-	// an engine start's words after `start`.
+	// words are drush's own words, after the options a site's drush or export reads.
 	words []string
 }
 
@@ -82,11 +81,16 @@ func parse(args []string, engine bool, lookup func(string) (string, bool)) (comm
 	case word == "stop" && engine:
 		return parseFolderStop(rest)
 	case word == "stop":
-		return parseSiteStop(rest, lookup)
+		options, _, help, err := scanOptions(rest, stopOptions, lookup, true)
+		switch {
+		case err != nil:
+			return command{}, err
+		case help:
+			return command{word: "help"}, nil
+		}
+		return command{word: "stop", target: options[dataDirOption.name]}, nil
 	case word == "drush" && engine:
 		return command{word: "drush", words: rest}, nil
-	case word == "drush":
-		return parseSiteDrush(rest, lookup)
 	case word == "php" || len(args) == 2 && (word == "--version" || word == "-v"):
 		return command{}, nil
 	case engine && (word == "export" || word == "dr"):
@@ -103,12 +107,12 @@ func parse(args []string, engine bool, lookup func(string) (string, bool)) (comm
 		return command{word: "help"}, nil
 	case slices.Contains(nodeWords, word):
 		return command{word: "node"}, nil
-	case word == "export":
-		options, words, _, err := scanSiteOptions(rest, lookup, false)
+	case word == "drush" || word == "export":
+		options, words, _, err := scanOptions(rest, siteOptions, lookup, false)
 		if err != nil {
 			return command{}, err
 		}
-		return command{word: "export", options: options, words: words}, nil
+		return command{word: word, options: options, words: words}, nil
 	case word == "start":
 		return siteStart(rest, lookup)
 	case strings.HasPrefix(word, "-"):
@@ -117,9 +121,8 @@ func parse(args []string, engine bool, lookup func(string) (string, bool)) (comm
 	return command{}, fmt.Errorf("Unknown command: %s\n\n%s", word, siteHelpText())
 }
 
-// siteStart reads a site's start line.
 func siteStart(arguments []string, lookup func(string) (string, bool)) (command, error) {
-	options, _, help, err := scanSiteOptions(arguments, lookup, true)
+	options, _, help, err := scanOptions(arguments, siteOptions, lookup, true)
 	switch {
 	case err != nil:
 		return command{}, err
@@ -141,49 +144,11 @@ func parseFolderStop(arguments []string) (command, error) {
 	return command{word: "stop", target: target}, nil
 }
 
-// parseSiteStop reads the options in order, so --help answers where it stands.
-// stop takes no start option, so none reaches a command that changes no site.
-func parseSiteStop(arguments []string, lookup func(string) (string, bool)) (command, error) {
-	target := defaultDataDir
-	if value, _ := lookup("DRUPACK_DATA_DIR"); value != "" {
-		target = value
-	}
-	for len(arguments) > 0 {
-		argument := arguments[0]
-		arguments = arguments[1:]
-		if argument == "--help" {
-			return command{word: "help"}, nil
-		}
-		name, value, inline := strings.Cut(argument, "=")
-		if !slices.ContainsFunc(stopOptions, func(o option) bool { return "--"+o.name == name }) {
-			return command{}, fmt.Errorf("Unknown argument: %s", argument)
-		}
-		if !inline && len(arguments) > 0 {
-			value = arguments[0]
-			arguments = arguments[1:]
-		}
-		if value == "" || strings.HasPrefix(value, "--") {
-			return command{}, fmt.Errorf("Missing value for %s", name)
-		}
-		target = value
-	}
-	return command{word: "stop", target: target}, nil
-}
-
-// parseSiteDrush reads the start's options in order. The first argument that
-// names none of them opens drush's own words, so drush's options pass through.
-func parseSiteDrush(arguments []string, lookup func(string) (string, bool)) (command, error) {
-	options, words, _, err := scanSiteOptions(arguments, lookup, false)
-	if err != nil {
-		return command{}, err
-	}
-	return command{word: "drush", options: options, words: words}, nil
-}
-
-// scanSiteOptions reads a site's start options in order. A strict scan, the
-// start's, refuses any other argument and answers --help; the drush and export
-// scan stops at the first argument that names no option and returns the rest.
-func scanSiteOptions(arguments []string, lookup func(string) (string, bool), strict bool) (options map[string]string, rest []string, help bool, err error) {
+// scanOptions reads a site's options from table in order. A strict scan, the
+// start's and stop's, refuses any other argument and answers --help; the drush
+// and export scan stops at the first argument that names no option and returns
+// the rest.
+func scanOptions(arguments []string, table []option, lookup func(string) (string, bool), strict bool) (options map[string]string, rest []string, help bool, err error) {
 	options = map[string]string{dataDirOption.name: defaultDataDir}
 	if value, _ := lookup("DRUPACK_DATA_DIR"); value != "" {
 		options[dataDirOption.name] = value
@@ -193,7 +158,7 @@ func scanSiteOptions(arguments []string, lookup func(string) (string, bool), str
 			return nil, nil, true, nil
 		}
 		name, value, inline := strings.Cut(arguments[0], "=")
-		i := slices.IndexFunc(siteOptions, func(o option) bool { return "--"+o.name == name })
+		i := slices.IndexFunc(table, func(o option) bool { return "--"+o.name == name })
 		if i < 0 && strict {
 			return nil, nil, false, fmt.Errorf("Unknown argument: %s", arguments[0])
 		}
@@ -201,7 +166,7 @@ func scanSiteOptions(arguments []string, lookup func(string) (string, bool), str
 			break
 		}
 		arguments = arguments[1:]
-		o := siteOptions[i]
+		o := table[i]
 		if o.value == "" {
 			options[o.name] = "1"
 			continue
@@ -222,7 +187,7 @@ func scanSiteOptions(arguments []string, lookup func(string) (string, bool), str
 // folder. A listener option takes the next argument whatever it holds, and
 // its value is checked once the start plans it.
 func parseEngineStart(arguments []string) (command, error) {
-	c := command{word: "start", options: map[string]string{}, words: slices.Clone(arguments)}
+	c := command{word: "start", options: map[string]string{}}
 	named := false
 	for len(arguments) > 0 {
 		argument := arguments[0]

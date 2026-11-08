@@ -45,26 +45,6 @@ test('check refuses a project the runtime cannot run before it probes', function
     throws('drupack-absent', fn () => check('', $project, "$project/web"));
 });
 
-// A stub stands in for the runtime: it answers Drush's user:login with $stdout, and with $stderr
-// on standard error.
-function runtime_minting(string $name, string $stdout, string $stderr = ''): string
-{
-    $stub = project_with($name, ['runtime' => "#!/bin/sh\nprintf '%s' " . escapeshellarg($stdout)
-        . ($stderr === '' ? '' : "\nprintf '%s' " . escapeshellarg($stderr) . ' >&2') . "\n"]);
-    chmod("$stub/runtime", 0700);
-    return "$stub/runtime";
-}
-
-test('login records the link Drush mints at the URL', function () {
-    $runtime = runtime_minting('login-link', 'http://localhost:3787/user/reset/1/abc');
-    same(['link' => 'http://localhost:3787/user/reset/1/abc'], operate($runtime, ['login', 'http://localhost:3787', 'drush.php', sys_get_temp_dir()]));
-});
-
-test('login records the reason Drush gave when it mints no link', function () {
-    $runtime = runtime_minting('login-failure', '', "Account is\nblocked");
-    same(['failure' => 'Account is blocked'], operate($runtime, ['login', 'http://localhost:3787', 'drush.php', sys_get_temp_dir()]));
-});
-
 $status = runCases();
 chdir(sys_get_temp_dir());
 exec('rm -rf ' . escapeshellarg($root));

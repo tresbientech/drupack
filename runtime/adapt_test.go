@@ -131,6 +131,11 @@ func adapt(file string) ([]byte, error) {
 }
 
 func get(t *testing.T, scheme string, port int, path string) (int, string) {
+	status, body, _ := fetch(t, scheme, port, path)
+	return status, body
+}
+
+func fetch(t *testing.T, scheme string, port int, path string) (int, string, http.Header) {
 	t.Helper()
 	client := &http.Client{
 		Timeout:   20 * time.Second,
@@ -151,7 +156,7 @@ func get(t *testing.T, scheme string, port int, path string) (int, string) {
 	}
 	defer response.Body.Close()
 	body, _ := io.ReadAll(response.Body)
-	return response.StatusCode, string(body)
+	return response.StatusCode, string(body), response.Header
 }
 
 func TestAdaptRenderedFiles(t *testing.T) {
@@ -185,7 +190,7 @@ func TestAdaptRenderedFiles(t *testing.T) {
 			if strings.Contains(name, "mkcert") || strings.Contains(name, "drupack") || strings.Contains(name, "everything") {
 				scheme = "https"
 			}
-			// engine-everything and site-everything serve the drupack source.
+			// site-everything serves the drupack source.
 			id := "f0123456789abcdef"
 			if strings.HasPrefix(name, "site-") {
 				id = "site-id"
@@ -205,11 +210,10 @@ func TestAdaptRenderedFiles(t *testing.T) {
 			if status, body := get(t, scheme, s.port, "/index.php"); status != 200 || body != "php ran" {
 				t.Errorf("PHP: %d %q", status, body)
 			}
-			if strings.Contains(name, "project-rules") || strings.Contains(name, "everything") {
+			if strings.Contains(name, "everything") {
 				// A project's rules run after the guards, on every answer.
-				response, err := http.Get(fmt.Sprintf("%s://127.0.0.1:%d/hello.txt", scheme, s.port))
-				if err == nil {
-					response.Body.Close()
+				if _, _, header := fetch(t, scheme, s.port, "/hello.txt"); header.Get("X-Project-Rule") != "applied" {
+					t.Errorf("the project's rules did not run: %v", header)
 				}
 			}
 			if strings.HasPrefix(name, "site-") {
@@ -222,7 +226,7 @@ func TestAdaptRenderedFiles(t *testing.T) {
 					t.Errorf("the static port: %d %q", status, body)
 				}
 			}
-			if strings.Contains(name, "mercure") || strings.Contains(name, "everything") {
+			if strings.Contains(name, "everything") {
 				if status, _ := get(t, scheme, s.port, "/.well-known/mercure"); status == 404 {
 					t.Error("the Mercure hub answered 404")
 				}
@@ -238,7 +242,7 @@ func TestAdaptRefusesBrokenProjectRules(t *testing.T) {
 	if goldens == "" {
 		t.Skip("DRUPACK_ADAPT_FILES names no directory of rendered files")
 	}
-	rendered, err := os.ReadFile(filepath.Join(goldens, "engine-project-rules.caddyfile"))
+	rendered, err := os.ReadFile(filepath.Join(goldens, "site-everything.caddyfile"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -58,24 +58,3 @@ func TestListener(t *testing.T) {
 		}
 	}
 }
-
-func TestBundleAndMercure(t *testing.T) {
-	dir := t.TempDir()
-	d := state.At(dir)
-	if _, ok := d.Bundle(); ok {
-		t.Error("Bundle() found one in an empty directory")
-	}
-	write(t, dir, "ca-bundle.pem", "roots")
-	if path, ok := d.Bundle(); !ok || path != filepath.Join(dir, "ca-bundle.pem") {
-		t.Errorf("Bundle() = %q, %v", path, ok)
-	}
-
-	write(t, dir, "mercure_publisher_secret", "pub")
-	if _, _, ok, err := d.MercureSecrets(); ok || err != nil {
-		t.Errorf("one secret: MercureSecrets() ok = %v, err = %v; want neither", ok, err)
-	}
-	write(t, dir, "mercure_subscriber_secret", "sub")
-	if publisher, subscriber, ok, err := d.MercureSecrets(); publisher != "pub" || subscriber != "sub" || !ok || err != nil {
-		t.Errorf("MercureSecrets() = %q, %q, %v, %v", publisher, subscriber, ok, err)
-	}
-}

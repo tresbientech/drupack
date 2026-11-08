@@ -7,7 +7,6 @@ declare(strict_types=1);
 //   operate.php check site DATA
 //   operate.php prepare DATA
 //   operate.php seed DATA
-//   operate.php login URL DRUSH DIRECTORY [PATH]
 // An operation prints its step lines on stderr and one JSON record on stdout. A refusal prints
 // its message on stderr and exits 1. A site operation reads the start's database, administrator
 // and site name options from their DRUPACK_* variables, so no credential reaches argv.
@@ -22,14 +21,18 @@ function nullDevice(): string
     return PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
 }
 
-function process(string $binary, array $arguments, array $descriptors, string $directory, string $failure): int
+// Runs a child with no stdin, its standard error in the file $stderr or discarded, and returns its
+// trimmed standard output and exit status.
+function capture(array $command, string $directory, string $failure, ?string $stderr = null): array
 {
-    $command = array_merge([$binary], $arguments);
+    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => ['file', $stderr ?? nullDevice(), 'w']];
     $child = proc_open($command, $descriptors, $pipes, $directory);
     if (!is_resource($child)) {
         throw new RuntimeException($failure);
     }
-    return proc_close($child);
+    $output = trim((string) stream_get_contents($pipes[1]));
+    fclose($pipes[1]);
+    return [$output, proc_close($child)];
 }
 
 function environment(string $name): ?string
@@ -50,49 +53,6 @@ function directory(string $path): void
     if (!is_dir($path) && !mkdir($path, 0700, true) && !is_dir($path)) {
         throw new RuntimeException("Cannot create directory: $path");
     }
-}
-
-// Carries Drush's reason for a failed mint, which a start that can serve without the link
-// reports. getMessage() stays the fixed text a start that cannot serve exits with.
-final class LoginLinkFailure extends RuntimeException
-{
-    public function __construct(public readonly string $reason)
-    {
-        parent::__construct('Cannot obtain a one-time login link for the administrator account');
-    }
-}
-
-// $link is a working credential from a subprocess, bound for a terminal or a browser
-// command, so it must start with $url.
-function drushLoginLink(string $binary, string $drush, string $directory, array $arguments, string $url): string
-{
-    $errors = tempnam(sys_get_temp_dir(), 'drupack-mint-');
-    if ($errors === false) {
-        throw new RuntimeException('Cannot create a temporary file for the mint diagnostic');
-    }
-    try {
-        // stderr is a file: with two pipes, Drush filling one's buffer while this drains the other
-        // to exhaustion deadlocks.
-        $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => ['file', $errors, 'w']];
-        // Drush wraps error text at COLUMNS, 80 with no terminal; a wide value keeps a failed
-        // mint's reason on one line.
-        $environment = getenv();
-        $environment['COLUMNS'] = '1000';
-        $child = proc_open(array_merge([$binary, 'php-cli', $drush, 'user:login', '--no-browser'], $arguments), $descriptors, $pipes, $directory, $environment);
-        if (!is_resource($child)) {
-            throw new RuntimeException('Cannot run Drush');
-        }
-        $link = trim((string) stream_get_contents($pipes[1]));
-        fclose($pipes[1]);
-        proc_close($child);
-        $reason = preg_replace('/\s+/', ' ', trim((string) file_get_contents($errors)));
-    } finally {
-        unlink($errors);
-    }
-    if (!str_starts_with($link, $url)) {
-        throw new LoginLinkFailure($reason);
-    }
-    return $link;
 }
 
 function urlHost(string $host): string
@@ -269,9 +229,8 @@ function runDrush(string $binary, array $command, string $failure): void
         throw new RuntimeException('Cannot create a temporary file for the step diagnostic');
     }
     try {
-        // stderr is a file because nothing here drains a pipe while the child runs; a full one would deadlock.
-        $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['file', nullDevice(), 'w'], 2 => ['file', $errors, 'w']];
-        $exitCode = process($binary, array_merge(['php-cli'], $command), $descriptors, application(), $failure);
+        // stderr is a file because nothing drains a pipe while the child runs; a full one would deadlock.
+        [, $exitCode] = capture(array_merge([$binary, 'php-cli'], $command), application(), $failure, $errors);
         $reason = $exitCode === 0 ? '' : diagnostic($errors);
     } finally {
         unlink($errors);
@@ -292,15 +251,7 @@ function drushPath(): string
 // Reads one Drush field. An unusable site answers with anything but the expected value.
 function drushField(string $binary, array $command): string
 {
-    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => ['file', nullDevice(), 'w']];
-    $child = proc_open(array_merge([$binary, 'php-cli', drushPath()], $command), $descriptors, $pipes, application());
-    if (!is_resource($child)) {
-        throw new RuntimeException('Cannot run Drush');
-    }
-    $output = stream_get_contents($pipes[1]);
-    fclose($pipes[1]);
-    proc_close($child);
-    return trim((string) $output);
+    return capture(array_merge([$binary, 'php-cli', drushPath()], $command), application(), 'Cannot run Drush')[0];
 }
 
 function databaseHoldsTables(array $options): bool
@@ -525,34 +476,15 @@ function checkPlatform(string $binary, string $project): void
 // Null when the probe cannot tell, such as for a database it cannot reach.
 function siteInstalled(string $binary, string $project, string $docroot): ?bool
 {
-    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => ['file', nullDevice(), 'w']];
-    $child = proc_open([$binary, 'php-cli', __DIR__ . '/installed.php', $project, $docroot], $descriptors, $pipes, $project);
-    if (!is_resource($child)) {
-        throw new RuntimeException('Cannot run the installation probe');
-    }
-    $answer = trim((string) stream_get_contents($pipes[1]));
-    fclose($pipes[1]);
-    $status = proc_close($child);
+    [$answer, $status] = capture([$binary, 'php-cli', __DIR__ . '/installed.php', $project, $docroot], $project, 'Cannot run the installation probe');
     return $status === 0 ? $answer === 'yes' : null;
 }
-
 
 // The platform check, then the installation probe. installed is null when the probe cannot tell.
 function check(string $binary, string $project, string $docroot): array
 {
     checkPlatform($binary, $project);
     return ['installed' => siteInstalled($binary, $project, $docroot)];
-}
-
-// The one-time login link for uid 1 at $url, opening $path when given, or the reason Drush gave
-// when it cannot mint one. The launcher decides whether a start serves without the link.
-function mintLoginLink(string $binary, string $url, string $drush, string $directory, array $path): array
-{
-    try {
-        return ['link' => drushLoginLink($binary, $drush, $directory, ["--uri=$url", ...$path], $url)];
-    } catch (LoginLinkFailure $failure) {
-        return ['failure' => $failure->reason];
-    }
 }
 
 // Whether the Packaged site at $data owes no step. Refuses, before the launcher writes any Site
@@ -614,7 +546,6 @@ function operate(string $binary, array $words): array
         $words[0] === 'check' && $words[1] === 'site' => checkSite($words[2], siteContract()),
         $words[0] === 'prepare' => prepare($binary, $words[1], siteContract()),
         $words[0] === 'seed' => seed($binary, $words[1], siteContract()),
-        $words[0] === 'login' => mintLoginLink($binary, $words[1], $words[2], $words[3], array_slice($words, 4)),
     };
 }
 
