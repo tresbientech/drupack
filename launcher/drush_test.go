@@ -65,7 +65,6 @@ func (f siteFixture) launch() Launch {
 		Parent:      []string{"PATH=/usr/bin", "KEEP=1", "DRUPACK_DB_HOST=inherited"},
 		Entry:       "/runtime/frankenphp",
 		Application: f.application,
-		Launcher:    "/bin/launcher",
 		Name:        "fixture-site",
 		AppChecksum: "release-1",
 	}

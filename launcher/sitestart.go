@@ -69,13 +69,25 @@ type packagedStart struct {
 // startSite plans a Packaged site's start, refuses what the reader's line or
 // Site data gets wrong before it writes any Site data, and claims the lease.
 // A held lease hands over to the server or refuses. Without --foreground, and
-// with no console of its own, it hands launch.php the detach.
+// with no console of its own, it first detaches into a child that does all of it.
 func startSite(l Launch, c command) error {
-	site, err := siteconfig.Load(l.Application)
+	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	cwd, err := os.Getwd()
+	if c.options["foreground"] == "" && !siteConsoleOwned(l) {
+		data, err := filepath.Abs(c.options["data-dir"])
+		if err != nil {
+			return err
+		}
+		// The stop command names the Site data the way the reader did, or not at all.
+		target := ""
+		if written := c.options["data-dir"]; written != defaultDataDir {
+			target = " --data-dir " + shellWord(written, goruntime.GOOS == "windows")
+		}
+		return detachStart(l, runtime.Canonical(data)+"/logs/server.log", stopCommand(l.Args[0], cwd, target, goruntime.GOOS == "windows"))
+	}
+	site, err := siteconfig.Load(l.Application)
 	if err != nil {
 		return err
 	}
@@ -190,8 +202,8 @@ func startSite(l Launch, c command) error {
 	if static := s.plan.Static; static != nil && portTaken(static.Bind, static.Port) {
 		return fmt.Errorf("Another program is listening on %s. Stop it, or move the static listener to a free port: %s --static-listen %s:%d", s.staticListen, l.Name, urlHost(static.Bind), static.Port+1)
 	}
-	if c.options["foreground"] == "" && !s.consoleOwned() {
-		return s.detach(lease)
+	if err := takeLog(); err != nil {
+		return err
 	}
 	return s.serve(lease)
 }
@@ -291,16 +303,16 @@ func loopback(bind string) bool {
 	return bind == "::1" || strings.HasPrefix(bind, "127.")
 }
 
-// consoleOwned reports whether a file manager's console started the start,
+// siteConsoleOwned reports whether a file manager's console started the start,
 // which closing would end along with a background server.
-func (s packagedStart) consoleOwned() bool {
-	return s.l.ConsoleOwned || os.Getenv("DRUPACK_RUNTIME_CONSOLE_OWNED") == "1"
+func siteConsoleOwned(l Launch) bool {
+	return l.ConsoleOwned || os.Getenv("DRUPACK_RUNTIME_CONSOLE_OWNED") == "1"
 }
 
 // personPresent reports whether someone watches the start: a terminal, a file
 // manager's console, or the terminal a detaching parent had.
 func (s packagedStart) personPresent() bool {
-	return runtime.Terminal(os.Stdin) || s.consoleOwned() || os.Getenv("DRUPACK_RUNTIME_PERSON") == "1"
+	return runtime.Terminal(os.Stdin) || siteConsoleOwned(s.l) || child != nil && child.person
 }
 
 // served answers a start whose Site data another server holds. installed is
@@ -377,24 +389,6 @@ func (s packagedStart) explainMintFailure(reason string) {
 		reason = ": " + reason
 	}
 	fmt.Fprintf(os.Stderr, "Cannot mint a one-time login link%s. Get one with: %s drush --data-dir %s user:login /admin/dashboard\n", reason, s.l.Name, s.data)
-}
-
-// detach gives the lease up and hands launch.php the detach, which runs the
-// start again in the background with --foreground and relays its log.
-func (s packagedStart) detach(lease *state.Lease) error {
-	if err := lease.Release(); err != nil {
-		return err
-	}
-	// The stop command names the Site data the way the reader did, or not at all.
-	written := s.c.options["data-dir"]
-	if written == defaultDataDir {
-		written = ""
-	}
-	return launch(Command{
-		Path: s.l.Entry,
-		Args: append([]string{s.l.Args[0], "php-cli", filepath.Join(s.l.Application, "launch.php"), "detach", s.data, written}, s.l.Args[1:]...),
-		Env:  environment(s.l),
-	})
 }
 
 // serve prepares the Site data under the lease, prints the addresses and execs

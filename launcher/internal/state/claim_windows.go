@@ -39,8 +39,3 @@ func (d Dir) Claim() (*Lease, error) {
 func (l *Lease) Inherit() error {
 	return nil
 }
-
-// Release gives the lease up, so a process this one starts can claim it.
-func (l *Lease) Release() error {
-	return windows.CloseHandle(l.handle)
-}

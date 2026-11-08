@@ -31,7 +31,6 @@ type Launch struct {
 	Parent      []string // os.Environ()
 	Entry       string
 	Application string
-	Launcher    string
 	// AppChecksum identifies the release's application, which a site's own copy in Site data must match.
 	AppChecksum string
 	Root        string
@@ -113,8 +112,6 @@ func environment(l Launch) []string {
 	e.put("DRUPACK_RUNTIME_NAME=" + l.Name)
 	e.put("DRUPACK_RUNTIME_SITE_VERSION=" + l.Version)
 	e.put("DRUPACK_RUNTIME_COMPONENTS=" + l.Components)
-	e.put("DRUPACK_RUNTIME_LAUNCHER=" + runtime.Canonical(l.Launcher))
-	e.put("DRUPACK_RUNTIME_INVOKED=" + l.Args[0])
 	if l.Engine {
 		// The engine serves a folder named from the reader's directory. An application
 		// directory would make the entry point change into it before serve.php runs.

@@ -129,10 +129,26 @@ func operate(l Launch, env []string, arguments ...string) ([]byte, error) {
 }
 
 // startEngine plans and runs the engine's start. It refuses what a reader's
-// command line, project or machine gets wrong before it detaches or claims the
-// lease. Without --foreground, and with no console of its own, it hands
-// serve.php the detach.
+// command line, project or machine gets wrong before it claims the lease.
+// Without --foreground, and with no console of its own, it first detaches into
+// a child that does all of it.
 func startEngine(l Launch, c command) error {
+	if c.options["foreground"] == "" && !l.ConsoleOwned {
+		project, err := projectFolder(cmp.Or(c.target, "."))
+		if err != nil {
+			return err
+		}
+		cwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		target := ""
+		if c.target != "" {
+			target = " " + shellWord(c.target, goruntime.GOOS == "windows")
+		}
+		log := runtime.Canonical(state.FolderEntry(l.Root, project, l.FoldCase).Path()) + "/server.log"
+		return detachStart(l, log, stopCommand(l.Args[0], cwd, target, goruntime.GOOS == "windows"))
+	}
 	listen, set := c.options["listen"]
 	if !set {
 		listen = defaultListen
@@ -160,13 +176,7 @@ func startEngine(l Launch, c command) error {
 		return err
 	}
 	e := environ{entries: environment(l), fold: l.FoldCase}
-	foreground := c.options["foreground"] != "" || l.ConsoleOwned
-	// The detaching start asks for the platform check alone, since the background start probes the site.
-	checkArguments := []string{"check", "folder", project}
-	if foreground {
-		checkArguments = append(checkArguments, docroot)
-	}
-	out, err := operate(l, e.entries, checkArguments...)
+	out, err := operate(l, e.entries, "check", "folder", project, docroot)
 	if err != nil {
 		return err
 	}
@@ -184,13 +194,6 @@ func startEngine(l Launch, c command) error {
 	plan, err := planStart(bind, port, c.options["static-listen"], composer.Static != nil, choice.Host, choice.Scheme())
 	if err != nil {
 		return err
-	}
-	if !foreground {
-		return launch(Command{
-			Path: l.Entry,
-			Args: append([]string{l.Args[0], "php-cli", filepath.Join(l.Application, "serve.php"), "detach", c.target}, c.words...),
-			Env:  e.entries,
-		})
 	}
 	return engineStart{l, e, project, docroot, composer, choice, plan, probe.Installed}.serve()
 }
@@ -222,6 +225,9 @@ func (s engineStart) serve() error {
 	}
 	if lease == nil {
 		return fmt.Errorf("%s already serves %s", siteName, project)
+	}
+	if err := takeLog(); err != nil {
+		return err
 	}
 	if err := entry.ClearStopRecord(); err != nil {
 		return err

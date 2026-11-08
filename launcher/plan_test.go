@@ -142,13 +142,11 @@ func TestPlanEnvironment(t *testing.T) {
 			want: map[string]string{"DRUPACK_TLS_DIR": ""},
 		},
 		{
-			name: "a site names itself, its release, the launcher and the words it was run with",
+			name: "a site names itself and its release",
 			want: map[string]string{
 				"DRUPACK_RUNTIME_NAME":         "demo",
 				"DRUPACK_RUNTIME_SITE_VERSION": "1.2.3",
 				"DRUPACK_RUNTIME_COMPONENTS":   "Drupal 11.2.0",
-				"DRUPACK_RUNTIME_LAUNCHER":     "/home/user/demo",
-				"DRUPACK_RUNTIME_INVOKED":      "./demo",
 				"DRUPACK_RUNTIME_APP_DIR":      "/cache/app",
 			},
 		},
@@ -212,7 +210,6 @@ func TestPlanEnvironment(t *testing.T) {
 				Args:        []string{"./demo"},
 				Entry:       "/runtime/dir/frankenphp",
 				Application: "/cache/app",
-				Launcher:    "/home/user/demo",
 				Root:        "/cache",
 				Name:        "demo",
 				Version:     "1.2.3",

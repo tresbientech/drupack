@@ -7,7 +7,6 @@ declare(strict_types=1);
 // launch.php registers the support namespace and loads process.php, whose
 // executableName() and directory() the class calls.
 
-define('DRUPACK_LAUNCH_LIBRARY', true);
 require __DIR__ . '/../launch.php';
 require __DIR__ . '/cases.php';
 

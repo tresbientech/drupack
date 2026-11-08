@@ -386,28 +386,3 @@ function runStep(Step $step, SiteData $site, array $options, string $binary, boo
             return false;
     }
 }
-
-// The launcher has claimed and released the lease, refused what a start can refuse and handed
-// over to a running server. This claims the lease only to refuse a second server in the reader's
-// terminal, then runs the start again in the background and relays its log. $written is the
-// --data-dir the reader wrote, '' for the default, and $arguments their words.
-function detach(string $data, string $written, array $arguments): never
-{
-    $serving = new Serving($data, "$data/logs");
-    if (!$serving->claim()) {
-        throw new RuntimeException(executableName() . " already serves this Site data: $data");
-    }
-    $serving->detach(false, stopCommand($written === '' ? '' : ' --data-dir ' . shellWord($written)), $arguments);
-}
-
-// application/tests/launch_test.php defines this to load the functions above without starting a site.
-if (defined('DRUPACK_LAUNCH_LIBRARY')) {
-    return;
-}
-
-try {
-    detach($argv[2], $argv[3], array_slice($argv, 4));
-} catch (Throwable $error) {
-    fwrite(STDERR, $error->getMessage() . "\n");
-    exit(1);
-}

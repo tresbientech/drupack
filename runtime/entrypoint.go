@@ -238,30 +238,13 @@ func init() {
 	// A build step runs this binary on its own to read its version, with no
 	// launcher to name a directory and no embedded application to fall back to.
 	if application != "" {
-		// The site resolves relative paths from the application, so the reader's
-		// directory has to reach launch.php separately. Site data named relative
-		// to it belongs there, not in a copy every site of the release shares.
-		if directory, err := os.Getwd(); err == nil {
-			// launch.php resolves a relative --data-dir against it.
-			if err := os.Setenv("DRUPACK_RUNTIME_CWD", canonical(directory)); err != nil {
-				panic(err)
-			}
-		}
 		if err := os.Chdir(application); err != nil {
 			panic(err)
 		}
 	}
 	if (len(os.Args) == 3 || len(os.Args) == 4) && os.Args[1] == "php-server" {
-		// On Windows the handle PHP's proc_open hands this process writes at a stale
-		// offset, over the log's first lines. A detached server appends through its own
-		// handle, and a foreground one redirected to a file writes from the file's end.
-		if log := os.Getenv("DRUPACK_RUNTIME_DETACHED"); log != "" {
-			file, err := os.OpenFile(log, os.O_WRONLY|os.O_APPEND, 0)
-			if err != nil {
-				panic(err)
-			}
-			os.Stdout, os.Stderr = file, file
-		} else if runtime.GOOS == "windows" {
+		// A Windows server redirected to a file writes from the file's end.
+		if runtime.GOOS == "windows" {
 			writeFromRedirectedEnd()
 		}
 		// The server waits for itself. A separate process would first extract its own copy

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // One named operation per call, run by the launcher through php-cli:
-//   operate.php check folder PROJECT [DOCROOT]
+//   operate.php check folder PROJECT DOCROOT
 //   operate.php check site DATA
 //   operate.php prepare DATA
 //   operate.php login URL DRUSH DIRECTORY [PATH]
@@ -74,12 +74,11 @@ function siteInstalled(string $binary, string $project, string $docroot): ?bool
 }
 
 
-// The platform check, and with a $docroot the installation probe too. installed is null when the
-// probe did not run or cannot tell.
-function check(string $binary, string $project, ?string $docroot): array
+// The platform check, then the installation probe. installed is null when the probe cannot tell.
+function check(string $binary, string $project, string $docroot): array
 {
     checkPlatform($binary, $project);
-    return ['installed' => $docroot === null ? null : siteInstalled($binary, $project, $docroot)];
+    return ['installed' => siteInstalled($binary, $project, $docroot)];
 }
 
 // The one-time login link for uid 1 at $url, opening $path when given, or the reason Drush gave
@@ -132,7 +131,7 @@ function prepare(string $binary, string $data, SiteContract $contract): array
 function operate(string $binary, array $words): array
 {
     return match (true) {
-        $words[0] === 'check' && $words[1] === 'folder' => check($binary, $words[2], $words[3] ?? null),
+        $words[0] === 'check' && $words[1] === 'folder' => check($binary, $words[2], $words[3]),
         $words[0] === 'check' && $words[1] === 'site' => checkSite($words[2], siteContract()),
         $words[0] === 'prepare' => prepare($binary, $words[1], siteContract()),
         $words[0] === 'login' => mintLoginLink($binary, $words[1], $words[2], $words[3], array_slice($words, 4)),
@@ -148,7 +147,6 @@ try {
     // A Packaged site's operations run launch.php's preparation functions. The engine's payload
     // carries no launch.php and calls neither.
     if ($argv[1] === 'prepare' || $argv[1] === 'check' && $argv[2] === 'site') {
-        define('DRUPACK_LAUNCH_LIBRARY', true);
         require __DIR__ . '/launch.php';
     }
     $record = operate(getenv('DRUPACK_RUNTIME_BINARY'), array_slice($argv, 1));

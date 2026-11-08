@@ -8,7 +8,6 @@ declare(strict_types=1);
 // launch.php requires a vendor/autoload.php whose lock targets a PHP the host may lack, so
 // the bundled runtime runs this file.
 
-define('DRUPACK_LAUNCH_LIBRARY', true);
 require __DIR__ . '/../launch.php';
 define('DRUPACK_SERVE_LIBRARY', true);
 require __DIR__ . '/../operate.php';

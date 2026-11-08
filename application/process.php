@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// Shared by launch.php and serve.php, neither of which loads an autoloader for these.
+// Shared by launch.php, operate.php and serve.php, none of which loads an autoloader for these.
 
 function windows(): bool
 {
@@ -39,16 +39,6 @@ function process(string $binary, array $arguments, array $descriptors, string $d
         throw new RuntimeException($failure);
     }
     return proc_close($child);
-}
-
-// On Windows the child starts in $directory. pcntl_exec keeps the current working directory.
-function replaceProcess(string $binary, array $arguments, string $directory, string $failure): never
-{
-    if (!windows()) {
-        pcntl_exec($binary, $arguments);
-        throw new RuntimeException($failure);
-    }
-    exit(process($binary, $arguments, [0 => STDIN, 1 => STDOUT, 2 => STDERR], $directory, $failure));
 }
 
 function environment(string $name): ?string
@@ -114,115 +104,7 @@ function drushLoginLink(string $binary, string $drush, string $directory, array 
     return $link;
 }
 
-// A file manager's console started this process; closing it would end a background server.
-function consoleOwned(): bool
-{
-    return environment('DRUPACK_RUNTIME_CONSOLE_OWNED') === '1';
-}
-
-// A person is present when a terminal started this, or a file manager's console did. A
-// detached start has no terminal of its own, so it passes on whether its parent had one.
-function personPresent(): bool
-{
-    return stream_isatty(STDIN) || consoleOwned() || environment('DRUPACK_RUNTIME_PERSON') === '1';
-}
-
-final class Serving
-{
-    public readonly string $stopRecord;
-    private readonly string $lease;
-    private readonly string $log;
-    private $handle;
-
-    public function __construct(string $state, string $logDirectory)
-    {
-        $this->lease = "$state/serving.lock";
-        $this->stopRecord = "$state/stop.json";
-        $this->log = "$logDirectory/server.log";
-    }
-
-    // The lease belongs to the data, not a port. The lock lives on the open file description,
-    // which survives the exec into the server, so the kernel releases it when that process
-    // ends, a kill included. On Windows this process waits for the server, so the handle lives
-    // as long. False means another start serves this data.
-    public function claim(): bool
-    {
-        $this->handle = $this->lock();
-        return $this->handle !== null;
-    }
-
-    // A record from an earlier server names a port and token nobody listens on, and `stop` reads
-    // a missing record as a start still preparing, so it goes. A double-click owns its console,
-    // which closing would end along with a background server, so it serves in the foreground.
-    // Every other start runs again through the launcher's detach word and relays the server's
-    // log until it answers. The lease is released first so the server takes it.
-    public function detach(bool $foreground, string $stopCommand, array $arguments): void
-    {
-        if (file_exists($this->stopRecord)) {
-            unlink($this->stopRecord);
-        }
-        if ($foreground || consoleOwned()) {
-            return;
-        }
-        fclose($this->handle);
-        if (personPresent()) {
-            putenv('DRUPACK_RUNTIME_PERSON=1');
-        }
-        replaceProcess(getenv('DRUPACK_RUNTIME_LAUNCHER'),
-            array_merge(['detach', $this->log, $stopCommand, '--'], $arguments, ['--foreground']),
-            startDirectory(), 'Cannot start the server in the background');
-    }
-
-    private function lock()
-    {
-        $handle = fopen($this->lease, 'c');
-        if ($handle === false) {
-            throw new RuntimeException("Cannot open the serving lease: $this->lease");
-        }
-        if (!flock($handle, LOCK_EX | LOCK_NB)) {
-            fclose($handle);
-            return null;
-        }
-        return $handle;
-    }
-}
-
 function urlHost(string $host): string
 {
     return str_contains($host, ':') ? "[$host]" : $host;
-}
-
-function shellWord(string $value): string
-{
-    // cmd and PowerShell read a backslash as itself, and PowerShell reads a quoted first
-    // word as a string to print, so a Windows path stays bare when nothing else needs quotes.
-    if (preg_match('~^[A-Za-z0-9_./:=@%+' . (windows() ? '\\\\' : '') . '-]+$~', $value) === 1) {
-        return $value;
-    }
-    return windows() ? '"' . $value . '"' : "'" . str_replace("'", "'\\''", $value) . "'";
-}
-
-// $target is the quoted words `stop` needs to find the same server, empty when its default does.
-function stopCommand(string $target): string
-{
-    $invoked = environment('DRUPACK_RUNTIME_INVOKED');
-    $word = shellWord($invoked);
-    // PowerShell hands a program its full path, where cmd hands over the typed word, and
-    // runs a quoted first word only after `&`. Both shells run `.\NAME`.
-    if (windows() && preg_match('~^([A-Za-z]:)?[\\\\/]~', $invoked) === 1) {
-        $folder = fn (string $path): string => rtrim(strtr($path, '/', '\\'), '\\');
-        if (strcasecmp($folder(dirname($invoked)), $folder(startDirectory())) === 0) {
-            $word = '.\\' . basename($invoked);
-        } elseif ($word[0] === '"') {
-            $word = '& ' . $word;
-        }
-    }
-    return $word . ' stop' . $target;
-}
-
-// The directory the reader started in. The launcher records it, since launch.php moves
-// to the application's; the engine executable's serve.php stays where it started.
-function startDirectory(): string
-{
-    return environment('DRUPACK_RUNTIME_CWD') ?? getcwd();
 }

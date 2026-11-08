@@ -15,6 +15,7 @@ import (
 )
 
 func main() {
+	os.Args = takeChild(os.Args)
 	if err := run(); err != nil {
 		if !errors.Is(err, errReported) {
 			fmt.Fprintln(os.Stderr, err)
@@ -25,10 +26,6 @@ func main() {
 }
 
 func run() error {
-	// detach needs no cache.
-	if len(os.Args) > 1 && os.Args[1] == "detach" {
-		return detach(os.Args[2:])
-	}
 	tlsFolder, err := tlsDir()
 	if err != nil {
 		return err
@@ -99,7 +96,6 @@ func run() error {
 		Parent:       os.Environ(),
 		Entry:        filepath.Join(directory, m.Entry),
 		Application:  application,
-		Launcher:     launcher,
 		AppChecksum:  string(appChecksum),
 		Root:         root,
 		NodeBin:      nodeBin,

@@ -5,6 +5,8 @@ package main
 import (
 	"os"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 // foldCase is false: Unix variable names are case-sensitive.
@@ -29,10 +31,23 @@ func consoleOwned() bool {
 	return false
 }
 
-// detachedProcess starts the server in a session of its own, so the terminal's
-// hangup and interrupt never reach it.
+// detachedProcess starts a background process in a session of its own, so the
+// terminal's hangup and interrupt never reach it, or the server a detached
+// start's child becomes.
 func detachedProcess() *syscall.SysProcAttr {
 	return &syscall.SysProcAttr{Setsid: true}
+}
+
+// writeTo makes file this process's stdout and stderr, which the processes it
+// starts and the server it execs inherit.
+func writeTo(file *os.File) error {
+	defer file.Close()
+	for _, descriptor := range []int{1, 2} {
+		if err := unix.Dup2(int(file.Fd()), descriptor); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // holdConsole does nothing: a terminal stays open on its own once the shell

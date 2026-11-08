@@ -3,6 +3,7 @@ leaves the server running in the background, and `stop` ends it.
 """
 
 import base64
+import concurrent.futures
 import json
 import os
 import shutil
@@ -146,3 +147,38 @@ class DetachedHandoverCases(harness.ConformanceCase):
         finally:
             harness.run([str(harness.BINARY), "stop", "--data-dir", str(data)], cwd=self.case_dir,
                         capture_output=True, text=True, timeout=harness.WAITS["stop"].seconds + 30)
+
+
+class DetachedRaceCases(harness.ConformanceCase):
+    """Two starts at once on one Site data: the child that claims the lease serves, and the
+    other refuses without touching the winner's log."""
+    PLATFORMS = (harness.LINUX, harness.MACOS, harness.WINDOWS)
+
+    def test_two_starts_at_once_end_with_one_server_and_one_refusal(self):
+        data = self.case_dir / "data"
+        port = harness.pick_port()
+        command = [str(harness.BINARY), "--data-dir", str(data), "--listen", f"127.0.0.1:{port}"]
+        self.addCleanup(harness.run, [str(harness.BINARY), "stop", "--data-dir", str(data)], cwd=self.case_dir,
+                        capture_output=True, text=True, timeout=harness.WAITS["stop"].seconds + 30)
+        with concurrent.futures.ThreadPoolExecutor(2) as pool:
+            starts = [pool.submit(harness.run, command, cwd=self.case_dir, capture_output=True, text=True,
+                                  timeout=harness.WAITS["start"].seconds) for _ in range(2)]
+            results = sorted((start.result() for start in starts), key=lambda result: result.returncode)
+        served, refused = results
+        printed = "\n".join(f"{result.returncode}: {result.stdout}{result.stderr}" for result in results)
+        self.assertEqual([served.returncode, refused.returncode], [0, 1], printed)
+        self.assertIn("runs in the background", served.stdout, printed)
+        self.assertIn("this Site data", refused.stderr, printed)
+        log = data / "logs" / "server.log"
+        self.assertIn("is ready.", log.read_text(errors="replace"))
+        # No person is present, so a later start refuses as well, and leaves the log alone.
+        later = harness.run(command, cwd=self.case_dir, capture_output=True, text=True,
+                            timeout=harness.WAITS["start"].seconds)
+        self.assertEqual(later.returncode, 1, f"{later.stdout}{later.stderr}")
+        self.assertIn("already serves this Site data", later.stderr)
+        self.assertIn("is ready.", log.read_text(errors="replace"))
+        stop = harness.run([str(harness.BINARY), "stop", "--data-dir", str(data)], cwd=self.case_dir,
+                           capture_output=True, text=True, timeout=harness.WAITS["stop"].seconds + 30)
+        self.assertIn("stopped", stop.stdout)
+        with self.assertRaises(OSError):
+            socket.create_connection(("127.0.0.1", port), timeout=harness.WAITS["port_closed"].seconds).close()

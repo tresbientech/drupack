@@ -14,7 +14,7 @@ func TestCanonical(t *testing.T) {
 	}{
 		{"DRUPACK_RUNTIME_APP_DIR", `C:\Users\theno\AppData\Local\Drupack\runtime\app\r2e2893a48a83`, "C:/Users/theno/AppData/Local/Drupack/runtime/app/r2e2893a48a83"},
 		{"DRUPACK_RUNTIME_BINARY", `C:\Users\theno\AppData\Local\Drupack\drupack.exe`, "C:/Users/theno/AppData/Local/Drupack/drupack.exe"},
-		{"DRUPACK_RUNTIME_CWD", `C:\Users\theno\Downloads`, "C:/Users/theno/Downloads"},
+		{"DRUPACK_RUNTIME_DATA_DIR", `C:\Users\theno\Downloads\data`, "C:/Users/theno/Downloads/data"},
 	}
 	for _, c := range cases {
 		t.Run(c.variable, func(t *testing.T) {

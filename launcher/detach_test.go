@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -30,12 +31,12 @@ func served(t *testing.T, log string, exited chan int, colour bool) (string, int
 
 func TestADetachedChildOwnsNoConsole(t *testing.T) {
 	for _, c := range []struct {
-		detached  string
+		detached  bool
 		processes uint32
 		want      bool
-	}{{"", 1, true}, {"", 2, false}, {"server.log", 1, false}, {"server.log", 2, false}} {
+	}{{false, 1, true}, {false, 2, false}, {true, 1, false}, {true, 2, false}} {
 		if got := ownsConsole(c.detached, c.processes); got != c.want {
-			t.Fatalf("ownsConsole(%q, %d) = %v, want %v", c.detached, c.processes, got, c.want)
+			t.Fatalf("ownsConsole(%v, %d) = %v, want %v", c.detached, c.processes, got, c.want)
 		}
 	}
 }
@@ -113,5 +114,38 @@ func TestTheRelayMarkersAreStillWhatTheWatcherPrints(t *testing.T) {
 		if !strings.Contains(string(source), marker) {
 			t.Fatalf("runtime/watch/watch.go no longer prints %q", marker)
 		}
+	}
+}
+
+func TestTheStopCommandIsTypedForTheReadersShell(t *testing.T) {
+	for _, c := range []struct {
+		name, invoked, cwd, target string
+		windows                    bool
+		want                       string
+	}{
+		{"a bare word", "./demo", "/home/reader", "", false, "./demo stop"},
+		{"a target", "./demo", "/home/reader", " --data-dir " + shellWord("my data", false), false, "./demo stop --data-dir 'my data'"},
+		{"a quote in a Unix path", "/opt/it's/demo", "/home/reader", "", false, `'/opt/it'\''s/demo' stop`},
+		{"a backslash stays bare on Windows", `C:\Tools\demo.exe`, `C:\Users\reader`, "", true, `C:\Tools\demo.exe stop`},
+		{"PowerShell runs the executable's folder as .\\", `C:\Users\reader\demo.exe`, `c:/users/reader/`, "", true, `.\demo.exe stop`},
+		{"PowerShell runs a quoted path after &", `C:\With Space\demo.exe`, `C:\Users\reader`, "", true, `& "C:\With Space\demo.exe" stop`},
+		{"cmd's typed word stays", "demo", `C:\Users\reader`, " " + shellWord(`C:\My Site`, true), true, `demo stop "C:\My Site"`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := stopCommand(c.invoked, c.cwd, c.target, c.windows); got != c.want {
+				t.Fatalf("stopCommand = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+func TestTakeChildReadsTheParentsWordsAndLeavesTheReaders(t *testing.T) {
+	t.Cleanup(func() { child = nil })
+	if got := takeChild([]string{"./demo", "--data-dir", "d"}); !slices.Equal(got, []string{"./demo", "--data-dir", "d"}) || child != nil {
+		t.Fatalf("a reader's line became %q, child %v", got, child)
+	}
+	got := takeChild([]string{"./demo", childWord, "/data/logs/server.log", "1", "--data-dir", "d", "--foreground"})
+	if !slices.Equal(got, []string{"./demo", "--data-dir", "d", "--foreground"}) || *child != (detachedChild{log: "/data/logs/server.log", person: true}) {
+		t.Fatalf("a child's line became %q, child %+v", got, child)
 	}
 }

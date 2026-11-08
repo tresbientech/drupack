@@ -5,7 +5,7 @@ declare(strict_types=1);
 // Unit cases for the functions in engine/serve.php and the engine's operations in
 // application/operate.php. Run with:
 //   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/serve_test.php"
-// The constant loads both for their functions alone.
+// The constant loads operate.php for its functions alone.
 
 define('DRUPACK_SERVE_LIBRARY', true);
 require __DIR__ . '/../../engine/serve.php';
@@ -40,11 +40,6 @@ test('a lock declaring loaded extensions alone passes', function () {
         'packages' => [['name' => 'acme/cache', 'require' => ['ext-zend-opcache' => '*', 'ext-pdo_sqlite' => '*']]],
     ])]);
     checkPlatform('', $project);
-});
-
-test('check records that no probe ran for a platform check alone', function () {
-    $project = project_with('check-platform', ['composer.json' => '{}']);
-    same(['installed' => null], operate('', ['check', 'folder', $project]));
 });
 
 test('check refuses a project the runtime cannot run before it probes', function () {

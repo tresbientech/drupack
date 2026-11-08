@@ -294,8 +294,8 @@ func recordKeys(t *testing.T, path string) []string {
 	return slices.Sorted(maps.Keys(record))
 }
 
-// application/tests/serving_test.php serves the fixture to the PHP stop client, so a
-// key renamed on either side fails one of the two.
+// launcher/internal/state/state_test.go reads the fixture with the launcher's stop
+// client, so a key renamed on either side fails one of the two.
 func TestStopRecordCarriesTheKeysOfItsFixture(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "stop.json")
 	stopping, cancel := context.WithCancel(context.Background())
