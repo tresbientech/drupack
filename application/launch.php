@@ -6,48 +6,17 @@ declare(strict_types=1);
 (require __DIR__ . '/vendor/autoload.php')->addPsr4('Drupack\\Support\\', __DIR__ . '/support');
 
 require_once __DIR__ . '/process.php';
-require __DIR__ . '/mercure.php';
-require __DIR__ . '/static.php';
 
 use Drupack\Support\Need;
 use Drupack\Support\SiteContract;
 use Drupack\Support\SiteData;
 use Drupack\Support\Step;
-use Symfony\Component\Filesystem\Path;
 
-// The server runs from the application directory, which every site of a release
-// shares, so a path the reader wrote relative to their own directory resolves
-// against the one they started in.
-function fromStartDirectory(string $path): string
-{
-    $start = environment('DRUPACK_RUNTIME_CWD');
-    if ($start === null || Path::isAbsolute($path)) {
-        return $path;
-    }
-    return Path::makeAbsolute($path, $start);
-}
-
-// The release's shared copy, or the site's own copy in Site data once a start or `export` has checked it.
+// The release's shared copy, or the site's own copy in Site data once a start has laid it.
 function application(): string
 {
     return getenv('DRUPACK_RUNTIME_APP_DIR');
 }
-
-// A site whose contract names writable directories runs its own application, laid in
-// Site data by a start under the Serving lease. `export` takes no lease, so it only checks
-// that the last start laid this release.
-function useSiteApplication(SiteData $site): void
-{
-    $data = $site->directory;
-    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => STDOUT, 2 => STDERR];
-    if (process(getenv('DRUPACK_RUNTIME_LAUNCHER'), ['lay-app', '--check', $data], $descriptors, $data, 'Cannot run ' . executableName()) !== 0) {
-        throw new RuntimeException("This Site data holds another release's application. Start "
-            . executableName() . " once to lay this release's: $data");
-    }
-    putenv('DRUPACK_RUNTIME_APP_DIR=' . $site->application());
-}
-
-const DEFAULT_DATA_DIR = './data';
 
 function siteContract(): SiteContract
 {
@@ -71,46 +40,6 @@ function startOptions(SiteContract $site): array
     ];
 }
 
-// `export` reads every start option ahead of Drush's words, as the launcher checked them.
-function options(array $arguments, bool $drush, SiteContract $site): array
-{
-    $options = [
-        'data-dir' => environment('DRUPACK_DATA_DIR') ?? DEFAULT_DATA_DIR,
-        // The listener defaults after the recorded one is read, so an absent option is still visible here.
-        'listen' => null,
-        'static-listen' => null,
-        'host' => null,
-        // The files directory falls back to the recorded one, then to Site data, once the Site data is known.
-        'files-dir' => null,
-        'no-browser' => null,
-        'foreground' => null,
-    ] + startOptions($site);
-    $command = [];
-    while ($arguments !== []) {
-        $argument = array_shift($arguments);
-        if ($drush && !array_key_exists(substr(explode('=', $argument, 2)[0], 2), $options)) {
-            $command = array_merge([$argument], $arguments);
-            break;
-        }
-        $parts = explode('=', $argument, 2);
-        $name = substr($parts[0], 2);
-        // Launch arguments are user input, so reject unknown options and missing values.
-        if (!str_starts_with($argument, '--') || !array_key_exists($name, $options)) {
-            throw new InvalidArgumentException("Unknown argument: $argument");
-        }
-        if ($name === 'no-browser' || $name === 'foreground') {
-            $options[$name] = '1';
-            continue;
-        }
-        $value = $parts[1] ?? array_shift($arguments);
-        if ($value === null || $value === '' || str_starts_with($value, '--')) {
-            throw new InvalidArgumentException("Missing value for --$name");
-        }
-        $options[$name] = $value;
-    }
-    return [$options, $command];
-}
-
 // The generated password is never shown: the one-time login link signs the reader in, so the
 // password only keeps the account from being passwordless. It reaches only the step that sets it.
 function administratorCredentials(array $options, array $steps): array
@@ -121,70 +50,6 @@ function administratorCredentials(array $options, array $steps): array
     $options['admin-user'] ??= 'admin';
     $options['admin-password'] ??= bin2hex(random_bytes(32));
     return $options;
-}
-
-function recordedListener(array $options, ?array $record): array
-{
-    if ($record === null) {
-        return $options;
-    }
-    $options['listen'] ??= $record['listen'];
-    $options['static-listen'] ??= $record['static-listen'];
-    $options['host'] ??= $record['host'];
-    $options['scheme'] = $record['scheme'];
-    return $options;
-}
-
-function recordedFilesDirectory(array $options, ?array $record): array
-{
-    $options['files-dir'] ??= $record['files-dir'] ?? null;
-    return $options;
-}
-
-function siteEnvironment(array $plan, string $data, string $files, string $runtime, array $options, ?string $staticRoot): array
-{
-    $environment = [
-        'DRUPACK_RUNTIME_DATA_DIR' => $data,
-        'DRUPACK_RUNTIME_FILES_DIR' => $files,
-        // Drupal matches its trusted host patterns against the request's host, which keeps
-        // an IPv6 address's brackets.
-        'DRUPACK_RUNTIME_HOST' => urlHost($plan['host']),
-        // The address a reader types, never the bind address. Without it Drupal falls back
-        // to http://default, and every printed or mailed link names an unreachable host.
-        'DRUSH_OPTIONS_URI' => $plan['url'],
-        'TMPDIR' => $runtime,
-        'TEMP' => $runtime,
-        'TMP' => $runtime,
-        'XDG_DATA_HOME' => $runtime,
-        'XDG_CONFIG_HOME' => $runtime,
-    ];
-    foreach ([
-        'database' => 'DRUPACK_DATABASE',
-        'db-host' => 'DRUPACK_DB_HOST',
-        'db-port' => 'DRUPACK_DB_PORT',
-        'db-name' => 'DRUPACK_DB_NAME',
-        'db-user' => 'DRUPACK_DB_USER',
-        'db-password' => 'DRUPACK_DB_PASSWORD',
-        'admin-user' => 'DRUPACK_ADMIN_USER',
-        'admin-password' => 'DRUPACK_ADMIN_PASSWORD',
-        'site-name' => 'DRUPACK_SITE_NAME',
-    ] as $option => $name) {
-        if ($options[$option] !== null) {
-            $environment[$name] = $options[$option];
-        }
-    }
-    // settings.php sets tome_static_directory from it, for the server and for Drush.
-    if ($staticRoot !== null) {
-        $environment['DRUPACK_RUNTIME_STATIC_ROOT'] = $staticRoot;
-    }
-    return $environment;
-}
-
-function exportSiteEnvironment(array $plan, string $data, string $files, string $runtime, array $options, ?string $staticRoot): void
-{
-    foreach (siteEnvironment($plan, $data, $files, $runtime, $options, $staticRoot) as $name => $value) {
-        putenv("$name=$value");
-    }
 }
 
 // Reads the steps this Site data owes, refuses before any of them runs when the options lack
@@ -541,71 +406,7 @@ if (defined('DRUPACK_LAUNCH_LIBRARY')) {
 }
 
 try {
-    if ($argv[1] === 'detach') {
-        detach($argv[2], $argv[3], array_slice($argv, 4));
-    }
-    // The launcher sends `export` alone here. It is a Drush run with Tome's command ahead of the
-    // reader's words, initializes nothing and takes no lease, so Tome works while the server runs.
-    [$options, $command] = options(array_slice($argv, 2), true, siteContract());
-    if (siteContract()->static === null) {
-        throw new InvalidArgumentException('export needs a site whose composer.json sets extra.drupack.static');
-    }
-    $options['data-dir'] = fromStartDirectory($options['data-dir']);
-    if ($options['files-dir'] !== null) {
-        $options['files-dir'] = fromStartDirectory($options['files-dir']);
-    }
-    // PHP_BINARY is empty in embedded FrankenPHP; the Go entrypoint exports its own path.
-    $binary = getenv('DRUPACK_RUNTIME_BINARY');
-    // Launch arguments are user input, so the backend must name a supported driver.
-    if (!in_array($options['database'], ['sqlite', 'mysql', 'pgsql'], true)) {
-        throw new InvalidArgumentException('--database requires sqlite, mysql, or pgsql');
-    }
-    $named = new SiteData($options['data-dir']);
-    if (!file_exists($named->settings())) {
-        throw new RuntimeException("This Site data has no site yet: {$options['data-dir']}. Start " . executableName() . " once to create one.");
-    }
-    // `export` addresses the site where the last start served.
-    $options = recordedListener($options, $named->listener());
-    $options['listen'] ??= '127.0.0.1:' . siteContract()->port;
-    [$bind, $port] = listenerParts($options['listen']);
-    [$staticBind, $staticPort, $options['static-listen']] = staticListener($options['static-listen'], $bind, $port);
-    // The permitted request host is external input and is converted to an exact Drupal pattern.
-    if ($options['host'] !== null && !filter_var($options['host'], FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)
-        && !filter_var($options['host'], FILTER_VALIDATE_IP)) {
-        throw new InvalidArgumentException('Invalid --host value');
-    }
-
-    umask(0077);
-    directory($options['data-dir']);
-    // realpath() resolves in the native form, so the result is re-canonicalised
-    // before it travels into every export, hash and printed line that follows.
-    $data = canonical(realpath($options['data-dir']));
-    $site = new SiteData($data);
-    $site->prepare(true);
-    $options = recordedFilesDirectory($options, $site->listener());
-    $files = $options['files-dir'] ?? $site->files();
-    directory("$files/translations");
-    $files = canonical(realpath($files));
-    $plan = listenerPlan($bind, $port, $options['host'] ?? SiteData::UNRECORDED_HOST, $options['scheme'] ?? SiteData::UNRECORDED_SCHEME);
-    $static = staticPlan($staticBind, $staticPort, $plan['host'], $plan['scheme']);
-    $runtime = canonical(realpath($site->runtime()));
-    useTlsBundle($runtime);
-    exportSiteEnvironment($plan, $data, $files, $runtime, $options, $site->static());
-    if (siteContract()->mercure) {
-        exportMercure($site->mercurePublisherSecret(), $site->mercureSubscriberSecret(), mercureUrl($plan['scheme'], $bind, $port), true);
-    }
-    if (siteContract()->writable !== []) {
-        useSiteApplication($site);
-    }
-    runtimePhpOnPath(application());
-    foreach (glob(application() . '/translations/*.po') as $translation) {
-        $destination = "$files/translations/" . basename($translation);
-        if (!file_exists($destination) && !copy($translation, $destination)) {
-            throw new RuntimeException("Cannot install translation resource: $destination");
-        }
-    }
-    requireTomeStatic($binary, drushPath(), application());
-    exit(process($binary, array_merge(['php-cli', drushPath()], exportCommand($static['url'], $command)), [0 => STDIN, 1 => STDOUT, 2 => STDERR], application(), 'Cannot run Drush'));
+    detach($argv[2], $argv[3], array_slice($argv, 4));
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
     exit(1);

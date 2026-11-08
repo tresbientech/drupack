@@ -5,24 +5,24 @@
 # sources.
 
 ALIAS          writers=launcher/sitestart.go  readers=application/settings.php
-APP_DIR        writers=launcher/plan.go,application/launch.php,build/seed.sh,build/dev/dev-entry.sh,launcher/drush.go,launcher/sitestart.go  readers=runtime/entrypoint.go,application/launch.php,application/settings.php,build/dev/dev-entry.sh
-BINARY         writers=runtime/entrypoint.go  readers=application/launch.php,application/operate.php
+APP_DIR        writers=launcher/plan.go,build/seed.sh,launcher/drush.go,launcher/sitestart.go  readers=runtime/entrypoint.go,application/launch.php,application/settings.php
+BINARY         writers=runtime/entrypoint.go  readers=application/operate.php
 CACHE_ROOT     writers=launcher/plan.go  readers=engine/serve.php
 COMPONENTS     writers=launcher/plan.go  readers=runtime/entrypoint.go
 CONSOLE_OWNED  writers=launcher/plan.go  readers=application/process.php,launcher/sitestart.go
-CWD            writers=runtime/entrypoint.go  readers=application/launch.php,application/process.php,launcher/detach.go
-DATA_DIR       writers=application/launch.php,build/seed.sh,launcher/sitestart.go  readers=application/settings.php,build/site-settings.php
+CWD            writers=runtime/entrypoint.go  readers=application/process.php,launcher/detach.go
+DATA_DIR       writers=build/seed.sh,launcher/sitestart.go  readers=application/settings.php,build/site-settings.php
 DETACHED       writers=launcher/detach.go  readers=launcher/launch_windows.go,runtime/entrypoint.go
-FILES_DIR      writers=application/launch.php,launcher/sitestart.go  readers=application/launch.php,application/support/PublicFilesTemplateLoader.php,application/support/SiteDataPublicStream.php
-HOST           writers=application/launch.php,launcher/sitestart.go  readers=application/settings.php
+FILES_DIR      writers=launcher/sitestart.go  readers=application/launch.php,application/support/PublicFilesTemplateLoader.php,application/support/SiteDataPublicStream.php
+HOST           writers=launcher/sitestart.go  readers=application/settings.php
 ID             writers=launcher/start.go  readers=runtime/entrypoint.go
-INVOKED        writers=launcher/plan.go,build/dev/dev-entry.sh  readers=application/process.php
-LAUNCHER       writers=launcher/plan.go,build/dev/dev-entry.sh  readers=application/launch.php,application/process.php
-NAME           writers=launcher/plan.go,build/dev/dev-entry.sh  readers=runtime/entrypoint.go,application/process.php
+INVOKED        writers=launcher/plan.go  readers=application/process.php
+LAUNCHER       writers=launcher/plan.go  readers=application/process.php
+NAME           writers=launcher/plan.go  readers=runtime/entrypoint.go,application/process.php
 OPEN           writers=launcher/sitestart.go  readers=runtime/entrypoint.go
 PERSON         writers=application/process.php  readers=application/process.php,launcher/sitestart.go
 SITE_VERSION   writers=launcher/plan.go  readers=runtime/entrypoint.go
-STATIC_ROOT    writers=application/launch.php,launcher/sitestart.go  readers=application/settings.php
+STATIC_ROOT    writers=launcher/sitestart.go  readers=application/settings.php
 STOP_RECORD    writers=launcher/start.go  readers=runtime/entrypoint.go
 TLS_ROOT       writers=launcher/start.go  readers=runtime/entrypoint.go
 URL            writers=launcher/start.go  readers=runtime/entrypoint.go

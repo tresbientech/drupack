@@ -25,9 +25,6 @@ func main() {
 }
 
 func run() error {
-	if len(os.Args) > 1 && os.Args[1] == "lay-app" {
-		return layApp(os.Args[2:])
-	}
 	// detach needs no cache.
 	if len(os.Args) > 1 && os.Args[1] == "detach" {
 		return detach(os.Args[2:])
@@ -124,13 +121,13 @@ func run() error {
 		return startEngine(l, c)
 	case c.word == "start":
 		return startSite(l, c)
-	case c.word == "drush", engine && (c.word == "export" || c.word == "dr"):
+	case c.word == "drush", c.word == "export", engine && c.word == "dr":
 		return runInFolder(l, c)
 	}
 	return launch(Plan(l))
 }
 
-// runInFolder runs drush, or the engine's export or dr, from the reader's directory.
+// runInFolder runs drush, export, or the engine's dr, from the reader's directory.
 func runInFolder(l Launch, c command) error {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -144,7 +141,11 @@ func runInFolder(l Launch, c command) error {
 		call, err = engineCore(l, c, cwd, environ{entries: environment(l), fold: l.FoldCase})
 	default:
 		var export exportCall
-		export, err = engineExport(l, c, cwd, environ{entries: environment(l), fold: l.FoldCase})
+		plan := siteExport
+		if l.Engine {
+			plan = engineExport
+		}
+		export, err = plan(l, c, cwd, environ{entries: environment(l), fold: l.FoldCase})
 		if err == nil {
 			err = export.requireTomeStatic()
 		}
@@ -207,20 +208,4 @@ func cleanArguments(arguments []string) (bool, error) {
 		return true, nil
 	}
 	return false, fmt.Errorf("clean takes --dry-run alone")
-}
-
-// layApp lays the site's own application in Site data, or with --check exits 1
-// when the application there belongs to another release.
-func layApp(arguments []string) error {
-	data, writable, check, err := runtime.LayArguments(arguments)
-	if err != nil {
-		return err
-	}
-	if check {
-		if !runtime.SiteAppCurrent(data, string(appChecksum)) {
-			os.Exit(1)
-		}
-		return nil
-	}
-	return runtime.LaySiteApp(data, string(appChecksum), appPayload, writable, os.Stderr)
 }

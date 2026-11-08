@@ -92,9 +92,8 @@ func startSite(l Launch, c command) error {
 			inputs = append(inputs, variable+"="+value)
 		}
 	}
-	database, _ := e.get("DRUPACK_DATABASE")
-	if !slices.Contains([]string{"sqlite", "mysql", "pgsql"}, cmp.Or(c.options["database"], database, "sqlite")) {
-		return errors.New("--database requires sqlite, mysql, or pgsql")
+	if err := checkDatabase(c, e); err != nil {
+		return err
 	}
 	data := fromCwd(c.options["data-dir"])
 	out, err := operate(l, withInputs(e, inputs), "check", "site", runtime.Canonical(data))
@@ -108,7 +107,7 @@ func startSite(l Launch, c command) error {
 		return err
 	}
 	listen := cmp.Or(c.options["listen"], "127.0.0.1:"+strconv.Itoa(site.Port))
-	bind, port, err := siteListener(site, listen, c.options["static-listen"])
+	bind, port, _, err := siteListener(site, listen, c.options["static-listen"])
 	if err != nil {
 		return err
 	}
@@ -207,17 +206,27 @@ func withInputs(e environ, inputs []string) []string {
 }
 
 // siteListener splits a site's --listen and checks its static listener: the
-// one staticListen names, or listen's address on the next port.
-func siteListener(site siteconfig.Site, listen, staticListen string) (bind string, port int, err error) {
+// one staticListen names, or listen's address on the next port. staticPort is
+// 0 for a site without one.
+func siteListener(site siteconfig.Site, listen, staticListen string) (bind string, port, staticPort int, err error) {
 	if bind, port, err = parseListen(listen, "--listen"); err != nil {
-		return "", 0, err
+		return "", 0, 0, err
 	}
 	if site.Static != nil {
-		_, _, _, err = staticListener(staticListen, bind, port)
+		_, staticPort, _, err = staticListener(staticListen, bind, port)
 	} else if staticListen != "" {
 		err = errors.New("--static-listen needs a site whose composer.json sets extra.drupack.static")
 	}
-	return bind, port, err
+	return bind, port, staticPort, err
+}
+
+// checkDatabase refuses a --database, or a DRUPACK_DATABASE, that names no driver.
+func checkDatabase(c command, e environ) error {
+	database, _ := e.get("DRUPACK_DATABASE")
+	if !slices.Contains([]string{"sqlite", "mysql", "pgsql"}, cmp.Or(c.options["database"], database, "sqlite")) {
+		return errors.New("--database requires sqlite, mysql, or pgsql")
+	}
+	return nil
 }
 
 // siteDirectories creates the directories a start and drush find in Site data.

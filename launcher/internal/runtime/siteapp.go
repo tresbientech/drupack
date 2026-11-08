@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 const siteAppName = "app"
@@ -32,7 +31,7 @@ func SiteAppCurrent(data, checksum string) bool {
 // replaces the old application once its release marker is written. An upgrade copies in
 // each entry of a writable directory the old application holds and this release does not ship.
 func LaySiteApp(data, checksum string, payload []byte, writable []string, notice io.Writer) error {
-	// The writable list arrives on the command line of a word anyone can type.
+	// A path check, so a writable entry cannot name a place outside the application.
 	for _, directory := range writable {
 		if !SafePath(filepath.FromSlash(directory)) {
 			return fmt.Errorf("writable directory is not a relative path inside the application: %q", directory)
@@ -131,16 +130,4 @@ func copyTree(source, destination string) error {
 		}
 		return fmt.Errorf("cannot carry over %s, which is not a file, directory or link", path)
 	})
-}
-
-// LayArguments reads what follows the lay-app word: the Site data directory
-// then the writable directories, or --check and the Site data directory.
-func LayArguments(arguments []string) (data string, writable []string, check bool, err error) {
-	if len(arguments) == 2 && arguments[0] == "--check" {
-		return arguments[1], nil, true, nil
-	}
-	if len(arguments) == 0 || strings.HasPrefix(arguments[0], "-") {
-		return "", nil, false, fmt.Errorf("lay-app takes DATA DIRECTORY..., or --check DATA")
-	}
-	return arguments[0], arguments[1:], false, nil
 }

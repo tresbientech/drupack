@@ -60,6 +60,30 @@ func siteDrush(l Launch, c command, cwd string, e environ) (Command, error) {
 	if len(c.words) > 0 && slices.Contains([]string{"--help", "-h", "list"}, c.words[0]) {
 		return drushCall(l, e, l.Application, filepath.Join(l.Application, drushScript), c.words), nil
 	}
+	s, err := openSite(l, site, c, cwd, e)
+	if err != nil {
+		return Command{}, err
+	}
+	return s.drush(l, c.words), nil
+}
+
+// openedSite is a Site data a drush or export call addresses: the application it
+// runs, the environment the last start served and the static listener's port.
+type openedSite struct {
+	application string
+	e           environ
+	// staticURL is where Tome exports, "" for a site without a static listener.
+	staticURL string
+}
+
+// drush returns the call that runs words in the site's Drush.
+func (s openedSite) drush(l Launch, words []string) Command {
+	return drushCall(l, s.e, s.application, filepath.Join(s.application, drushScript), words)
+}
+
+// openSite reads the Site data c names and gives Drush and settings.php the
+// environment the last start served. It starts no server and takes no lease.
+func openSite(l Launch, site siteconfig.Site, c command, cwd string, e environ) (openedSite, error) {
 	fromCwd := func(path string) string {
 		if filepath.IsAbs(path) {
 			return path
@@ -68,11 +92,11 @@ func siteDrush(l Launch, c command, cwd string, e environ) (Command, error) {
 	}
 	data := fromCwd(c.options["data-dir"])
 	if _, err := os.Stat(filepath.Join(data, "settings.php")); err != nil {
-		return Command{}, fmt.Errorf("This Site data has no site yet: %s. Start %s once to create one.", runtime.Canonical(data), l.Name)
+		return openedSite{}, fmt.Errorf("This Site data has no site yet: %s. Start %s once to create one.", runtime.Canonical(data), l.Name)
 	}
 	record, recorded, err := readListener(state.At(data), l.Name)
 	if err != nil {
-		return Command{}, err
+		return openedSite{}, err
 	}
 	listen, staticListen, host, scheme := c.options["listen"], c.options["static-listen"], c.options["host"], "http"
 	files := ""
@@ -87,39 +111,40 @@ func siteDrush(l Launch, c command, cwd string, e environ) (Command, error) {
 		files = cmp.Or(files, record.FilesDir)
 	}
 	listen = cmp.Or(listen, "127.0.0.1:"+strconv.Itoa(site.Port))
-	bind, port, err := siteListener(site, listen, staticListen)
+	bind, port, staticPort, err := siteListener(site, listen, staticListen)
 	if err != nil {
-		return Command{}, err
+		return openedSite{}, err
 	}
 	// A reader types --host. A recorded one is the launcher's own.
 	if typed := c.options["host"]; typed != "" && !validHost(typed) {
-		return Command{}, errors.New("Invalid --host value")
+		return openedSite{}, errors.New("Invalid --host value")
 	}
 	host = cmp.Or(host, unrecordedHost)
 
 	restrictUmask()
 	data, err = filepath.EvalSymlinks(data)
 	if err != nil {
-		return Command{}, err
+		return openedSite{}, err
 	}
 	if err := siteDirectories(data, site.Static != nil); err != nil {
-		return Command{}, err
+		return openedSite{}, err
 	}
 	files = cmp.Or(files, filepath.Join(data, "files"))
 	if err := os.MkdirAll(filepath.Join(files, "translations"), 0o700); err != nil {
-		return Command{}, err
+		return openedSite{}, err
 	}
 	if files, err = filepath.EvalSymlinks(files); err != nil {
-		return Command{}, err
+		return openedSite{}, err
 	}
 	scratch, err := filepath.EvalSymlinks(filepath.Join(data, "runtime"))
 	if err != nil {
-		return Command{}, err
+		return openedSite{}, err
 	}
 
-	staticRoot := ""
+	staticRoot, staticURL := "", ""
 	if site.Static != nil {
 		staticRoot = runtime.Canonical(filepath.Join(data, "static"))
+		staticURL = siteURL(scheme, host, staticPort)
 	}
 	putSiteEnvironment(&e, runtime.Canonical(data), runtime.Canonical(files), host, siteURL(scheme, host, port), runtime.Canonical(scratch), staticRoot)
 	if bundle, ok := state.At(scratch).Bundle(); ok {
@@ -127,21 +152,21 @@ func siteDrush(l Launch, c command, cwd string, e environ) (Command, error) {
 	}
 	if site.Mercure {
 		if err := putMercure(&e, state.At(data), mercureURL(scheme, bind, port)); err != nil {
-			return Command{}, err
+			return openedSite{}, err
 		}
 	}
 	application := l.Application
 	if len(site.Writable) > 0 {
 		if !runtime.SiteAppCurrent(data, l.AppChecksum) {
-			return Command{}, fmt.Errorf("This Site data holds another release's application. Start %s once to lay this release's: %s", l.Name, runtime.Canonical(data))
+			return openedSite{}, fmt.Errorf("This Site data holds another release's application. Start %s once to lay this release's: %s", l.Name, runtime.Canonical(data))
 		}
 		application = runtime.SiteApp(data)
 		e.put("DRUPACK_RUNTIME_APP_DIR=" + runtime.Canonical(application))
 	}
 	if err := layTranslations(application, filepath.Join(files, "translations")); err != nil {
-		return Command{}, err
+		return openedSite{}, err
 	}
-	return drushCall(l, e, application, filepath.Join(application, drushScript), c.words), nil
+	return openedSite{application, e, staticURL}, nil
 }
 
 // layTranslations copies the application's bundled translations into directory,

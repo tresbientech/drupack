@@ -148,14 +148,14 @@ python tests/conformance dist\drupacked-demo.exe test-results\conformance --site
 
 ## Development loop
 
-A change to `application/` reaches the executable only through a build, which takes minutes. `build/dev/dev-server.sh` serves the application `drupack-build` left in `dist/work` instead, from the job image, with `application/` and the two site files in `build/` copied over it on each start, so a change to `launch.php` or the Caddyfile applies in about a second.
+A change to `application/` reaches the executable only through a build, which takes minutes. `build/dev/dev-server.sh` starts the demo executable in `dist` instead, from the job image. It lays `application/` and the two site files in `build/` over the executable's unpacked application on each start, so a change to a PHP file applies in about a second. The executable's launcher starts the site, as a release does.
 
 ```sh
 bash build/qa.sh
 bash build/dev/dev-server.sh ./dev-data 7225
 ```
 
-Neither start needs more options. A site whose contract names writable directories runs too: the dev entry script stands in for the launcher's `lay-app` word and keeps those directories' entries in Site data. The test scripts still need a built executable.
+The unpacked application lives in `dev-data/dev-cache`. A change under `launcher/` needs a new build. A site whose contract names writable directories runs the copy the launcher lays in Site data: its first start lays the built release, and the next start applies `application/`. `DRUPACK_DEV_EXECUTABLE` names another executable. The test scripts still need a built executable.
 
 ## Launcher
 

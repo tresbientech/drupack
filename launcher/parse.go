@@ -8,18 +8,16 @@ import (
 
 // command is a reader's line as the launcher answers it.
 type command struct {
-	// word is "stop", "drush", "help", "start", "export" for an engine export
-	// or a site export the launcher has checked, "dr" for the engine's, "node"
-	// for a site's Node word, or "" for a line the runtime reads. A site's
-	// export goes to launch.php, which reads its options again.
+	// word is "stop", "drush", "export", "help", "start", "dr" for the
+	// engine's, "node" for a site's Node word, or "" for a line the runtime reads.
 	word string
 	// target is stop's Site data or folder, or the engine start's folder, as
 	// the reader wrote it. An engine start without one holds "".
 	target string
 	// options holds the options a reader wrote, by name. A flag holds "1".
-	// A site's start and drush always hold data-dir.
+	// A site's start, drush and export always hold data-dir.
 	options map[string]string
-	// words are drush's own words, after the options a site's drush reads, or
+	// words are drush's own words, after the options a site's drush or export reads, or
 	// an engine start's words after `start`.
 	words []string
 }
@@ -64,8 +62,7 @@ var engineOptions = []option{
 	{name: "foreground"},
 }
 
-// defaultDataDir is the Site data of a reader who names none. launch.php's
-// DEFAULT_DATA_DIR holds it too while PHP parses the site export's options.
+// defaultDataDir is the Site data of a reader who names none.
 const defaultDataDir = "./data"
 
 // defaultListen is where the engine serves a reader who names no listener.
@@ -107,10 +104,11 @@ func parse(args []string, engine bool, lookup func(string) (string, bool)) (comm
 	case slices.Contains(nodeWords, word):
 		return command{word: "node"}, nil
 	case word == "export":
-		if _, _, _, err := scanSiteOptions(rest, lookup, false); err != nil {
+		options, words, _, err := scanSiteOptions(rest, lookup, false)
+		if err != nil {
 			return command{}, err
 		}
-		return command{word: "export"}, nil
+		return command{word: "export", options: options, words: words}, nil
 	case word == "start":
 		return siteStart(rest, lookup)
 	case strings.HasPrefix(word, "-"):

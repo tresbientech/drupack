@@ -120,55 +120,6 @@ test('a fresh start drops an installation start no progress resumes', function (
     same(false, $site->installStarted());
 });
 
-test('an unreadable listener record refuses', function (): void {
-    $site = scratch();
-    file_put_contents("$site->directory/listener", 'not json');
-    throws('Cannot read the recorded listener', fn() => $site->listener());
-});
-
-test('a refusal names the executable the launcher exported', function (): void {
-    $site = scratch();
-    file_put_contents("$site->directory/listener", 'not json');
-    putenv('DRUPACK_RUNTIME_NAME=acme-intranet');
-    try {
-        throws('then start acme-intranet again', fn() => $site->listener());
-    } finally {
-        putenv('DRUPACK_RUNTIME_NAME=' . FIXTURE_NAME);
-    }
-});
-
-test('a listener record missing its host refuses', function (): void {
-    $site = scratch();
-    file_put_contents("$site->directory/listener", json_encode(['listen' => '127.0.0.1:8080']));
-    throws('Recorded listener has no host', fn() => $site->listener());
-});
-
-test('a recorded listener reads back whole, and an old record names no files directory, HTTP and no static address', function (): void {
-    $site = scratch();
-    same(null, $site->listener());
-    $site->recordListener('127.0.0.1:8080', 'example.test', '/srv/files', 'https', '127.0.0.1:8081');
-    same(['listen' => '127.0.0.1:8080', 'host' => 'example.test', 'files-dir' => '/srv/files', 'scheme' => 'https', 'static-listen' => '127.0.0.1:8081'], $site->listener());
-    $site->recordListener('127.0.0.1:8080', 'example.test', null, 'http', null);
-    same(null, $site->listener()['static-listen']);
-    file_put_contents("$site->directory/listener", json_encode(['listen' => '127.0.0.1:8080', 'host' => 'localhost']));
-    same(null, $site->listener()['files-dir']);
-    same('http', $site->listener()['scheme']);
-    same(null, $site->listener()['static-listen']);
-});
-
-test('prepare creates the static directory for a static site alone', function (): void {
-    $site = scratch();
-    $site->prepare(false);
-    same(true, is_dir("$site->directory/logs"));
-    same(false, is_dir($site->static()));
-    $site->prepare(true);
-    same(true, is_dir($site->static()));
-    // The scratch cleanup removes files alone.
-    foreach (['runtime', 'private', 'tmp', 'config', 'logs', 'static'] as $name) {
-        rmdir("$site->directory/$name");
-    }
-});
-
 test('the recorded connection is the database block of the recorded settings', function (): void {
     $site = scratch();
     $database = ['driver' => 'pgsql', 'host' => 'db', 'port' => 5432, 'database' => 'site', 'username' => 'u', 'password' => 'p'];

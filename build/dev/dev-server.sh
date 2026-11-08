@@ -8,14 +8,18 @@ port=${2:-7225}
 shift 2 2>/dev/null || shift 1
 repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 image=${DRUPACK_DEV_IMAGE:-drupack-job}
-application=$repository/dist/work/app
+case $(uname -m) in
+    aarch64 | arm64) arch=arm64 ;;
+    *) arch=amd64 ;;
+esac
+executable=${DRUPACK_DEV_EXECUTABLE:-$repository/dist/drupacked-demo-linux-$arch}
 
 if ! docker image inspect "$image" >/dev/null 2>&1; then
     printf 'Image %s is missing. Build it with: docker build --target job -t %s .\n' "$image" "$image" >&2
     exit 1
 fi
-if [ ! -d "$application" ]; then
-    printf '%s is missing. Build it with: bash build/qa.sh, or drupack-build --work dist/work\n' "$application" >&2
+if [ ! -x "$executable" ]; then
+    printf '%s is missing. Build it with: bash build/qa.sh\n' "$executable" >&2
     exit 1
 fi
 
@@ -24,12 +28,12 @@ if [ -t 0 ]; then
     terminal=(--interactive --tty)
 fi
 
-# This serves the application drupack-build left in dist/work, with the engine files
-# application/ and build/ hold copied over it on every start.
+# This starts the executable a build left in dist, glibc and the host's architecture,
+# with the engine files application/ and build/ hold copied over its application on every start.
 # -e DRUPACK_CA_FILE with no value forwards the caller's own, set or not.
 exec docker run --rm "${terminal[@]}" --user "$(id -u):$(id -g)" -p "127.0.0.1:$port:$port" \
     -e DRUPACK_CA_FILE \
-    --mount "type=bind,src=$application,dst=/app,readonly" \
+    --mount "type=bind,src=$executable,dst=/dev-site,readonly" \
     --mount "type=bind,src=$repository/application,dst=/dev-application,readonly" \
     --mount "type=bind,src=$repository/build,dst=/dev-build,readonly" \
     --mount "type=bind,src=$repository/build/dev/dev-entry.sh,dst=/dev-entry.sh,readonly" \

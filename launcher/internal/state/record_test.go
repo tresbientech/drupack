@@ -16,7 +16,7 @@ func write(t *testing.T, dir, name, content string) {
 	}
 }
 
-// The records are the ones SiteData::recordListener() writes.
+// The records are the ones a release up to the Go start wrote through PHP.
 func TestListener(t *testing.T) {
 	const unreadable = "an UnreadableError"
 	for _, row := range []struct {

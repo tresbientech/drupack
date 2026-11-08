@@ -14,11 +14,6 @@ final class SiteData
     // The install step found a site already in the database, so the modules step changes nothing.
     private const ADOPTED = 'site-adopted';
     private const INSTALL_STARTED = 'install-started';
-    // The scheme of a site no record names, from a release that served HTTP alone.
-    public const UNRECORDED_SCHEME = 'http';
-    // The host `drush` addresses on Site data no start has served yet.
-    public const UNRECORDED_HOST = 'localhost';
-    private const LISTENER = 'listener';
 
     public function __construct(public readonly string $directory)
     {
@@ -37,80 +32,6 @@ final class SiteData
     public function secret(): string
     {
         return "$this->directory/hash_salt";
-    }
-
-    public function mercurePublisherSecret(): string
-    {
-        return "$this->directory/mercure_publisher_secret";
-    }
-
-    public function mercureSubscriberSecret(): string
-    {
-        return "$this->directory/mercure_subscriber_secret";
-    }
-
-    public function application(): string
-    {
-        return "$this->directory/app";
-    }
-
-    public function files(): string
-    {
-        return "$this->directory/files";
-    }
-
-    public function logs(): string
-    {
-        return "$this->directory/logs";
-    }
-
-    public function runtime(): string
-    {
-        return "$this->directory/runtime";
-    }
-
-    // The Tome export, which the static port serves.
-    public function static(): string
-    {
-        return "$this->directory/static";
-    }
-
-    public function prepare(bool $static): void
-    {
-        foreach (['runtime', 'private', 'tmp', 'config', 'logs'] as $name) {
-            \directory("$this->directory/$name");
-        }
-        if ($static) {
-            \directory($this->static());
-        }
-    }
-
-    public function listener(): ?array
-    {
-        $path = $this->path(self::LISTENER);
-        if (!file_exists($path)) {
-            return null;
-        }
-        $record = json_decode($this->read($path), true);
-        if (!is_array($record)) {
-            throw new RuntimeException("Cannot read the recorded listener: $path. Remove that file, then start "
-                . \executableName() . ' again to record it.');
-        }
-        return [
-            'listen' => $record['listen'] ?? throw new RuntimeException('Recorded listener has no listen address'),
-            'host' => $record['host'] ?? throw new RuntimeException('Recorded listener has no host'),
-            'files-dir' => $record['files-dir'] ?? null,
-            // Site data a release up to 1.0.0-beta8 recorded names no scheme. Those served HTTP.
-            'scheme' => $record['scheme'] ?? self::UNRECORDED_SCHEME,
-            // Null for a site without a static port, and for a record from a release without one.
-            'static-listen' => $record['static-listen'] ?? null,
-        ];
-    }
-
-    public function recordListener(string $listen, string $host, ?string $filesDirectory, string $scheme, ?string $staticListen): void
-    {
-        $record = ['listen' => $listen, 'host' => $host, 'files-dir' => $filesDirectory, 'scheme' => $scheme, 'static-listen' => $staticListen];
-        $this->write(self::LISTENER, json_encode($record), 'Cannot record the listener');
     }
 
     public function connection(): array

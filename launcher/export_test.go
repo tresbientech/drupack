@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
@@ -138,4 +139,72 @@ func TestEngineCore(t *testing.T) {
 	if got := environmentOf(call)["PATH"]; got != "/cache/app/bin:/usr/bin" {
 		t.Errorf("PATH = %q", got)
 	}
+}
+
+func TestSiteExportAddressesTheRecordedStaticListener(t *testing.T) {
+	f := newSite(t, siteconfig.Site{Port: 8123, Static: &siteconfig.Static{}})
+	f.record(t, `{"listen":"127.0.0.1:9000","host":"shop.drupack.site","scheme":"https","static-listen":"127.0.0.1:9100"}`)
+	c := parseSite(t, "export", "--data-dir", f.data, "--", "--extra")
+	e := environ{entries: []string{"PATH=/usr/bin"}}
+	x, err := siteExport(f.launch(), c, f.cwd, e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"SITE", "php-cli", filepath.Join(f.application, "drush"), "tome:static", "--yes", "--uri=https://shop.drupack.site:9100/", "--", "--extra"}
+	if !slices.Equal(x.run.Args, want) {
+		t.Errorf("export Args = %q, want %q", x.run.Args, want)
+	}
+	if want := []string{"SITE", "php-cli", filepath.Join(f.application, "drush"), "php:eval", tomeProbe}; !slices.Equal(x.probe.Args, want) {
+		t.Errorf("probe Args = %q, want %q", x.probe.Args, want)
+	}
+	if got := environmentOf(x.run)["DRUPACK_RUNTIME_STATIC_ROOT"]; got != filepath.Join(f.data, "static") {
+		t.Errorf("DRUPACK_RUNTIME_STATIC_ROOT = %q", got)
+	}
+	// A reader who names the URL gets none added.
+	x, err = siteExport(f.launch(), parseSite(t, "export", "--data-dir", f.data, "-l", "http://other:1/"), f.cwd, e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"SITE", "php-cli", filepath.Join(f.application, "drush"), "tome:static", "--yes", "-l", "http://other:1/"}; !slices.Equal(x.run.Args, want) {
+		t.Errorf("Args with a URL = %q, want %q", x.run.Args, want)
+	}
+}
+
+func TestSiteExportDefaultsToTheNextPortOnUnrecordedSiteData(t *testing.T) {
+	f := newSite(t, siteconfig.Site{Port: 8123, Static: &siteconfig.Static{}})
+	x, err := siteExport(f.launch(), parseSite(t, "export", "--data-dir", f.data), f.cwd, environ{entries: []string{"PATH=/usr/bin"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := x.run.Args[5]; got != "--uri=http://localhost:8124/" {
+		t.Errorf("uri = %q", got)
+	}
+}
+
+func TestSiteExportRefusals(t *testing.T) {
+	e := environ{entries: []string{"PATH=/usr/bin"}}
+	plain := newSite(t, siteconfig.Site{Port: 1})
+	_, err := siteExport(plain.launch(), parseSite(t, "export", "--data-dir", plain.data), plain.cwd, e)
+	if want := "export needs a site whose composer.json sets extra.drupack.static"; err == nil || err.Error() != want {
+		t.Errorf("no static: %v, want %q", err, want)
+	}
+	f := newSite(t, siteconfig.Site{Port: 1, Static: &siteconfig.Static{}})
+	_, err = siteExport(f.launch(), parseSite(t, "export", "--data-dir", f.data, "--database", "oracle"), f.cwd, e)
+	if want := "--database requires sqlite, mysql, or pgsql"; err == nil || err.Error() != want {
+		t.Errorf("database: %v, want %q", err, want)
+	}
+	os.Remove(filepath.Join(f.data, "settings.php"))
+	_, err = siteExport(f.launch(), parseSite(t, "export", "--data-dir", f.data), f.cwd, e)
+	if want := "This Site data has no site yet: " + f.data + ". Start fixture-site once to create one."; err == nil || err.Error() != want {
+		t.Errorf("no site: %v, want %q", err, want)
+	}
+}
+
+func parseSite(t *testing.T, words ...string) command {
+	t.Helper()
+	c, err := parse(append([]string{"SITE"}, words...), false, func(string) (string, bool) { return "", false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
 }

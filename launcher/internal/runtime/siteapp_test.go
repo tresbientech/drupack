@@ -140,22 +140,6 @@ func TestLaySiteAppRefusesAWritableDirectoryOutsideTheApplication(t *testing.T) 
 	}
 }
 
-func TestLayArgumentsReadsBothForms(t *testing.T) {
-	data, writable, check, err := LayArguments([]string{"/data", "web/themes/custom", "recipes"})
-	if err != nil || data != "/data" || check || len(writable) != 2 {
-		t.Errorf("lay form read as %q %q %v %v", data, writable, check, err)
-	}
-	data, _, check, err = LayArguments([]string{"--check", "/data"})
-	if err != nil || data != "/data" || !check {
-		t.Errorf("check form read as %q %v %v", data, check, err)
-	}
-	for _, arguments := range [][]string{{}, {"--check"}, {"--dry-run", "/data"}} {
-		if _, _, _, err := LayArguments(arguments); err == nil {
-			t.Errorf("LayArguments accepted %q", arguments)
-		}
-	}
-}
-
 func written(t *testing.T, data, relative, contents string) string {
 	t.Helper()
 	path := filepath.Join(SiteApp(data), filepath.FromSlash(relative))

@@ -83,15 +83,6 @@ test('a folder keeps its state in a cache entry its canonical path names', funct
     }
 });
 
-test('a wildcard listener is probed on its own family\'s loopback', function () {
-    same('127.0.0.1', probeHost('0.0.0.0'));
-    same('::1', probeHost('[::]'));
-    same('::1', probeHost('::'));
-    same('fd00::2', probeHost('[fd00::2]'));
-    same('192.168.1.4', probeHost('192.168.1.4'));
-    same('[::1]', urlHost(probeHost('[::]')));
-});
-
 $status = runCases();
 chdir(sys_get_temp_dir());
 exec('rm -rf ' . escapeshellarg($root));

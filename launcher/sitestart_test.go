@@ -58,7 +58,7 @@ func TestSiteListener(t *testing.T) {
 		{"a site without a static listener", siteconfig.Site{}, "127.0.0.1:8080", "127.0.0.1:8081", "--static-listen needs a site whose composer.json sets extra.drupack.static"},
 		{"a bad listener", siteconfig.Site{}, "localhost:8080", "", "--listen requires IP:PORT, with IPv6 enclosed in brackets"},
 	} {
-		bind, port, err := siteListener(row.site, row.listen, row.flag)
+		bind, port, _, err := siteListener(row.site, row.listen, row.flag)
 		switch {
 		case row.want == "" && (err != nil || bind != "127.0.0.1" || port != 8080):
 			t.Errorf("%s: %s %d %v", row.name, bind, port, err)

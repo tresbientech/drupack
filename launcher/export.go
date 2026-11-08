@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
 // tomeProbe prints 1 when the project's Drupal has the module tome:static comes from.
@@ -19,6 +20,33 @@ const tomeProbe = `echo (int) \Drupal::moduleHandler()->moduleExists("tome_stati
 // then the export itself.
 type exportCall struct {
 	probe, run Command
+}
+
+// siteExport plans the Packaged site's export of the Site data c names. It
+// addresses the static listener where the last start served it.
+func siteExport(l Launch, c command, cwd string, e environ) (exportCall, error) {
+	site, err := siteconfig.Load(l.Application)
+	if err != nil {
+		return exportCall{}, err
+	}
+	if site.Static == nil {
+		return exportCall{}, errors.New("export needs a site whose composer.json sets extra.drupack.static")
+	}
+	if err := checkDatabase(c, e); err != nil {
+		return exportCall{}, err
+	}
+	s, err := openSite(l, site, c, cwd, e)
+	if err != nil {
+		return exportCall{}, err
+	}
+	uri := s.staticURL
+	if namesURI(c.words) {
+		uri = ""
+	}
+	return exportCall{
+		probe: s.drush(l, []string{"php:eval", tomeProbe}),
+		run:   s.drush(l, exportWords(uri, c.words)),
+	}, nil
 }
 
 // engineExport plans the engine's export of the project holding cwd. A project
