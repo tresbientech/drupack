@@ -400,7 +400,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
             out_handle = open(self.case_dir / f"{label}.out", "wb")
             err_handle = open(self.case_dir / f"{label}.err", "wb")
             process = subprocess.Popen(
-                [str(fixture), arg], cwd=self.case_dir, stdout=out_handle, stderr=err_handle, env=env,
+                [str(fixture), "php-cli", arg], cwd=self.case_dir, stdout=out_handle, stderr=err_handle, env=env,
             )
             started.append((label, process, out_handle, err_handle))
 

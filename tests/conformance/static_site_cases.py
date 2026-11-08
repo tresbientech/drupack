@@ -258,7 +258,7 @@ class StaticSiteExport(harness.ConformanceCase):
         data = self.case_dir / "empty"
         result = self.export(data)
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn(str(data), result.stdout + result.stderr)
+        self.assertIn(data.as_posix(), result.stdout + result.stderr)
         self.assertFalse(data.exists(), "a refused export wrote Site data")
 
     def test_an_export_without_tome_static_refuses_naming_the_module(self):

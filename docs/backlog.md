@@ -340,3 +340,15 @@ compiled under `GOOS=windows go vet`, and none ran.
 
 Lean: dispatch a windows-amd64 run and read these six before tagging the
 release.
+
+## A folder's export on Windows
+
+`drupack export` on Windows fails once a page renders a component that carries
+an asset. Core's `ComponentMetadata` strips the Drupal root followed by a
+backslash, while the component's path continues with `/`. The path stays
+absolute, and Tome copies the asset to `../html/C:/...`. A packed site's
+`settings.php` loads `WindowsPathServiceProvider`, which makes the path
+root-relative. A folder's own `settings.php` loads nothing of Drupack's, and the
+engine payload carries no `support/`. The conformance case
+`test_a_start_serves_the_static_port_and_export_fills_it` skips its export on
+Windows. Lean: the engine registers the provider for the folder it serves.
