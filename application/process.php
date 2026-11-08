@@ -269,9 +269,10 @@ function loopback(string $bind): bool
 }
 
 // $site is ['--name', NAME] for a packed site, ['--folder', NAME] for the engine.
-function tlsChoice(string $binary, string $bind, array $site, ?string $host): TlsChoice
+// $launcher is the executable the reader ran, which answers tls-source.
+function tlsChoice(string $launcher, string $bind, array $site, ?string $host): TlsChoice
 {
-    $arguments = [$binary, 'tls-source', '--bind', $bind, ...$site];
+    $arguments = [$launcher, 'tls-source', '--bind', $bind, ...$site];
     if ($host !== null) {
         array_push($arguments, '--host', $host);
     }
@@ -292,7 +293,7 @@ function tlsChoice(string $binary, string $bind, array $site, ?string $host): Tl
 // keeps that bundle plus its own root here, so Drush and cron reach the site's own hub.
 const TLS_BUNDLE = 'ca-bundle.pem';
 
-// The JSON runtime/tls's tls-source prints. tests/tls-choices.json holds one of each as Go writes it.
+// The JSON the launcher's tls-source prints. tests/tls-choices.json holds one of each as Go writes it.
 final readonly class TlsChoice
 {
     public function __construct(

@@ -205,7 +205,7 @@ function serve(string $binary, array $arguments): never
     checkPlatform($binary, $project);
     $mercure = $settings['mercure'];
     $bind = trim($bind, '[]');
-    $tls = tlsChoice($binary, $bind, ['--folder', $settings['subdomain'] ?? basename($project)], null);
+    $tls = tlsChoice(getenv('DRUPACK_RUNTIME_LAUNCHER'), $bind, ['--folder', $settings['subdomain'] ?? basename($project)], null);
     $plan = listenerPlan($bind, (int) $port, $tls->host, $tls->scheme());
     $static = null;
     if ($settings['static'] !== null) {
@@ -376,7 +376,6 @@ try {
         'drush' => drush($binary, array_slice($argv, 2)),
         'export' => export($binary, array_slice($argv, 2)),
         'dr' => runScript($binary, coreScript(project()), array_slice($argv, 2)),
-        'trust' => replaceProcess($binary, array_merge(['tls-trust'], array_slice($argv, 2)), __DIR__, 'Cannot run trust'),
         '--help', '-h' => fwrite(STDOUT, sprintf(USAGE, executableName(), DEFAULT_LISTEN) . "\n"),
         default => serve($binary, array_slice($argv, 1)),
     };

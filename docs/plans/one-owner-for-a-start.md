@@ -57,13 +57,13 @@ Durable models every phase uses:
 
 ### What to build
 
-The launcher runs `trust` in-process with the TLS code, for both executables. It runs `node`, `npm` and `npx` from its Node release directory. On Windows it waits for Node and passes a termination on. The runtime drops `tls-trust` and the Node words. PHP stops routing `trust`.
+The launcher runs `trust` in-process with the TLS code, for both executables. It answers a temporary internal `tls-source` word for PHP until the start moves. It runs `node`, `npm` and `npx` from its Node release directory: on Unix it replaces itself, on Windows it waits. The runtime drops `tls-trust`, `tls-source` and the Node words. PHP stops routing `trust`.
 
 ### Acceptance criteria
 
 - [ ] `conformance -k TrustCommand -k SystemTrust -k RuntimeTrustOnline` passes.
 - [ ] `conformance -k NodeCommands -k NodeClean -k NodeOnPath -k NodeFetchesPackages` passes, and the variant's musl run of `-k NodeRefusals` passes.
-- [ ] A launcher Go test sends SIGTERM to a Node child and asserts the child received it.
+- [ ] A conformance test asserts `node -e 'process.exit(3)'` exits 3, and Go plan rows cover each Node word.
 - [ ] `rg -n 'tls-trust|runNode' runtime application engine` prints nothing.
 
 ---

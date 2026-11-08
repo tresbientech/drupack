@@ -298,7 +298,7 @@ test('adoption takes a site whose administrator has a password of its own', func
     adoptSite(scratch(), fakeDrush(['status' => 'Successful', 'php:eval' => 'no']));
 });
 
-// One tls-source answer per source, as runtime/tls encodes it. Its own test fails when
+// One tls-source answer per source, as the launcher's TLS package encodes it. Its own test fails when
 // this file no longer matches.
 function tlsAnswer(string $source): array
 {

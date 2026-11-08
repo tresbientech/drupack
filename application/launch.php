@@ -77,9 +77,9 @@ Examples:
 docs/cli.md explains every option.
 TEXT;
 
-// The commands this script runs. The executable runs clean and php, and node, npm and npx
-// where it carries Node, before this script starts.
-const COMMANDS = ['start', 'drush', 'export', 'stop', 'trust'];
+// The commands this script runs. The executable runs clean, trust and php, and node, npm
+// and npx where it carries Node, before this script starts.
+const COMMANDS = ['start', 'drush', 'export', 'stop'];
 const NODE_COMMANDS = ['node', 'npm', 'npx'];
 
 // The server runs from the application directory, which every site of a release
@@ -739,9 +739,6 @@ try {
     if ($mode === 'stop') {
         exit(stopSite(fromStartDirectory(stopDataDirectory($arguments))));
     }
-    if ($mode === 'trust') {
-        replaceProcess(getenv('DRUPACK_RUNTIME_BINARY'), array_merge(['tls-trust'], $arguments), __DIR__, 'Cannot run trust');
-    }
     // `export` is a Drush run with Tome's command ahead of the reader's words.
     $drush = $mode === 'drush' || $mode === 'export';
     [$options, $command] = options($arguments, $drush, siteContract());
@@ -813,7 +810,7 @@ try {
     if ($options['files-dir'] !== null) {
         $options['files-dir'] = $files;
     }
-    $tls = $drush ? null : tlsChoice($binary, $bind, siteLabelSource(siteContract()), $options['host']);
+    $tls = $drush ? null : tlsChoice(getenv('DRUPACK_RUNTIME_LAUNCHER'), $bind, siteLabelSource(siteContract()), $options['host']);
     $plan = $drush
         ? listenerPlan($bind, $port, $options['host'] ?? SiteData::UNRECORDED_HOST, $options['scheme'] ?? SiteData::UNRECORDED_SCHEME)
         : listenerPlan($bind, $port, $tls->host, $tls->scheme());

@@ -1,4 +1,4 @@
-package main
+package tls
 
 import (
 	"bytes"
@@ -162,13 +162,13 @@ func TestTheRootCannotVouchForAnotherSite(t *testing.T) {
 
 // These cases return before any trust store is touched.
 func TestTrustRefusesAnotherArgument(t *testing.T) {
-	if err := trust(io.Discard, t.TempDir(), []string{"--force"}); err == nil {
+	if err := Trust(io.Discard, t.TempDir(), []string{"--force"}); err == nil {
 		t.Fatal("trust accepted --force")
 	}
 }
 
 func TestTrustNeedsAConfigFolder(t *testing.T) {
-	if err := trust(io.Discard, "", nil); err == nil {
+	if err := Trust(io.Discard, "", nil); err == nil {
 		t.Fatal("trust ran without a folder")
 	}
 }
@@ -176,7 +176,7 @@ func TestTrustNeedsAConfigFolder(t *testing.T) {
 func TestUninstallWithoutARootChangesNothing(t *testing.T) {
 	var out strings.Builder
 	dir := t.TempDir()
-	if err := trust(&out, dir, []string{"--uninstall"}); err != nil {
+	if err := Trust(&out, dir, []string{"--uninstall"}); err != nil {
 		t.Fatal(err)
 	}
 	if out.String() != "No local root in "+dir+".\n" {
@@ -403,7 +403,7 @@ func TestAResolverThatDoesNotAnswerInTimeFallsBack(t *testing.T) {
 func source(t *testing.T, args ...string) tlsChoice {
 	t.Helper()
 	var out bytes.Buffer
-	if err := writeTLSSource(&out, "", args); err != nil {
+	if err := WriteSource(&out, "", args); err != nil {
 		t.Fatal(err)
 	}
 	var choice tlsChoice
@@ -489,7 +489,7 @@ func TestChoicesMatchThePHPReferenceFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reference := filepath.Join("..", "..", "application", "tests", "tls-choices.json")
+	reference := filepath.Join("..", "..", "..", "application", "tests", "tls-choices.json")
 	want, err := os.ReadFile(reference)
 	if err != nil {
 		t.Fatal(err)

@@ -10,6 +10,11 @@ import (
 // foldCase is false: Unix variable names are case-sensitive.
 const foldCase = false
 
+// nodeFile is the program's own name: npm and npx are scripts Node runs.
+func nodeFile(word string) string {
+	return word
+}
+
 func launch(c Command) error {
 	return syscall.Exec(c.Path, c.Args, c.Env)
 }

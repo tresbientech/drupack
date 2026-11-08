@@ -13,6 +13,13 @@ import (
 
 const foldCase = true
 
+// nodeFiles are each Node program's file: npm and npx are batch files.
+var nodeFiles = map[string]string{"node": "node.exe", "npm": "npm.cmd", "npx": "npx.cmd"}
+
+func nodeFile(word string) string {
+	return nodeFiles[word]
+}
+
 // launch starts the command as a child, since Windows cannot replace a process image.
 func launch(c Command) error {
 	command := exec.Command(c.Path, c.Args[1:]...)

@@ -12,6 +12,7 @@ import (
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/tls"
 )
 
 func main() {
@@ -32,6 +33,17 @@ func run() error {
 	}
 	if engine && len(os.Args) > 1 && os.Args[1] == "composer-settings" {
 		return composerSettings(os.Args[2:], os.Stdout)
+	}
+	tlsFolder, err := tlsDir()
+	if err != nil {
+		return err
+	}
+	// trust may ask for a password. launch.php and serve.php read tls-source's answer.
+	if len(os.Args) > 1 && os.Args[1] == "trust" {
+		return tls.Trust(os.Stdout, tlsFolder, os.Args[2:])
+	}
+	if len(os.Args) > 1 && os.Args[1] == "tls-source" {
+		return tls.WriteSource(os.Stdout, tlsFolder, os.Args[2:])
 	}
 	launcher, err := os.Executable()
 	if err != nil {
@@ -90,7 +102,7 @@ func run() error {
 		Launcher:     launcher,
 		Root:         root,
 		NodeBin:      nodeBin,
-		TLSDir:       runtime.TLSDir(),
+		TLSDir:       tlsFolder,
 		Name:         siteName,
 		Version:      siteVersion,
 		Components:   siteComponents,
@@ -114,6 +126,20 @@ func prepareNode(cache runtime.Cache) (string, error) {
 		return "", err
 	}
 	return filepath.Dir(filepath.Join(directory, filepath.FromSlash(m.Entry))), nil
+}
+
+// tlsDir is the folder holding the user's local root: a caller's DRUPACK_TLS_DIR,
+// else the system's. The runtime runs from the application directory, so a
+// relative value is made absolute against the reader's directory here. A caller
+// who sets it empty names no folder.
+func tlsDir() (string, error) {
+	if dir, set := os.LookupEnv("DRUPACK_TLS_DIR"); set {
+		if dir == "" {
+			return "", nil
+		}
+		return filepath.Abs(dir)
+	}
+	return runtime.TLSDir(), nil
 }
 
 func cleanArguments(arguments []string) (bool, error) {

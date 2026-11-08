@@ -35,7 +35,7 @@ type Launch struct {
 	Root        string
 	// NodeBin is the Node release's executable directory, empty for a file that carries none.
 	NodeBin string
-	// TLSDir is the folder holding the user's local root, empty when the system names none.
+	// TLSDir is the folder holding the user's local root, absolute, empty when none is named.
 	TLSDir     string
 	Name       string
 	Version    string
@@ -54,22 +54,27 @@ type Command struct {
 	Env  []string
 }
 
+// Plan returns the runtime's command, or Node's for a Node word where this file
+// carries Node. A file without Node sends the word to launch.php, which refuses it.
 func Plan(l Launch) Command {
+	if len(l.Args) > 1 && l.NodeBin != "" && slices.Contains(nodeWords, l.Args[1]) {
+		path := filepath.Join(l.NodeBin, nodeFile(l.Args[1]))
+		return Command{Path: path, Args: append([]string{path}, l.Args[2:]...), Env: environment(l)}
+	}
 	return Command{
 		Path: l.Entry,
-		Args: arguments(l.Args, l.Application, l.Engine, l.NodeBin != ""),
+		Args: arguments(l.Args, l.Application, l.Engine),
 		Env:  environment(l),
 	}
 }
 
-// arguments turns the reader's words into the runtime's. A site's php-cli, the version flags, a Node
-// word where this file carries Node, and php pass unchanged. Every other line reaches
-// launch.php, or the Engine's serve.php, through php-cli.
-func arguments(args []string, application string, engine, node bool) []string {
+// arguments turns the reader's words into the runtime's. A site's php-cli, the version
+// flags and php pass unchanged. Every other line reaches launch.php, or the Engine's
+// serve.php, through php-cli.
+func arguments(args []string, application string, engine bool) []string {
 	switch {
 	case len(args) > 1 && !engine && args[1] == "php-cli":
 	case len(args) == 2 && (args[1] == "--version" || args[1] == "-v"):
-	case len(args) > 1 && node && slices.Contains(nodeWords, args[1]):
 	case len(args) > 1 && args[1] == "php":
 	default:
 		script := "launch.php"
@@ -95,7 +100,7 @@ func environment(l Launch) []string {
 	if _, set := e.get("DRUPACK_CA_FILE"); !set {
 		e.put("DRUPACK_CA_FILE=" + runtime.Canonical(filepath.Join(directory, caFileName)))
 	}
-	if _, set := e.get("DRUPACK_TLS_DIR"); !set && l.TLSDir != "" {
+	if l.TLSDir != "" {
 		e.put("DRUPACK_TLS_DIR=" + runtime.Canonical(l.TLSDir))
 	}
 	// The runtime and launch.php are shared by every site built on this engine, so
@@ -116,12 +121,9 @@ func environment(l Launch) []string {
 		// terminal read it, so it takes the canonical form.
 		e.put("DRUPACK_RUNTIME_APP_DIR=" + runtime.Canonical(l.Application))
 	}
-	if l.NodeBin == "" {
-		e.drop("DRUPACK_RUNTIME_NODE")
-	} else {
+	if l.NodeBin != "" {
 		path, _ := e.get("PATH")
 		e.put("PATH=" + l.NodeBin + string(os.PathListSeparator) + path)
-		e.put("DRUPACK_RUNTIME_NODE=" + runtime.Canonical(l.NodeBin))
 	}
 	if l.ConsoleOwned {
 		e.put("DRUPACK_RUNTIME_CONSOLE_OWNED=1")

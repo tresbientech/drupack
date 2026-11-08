@@ -81,6 +81,10 @@ class NodeCommands(NodeCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.splitlines(), [str(reader.resolve()), "an argument"])
 
+    def test_node_exit_status_reaches_the_shell(self):
+        result = run(self.case_dir, "node", "-e", "process.exit(3)", env=self.env)
+        self.assertEqual(result.returncode, 3, result.stderr)
+
     def test_a_second_start_leaves_the_unpacked_release_alone(self):
         result = run(self.case_dir, "node", "--version", env=self.env)
         self.assertEqual(result.returncode, 0, result.stderr)

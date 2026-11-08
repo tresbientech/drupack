@@ -16,57 +16,72 @@ func TestPlanArguments(t *testing.T) {
 		name   string
 		args   []string
 		engine bool
-		node   bool
 		want   []string
 	}{
-		{"the Engine passes php on", []string{"drupack", "php", "-r", "echo 1;"}, true, false,
+		{"the Engine passes php on", []string{"drupack", "php", "-r", "echo 1;"}, true,
 			[]string{"drupack", "php", "-r", "echo 1;"}},
-		{"the Engine passes --version on", []string{"drupack", "--version"}, true, false,
+		{"the Engine passes --version on", []string{"drupack", "--version"}, true,
 			[]string{"drupack", "--version"}},
-		{"the Engine passes -v on", []string{"drupack", "-v"}, true, false,
+		{"the Engine passes -v on", []string{"drupack", "-v"}, true,
 			[]string{"drupack", "-v"}},
-		{"the Engine sends a version flag with company to serve.php", []string{"drupack", "--version", "x"}, true, false,
+		{"the Engine sends a version flag with company to serve.php", []string{"drupack", "--version", "x"}, true,
 			[]string{"drupack", "php-cli", serve, "--version", "x"}},
-		{"the Engine sends php-cli to serve.php", []string{"drupack", "php-cli", "x.php"}, true, false,
+		{"the Engine sends php-cli to serve.php", []string{"drupack", "php-cli", "x.php"}, true,
 			[]string{"drupack", "php-cli", serve, "php-cli", "x.php"}},
-		{"the Engine sends a bare start to serve.php", []string{"drupack"}, true, false,
+		{"the Engine sends a bare start to serve.php", []string{"drupack"}, true,
 			[]string{"drupack", "php-cli", serve}},
-		{"the Engine sends a word to serve.php", []string{"drupack", "stop", "--data-dir", "d"}, true, false,
+		{"the Engine sends a word to serve.php", []string{"drupack", "stop", "--data-dir", "d"}, true,
 			[]string{"drupack", "php-cli", serve, "stop", "--data-dir", "d"}},
-		{"a site sends a bare start to launch.php", []string{"demo"}, false, false,
+		{"a site sends a bare start to launch.php", []string{"demo"}, false,
 			[]string{"demo", "php-cli", launch}},
-		{"a site sends options to launch.php", []string{"demo", "--data-dir", "d"}, false, false,
+		{"a site sends options to launch.php", []string{"demo", "--data-dir", "d"}, false,
 			[]string{"demo", "php-cli", launch, "--data-dir", "d"}},
-		{"a site keeps start for launch.php", []string{"demo", "start", "--foreground"}, false, false,
+		{"a site keeps start for launch.php", []string{"demo", "start", "--foreground"}, false,
 			[]string{"demo", "php-cli", launch, "start", "--foreground"}},
-		{"a site keeps drush for launch.php", []string{"demo", "drush", "status"}, false, false,
+		{"a site keeps drush for launch.php", []string{"demo", "drush", "status"}, false,
 			[]string{"demo", "php-cli", launch, "drush", "status"}},
-		{"a site keeps stop for launch.php", []string{"demo", "stop"}, false, false,
+		{"a site keeps stop for launch.php", []string{"demo", "stop"}, false,
 			[]string{"demo", "php-cli", launch, "stop"}},
-		{"a site sends --help to launch.php", []string{"demo", "--help"}, false, false,
+		{"a site sends --help to launch.php", []string{"demo", "--help"}, false,
 			[]string{"demo", "php-cli", launch, "--help"}},
-		{"a site sends an unknown word to launch.php", []string{"demo", "frobnicate"}, false, false,
+		{"a site sends an unknown word to launch.php", []string{"demo", "frobnicate"}, false,
 			[]string{"demo", "php-cli", launch, "frobnicate"}},
-		{"a site passes php on", []string{"demo", "php", "x.php"}, false, false,
+		{"a site passes php on", []string{"demo", "php", "x.php"}, false,
 			[]string{"demo", "php", "x.php"}},
-		{"a site passes php-cli on", []string{"demo", "php-cli", "x.php", "a"}, false, false,
+		{"a site passes php-cli on", []string{"demo", "php-cli", "x.php", "a"}, false,
 			[]string{"demo", "php-cli", "x.php", "a"}},
-		{"a site passes --version on", []string{"demo", "--version"}, false, false,
+		{"a site passes --version on", []string{"demo", "--version"}, false,
 			[]string{"demo", "--version"}},
-		{"a site carrying Node passes node on", []string{"demo", "node", "--version"}, false, true,
-			[]string{"demo", "node", "--version"}},
-		{"a site carrying Node passes npx on", []string{"demo", "npx", "cowsay"}, false, true,
-			[]string{"demo", "npx", "cowsay"}},
-		{"a site without Node sends npm to launch.php", []string{"demo", "npm", "ci"}, false, false,
+		{"a site without Node sends npm to launch.php", []string{"demo", "npm", "ci"}, false,
 			[]string{"demo", "php-cli", launch, "npm", "ci"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			l := Launch{Args: c.args, Application: application, Engine: c.engine}
-			if c.node {
-				l.NodeBin = "/node/bin"
+			l := Launch{Args: c.args, Entry: "/runtime/dir/frankenphp", Application: application, Engine: c.engine}
+			got := Plan(l)
+			if got.Path != l.Entry {
+				t.Errorf("Plan(%q).Path = %q, want the runtime", c.args, got.Path)
 			}
-			if got := Plan(l).Args; !slices.Equal(got, c.want) {
-				t.Fatalf("Plan(%q).Args = %q, want %q", c.args, got, c.want)
+			if !slices.Equal(got.Args, c.want) {
+				t.Fatalf("Plan(%q).Args = %q, want %q", c.args, got.Args, c.want)
+			}
+		})
+	}
+}
+
+func TestPlanRunsNode(t *testing.T) {
+	bin := filepath.Join("node", "bin")
+	for _, word := range []string{"node", "npm", "npx"} {
+		t.Run(word, func(t *testing.T) {
+			got := Plan(Launch{Args: []string{"demo", word, "--version", "an argument"}, Entry: "/runtime/dir/frankenphp", NodeBin: bin})
+			path := filepath.Join(bin, nodeFile(word))
+			if got.Path != path {
+				t.Errorf("Path = %q, want %q", got.Path, path)
+			}
+			if want := []string{path, "--version", "an argument"}; !slices.Equal(got.Args, want) {
+				t.Errorf("Args = %q, want %q", got.Args, want)
+			}
+			if !slices.ContainsFunc(got.Env, func(entry string) bool { return strings.HasPrefix(entry, "PATH="+bin) }) {
+				t.Errorf("Env = %q, want PATH to start with %s", got.Env, bin)
 			}
 		})
 	}
@@ -112,16 +127,21 @@ func TestPlanEnvironment(t *testing.T) {
 			want: map[string]string{"DRUPACK_TLS_DIR": "/home/user/.config/drupack/tls"},
 		},
 		{
-			name: "DRUPACK_TLS_DIR keeps a caller's value",
+			name: "the TLS folder replaces an inherited one",
 			edit: func(l *Launch) {
-				l.TLSDir = "/home/user/.config/drupack/tls"
-				l.Parent = []string{"DRUPACK_TLS_DIR=/caller/tls"}
+				l.TLSDir = "/caller/tls"
+				l.Parent = []string{"DRUPACK_TLS_DIR=caller/tls"}
 			},
 			want: map[string]string{"DRUPACK_TLS_DIR": "/caller/tls"},
 		},
 		{
 			name:  "an account with no config folder gets no TLS folder",
 			lacks: []string{"DRUPACK_TLS_DIR"},
+		},
+		{
+			name: "a caller who empties DRUPACK_TLS_DIR keeps it empty",
+			edit: func(l *Launch) { l.Parent = []string{"DRUPACK_TLS_DIR="} },
+			want: map[string]string{"DRUPACK_TLS_DIR": ""},
 		},
 		{
 			name: "a site names itself, its release, the launcher and the words it was run with",
@@ -152,18 +172,17 @@ func TestPlanEnvironment(t *testing.T) {
 			lacks: []string{"DRUPACK_RUNTIME_APP_DIR"},
 		},
 		{
-			name:  "a file without Node drops an inherited Node release",
-			edit:  func(l *Launch) { l.Parent = []string{"DRUPACK_RUNTIME_NODE=/other/node/bin", "PATH=/bin"} },
-			want:  map[string]string{"PATH": "/bin"},
-			lacks: []string{"DRUPACK_RUNTIME_NODE"},
+			name: "a file without Node leaves PATH alone",
+			edit: func(l *Launch) { l.Parent = []string{"PATH=/bin"} },
+			want: map[string]string{"PATH": "/bin"},
 		},
 		{
 			name: "a file carrying Node puts it first on PATH",
 			edit: func(l *Launch) {
 				l.NodeBin = "/node/bin"
-				l.Parent = []string{"PATH=/bin", "DRUPACK_RUNTIME_NODE=/other/node/bin"}
+				l.Parent = []string{"PATH=/bin"}
 			},
-			want: map[string]string{"PATH": "/node/bin" + path + "/bin", "DRUPACK_RUNTIME_NODE": "/node/bin"},
+			want: map[string]string{"PATH": "/node/bin" + path + "/bin"},
 		},
 		{
 			name: "Windows finds PATH under any case",

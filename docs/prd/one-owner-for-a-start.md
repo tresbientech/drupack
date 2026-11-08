@@ -96,7 +96,7 @@ A reader sees the same commands, options, defaults and messages. A detached star
   Each operation prints its step lines to stderr and one result record to stdout, which the launcher reads. Credentials reach it through the environment, never argv. Invariant: only PHP reads or writes Site data's progress files, since preparation and recovery must agree on which Drupal steps finished. Evidence: `runStep()` in `launch.php`, `application/support/Step.php`, `Need.php`, `engine/installed.php`, `checkPlatform()` in `serve.php`.
 - D16: One `drush` entry requires the script `DRUPACK_DRUSH_SCRIPT` names. The launcher sets it to the application's Drush or the project's. `bin/php`, `bin/php.cmd` and `drush.cmd` stay, since Tome's children rerun `argv[0]`. Evidence: `engine/drush` requires that variable today, and `application/drush` requires the application's Drush by path.
 - D17: `settings.php` keeps reading the environment. The variables it reads keep their names. Evidence: the `getenv()` calls in `application/settings.php`.
-- D18: The runtime answers `php-cli`, `php-server`, `php` and the version flags alone. The launcher runs Node from its own release directory. On Windows it waits for Node and passes a termination on, as `runNode` does today. `runNode`, `tls-trust`, `tls-source` and `browser-open` leave the runtime. Invariant: a SIGTERM to the launcher reaches Node on every platform. Evidence: `init()` and `runNode()` in `runtime/entrypoint.go`, `launch()` in `launcher/launch_windows.go`, ADR 0030's considered options.
+- D18: The runtime answers `php-cli`, `php-server`, `php` and the version flags alone. The launcher runs Node from its own release directory. On Unix it replaces itself with Node, so the shell sees Node's own exit status, a signal included. On Windows it waits for Node, which shares its console and gets the console's events. `runNode`, `tls-trust`, `tls-source` and `browser-open` leave the runtime. Evidence: `init()` and `runNode()` in `runtime/entrypoint.go`. Go sends a Windows child no signal but Kill (`os/exec_windows.go`), so `runNode`'s SIGTERM forward and ADR 0030's reason to keep Node in the runtime hold on Unix alone.
 
 ### Two modes
 
@@ -140,7 +140,7 @@ A good test drives a module through its interface and checks its output: a plan,
 
 - The conformance suite runs unchanged on both executables and both libcs. It is the parity check for user stories 1 to 9.
 - Go table tests cover the parser, the start plan, the state store and the Caddyfile writer. The writer's tests compare generated files for each row of the D19 table, each TLS source and each static setting. Prior art: `launcher/plan_test.go`, `launcher/internal/siteconfig/siteconfig_test.go`.
-- A Go test runs the runtime's adapter over generated files in the builder image, beside `runtime/tls` and `runtime/watch` tests.
+- A Go test runs the runtime's adapter over generated files in the builder image, beside the `runtime/watch` tests.
 - The preparation script keeps PHP tests, as `application/tests/launch_test.php` and `site_data_test.php` do. They get their own Composer install, apart from the demo's vendor directory and the executable build. Evidence: `build/qa.sh`.
 - Unit checks run before the executable builds in `build/qa.sh`.
 - A conformance case starts the previous release's server and stops it with the new `stop`, for user story 5. Prior art: `DRUPACK_TEST_PREVIOUS` in `tests/conformance/writable_cases.py`.

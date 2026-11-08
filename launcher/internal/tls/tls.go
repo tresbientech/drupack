@@ -1,6 +1,5 @@
-// How a loopback site serves HTTPS. The builds copy this file into FrankenPHP's main
-// package next to runtime/entrypoint.go.
-package main
+// Package tls decides how a loopback site serves HTTPS and installs the local root.
+package tls
 
 import (
 	"context"
@@ -270,10 +269,11 @@ func fixedLookup(addresses string) lookupFunc {
 	}
 }
 
-// A packed site passes --name and falls back to localhost; the engine passes
-// --folder and falls back to its bind address. Only a loopback bind addressed by a
+// WriteSource prints the start's TLS choice as one JSON object. A packed site passes
+// --name and falls back to localhost; the engine passes --folder and falls back to
+// its bind address. Only a loopback bind addressed by a
 // name Caddy serves reads the local roots; any other start serves plain HTTP.
-func writeTLSSource(out io.Writer, dir string, args []string) error {
+func WriteSource(out io.Writer, dir string, args []string) error {
 	flags := flag.NewFlagSet("tls-source", flag.ContinueOnError)
 	bind := flags.String("bind", "", "the address the server listens on")
 	name := flags.String("name", "", "the packed site's label: its subdomain, otherwise its name")
@@ -308,9 +308,9 @@ func writeTLSSource(out io.Writer, dir string, args []string) error {
 	return json.NewEncoder(out).Encode(choice)
 }
 
-// trust creates the local root on first use and installs it into the system's
+// Trust creates the local root on first use and installs it into the system's
 // trust store and every NSS database (Firefox), or removes it with --uninstall.
-func trust(out io.Writer, dir string, args []string) error {
+func Trust(out io.Writer, dir string, args []string) error {
 	uninstall := false
 	switch {
 	case len(args) == 0:

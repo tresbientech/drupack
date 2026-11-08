@@ -69,42 +69,6 @@ func caddyVersion() string {
 	panic("the build information names no " + caddy.ImportPath)
 }
 
-// Each program's file on Windows, where npm and npx are batch files.
-var nodeCommands = map[string]string{"node": "node.exe", "npm": "npm.cmd", "npx": "npx.cmd"}
-
-func runNode(program string, arguments []string) {
-	directory := os.Getenv("DRUPACK_RUNTIME_NODE")
-	file := program
-	if runtime.GOOS == "windows" {
-		file = nodeCommands[program]
-	}
-	command := exec.Command(filepath.Join(directory, file), arguments...)
-	command.Dir = os.Getenv("DRUPACK_RUNTIME_CWD")
-	command.Stdin, command.Stdout, command.Stderr = os.Stdin, os.Stdout, os.Stderr
-	// The terminal interrupts the whole process group, the program included, so
-	// this process waits for the program and passes on a termination alone.
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
-	if err := command.Start(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	go func() {
-		for received := range signals {
-			if received != os.Interrupt {
-				command.Process.Signal(received)
-			}
-		}
-	}()
-	command.Wait()
-	code := command.ProcessState.ExitCode()
-	// A program a signal ended reports -1.
-	if code < 0 {
-		code = 1
-	}
-	os.Exit(code)
-}
-
 const phpUsage = `Usage: %[1]s php SCRIPT [ARGUMENTS]
        %[1]s php -r CODE`
 
@@ -322,24 +286,6 @@ func init() {
 	if len(os.Args) > 1 && os.Args[1] == "browser-open" {
 		openBrowser(os.Getenv("DRUPACK_RUNTIME_OPEN"))
 		os.Exit(0)
-	}
-	// May ask for a password.
-	if len(os.Args) > 1 && os.Args[1] == "tls-trust" {
-		if err := trust(os.Stdout, os.Getenv("DRUPACK_TLS_DIR"), os.Args[2:]); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		os.Exit(0)
-	}
-	if len(os.Args) > 1 && os.Args[1] == "tls-source" {
-		if err := writeTLSSource(os.Stdout, os.Getenv("DRUPACK_TLS_DIR"), os.Args[2:]); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		os.Exit(0)
-	}
-	if len(os.Args) > 1 && nodeCommands[os.Args[1]] != "" {
-		runNode(os.Args[1], os.Args[2:])
 	}
 	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
 		fmt.Println(release())
