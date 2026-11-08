@@ -33,14 +33,13 @@ func NewEnginePlan(r Request) (Plan, error) {
 	payload := filepath.Join(r.Work, "engine-payload")
 	plan := Plan{Steps: []Step{
 		{Name: "stage the engine files", Func: func(io.Writer) error { return stageEngine(r.Engine, files) }},
-		// The docroot argument names where the archive skips contrib sources, which
-		// the engine's files have none of.
-		{Name: "archive the engine files", Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), files, payload, "web"}},
+		{Name: "archive the engine files", Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), files, payload}},
+		{Name: "compress the engine files", Func: func(io.Writer) error { return compressPayload(payload) }},
 	}}
 	if r.PayloadOnly {
 		plan.Steps = append(plan.Steps, Step{Name: "export the engine payload", Func: func(io.Writer) error {
 			return copyInto(filepath.Join(r.Output, "payload"),
-				filepath.Join(payload, "app-payload.tar"), filepath.Join(payload, "app_checksum.txt"))
+				filepath.Join(payload, PayloadName), filepath.Join(payload, ChecksumName))
 		}})
 		return plan, nil
 	}

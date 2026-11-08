@@ -5,12 +5,12 @@ declare(strict_types=1);
 // Unit cases for the preparation functions and the site operations of application/operate.php.
 // Run with:
 //   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/prepare_test.php"
-// The site's vendor/autoload.php has a lock that targets a PHP the host may lack, so the
-// bundled runtime runs this file.
+// The bundled runtime runs this file.
 
 define('DRUPACK_OPERATE_LIBRARY', true);
+require __DIR__ . '/cases.php';
 require __DIR__ . '/../operate.php';
-registerSupport();
+registerTestSupport();
 
 use Drupack\Support\Need;
 use Drupack\Support\SiteContract;
@@ -39,7 +39,6 @@ function contract(mixed ...$fields): SiteContract
 const FIXTURE_NAME = 'fixture-site';
 putenv('DRUPACK_RUNTIME_NAME=' . FIXTURE_NAME);
 
-require __DIR__ . '/cases.php';
 $scratches = [];
 
 // Clears every start input variable, then sets the named ones, and returns the options they give.

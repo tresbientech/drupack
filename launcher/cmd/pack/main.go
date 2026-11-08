@@ -6,14 +6,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	goruntime "runtime"
 	"strings"
-
-	"github.com/klauspost/compress/zstd"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/build"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/node"
@@ -83,7 +80,7 @@ func run() error {
 	entry := flag.String("entry", "", "entry file, relative to -runtime")
 	source := flag.String("source", "", "launcher source directory")
 	output := flag.String("output", "", "path for the built launcher")
-	app := flag.String("app", "", "application tar to carry")
+	app := flag.String("app", "", "compressed application archive to carry")
 	appChecksum := flag.String("app-checksum", "", "file holding the application checksum")
 	engine := flag.Bool("engine", false, "pack the engine executable, whose -app holds the engine's files and whose release is -version")
 	nodeArchive := flag.String("node", "", "a Node archive the build verified, carried as the release site.json names")
@@ -224,31 +221,13 @@ func writeNodePayload(build, archive, version string) error {
 	return os.WriteFile(filepath.Join(build, "node-manifest.json"), manifestData, 0600)
 }
 
+// writeAppPayload copies the compressed application archive into the build copy.
 func writeAppPayload(build, archive, checksumFile string) error {
-	raw, err := os.Open(archive)
+	payload, err := os.ReadFile(archive)
 	if err != nil {
 		return err
 	}
-	defer raw.Close()
-	out, err := os.OpenFile(filepath.Join(build, "app.tar.zst"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
-	compressor, err := zstd.NewWriter(out, zstd.WithEncoderLevel(zstd.SpeedBestCompression))
-	if err != nil {
-		out.Close()
-		return err
-	}
-	if _, err := io.Copy(compressor, raw); err != nil {
-		compressor.Close()
-		out.Close()
-		return err
-	}
-	if err := compressor.Close(); err != nil {
-		out.Close()
-		return err
-	}
-	if err := out.Close(); err != nil {
+	if err := os.WriteFile(filepath.Join(build, "app.tar.zst"), payload, 0600); err != nil {
 		return err
 	}
 	checksum, err := os.ReadFile(checksumFile)

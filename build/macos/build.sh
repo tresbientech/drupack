@@ -100,7 +100,7 @@ fi
   && go run ./cmd/pack -runtime "$runtime" -entry "$entry" \
      -version "$drupack_version" \
      -source "$repository/launcher" -output "$output" \
-     -app "$payload/app-payload.tar" -app-checksum "$payload/app_checksum.txt" \
+     -app "$payload/app-payload.tar.zst" -app-checksum "$payload/app_checksum.txt" \
      -site "$payload/site.json" -site-version "$drupack_version" ${node[@]+"${node[@]}"})
 "$output" --version
 if [ -n "$engine_payload" ]; then
@@ -108,6 +108,6 @@ if [ -n "$engine_payload" ]; then
       && go run ./cmd/pack -engine -runtime "$runtime" -entry "$entry" \
          -version "$drupack_version" \
          -source "$repository/launcher" -output "$engine_output" \
-         -app "$engine_payload/app-payload.tar" -app-checksum "$engine_payload/app_checksum.txt")
+         -app "$engine_payload/app-payload.tar.zst" -app-checksum "$engine_payload/app_checksum.txt")
     "$engine_output" --version
 fi

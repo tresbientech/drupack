@@ -1,8 +1,8 @@
 *
 !application/
 !application/**
-# A developer's link to an installed site's vendor, for the PHP unit files.
-application/vendor
+# The PHP unit files' Composer install.
+application/tests/vendor
 !build/
 !build/**
 !runtime/

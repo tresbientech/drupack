@@ -1,7 +1,9 @@
 package build_test
 
 import (
+	"bytes"
 	"encoding/json"
+	"github.com/klauspost/compress/zstd"
 	"io"
 	"os"
 	"os/exec"
@@ -111,7 +113,7 @@ func TestEveryFileIsPackedAndOnlyTheHostGlibcFileIsTested(t *testing.T) {
 	}
 	want := []string{
 		"check the PHP extensions", "stage the site", "write site.json", "install the Composer project", "fetch translations",
-		"lay the engine over the site", "install the seed site", "archive the application",
+		"lay the engine over the site", "install the seed site", "archive the application", "compress the application",
 		"write site.json beside the executables", "pack linux-amd64", "pack linux-amd64-musl",
 		"pack linux-arm64", "pack linux-arm64-musl", "test linux-amd64",
 	}
@@ -169,29 +171,6 @@ func TestFlagsBeatTheSiteTargets(t *testing.T) {
 	}
 }
 
-func TestTheSeedInstallsTheSiteRecipe(t *testing.T) {
-	plan, err := build.NewPlan(request([]string{"linux-amd64"}, "both"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	seed := step(t, plan, "install the seed site").Command
-	if !slices.Contains(seed, "recipes/acme") {
-		t.Fatalf("the seed command %v does not name the site's recipe", seed)
-	}
-}
-
-func TestTheSiteScriptsTakeTheSiteDocroot(t *testing.T) {
-	plan, err := build.NewPlan(request([]string{"linux-amd64"}, "both"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range []string{"install the seed site", "archive the application"} {
-		if command := step(t, plan, name).Command; !slices.Contains(command, "docroot") {
-			t.Errorf("%s does not name the docroot: %v", name, command)
-		}
-	}
-}
-
 func TestASiteWithoutARecipeHasNoSeedStep(t *testing.T) {
 	r := request([]string{"linux-amd64"}, "both")
 	r.Site.Recipe = ""
@@ -201,7 +180,7 @@ func TestASiteWithoutARecipeHasNoSeedStep(t *testing.T) {
 	}
 	want := []string{
 		"check the PHP extensions", "stage the site", "write site.json", "install the Composer project", "fetch translations",
-		"lay the engine over the site", "archive the application",
+		"lay the engine over the site", "archive the application", "compress the application",
 		"write site.json beside the executables", "pack linux-amd64", "pack linux-amd64-musl", "test linux-amd64",
 	}
 	if got := names(plan); !reflect.DeepEqual(got, want) {
@@ -417,18 +396,6 @@ func TestTheExtensionCheckTakesTheSiteAdditions(t *testing.T) {
 	}
 }
 
-func TestTheSeedTakesTheSiteSettings(t *testing.T) {
-	r := request([]string{"linux-amd64"}, "both")
-	r.Site.Settings = "acme.settings.php"
-	plan, err := build.NewPlan(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if seed := step(t, plan, "install the seed site").Command; seed[len(seed)-1] != "acme.settings.php" {
-		t.Fatalf("the seed command ends %q; want the site's settings file", seed[len(seed)-1])
-	}
-}
-
 func linkedSite(t *testing.T, links map[string]string) string {
 	t.Helper()
 	site := t.TempDir()
@@ -568,7 +535,7 @@ func TestTheEnginePlanPacksAFilePerLibcAndPlatformAndReadsNoSite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"stage the engine files", "archive the engine files",
+	want := []string{"stage the engine files", "archive the engine files", "compress the engine files",
 		"pack the engine executable for linux-amd64", "pack the engine executable for linux-amd64-musl",
 		"pack the engine executable for linux-arm64", "pack the engine executable for linux-arm64-musl"}
 	if got := names(plan); !reflect.DeepEqual(got, want) {
@@ -640,7 +607,7 @@ func TestAPayloadOnlyEnginePlanExportsTheArchiveAndPacksNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"stage the engine files", "archive the engine files", "export the engine payload"}
+	want := []string{"stage the engine files", "archive the engine files", "compress the engine files", "export the engine payload"}
 	if got := names(plan); !reflect.DeepEqual(got, want) {
 		t.Fatalf("steps %v, want %v", got, want)
 	}
@@ -715,7 +682,7 @@ func TestAPayloadOnlyBuildExportsTheNodeArchiveOfEachPayloadTarget(t *testing.T)
 	r := request([]string{"linux-amd64"}, "both")
 	r.Runtimes, r.PayloadOnly, r.Site.Node = nil, true, "24"
 	r.Work, r.Output = t.TempDir(), t.TempDir()
-	for _, name := range []string{"payload/app-payload.tar", "payload/app_checksum.txt", "app/site.json",
+	for _, name := range []string{"payload/app-payload.tar.zst", "payload/app_checksum.txt", "app/site.json",
 		"node/linux-amd64.tar.gz", "node/linux-arm64.tar.gz",
 		"node/macos-amd64.tar.gz", "node/macos-arm64.tar.gz", "node/windows-amd64.zip"} {
 		path := filepath.Join(r.Work, name)
@@ -743,7 +710,7 @@ func TestAPayloadOnlyBuildExportsTheNodeArchiveOfEachPayloadTarget(t *testing.T)
 // listed runs the plan's export and list steps over a written payload and returns the native targets.
 func listed(t *testing.T, r build.Request, plan build.Plan) string {
 	t.Helper()
-	for _, name := range []string{"payload/app-payload.tar", "payload/app_checksum.txt", "app/site.json"} {
+	for _, name := range []string{"payload/app-payload.tar.zst", "payload/app_checksum.txt", "app/site.json"} {
 		path := filepath.Join(r.Work, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
@@ -861,7 +828,7 @@ func TestANativeBuildRefusesAddedExtensionsNamingBoth(t *testing.T) {
 func TestANativeBuildExportsTheNodeArchiveOfEachNativeTarget(t *testing.T) {
 	r := nativeRequest(t, "linux-amd64", "macos-arm64", "windows-amd64")
 	r.Site.Node = "24"
-	for _, name := range []string{"payload/app-payload.tar", "payload/app_checksum.txt", "app/site.json",
+	for _, name := range []string{"payload/app-payload.tar.zst", "payload/app_checksum.txt", "app/site.json",
 		"node/linux-amd64.tar.gz", "node/macos-arm64.tar.gz", "node/windows-amd64.zip"} {
 		path := filepath.Join(r.Work, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -885,5 +852,78 @@ func TestANativeBuildExportsTheNodeArchiveOfEachNativeTarget(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(r.Output, "payload", "node", "linux-amd64.tar.gz")); err == nil {
 		t.Error("the payload holds a Linux Node archive, which this build packs itself")
+	}
+}
+
+func TestBothFilesOfOneSitePackFromOneCompressedPayload(t *testing.T) {
+	plan, err := build.NewPlan(request([]string{"linux-amd64"}, "both"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	compressions := 0
+	for _, name := range names(plan) {
+		if strings.HasPrefix(name, "compress") {
+			compressions++
+		}
+	}
+	if compressions != 1 {
+		t.Fatalf("%d compress steps in %v; want 1", compressions, names(plan))
+	}
+	var apps []string
+	for _, name := range packSteps(plan) {
+		command := step(t, plan, name).Command
+		apps = append(apps, command[slices.Index(command, "-app")+1])
+	}
+	if len(apps) != 2 || apps[0] != apps[1] || filepath.Base(apps[0]) != build.PayloadName {
+		t.Fatalf("the pack steps take %v; want one %s", apps, build.PayloadName)
+	}
+}
+
+func TestCompressingWritesOneZstdCopyOfTheTar(t *testing.T) {
+	r := request([]string{"linux-amd64"}, "both")
+	r.Work = t.TempDir()
+	payload := filepath.Join(r.Work, "payload")
+	if err := os.MkdirAll(payload, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(payload, "app-payload.tar"), []byte("an application"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := step(t, plan, "compress the application").Func(io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	compressed, err := os.ReadFile(filepath.Join(payload, build.PayloadName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoder, err := zstd.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer decoder.Close()
+	if got, _ := io.ReadAll(decoder); string(got) != "an application" {
+		t.Fatalf("the payload holds %q", got)
+	}
+}
+
+func TestOnlyTheSiteArchiveNamesADocroot(t *testing.T) {
+	site, err := build.NewPlan(request([]string{"linux-amd64"}, "both"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if command := step(t, site, "archive the application").Command; command[len(command)-1] != "docroot" {
+		t.Errorf("the site archive %v does not end with the docroot", command)
+	}
+	engine, err := build.NewEnginePlan(request([]string{"linux-amd64"}, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := step(t, engine, "archive the engine files").Command
+	if len(command) != 4 {
+		t.Errorf("the engine archive %v takes more than the script, files and output", command)
 	}
 }

@@ -29,7 +29,7 @@ class ExistingSiteAdoption(harness.ConformanceCase):
         cls.server.stop()
 
     def drush(self, installer, *command):
-        """Runs the application's Drush on the installer's Site data, as build/seed.sh does."""
+        """Runs the application's Drush on the installer's Site data, as the seed build does."""
         app = self.application()
         env = dict(os.environ, DRUPACK_RUNTIME_DATA_DIR=str(installer), DRUPACK_RUNTIME_FILES_DIR=str(installer / "files"),
                    DRUPACK_RUNTIME_HOST="localhost")

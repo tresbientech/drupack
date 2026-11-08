@@ -8,7 +8,7 @@ declare(strict_types=1);
 // shebang line of an included file, so the buffer drops it.
 
 define('DRUPACK_INSTALL_LIBRARY', true);
-require __DIR__ . '/../vendor/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 ob_start();
 require __DIR__ . '/../../composer/drupack-install';
 ob_end_clean();

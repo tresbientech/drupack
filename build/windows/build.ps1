@@ -202,9 +202,9 @@ $node = if (Test-Path $nodeArchive) { @('-node', $nodeArchive) } else { @() }
 $env:CGO_ENABLED = '0'
 Push-Location $launcherSource
 try {
-  go run ./cmd/pack -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $outputPath -app (Join-Path $payload 'app-payload.tar') -app-checksum (Join-Path $payload 'app_checksum.txt') -site (Join-Path $payload 'site.json') -site-version $Version @node
+  go run ./cmd/pack -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $outputPath -app (Join-Path $payload 'app-payload.tar.zst') -app-checksum (Join-Path $payload 'app_checksum.txt') -site (Join-Path $payload 'site.json') -site-version $Version @node
   if ($EnginePayloadDirectory) {
-    go run ./cmd/pack -engine -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $engineOutputPath -app (Join-Path $enginePayload 'app-payload.tar') -app-checksum (Join-Path $enginePayload 'app_checksum.txt')
+    go run ./cmd/pack -engine -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $engineOutputPath -app (Join-Path $enginePayload 'app-payload.tar.zst') -app-checksum (Join-Path $enginePayload 'app_checksum.txt')
   }
 } finally {
   Pop-Location

@@ -49,7 +49,7 @@ class NativePack(unittest.TestCase):
 
         self.payload = self.scratch / "payload"
         self.payload.mkdir()
-        (self.payload / "app-payload.tar").write_bytes(b"an application")
+        (self.payload / "app-payload.tar.zst").write_bytes(b"an application")
         (self.payload / "app_checksum.txt").write_text("0" * 64 + "\n")
         (self.payload / "site.json").write_text(json.dumps({"name": "acme"}))
         self.output = self.scratch / "out" / "acme-linux-amd64"

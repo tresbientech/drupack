@@ -17,7 +17,7 @@ import harness
 PASSWORD = "Initialization.test.2026"
 SITE_NAME = "Drupack initialization check"
 LOGIN_LINE = "  Login:     http"
-# Dockerfile installs the seed under this account; operate.php's seedPassword() carries its password.
+# operate.php's seed operation installs the seed under this account and seedPassword().
 SEED_ADMIN = "drupack-admin"
 
 # A helper process for the serving-lease case: holds an exclusive flock on the path in argv[1],

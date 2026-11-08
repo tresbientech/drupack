@@ -5,7 +5,7 @@ declare(strict_types=1);
 // Extends Drupal core's PublicStream, so unlike the other files here this needs the vendor/
 // autoloader, for core and for Symfony's Path.
 
-require __DIR__ . '/../vendor/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 require __DIR__ . '/../support/SiteDataPublicStream.php';
 
 use Drupack\Support\SiteDataPublicStream;

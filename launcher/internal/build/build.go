@@ -137,11 +137,14 @@ func NewPlan(r Request) (Plan, error) {
 	}
 	// A site without a recipe ships no seed, and serves only a database that holds it.
 	if r.Site.Recipe != "" {
-		plan.Steps = append(plan.Steps, Step{Name: "install the seed site", Env: phpEnv,
-			Command: []string{"bash", filepath.Join(r.Engine, "build", "seed.sh"), application, r.PHP, r.Site.Docroot, r.Site.Recipe, r.Site.Settings}})
+		plan.Steps = append(plan.Steps, Step{Name: "install the seed site", Func: func(log io.Writer) error {
+			return installSeed(log, r, application, phpEnv)
+		}})
 	}
-	plan.Steps = append(plan.Steps, Step{Name: "archive the application",
-		Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload, r.Site.Docroot}})
+	plan.Steps = append(plan.Steps,
+		Step{Name: "archive the application",
+			Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload, r.Site.Docroot}},
+		Step{Name: "compress the application", Func: func(io.Writer) error { return compressPayload(payload) }})
 	destination := filepath.Join(r.Output, "payload")
 	if r.PayloadOnly || len(natives) > 0 {
 		exported := natives
@@ -245,7 +248,7 @@ func packSteps(r Request, libcs []string, resolved map[string]string, step, name
 				"-entry", "drupack", "-version", r.EngineVersion,
 				"-source", filepath.Join(r.Engine, "launcher"),
 				"-output", filepath.Join(r.Output, Executable(name, target)),
-				"-app", filepath.Join(payload, "app-payload.tar"), "-app-checksum", filepath.Join(payload, "app_checksum.txt"),
+				"-app", filepath.Join(payload, PayloadName), "-app-checksum", filepath.Join(payload, ChecksumName),
 				"-goarch", runtime.Platforms[platform]}, extra...)
 			if libc == "musl" {
 				command = append(command, "-musl")
@@ -304,12 +307,7 @@ func Run(plan Plan, log io.Writer) error {
 		if step.Func != nil {
 			err = step.Func(log)
 		} else {
-			command := exec.Command(step.Command[0], step.Command[1:]...)
-			command.Dir = step.Dir
-			command.Env = append(os.Environ(), step.Env...)
-			command.Stdout = log
-			command.Stderr = log
-			err = command.Run()
+			err = execute(step, log)
 		}
 		if err != nil {
 			return fmt.Errorf("%s: %w", step.Name, err)
@@ -319,6 +317,35 @@ func Run(plan Plan, log io.Writer) error {
 		fmt.Fprintf(log, "Not tested: %s.\n", target)
 	}
 	return nil
+}
+
+func execute(step Step, log io.Writer) error {
+	command := exec.Command(step.Command[0], step.Command[1:]...)
+	command.Dir = step.Dir
+	command.Env = append(os.Environ(), step.Env...)
+	command.Stdout = log
+	command.Stderr = log
+	return command.Run()
+}
+
+// installSeed runs PHP's seed operation over application/seed, which a SQLite first start
+// copies. Site data's directories exist before it runs, as a start leaves them. Drupal's
+// compiled PHP lands in the docroot's files directory, which the application does not ship.
+func installSeed(log io.Writer, r Request, application string, phpEnv []string) error {
+	seed := filepath.Join(application, "seed")
+	for _, directory := range []string{"private", "tmp", "config"} {
+		if err := os.MkdirAll(filepath.Join(seed, directory), 0o755); err != nil {
+			return err
+		}
+	}
+	err := execute(Step{Dir: application, Env: append(slices.Clone(phpEnv),
+		"DRUPACK_RUNTIME_DATA_DIR="+seed, "DRUPACK_RUNTIME_FILES_DIR="+filepath.Join(seed, "files"),
+		"DRUPACK_RUNTIME_APP_DIR="+application, "DRUPACK_RUNTIME_HOST=localhost", "DRUPACK_RUNTIME_NAME="+r.Site.Name),
+		Command: []string{r.PHP, "php-cli", filepath.Join(application, "operate.php"), "seed", seed}}, log)
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(filepath.Join(application, r.Site.Docroot, "sites", "default", "files"))
 }
 
 // stageSite copies the site into the application directory. In a git checkout
@@ -473,8 +500,8 @@ func layEngine(engine, application, docroot string) error {
 // reads them, with the Node archive of each of targets in node/ for a site
 // carrying Node.
 func exportPayload(payload, application, destination string, carriesNode bool, work string, targets []string) error {
-	err := copyInto(destination, filepath.Join(payload, "app-payload.tar"),
-		filepath.Join(payload, "app_checksum.txt"), filepath.Join(application, siteconfig.OutputName))
+	err := copyInto(destination, filepath.Join(payload, PayloadName),
+		filepath.Join(payload, ChecksumName), filepath.Join(application, siteconfig.OutputName))
 	if err != nil || !carriesNode {
 		return err
 	}

@@ -6,6 +6,7 @@ declare(strict_types=1);
 //   operate.php check folder PROJECT DOCROOT
 //   operate.php check site DATA
 //   operate.php prepare DATA
+//   operate.php seed DATA
 //   operate.php login URL DRUSH DIRECTORY [PATH]
 // An operation prints its step lines on stderr and one JSON record on stdout. A refusal prints
 // its message on stderr and exits 1. A site operation reads the start's database, administrator
@@ -357,7 +358,8 @@ function installSite(SiteData $site, array $options, string $binary, SiteContrac
         throw new RuntimeException("The database for $site->directory holds no installed site, and " . executableName()
             . " has no recipe to install one. Name the database that holds its site, then start " . executableName() . " again.");
     }
-    if (databaseHoldsTables($options)) {
+    // A SQLite database is a file this start just created, so it holds no tables to protect.
+    if ($options['database'] !== 'sqlite' && databaseHoldsTables($options)) {
         if ($started) {
             throw new RuntimeException("This Site data began installing into the {$options['database']} database {$options['db-name']} on "
                 . urlHost($options['db-host']) . ':' . databasePort($options) . ", which now holds tables: $site->directory. "
@@ -373,9 +375,8 @@ function installSite(SiteData $site, array $options, string $binary, SiteContrac
     return false;
 }
 
-// The Dockerfile installs the seed with this password, on the site:install line that
-// builds /app/seed, and tests/initialization.sh checks that they match. It ships in
-// the Dockerfile and in every executable.
+// The seed build installs the administrator with this password, and the first start replaces
+// it. It ships in every executable.
 function seedPassword(): string
 {
     return 'drupack-seed-password';
@@ -430,15 +431,14 @@ function configureAdministrator(string $binary): void
     runDrush($binary, [drushPath(), 'php:eval', '$account = \\Drupal\\user\\Entity\\User::load(1); $account->set("name", getenv("DRUPACK_ADMIN_USER")); $account->setPassword(getenv("DRUPACK_ADMIN_PASSWORD")); $account->save();'], 'Cannot configure Drupal administrator');
 }
 
-// The first start renames the seed's Dockerfile-time name.
+// The first start renames the seed's build-time site name.
 function configureSeedSiteName(string $binary, string $name): void
 {
     runDrush($binary, [drushPath(), 'config:set', 'system.site', 'name', $name, '--yes'], 'Cannot set the site name');
 }
 
-// Drupal CMS recipes enable these during site:install; the seed build removes them the
-// same way. automatic_updates 4.1.0 stalls a cron request, and package_manager cannot
-// write into the read-only application. A resumed modules step can run after an earlier one
+// Drupal CMS recipes enable these during site:install. automatic_updates 4.1.0 stalls a cron
+// request, and package_manager cannot write into the read-only application. A resumed modules step can run after an earlier one
 // already removed them, and Drush refuses to uninstall a module that is not enabled.
 function removeRecipeModules(string $binary): void
 {
@@ -591,12 +591,29 @@ function prepare(string $binary, string $data, SiteContract $contract): array
     return ['adopted' => $adopted, 'credentials' => in_array(Need::Credentials, Step::owed($steps), true)];
 }
 
+// Installs the Seed site into $data through the steps a MySQL first start runs, against SQLite.
+// The build holds the seed's password; the first start of a copy replaces it.
+function seed(string $binary, string $data, SiteContract $contract): array
+{
+    $options = [...startOptions($contract), 'database' => 'sqlite', 'admin-user' => 'drupack-admin', 'admin-password' => seedPassword()];
+    putenv("DRUPACK_ADMIN_USER={$options['admin-user']}");
+    putenv("DRUPACK_ADMIN_PASSWORD={$options['admin-password']}");
+    $site = new SiteData($data);
+    $steps = [Step::Settings, Step::Install, Step::Modules];
+    $site->initialize($steps, function (Step $step, bool $adopted) use ($site, $options, $binary): bool {
+        fwrite(STDERR, $step->report() . "\n");
+        return runStep($step, $site, $options, $binary, $adopted);
+    });
+    return [];
+}
+
 function operate(string $binary, array $words): array
 {
     return match (true) {
         $words[0] === 'check' && $words[1] === 'folder' => check($binary, $words[2], $words[3]),
         $words[0] === 'check' && $words[1] === 'site' => checkSite($words[2], siteContract()),
         $words[0] === 'prepare' => prepare($binary, $words[1], siteContract()),
+        $words[0] === 'seed' => seed($binary, $words[1], siteContract()),
         $words[0] === 'login' => mintLoginLink($binary, $words[1], $words[2], $words[3], array_slice($words, 4)),
     };
 }
@@ -607,7 +624,7 @@ if (defined('DRUPACK_OPERATE_LIBRARY')) {
 }
 
 try {
-    if ($argv[1] === 'prepare' || $argv[1] === 'check' && $argv[2] === 'site') {
+    if ($argv[1] === 'prepare' || $argv[1] === 'seed' || $argv[1] === 'check' && $argv[2] === 'site') {
         registerSupport();
     }
     $record = operate(getenv('DRUPACK_RUNTIME_BINARY'), array_slice($argv, 1));

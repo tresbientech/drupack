@@ -12,11 +12,9 @@ engine=dist/engine/drupack-$platform
 
 # The work directories and test results hold millions of small files per run.
 # They live outside the checkout, one root per checkout, mounted at the same
-# path in the job container. dist/work links to the site's work directory for
-# dev-server.sh and the vendor link below; -T fails on a real dist/work.
+# path in the job container.
 work=${DRUPACK_QA_WORK:-/tmp/drupack-qa/$(basename -- "$PWD")}
 mkdir -p dist "$work/work" "$work/variant-work" "$work/engine-work" "$work/results"
-ln -sfnT "$work/work" dist/work
 
 . build/demo-pin.sh
 demo=$work/demo
@@ -27,6 +25,14 @@ git -C "$demo" checkout -q --detach FETCH_HEAD
 # The job image carries both of this architecture's runtimes, so the build names
 # none. The chain tests the glibc file alone, so it packs no musl one.
 docker build --target job -t drupack-job .
+# The checks that need no built file run before any executable builds.
+bash build/go-tests.sh
+bash runtime/adapt-test.sh gnu
+bash build/unit-tests.sh
+# The PHP unit files read the vendor directory of their own Composer install.
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e DRUPACK_CA_FILE=/opt/drupack/engine/application/cacert.pem \
+    -v "$PWD:/src" -w /src drupack-job sh -c 'PHPRC=$(dirname "$DRUPACK_PHP") "$DRUPACK_PHP" php-cli "$DRUPACK_COMPOSER" \
+        install --working-dir=application/tests --no-interaction --prefer-dist --no-plugins'
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -w /src drupack-job \
     drupack-build --site "$demo" --platform "$platform" --libc glibc \
     --output dist --work "$work/work"
@@ -57,20 +63,16 @@ tar --delete -f "$no_node/app-payload.tar" ./site.json
 tar --mtime=@0 --owner=0 --group=0 --numeric-owner --mode=u+rw,go+rX -rf "$no_node/app-payload.tar" \
     -C dist/no-node ./site.json
 sha256sum "$no_node/app-payload.tar" | cut -d ' ' -f 1 | tr -d '\n' >"$no_node/app_checksum.txt"
+zstd -q -19 -f --rm "$no_node/app-payload.tar" -o "$no_node/app-payload.tar.zst"
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -w /src/launcher -e CGO_ENABLED=0 drupack-job \
     sh -c 'go run ./cmd/pack -runtime "/opt/drupack/runtimes/$1-glibc" -entry drupack -version "$DRUPACK_ENGINE_VERSION" \
-        -source . -output "../dist/no-node/drupacked-demo-$1" -app "$2/app-payload.tar" -app-checksum "$2/app_checksum.txt" \
+        -source . -output "../dist/no-node/drupacked-demo-$1" -app "$2/app-payload.tar.zst" -app-checksum "$2/app_checksum.txt" \
         -site ../dist/no-node/site.json -site-version dev' sh "$platform" "$no_node"
 
-# The PHP unit files read the vendor directory of the site just built.
-ln -sfn ../dist/work/app/vendor application/vendor
 # Every file gets the arguments a and b, which argv_test.php checks.
 for file in application/tests/*_test.php; do
     "$executable" php-cli "$PWD/$file" a b
 done
-bash build/go-tests.sh
-bash runtime/adapt-test.sh gnu
-bash build/unit-tests.sh
 DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" "$work/results/conformance" --site-tests "$demo/tests" \
     -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \
     -k ExistingSiteAdoption -k EngineExecutable -k TlsSources -k TrustCommand -k StaticSite

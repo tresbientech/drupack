@@ -2,8 +2,13 @@
 
 declare(strict_types=1);
 
-
 $cases = [];
+
+// The tests' own Composer install builds the autoloader that application/vendor holds in a site.
+function registerTestSupport(): void
+{
+    (require __DIR__ . '/vendor/autoload.php')->addPsr4('Drupack\\Support\\', __DIR__ . '/../support');
+}
 
 function test(string $name, callable $case): void
 {

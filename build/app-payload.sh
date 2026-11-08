@@ -4,10 +4,27 @@ set -euo pipefail
 # Packs the application the launcher carries into OUTPUT: app-payload.tar and
 # app_checksum.txt. Nothing in it depends on the runtime's libc, so one payload serves
 # every runtime.
-usage='Usage: build/app-payload.sh APPLICATION OUTPUT DOCROOT'
+usage='Usage: build/app-payload.sh APPLICATION OUTPUT [DOCROOT]'
 application=${1:?$usage}
 output=${2:?$usage}
-contrib=./${3:?$usage}/modules/contrib
+# Only a site has a docroot, and only a site's payload leaves out the Drupal modules' sources.
+docroot=${3:-}
+contrib=./$docroot/modules/contrib
+drupal_options=()
+if [ -n "$docroot" ]; then
+    drupal_options=(
+        --exclude="$contrib/canvas/ui/src"
+        --exclude="$contrib/canvas/ui/lib"
+        --exclude="$contrib/canvas/ui/assets/videos"
+        --exclude="$contrib/canvas/packages/cli/src"
+        --exclude="$contrib/canvas/packages/workbench/src"
+        --exclude="$contrib/canvas/packages/eslint-config/src"
+        --exclude="$contrib/modeler_api/ui/src"
+        --exclude="$contrib/project_browser/sveltejs/src"
+        --exclude="$contrib/project_browser/sveltejs/scripts"
+        --exclude='./vendor/html2text/html2text/test'
+    )
+fi
 
 mkdir -p "$output"
 cd "$output"
@@ -25,20 +42,11 @@ tar "${archive_options[@]}" \
     --exclude='package-lock.json' --exclude='yarn.lock' \
     --exclude='pnpm-lock.yaml' --exclude='npm-shrinkwrap.json' \
     --exclude='.github' --exclude='.gitlab' \
-    --exclude="$contrib/canvas/ui/src" \
-    --exclude="$contrib/canvas/ui/lib" \
-    --exclude="$contrib/canvas/ui/assets/videos" \
-    --exclude="$contrib/canvas/packages/cli/src" \
-    --exclude="$contrib/canvas/packages/workbench/src" \
-    --exclude="$contrib/canvas/packages/eslint-config/src" \
-    --exclude="$contrib/modeler_api/ui/src" \
-    --exclude="$contrib/project_browser/sveltejs/src" \
-    --exclude="$contrib/project_browser/sveltejs/scripts" \
-    --exclude='./vendor/html2text/html2text/test' \
+    "${drupal_options[@]}" \
     -cf app-payload.tar -C "$application" .
 # Canvas's ui/src holds one file its licence requires to ship, which the exclude above drops.
 hyperscriptify=$contrib/canvas/ui/src/local_packages/hyperscriptify
-if [ -e "$application/$hyperscriptify/LICENSE" ]; then
+if [ -n "$docroot" ] && [ -e "$application/$hyperscriptify/LICENSE" ]; then
     tar "${archive_options[@]}" --no-recursion -rf app-payload.tar -C "$application" \
         "$contrib/canvas/ui/src" "$contrib/canvas/ui/src/local_packages" \
         "$hyperscriptify" "$hyperscriptify/LICENSE"

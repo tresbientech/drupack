@@ -1,0 +1,13 @@
+{
+    "name": "drupack/application-tests",
+    "description": "The packages the PHP unit files load: Drupal core for the public stream, composer/semver for drupack-install.",
+    "type": "project",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "drupal/core": "11.4.11",
+        "composer/semver": "^3"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

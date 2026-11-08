@@ -7,9 +7,9 @@ declare(strict_types=1);
 // operate.php holds the executableName() and directory() the class calls.
 
 define('DRUPACK_OPERATE_LIBRARY', true);
-require __DIR__ . '/../operate.php';
-registerSupport();
 require __DIR__ . '/cases.php';
+require __DIR__ . '/../operate.php';
+registerTestSupport();
 
 use Drupack\Support\SiteData;
 use Drupack\Support\Step;

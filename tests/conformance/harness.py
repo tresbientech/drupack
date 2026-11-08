@@ -246,11 +246,15 @@ def _build_stub(work, runtime_dir, entry, version):
     )
 
 
+# A zstd frame holding no bytes, the compressed form of an empty tar stream.
+EMPTY_ZSTD = bytes.fromhex("28b52ffd24000100 0099e9d851".replace(" ", ""))
+
+
 def _run_pack(work, runtime_dir, entry, version, output, name):
     output.parent.mkdir(parents=True, exist_ok=True)
-    # An empty archive, under a checksum of the version so two fixtures never share a cache entry.
-    application = work / "app.tar"
-    application.write_bytes(b"")
+    # An empty compressed archive, under a checksum of the version so two fixtures never share a cache entry.
+    application = work / "app.tar.zst"
+    application.write_bytes(EMPTY_ZSTD)
     checksum = work / "app_checksum.txt"
     checksum.write_text(hashlib.sha256(version.encode()).hexdigest())
     site = work / "site.json"

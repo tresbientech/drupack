@@ -1,8 +1,7 @@
 # A hand build clones Drupacked Demo into demo/, at the ref build/demo-pin.sh
-# names. application/vendor links to a built site's vendor directory for the
-# PHP unit files.
+# names. The PHP unit files read the Composer install in application/tests/vendor.
 /demo/
-/application/vendor
+/application/tests/vendor
 /dist/
 /dist-phase1/
 /data/

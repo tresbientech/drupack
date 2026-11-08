@@ -76,5 +76,5 @@ cd -- "$engine/launcher"
 # Apple silicon host packs amd64 too.
 CGO_ENABLED=0 go run ./cmd/pack -goarch "${target##*-}" -runtime "$work/runtime" -entry "$entry" \
     -version "$version" -source "$engine/launcher" -output "$output" \
-    -app "$payload/app-payload.tar" -app-checksum "$payload/app_checksum.txt" \
+    -app "$payload/app-payload.tar.zst" -app-checksum "$payload/app_checksum.txt" \
     -site "$payload/site.json" -site-version "$site_version" ${node[@]+"${node[@]}"}
