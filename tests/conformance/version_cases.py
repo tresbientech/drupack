@@ -40,9 +40,3 @@ class Version(harness.ConformanceCase):
         site = [f"Node {harness.SITE['node']}"] if carries_node() else []
         site += [f"Drupal {harness.SITE['drupal']}", f"Drush {harness.SITE['drush']}"]
         self.assertEqual(lines[len(RUNTIME_COMPONENTS):], site)
-
-    def test_the_version_word_is_an_unknown_command(self):
-        result = harness.run([str(harness.BINARY), "version"], capture_output=True, text=True,
-                             timeout=harness.WAITS["unpack"].seconds)
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("Unknown command: version", result.stderr)

@@ -32,29 +32,6 @@ class ArgumentCases(harness.ConformanceCase):
     def test_pgsql_start_without_connection_details_refuses(self):
         self._refuses_without_connection_details("pgsql")
 
-    def test_unsupported_database_backend_refuses(self):
-        data = self.case_dir / "data"
-        self.refuse(data, "--data-dir", str(data), "--database", "invalid")
-
-    def test_braced_data_dir_refuses(self):
-        for name in ("open{dir", "close}dir"):
-            with self.subTest(name):
-                data = self.case_dir / name
-                diagnostic = self.refuse(data, "--data-dir", str(data))
-                self.assertIn(f"--data-dir must not contain {{ or }}: {data}", diagnostic)
-
-    def test_braced_files_dir_refuses(self):
-        data = self.case_dir / "data"
-        diagnostic = self.refuse(data, "--data-dir", str(data), "--files-dir", str(self.case_dir / "{files}"))
-        self.assertIn("--files-dir must not contain { or }", diagnostic)
-
-    def test_an_unknown_command_prints_the_usage(self):
-        data = self.case_dir / "data"
-        diagnostic = self.refuse(data, "frobnicate")
-        self.assertIn("Unknown command: frobnicate", diagnostic)
-        self.assertIn(f"Usage: {harness.SITE['name']}", diagnostic)
-        self.assertNotIn("caddy", diagnostic)
-
     def test_php_runs_a_script_from_the_working_directory_and_code(self):
         (self.case_dir / "x.php").write_text("<?php echo 'php-ran';")
         for words, want in ((["php", "x.php"], r"^php-ran$"), (["php", "-r", "echo PHP_VERSION;"], r"^8\.\d+\.\d+")):
@@ -63,8 +40,3 @@ class ArgumentCases(harness.ConformanceCase):
                                      timeout=harness.WAITS["php_cli"].seconds)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertRegex(result.stdout, want)
-
-    def test_drush_without_a_site_refuses(self):
-        data = self.case_dir / "drush"
-        diagnostic = self.refuse(data, "drush", "--data-dir", str(data), "status")
-        self.assertIn(str(data), diagnostic)

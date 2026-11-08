@@ -266,6 +266,24 @@ func TestSiteDrushEnvironment(t *testing.T) {
 	}
 }
 
+func TestSiteDrushCreatesNoMercureSecret(t *testing.T) {
+	f := newSite(t, siteconfig.Site{Port: 8123, Mercure: true})
+	f.record(t, `{"listen":"127.0.0.1:9000","host":"localhost","scheme":"http"}`)
+	call, err := drushPlan(f.launch(), parseDrush(t, false, "--data-dir", f.data, "status"), f.cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := environmentOf(call)
+	for _, name := range []string{"DRUPACK_MERCURE_URL", "DRUPACK_MERCURE_PUBLISHER_SECRET", "DRUPACK_MERCURE_SUBSCRIBER_SECRET"} {
+		if value, set := got[name]; set {
+			t.Errorf("%s = %q, want it unset", name, value)
+		}
+	}
+	if written, _ := filepath.Glob(filepath.Join(f.data, "mercure_*")); len(written) != 0 {
+		t.Errorf("drush wrote %q", written)
+	}
+}
+
 func TestSiteDrushPreparesTheSiteData(t *testing.T) {
 	f := newSite(t, siteconfig.Site{Port: 8123, Static: &siteconfig.Static{}})
 	put(t, filepath.Join(f.application, "translations", "fr.po"), "bundled")

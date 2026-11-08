@@ -4,8 +4,55 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net"
+	"os"
 	"testing"
+
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
+
+func TestCheckDatabase(t *testing.T) {
+	for _, row := range []struct {
+		name, option, inherited string
+		refused                 bool
+	}{
+		{"no choice", "", "", false},
+		{"sqlite", "sqlite", "", false},
+		{"mysql", "mysql", "", false},
+		{"pgsql", "pgsql", "", false},
+		{"a typed driver nobody ships", "oracle", "", true},
+		{"an inherited driver nobody ships", "", "oracle", true},
+		{"a typed driver over an inherited one", "pgsql", "oracle", false},
+	} {
+		words := []string{"--foreground"}
+		if row.option != "" {
+			words = append(words, "--database", row.option)
+		}
+		e := environ{}
+		if row.inherited != "" {
+			e.put("DRUPACK_DATABASE=" + row.inherited)
+		}
+		err := checkDatabase(parseLine(t, false, words...), e)
+		if row.refused && (err == nil || err.Error() != "--database requires sqlite, mysql, or pgsql") || !row.refused && err != nil {
+			t.Errorf("%s: checkDatabase = %v", row.name, err)
+		}
+	}
+}
+
+func TestServedRefusesWhenNobodyWatches(t *testing.T) {
+	if runtime.Terminal(os.Stdin) {
+		t.Skip("a terminal on stdin makes the start hand over")
+	}
+	f := newSite(t, siteconfig.Site{Port: 7225})
+	f.record(t, `{"listen":"127.0.0.1:9000","host":"localhost","scheme":"https"}`)
+	s := packagedStart{l: f.launch(), data: f.data, plan: startPlan{Bind: "127.0.0.1", Port: 7225, Host: "localhost"}}
+	if err, want := s.served(false), "Another fixture-site start is preparing this Site data: "+f.data; err == nil || err.Error() != want {
+		t.Errorf("a holder still preparing: %v, want %q", err, want)
+	}
+	if err, want := s.served(true), "fixture-site already serves this Site data at https://localhost:9000/: "+f.data; err == nil || err.Error() != want {
+		t.Errorf("a served site: %v, want %q", err, want)
+	}
+}
 
 func TestSiteToken(t *testing.T) {
 	sum := sha256.Sum256([]byte("/Users/Ann/Site Data"))

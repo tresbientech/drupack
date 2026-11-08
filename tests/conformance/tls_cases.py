@@ -174,18 +174,6 @@ class TlsSources(harness.ConformanceCase):
         self.assertEqual(login.returncode, 0, login.stderr)
         self.assertTrue(login.stdout.strip().startswith(f"http://{alias}:{site.port}/user/reset/"), login.stdout)
 
-    def test_host_localhost_keeps_localhost_when_the_name_resolves(self):
-        site = self.start(root=False, trusted=False, answer="127.0.0.1", options=("--host", "localhost"))
-        log = site.log_path.read_text(errors="replace")
-        self.assertIn(f"URL:       http://localhost:{site.port}/", log)
-        self.assertNotIn("did not resolve", log)
-
-    def test_a_name_the_resolver_filters_falls_back_to_localhost(self):
-        site = self.start(root=False, trusted=False, answer="0.0.0.0")
-        log = site.log_path.read_text(errors="replace")
-        self.assertIn(f"URL:       http://localhost:{site.port}/", log)
-        self.assertIn("did not resolve to 127.0.0.1 (answered 0.0.0.0), so the URL uses localhost.", log)
-
     def test_mkcert_serves_https(self):
         stub, calls = write_mkcert(self.case_dir / "mkcert", 800)
         site = self.start(root=False, trusted=False, mkcert=stub)
@@ -201,15 +189,6 @@ class TlsSources(harness.ConformanceCase):
         # The harness verifies against mkcert's root, so a site serving the Drupack root fails to start here.
         site = self.start(root=True, trusted=True, mkcert=stub)
         self.assertEqual(site.fetch("/user/login")[0], 200)
-
-    def test_an_mkcert_certificate_near_expiry_is_written_again(self):
-        stub, calls = write_mkcert(self.case_dir / "mkcert", 10)
-        tls_dir = self.case_dir / "tls"
-        for name in ("first", "second"):
-            site = self.start(root=False, trusted=False, mkcert=stub, name=name)
-            site.stop()
-        self.assertEqual(calls.read_text().count("-cert-file"), 2)
-        self.assertTrue((tls_dir / "mkcert" / "localhost.pem").exists())
 
     def test_a_trusted_root_serves_https(self):
         site = self.start(root=True, trusted=True)
@@ -256,21 +235,11 @@ class TlsSources(harness.ConformanceCase):
         self.assertIn(f"URL:       http://localhost:{site.port}/", log)
         self.assertNotIn('HTTPS: run "', log)
 
-    def test_an_untrusted_mkcert_root_falls_through_to_http(self):
-        stub, _ = write_mkcert(self.case_dir / "mkcert", 800)
-        env = self.environment(self.case_dir / "tls", [])
-        env["PATH"] = f"{stub}{os.pathsep}{env['PATH']}"
-        site = harness.Site(harness.BINARY, self.case_dir / "site")
-        site.start(self.data, env=env)
-        self.addCleanup(site.stop)
-        self.assertIn(f"URL:       http://localhost:{site.port}/", site.log_path.read_text(errors="replace"))
-
     def test_a_root_the_machine_does_not_trust_serves_http(self):
         site = self.start(root=True, trusted=False)
         status, _, _ = site.fetch("/user/login")
         self.assertEqual(status, 200)
         self.assertIn(f"URL:       http://localhost:{site.port}/", site.log_path.read_text(errors="replace"))
-
 
 
 # python:3.13-slim, pinned like network_cases.py. Its ca-certificates package

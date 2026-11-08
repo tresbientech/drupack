@@ -308,6 +308,45 @@ func TestStopRecordCarriesTheKeysOfItsFixture(t *testing.T) {
 	}
 }
 
+func TestStopChannelAnswersOnLoopbackAlone(t *testing.T) {
+	addresses, err := net.InterfaceAddrs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := ""
+	for _, address := range addresses {
+		if network, ok := address.(*net.IPNet); ok && network.IP.To4() != nil && !network.IP.IsLoopback() {
+			other = network.IP.String()
+			break
+		}
+	}
+	if other == "" {
+		t.Skip("this computer has no address but loopback")
+	}
+	path := filepath.Join(t.TempDir(), "stop.json")
+	if err := serveStop(t.Context(), path, func() {}); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record stopRecord
+	if err := json.Unmarshal(content, &record); err != nil {
+		t.Fatal(err)
+	}
+	port := strconv.Itoa(record.Port)
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", port), time.Second)
+	if err != nil {
+		t.Fatalf("loopback: %v", err)
+	}
+	conn.Close()
+	if conn, err := net.DialTimeout("tcp", net.JoinHostPort(other, port), time.Second); err == nil {
+		conn.Close()
+		t.Fatalf("the stop channel answers on %s", other)
+	}
+}
+
 func TestStopWithTheTokenAnswers204ThenShutsDown(t *testing.T) {
 	server, _ := scripted(t, http.StatusNoContent)
 	p := probing(t, server, "")

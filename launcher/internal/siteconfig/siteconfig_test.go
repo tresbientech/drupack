@@ -253,12 +253,14 @@ func TestReadRefusesALockWithoutDrupalOrDrush(t *testing.T) {
 	}
 }
 
+const withoutTome = "composer.lock: packages names no drupal/tome release, which extra.drupack.static needs"
+
 const lockedWithTome = `{"packages": [{"name": "drupal/core", "version": "11.4.7"}, {"name": "drush/drush", "version": "13.8.0"}, {"name": "drupal/tome", "version": "1.16.0"}]}`
 
 func TestReadRefusesStaticOnALockWithoutTome(t *testing.T) {
 	directory := site(t, minimal, drupackExtra(`{"static": {"dynamic": ["/search*"]}}`))
-	if _, err := siteconfig.Read(directory); err == nil || !strings.Contains(err.Error(), "drupal/tome") {
-		t.Fatalf("Read error = %v; want one naming drupal/tome", err)
+	if _, err := siteconfig.Read(directory); err == nil || !strings.Contains(err.Error(), withoutTome) {
+		t.Fatalf("Read error = %v; want one holding %q", err, withoutTome)
 	}
 	if err := os.WriteFile(filepath.Join(directory, "composer.lock"), []byte(lockedWithTome), 0o644); err != nil {
 		t.Fatal(err)
@@ -282,8 +284,8 @@ func TestCheckStaticReadsTheLockOnlyWithTheKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = siteconfig.CheckStatic(directory, siteconfig.Composer{Static: &siteconfig.Static{}})
-	if err == nil || !strings.Contains(err.Error(), "drupal/tome") {
-		t.Fatalf("CheckStatic on a lock without Tome = %v; want one naming drupal/tome", err)
+	if err == nil || err.Error() != withoutTome {
+		t.Fatalf("CheckStatic on a lock without Tome = %v; want %q", err, withoutTome)
 	}
 }
 

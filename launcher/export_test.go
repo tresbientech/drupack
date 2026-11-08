@@ -192,4 +192,12 @@ func TestSiteExportRefusals(t *testing.T) {
 	if want := "This Site data has no site yet: " + runtime.Canonical(f.data) + ". Start fixture-site once to create one."; err == nil || err.Error() != want {
 		t.Errorf("no site: %v, want %q", err, want)
 	}
+	absent := filepath.Join(f.cwd, "empty")
+	_, err = siteExport(f.launch(), parseLine(t, false, "export", "--data-dir", absent), f.cwd, e)
+	if want := "This Site data has no site yet: " + absent + ". Start fixture-site once to create one."; err == nil || err.Error() != want {
+		t.Errorf("no Site data: %v, want %q", err, want)
+	}
+	if _, err := os.Stat(absent); !os.IsNotExist(err) {
+		t.Errorf("a refused export created %s: %v", absent, err)
+	}
 }

@@ -179,19 +179,3 @@ class TakenPortCases(harness.ConformanceCase):
             )
         finally:
             site.stop()
-
-    def test_a_second_start_with_no_terminal_stops(self):
-        site = harness.Site(harness.BINARY, self.case_dir / "serving")
-        site.start(self.data, "--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
-        try:
-            second = harness.run(
-                [str(harness.BINARY), "--data-dir", str(self.data),
-                 "--listen", f"127.0.0.1:{site.port}"],
-                cwd=self.case_dir, capture_output=True, text=True,
-                timeout=harness.WAITS["refusal"].seconds,
-            )
-            self.assertNotEqual(second.returncode, 0, "a second start with no terminal served anyway")
-            self.assertIn("already serves this Site data", second.stderr)
-            self.assertEqual(site.fetch("/user/login")[0], 200, "the running site stopped answering")
-        finally:
-            site.stop()

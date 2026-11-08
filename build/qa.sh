@@ -77,7 +77,7 @@ php_unit_files() {
     done
 }
 
-# The variant fixture's build tests its glibc file. Its musl file's Node refusal and hub cases run after it.
+# The variant fixture's build tests its glibc file. Its musl file's hub cases run after it.
 variant() {
     variant_site=$(mktemp -d)
     trap 'rm -rf "$variant_site"' EXIT
@@ -86,7 +86,7 @@ variant() {
         drupack-build --site /variant-site --platform "$platform" --libc both \
         --output dist/variant --work "$work/variant-work"
     discard_results variant-work
-    python3 tests/conformance "dist/variant/variant-demo-$platform-musl" "$work/results/variant-musl" -k NodeRefusals -k MercureHub -k ProjectRules
+    python3 tests/conformance "dist/variant/variant-demo-$platform-musl" "$work/results/variant-musl" -k MercureHub -k ProjectRules
 }
 
 # Reads the demo build's executable, site.json and payload.
@@ -120,7 +120,7 @@ with open(sys.argv[2], "w") as handle:
     DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" "$work/results/conformance" --site-tests "$demo/tests" \
         -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \
         -k ExistingSiteAdoption -k EngineExecutable -k TlsSources -k TrustCommand -k StaticSite
-    python3 tests/conformance "dist/no-node/drupacked-demo-$platform" "$work/results/no-node" -k NodeRefusals -k StaticSite
+    python3 tests/conformance "dist/no-node/drupacked-demo-$platform" "$work/results/no-node" -k StaticSite
 }
 
 case $phase in

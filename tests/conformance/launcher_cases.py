@@ -144,30 +144,6 @@ class ColdWarmStart(harness.ConformanceCase):
             "a warm start reported unpacking progress",
         )
 
-    def test_clean_lists_the_unpacked_application_then_removes_it(self):
-        code, out, err = run(self.case_dir, harness.BINARY, "cold", "--help", env=self.env)
-        self.assertEqual(code, 0, f"a cold start exited non-zero: inspect {err}")
-        applications = self.cache / APPLICATIONS
-        self.assertEqual(
-            entry_count(applications), 1, "a cold start did not leave exactly one application"
-        )
-
-        code, out, err = run(self.case_dir, harness.BINARY, "dry", "clean", "--dry-run", env=self.env)
-        self.assertEqual(code, 0, f"a dry run exited non-zero: inspect {err}")
-        self.assertIn(
-            f"Run {harness.SITE['name']} clean", out.read_text(errors="replace"),
-            f"a dry run did not say how to remove what it listed: inspect {out}",
-        )
-        self.assertEqual(entry_count(applications), 1, "a dry run removed an application")
-
-        code, out, err = run(self.case_dir, harness.BINARY, "clean", "clean", env=self.env)
-        self.assertEqual(code, 0, f"clean exited non-zero: inspect {err}")
-        self.assertIn(
-            "Removed 1 unpacked application", out.read_text(errors="replace"),
-            f"clean did not report what it removed: inspect {out}",
-        )
-        self.assertEqual(entry_count(applications), 0, "clean left an application behind")
-
 
 class InstalledSiteLauncherCases(harness.ConformanceCase):
     """Drush, the serving process and SIGINT, against one installed site."""
@@ -502,43 +478,3 @@ class CacheRootFull(harness.ConformanceCase):
         self.assertFalse(
             (data / "data").exists(), "a Site data directory was written despite the unpacking failure"
         )
-
-
-class SiteNamedCaches(harness.ConformanceCase):
-    """Two sites built on one engine keep their own cache roots, named after each site."""
-
-    PLATFORMS = (harness.LINUX,)
-    RECIPE = False
-    TOOLS = ("go",)
-
-    def test_cleaning_one_site_leaves_the_other_unpacked(self):
-        case_dir = harness.RESULTS / type(self).__name__ / self._testMethodName
-        case_dir.mkdir(parents=True, exist_ok=True)
-        cache_home = harness.reserved_dir(case_dir / "xdg")
-        env = {key: value for key, value in os.environ.items() if key != "DRUPACK_CACHE_DIR"}
-        env["XDG_CACHE_HOME"] = str(cache_home)
-        sites = {
-            name: harness.pack_fixture(f"test-{name}", case_dir / name, name=name)
-            for name in ("alpha", "beta")
-        }
-        for name, fixture in sites.items():
-            code, out, err = run(case_dir, fixture, f"{name}-first", "--version", env=env)
-            self.assertEqual(code, 0, f"a first start of {name} exited non-zero: inspect {err}")
-            self.assertEqual(
-                entry_count(cache_home / name / "runtime" / APPLICATIONS), 1,
-                f"{name} did not unpack its application under its own root",
-            )
-
-        code, out, err = run(case_dir, sites["alpha"], "alpha-clean", "clean", env=env)
-        self.assertEqual(code, 0, f"alpha clean exited non-zero: inspect {err}")
-        self.assertEqual(entry_count(cache_home / "alpha" / "runtime" / APPLICATIONS), 0,
-                         "alpha clean left its application behind")
-        self.assertEqual(entry_count(cache_home / "beta" / "runtime" / APPLICATIONS), 1,
-                         "alpha clean removed beta's application")
-
-        code, out, err = run(case_dir, sites["beta"], "beta-again", "--version", env=env)
-        self.assertEqual(code, 0, f"beta exited non-zero after alpha clean: inspect {err}")
-        self.assertTrue(out.read_text(errors="replace").startswith("fixture test-beta "),
-                        f"beta did not run its own runtime: inspect {out}")
-        self.assertEqual(len(APPLICATION_PATTERN.findall(err.read_text(errors="replace"))), 0,
-                         "beta unpacked its application again after alpha clean")

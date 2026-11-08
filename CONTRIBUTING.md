@@ -84,7 +84,7 @@ The Windows executable is the same launcher as Linux and macOS. It carries the P
 
 ## Tests
 
-The suites run against the published executable, which is the launcher.
+The conformance suite runs against the published executable, which is the launcher. A case asserts what only a live run shows: an HTTP answer, a served certificate, a process, a database or an OS. A choice that a pure function makes, such as a refusal message or a start plan, has a unit test instead. `build/go-tests.sh` runs the Go unit tests, and `build/unit-tests.sh` runs the Python tests of the build scripts.
 
 ```sh
 DRUPACK_TEST_ENGINE=dist/engine/drupack-linux-amd64 python3 tests/conformance dist/drupacked-demo-linux-amd64 test-results/conformance --site-tests demo/tests

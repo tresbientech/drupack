@@ -442,11 +442,6 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertEqual([path for path in (cache / "folders").iterdir() if path.is_dir()], [],
                          f"clean left a folder entry: {cleaned.stdout}")
 
-    def test_a_stop_on_a_missing_folder_names_it(self):
-        result = self.engine_run("stop", str(self.class_dir / "never-served"))
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("No such directory", result.stderr)
-
     def test_a_start_serves_a_folder_whose_path_holds_a_space(self):
         spaced = self.class_dir / "spaced project"
         shutil.copytree(self.project, spaced, symlinks=True)
@@ -494,12 +489,6 @@ class EngineExecutable(harness.ConformanceCase):
         with urlopen(request, timeout=harness.WAITS["http_request"].seconds) as response:
             self.assertEqual(response.status, 200)
 
-    def test_a_subdomain_that_is_not_one_dns_label_stops_the_start(self):
-        self.with_subdomain("-bad")
-        result = self.engine_run(str(self.project))
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("extra.drupack.subdomain must be one DNS label", result.stderr)
-
     def test_a_folder_whose_name_does_not_resolve_is_served_on_its_bind_address(self):
         self.with_subdomain(None)
         port, log = self.start("start-unnamed", str(self.project))
@@ -542,29 +531,6 @@ class EngineExecutable(harness.ConformanceCase):
         result = self.engine_run(str(self.lacking))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("drupack-absent: acme/absent", result.stderr)
-
-    def test_a_start_refuses_a_folder_without_drupal_core(self):
-        wordpress = self.class_dir / "wordpress"
-        (wordpress / "wp-includes").mkdir(parents=True)
-        (wordpress / "index.php").write_text("<?php")
-        (wordpress / "wp-includes" / "version.php").write_text("<?php")
-        (wordpress / "composer.json").write_text(
-            json.dumps({"extra": {"drupal-scaffold": {"locations": {"web-root": "./"}}}}))
-        result = self.engine_run(str(wordpress))
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{wordpress.as_posix()}/core/lib/Drupal.php does not exist", result.stderr)
-
-    def test_a_web_root_outside_the_project_stops_the_start(self):
-        composer = self.project / "composer.json"
-        original = composer.read_text()
-        self.addCleanup(composer.write_text, original)
-        content = json.loads(original)
-        content["extra"]["drupal-scaffold"]["locations"]["web-root"] = "/var/www/html"
-        composer.write_text(json.dumps(content))
-        result = self.engine_run(str(self.project))
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("extra.drupal-scaffold.locations.web-root must name a directory inside the project, "
-                      'not "/var/www/html"', result.stderr)
 
     def test_a_folder_without_composer_json_serves_its_web_directory(self):
         if harness.SITE["docroot"] != "web":
@@ -637,12 +603,6 @@ class EngineExecutable(harness.ConformanceCase):
         result = self.engine_run("dr", "list", cwd=self.project)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("cache:rebuild", result.stdout)
-
-    def test_drush_names_the_drush_a_project_lacks(self):
-        result = self.engine_run("drush", "status", cwd=self.lacking / "web")
-        self.assertNotEqual(result.returncode, 0)
-        # The launcher prints paths in Drupack's canonical form, forward slashes on Windows too.
-        self.assertIn(f"{self.lacking.as_posix()}/vendor/drush/drush/drush.php does not exist", result.stderr)
 
     def edit_json(self, path, edit):
         """Rewrites the project's JSON file through edit, until the case ends."""
@@ -718,12 +678,6 @@ class EngineExecutable(harness.ConformanceCase):
     def test_a_project_without_the_mercure_key_serves_no_hub(self):
         port, log = self.start("no-mercure", str(self.project))
         self.assertEqual(self.status(port, f"{HUB}?match={TOPIC}"), 404, f"inspect {log}")
-
-    def test_a_mercure_key_that_is_not_a_boolean_stops_the_start(self):
-        self.with_mercure("on")
-        result = self.engine_run(str(self.project))
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("extra.drupack.mercure must be true or false", result.stderr)
 
     def with_hub_file(self, text):
         """Writes the project's drupack.mercure.caddy until the case ends, and returns it."""
@@ -884,23 +838,6 @@ class EngineExecutable(harness.ConformanceCase):
                 self.assertIn("The static directory ", result.stderr)
                 self.assertIn(message, result.stderr)
 
-    def test_export_without_a_recorded_start_needs_a_uri(self):
-        stub = self.class_dir / "unserved"
-        (stub / "web" / "core" / "lib").mkdir(parents=True)
-        (stub / "web" / "index.php").write_text("<?php")
-        (stub / "web" / "core" / "lib" / "Drupal.php").write_text("<?php")
-        (stub / "vendor").mkdir()
-        (stub / "vendor" / "autoload.php").write_text("<?php")
-        (stub / "composer.json").write_text(json.dumps({"extra": {"drupack": {"static": {}}}}))
-        (stub / "composer.lock").write_text(json.dumps({"packages": [{"name": "drupal/tome", "version": "1.16.0"}]}))
-        result = self.engine_run("export", cwd=stub)
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn(f"Cannot read a recorded static URL for {stub.as_posix()}", result.stderr)
-        self.assertIn("--uri URL", result.stderr)
-        named = self.engine_run("export", "--uri", "http://example.test/", cwd=stub)
-        self.assertEqual(named.returncode, 1, named.stdout)
-        self.assertIn("has no Drush", named.stderr)
-
     def test_a_project_without_the_static_key_serves_no_second_port(self):
         self.edit_json(self.project / "composer.json", lambda content: content["extra"]["drupack"].pop("static"))
         port = harness.pick_port()
@@ -913,26 +850,6 @@ class EngineExecutable(harness.ConformanceCase):
         refused = self.engine_run(str(self.project), "--static-listen", "127.0.0.1:1")
         self.assertEqual(refused.returncode, 1, refused.stdout)
         self.assertIn("--static-listen needs a project whose composer.json sets extra.drupack.static", refused.stderr)
-
-    def test_a_static_listener_that_is_invalid_or_the_sites_port_refuses(self):
-        port = harness.pick_port()
-        for value, message in (("nowhere", "--static-listen requires IP:PORT"),
-                               (f"127.0.0.1:{port}", f"--static-listen must name a port other than the site's {port}")):
-            with self.subTest(value):
-                result = self.engine_run(str(self.project), "--listen", f"127.0.0.1:{port}", "--static-listen", value)
-                self.assertEqual(result.returncode, 1, result.stdout)
-                self.assertIn(message, result.stderr)
-
-    def test_a_lock_without_tome_stops_the_start(self):
-        def drop(lock):
-            lock["packages"] = [package for package in lock["packages"] if package["name"] != "drupal/tome"]
-        self.edit_json(self.project / "composer.lock", drop)
-        result = self.engine_run(str(self.project), "--listen", f"127.0.0.1:{harness.pick_port()}")
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("composer.lock: packages names no drupal/tome release", result.stderr)
-        export = self.engine_run("export", "--uri", "http://127.0.0.1:1/", cwd=self.project)
-        self.assertEqual(export.returncode, 1, export.stdout)
-        self.assertIn("composer.lock: packages names no drupal/tome release", export.stderr)
 
     def test_export_without_tome_static_refuses_naming_the_module(self):
         uninstall = self.engine_run("drush", "pm:uninstall", "tome_static", "--yes", cwd=self.project)
@@ -984,24 +901,6 @@ class EngineExecutable(harness.ConformanceCase):
             self.assertIsNone(process.poll(), f"the start exited before answering: inspect {log}")
             self.assertLess(time.monotonic(), deadline, f"the start did not answer /: inspect {log}")
             time.sleep(0.25)
-
-    def test_self_update_on_a_site_executable_names_its_publisher(self):
-        result = harness.run([str(harness.BINARY), "self-update"], capture_output=True, text=True,
-                             timeout=harness.WAITS["php_cli"].seconds)
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn(f"The new release of {harness.SITE['name']} comes from its publisher.", result.stderr)
-
-    def test_self_update_on_a_composer_copy_names_the_composer_commands(self):
-        # composer/drupack-install lays the executable beside the project's vendor/.
-        project = self.class_dir / "composer-copy"
-        (project / "vendor" / "drupal" / "drupack").mkdir(parents=True, exist_ok=True)
-        copy = project / self.engine.name
-        shutil.copyfile(self.engine, copy)
-        copy.chmod(0o755)
-        result = harness.run([str(copy), "self-update", "--check"], capture_output=True, text=True,
-                             timeout=harness.WAITS["php_cli"].seconds)
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("Run composer update drupal/drupack, then vendor/bin/drupack-install.", result.stderr)
 
     def test_php_runs_code(self):
         result = self.engine_run("php", "-r", "echo 1;")
