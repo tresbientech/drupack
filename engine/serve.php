@@ -371,7 +371,8 @@ function staticRoot(string $binary, string $project, string $docroot): string
     if (proc_close($child) !== 0) {
         throw new RuntimeException("Cannot read tome_static_directory from the settings of $project");
     }
-    return staticDirectory($docroot, $setting === '' ? '../html' : $setting);
+    $root = staticDirectory($docroot, $setting === '' ? '../html' : $setting);
+    return checkStaticRoot($root, [$docroot, folderEntry($project)]);
 }
 
 // Tome resolves a relative tome_static_directory from the Drupal root, the docroot.
@@ -379,9 +380,55 @@ function staticDirectory(string $docroot, string $setting): string
 {
     $setting = canonical($setting);
     if (str_starts_with($setting, '/') || preg_match('~^[A-Za-z]:/~', $setting) === 1) {
-        return $setting;
+        return collapse($setting);
     }
-    return "$docroot/$setting";
+    return collapse("$docroot/$setting");
+}
+
+// Drops the . and .. segments of an absolute path by name, so a root spelled with .. compares
+// with the paths it might hold.
+function collapse(string $path): string
+{
+    preg_match('~^([A-Za-z]:)?/~', $path, $match);
+    $segments = [];
+    foreach (explode('/', substr($path, strlen($match[0]))) as $segment) {
+        if ($segment === '..') {
+            array_pop($segments);
+        } elseif ($segment !== '.' && $segment !== '') {
+            $segments[] = $segment;
+        }
+    }
+    return $match[0] . implode('/', $segments);
+}
+
+// The static port answers every file under its root as stored, so a root holding the docroot
+// or the folder's cache entry would answer settings, code and keys. Caddy reads a brace in the
+// root as a placeholder each request fills. An existing root is compared through its symlinks.
+function checkStaticRoot(string $root, array $held): string
+{
+    $real = realpath($root);
+    $root = $real === false ? $root : canonical($real);
+    if (strpbrk($root, '{}') !== false) {
+        throw new RuntimeException("The static directory $root holds a brace, which the static port cannot serve. "
+            . "Set tome_static_directory in the project's settings.php to another directory.");
+    }
+    foreach ($held as $path) {
+        $real = realpath($path);
+        $path = $real === false ? $path : canonical($real);
+        if (holds($root, $path)) {
+            throw new RuntimeException("The static directory $root holds $path, which the static port would serve as files. "
+                . "Set tome_static_directory in the project's settings.php to a directory of its own.");
+        }
+    }
+    return $root;
+}
+
+function holds(string $outer, string $inner): bool
+{
+    if (windows()) {
+        [$outer, $inner] = [strtolower($outer), strtolower($inner)];
+    }
+    return $inner === $outer || str_starts_with($inner, rtrim($outer, '/') . '/');
 }
 
 function runScript(string $binary, string $script, array $arguments): never

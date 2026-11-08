@@ -260,12 +260,15 @@ The export lives in `static` in Site data. The engine serves the
 `tome_static_directory` the project's `settings.php` sets, read from the
 docroot when relative. A project that sets none serves `html` beside the
 docroot, Tome's default directory. The engine creates neither. A value other
-than a directory path stops the start.
+than a directory path stops the start. So does a directory that is or holds the
+docroot or the folder's cache entry, or whose path holds a brace.
 
 A request answers the path's file, or `index.html` under it, with no redirect.
 A miss answers the export's own `404/index.html` with status 404. A path
 `dynamic` matches reaches Drupal through the guards of the site's port. Tome
 may have exported a page under such a path; the static port never serves it.
+Every other path meets the refusals of the site's port, and a `.php` path
+answers 403, since the static port runs no PHP.
 
 ### `export`
 

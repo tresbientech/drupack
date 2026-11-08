@@ -51,13 +51,37 @@ test('the launcher\'s refusal reaches the reader as it is', function () {
 });
 
 test('a relative tome_static_directory resolves from the docroot, as Tome reads it', function () {
-    same('/p/web/../html', staticDirectory('/p/web', '../html'));
+    same('/p/html', staticDirectory('/p/web', '../html'));
     same('/p/web/export', staticDirectory('/p/web', 'export'));
+    same('/', staticDirectory('/p/web', '../../../..'));
 });
 
-test('an absolute tome_static_directory stays as the settings name it', function () {
+test('an absolute tome_static_directory stays as the settings name it, its .. segments dropped', function () {
     same('/srv/export', staticDirectory('/p/web', '/srv/export'));
     same('C:/export', staticDirectory('C:/p/web', 'C:/export'));
+    same('C:/export', staticDirectory('C:/p/web', 'C:/p/./../export'));
+});
+
+test('a static directory beside the docroot passes', function () {
+    same('/p/html', checkStaticRoot('/p/html', ['/p/web', '/cache/folders/f1']));
+    same('/p/web/export', checkStaticRoot('/p/web/export', ['/p/web', '/cache/folders/f1']));
+});
+
+test('a static directory that is or holds the docroot or the cache entry refuses the start', function () {
+    throws('holds /p/web,', fn () => checkStaticRoot('/p/web', ['/p/web', '/cache/folders/f1']));
+    throws('holds /p/web,', fn () => checkStaticRoot('/p', ['/p/web', '/cache/folders/f1']));
+    throws('holds /p/web,', fn () => checkStaticRoot('/', ['/p/web', '/cache/folders/f1']));
+    throws('holds /cache/folders/f1,', fn () => checkStaticRoot('/cache', ['/p/web', '/cache/folders/f1']));
+});
+
+test('a static directory reached through a symlink is checked where it points', function () {
+    $project = project_with('linked', ['web/index.php' => '<?php']);
+    symlink("$project/web", "$project/html");
+    throws("holds $project/web,", fn () => checkStaticRoot("$project/html", ["$project/web"]));
+});
+
+test('a static directory holding a brace refuses the start', function () {
+    throws('holds a brace', fn () => checkStaticRoot('/srv/{http.request.host}', ['/p/web']));
 });
 
 test('a project serves the docroot its settings name', function () {

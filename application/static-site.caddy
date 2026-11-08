@@ -1,14 +1,22 @@
 # The static port: the Tome export as files. A directory answers its index.html with no
 # redirect, and a miss answers the export's own 404 page with status 404. The dynamic
-# snippet hands its paths to Drupal ahead of the files.
+# snippet hands its paths to Drupal ahead of the files, and the site port's refusals apply.
 (static_site) {
 	bind "{$DRUPACK_RUNTIME_STATIC_BIND}"
 	root * "{$DRUPACK_RUNTIME_STATIC_ROOT}"
 	encode zstd br gzip
 	route {
 		import "{$DRUPACK_RUNTIME_STATIC_DYNAMIC_SNIPPET}"
-		try_files {path}/index.html {path}
-		file_server
+		# A nested route inherits its parent's matcher names, and the dynamic snippet's guards
+		# define the ones refusals.caddy defines, so the refusals take a sibling route.
+		route {
+			import "refusals.caddy"
+			# This port runs no PHP, so a PHP file under the root would answer its source.
+			@phpSource path_regexp "(?i)\.php[. ]*(/|$)"
+			respond @phpSource 403
+			try_files {path}/index.html {path}
+			file_server
+		}
 	}
 	handle_errors {
 		@notFound expression `{err.status_code} == 404`

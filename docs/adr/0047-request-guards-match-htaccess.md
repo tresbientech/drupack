@@ -29,7 +29,8 @@ in `/`.
 ## Decision
 
 - `guards.caddy` reproduces every rule of the `.htaccess` family. Each matcher
-  carries a comment naming its source line. `static.caddy` holds the snippets
+  carries a comment naming its source line. Its refusals sit in
+  `refusals.caddy`, which it imports first and the static port imports alone. `static.caddy` holds the snippets
   for a static file, which `guards.caddy` applies under the docroot and the
   application's files route applies in the files directory.
 - A rule on a script starts with `(?i)` and ends with `[. ]*(/|$)`. FrankenPHP
