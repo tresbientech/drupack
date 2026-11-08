@@ -38,8 +38,6 @@ func TestPlanArguments(t *testing.T) {
 			[]string{"demo", "php-cli", launch, "--data-dir", "d"}},
 		{"a site keeps start for launch.php", []string{"demo", "start", "--foreground"}, false,
 			[]string{"demo", "php-cli", launch, "start", "--foreground"}},
-		{"a site keeps drush for launch.php", []string{"demo", "drush", "status"}, false,
-			[]string{"demo", "php-cli", launch, "drush", "status"}},
 		{"a site keeps stop for launch.php", []string{"demo", "stop"}, false,
 			[]string{"demo", "php-cli", launch, "stop"}},
 		{"a site sends --help to launch.php", []string{"demo", "--help"}, false,

@@ -1,6 +1,7 @@
 #!/usr/bin/env php
 <?php
 
-// The Drush entry Drupack runs. Tome's child processes rerun argv[0], so the name has no
-// extension: sh runs the shebang, cmd.exe runs drush.cmd beside it.
-require __DIR__ . '/vendor/drush/drush/drush.php';
+// The Drush entry Drupack runs, for a site and for the engine. DRUPACK_DRUSH_SCRIPT names the
+// Drush to require: the application's or the project's. Tome's child processes rerun argv[0], so
+// the name has no extension: sh runs the shebang, cmd.exe runs drush.cmd beside it.
+require getenv('DRUPACK_DRUSH_SCRIPT');

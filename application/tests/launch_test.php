@@ -766,7 +766,6 @@ test('a line opening with an option starts the site with every word', function (
 
 test('a command word names the mode and leaves the rest', function () {
     same(['start', ['--foreground']], command(['start', '--foreground'], contract()));
-    same(['drush', ['status']], command(['drush', 'status'], contract()));
     same(['export', ['--data-dir', 'site']], command(['export', '--data-dir', 'site'], contract()));
 });
 

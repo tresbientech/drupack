@@ -1,6 +1,1 @@
-#!/usr/bin/env php
-<?php
-
-// The engine's Drush entry, as application/drush is a Packaged site's. serve.php names the
-// project's Drush script in DRUPACK_DRUSH_SCRIPT before it runs this file.
-require getenv('DRUPACK_DRUSH_SCRIPT');
+../application/drush

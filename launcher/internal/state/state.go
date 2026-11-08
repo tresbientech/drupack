@@ -51,6 +51,11 @@ func FolderEntry(root, project string, fold bool) Dir {
 	return At(filepath.Join(root, FoldersName, "f"+hex.EncodeToString(sum[:])[:16]))
 }
 
+// Path is the directory itself.
+func (d Dir) Path() string {
+	return d.path
+}
+
 func (d Dir) lease() string {
 	return filepath.Join(d.path, LeaseName)
 }

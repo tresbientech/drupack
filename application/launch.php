@@ -77,9 +77,9 @@ Examples:
 docs/cli.md explains every option.
 TEXT;
 
-// The commands this script runs. The executable runs clean, trust, stop and php, and node,
-// npm and npx where it carries Node, before this script starts.
-const COMMANDS = ['start', 'drush', 'export'];
+// The commands this script runs. The executable runs clean, trust, stop, drush and php, and
+// node, npm and npx where it carries Node, before this script starts.
+const COMMANDS = ['start', 'export'];
 const NODE_COMMANDS = ['node', 'npm', 'npx'];
 
 // The server runs from the application directory, which every site of a release
@@ -94,14 +94,14 @@ function fromStartDirectory(string $path): string
     return Path::makeAbsolute($path, $start);
 }
 
-// The release's shared copy, or the site's own copy in Site data once a start or `drush` has checked it.
+// The release's shared copy, or the site's own copy in Site data once a start or `export` has checked it.
 function application(): string
 {
     return getenv('DRUPACK_RUNTIME_APP_DIR');
 }
 
 // A site whose contract names writable directories runs its own application, laid in
-// Site data. A start lays it under the Serving lease. `drush` takes no lease, so it only
+// Site data. A start lays it under the Serving lease. `export` takes no lease, so it only
 // checks that the last start laid this release.
 function useSiteApplication(SiteData $site, bool $drush): void
 {
@@ -457,9 +457,11 @@ function runDrush(string $binary, array $command, string $failure): void
     }
 }
 
-// Drupack's Drush entry, laid over the site from application/drush.
+// Drupack's Drush entry, laid over the site from application/drush. The entry requires the
+// script DRUPACK_DRUSH_SCRIPT names, so this points it at the Drush of the application in use.
 function drushPath(): string
 {
+    putenv('DRUPACK_DRUSH_SCRIPT=' . application() . '/vendor/drush/drush/drush.php');
     return application() . '/drush';
 }
 
@@ -704,7 +706,7 @@ try {
         exit(0);
     }
     // `export` is a Drush run with Tome's command ahead of the reader's words.
-    $drush = $mode === 'drush' || $mode === 'export';
+    $drush = $mode === 'export';
     [$options, $command] = options($arguments, $drush, siteContract());
     if ($mode === 'export' && siteContract()->static === null) {
         throw new InvalidArgumentException('export needs a site whose composer.json sets extra.drupack.static');
@@ -716,9 +718,6 @@ try {
     }
     // PHP_BINARY is empty in embedded FrankenPHP; the Go entrypoint exports its own path.
     $binary = getenv('DRUPACK_RUNTIME_BINARY');
-    if ($mode === 'drush' && in_array($command[0] ?? '', ['--help', '-h', 'list'], true)) {
-        replaceProcess($binary, array_merge(['php-cli', drushPath()], $command), application(), 'Cannot run Drush');
-    }
     // Launch arguments are user input, so the backend must name a supported driver.
     if (!in_array($options['database'], ['sqlite', 'mysql', 'pgsql'], true)) {
         throw new InvalidArgumentException('--database requires sqlite, mysql, or pgsql');
@@ -726,11 +725,11 @@ try {
     $steps = [];
     $named = new SiteData($options['data-dir']);
     if ($drush) {
-        // `drush` initializes nothing and takes no lease, so Drush works while the server runs.
+        // `export` initializes nothing and takes no lease, so Tome works while the server runs.
         if (!file_exists($named->settings())) {
             throw new RuntimeException("This Site data has no site yet: {$options['data-dir']}. Start " . executableName() . " once to create one.");
         }
-        // `drush` addresses the site where the last start served.
+        // `export` addresses the site where the last start served.
         $options = recordedListener($options, $named->listener());
     } else {
         // A refusal here writes no Site data.
@@ -831,7 +830,7 @@ try {
         // generated just now.
         exportSiteEnvironment($plan, $data, $files, $runtime, $options, $staticRoot);
     }
-    // A start refreshes the recorded settings from this release's template. `drush` writes nothing,
+    // A start refreshes the recorded settings from this release's template. `export` writes nothing,
     // since the server answering requests requires that file.
     if (!$drush && file_exists($site->settings())) {
         // A pending settings step writes the file itself, so its contents are read once they are final.

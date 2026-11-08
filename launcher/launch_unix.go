@@ -19,6 +19,11 @@ func launch(c Command) error {
 	return syscall.Exec(c.Path, c.Args, c.Env)
 }
 
+// restrictUmask keeps the files a command creates to its owner, as every start does.
+func restrictUmask() {
+	syscall.Umask(0o077)
+}
+
 // consoleOwned is false: a Unix terminal belongs to the shell that started it.
 func consoleOwned() bool {
 	return false

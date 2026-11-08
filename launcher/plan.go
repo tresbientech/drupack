@@ -32,6 +32,8 @@ type Launch struct {
 	Entry       string
 	Application string
 	Launcher    string
+	// AppChecksum identifies the release's application, which a site's own copy in Site data must match.
+	AppChecksum string
 	Root        string
 	// NodeBin is the Node release's executable directory, empty for a file that carries none.
 	NodeBin string

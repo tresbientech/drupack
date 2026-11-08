@@ -40,6 +40,9 @@ func launch(c Command) error {
 	return err
 }
 
+// restrictUmask does nothing: Windows has no umask.
+func restrictUmask() {}
+
 // createNoWindow gives a process a console no window shows. syscall does not define it.
 const createNoWindow = 0x08000000
 

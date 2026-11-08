@@ -277,12 +277,6 @@ function exportEngineMercure(string $entry, string $url, bool $drush): void
 
 const STATIC_URL_FILE = 'static_url';
 
-function drush(string $binary, array $arguments): never
-{
-    $project = project();
-    runProjectDrush($binary, $project, folderEntry($project), composerSettings($project), $arguments);
-}
-
 // A project exported before its first start has no recorded URL, so the words must name one.
 function export(string $binary, array $arguments): never
 {
@@ -299,12 +293,12 @@ function export(string $binary, array $arguments): never
             throw new RuntimeException("Cannot read a recorded static URL for $project. Start it once, or pass --uri URL.");
         }
     }
-    runProjectDrush($binary, $project, $entry, $settings, exportCommand($url, $arguments), true);
+    runProjectDrush($binary, $project, $entry, $settings, exportCommand($url, $arguments));
 }
 
-// Creates nothing, so a project no start has served exports no hub. $export runs Tome's
+// Creates nothing, so a project no start has served exports no hub. $words run Tome's
 // command, so the project's Drupal must have tome_static enabled.
-function runProjectDrush(string $binary, string $project, string $entry, array $settings, array $words, bool $export = false): never
+function runProjectDrush(string $binary, string $project, string $entry, array $settings, array $words): never
 {
     useTlsBundle($entry);
     if ($settings['mercure'] && is_file("$entry/" . MERCURE_URL_FILE)) {
@@ -312,9 +306,7 @@ function runProjectDrush(string $binary, string $project, string $entry, array $
     }
     // engine/drush requires the project's Drush, so Tome's children rerun an extensionless argv[0].
     putenv('DRUPACK_DRUSH_SCRIPT=' . drushScript($project));
-    if ($export) {
-        requireTomeStatic($binary, __DIR__ . '/drush', getcwd());
-    }
+    requireTomeStatic($binary, __DIR__ . '/drush', getcwd());
     runScript($binary, __DIR__ . '/drush', $words);
 }
 
@@ -361,7 +353,6 @@ try {
     $binary = getenv('DRUPACK_RUNTIME_BINARY');
     match ($argv[1] ?? null) {
         'start' => serve($binary, array_slice($argv, 2)),
-        'drush' => drush($binary, array_slice($argv, 2)),
         'export' => export($binary, array_slice($argv, 2)),
         'dr' => runScript($binary, coreScript(project()), array_slice($argv, 2)),
         '--help', '-h' => fwrite(STDOUT, sprintf(USAGE, executableName(), DEFAULT_LISTEN) . "\n"),

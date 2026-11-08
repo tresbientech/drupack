@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -38,6 +39,22 @@ func TestParse(t *testing.T) {
 		{"the engine stops the folder named", []string{"drupack", "stop", "project"}, true, unset, command{word: "stop", target: "project"}, ""},
 		{"the engine refuses two folders", []string{"drupack", "stop", "a", "b"}, true, unset, command{}, "stop takes a folder alone. Run fixture-site --help."},
 		{"the engine refuses an option", []string{"drupack", "stop", "--help"}, true, unset, command{}, "stop takes a folder alone. Run fixture-site --help."},
+		{"drush goes to the launcher", []string{"SITE", "drush", "status"}, false, unset,
+			command{word: "drush", options: map[string]string{"data-dir": "./data"}, words: []string{"status"}}, ""},
+		{"drush takes no words", []string{"SITE", "drush"}, false, unset,
+			command{word: "drush", options: map[string]string{"data-dir": "./data"}, words: []string{}}, ""},
+		{"drush reads the start's options first", []string{"SITE", "drush", "--data-dir=d", "--listen", "[::1]:9", "--no-browser", "user:login", "--no-browser"}, false, unset,
+			command{word: "drush", options: map[string]string{"data-dir": "d", "listen": "[::1]:9", "no-browser": "1"}, words: []string{"user:login", "--no-browser"}}, ""},
+		{"drush options after the first word stay Drush's", []string{"SITE", "drush", "status", "--data-dir", "x"}, false, unset,
+			command{word: "drush", options: map[string]string{"data-dir": "./data"}, words: []string{"status", "--data-dir", "x"}}, ""},
+		{"drush hands --help to Drush", []string{"SITE", "drush", "--data-dir", "d", "--help"}, false, unset,
+			command{word: "drush", options: map[string]string{"data-dir": "d"}, words: []string{"--help"}}, ""},
+		{"drush reads DRUPACK_DATA_DIR", []string{"SITE", "drush", "status"}, false, map[string]string{"DRUPACK_DATA_DIR": "env"},
+			command{word: "drush", options: map[string]string{"data-dir": "env"}, words: []string{"status"}}, ""},
+		{"drush refuses an option with no value", []string{"SITE", "drush", "--host"}, false, unset, command{}, "Missing value for --host"},
+		{"drush reads an option as no value", []string{"SITE", "drush", "--files-dir", "--listen", "x"}, false, unset, command{}, "Missing value for --files-dir"},
+		{"the engine passes every word to Drush", []string{"drupack", "drush", "--data-dir", "x", "status"}, true, unset,
+			command{word: "drush", words: []string{"--data-dir", "x", "status"}}, ""},
 		{"the engine takes no Site data", []string{"drupack", "stop", "--data-dir", "x"}, true, unset, command{}, "stop takes a folder alone. Run fixture-site --help."},
 	} {
 		lookup := func(name string) (string, bool) { value, set := row.env[name]; return value, set }
@@ -46,7 +63,7 @@ func TestParse(t *testing.T) {
 		if err != nil {
 			message = err.Error()
 		}
-		if got != row.want || message != row.err {
+		if !reflect.DeepEqual(got, row.want) || message != row.err {
 			t.Errorf("%s: parse(%q) = %+v, %q, want %+v, %q", row.name, row.args, got, message, row.want, row.err)
 		}
 	}

@@ -571,3 +571,13 @@ func Write(site Site, directory string) error {
 	}
 	return os.WriteFile(filepath.Join(directory, OutputName), append(content, '\n'), 0o644)
 }
+
+// Load reads the site.json Write left in directory.
+func Load(directory string) (Site, error) {
+	content, err := os.ReadFile(filepath.Join(directory, OutputName))
+	if err != nil {
+		return Site{}, err
+	}
+	var site Site
+	return site, json.Unmarshal(content, &site)
+}

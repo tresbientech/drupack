@@ -107,12 +107,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	return launch(Plan(Launch{
+	l := Launch{
 		Args:         args,
 		Parent:       os.Environ(),
 		Entry:        filepath.Join(directory, m.Entry),
 		Application:  application,
 		Launcher:     launcher,
+		AppChecksum:  string(appChecksum),
 		Root:         root,
 		NodeBin:      nodeBin,
 		TLSDir:       tlsFolder,
@@ -122,7 +123,19 @@ func run() error {
 		Engine:       engine,
 		ConsoleOwned: consoleOwned(),
 		FoldCase:     foldCase,
-	}))
+	}
+	if c.word == "drush" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		call, err := drushPlan(l, c, cwd)
+		if err != nil {
+			return err
+		}
+		return launch(call)
+	}
+	return launch(Plan(l))
 }
 
 // prepareNode returns "" for a file that carries no Node.
