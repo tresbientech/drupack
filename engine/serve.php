@@ -211,6 +211,7 @@ function serve(string $binary, array $arguments): never
     if ($settings['static'] !== null) {
         [$staticBind, $staticPort] = staticListener($staticListen, $bind, $plan['port']);
         $static = staticPlan($staticBind, $staticPort, $tls->host, $tls->scheme());
+        $staticRoot = staticRoot($binary, $project, $docroot);
     } elseif ($staticListen !== null) {
         throw new RuntimeException('--static-listen needs a project whose composer.json sets extra.drupack.static');
     }
@@ -265,8 +266,8 @@ function serve(string $binary, array $arguments): never
         if (file_put_contents("$entry/" . STATIC_URL_FILE, $static['url']) !== strlen($static['url'])) {
             throw new RuntimeException("Cannot write $entry/" . STATIC_URL_FILE);
         }
-        // Tome's default directory, html beside the docroot. The server creates none.
-        $root = ['DRUPACK_RUNTIME_STATIC_ROOT' => dirname($docroot) . '/html'];
+        // The server creates none.
+        $root = ['DRUPACK_RUNTIME_STATIC_ROOT' => $staticRoot];
     }
     exportServerEnvironment(serverEnvironment($plan, $tls, [
         'DRUPACK_RUNTIME_DOCROOT' => $docroot,
@@ -355,6 +356,32 @@ function siteInstalled(string $binary, string $project, string $docroot): ?bool
     fclose($pipes[1]);
     $status = proc_close($child);
     return $status === 0 ? $answer === 'yes' : null;
+}
+
+// The directory Tome exports into: the project's tome_static_directory, or Tome's default.
+function staticRoot(string $binary, string $project, string $docroot): string
+{
+    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => STDERR];
+    $child = proc_open([$binary, 'php-cli', __DIR__ . '/static-directory.php', $project, $docroot], $descriptors, $pipes, $project);
+    if (!is_resource($child)) {
+        throw new RuntimeException('Cannot run the static directory probe');
+    }
+    $setting = trim((string) stream_get_contents($pipes[1]));
+    fclose($pipes[1]);
+    if (proc_close($child) !== 0) {
+        throw new RuntimeException("Cannot read tome_static_directory from the settings of $project");
+    }
+    return staticDirectory($docroot, $setting === '' ? '../html' : $setting);
+}
+
+// Tome resolves a relative tome_static_directory from the Drupal root, the docroot.
+function staticDirectory(string $docroot, string $setting): string
+{
+    $setting = canonical($setting);
+    if (str_starts_with($setting, '/') || preg_match('~^[A-Za-z]:/~', $setting) === 1) {
+        return $setting;
+    }
+    return "$docroot/$setting";
 }
 
 function runScript(string $binary, string $script, array $arguments): never

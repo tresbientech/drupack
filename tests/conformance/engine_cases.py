@@ -742,6 +742,31 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertEqual(self.status(static, "/user/login"), 404)
         self.assertEqual(self.status(static, "/search/x.php"), 403)
 
+    def test_the_static_port_serves_the_directory_the_projects_settings_name(self):
+        settings = self.docroot / "sites" / "default" / "settings.php"
+        original = settings.read_text()
+        self.addCleanup(settings.write_text, original)
+        settings.write_text(original + "$settings['tome_static_directory'] = '../export';\n")
+        export = self.project / "export"
+        self.addCleanup(shutil.rmtree, export, ignore_errors=True)
+        export.mkdir()
+        (export / "index.html").write_text("exported into the setting")
+        port = harness.pick_port_pair()
+        self.start("static-setting", str(self.project), port=port)
+        status, _, body = self.fetch(port + 1, "/")
+        self.assertEqual(status, 200, body[:300])
+        self.assertIn("exported into the setting", body)
+
+    def test_a_tome_static_directory_that_is_not_a_path_refuses_the_start(self):
+        settings = self.docroot / "sites" / "default" / "settings.php"
+        original = settings.read_text()
+        self.addCleanup(settings.write_text, original)
+        settings.write_text(original + "$settings['tome_static_directory'] = ['html'];\n")
+        result = self.engine_run(str(self.project), "--listen", f"127.0.0.1:{harness.pick_port()}")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("tome_static_directory in the project's settings.php must name a directory", result.stderr)
+        self.assertIn("Cannot read tome_static_directory from the settings of", result.stderr)
+
     def test_export_without_a_recorded_start_needs_a_uri(self):
         stub = self.class_dir / "unserved"
         (stub / "web" / "core" / "lib").mkdir(parents=True)

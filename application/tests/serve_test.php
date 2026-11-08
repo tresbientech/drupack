@@ -50,6 +50,16 @@ test('the launcher\'s refusal reaches the reader as it is', function () {
     throws('/project/composer.json: extra.drupack.mercure must be true or false, not "on"', fn () => composerSettings('/project'));
 });
 
+test('a relative tome_static_directory resolves from the docroot, as Tome reads it', function () {
+    same('/p/web/../html', staticDirectory('/p/web', '../html'));
+    same('/p/web/export', staticDirectory('/p/web', 'export'));
+});
+
+test('an absolute tome_static_directory stays as the settings name it', function () {
+    same('/srv/export', staticDirectory('/p/web', '/srv/export'));
+    same('C:/export', staticDirectory('C:/p/web', 'C:/export'));
+});
+
 test('a project serves the docroot its settings name', function () {
     $project = project_with('named', ['docroot/index.php' => '<?php', 'docroot/core/lib/Drupal.php' => '<?php']);
     same("$project/docroot", docroot($project, 'docroot'));

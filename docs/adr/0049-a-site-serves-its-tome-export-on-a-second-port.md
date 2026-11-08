@@ -46,7 +46,8 @@ Tome ships no recipe, and drupal.org has none.
   prefix; the static port never serves that file.
 - On a Packaged site the export lives in `static` in Site data, and the
   generated `settings.php` sets `tome_static_directory` to it. On the engine the
-  listener serves `html` beside the docroot, Tome's default.
+  listener serves the project's own `tome_static_directory`, or `html` beside
+  the docroot, Tome's default, when the project sets none.
 
 ### The export
 

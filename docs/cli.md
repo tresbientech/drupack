@@ -256,9 +256,11 @@ ports differ. A site start records the address in Site data, as it records
 `--listen`, and refuses a static port another program holds. On a site or
 project without the key the option exits 1.
 
-The export lives in `static` in Site data. The engine serves `html` beside the
-docroot, Tome's default directory, and creates nothing. A project whose
-settings move `tome_static_directory` serves an empty static port.
+The export lives in `static` in Site data. The engine serves the
+`tome_static_directory` the project's `settings.php` sets, read from the
+docroot when relative. A project that sets none serves `html` beside the
+docroot, Tome's default directory. The engine creates neither. A value other
+than a directory path stops the start.
 
 A request answers the path's file, or `index.html` under it, with no redirect.
 A miss answers the export's own `404/index.html` with status 404. A path
