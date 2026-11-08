@@ -54,6 +54,9 @@ type Command struct {
 	Path string
 	Args []string
 	Env  []string
+	// Dir is the directory Windows starts the child in. A Unix exec keeps the
+	// working directory it has.
+	Dir string
 }
 
 // Plan returns the runtime's command, or Node's for a Node word where this file

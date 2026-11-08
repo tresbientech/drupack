@@ -298,11 +298,11 @@ class WindowsLauncherCases(harness.ConformanceCase):
         fixture = harness.pack_fixture(ENTRY, "test-v1", self.case_dir / "fixture")
         data = self.case_dir / "data"
 
-        code, out, err = run(self.case_dir, fixture, "first", "--data-dir", str(data), "alpha", "beta", env=env)
+        code, out, err = run(self.case_dir, fixture, "first", "--data-dir", str(data), "--site-name", "alpha", "--admin-user", "beta", env=env)
         self.assertEqual(code, 0, f"a first start exited non-zero: inspect {err}")
         entry1 = _active_entry(cache)
         expected_first = (
-            f'fixture test-v1 args=[{_launch_args(cache, "--data-dir", str(data), "alpha", "beta")}] '
+            f'fixture test-v1 args=[{_launch_args(cache, "--data-dir", str(data), "--site-name", "alpha", "--admin-user", "beta")}] '
             f"env=forwarded phprc={entry1}"
         )
         self.assertEqual(
@@ -314,9 +314,9 @@ class WindowsLauncherCases(harness.ConformanceCase):
         manifest = json.loads((entry1 / "manifest.json").read_text())
         self.assertEqual(manifest["version"], "test-v1", "a first start did not persist the stored manifest")
 
-        code, out, err = run(self.case_dir, fixture, "second", "restart", env=env)
+        code, out, err = run(self.case_dir, fixture, "second", "--site-name=restart", env=env)
         self.assertEqual(code, 0, f"a second start exited non-zero: inspect {err}")
-        expected_second = f'fixture test-v1 args=[{_launch_args(cache, "restart")}] env=forwarded phprc={entry1}'
+        expected_second = f'fixture test-v1 args=[{_launch_args(cache, "--site-name=restart")}] env=forwarded phprc={entry1}'
         self.assertEqual(
             out.read_text(errors="replace"), expected_second, "a second start did not use the same entry"
         )
@@ -326,9 +326,9 @@ class WindowsLauncherCases(harness.ConformanceCase):
         # a warm start touches neither.
         stray_pending = cache / "active.pending.999999"
         stray_pending.write_text("stale")
-        code, out, err = run(self.case_dir, fixture, "third", "stray", env=env)
+        code, out, err = run(self.case_dir, fixture, "third", "--site-name=stray", env=env)
         self.assertEqual(code, 0, f"a start with a stray pending file exited non-zero: inspect {err}")
-        expected_third = f'fixture test-v1 args=[{_launch_args(cache, "stray")}] env=forwarded phprc={entry1}'
+        expected_third = f'fixture test-v1 args=[{_launch_args(cache, "--site-name=stray")}] env=forwarded phprc={entry1}'
         self.assertEqual(
             out.read_text(errors="replace"), expected_third,
             "a start with a stray pending file did not use the active entry",
@@ -340,11 +340,11 @@ class WindowsLauncherCases(harness.ConformanceCase):
 
         with open(entry1 / ENTRY, "ab") as handle:
             handle.write(b"x")
-        code, out, err = run(self.case_dir, fixture, "resized", "resized", env=env)
+        code, out, err = run(self.case_dir, fixture, "resized", "--site-name=resized", env=env)
         self.assertEqual(code, 0, f"a start past a resized entry exited non-zero: inspect {err}")
         entry2 = _active_entry(cache)
         self.assertNotEqual(entry2, entry1, "a re-stage wrote over the entry that was there")
-        expected_resized = f'fixture test-v1 args=[{_launch_args(cache, "resized")}] env=forwarded phprc={entry2}'
+        expected_resized = f'fixture test-v1 args=[{_launch_args(cache, "--site-name=resized")}] env=forwarded phprc={entry2}'
         self.assertEqual(
             out.read_text(errors="replace"), expected_resized,
             "a changed file size did not force a working re-stage",
@@ -357,11 +357,11 @@ class WindowsLauncherCases(harness.ConformanceCase):
             handle.write(b"y")
         held = _open_locked(entry2 / ENTRY, _FILE_SHARE_READ | _FILE_SHARE_DELETE)
         try:
-            code, out, err = run(self.case_dir, fixture, "held", "held", env=env)
+            code, out, err = run(self.case_dir, fixture, "held", "--site-name=held", env=env)
             self.assertEqual(code, 0, f"a start past a held entry exited non-zero: inspect {err}")
             entry3 = _active_entry(cache)
             self.assertNotEqual(entry3, entry2, "a re-stage wrote over the entry a handle held")
-            expected_held = f'fixture test-v1 args=[{_launch_args(cache, "held")}] env=forwarded phprc={entry3}'
+            expected_held = f'fixture test-v1 args=[{_launch_args(cache, "--site-name=held")}] env=forwarded phprc={entry3}'
             self.assertEqual(
                 out.read_text(errors="replace"), expected_held, "a re-stage with an open file did not run"
             )
@@ -374,12 +374,12 @@ class WindowsLauncherCases(harness.ConformanceCase):
             handle.write(b"z")
         exclusive = _open_locked(entry3 / ENTRY, 0)
         try:
-            code, out, err = run(self.case_dir, fixture, "exclusive", "exclusive", env=env)
+            code, out, err = run(self.case_dir, fixture, "exclusive", "--site-name=exclusive", env=env)
             self.assertEqual(code, 0, f"a start past an exclusive entry exited non-zero: inspect {err}")
             entry4 = _active_entry(cache)
             self.assertNotEqual(entry4, entry3, "a re-stage wrote over the entry an exclusive handle held")
             expected_exclusive = (
-                f'fixture test-v1 args=[{_launch_args(cache, "exclusive")}] env=forwarded phprc={entry4}'
+                f'fixture test-v1 args=[{_launch_args(cache, "--site-name=exclusive")}] env=forwarded phprc={entry4}'
             )
             self.assertEqual(
                 out.read_text(errors="replace"), expected_exclusive,
@@ -446,7 +446,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
         (cache / good_key / "manifest.json").write_text("{}")
 
         broken = harness.pack_corrupted_fixture(ENTRY, "test-v7", self.case_dir / "fixture-broken")
-        code, out, err = run(self.case_dir, broken, "untrusted", "untrusted", env=env)
+        code, out, err = run(self.case_dir, broken, "untrusted", "--site-name=untrusted", env=env)
         self.assertNotEqual(code, 0, "a corrupted payload with an unreadable stored manifest exited zero")
         self.assertNotIn(
             "fixture", out.read_text(errors="replace"),
@@ -538,7 +538,7 @@ class SiteNamedCaches(harness.ConformanceCase):
         self.assertEqual(entry_count(cache_home / "beta" / "runtime" / APPLICATIONS), 1,
                          "alpha clean removed beta's application")
 
-        code, out, err = run(case_dir, sites["beta"], "beta-again", "again", env=env)
+        code, out, err = run(case_dir, sites["beta"], "beta-again", "--site-name=again", env=env)
         self.assertEqual(code, 0, f"beta exited non-zero after alpha clean: inspect {err}")
         self.assertTrue(out.read_text(errors="replace").startswith("fixture test-beta "),
                         f"beta did not run its own runtime: inspect {out}")

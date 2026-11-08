@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -19,9 +21,42 @@ func TestParse(t *testing.T) {
 		want   command
 		err    string
 	}{
-		{"a bare line goes to PHP", []string{"SITE"}, false, unset, command{}, ""},
-		{"a start goes to PHP", []string{"SITE", "start", "--data-dir", "x"}, false, unset, command{}, ""},
-		{"stop after an option is a start's word", []string{"SITE", "--data-dir", "x", "stop"}, false, unset, command{}, ""},
+		{"a bare line is a start launch.php reads", []string{"SITE"}, false, unset, command{word: "start"}, ""},
+		{"a start launch.php reads", []string{"SITE", "start", "--data-dir", "x"}, false, unset, command{word: "start"}, ""},
+		{"a line opening with an option is a start", []string{"SITE", "--listen", "127.0.0.1:9000", "--foreground"}, false, unset, command{word: "start"}, ""},
+		{"stop after an option is a start's unknown argument", []string{"SITE", "--data-dir", "x", "stop"}, false, unset, command{}, "Unknown argument: stop"},
+		{"a start refuses an unknown option", []string{"SITE", "start", "--frobnicate"}, false, unset, command{}, "Unknown argument: --frobnicate"},
+		{"a start refuses a stray word", []string{"SITE", "extra"}, false, unset, command{}, "Unknown command: extra\n\n" + siteHelpText()},
+		{"a start refuses an option with no value", []string{"SITE", "--listen"}, false, unset, command{}, "Missing value for --listen"},
+		{"a start reads -v as an option", []string{"SITE", "-v", "x"}, false, unset, command{}, "Unknown argument: -v"},
+		{"a start answers --help after its options", []string{"SITE", "--data-dir", "x", "--help"}, false, unset, command{word: "help"}, ""},
+		{"a start answers --help after start", []string{"SITE", "start", "--help"}, false, unset, command{word: "help"}, ""},
+		{"a start answers -h as the first word", []string{"SITE", "-h", "--bogus"}, false, unset, command{word: "help"}, ""},
+		{"export hands --help to Drush", []string{"SITE", "export", "--help"}, false, unset, command{word: "export"}, ""},
+		{"export reads the start's options", []string{"SITE", "export", "--data-dir", "d", "--path-count=2"}, false, unset, command{word: "export"}, ""},
+		{"export refuses an option with no value", []string{"SITE", "export", "--data-dir"}, false, unset, command{}, "Missing value for --data-dir"},
+		{"php goes to the runtime", []string{"SITE", "php", "-r", "1;"}, false, unset, command{}, ""},
+		{"php-cli goes to the runtime", []string{"SITE", "php-cli", "x.php"}, false, unset, command{}, ""},
+		{"the version flags go to the runtime", []string{"SITE", "--version"}, false, unset, command{}, ""},
+		{"a Node word is a Node word", []string{"SITE", "npm", "ci"}, false, unset, command{word: "node"}, ""},
+		{"the engine starts with no word", []string{"drupack"}, true, unset, command{word: "start", options: map[string]string{}}, ""},
+		{"the engine starts a folder", []string{"drupack", "project"}, true, unset,
+			command{word: "start", target: "project", options: map[string]string{}, words: []string{"project"}}, ""},
+		{"the engine reads start and its options", []string{"drupack", "start", "--listen", "[::1]:9", "--static-listen=127.0.0.1:10", "--foreground", "project"}, true, unset,
+			command{word: "start", target: "project", options: map[string]string{"listen": "[::1]:9", "static-listen": "127.0.0.1:10", "foreground": "1"},
+				words: []string{"--listen", "[::1]:9", "--static-listen=127.0.0.1:10", "--foreground", "project"}}, ""},
+		{"the engine takes a listener option's next word whatever it holds", []string{"drupack", "--listen", "--foreground"}, true, unset,
+			command{word: "start", options: map[string]string{"listen": "--foreground"}, words: []string{"--listen", "--foreground"}}, ""},
+		{"the engine refuses a listener with no word", []string{"drupack", "--static-listen"}, true, unset, command{}, "--static-listen takes IP:PORT"},
+		{"the engine refuses a second folder", []string{"drupack", "a", "b"}, true, unset, command{}, "Unknown argument b. Run fixture-site --help."},
+		{"the engine refuses an option", []string{"drupack", "start", "--help"}, true, unset, command{}, "Unknown argument --help. Run fixture-site --help."},
+		{"the engine answers --help first", []string{"drupack", "--help"}, true, unset, command{word: "help"}, ""},
+		{"the engine answers -h first", []string{"drupack", "-h"}, true, unset, command{word: "help"}, ""},
+		{"the engine leaves export to PHP", []string{"drupack", "export"}, true, unset, command{}, ""},
+		{"the engine leaves dr to PHP", []string{"drupack", "dr", "x"}, true, unset, command{}, ""},
+		{"the engine's php goes to the runtime", []string{"drupack", "php", "-r", "1;"}, true, unset, command{}, ""},
+		{"the engine reads php-cli as a folder", []string{"drupack", "php-cli"}, true, unset,
+			command{word: "start", target: "php-cli", options: map[string]string{}, words: []string{"php-cli"}}, ""},
 		{"stop takes ./data by default", []string{"SITE", "stop"}, false, unset, command{word: "stop", target: "./data"}, ""},
 		{"DRUPACK_DATA_DIR names the Site data", []string{"SITE", "stop"}, false, map[string]string{"DRUPACK_DATA_DIR": "env"}, command{word: "stop", target: "env"}, ""},
 		{"an empty DRUPACK_DATA_DIR reads as unset", []string{"SITE", "stop"}, false, map[string]string{"DRUPACK_DATA_DIR": ""}, command{word: "stop", target: "./data"}, ""},
@@ -69,22 +104,104 @@ func TestParse(t *testing.T) {
 	}
 }
 
-// stop's usage line, rendered from the options the parser reads, stands in the
-// help text and in docs/cli.md.
-func TestStopUsageMatchesTheHelpAndTheReference(t *testing.T) {
-	site := "stop"
+// usage renders the stop usage line from the options the parser reads.
+func siteStopUsage() string {
+	usage := "stop"
 	for _, o := range stopOptions {
-		site += " [--" + o.name + " " + o.value + "]"
+		usage += " [--" + o.name + " " + o.value + "]"
 	}
+	return usage
+}
+
+// optionNames lists the options text names, sorted and without repeats. help and
+// version stand beside the options and set no key.
+func optionNames(text string) []string {
+	var names []string
+	for _, match := range regexp.MustCompile(`--([a-z][a-z-]*)`).FindAllStringSubmatch(text, -1) {
+		if name := match[1]; name != "help" && name != "version" {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	return slices.Compact(names)
+}
+
+func parserOptions(tables ...[]option) []string {
+	var names []string
+	for _, table := range tables {
+		for _, o := range table {
+			names = append(names, o.name)
+		}
+	}
+	slices.Sort(names)
+	return slices.Compact(names)
+}
+
+// The help texts, the parser's tables and docs/cli.md name the same options and
+// commands.
+func TestHelpMatchesTheParserAndTheReference(t *testing.T) {
+	packedAs(t, "fixture-site", "dev", false)
 	reference := read(t, filepath.Join("..", "docs", "cli.md"))
+	options := regexp.MustCompile("(?m)^\\| `(--[a-z-]+)` \\|").FindAllStringSubmatch(reference, -1)
+	var table strings.Builder
+	for _, row := range options {
+		table.WriteString(row[1] + " ")
+	}
+	block := regexp.MustCompile(`(?s)\nOptions:\n(.*?)\nCommands:\n`).FindStringSubmatch(siteHelp)
+	if block == nil {
+		t.Fatal("the site help has no Options: block ending at Commands:")
+	}
+	want := parserOptions(siteOptions)
+	if got := optionNames(block[1]); !slices.Equal(got, want) {
+		t.Errorf("the site help names %v, the parser reads %v", got, want)
+	}
+	if got := optionNames(table.String()); !slices.Equal(got, want) {
+		t.Errorf("docs/cli.md names %v, the parser reads %v", got, want)
+	}
+	site := "stop " + "[--data-dir PATH]"
+	if siteStopUsage() != site {
+		t.Errorf("stop reads %q, the test expects %q", siteStopUsage(), site)
+	}
 	for _, row := range []struct{ file, text, usage string }{
-		{"application/launch.php", read(t, filepath.Join("..", "application", "launch.php")), "%1$s " + site + "\n"},
-		{"docs/cli.md", reference, "SITE " + site + "\n"},
-		{"engine/serve.php", read(t, filepath.Join("..", "engine", "serve.php")), "%1$s stop [DIR]\n"},
+		{"the site help", siteHelp, "%[1]s " + siteStopUsage() + "\n"},
+		{"docs/cli.md", reference, "SITE " + siteStopUsage() + "\n"},
+		{"the engine usage", engineUsage, "%[1]s stop [DIR]\n"},
 		{"docs/cli.md", reference, "drupack stop [DIR]\n"},
 	} {
 		if !strings.Contains(row.text, row.usage) {
 			t.Errorf("%s does not hold %q", row.file, row.usage)
+		}
+	}
+}
+
+func TestEngineUsageMatchesTheParserAndTheReference(t *testing.T) {
+	reference := read(t, filepath.Join("..", "docs", "cli.md"))
+	line := "Usage: %[1]s [start] [DIR]"
+	for _, o := range engineOptions {
+		line += " [--" + o.name
+		if o.value != "" {
+			line += " " + o.value
+		}
+		line += "]"
+	}
+	if !strings.Contains(engineUsage, line+"\n") {
+		t.Errorf("the engine usage does not open with %q", line)
+	}
+	section := reference[strings.Index(reference, "## The engine executable"):]
+	commands := regexp.MustCompile(`(?m)^  ([a-z-]+) {2,}`).FindAllStringSubmatch(engineUsage, -1)
+	var names []string
+	for _, command := range commands {
+		names = append(names, command[1])
+		if !strings.Contains(section, "drupack "+command[1]) {
+			t.Errorf("docs/cli.md's engine section omits %s", command[1])
+		}
+	}
+	if want := []string{"start", "stop", "drush", "dr", "export", "php", "clean", "self-update", "trust"}; !slices.Equal(names, want) {
+		t.Errorf("the engine usage lists %v, want %v", names, want)
+	}
+	for _, name := range parserOptions(engineOptions) {
+		if !strings.Contains(section, "--"+name) {
+			t.Errorf("docs/cli.md's engine section omits --%s", name)
 		}
 	}
 }

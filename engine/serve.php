@@ -2,49 +2,12 @@
 
 declare(strict_types=1);
 
-// `start` is reserved, so a folder with that name takes ./start. The executable answers
-// stop, a reserved word too. Any other first word that names no command starts the server.
+// The launcher parses every line and answers start, stop, drush and help. It runs this script
+// for export and dr, and for the detach of a start that has not asked to stay in the terminal.
 
 require_once __DIR__ . '/process.php';
 require_once __DIR__ . '/mercure.php';
 require_once __DIR__ . '/static.php';
-
-const USAGE = <<<'TEXT'
-Usage: %1$s [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground]
-       %1$s stop [DIR]
-       %1$s drush DRUSH_COMMAND
-       %1$s dr DRUPAL_COMMAND
-       %1$s export [DRUSH_OPTIONS]
-       %1$s php SCRIPT [ARGUMENTS]
-       %1$s php -r CODE
-       %1$s clean [--dry-run]
-       %1$s self-update [--check]
-       %1$s trust [--uninstall]
-
-Serves the Drupal project in DIR, the working directory by default, with its
-own settings, in the background. --foreground serves in this terminal until a
-signal stops it. --listen defaults to %2$s. A project whose composer.json sets
-extra.drupack.static serves its Tome export, html beside the docroot, on
---static-listen, the listener's address on the next port by default.
-
-Commands:
-  start    Serve the project, which a bare command does too
-  stop     Stop the server of the project in DIR
-  drush    Run the Drush of the project holding the working directory
-  dr       Run Drupal core's command line of that project
-  export   Export that project with Tome at the static URL its last start
-           served, or at the --uri given
-  php      Run a script or -r CODE on the bundled PHP, with no PHP option
-  clean    Remove the unpacked engine files and stopped folders' state
-           from the cache
-  self-update  Install the newest release over this file, or --check for one
-  trust    Install the local root that lets every Drupack site on this
-           computer serve HTTPS, or --uninstall it. It may ask for a password.
-
-docs/cli.md explains every command.
-TEXT;
-
-const DEFAULT_LISTEN = '127.0.0.1:3787';
 
 // The engine's launcher reads composer.json, the reader's file, by the rules a build packs a
 // site by. It answers with the docroot relative to the project, the Mercure flag, the static
@@ -63,20 +26,6 @@ function composerSettings(string $project): array
         throw new RuntimeException(trim($refusal));
     }
     return json_decode($output, true, flags: JSON_THROW_ON_ERROR) + ['static' => null];
-}
-
-// The Caddyfile's guards and front controller are Drupal's, so a docroot without Drupal
-// core, such as a WordPress site's, is refused. "." names the project itself.
-function docroot(string $project, string $relative): string
-{
-    $docroot = $relative === '.' ? $project : "$project/$relative";
-    foreach (['index.php', 'core/lib/Drupal.php'] as $file) {
-        if (!is_file("$docroot/$file")) {
-            throw new RuntimeException("$project is not a Drupal project: $docroot/$file does not exist. "
-                . executableName() . ' serves Drupal alone.');
-        }
-    }
-    return $docroot;
 }
 
 function projectScript(string $project, string $path, string $name, string $remedy): string
@@ -100,47 +49,6 @@ function coreScript(string $project): string
     return projectScript($project, 'vendor/bin/dr', "Drupal core command line", 'Drupal 11.4 and later ship it.');
 }
 
-// composer.lock is the reader's file. An extension it declares that this runtime
-// lacks fails only once a request reaches the code needing it, so a start refuses.
-// Composer's own platform_check.php tests the PHP version alone by default.
-function checkPlatform(string $binary, string $project): void
-{
-    $check = "$project/vendor/composer/platform_check.php";
-    if (is_file($check)) {
-        $child = proc_open([$binary, 'php-cli', $check], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-        if (!is_resource($child)) {
-            throw new RuntimeException("Cannot run $check");
-        }
-        $output = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
-        if (proc_close($child) !== 0) {
-            throw new RuntimeException("This runtime cannot run $project.\n" . trim($output));
-        }
-    }
-    $lock = json_decode((string) @file_get_contents("$project/composer.lock"), true);
-    if (!is_array($lock)) {
-        return;
-    }
-    $declared = [];
-    foreach (array_keys($lock['platform'] ?? []) as $requirement) {
-        $declared[$requirement][] = "$project/composer.json";
-    }
-    foreach ($lock['packages'] ?? [] as $package) {
-        foreach (array_keys($package['require'] ?? []) as $requirement) {
-            $declared[$requirement][] = $package['name'];
-        }
-    }
-    $missing = [];
-    foreach ($declared as $requirement => $declarers) {
-        // Composer spells an extension's spaces as dashes: ext-zend-opcache.
-        if (str_starts_with($requirement, 'ext-') && !extension_loaded(str_replace('-', ' ', substr($requirement, 4)))) {
-            $missing[] = '  ' . substr($requirement, 4) . ': ' . implode(', ', $declarers);
-        }
-    }
-    if ($missing !== []) {
-        throw new RuntimeException("$project/composer.lock declares PHP extensions this runtime lacks:\n" . implode("\n", $missing));
-    }
-}
-
 // One served folder's state lives in the cache beside the unpacked engine, keyed by the
 // folder, so the folder gains no file. Windows spells one path in several casings, so the
 // key reads a single one.
@@ -159,113 +67,20 @@ function projectFolder(?string $directory): string
     return canonical($project);
 }
 
-function serve(string $binary, array $arguments): never
+// The launcher has refused what a start can refuse and runs the start itself with --foreground.
+// This claims the lease only to refuse a second server in the reader's terminal, then runs the
+// start again in the background and relays its log. $directory is the folder as the reader wrote
+// it, '' for the working directory, and $typed their words after `start`.
+function detach(string $directory, array $typed): void
 {
-    $typed = $arguments;
-    $directory = null;
-    $listen = DEFAULT_LISTEN;
-    $staticListen = null;
-    $foreground = false;
-    while ($arguments !== []) {
-        $argument = array_shift($arguments);
-        if ($argument === '--listen') {
-            $listen = array_shift($arguments) ?? throw new RuntimeException('--listen takes IP:PORT');
-        } elseif (str_starts_with($argument, '--listen=')) {
-            $listen = substr($argument, strlen('--listen='));
-        } elseif ($argument === '--static-listen') {
-            $staticListen = array_shift($arguments) ?? throw new RuntimeException('--static-listen takes IP:PORT');
-        } elseif (str_starts_with($argument, '--static-listen=')) {
-            $staticListen = substr($argument, strlen('--static-listen='));
-        } elseif ($argument === '--foreground') {
-            $foreground = true;
-        } elseif ($directory === null && !str_starts_with($argument, '-')) {
-            $directory = $argument;
-        } else {
-            throw new RuntimeException("Unknown argument $argument. Run " . executableName() . ' --help.');
-        }
-    }
-    if (preg_match('/^(.+):(\d{1,5})$/', $listen, $parts) !== 1 || (int) $parts[2] > 65535) {
-        throw new RuntimeException("--listen takes IP:PORT, got $listen");
-    }
-    [, $bind, $port] = $parts;
-    $project = projectFolder($directory);
-    $settings = composerSettings($project);
-    $docroot = docroot($project, $settings['docroot']);
-    checkPlatform($binary, $project);
-    $mercure = $settings['mercure'];
-    $bind = trim($bind, '[]');
-    $tls = tlsChoice(getenv('DRUPACK_RUNTIME_LAUNCHER'), $bind, ['--folder', $settings['subdomain'] ?? basename($project)], null);
-    $plan = listenerPlan($bind, (int) $port, $tls->host, $tls->scheme());
-    $static = null;
-    if ($settings['static'] !== null) {
-        [$staticBind, $staticPort] = staticListener($staticListen, $bind, $plan['port']);
-        $static = staticPlan($staticBind, $staticPort, $tls->host, $tls->scheme());
-    } elseif ($staticListen !== null) {
-        throw new RuntimeException('--static-listen needs a project whose composer.json sets extra.drupack.static');
-    }
-
-    // The reader's terminal gets every refusal above and the lease's below, so a start that
-    // detaches has nothing left to refuse but the server's own failures.
+    $project = projectFolder($directory === '' ? null : $directory);
     $entry = folderEntry($project);
     directory($entry);
     $serving = new Serving($entry, $entry);
     if (!$serving->claim()) {
         throw new RuntimeException(executableName() . " already serves $project");
     }
-    $serving->detach($foreground,
-        stopCommand($directory === null ? '' : ' ' . shellWord($directory)), array_merge(['start'], $typed));
-
-    $url = rtrim($plan['url'], '/');
-    $tls->storeBundle($entry);
-    $link = null;
-    $install = null;
-    if (siteInstalled($binary, $project, $docroot) === false) {
-        $install = "$url/core/install.php";
-    } elseif (!is_file("$project/" . DRUSH_SCRIPT)) {
-        fwrite(STDERR, "No login link: $project has no Drush. composer require drush/drush adds one.\n");
-    } else {
-        fwrite(STDOUT, "Creating a one-time login link.\n");
-        try {
-            $link = drushLoginLink($binary, "$project/" . DRUSH_SCRIPT, $project, ["--uri=$url"], $url);
-        } catch (LoginLinkFailure $failure) {
-            // The folder's own settings may block uid 1 or name no reachable database yet;
-            // the server still starts, and Drupal's own error page says which.
-            fwrite(STDERR, "Cannot mint a one-time login link: {$failure->reason}\nGet one once the site answers with: " . executableName() . " drush user:login --uri=$url\n");
-        }
-    }
-    fwrite(STDOUT, "  URL:     $url\n" . ($link === null ? '' : "  Login:   $link\n")
-        . ($install === null ? '' : "  Install: $install\n") . ($static === null ? '' : "  Static:  {$static['url']}\n")
-        . "  Project: $project\n");
-    fwrite(STDOUT, $tls->nameHint() . $tls->trustHint());
-    fwrite(STDOUT, "Starting the web server.\n");
-    // The server opens no browser, so a value inherited from an earlier start is cleared.
-    putenv('DRUPACK_RUNTIME_OPEN');
-    if ($mercure) {
-        $hub = mercureUrl($plan['scheme'], $bind, $plan['port']);
-        exportEngineMercure($entry, $hub, false);
-        // The start's --listen chooses the port, so drush reads the address back from here.
-        if (file_put_contents("$entry/" . MERCURE_URL_FILE, $hub) !== strlen($hub)) {
-            throw new RuntimeException("Cannot write $entry/" . MERCURE_URL_FILE);
-        }
-    }
-    $root = [];
-    if ($static !== null) {
-        // export reads the URL back from here, as drush reads the hub's.
-        if (file_put_contents("$entry/" . STATIC_URL_FILE, $static['url']) !== strlen($static['url'])) {
-            throw new RuntimeException("Cannot write $entry/" . STATIC_URL_FILE);
-        }
-        // Tome's default directory, html beside the docroot. The server creates none.
-        $root = ['DRUPACK_RUNTIME_STATIC_ROOT' => dirname($docroot) . '/html'];
-    }
-    exportServerEnvironment(serverEnvironment($plan, $tls, [
-        'DRUPACK_RUNTIME_DOCROOT' => $docroot,
-        'DRUPACK_RUNTIME_ID' => basename($entry),
-        'DRUPACK_RUNTIME_URL' => $plan['probe'],
-        'DRUPACK_RUNTIME_STOP_RECORD' => $serving->stopRecord,
-    ] + $root + staticServerEnvironment($settings['static'], $static, $tls->source)
-        + mercureServerEnvironment($mercure, $entry) + projectSnippetEnvironment($project)));
-    runtimePhpOnPath(__DIR__);
-    replaceProcess($binary, ['php-server', __DIR__ . '/Caddyfile'], $project, 'Cannot start FrankenPHP');
+    $serving->detach(false, stopCommand($directory === '' ? '' : ' ' . shellWord($directory)), array_merge(['start'], $typed));
 }
 
 const MERCURE_URL_FILE = 'mercure_url';
@@ -324,20 +139,6 @@ function project(): string
     }
 }
 
-// Null when the probe cannot tell, such as for a database it cannot reach.
-function siteInstalled(string $binary, string $project, string $docroot): ?bool
-{
-    $descriptors = [0 => ['file', nullDevice(), 'r'], 1 => ['pipe', 'w'], 2 => ['file', nullDevice(), 'w']];
-    $child = proc_open([$binary, 'php-cli', __DIR__ . '/installed.php', $project, $docroot], $descriptors, $pipes, $project);
-    if (!is_resource($child)) {
-        throw new RuntimeException('Cannot run the installation probe');
-    }
-    $answer = trim((string) stream_get_contents($pipes[1]));
-    fclose($pipes[1]);
-    $status = proc_close($child);
-    return $status === 0 ? $answer === 'yes' : null;
-}
-
 function runScript(string $binary, string $script, array $arguments): never
 {
     runtimePhpOnPath(__DIR__);
@@ -351,12 +152,10 @@ if (defined('DRUPACK_SERVE_LIBRARY')) {
 
 try {
     $binary = getenv('DRUPACK_RUNTIME_BINARY');
-    match ($argv[1] ?? null) {
-        'start' => serve($binary, array_slice($argv, 2)),
+    match ($argv[1]) {
+        'detach' => detach($argv[2], array_slice($argv, 3)),
         'export' => export($binary, array_slice($argv, 2)),
         'dr' => runScript($binary, coreScript(project()), array_slice($argv, 2)),
-        '--help', '-h' => fwrite(STDOUT, sprintf(USAGE, executableName(), DEFAULT_LISTEN) . "\n"),
-        default => serve($binary, array_slice($argv, 1)),
     };
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");

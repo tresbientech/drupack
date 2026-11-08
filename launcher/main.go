@@ -38,7 +38,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	// trust may ask for a password. launch.php and serve.php read tls-source's answer.
+	// trust may ask for a password. launch.php reads tls-source's answer.
 	if len(os.Args) > 1 && os.Args[1] == "trust" {
 		return tls.Trust(os.Stdout, tlsFolder, os.Args[2:])
 	}
@@ -84,12 +84,6 @@ func run() error {
 	if c.word == "stop" {
 		return runStop(c, root, os.Stdout)
 	}
-	// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.
-	args := os.Args
-	// launch.php prints the help until the launcher parses the start's options.
-	if c.word == "help" {
-		args = []string{os.Args[0], "--help"}
-	}
 	m, err := runtime.ParseManifest(runtimeManifest)
 	if err != nil {
 		return err
@@ -108,7 +102,8 @@ func run() error {
 		return err
 	}
 	l := Launch{
-		Args:         args,
+		// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.
+		Args:         os.Args,
 		Parent:       os.Environ(),
 		Entry:        filepath.Join(directory, m.Entry),
 		Application:  application,
@@ -124,7 +119,15 @@ func run() error {
 		ConsoleOwned: consoleOwned(),
 		FoldCase:     foldCase,
 	}
-	if c.word == "drush" {
+	switch {
+	case c.word == "help":
+		fmt.Println(helpText())
+		return nil
+	case c.word == "node" && nodeBin == "":
+		return nodeRefusal(application, os.Args[1])
+	case c.word == "start" && engine:
+		return startEngine(l, c)
+	case c.word == "drush":
 		cwd, err := os.Getwd()
 		if err != nil {
 			return err
@@ -136,6 +139,19 @@ func run() error {
 		return launch(call)
 	}
 	return launch(Plan(l))
+}
+
+// nodeRefusal answers a Node word on a file that carries no Node. A site whose
+// contract names Node was packed without it for this libc.
+func nodeRefusal(application, word string) error {
+	site, err := siteconfig.Load(application)
+	if err != nil {
+		return err
+	}
+	if site.Node == "" {
+		return fmt.Errorf("Unknown command: %s\n\n%s", word, siteHelpText())
+	}
+	return fmt.Errorf("%s: this musl build of %s carries no Node. Run the glibc build, the file without -musl in its name.", word, siteName)
 }
 
 // prepareNode returns "" for a file that carries no Node.
@@ -178,8 +194,8 @@ func cleanArguments(arguments []string) (bool, error) {
 	return false, fmt.Errorf("clean takes --dry-run alone")
 }
 
-// composerSettings prints, as one JSON object, the settings engine/serve.php serves
-// the folder with.
+// composerSettings prints, as one JSON object, the settings engine/serve.php's
+// export reads the folder with.
 func composerSettings(arguments []string, out io.Writer) error {
 	if len(arguments) != 1 {
 		return fmt.Errorf("composer-settings takes one folder, not %q", arguments)

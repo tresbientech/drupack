@@ -272,7 +272,7 @@ func TestMkcertComesBeforeATrustedRoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := tlsChoice{
+	want := Choice{
 		Source:      "mkcert",
 		Root:        filepath.Join(mkcert.caroot, "rootCA.pem"),
 		Certificate: filepath.Join(dir, "mkcert", "localhost.pem"),
@@ -400,13 +400,13 @@ func TestAResolverThatDoesNotAnswerInTimeFallsBack(t *testing.T) {
 	}
 }
 
-func source(t *testing.T, args ...string) tlsChoice {
+func source(t *testing.T, args ...string) Choice {
 	t.Helper()
 	var out bytes.Buffer
 	if err := WriteSource(&out, "", args); err != nil {
 		t.Fatal(err)
 	}
-	var choice tlsChoice
+	var choice Choice
 	if err := json.Unmarshal(out.Bytes(), &choice); err != nil {
 		t.Fatal(err)
 	}
@@ -478,7 +478,7 @@ func TestOnlyALoopbackStartAddressedByAServedNameMayServeHTTPS(t *testing.T) {
 // it, and process.php's TlsChoice reads that file in the PHP tests. A renamed or dropped
 // field fails here until the file, and then TlsChoice, follow.
 func TestChoicesMatchThePHPReferenceFile(t *testing.T) {
-	choices := map[string]tlsChoice{
+	choices := map[string]Choice{
 		"none": {Source: "none", Host: "localhost", Alias: "demo.drupack.site", Reason: "no answer", Eligible: true},
 		"mkcert": {Source: "mkcert", Root: "/caroot/rootCA.pem", Certificate: "/tls/mkcert/localhost.pem", Key: "/tls/mkcert/localhost-key.pem",
 			Host: "demo.drupack.site", Alias: "demo.drupack.site", Eligible: true},

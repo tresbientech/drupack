@@ -8,15 +8,20 @@ import (
 
 // command is a reader's line as the launcher answers it.
 type command struct {
-	// word is "stop", "drush", "help" for a site's `stop --help`, or "" for a
-	// line the runtime's PHP reads.
+	// word is "stop", "drush", "help", "start" for an engine start or a site
+	// start the launcher has checked, "export" for a site export it has
+	// checked, "node" for a site's Node word, or "" for a line the runtime
+	// reads. A site's start and export go to launch.php, which reads their
+	// options again until it moves into the launcher.
 	word string
-	// target is stop's Site data or folder, as the reader wrote it.
+	// target is stop's Site data or folder, or the engine start's folder, as
+	// the reader wrote it. An engine start without one holds "".
 	target string
-	// options holds a site's drush options by name, as the reader wrote them.
-	// A flag holds "1". data-dir is always present.
+	// options holds the options a reader wrote, by name. A flag holds "1".
+	// A site's drush always holds data-dir.
 	options map[string]string
-	// words are drush's own words, after the options a site's drush reads.
+	// words are drush's own words, after the options a site's drush reads, or
+	// an engine start's words after `start`.
 	words []string
 }
 
@@ -52,27 +57,79 @@ var siteOptions = []option{
 	{name: "foreground"},
 }
 
+// engineOptions are the options the engine's start takes. parse_test.go asserts
+// them against the usage text and docs/cli.md.
+var engineOptions = []option{
+	{name: "listen", value: "IP:PORT"},
+	{name: "static-listen", value: "IP:PORT"},
+	{name: "foreground"},
+}
+
 // defaultDataDir is the Site data of a reader who names none. launch.php's
-// DEFAULT_DATA_DIR holds it too while PHP parses the start's options.
+// DEFAULT_DATA_DIR holds it too while PHP parses the site start's options.
 const defaultDataDir = "./data"
+
+// defaultListen is where the engine serves a reader who names no listener.
+const defaultListen = "127.0.0.1:3787"
 
 // parse reads args, os.Args, for the words the launcher answers. lookup reads
 // the environment.
 func parse(args []string, engine bool, lookup func(string) (string, bool)) (command, error) {
+	if len(args) < 2 && engine {
+		return parseEngineStart(nil)
+	}
 	if len(args) < 2 {
-		return command{}, nil
+		return siteStart(nil, lookup)
 	}
+	word, rest := args[1], args[2:]
 	switch {
-	case args[1] == "stop" && engine:
-		return parseFolderStop(args[2:])
-	case args[1] == "stop":
-		return parseSiteStop(args[2:], lookup)
-	case args[1] == "drush" && engine:
-		return command{word: "drush", words: args[2:]}, nil
-	case args[1] == "drush":
-		return parseSiteDrush(args[2:], lookup)
+	case word == "stop" && engine:
+		return parseFolderStop(rest)
+	case word == "stop":
+		return parseSiteStop(rest, lookup)
+	case word == "drush" && engine:
+		return command{word: "drush", words: rest}, nil
+	case word == "drush":
+		return parseSiteDrush(rest, lookup)
+	case word == "php" || len(args) == 2 && (word == "--version" || word == "-v"):
+		return command{}, nil
+	case engine && (word == "export" || word == "dr"):
+		return command{}, nil
+	case engine && (word == "--help" || word == "-h"):
+		return command{word: "help"}, nil
+	case engine && word == "start":
+		return parseEngineStart(rest)
+	case engine:
+		return parseEngineStart(args[1:])
+	case word == "php-cli":
+		return command{}, nil
+	case word == "--help" || word == "-h":
+		return command{word: "help"}, nil
+	case slices.Contains(nodeWords, word):
+		return command{word: "node"}, nil
+	case word == "export":
+		if _, _, _, err := scanSiteOptions(rest, lookup, false); err != nil {
+			return command{}, err
+		}
+		return command{word: "export"}, nil
+	case word == "start":
+		return siteStart(rest, lookup)
+	case strings.HasPrefix(word, "-"):
+		return siteStart(args[1:], lookup)
 	}
-	return command{}, nil
+	return command{}, fmt.Errorf("Unknown command: %s\n\n%s", word, siteHelpText())
+}
+
+// siteStart checks a site's start line, which launch.php reads again.
+func siteStart(arguments []string, lookup func(string) (string, bool)) (command, error) {
+	_, _, help, err := scanSiteOptions(arguments, lookup, true)
+	switch {
+	case err != nil:
+		return command{}, err
+	case help:
+		return command{word: "help"}, nil
+	}
+	return command{word: "start"}, nil
 }
 
 // `start` and `stop` are reserved, so a folder with either name takes ./start or ./stop.
@@ -119,13 +176,30 @@ func parseSiteStop(arguments []string, lookup func(string) (string, bool)) (comm
 // parseSiteDrush reads the start's options in order. The first argument that
 // names none of them opens drush's own words, so drush's options pass through.
 func parseSiteDrush(arguments []string, lookup func(string) (string, bool)) (command, error) {
-	options := map[string]string{dataDirOption.name: defaultDataDir}
+	options, words, _, err := scanSiteOptions(arguments, lookup, false)
+	if err != nil {
+		return command{}, err
+	}
+	return command{word: "drush", options: options, words: words}, nil
+}
+
+// scanSiteOptions reads a site's start options in order. A strict scan, the
+// start's, refuses any other argument and answers --help; the drush and export
+// scan stops at the first argument that names no option and returns the rest.
+func scanSiteOptions(arguments []string, lookup func(string) (string, bool), strict bool) (options map[string]string, rest []string, help bool, err error) {
+	options = map[string]string{dataDirOption.name: defaultDataDir}
 	if value, _ := lookup("DRUPACK_DATA_DIR"); value != "" {
 		options[dataDirOption.name] = value
 	}
 	for len(arguments) > 0 {
+		if strict && arguments[0] == "--help" {
+			return nil, nil, true, nil
+		}
 		name, value, inline := strings.Cut(arguments[0], "=")
 		i := slices.IndexFunc(siteOptions, func(o option) bool { return "--"+o.name == name })
+		if i < 0 && strict {
+			return nil, nil, false, fmt.Errorf("Unknown argument: %s", arguments[0])
+		}
 		if i < 0 {
 			break
 		}
@@ -140,9 +214,43 @@ func parseSiteDrush(arguments []string, lookup func(string) (string, bool)) (com
 			arguments = arguments[1:]
 		}
 		if value == "" || strings.HasPrefix(value, "--") {
-			return command{}, fmt.Errorf("Missing value for --%s", o.name)
+			return nil, nil, false, fmt.Errorf("Missing value for --%s", o.name)
 		}
 		options[o.name] = value
 	}
-	return command{word: "drush", options: options, words: arguments}, nil
+	return options, arguments, false, nil
+}
+
+// parseEngineStart reads the engine's start: options in any order and one
+// folder. A listener option takes the next argument whatever it holds, and
+// its value is checked once the start plans it.
+func parseEngineStart(arguments []string) (command, error) {
+	c := command{word: "start", options: map[string]string{}, words: slices.Clone(arguments)}
+	named := false
+	for len(arguments) > 0 {
+		argument := arguments[0]
+		arguments = arguments[1:]
+		i := slices.IndexFunc(engineOptions, func(o option) bool {
+			return argument == "--"+o.name || o.value != "" && strings.HasPrefix(argument, "--"+o.name+"=")
+		})
+		switch {
+		case i >= 0 && engineOptions[i].value == "":
+			c.options[engineOptions[i].name] = "1"
+		case i >= 0:
+			o := engineOptions[i]
+			value, inline := strings.CutPrefix(argument, "--"+o.name+"=")
+			if !inline {
+				if len(arguments) == 0 {
+					return command{}, fmt.Errorf("--%s takes %s", o.name, o.value)
+				}
+				value, arguments = arguments[0], arguments[1:]
+			}
+			c.options[o.name] = value
+		case !named && !strings.HasPrefix(argument, "-"):
+			c.target, named = argument, true
+		default:
+			return command{}, fmt.Errorf("Unknown argument %s. Run %s --help.", argument, siteName)
+		}
+	}
+	return c, nil
 }

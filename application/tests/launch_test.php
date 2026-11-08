@@ -711,62 +711,17 @@ test('the public files template loader resolves the files address in the files d
         'a name climbing out of the files directory');
 });
 
-// options() is the command line's contract; the other two descriptions are asserted against it.
-const REPOSITORY = __DIR__ . '/../..';
-
-// command() and the runtime answer these two, so neither reaches an option key.
-const USAGE_NON_OPTIONS = ['help', 'version'];
-
-function optionNames(string $text): array
-{
-    preg_match_all('/--([a-z][a-z-]*)/', $text, $found);
-    $names = array_values(array_unique(array_diff($found[1], USAGE_NON_OPTIONS)));
-    sort($names);
-    return $names;
-}
-
-function parserOptions(): array
-{
-    $names = array_keys(parse([])[0]);
-    sort($names);
-    return $names;
-}
-
-function helpOptions(): array
-{
-    if (!preg_match('/\nOptions:\n(.*?)\nCommands:\n/s', HELP, $block)) {
-        throw new RuntimeException('HELP has no Options: block ending at Commands:');
-    }
-    return optionNames($block[1]);
-}
-
-function referenceOptions(): array
-{
-    $page = (string) file_get_contents(REPOSITORY . '/docs/cli.md');
-    // The option table alone. Its first column holds one option per row.
-    preg_match_all('/^\| `(--[a-z-]+)` \|/m', $page, $rows);
-    return optionNames(implode(' ', $rows[1]));
-}
-
-test('the help constant names every option the parser accepts', function () {
-    same(parserOptions(), helpOptions());
-});
-
-test('docs/cli.md names every option the parser accepts', function () {
-    same(parserOptions(), referenceOptions());
-});
-
 test('no word starts the site', function () {
-    same(['start', []], command([], contract()));
+    same(['start', []], command([]));
 });
 
 test('a line opening with an option starts the site with every word', function () {
-    same(['start', ['--listen', '127.0.0.1:9000']], command(['--listen', '127.0.0.1:9000'], contract()));
+    same(['start', ['--listen', '127.0.0.1:9000']], command(['--listen', '127.0.0.1:9000']));
 });
 
 test('a command word names the mode and leaves the rest', function () {
-    same(['start', ['--foreground']], command(['start', '--foreground'], contract()));
-    same(['export', ['--data-dir', 'site']], command(['export', '--data-dir', 'site'], contract()));
+    same(['start', ['--foreground']], command(['start', '--foreground']));
+    same(['export', ['--data-dir', 'site']], command(['export', '--data-dir', 'site']));
 });
 
 test('an export runs Tome at the static URL unless the words name one', function (): void {
@@ -777,25 +732,6 @@ test('an export runs Tome at the static URL unless the words name one', function
         same(array_merge(['tome:static', '--yes'], $words), exportCommand(null, $words), 'null ' . implode(' ', $words));
     }
     same(['tome:static', '--yes', "--uri=$url", '--', '--uri=x'], exportCommand($url, ['--', '--uri=x']), 'a --uri after -- is no option');
-});
-
-test('a first -h or --help asks for the usage', function () {
-    same(['help', []], command(['-h'], contract()));
-    same(['help', []], command(['--help', '--listen', 'x'], contract()));
-});
-
-test('an unknown word names itself above the usage', function () {
-    throws('Unknown command: frobnicate', fn () => command(['frobnicate'], contract()));
-    throws('Usage: ' . FIXTURE_NAME . ' [start] [OPTIONS]', fn () => command(['frobnicate'], contract()));
-});
-
-test('a Node word on a site without Node is an unknown command', function () {
-    throws('Unknown command: npm', fn () => command(['npm', 'ci'], contract(node: false)));
-});
-
-test('a Node word on a site with Node names the glibc build', function () {
-    throws('npx: this musl build of ' . FIXTURE_NAME . ' carries no Node. Run the glibc build',
-        fn () => command(['npx', 'cowsay'], contract(node: true)));
 });
 
 $status = runCases();

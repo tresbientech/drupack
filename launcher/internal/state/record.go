@@ -1,8 +1,11 @@
 package state
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -14,6 +17,7 @@ const (
 	publisherName    = "mercure_publisher_secret"
 	subscriberName   = "mercure_subscriber_secret"
 	folderMercureURL = "mercure_url"
+	folderStaticURL  = "static_url"
 	// unrecordedScheme is the scheme of a record that names none.
 	unrecordedScheme = "http"
 )
@@ -112,4 +116,95 @@ func (d Dir) FolderMercureURL() (url string, ok bool, err error) {
 		return "", false, nil
 	}
 	return string(content), err == nil, err
+}
+
+// StopRecordPath is where the server writes its stop record, which Stop reads.
+func (d Dir) StopRecordPath() string {
+	return filepath.Join(d.path, stopRecordName)
+}
+
+// ClearStopRecord removes an earlier server's record, which names a port and
+// token nobody listens on. A missing record reads as a start still preparing.
+func (d Dir) ClearStopRecord() error {
+	err := os.Remove(d.StopRecordPath())
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	return err
+}
+
+// WriteBundle replaces the CA bundle whole, since a running server's cron
+// reads it.
+func (d Dir) WriteBundle(content []byte) error {
+	partial, err := os.CreateTemp(d.path, bundleName+".")
+	if err != nil {
+		return fmt.Errorf("Cannot write %s", filepath.Join(d.path, bundleName))
+	}
+	_, err = partial.Write(content)
+	if closeErr := partial.Close(); err == nil {
+		err = closeErr
+	}
+	if err == nil {
+		err = os.Rename(partial.Name(), filepath.Join(d.path, bundleName))
+	}
+	if err != nil {
+		os.Remove(partial.Name())
+		return fmt.Errorf("Cannot write %s", filepath.Join(d.path, bundleName))
+	}
+	return nil
+}
+
+// RemoveBundle deletes the bundle after an HTTP start, so Drush stops trusting
+// a root the site no longer serves.
+func (d Dir) RemoveBundle() error {
+	err := os.Remove(filepath.Join(d.path, bundleName))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	return err
+}
+
+// CreateMercureSecrets reads the hub's two secrets, creating either that is
+// missing with 32 random bytes in hex. Exclusive creation refuses a link
+// already at the path.
+func (d Dir) CreateMercureSecrets() (publisher, subscriber string, err error) {
+	var values [2]string
+	for i, name := range []string{publisherName, subscriberName} {
+		path := filepath.Join(d.path, name)
+		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err == nil {
+			secret := make([]byte, 32)
+			rand.Read(secret)
+			_, err = file.WriteString(hex.EncodeToString(secret))
+			if closeErr := file.Close(); err == nil {
+				err = closeErr
+			}
+			if err != nil {
+				return "", "", fmt.Errorf("Cannot write the Mercure secret: %s", path)
+			}
+		} else if info, statErr := os.Stat(path); statErr != nil || !info.Mode().IsRegular() {
+			return "", "", fmt.Errorf("Cannot create the Mercure secret: %s", path)
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", "", err
+		}
+		values[i] = string(content)
+	}
+	return values[0], values[1], nil
+}
+
+// WriteFolderURLs records the hub and static addresses the folder's start
+// serves, which drush and export read back. An empty address records nothing.
+func (d Dir) WriteFolderURLs(mercure, static string) error {
+	for name, url := range map[string]string{folderMercureURL: mercure, folderStaticURL: static} {
+		if url == "" {
+			continue
+		}
+		path := filepath.Join(d.path, name)
+		if err := os.WriteFile(path, []byte(url), 0o600); err != nil {
+			return fmt.Errorf("Cannot write %s", path)
+		}
+	}
+	return nil
 }

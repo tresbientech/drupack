@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
@@ -135,5 +136,108 @@ func TestWaitFree(t *testing.T) {
 	statetest.HoldLease(t, held)
 	if free, err := state.At(held).WaitFree(0); free || err != nil {
 		t.Errorf("WaitFree on a held lease = %v, %v", free, err)
+	}
+}
+
+func TestClaim(t *testing.T) {
+	dir := t.TempDir()
+	held := state.At(dir)
+	lease, err := held.Claim()
+	if err != nil || lease == nil {
+		t.Fatalf("Claim() = %v, %v", lease, err)
+	}
+	if on, err := held.Lease(); err != nil || !on {
+		t.Errorf("Lease() after Claim() = %v, %v", on, err)
+	}
+	if second, err := held.Claim(); err != nil || second != nil {
+		t.Errorf("a second Claim() = %v, %v, want nil", second, err)
+	}
+	other := t.TempDir()
+	statetest.HoldLease(t, other)
+	if taken, err := state.At(other).Claim(); err != nil || taken != nil {
+		t.Errorf("Claim() against a PHP flock holder = %v, %v, want nil", taken, err)
+	}
+	if err := lease.Inherit(); err != nil {
+		t.Errorf("Inherit() = %v", err)
+	}
+}
+
+func TestStopRecord(t *testing.T) {
+	dir := state.At(t.TempDir())
+	if err := dir.ClearStopRecord(); err != nil {
+		t.Fatalf("no record: %v", err)
+	}
+	if err := os.WriteFile(dir.StopRecordPath(), []byte(`{"port":1,"token":"x"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := dir.ClearStopRecord(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dir.StopChannel(); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("StopChannel() after the clear = %v", err)
+	}
+}
+
+func TestBundleAndFolderRecords(t *testing.T) {
+	dir := state.At(t.TempDir())
+	if err := dir.WriteBundle([]byte("roots")); err != nil {
+		t.Fatal(err)
+	}
+	if err := dir.WriteBundle([]byte("roots and ours")); err != nil {
+		t.Fatal(err)
+	}
+	path, ok := dir.Bundle()
+	if content, _ := os.ReadFile(path); !ok || string(content) != "roots and ours" {
+		t.Errorf("Bundle() = %q, %v, %q", path, ok, content)
+	}
+	if entries, _ := os.ReadDir(dir.Path()); len(entries) != 1 {
+		t.Errorf("the replace left %d files", len(entries))
+	}
+	if err := dir.RemoveBundle(); err != nil {
+		t.Fatal(err)
+	}
+	if err := dir.RemoveBundle(); err != nil {
+		t.Errorf("removing no bundle: %v", err)
+	}
+	if _, ok := dir.Bundle(); ok {
+		t.Error("the bundle is still there")
+	}
+	if err := dir.WriteFolderURLs("https://h:1/.well-known/mercure", ""); err != nil {
+		t.Fatal(err)
+	}
+	if url, ok, err := dir.FolderMercureURL(); err != nil || !ok || url != "https://h:1/.well-known/mercure" {
+		t.Errorf("FolderMercureURL() = %q, %v, %v", url, ok, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir.Path(), "static_url")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("an empty static address wrote a file: %v", err)
+	}
+	if err := dir.WriteFolderURLs("", "http://h:2/"); err != nil {
+		t.Fatal(err)
+	}
+	if content, _ := os.ReadFile(filepath.Join(dir.Path(), "static_url")); string(content) != "http://h:2/" {
+		t.Errorf("static_url = %q", content)
+	}
+}
+
+func TestMercureSecretsAreCreatedOnceAndReadBack(t *testing.T) {
+	dir := state.At(t.TempDir())
+	publisher, subscriber, err := dir.CreateMercureSecrets()
+	if err != nil || len(publisher) != 64 || len(subscriber) != 64 || publisher == subscriber {
+		t.Fatalf("CreateMercureSecrets() = %q, %q, %v", publisher, subscriber, err)
+	}
+	again, _, err := dir.CreateMercureSecrets()
+	if err != nil || again != publisher {
+		t.Errorf("a second call = %q, %v, want the first secret", again, err)
+	}
+	read, _, ok, err := dir.MercureSecrets()
+	if err != nil || !ok || read != publisher {
+		t.Errorf("MercureSecrets() = %q, %v, %v", read, ok, err)
+	}
+	blocked := state.At(t.TempDir())
+	if err := os.Mkdir(filepath.Join(blocked.Path(), "mercure_publisher_secret"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := blocked.CreateMercureSecrets(); err == nil || !strings.HasPrefix(err.Error(), "Cannot create the Mercure secret: ") {
+		t.Errorf("a directory in the secret's place = %v", err)
 	}
 }

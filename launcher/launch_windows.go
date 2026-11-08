@@ -27,6 +27,7 @@ func launch(c Command) error {
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	command.Env = c.Env
+	command.Dir = c.Dir
 
 	err := command.Run()
 	if err == nil {
