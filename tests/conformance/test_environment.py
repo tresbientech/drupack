@@ -1,4 +1,4 @@
-"""The DRUPACK_RUNTIME_* variables a start passes between its processes, checked against
+"""The variables a start passes between its processes, checked against
 runtime/environment.txt. Each declared line names the files that write the variable and
 the files that read it, and this test finds both in the sources by pattern. Run with:
 
@@ -15,7 +15,15 @@ ROOT = Path(__file__).resolve().parents[2]
 DECLARATION = ROOT / "runtime" / "environment.txt"
 # The product's own sources. Tests set variables to build states, so they stay out.
 SOURCES = ("application", "build", "launcher", "runtime")
-NAME = r"DRUPACK_RUNTIME_([A-Z_]+)"
+RUNTIME = "DRUPACK_RUNTIME_"
+NAME = r"((?:DRUPACK|DRUSH)_[A-Z_]+)"
+KINDS = {"reader", "server", "operate", "drush", "export"}
+MODES = {"site", "engine"}
+
+
+def variable(name):
+    """The variable a declared name stands for: a name without a prefix is a DRUPACK_RUNTIME_ one."""
+    return name if name.startswith(("DRUPACK_", "DRUSH_")) else RUNTIME + name
 
 # Per file type, the patterns that mark a line as writing or reading a variable.
 PATTERNS = {
@@ -31,9 +39,12 @@ PATTERNS = {
         [rf"^\s*(?:export\s+)?{NAME}=", rf"^\s*export\s+{NAME}\s*$"],
         [rf"\$\{{?{NAME}"],
     ),
+    ".ini": ([], [rf"\$\{{{NAME}\}}"]),
     "Caddyfile": ([], [rf"\{{\$" + NAME + r"\}"]),
     ".caddy": ([], [rf"\{{\$" + NAME + r"\}"]),
 }
+# application/drush is PHP under a name without a suffix.
+PATTERNS["drush"] = PATTERNS[".php"]
 
 
 def sources():
@@ -56,7 +67,7 @@ def found():
             for role, expressions in (("writers", writes), ("readers", reads)):
                 for expression in expressions:
                     for match in re.finditer(expression, line):
-                        uses[match.group(1)][role].setdefault(path, number)
+                        uses[match.group(1).removeprefix(RUNTIME)][role].setdefault(path, number)
     return uses
 
 
@@ -68,9 +79,12 @@ def declared():
             continue
         name, *fields = line.split()
         entry = dict(field.split("=", 1) for field in fields)
-        for key in ("writers", "readers"):
+        for key in ("writers", "readers", "kinds", "modes"):
             if key not in entry:
                 raise AssertionError(f"{DECLARATION.name}:{number} declares {name} without {key}=")
+        for key, known in (("kinds", KINDS), ("modes", MODES)):
+            if unknown := set(entry[key].split(",")) - {""} - known:
+                raise AssertionError(f"{DECLARATION.name}:{number} gives {name} the {key} {sorted(unknown)}")
         declaration[name] = {key: set(entry[key].split(",")) - {""} for key in ("writers", "readers")}
     return declaration
 
@@ -80,10 +94,11 @@ class EnvironmentContract(unittest.TestCase):
         declaration = declared()
         for name, roles in sorted(found().items()):
             with self.subTest(variable=name):
-                if name not in declaration:
+                # Outside DRUPACK_RUNTIME_, the launcher's own test holds the code to the declaration.
+                if name not in declaration and variable(name).startswith(RUNTIME):
                     line = (f"{name}  writers={','.join(sorted(roles['writers']))}"
                             f"  readers={','.join(sorted(roles['readers']))}")
-                    self.fail(f"DRUPACK_RUNTIME_{name} is used but {DECLARATION.name} lacks it. Add:\n  {line}")
+                    self.fail(f"{variable(name)} is used but {DECLARATION.name} lacks it. Add:\n  {line}")
 
     def test_each_declared_writer_and_reader_matches_the_sources(self):
         uses = found()
@@ -92,18 +107,20 @@ class EnvironmentContract(unittest.TestCase):
                 with self.subTest(variable=name, role=role):
                     actual = uses[name][role]
                     for path in sorted(roles[role] - actual.keys()):
-                        self.fail(f"{path} is a declared {role[:-1]} of DRUPACK_RUNTIME_{name} but no longer "
+                        self.fail(f"{path} is a declared {role[:-1]} of {variable(name)} but no longer "
                                   f"{'writes' if role == 'writers' else 'reads'} it. Restore it, or drop "
                                   f"{path} from {role}= in {DECLARATION.name}.")
                     for path in sorted(actual.keys() - roles[role]):
                         self.fail(f"{path}:{actual[path]} {'writes' if role == 'writers' else 'reads'} "
-                                  f"DRUPACK_RUNTIME_{name}. Add {path} to its {role}= in {DECLARATION.name}.")
+                                  f"{variable(name)}. Add {path} to its {role}= in {DECLARATION.name}.")
 
     def test_each_declared_variable_has_a_writer_and_a_reader(self):
         for name, roles in sorted(declared().items()):
             with self.subTest(variable=name):
                 self.assertTrue(roles["writers"], f"{name} declares no writer")
-                self.assertTrue(roles["readers"], f"{name} declares no reader")
+                # Drush and a site's own settings read the others, outside this repository.
+                if variable(name).startswith(RUNTIME):
+                    self.assertTrue(roles["readers"], f"{name} declares no reader")
 
     def test_every_caddyfile_reference_sits_inside_double_quotes(self):
         # Caddy splices the value into the text before it reads quotes, so a start refuses a

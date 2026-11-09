@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
@@ -93,6 +95,57 @@ func TestEnvKinds(t *testing.T) {
 		for _, name := range row.lacks {
 			if value, set := got[name]; set {
 				t.Errorf("%s: %s = %q, want it unset", row.name, name, value)
+			}
+		}
+	}
+}
+
+// TestEnvDeclared holds Env to runtime/environment.txt: each kind and mode emits the
+// names the file gives it, from a start that knows everything its mode can know.
+func TestEnvDeclared(t *testing.T) {
+	text, err := os.ReadFile("../runtime/environment.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hub := &caddyfile.Mercure{}
+	engine := Facts{Launch: Launch{Engine: true}, CAFile: "x", Hub: hub, Bin: "x", Script: "x", ID: "x", Probe: "x", StopRecord: "x", TLSRoot: "x"}
+	site := engine
+	site.Engine = false
+	site.Data, site.StaticRoot, site.SiteApp, site.Open, site.Alias = "x", "x", "x", "x", "x"
+	kinds := map[string]Kind{"reader": Reader, "server": Server, "operate": Operate, "drush": Drush, "export": Export}
+	for mode, facts := range map[string]Facts{"site": site, "engine": engine} {
+		for kind, k := range kinds {
+			var want, got []string
+			for _, line := range strings.Split(string(text), "\n") {
+				fields := strings.Fields(line)
+				if len(fields) == 0 || fields[0] == "#" {
+					continue
+				}
+				name := fields[0]
+				if !strings.HasPrefix(name, "DRUPACK_") && !strings.HasPrefix(name, "DRUSH_") {
+					name = "DRUPACK_RUNTIME_" + name
+				}
+				column := func(key string) []string {
+					for _, field := range fields[1:] {
+						if value, found := strings.CutPrefix(field, key+"="); found {
+							return strings.Split(value, ",")
+						}
+					}
+					return nil
+				}
+				if slices.Contains(column("kinds"), kind) && slices.Contains(column("modes"), mode) {
+					want = append(want, name)
+				}
+			}
+			for _, entry := range facts.Env(k) {
+				if name, _, _ := strings.Cut(entry, "="); strings.HasPrefix(name, "DRUPACK_") || strings.HasPrefix(name, "DRUSH_") {
+					got = append(got, name)
+				}
+			}
+			slices.Sort(want)
+			slices.Sort(got)
+			if !slices.Equal(got, want) {
+				t.Errorf("%s %s emits %v, and environment.txt declares %v", mode, kind, got, want)
 			}
 		}
 	}
