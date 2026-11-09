@@ -37,6 +37,13 @@ git -C "$demo" checkout -q --detach FETCH_HEAD
 # none. The chain tests the glibc file alone, so it packs no musl one.
 docker build --target job -t drupack-job .
 
+# A build's own test results take about 30 GB. The whole chain deletes them, since
+# the runner's disk cannot hold two builds' results and the later steps' own. One
+# phase keeps them: the deletion takes 6 to 10 minutes.
+discard_results() {
+    [ -n "$phase" ] || rm -rf "$work/$1/test-results"
+}
+
 unit_checks() {
     bash build/go-tests.sh
     bash runtime/adapt-test.sh gnu
@@ -49,9 +56,7 @@ build_demo() {
     docker run --rm --user "$(id -u):$(id -g)" -e "DRUPACK_SHARD=${1:-}" -v "$PWD:/src" -v "$work:$work" -w /src drupack-job \
         drupack-build --site "$demo" --platform "$platform" --libc glibc \
         --output dist --work "$work/work"
-    # Each build's own test results take about 30 GB, which the runner's disk cannot hold
-    # alongside the conformance results of the later steps.
-    rm -rf "$work/work/test-results"
+    discard_results work
 }
 
 php_unit_files() {
@@ -73,7 +78,7 @@ variant() {
     docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -v "$variant_site:/variant-site" -w /src drupack-job \
         drupack-build --site /variant-site --platform "$platform" --libc both \
         --output dist/variant --work "$work/variant-work"
-    rm -rf "$work/variant-work/test-results"
+    discard_results variant-work
     python3 tests/conformance "dist/variant/variant-demo-$platform-musl" "$work/results/variant-musl" -k NodeRefusals -k MercureHub -k ProjectRules
 }
 
