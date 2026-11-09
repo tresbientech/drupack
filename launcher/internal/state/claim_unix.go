@@ -25,7 +25,7 @@ const noFollow = syscall.O_NOFOLLOW
 // as the previous release's PHP does. file is nil when another server holds it.
 // A link at the lease is refused.
 func lockFile(path string, flags int) (file *os.File, err error) {
-	fd, err := syscall.Open(path, flags|syscall.O_NOFOLLOW, 0o600)
+	fd, err := syscall.Open(path, flags|noFollow, 0o600)
 	if err != nil {
 		return nil, leaseRefusal(path)
 	}

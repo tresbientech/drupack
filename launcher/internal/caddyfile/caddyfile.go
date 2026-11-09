@@ -73,6 +73,9 @@ func (c Config) Addresses(bind string, port int) (string, error) {
 	}
 	var addresses []string
 	for _, name := range names {
+		if name == "" {
+			continue
+		}
 		if strings.Contains(name, ":") {
 			name = "[" + name + "]"
 		}
@@ -80,7 +83,7 @@ func (c Config) Addresses(bind string, port int) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if name != "" && !slices.Contains(addresses, address) {
+		if !slices.Contains(addresses, address) {
 			addresses = append(addresses, address)
 		}
 	}

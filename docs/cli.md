@@ -364,7 +364,7 @@ Five variables have no option:
 
 A start runs the PHP and Caddy it unpacked into the cache, so it refuses a cache
 folder that another account can change. The folder itself must be yours and
-writable or readable by you alone. Each folder above it must belong to you, to
+readable and writable by you alone. Each folder above it must belong to you, to
 root or to the system, and let no other account rename what it holds. A
 world-writable folder with the sticky bit, such as `/tmp`, passes. The refusal
 names the folder and the account. `DRUPACK_CACHE_DIR` follows the same rule, so

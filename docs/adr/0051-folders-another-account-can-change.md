@@ -45,9 +45,10 @@ The ancestor rule covers each parent up to the root:
 
 | Folder | Check | Result |
 |---|---|---|
-| Each cache root candidate | both rules, with readers | refused; the next candidate is tried |
+| `DRUPACK_CACHE_DIR` | both rules, with readers | refused |
+| Each default cache root candidate | both rules, with readers | refused, with a notice; the next candidate is tried |
 | Site data, a named `--files-dir` | both rules | a warning, and the command goes on |
-| The first `vendor/autoload.php` above the working directory | owner of the file, `vendor/` and the project folder | refused |
+| The first `vendor/autoload.php` above the working directory | owner of the file, `vendor/` and the project folder; no link at the file or `vendor/` | refused |
 
 The Site data warning is the owner's ruling. A refusal would stop sites that
 serve today from a shared folder.
