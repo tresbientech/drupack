@@ -171,3 +171,32 @@ Consequences:
 - A PECL release alone tags a Drupack version, as a PHP patch does.
 - A zip replaced under the same name still fails the Windows build, as it did
   on 2026-10-26.
+
+## Amendment, 2026-11-09: the first red job ends the wait
+
+The forge job waited for a candidate run to complete. Four failed runs
+completed 39 to 98 minutes after their first red job. The owner's checkout
+still set `qa.command`, and a local `build/qa.sh` run preceded the 1.0.0-beta15
+candidate, whose `qa` job ran the same chain.
+
+- `build/wait-for-run.sh` reads the run's jobs at each poll. The candidate step
+  exits red at the first job that failed, timed out or was cancelled, and
+  prints its name and link.
+- The GitHub run goes on, so one attempt shows every red platform.
+- The `tag` job passes `--rerun` and waits for the run to complete. GitHub
+  reruns the failed jobs of a completed run alone.
+- The candidate's `qa` jobs are the release's QA. No local `build/qa.sh` run
+  precedes a release, and the checkout sets no `qa.command`.
+- `build/qa.sh` stays the chain a developer runs by hand, whole or one phase.
+
+Consequences:
+
+- The forge reports a red candidate at the first poll after its first red job.
+  It polls every two minutes.
+- A red candidate frees the forge runner slot while its GitHub run still holds
+  runners. A candidate dispatched then shares GitHub's 20 jobs with it.
+- The forge job deletes the candidate branch while the run goes on. A later job
+  checks out the candidate's commit by its SHA, which GitHub serves after the
+  branch is gone.
+- The failed-candidate skip reads completed runs. A dispatch made while the red
+  run goes on builds the same bump again.

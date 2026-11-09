@@ -21,4 +21,5 @@ on more than one platform. A Windows defect could pass every check.
 ## Consequences
 
 A behaviour change is proven on the platform that has it, in the suite that
-ships. The run takes about seven minutes on Linux and longer on Windows.
+ships. Measured on 2026-11-09, one run takes about 15 minutes on Linux, 43 on
+Windows and 45 on Intel macOS.

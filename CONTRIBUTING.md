@@ -14,7 +14,7 @@ bash runtime/build-builder.sh gnu drupack-builder-gnu:local
 bash build/qa.sh
 ```
 
-`build/qa.sh` builds the `job` image, runs `drupack-build` inside it, then runs the tests. The image carries this architecture's two runtimes under `/opt/drupack/runtimes`, one `PLATFORM-LIBC` directory each, so the build names none.
+`build/qa.sh` builds the `job` image, runs `drupack-build` inside it, then runs the tests. `build/qa.sh demo`, `variant` or `host` runs one phase of that chain, as the release candidate's three QA jobs do. The image carries this architecture's two runtimes under `/opt/drupack/runtimes`, one `PLATFORM-LIBC` directory each, so the build names none.
 
 The site every build packs is Drupacked Demo, from its own repository. `build/demo-pin.sh` names the commit. `build/qa.sh` fetches it on each run. A hand build needs a clone in `demo/`, which git ignores:
 
@@ -100,7 +100,7 @@ Every Python script in `build/`, `runtime/` and `tests/` imports the standard li
 
 `tests/conformance` takes a results directory as its second argument, and empties it before any case runs. It refuses a non-empty directory that no earlier run created. It reads the site from the `site.json` beside the executable. `--site-tests DIR` adds a site's own `*_cases.py` modules to the run; Drupacked Demo's live in its repository's `tests`.
 
-`DRUPACK_SHARD=K/N` runs the Kth of N shares of the test classes, every Nth class in name order. A class stays whole. Unittest arguments such as `-k Node` apply on top. The release workflow's two Windows arm64 legs run `1/2` and `2/2`.
+`DRUPACK_SHARD=K/N` runs the Kth of N shares of the test classes, every Nth class in name order. A class stays whole. Unittest arguments such as `-k Node` apply on top. The release workflow's macOS and Windows test jobs each run one share, on the files their platform's build job uploaded.
 
 On Linux the suite uses Docker for three things:
 
@@ -173,6 +173,8 @@ Every published executable is a launcher carrying the real executable, compresse
 - commits the version to the pinned lines of `docs/build-your-site.md`
 - builds and tests that commit on every platform, `build/qa.sh` included
 - pushes `main` and the tag once the run is green
+
+The candidate's QA jobs are the release's QA, so no local `build/qa.sh` run precedes a release. The Forge run fails at the candidate's first red job and prints its name. The GitHub run goes on to its other jobs.
 
 A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.0.0-alpha1`, pushed to the Forge, mirrors to GitHub and drupal.org and starts the release workflow. When the tag's candidate run succeeded, the workflow publishes that run's files. Otherwise it builds all seven targets and runs the suite on each, except the two musl files, which start a site on Alpine. It then publishes a GitHub Release. `build/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, each macOS and Windows runtime as `runtime-VERSION-TARGET.tar.zst`, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. A drupal.org release node, created by hand for the tag, publishes it to Packagist as a version of the Composer package `drupal/drupack`, which [ADR 0024](docs/adr/0024-composer-package.md) describes.
 

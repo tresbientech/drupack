@@ -231,11 +231,18 @@ keyed by its SHA-512.
 
 Measured on 2026-10-21 at `171ab00`. Tests hold 37% of the tracked lines,
 production code 24% and docs 18%. Every CI job spends most of its time in the
-conformance suite, because each case starts a real site. Still open, keeping
-every feature and platform:
+conformance suite, because each case starts a real site.
 
-- the release candidate's wall time once Windows arm64 runs in two shards,
-  against 77 minutes before
+The 1.0.0-beta15 candidate took 87 minutes on 2026-11-09. ADR 0018's amendment
+of that day runs the macOS and Windows suites and the QA chain in parallel
+jobs, for an expected 50 minutes. Still open, keeping every feature and
+platform:
+
+- the candidate's measured wall time after that split, and the share counts it
+  calls for
+- the Intel macOS build, which takes 20 minutes on a cache hit
+- the Windows suite under Defender, where the 4 cases of `AsciiCacheRootCases`
+  take 10.6 minutes
 
 Kept as they are: the browser cases' 10-second waits for an absence, which
 match the budget a real browser gets, and the QA and Linux amd64 suite runs,
