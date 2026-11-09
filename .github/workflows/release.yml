@@ -117,6 +117,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Without this room a pull of the musl builder image ended in "no space left
+      # on device", on a runner whose df had reported 86 GB free.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - id: builder
         name: Name the builder image
         env:
@@ -143,9 +151,6 @@ jobs:
           if docker pull -q "$IMAGE"; then
             exit 0
           fi
-          # A pulled image and its runtime build take 16 GB of the runner's 86 GB.
-          # The builder's own build gets the room these folders hold.
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           bash runtime/build-builder.sh "$BUILDER" "$IMAGE" "$RUNNER_TEMP/builder"
           echo 'built=true' >>"$GITHUB_OUTPUT"
 
