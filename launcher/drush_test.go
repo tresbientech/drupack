@@ -93,11 +93,10 @@ func parseDrush(t *testing.T, engine bool, words ...string) command {
 
 // drushPlan returns the call main runs for a drush command in cwd.
 func drushPlan(l Launch, c command, cwd string) (Command, error) {
-	e := environ{entries: environment(l), fold: l.FoldCase}
 	if l.Engine {
-		return engineDrush(l, c, cwd, e)
+		return engineDrush(Facts{Launch: l}, c, cwd)
 	}
-	return siteDrush(l, c, cwd, e)
+	return siteDrush(Facts{Launch: l}, c, cwd)
 }
 
 func TestSiteDrushEnvironment(t *testing.T) {

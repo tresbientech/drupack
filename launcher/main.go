@@ -142,22 +142,22 @@ func runInFolder(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
-	e := environ{entries: environment(l), fold: l.FoldCase}
+	f := Facts{Launch: l}
 	var call Command
 	switch {
 	case c.word == "drush" && l.Engine:
-		call, err = engineDrush(l, c, cwd, e)
+		call, err = engineDrush(f, c, cwd)
 	case c.word == "drush":
-		call, err = siteDrush(l, c, cwd, e)
+		call, err = siteDrush(f, c, cwd)
 	case c.word == "dr":
-		call, err = engineCore(l, c, cwd, e)
+		call, err = engineCore(f, c, cwd)
 	default:
 		var export exportCall
 		plan := siteExport
 		if l.Engine {
 			plan = engineExport
 		}
-		export, err = plan(l, c, cwd, e)
+		export, err = plan(f, c, cwd)
 		if err == nil {
 			err = export.requireTomeStatic()
 		}

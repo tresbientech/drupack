@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
@@ -14,55 +15,51 @@ import (
 
 // drushCall runs application's drush entry on script with words. Drush's
 // children, and Tome's, run the php on PATH, which bin/ points back at the runtime.
-func drushCall(l Launch, e environ, application, script string, words []string) Command {
-	e.put("DRUPACK_DRUSH_SCRIPT=" + runtime.Canonical(script))
-	return runtimePHPCall(l, e, application, append([]string{filepath.Join(application, "drush")}, words...))
+func drushCall(f Facts, k Kind, application, script string, words []string) Command {
+	f.Script = script
+	return runtimePHPCall(f, k, application, append([]string{filepath.Join(application, "drush")}, words...))
 }
 
 // runtimePHPCall runs arguments through the runtime's php-cli with application's
 // bin/ first on PATH, so a child that runs php reaches the runtime again.
-func runtimePHPCall(l Launch, e environ, application string, arguments []string) Command {
-	path, _ := e.get("PATH")
-	e.put("PATH=" + filepath.Join(application, "bin") + string(os.PathListSeparator) + path)
-	return Command{
-		Path: l.Entry,
-		Args: append([]string{l.Args[0], "php-cli"}, arguments...),
-		Env:  slices.Clone(e.entries),
-	}
+func runtimePHPCall(f Facts, k Kind, application string, arguments []string) Command {
+	f.Bin = application
+	return Command{Path: f.Entry, Args: append([]string{f.Args[0], "php-cli"}, arguments...), Env: f.Env(k)}
 }
 
-func siteDrush(l Launch, c command, cwd string, e environ) (Command, error) {
-	site, err := siteconfig.Load(l.Application)
+func siteDrush(f Facts, c command, cwd string) (Command, error) {
+	site, err := siteconfig.Load(f.Application)
 	if err != nil {
 		return Command{}, err
 	}
 	// Drush's own help and list read no site.
 	if len(c.words) > 0 && slices.Contains([]string{"--help", "-h", "list"}, c.words[0]) {
-		return drushCall(l, e, l.Application, filepath.Join(l.Application, runtime.DrushScript), c.words), nil
+		return drushCall(f, Drush, f.Application, filepath.Join(f.Application, runtime.DrushScript), c.words), nil
 	}
-	s, err := openSite(l, site, c, cwd, e)
+	s, err := openSite(f, site, c, cwd)
 	if err != nil {
 		return Command{}, err
 	}
-	return s.drush(l, c.words), nil
+	return s.drush(Drush, c.words), nil
 }
 
 // openedSite is a Site data a drush or export call addresses: the application it
-// runs, the environment the last start served and the static listener's port.
+// runs, what the last start served and the static listener's port.
 type openedSite struct {
 	application string
-	e           environ
+	f           Facts
 	// staticURL is where Tome exports, "" for a site without a static listener.
 	staticURL string
 }
 
-func (s openedSite) drush(l Launch, words []string) Command {
-	return drushCall(l, s.e, s.application, filepath.Join(s.application, runtime.DrushScript), words)
+func (s openedSite) drush(k Kind, words []string) Command {
+	return drushCall(s.f, k, s.application, filepath.Join(s.application, runtime.DrushScript), words)
 }
 
 // openSite reads the Site data c names and gives Drush and settings.php the
 // environment the last start served. It starts no server and takes no lease.
-func openSite(l Launch, site siteconfig.Site, c command, cwd string, e environ) (openedSite, error) {
+func openSite(f Facts, site siteconfig.Site, c command, cwd string) (openedSite, error) {
+	l := f.Launch
 	fromCwd := func(path string) string {
 		if filepath.IsAbs(path) {
 			return path
@@ -100,17 +97,18 @@ func openSite(l Launch, site siteconfig.Site, c command, cwd string, e environ) 
 	if named {
 		warnExposed(files)
 	}
-	staticRoot, staticURL := "", ""
+	f.Data, f.Files, f.Scratch = runtime.Canonical(data), runtime.Canonical(files), runtime.Canonical(scratch)
+	f.Host, f.URL = plan.Host, plan.URL
+	staticURL := ""
 	if plan.Static != nil {
-		staticRoot = runtime.Canonical(filepath.Join(data, "static"))
+		f.StaticRoot = runtime.Canonical(filepath.Join(data, "static"))
 		staticURL = plan.Static.URL
 	}
-	putSiteEnvironment(&e, runtime.Canonical(data), runtime.Canonical(files), plan.Host, plan.URL, runtime.Canonical(scratch), staticRoot)
 	if bundle, ok := state.At(scratch).Bundle(); ok {
-		e.put("DRUPACK_CA_FILE=" + runtime.Canonical(bundle))
+		f.CAFile = bundle
 	}
 	if site.Mercure {
-		if err := putMercure(&e, state.At(data), served.Mercure()); err != nil {
+		if f.Hub, err = servedHub(state.At(data), served.Mercure()); err != nil {
 			return openedSite{}, err
 		}
 	}
@@ -120,12 +118,12 @@ func openSite(l Launch, site siteconfig.Site, c command, cwd string, e environ) 
 			return openedSite{}, fmt.Errorf("This Site data holds another release's application. Start %s once to lay this release's: %s", l.Name, runtime.Canonical(data))
 		}
 		application = runtime.SiteApp(data)
-		e.put("DRUPACK_RUNTIME_APP_DIR=" + runtime.Canonical(application))
+		f.SiteApp = application
 	}
 	if err := layTranslations(application, filepath.Join(files, "translations")); err != nil {
 		return openedSite{}, err
 	}
-	return openedSite{application, e, staticURL}, nil
+	return openedSite{application, f, staticURL}, nil
 }
 
 // layTranslations copies the application's bundled translations into directory,
@@ -151,22 +149,14 @@ func layTranslations(application, directory string) error {
 	return nil
 }
 
-// putMercure hands Drush the hub's secrets and address. A state no start has
-// served holds no secrets, and drush creates none.
-func putMercure(e *environ, dir state.Dir, url string) error {
+// servedHub reads the secrets of the hub served at url. A state no start has
+// served holds no secrets, and drush creates none: the hub is nil then.
+func servedHub(dir state.Dir, url string) (*caddyfile.Mercure, error) {
 	publisher, subscriber, ok, err := dir.MercureSecrets()
 	if err != nil || !ok {
-		return err
+		return nil, err
 	}
-	putMercureEnvironment(e, publisher, subscriber, url)
-	return nil
-}
-
-// putMercureEnvironment gives a process the hub's secrets and address.
-func putMercureEnvironment(e *environ, publisher, subscriber, url string) {
-	e.put("DRUPACK_MERCURE_PUBLISHER_SECRET=" + publisher)
-	e.put("DRUPACK_MERCURE_SUBSCRIBER_SECRET=" + subscriber)
-	e.put("DRUPACK_MERCURE_URL=" + url)
+	return &caddyfile.Mercure{URL: url, Publisher: publisher, Subscriber: subscriber}, nil
 }
 
 // engineProject is the engine project a call addresses and the cache entry holding
@@ -196,17 +186,17 @@ func openFolder(l Launch, cwd string) (engineProject, error) {
 
 // drush returns the call that runs words in the project's Drush. Drush and
 // settings.php get the CA bundle and hub of the last start.
-func (f engineProject) drush(l Launch, e environ, words []string) (Command, error) {
+func (f engineProject) drush(facts Facts, k Kind, words []string) (Command, error) {
 	if bundle, ok := f.entry.Bundle(); ok {
-		e.put("DRUPACK_CA_FILE=" + runtime.Canonical(bundle))
+		facts.CAFile = bundle
 	}
 	if f.composer.Mercure {
-		a, err := Served(f.entry, l.Name, engineTarget(), state.Listener{})
+		a, err := Served(f.entry, facts.Name, engineTarget(), state.Listener{})
 		if err != nil {
 			return Command{}, err
 		}
 		if a.Recorded {
-			if err := putMercure(&e, f.entry, a.Mercure()); err != nil {
+			if facts.Hub, err = servedHub(f.entry, a.Mercure()); err != nil {
 				return Command{}, err
 			}
 		}
@@ -215,15 +205,15 @@ func (f engineProject) drush(l Launch, e environ, words []string) (Command, erro
 	if info, err := os.Stat(script); err != nil || !info.Mode().IsRegular() {
 		return Command{}, fmt.Errorf("%s has no Drush: %s does not exist. Run composer require drush/drush in it.", runtime.Canonical(f.project), runtime.Canonical(script))
 	}
-	return drushCall(l, e, l.Application, script, words), nil
+	return drushCall(facts, k, facts.Application, script, words), nil
 }
 
-func engineDrush(l Launch, c command, cwd string, e environ) (Command, error) {
-	f, err := openFolder(l, cwd)
+func engineDrush(facts Facts, c command, cwd string) (Command, error) {
+	f, err := openFolder(facts.Launch, cwd)
 	if err != nil {
 		return Command{}, err
 	}
-	return f.drush(l, e, c.words)
+	return f.drush(facts, Drush, c.words)
 }
 
 // vendorRoot finds the project holding cwd: the nearest directory at or above

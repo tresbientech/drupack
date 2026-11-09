@@ -6,9 +6,10 @@ Accepted on 2026-11-08. Supersedes [ADR 0030](0030-the-launcher-routes-the-reade
 [ADR 0014](0014-the-parser-owns-the-command-line.md),
 [ADR 0028](0028-detached-start-and-stop.md),
 [ADR 0044](0044-one-reader-takes-a-projects-composer-settings.md),
-[ADR 0047](0047-request-guards-match-htaccess.md),
-[ADR 0048](0048-a-project-adds-its-own-caddy-rules.md) and
-[ADR 0052](0052-one-reader-for-the-served-address.md).
+[ADR 0047](0047-request-guards-match-htaccess.md) and
+[ADR 0048](0048-a-project-adds-its-own-caddy-rules.md). Amended by
+[ADR 0052](0052-one-reader-for-the-served-address.md) and
+[ADR 0053](0053-one-function-builds-a-childs-environment.md).
 
 ## Context
 

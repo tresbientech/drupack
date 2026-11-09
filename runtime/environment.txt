@@ -1,21 +1,31 @@
-# One line per DRUPACK_RUNTIME_* variable a start passes between its processes: the
-# files that write it and the files that read it, comma-separated. A value that
-# names a path takes Drupack's canonical form, with forward slashes. A flag is 1
-# or absent. tests/conformance/test_environment.py checks every line against the
-# sources.
+# One line per variable a start passes between its processes: the files that
+# write it and the files that read it, comma-separated. A name without a prefix
+# is a DRUPACK_RUNTIME_ one. The kinds and modes columns name the children the
+# launcher's Env writes it for, once a start holds its value. Both are empty for
+# a variable the launcher does not set. The typed start options are listed in
+# startInputs of launcher/sitestart.go. A value that names a path takes
+# Drupack's canonical form, with forward slashes. A flag is 1 or absent.
+# tests/conformance/test_environment.py checks every line against the sources,
+# and the launcher's TestEnvDeclared checks both columns.
 
-ALIAS          writers=launcher/sitestart.go  readers=application/settings.php
-APP_DIR        writers=launcher/plan.go,launcher/internal/build/build.go,launcher/drush.go,launcher/sitestart.go  readers=runtime/entrypoint.go,application/operate.php,application/settings.php
-BINARY         writers=runtime/entrypoint.go  readers=application/operate.php
-COMPONENTS     writers=launcher/plan.go  readers=runtime/entrypoint.go
-DATA_DIR       writers=launcher/internal/build/build.go,launcher/sitestart.go  readers=application/settings.php,build/site-settings.php
-FILES_DIR      writers=launcher/sitestart.go,launcher/internal/build/build.go  readers=application/operate.php,application/support/PublicFilesTemplateLoader.php,application/support/SiteDataPublicStream.php
-HOST           writers=launcher/sitestart.go,launcher/internal/build/build.go  readers=application/settings.php
-ID             writers=launcher/start.go  readers=runtime/entrypoint.go
-NAME           writers=launcher/plan.go,launcher/internal/build/build.go  readers=runtime/entrypoint.go,application/operate.php
-OPEN           writers=launcher/sitestart.go  readers=runtime/entrypoint.go
-SITE_VERSION   writers=launcher/plan.go  readers=runtime/entrypoint.go
-STATIC_ROOT    writers=launcher/sitestart.go  readers=application/settings.php
-STOP_RECORD    writers=launcher/start.go  readers=runtime/entrypoint.go
-TLS_ROOT       writers=launcher/start.go  readers=runtime/entrypoint.go
-URL            writers=launcher/start.go  readers=runtime/entrypoint.go
+ALIAS          writers=launcher/childenv.go  readers=application/settings.php  kinds=server  modes=site
+APP_DIR        writers=launcher/childenv.go,launcher/internal/build/build.go  readers=runtime/entrypoint.go,application/operate.php,application/settings.php  kinds=reader,server,operate,drush,export  modes=site
+BINARY         writers=runtime/entrypoint.go  readers=application/operate.php  kinds=  modes=
+COMPONENTS     writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=reader,server,operate,drush,export  modes=site,engine
+DATA_DIR       writers=launcher/internal/build/build.go,launcher/childenv.go  readers=application/settings.php,build/site-settings.php  kinds=server,operate,drush,export  modes=site
+FILES_DIR      writers=launcher/childenv.go,launcher/internal/build/build.go  readers=application/operate.php,application/support/PublicFilesTemplateLoader.php,application/support/SiteDataPublicStream.php  kinds=server,operate,drush,export  modes=site
+HOST           writers=launcher/childenv.go,launcher/internal/build/build.go  readers=application/settings.php  kinds=server,operate,drush,export  modes=site
+ID             writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=server  modes=site,engine
+NAME           writers=launcher/childenv.go,launcher/internal/build/build.go  readers=runtime/entrypoint.go,application/operate.php  kinds=reader,server,operate,drush,export  modes=site,engine
+OPEN           writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=server  modes=site
+SITE_VERSION   writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=reader,server,operate,drush,export  modes=site,engine
+STATIC_ROOT    writers=launcher/childenv.go  readers=application/settings.php  kinds=server,operate,drush,export  modes=site
+STOP_RECORD    writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=server  modes=site,engine
+TLS_ROOT       writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=server  modes=site,engine
+URL            writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=server  modes=site,engine
+DRUPACK_CA_FILE writers=launcher/childenv.go,launcher/internal/build/build.go  readers=application/php.ini,launcher/update.go  kinds=reader,server,operate,drush,export  modes=site,engine
+DRUPACK_DRUSH_SCRIPT writers=launcher/childenv.go,launcher/internal/build/build.go  readers=application/drush  kinds=server,operate,drush,export  modes=site,engine
+DRUPACK_MERCURE_PUBLISHER_SECRET writers=launcher/childenv.go  readers=  kinds=server,operate,drush,export  modes=site,engine
+DRUPACK_MERCURE_SUBSCRIBER_SECRET writers=launcher/childenv.go  readers=  kinds=server,operate,drush,export  modes=site,engine
+DRUPACK_MERCURE_URL writers=launcher/childenv.go  readers=  kinds=server,operate,drush,export  modes=site,engine
+DRUSH_OPTIONS_URI writers=launcher/childenv.go  readers=  kinds=server,operate,drush,export  modes=site

@@ -32,21 +32,14 @@ var errReported = errors.New("reported")
 var startInputs = []string{"database", "db-host", "db-port", "db-name", "db-user", "db-password", "admin-user", "admin-password", "site-name"}
 
 type packagedStart struct {
-	l    Launch
+	// Facts holds what the start's PHP calls and the server share.
+	Facts
 	c    command
 	site siteconfig.Site
-	// e holds the environment the start's PHP calls and the server share.
-	e environ
-	// inputs are the typed start options PHP's check and prepare read, as
-	// NAME=VALUE entries over e.
-	inputs []string
-	// data, files and scratch are resolved and canonical. recordedFiles is
-	// files when a start named it, "" when it is Site data's own.
-	data, files, recordedFiles, scratch string
-	// staticRoot is "" for a site without a static listener.
-	staticRoot string
-	choice     tls.Choice
-	plan       startPlan
+	// recordedFiles is Files when a start named it, "" when it is Site data's own.
+	recordedFiles string
+	choice        tls.Choice
+	plan          startPlan
 	// listen is the IP:PORT text the refusals name.
 	listen string
 }
@@ -82,21 +75,20 @@ func startSite(l Launch, c command) error {
 		}
 		return filepath.Join(cwd, path)
 	}
-	e := environ{entries: environment(l), fold: l.FoldCase}
-	var inputs []string
+	f := Facts{Launch: l}
 	for _, name := range startInputs {
 		if value := c.options[name]; value != "" {
-			inputs = append(inputs, "DRUPACK_"+strings.ToUpper(strings.ReplaceAll(name, "-", "_"))+"="+value)
+			f.Inputs = append(f.Inputs, "DRUPACK_"+strings.ToUpper(strings.ReplaceAll(name, "-", "_"))+"="+value)
 		}
 	}
-	if err := checkDatabase(c, e); err != nil {
+	if err := checkDatabase(c, f); err != nil {
 		return err
 	}
 	data := fromCwd(c.options["data-dir"])
 	var owed struct {
 		Installed bool `json:"installed"`
 	}
-	if err := operate(l, withInputs(e, inputs), &owed, false, "check", "site", runtime.Canonical(data)); err != nil {
+	if err := operate(l, f.Env(Operate), &owed, false, "check", "site", runtime.Canonical(data)); err != nil {
 		return err
 	}
 	target := siteTarget(site)
@@ -156,14 +148,15 @@ func startSite(l Launch, c command) error {
 	if err := caddyfile.RefuseBraces("--files-dir", runtime.Canonical(files)); err != nil {
 		return err
 	}
-	s := packagedStart{l: l, c: c, site: site, e: e, inputs: inputs, data: runtime.Canonical(data), files: runtime.Canonical(files), scratch: runtime.Canonical(scratch), choice: choice, plan: plan, listen: listen}
+	f.Data, f.Files, f.Scratch = runtime.Canonical(data), runtime.Canonical(files), runtime.Canonical(scratch)
+	f.Host, f.URL = choice.Host, plan.URL
+	s := packagedStart{Facts: f, c: c, site: site, choice: choice, plan: plan, listen: listen}
 	if named {
-		s.recordedFiles = s.files
+		s.recordedFiles = s.Files
 	}
 	if site.Static != nil {
-		s.staticRoot = s.data + "/static"
+		s.StaticRoot = s.Data + "/static"
 	}
-	putSiteEnvironment(&s.e, s.data, s.files, s.choice.Host, s.plan.URL, s.scratch, s.staticRoot)
 
 	// The claim and both probes run before the Listener record and every install
 	// step, so a served site or a taken port reaches the reader as a sentence, not
@@ -187,18 +180,9 @@ func startSite(l Launch, c command) error {
 	return s.serve(lease)
 }
 
-func withInputs(e environ, inputs []string) []string {
-	with := environ{entries: slices.Clone(e.entries), fold: e.fold}
-	for _, input := range inputs {
-		with.put(input)
-	}
-	return with.entries
-}
-
 // checkDatabase refuses a --database, or a DRUPACK_DATABASE, that names no driver.
-func checkDatabase(c command, e environ) error {
-	database, _ := e.get("DRUPACK_DATABASE")
-	if !slices.Contains([]string{"sqlite", "mysql", "pgsql"}, cmp.Or(c.options["database"], database, "sqlite")) {
+func checkDatabase(c command, f Facts) error {
+	if !slices.Contains([]string{"sqlite", "mysql", "pgsql"}, cmp.Or(c.options["database"], f.value("DRUPACK_DATABASE"), "sqlite")) {
 		return errors.New("--database requires sqlite, mysql, or pgsql")
 	}
 	return nil
@@ -241,26 +225,6 @@ func warnExposed(dir string) {
 	}
 }
 
-// putSiteEnvironment gives settings.php, Drush and Tome the Site data's paths,
-// the host Drupal trusts and the URL its links name. staticRoot is "" for a
-// site without a static listener.
-func putSiteEnvironment(e *environ, data, files, host, url, scratch, staticRoot string) {
-	e.put("DRUPACK_RUNTIME_DATA_DIR=" + data)
-	e.put("DRUPACK_RUNTIME_FILES_DIR=" + files)
-	// Drupal matches its trusted host patterns against the request's host, which keeps
-	// an IPv6 address's brackets.
-	e.put("DRUPACK_RUNTIME_HOST=" + urlHost(host))
-	// The address a reader types, never the bind address. Without it Drupal falls back
-	// to http://default, and every printed or mailed link names an unreachable host.
-	e.put("DRUSH_OPTIONS_URI=" + url)
-	for _, name := range []string{"TMPDIR", "TEMP", "TMP", "XDG_DATA_HOME", "XDG_CONFIG_HOME"} {
-		e.put(name + "=" + scratch)
-	}
-	if staticRoot != "" {
-		e.put("DRUPACK_RUNTIME_STATIC_ROOT=" + staticRoot)
-	}
-}
-
 // portTaken reports whether anything holds bind:port. A connect answers this on
 // every platform, where a trial bind would report a taken port as free under
 // Windows SO_REUSEADDR.
@@ -276,7 +240,7 @@ func portTaken(bind string, port int) bool {
 // personPresent reports whether someone watches the start: a terminal, a file
 // manager's console, or the terminal a detaching parent had.
 func (s packagedStart) personPresent() bool {
-	return runtime.Terminal(os.Stdin) || s.l.ConsoleOwned || child != nil && child.person
+	return runtime.Terminal(os.Stdin) || s.Launch.ConsoleOwned || child != nil && child.person
 }
 
 // served answers a start whose Site data another server holds. installed is
@@ -284,14 +248,14 @@ func (s packagedStart) personPresent() bool {
 // hand over.
 func (s packagedStart) served(installed bool) error {
 	if !installed {
-		return fmt.Errorf("Another %s start is preparing this Site data: %s", s.l.Name, s.data)
+		return fmt.Errorf("Another %s start is preparing this Site data: %s", s.Launch.Name, s.Data)
 	}
 	// The record names the address that server took, not the one this start
 	// planned. A Site data a release before 0.6.0 installed holds no record, and
 	// neither does one whose unreadable record the reader removed. Those fall
 	// back to this start's plan.
 	bind, url := s.plan.Bind, siteURL(state.UnrecordedScheme, s.plan.Host, s.plan.Port)
-	a, err := Served(state.At(s.data), s.l.Name, siteTarget(s.site), state.Listener{})
+	a, err := Served(state.At(s.Data), s.Launch.Name, siteTarget(s.site), state.Listener{})
 	if err != nil {
 		return err
 	}
@@ -299,19 +263,19 @@ func (s packagedStart) served(installed bool) error {
 		bind, url = a.Bind, siteURL(a.Scheme, a.Host, a.Port)
 	}
 	if !s.personPresent() {
-		return fmt.Errorf("%s already serves this Site data at %s: %s", s.l.Name, url, s.data)
+		return fmt.Errorf("%s already serves this Site data at %s: %s", s.Launch.Name, url, s.Data)
 	}
 	// Two FrankenPHP processes over one database and one runtime directory would
 	// corrupt both, so the start hands its reader the running site instead.
 	fmt.Println("Creating a one-time login link.")
-	link, failure, err := s.login(s.l.Application, url)
+	link, failure, err := s.login(s.Launch.Application, url)
 	if err != nil {
 		return err
 	}
 	if link == "" {
 		s.explainMintFailure(failure)
 	}
-	fmt.Printf("%s is already serving this Site data.\n\n  URL:    %s\n", s.l.Name, url)
+	fmt.Printf("%s is already serving this Site data.\n\n  URL:    %s\n", s.Launch.Name, url)
 	if link == "" {
 		return nil
 	}
@@ -326,9 +290,8 @@ func (s packagedStart) served(installed bool) error {
 // login mints the one-time login link for uid 1 at url, opening the dashboard,
 // through application's Drush. failure is Drush's reason when it mints none.
 func (s packagedStart) login(application, url string) (link, failure string, err error) {
-	e := environ{entries: slices.Clone(s.e.entries), fold: s.e.fold}
-	e.put("DRUPACK_DRUSH_SCRIPT=" + runtime.Canonical(filepath.Join(application, runtime.DrushScript)))
-	return mint(s.l, e.entries, url, filepath.Join(application, "drush"), application, "/admin/dashboard")
+	s.Script = filepath.Join(application, runtime.DrushScript)
+	return mint(s.Launch, s.Env(Drush), url, filepath.Join(application, "drush"), application, "/admin/dashboard")
 }
 
 // mint runs Drush's user:login for uid 1 at url and returns the link, or the
@@ -358,14 +321,14 @@ func (s packagedStart) explainMintFailure(reason string) {
 	if reason = strings.TrimRight(reason, ". "); reason != "" {
 		reason = ": " + reason
 	}
-	fmt.Fprintf(os.Stderr, "Cannot mint a one-time login link%s. Get one with: %s drush --data-dir %s user:login /admin/dashboard\n", reason, s.l.Name, s.data)
+	fmt.Fprintf(os.Stderr, "Cannot mint a one-time login link%s. Get one with: %s drush --data-dir %s user:login /admin/dashboard\n", reason, s.Launch.Name, s.Data)
 }
 
 // serve prepares the Site data under the lease, prints the addresses and execs
 // the server.
 func (s packagedStart) serve(lease *state.Lease) error {
-	l, site, plan, choice := s.l, s.site, s.plan, s.choice
-	dir := state.At(s.data)
+	l, site, plan, choice := s.Launch, s.site, s.plan, s.choice
+	dir := state.At(s.Data)
 	if err := dir.ClearStopRecord(); err != nil {
 		return err
 	}
@@ -374,35 +337,30 @@ func (s packagedStart) serve(lease *state.Lease) error {
 	if err := dir.WriteListener(listener); err != nil {
 		return err
 	}
-	if err := storeBundle(&s.e, state.At(s.scratch), choice); err != nil {
+	var err error
+	if s.CAFile, err = storeBundle(s.Facts, state.At(s.Scratch), choice); err != nil {
 		return err
 	}
-	var hub *caddyfile.Mercure
 	if site.Mercure {
-		var err error
-		if hub, err = serveHub(&s.e, dir, plan, s.data+"/mercure.db"); err != nil {
+		if s.Hub, err = serveHub(dir, plan, s.Data+"/mercure.db"); err != nil {
 			return err
 		}
 	}
 	application := l.Application
 	if len(site.Writable) > 0 {
-		if err := runtime.LaySiteApp(s.data, l.AppChecksum, appPayload, site.Writable, os.Stderr); err != nil {
-			return fmt.Errorf("Cannot lay the application in Site data: %s: %w", s.data, err)
+		if err := runtime.LaySiteApp(s.Data, l.AppChecksum, appPayload, site.Writable, os.Stderr); err != nil {
+			return fmt.Errorf("Cannot lay the application in Site data: %s: %w", s.Data, err)
 		}
-		application = runtime.SiteApp(s.data)
-		s.e.put("DRUPACK_RUNTIME_APP_DIR=" + runtime.Canonical(application))
+		application = runtime.SiteApp(s.Data)
+		s.SiteApp = application
 	}
 	application = runtime.Canonical(application)
-	// Drush's, Tome's and a request's child processes run the php on PATH, which bin/
-	// points back at this runtime.
-	path, _ := s.e.get("PATH")
-	s.e.put("PATH=" + filepath.Join(application, "bin") + string(os.PathListSeparator) + path)
-	s.e.put("DRUPACK_DRUSH_SCRIPT=" + application + "/" + filepath.ToSlash(runtime.DrushScript))
+	s.Bin, s.Script = application, filepath.Join(application, runtime.DrushScript)
 	prepared, err := s.prepare()
 	if err != nil {
 		return err
 	}
-	if err := layTranslations(application, filepath.Join(s.files, "translations")); err != nil {
+	if err := layTranslations(application, filepath.Join(s.Files, "translations")); err != nil {
 		return err
 	}
 	// Every start hands its reader a one-time login link for uid 1. A start that
@@ -427,34 +385,28 @@ func (s packagedStart) serve(lease *state.Lease) error {
 	if link != "" {
 		fmt.Printf("  Login:     %s\n", link)
 	}
-	logPath := s.data + "/logs/caddy.log"
-	fmt.Printf("  Site data: %s\n  Log:       %s\n", s.data, logPath)
+	logPath := s.Data + "/logs/caddy.log"
+	fmt.Printf("  Site data: %s\n  Log:       %s\n", s.Data, logPath)
 	if link != "" && !tls.Loopback(plan.Bind) {
 		fmt.Printf("No browser opens: %s accepts other computers over plain HTTP. Sign in from another computer only through a TLS proxy.\n", s.listen)
 	}
 	fmt.Print(nameHint(choice), trustHint(l, choice))
-	// The server opens the browser once the site answers, so a start that opens none
-	// clears whatever the environment it inherited held.
-	s.e.drop("DRUPACK_RUNTIME_OPEN")
+	// The server opens the browser once the site answers.
 	if link != "" && s.c.options["no-browser"] == "" && s.personPresent() && tls.Loopback(plan.Bind) {
-		s.e.put("DRUPACK_RUNTIME_OPEN=" + link)
+		s.Open = link
 	}
-	// Every step that needed the administrator password has run. The server passes
-	// its environment to every process it starts, including PHP code a site runs.
-	s.e.drop("DRUPACK_ADMIN_PASSWORD")
 	fmt.Println("Starting the web server.")
 	config := caddyfile.Config{
-		Mode: caddyfile.Site, ID: siteToken(s.data, l.FoldCase),
-		Docroot: application + "/" + site.Docroot, Mercure: hub,
-		FilesDir: s.files, LogPath: logPath,
+		Mode: caddyfile.Site, ID: siteToken(s.Data, l.FoldCase),
+		Docroot: application + "/" + site.Docroot, Mercure: s.Hub,
+		FilesDir: s.Files, LogPath: logPath,
 	}
 	if plan.Static != nil {
-		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: s.staticRoot, Dynamic: site.Static.Dynamic}
+		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: s.StaticRoot, Dynamic: site.Static.Dynamic}
 	}
-	// settings.php trusts the drupack.site name as a request host.
-	s.e.put("DRUPACK_RUNTIME_ALIAS=" + choice.Alias)
+	s.Alias = choice.Alias
 	// The server names the cache entry's executable, which ps and Tome's children read.
-	return execServer(l, s.e, dir, lease, config, choice, plan, application, l.Entry, application)
+	return execServer(s.Facts, dir, lease, config, choice, plan, application, l.Entry, application)
 }
 
 // prepared is PHP's prepare record. Credentials reports whether an owed step
@@ -469,7 +421,7 @@ type prepared struct {
 // so does its refusal.
 func (s packagedStart) prepare() (prepared, error) {
 	var record prepared
-	err := operate(s.l, withInputs(s.e, s.inputs), &record, true, "prepare", s.data)
+	err := operate(s.Launch, s.Env(Operate), &record, true, "prepare", s.Data)
 	return record, err
 }
 
