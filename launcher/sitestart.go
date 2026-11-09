@@ -182,7 +182,7 @@ func startSite(l Launch, c command) error {
 
 // checkDatabase refuses a --database, or a DRUPACK_DATABASE, that names no driver.
 func checkDatabase(c command, f Facts) error {
-	if !slices.Contains([]string{"sqlite", "mysql", "pgsql"}, cmp.Or(c.options["database"], f.value(Reader, "DRUPACK_DATABASE"), "sqlite")) {
+	if !slices.Contains([]string{"sqlite", "mysql", "pgsql"}, cmp.Or(c.options["database"], f.value("DRUPACK_DATABASE"), "sqlite")) {
 		return errors.New("--database requires sqlite, mysql, or pgsql")
 	}
 	return nil

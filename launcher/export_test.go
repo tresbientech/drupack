@@ -148,6 +148,12 @@ func TestSiteExportAddressesTheRecordedStaticListener(t *testing.T) {
 	if got := environmentOf(x.run)["DRUPACK_RUNTIME_STATIC_ROOT"]; got != runtime.Canonical(filepath.Join(f.data, "static")) {
 		t.Errorf("DRUPACK_RUNTIME_STATIC_ROOT = %q", got)
 	}
+	// Each call builds its own environment, so the second keeps the reader's PATH.
+	for name, call := range map[string]Command{"probe": x.probe, "run": x.run} {
+		if got, want := environmentOf(call)["PATH"], filepath.Join(f.application, "bin")+string(os.PathListSeparator)+"/usr/bin"; got != want {
+			t.Errorf("%s PATH = %q, want %q", name, got, want)
+		}
+	}
 	// A reader who names the URL gets none added.
 	x, err = siteExport(Facts{Launch: f.launch()}, parseLine(t, false, "export", "--data-dir", f.data, "-l", "http://other:1/"), f.cwd)
 	if err != nil {

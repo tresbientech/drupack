@@ -1,11 +1,12 @@
 # One line per variable a start passes between its processes: the files that
 # write it and the files that read it, comma-separated. A name without a prefix
 # is a DRUPACK_RUNTIME_ one. The kinds and modes columns name the children the
-# launcher gives it to, and both are empty for a variable it does not set. The
-# typed start options are listed in startInputs of launcher/sitestart.go. A
-# value that names a path takes Drupack's canonical form, with forward slashes.
-# A flag is 1 or absent. tests/conformance/test_environment.py checks every line
-# against the sources, and the launcher's TestEnvDeclared checks both columns.
+# launcher's Env writes it for, once a start holds its value. Both are empty for
+# a variable the launcher does not set. The typed start options are listed in
+# startInputs of launcher/sitestart.go. A value that names a path takes
+# Drupack's canonical form, with forward slashes. A flag is 1 or absent.
+# tests/conformance/test_environment.py checks every line against the sources,
+# and the launcher's TestEnvDeclared checks both columns.
 
 ALIAS          writers=launcher/childenv.go  readers=application/settings.php  kinds=server  modes=site
 APP_DIR        writers=launcher/childenv.go,launcher/internal/build/build.go  readers=runtime/entrypoint.go,application/operate.php,application/settings.php  kinds=reader,server,operate,drush,export  modes=site

@@ -47,9 +47,9 @@ type Facts struct {
 	ID, Probe, StopRecord, TLSRoot string
 }
 
-// value returns what a child of kind k reads under name, "" when it is unset.
-func (f Facts) value(k Kind, name string) string {
-	e := environ{entries: f.Env(k), fold: f.FoldCase}
+// value returns what the reader's own child reads under name, "" when it is unset.
+func (f Facts) value(name string) string {
+	e := environ{entries: f.Env(Reader), fold: f.FoldCase}
 	value, _ := e.get(name)
 	return value
 }

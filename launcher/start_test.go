@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/tls"
 )
 
 func TestEngineListen(t *testing.T) {
@@ -128,11 +127,9 @@ func TestEnvServer(t *testing.T) {
 	if got := watch(f); !slices.Equal(got, base) {
 		t.Errorf("plain http: %v", got)
 	}
-	// The runtime's watch verifies HTTPS with the root of every TLS source that serves it.
-	for _, source := range []string{"mkcert", "drupack"} {
-		f.TLSRoot = tls.Choice{Source: source, Root: "/r.pem"}.Root
-		if want := append(slices.Clone(base), "DRUPACK_RUNTIME_TLS_ROOT=/r.pem"); !slices.Equal(watch(f), want) {
-			t.Errorf("%s: %v", source, watch(f))
-		}
+	// The runtime's watch verifies HTTPS with the root of the TLS source that serves it.
+	f.TLSRoot = "/r.pem"
+	if want := append(base, "DRUPACK_RUNTIME_TLS_ROOT=/r.pem"); !slices.Equal(watch(f), want) {
+		t.Errorf("https: %v", watch(f))
 	}
 }

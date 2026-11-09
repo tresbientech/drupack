@@ -333,7 +333,7 @@ func storeBundle(f Facts, entry state.Dir, choice tls.Choice) (string, error) {
 	if choice.Source == "none" {
 		return "", entry.RemoveBundle()
 	}
-	public, err := os.ReadFile(f.value(Reader, "DRUPACK_CA_FILE"))
+	public, err := os.ReadFile(f.value("DRUPACK_CA_FILE"))
 	if err != nil {
 		return "", err
 	}

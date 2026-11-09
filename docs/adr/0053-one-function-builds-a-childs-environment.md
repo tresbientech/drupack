@@ -33,5 +33,7 @@ alone, and no test tied a name to the children that receive it.
   fails when either is missing.
 - A child's environment is read from one function, with no call order to
   follow.
+- An export's second Drush call keeps the reader's `PATH`. The two calls
+  shared one list before, and the second lost the inherited value.
 - The login mint still appends `COLUMNS=1000` to the environment it is handed.
 - An inherited `DRUPACK_ADMIN_PASSWORD` still reaches Drush and export.
