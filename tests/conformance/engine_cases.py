@@ -255,6 +255,9 @@ class EngineExecutable(harness.ConformanceCase):
             # A browser drops the tab from the third shape.
             "host-like path": (403, ["//evil.example/../probe-dir", "/%5Cevil.example/../probe-dir",
                                      "/%09/evil.example/../../probe-dir", "//probe-both"]),
+            # Windows opens these as the files the slash forms name.
+            "backslash": (403, ["/modules%5Cx%5Cy.php", "/sites%5Cdefault%5Cfiles%5Cprobe.php",
+                                "/sites%5Cdefault%5Csettings.php", "/SITES%5CDEFAULT%5CSETTINGS.PHP."]),
         }
         for rule, (expected, paths) in refused.items():
             for path in paths:

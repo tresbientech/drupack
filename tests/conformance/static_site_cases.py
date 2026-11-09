@@ -99,7 +99,8 @@ class StaticSite(harness.ConformanceCase):
             self.write(path, "kept out")
         expected = {"/.env": 403, "/index.php": 403, "/index.php/tail": 403, "/about/x.PHP": 403,
                     "/composer.json": 403, "/sites/default/settings.php": 403, "/vendor/a.js": 403,
-                    "/notes.yml": 403, "/.well-known/security.txt": 200}
+                    "/notes.yml": 403, "/sites%5Cdefault%5Csettings.php": 403, "/about%5Cx.PHP": 403,
+                    "/.well-known/security.txt": 200}
         for path, status in expected.items():
             with self.subTest(path):
                 self.assertEqual(request(self.static_port, path)[0], status)
