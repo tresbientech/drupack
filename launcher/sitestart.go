@@ -31,9 +31,6 @@ var errReported = errors.New("reported")
 // has a DRUPACK_ variable a reader may set, and a credential never reaches argv.
 var startInputs = []string{"database", "db-host", "db-port", "db-name", "db-user", "db-password", "admin-user", "admin-password", "site-name"}
 
-// siteFallbackHost is the host a site's URL names when its drupack.site name does not resolve.
-const siteFallbackHost = "localhost"
-
 type packagedStart struct {
 	l    Launch
 	c    command
@@ -102,8 +99,9 @@ func startSite(l Launch, c command) error {
 	if err := operate(l, withInputs(e, inputs), &owed, false, "check", "site", runtime.Canonical(data)); err != nil {
 		return err
 	}
-	listen := cmp.Or(c.options["listen"], siteTarget(site).DefaultListen)
-	bind, port, err := parseListen(listen, "--listen")
+	target := siteTarget(site)
+	listen := cmp.Or(c.options["listen"], target.DefaultListen)
+	bind, port, err := target.Listen(c.options["listen"])
 	if err != nil {
 		return err
 	}
@@ -121,7 +119,7 @@ func startSite(l Launch, c command) error {
 			return err
 		}
 	}
-	choice, err := tls.Choose(l.TLSDir, bind, cmp.Or(site.Subdomain, l.Name), siteFallbackHost, c.options["host"])
+	choice, err := tls.Choose(l.TLSDir, bind, cmp.Or(site.Subdomain, l.Name), unresolvedHost, c.options["host"])
 	if err != nil {
 		return err
 	}

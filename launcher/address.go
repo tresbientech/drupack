@@ -21,8 +21,20 @@ func siteTarget(site siteconfig.Site) Site {
 	return Site{DefaultListen: loopbackIP + ":" + strconv.Itoa(site.Port)}
 }
 
-func (f engineProject) target() Site {
+func engineTarget() Site {
 	return Site{DefaultListen: defaultListen, Engine: true}
+}
+
+// unresolvedHost is the host of a site whose drupack.site name does not resolve.
+const unresolvedHost = "localhost"
+
+// Listen parses typed, else the default, as the mode's --listen.
+func (s Site) Listen(typed string) (bind string, port int, err error) {
+	listen := cmp.Or(typed, s.DefaultListen)
+	if s.Engine {
+		return engineListen(listen)
+	}
+	return parseListen(listen, "--listen")
 }
 
 // Address is where the last start served. The record holds each typed value,
@@ -65,14 +77,8 @@ func Served(dir state.Dir, name string, s Site, typed state.Listener) (Address, 
 	if typed.Host != "" && !validHost(typed.Host) {
 		return Address{}, errors.New("Invalid --host value")
 	}
-	record.Host = cmp.Or(typed.Host, record.Host, unrecordedHost)
-	var bind string
-	var port int
-	if s.Engine {
-		bind, port, err = engineListen(record.Listen)
-	} else {
-		bind, port, err = parseListen(record.Listen, "--listen")
-	}
+	record.Host = cmp.Or(typed.Host, record.Host, unresolvedHost)
+	bind, port, err := s.Listen(record.Listen)
 	if err != nil {
 		return Address{}, err
 	}

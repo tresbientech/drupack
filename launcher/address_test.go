@@ -127,3 +127,35 @@ func mustPlan(t *testing.T, bind string, port int, staticListen string, hasStati
 	}
 	return plan
 }
+
+func TestSiteListen(t *testing.T) {
+	for _, row := range []struct {
+		name  string
+		site  Site
+		typed string
+		bind  string
+		port  int
+		err   string
+	}{
+		{name: "a site's default", site: siteTarget(siteconfig.Site{Port: 7}), bind: "127.0.0.1", port: 7},
+		{name: "a site's typed value", site: siteTarget(siteconfig.Site{Port: 7}), typed: "[::1]:9", bind: "::1", port: 9},
+		{name: "a site's hostname", site: siteTarget(siteconfig.Site{Port: 7}), typed: "localhost:9",
+			err: "--listen requires IP:PORT, with IPv6 enclosed in brackets"},
+		{name: "the engine's default", site: engineTarget(), bind: "127.0.0.1", port: 3787},
+		{name: "the engine's typed value", site: engineTarget(), typed: "localhost:9", bind: "localhost", port: 9},
+		{name: "the engine's refusal", site: engineTarget(), typed: "localhost:x", err: "--listen takes IP:PORT, got localhost:x"},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			bind, port, err := row.site.Listen(row.typed)
+			if row.err != "" {
+				if err == nil || err.Error() != row.err {
+					t.Errorf("error = %v, want %q", err, row.err)
+				}
+				return
+			}
+			if err != nil || bind != row.bind || port != row.port {
+				t.Errorf("Listen = %q, %d, %v, want %q, %d", bind, port, err, row.bind, row.port)
+			}
+		})
+	}
+}

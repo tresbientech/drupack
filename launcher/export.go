@@ -59,7 +59,7 @@ func engineExport(l Launch, c command, cwd string, e environ) (exportCall, error
 	}
 	uri := ""
 	if !namesURI(c.words) {
-		a, err := Served(f.entry, l.Name, f.target(), state.Listener{})
+		a, err := Served(f.entry, l.Name, engineTarget(), state.Listener{})
 		if err != nil {
 			return exportCall{}, err
 		}

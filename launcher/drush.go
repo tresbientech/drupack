@@ -12,9 +12,6 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
-// unrecordedHost is the host drush addresses on Site data no start has served.
-const unrecordedHost = "localhost"
-
 // drushCall runs application's drush entry on script with words. Drush's
 // children, and Tome's, run the php on PATH, which bin/ points back at the runtime.
 func drushCall(l Launch, e environ, application, script string, words []string) Command {
@@ -204,7 +201,7 @@ func (f engineProject) drush(l Launch, e environ, words []string) (Command, erro
 		e.put("DRUPACK_CA_FILE=" + runtime.Canonical(bundle))
 	}
 	if f.composer.Mercure {
-		a, err := Served(f.entry, l.Name, f.target(), state.Listener{})
+		a, err := Served(f.entry, l.Name, engineTarget(), state.Listener{})
 		if err != nil {
 			return Command{}, err
 		}

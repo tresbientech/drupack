@@ -138,11 +138,7 @@ func startEngine(l Launch, c command) error {
 		log := runtime.Canonical(state.FolderEntry(l.Root, project, l.FoldCase).Path()) + "/server.log"
 		return detachStart(l, log, stopCommand(l.Args[0], cwd, target, goruntime.GOOS == "windows"))
 	}
-	listen, set := c.options["listen"]
-	if !set {
-		listen = defaultListen
-	}
-	bind, port, err := engineListen(listen)
+	bind, port, err := engineTarget().Listen(c.options["listen"])
 	if err != nil {
 		return err
 	}
