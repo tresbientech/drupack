@@ -75,7 +75,8 @@ class RuntimeConfiguration(harness.ConformanceCase):
 
     def test_loaded_ini_sits_under_the_runtime_cache(self):
         values = self.php_cli(INI_PROBE)
-        cache_root = os.environ["DRUPACK_CACHE_DIR"]
+        # The launcher serves the cache root's real path: macOS reaches /var/folders through /private.
+        cache_root = os.path.realpath(os.environ["DRUPACK_CACHE_DIR"])
         self.assertTrue(
             values["loaded_ini"] and values["loaded_ini"].startswith(cache_root),
             f"loaded ini {values['loaded_ini']!r} is not under the runtime cache {cache_root!r}",
@@ -98,8 +99,8 @@ class RuntimeConfiguration(harness.ConformanceCase):
         (self.case_dir / "php.ini").write_text("memory_limit = 999M\n")
         values = self.php_cli(INI_PROBE)
         self.assertEqual(values["memory_limit"], "512M")
-        cache_root = os.environ["DRUPACK_CACHE_DIR"]
-        self.assertTrue(values["loaded_ini"].startswith(cache_root))
+        cache_root = os.path.realpath(os.environ["DRUPACK_CACHE_DIR"])
+        self.assertTrue(values["loaded_ini"].startswith(cache_root), values["loaded_ini"])
 
     def test_release_history_reachable_with_a_broken_host_trust_store(self):
         if harness.running_offline():
