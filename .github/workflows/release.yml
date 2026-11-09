@@ -154,11 +154,14 @@ jobs:
               echo 'Documentation alone changed. Nothing to build.'
             fi
           fi
-          # One macOS test row per share of the test classes. One Intel runner takes
-          # 45 minutes over the suite, so four take a share each. GitHub runs five
-          # macOS jobs at once, and the arm64 row is the fifth. An architecture's last
-          # row also runs the variant cases.
-          macos_tests=$(jq -c '[.[] | (if .arch == "amd64" then 4 else 1 end) as $count | range(1; $count + 1) as $index
+          # One Intel runner takes 45 minutes over the suite, so four take a share of
+          # the test classes each. GitHub runs five macOS jobs at once. An architecture
+          # with one share runs it in its build job, which waits for no other build.
+          shares='def shares: if .arch == "amd64" then 4 else 1 end;'
+          macos=$(jq -c "$shares"' map(. + {suite: (shares == 1)})' <<<"$macos")
+          # One macOS test row per share. An architecture's last row also runs the
+          # variant cases.
+          macos_tests=$(jq -c "$shares"' [.[] | shares as $count | select($count > 1) | range(1; $count + 1) as $index
             | {arch, shard: "\($index)/\($count)", results: "macos-\(.arch)-\($index)", variant: ($index == $count)}]' <<<"$macos")
           # One runtime row per Linux architecture and libc, naming the libc's builder image.
           runtimes() {
@@ -728,13 +731,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'Windows amd64 tests (1/3)', runner: windows-2025, results: windows-amd64-1, shard: 1/3, variant: false}
-          - {name: 'Windows amd64 tests (2/3)', runner: windows-2025, results: windows-amd64-2, shard: 2/3, variant: false}
-          - {name: 'Windows amd64 tests (3/3)', runner: windows-2025, results: windows-amd64-3, shard: 3/3, variant: true}
-          - {name: 'Windows arm64 tests (amd64 emulated, 1/4)', runner: windows-11-arm, results: windows-arm64-1, shard: 1/4, variant: false}
-          - {name: 'Windows arm64 tests (amd64 emulated, 2/4)', runner: windows-11-arm, results: windows-arm64-2, shard: 2/4, variant: false}
-          - {name: 'Windows arm64 tests (amd64 emulated, 3/4)', runner: windows-11-arm, results: windows-arm64-3, shard: 3/4, variant: false}
-          - {name: 'Windows arm64 tests (amd64 emulated, 4/4)', runner: windows-11-arm, results: windows-arm64-4, shard: 4/4, variant: false}
+          - {name: 'Windows amd64 tests (1/5)', runner: windows-2025, results: windows-amd64-1, shard: 1/5, variant: false}
+          - {name: 'Windows amd64 tests (2/5)', runner: windows-2025, results: windows-amd64-2, shard: 2/5, variant: false}
+          - {name: 'Windows amd64 tests (3/5)', runner: windows-2025, results: windows-amd64-3, shard: 3/5, variant: false}
+          - {name: 'Windows amd64 tests (4/5)', runner: windows-2025, results: windows-amd64-4, shard: 4/5, variant: false}
+          - {name: 'Windows amd64 tests (5/5)', runner: windows-2025, results: windows-amd64-5, shard: 5/5, variant: true}
+          - {name: 'Windows arm64 tests (amd64 emulated, 1/5)', runner: windows-11-arm, results: windows-arm64-1, shard: 1/5, variant: false}
+          - {name: 'Windows arm64 tests (amd64 emulated, 2/5)', runner: windows-11-arm, results: windows-arm64-2, shard: 2/5, variant: false}
+          - {name: 'Windows arm64 tests (amd64 emulated, 3/5)', runner: windows-11-arm, results: windows-arm64-3, shard: 3/5, variant: false}
+          - {name: 'Windows arm64 tests (amd64 emulated, 4/5)', runner: windows-11-arm, results: windows-arm64-4, shard: 4/5, variant: false}
+          - {name: 'Windows arm64 tests (amd64 emulated, 5/5)', runner: windows-11-arm, results: windows-arm64-5, shard: 5/5, variant: false}
           - {name: 'Windows arm64 variant tests (amd64 emulated)', runner: windows-11-arm, results: windows-arm64-variant, shard: '', variant: true}
     defaults:
       run:
@@ -779,7 +785,7 @@ jobs:
           path: test-results
 
   # Builds each architecture's executables once. The macos-test jobs run the suite
-  # on those files.
+  # on those files, and an architecture with one share runs it here.
   macos:
     name: macOS ${{ matrix.arch }} build
     needs: [gate, payload]
@@ -892,6 +898,7 @@ jobs:
       # sbom and publish jobs download. The retention stays the default: the gate
       # rebuilds a candidate when any of its artifacts expired.
       - uses: actions/upload-artifact@v7
+        if: ${{ !matrix.suite }}
         with:
           name: suite-macos-${{ matrix.arch }}
           path: |
@@ -907,6 +914,29 @@ jobs:
           name: drupack-macos-${{ matrix.arch }}
           path: dist/engine/drupack
           if-no-files-found: error
+
+      - uses: actions/checkout@v7
+        if: matrix.suite
+        with:
+          repository: ${{ needs.gate.outputs.demo_repository }}
+          ref: ${{ needs.gate.outputs.demo_ref }}
+          path: demo
+          persist-credentials: false
+
+      - name: Run the test scripts
+        if: matrix.suite
+        env:
+          DRUPACK_TEST_ENGINE: dist/engine/drupack
+        run: |
+          python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests demo/tests
+          python3 tests/conformance dist/variant/variant-demo test-results/variant -k Node -k MercureHub -k ProjectRules
+
+      - name: Upload test results
+        if: failure() && matrix.suite
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-macos-${{ matrix.arch }}
+          path: test-results
 
   # Each job runs one share of the test classes on the files the macos job built.
   macos-test:
