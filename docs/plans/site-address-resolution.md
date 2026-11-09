@@ -6,11 +6,11 @@
 
 Durable decisions that apply across all phases:
 
-- **D1**: `Served(dir, name, Site, Typed) (Address, error)` owns every read of the Listener record.
-- **D2**: a `Site` value per mode holds the default listen address, the parser choice and the restart advice.
+- **D1**: `Served(dir, name, Site, typed state.Listener) (Address, error)` owns every read of the Listener record.
+- **D2**: a `Site` value per mode holds the default listen address and one mode flag.
 - **D3**: one precedence, typed then recorded then default; the scheme is the record's or `state.UnrecordedScheme`.
 - **D4**: one constant for the host of a site no name resolves for.
-- **D5**: `Address` holds the main address, the static listen value, `Recorded`, `StaticRecorded` and `FilesDir`, with `URL()`, `Mercure()` and `Plan(hasStatic, noun)`.
+- **D5**: `Address` embeds the merged `state.Listener` and adds the bind, the port and `Recorded`, with `URL()`, `Mercure()` and `Plan(hasStatic, noun)`.
 - **D6**: a start calls `Site.Listen`, then `tls.Choose`, then `planStart`, unchanged.
 - **D7**: `packagedStart.served` falls back to its own plan when nothing is recorded.
 - **D8**: every refusal keeps its text.
