@@ -140,9 +140,9 @@ func startEngine(l Launch, c command) error {
 	}
 	listen, set := c.options["listen"]
 	if !set {
-		listen = defaultListen
+		listen = engineTarget().DefaultListen
 	}
-	bind, port, err := engineListen(listen)
+	bind, port, err := engineTarget().Listen(listen)
 	if err != nil {
 		return err
 	}
