@@ -29,11 +29,6 @@ while [ $# -gt 0 ]; do
     shift 2
 done
 
-# Every runtime but the Windows one starts from an executable named drupack.
-case $target in
-    windows-*) entry=frankenphp.exe node_extension=zip ;;
-    *) entry=drupack node_extension=tar.gz ;;
-esac
 version=${base_url##*/}
 file=runtime-$version-$target.tar.zst
 
@@ -66,15 +61,6 @@ actual=$(sha256 "$work/$file")
 mkdir "$work/runtime"
 zstd -dc "$work/$file" | tar -C "$work/runtime" -xf -
 
-# bash 3.2 calls an empty array unset, hence the guarded expansion below.
-node=()
-if [ -f "$payload/node/$target.$node_extension" ]; then
-    node=(-node "$payload/node/$target.$node_extension")
-fi
 cd -- "$engine/launcher"
-# The launcher matches the target, whatever the host runs: a Windows on Arm or an
-# Apple silicon host packs amd64 too.
-CGO_ENABLED=0 go run ./cmd/pack -goarch "${target##*-}" -runtime "$work/runtime" -entry "$entry" \
-    -version "$version" -source "$engine/launcher" -output "$output" \
-    -app "$payload/app-payload.tar.zst" -app-checksum "$payload/app_checksum.txt" \
-    -site "$payload/site.json" -site-version "$site_version" ${node[@]+"${node[@]}"}
+CGO_ENABLED=0 go run ./cmd/pack -target "$target" -runtime "$work/runtime" -payload "$payload" \
+    -version "$version" -site-version "$site_version" -output "$output"

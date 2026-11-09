@@ -3,13 +3,14 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	goruntime "runtime"
 	"strings"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/build"
@@ -71,84 +72,61 @@ func main() {
 	}
 }
 
+type options struct {
+	target, runtime, payload, version, siteVersion, output string
+	engine                                                 bool
+}
+
+// packing is what pack resolved from its options and the payload directory. nodeArchive
+// is empty for a target that carries no Node.
+type packing struct {
+	options
+	arch, entry, libc, checksum, nodeArchive, nodeVersion string
+	site                                                  site
+}
+
 func run() error {
-	directory := flag.String("runtime", "", "directory holding the runtime to pack")
-	version := flag.String("version", "", "engine version, which names each runtime's cache entry")
-	siteFile := flag.String("site", "", "the site.json of the site the application holds")
-	siteVersion := flag.String("site-version", "", "the site's release")
-	goarch := flag.String("goarch", goruntime.GOARCH, "architecture the launcher is built for")
-	entry := flag.String("entry", "", "entry file, relative to -runtime")
-	source := flag.String("source", "", "launcher source directory")
-	output := flag.String("output", "", "path for the built launcher")
-	app := flag.String("app", "", "compressed application archive to carry")
-	appChecksum := flag.String("app-checksum", "", "file holding the application checksum")
-	engine := flag.Bool("engine", false, "pack the engine executable, whose -app holds the engine's files and whose release is -version")
-	nodeArchive := flag.String("node", "", "a Node archive the build verified, carried as the release site.json names")
-	musl := flag.Bool("musl", false, "the runtime is a musl build, so self-update fetches the musl release")
+	var o options
+	flag.StringVar(&o.target, "target", "", "what the file runs on, a targets.json platform and its libc suffix, such as windows-amd64")
+	flag.StringVar(&o.runtime, "runtime", "", "directory holding the runtime to pack")
+	flag.StringVar(&o.payload, "payload", "", "directory holding the application payload, its checksum, the site.json and the Node archives")
+	flag.StringVar(&o.version, "version", "", "engine version, which names each runtime's cache entry")
+	flag.StringVar(&o.siteVersion, "site-version", "", "the site's release, -version when unset")
+	flag.StringVar(&o.output, "output", "", "path for the built launcher")
+	flag.BoolVar(&o.engine, "engine", false, "pack the engine executable, which carries no site and whose release is -version")
 	flag.Parse()
-	required := map[string]string{
-		"runtime":      *directory,
-		"version":      *version,
-		"entry":        *entry,
-		"source":       *source,
-		"output":       *output,
-		"app":          *app,
-		"app-checksum": *appChecksum,
-	}
-	if !*engine {
-		required["site"] = *siteFile
-		required["site-version"] = *siteVersion
-	}
-	if err := requireFlags(required); err != nil {
+	if err := requireFlags(map[string]string{"target": o.target, "runtime": o.runtime, "payload": o.payload, "version": o.version, "output": o.output}); err != nil {
 		return err
 	}
-	packaged := site{name: build.EngineName, version: *version, engine: true, musl: *musl}
-	var nodeVersion siteconfig.Node
-	if !*engine {
-		var described siteconfig.Site
-		content, err := os.ReadFile(*siteFile)
-		if err != nil {
-			return err
-		}
-		if err := json.Unmarshal(content, &described); err != nil {
-			return fmt.Errorf("%s: %w", *siteFile, err)
-		}
-		packaged = site{name: described.Name, version: *siteVersion, components: siteComponents(described, *nodeArchive != ""), musl: *musl}
-		nodeVersion = described.Node
-	}
-
-	payload, manifest, err := runtime.Build(*directory, *version, *entry)
+	packed, err := resolve(o)
 	if err != nil {
 		return err
 	}
-	if key := runtime.Key(*version, payload); !runtime.MintedSegment(key) {
-		return fmt.Errorf("version %q would mint the cache entry %q, breaking the rule %s", *version, key, runtime.MintedSegmentPattern)
-	}
+	printInputs(os.Stdout, packed)
 
+	payload, manifest, err := runtime.Build(o.runtime, o.version, packed.entry)
+	if err != nil {
+		return err
+	}
+	if key := runtime.Key(o.version, payload); !runtime.MintedSegment(key) {
+		return fmt.Errorf("version %q would mint the cache entry %q, breaking the rule %s", o.version, key, runtime.MintedSegmentPattern)
+	}
 	build, err := os.MkdirTemp("", "drupack-pack-")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(build)
-
-	if err := writeBuildCopy(build, *source, payload, manifest, packaged); err != nil {
-		return err
-	}
-	if err := writeNodePayload(build, *nodeArchive, string(nodeVersion)); err != nil {
-		return err
-	}
-	if err := writeAppPayload(build, *app, *appChecksum); err != nil {
+	if err := writeBuildCopy(build, ".", payload, manifest, packed); err != nil {
 		return err
 	}
 
-	outputPath, err := filepath.Abs(*output)
+	outputPath, err := filepath.Abs(o.output)
 	if err != nil {
 		return err
 	}
-	if err := buildLauncher(build, outputPath, *goarch); err != nil {
+	if err := buildLauncher(build, outputPath, packed.arch); err != nil {
 		return err
 	}
-
 	info, err := os.Stat(outputPath)
 	if err != nil {
 		return err
@@ -156,6 +134,62 @@ func run() error {
 	fmt.Printf("runtime payload %d bytes\n", len(payload))
 	fmt.Printf("output %d bytes\n", info.Size())
 	return nil
+}
+
+// parseTarget splits target into a targets.json platform, its architecture and its libc.
+func parseTarget(target string) (platform, arch, libc string, err error) {
+	for candidate, goarch := range runtime.Platforms {
+		for _, known := range runtime.Libcs {
+			if runtime.Target(candidate, known.Name) == target {
+				return candidate, goarch, known.Name, nil
+			}
+		}
+	}
+	return "", "", "", fmt.Errorf("target %q is not a platform of targets.json with a libc suffix", target)
+}
+
+// entryName is the runtime's entry file: the Windows runtime starts from frankenphp.exe.
+func entryName(platform string) string {
+	if strings.HasPrefix(platform, "windows-") {
+		return "frankenphp.exe"
+	}
+	return "drupack"
+}
+
+// resolve reads the payload directory o names and decides what the target carries.
+func resolve(o options) (packing, error) {
+	platform, arch, libc, err := parseTarget(o.target)
+	if err != nil {
+		return packing{}, err
+	}
+	checksum, err := os.ReadFile(filepath.Join(o.payload, build.ChecksumName))
+	if err != nil {
+		return packing{}, err
+	}
+	p := packing{options: o, arch: arch, entry: entryName(platform), libc: libc, checksum: string(bytes.TrimSpace(checksum))}
+	p.site = site{name: build.EngineName, version: o.version, engine: true, musl: libc == "musl"}
+	if o.engine {
+		return p, nil
+	}
+	described, err := siteconfig.Load(o.payload)
+	if err != nil {
+		return packing{}, err
+	}
+	if archive, carried := node.Archive(filepath.Join(o.payload, build.NodeDirName), o.target); described.Node != "" && carried {
+		if _, err := os.Stat(archive); err != nil {
+			return packing{}, err
+		}
+		p.nodeArchive = archive
+	}
+	p.nodeVersion = string(described.Node)
+	p.site = site{name: described.Name, version: cmp.Or(o.siteVersion, o.version), components: siteComponents(described, p.nodeArchive != ""), musl: libc == "musl"}
+	return p, nil
+}
+
+// printInputs prints one line per input, so a wrongly packed file is diagnosed from the build log.
+func printInputs(w io.Writer, p packing) {
+	fmt.Fprintf(w, "target %s\narchitecture %s\nentry %s\nlibc %s\npayload %s\napplication checksum %s\nNode archive %s\nsite %s\nsite version %s\nengine version %s\n",
+		p.target, p.arch, p.entry, p.libc, p.payload, p.checksum, cmp.Or(p.nodeArchive, "none"), p.site.name, p.site.version, p.version)
 }
 
 func siteComponents(described siteconfig.Site, node bool) []string {
@@ -175,7 +209,8 @@ func requireFlags(flags map[string]string) error {
 	return nil
 }
 
-func writeBuildCopy(directory, source string, payload []byte, manifest runtime.Manifest, packaged site) error {
+// writeBuildCopy lays the launcher source, the runtime and the payload of p into directory.
+func writeBuildCopy(directory, source string, payload []byte, manifest runtime.Manifest, p packing) error {
 	if err := build.CopyTree(source, directory, func(string) bool { return false }); err != nil {
 		return err
 	}
@@ -189,7 +224,13 @@ func writeBuildCopy(directory, source string, payload []byte, manifest runtime.M
 	if err := os.WriteFile(filepath.Join(directory, "manifest.json"), manifestData, 0600); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(directory, "payload.go"), []byte(embeddedPayloadSource(packaged)), 0600)
+	if err := os.WriteFile(filepath.Join(directory, "payload.go"), []byte(embeddedPayloadSource(p.site)), 0600); err != nil {
+		return err
+	}
+	if err := writeNodePayload(directory, p.nodeArchive, p.nodeVersion); err != nil {
+		return err
+	}
+	return writeAppPayload(directory, filepath.Join(p.payload, build.PayloadName), p.checksum)
 }
 
 // writeNodePayload packs the Node release in archive into the build copy, or
@@ -222,7 +263,7 @@ func writeNodePayload(build, archive, version string) error {
 }
 
 // writeAppPayload copies the compressed application archive into the build copy.
-func writeAppPayload(build, archive, checksumFile string) error {
+func writeAppPayload(build, archive, checksum string) error {
 	payload, err := os.ReadFile(archive)
 	if err != nil {
 		return err
@@ -230,11 +271,7 @@ func writeAppPayload(build, archive, checksumFile string) error {
 	if err := os.WriteFile(filepath.Join(build, "app.tar.zst"), payload, 0600); err != nil {
 		return err
 	}
-	checksum, err := os.ReadFile(checksumFile)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(build, "app_checksum.txt"), bytes.TrimSpace(checksum), 0600)
+	return os.WriteFile(filepath.Join(build, "app_checksum.txt"), []byte(checksum), 0600)
 }
 
 func buildLauncher(build, output, goarch string) error {

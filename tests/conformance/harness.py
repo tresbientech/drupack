@@ -53,6 +53,8 @@ def current_platform():
     return _PLATFORM_NAMES[platform.system()]
 
 
+ENTRY = "frankenphp.exe" if current_platform() == WINDOWS else "drupack"
+
 # runtime/php-extensions.txt names what every builder compiles, under
 # static-php-cli's names. Some never answer to get_loaded_extensions():
 # password-argon2 is a build input for argon2 support inside the standard
@@ -244,13 +246,13 @@ func main() {{
 """
 
 
-def _build_stub(work, runtime_dir, entry, version):
-    """Compile the stub into runtime_dir/entry. The source stays outside runtime_dir:
+def _build_stub(work, runtime_dir, version):
+    """Compile the stub into runtime_dir/ENTRY. The source stays outside runtime_dir:
     cmd/pack collects every regular file the runtime holds."""
     source = work / "main.go"
     source.write_text(_STUB_SOURCE.format(version=version))
     subprocess.run(
-        ["go", "build", "-o", str(runtime_dir / entry), str(source)],
+        ["go", "build", "-o", str(runtime_dir / ENTRY), str(source)],
         check=True, capture_output=True, text=True, timeout=WAITS["fixture_build"].seconds,
     )
 
@@ -259,38 +261,39 @@ def _build_stub(work, runtime_dir, entry, version):
 EMPTY_ZSTD = bytes.fromhex("28b52ffd24000100 0099e9d851".replace(" ", ""))
 
 
-def _run_pack(work, runtime_dir, entry, version, output, name):
+def _run_pack(work, runtime_dir, version, output, name):
     output.parent.mkdir(parents=True, exist_ok=True)
+    # pack builds for the host's operating system and the architecture Go builds for.
+    goos, goarch = subprocess.run(["go", "env", "GOOS", "GOARCH"], check=True, capture_output=True, text=True).stdout.split()
+    # The Windows runtime is amd64 alone, and a Windows on Arm host runs it emulated.
+    target = "windows-amd64" if goos == "windows" else f"{'macos' if goos == 'darwin' else goos}-{goarch}"
     # An empty compressed archive, under a checksum of the version so two fixtures never share a cache entry.
-    application = work / "app.tar.zst"
-    application.write_bytes(EMPTY_ZSTD)
-    checksum = work / "app_checksum.txt"
-    checksum.write_text(hashlib.sha256(version.encode()).hexdigest())
-    site = work / "site.json"
-    site.write_text(json.dumps({"name": name}))
+    payload = work / "payload"
+    payload.mkdir()
+    (payload / "app-payload.tar.zst").write_bytes(EMPTY_ZSTD)
+    (payload / "app_checksum.txt").write_text(hashlib.sha256(version.encode()).hexdigest())
+    (payload / "site.json").write_text(json.dumps({"name": name}))
     subprocess.run(
-        ["go", "run", "./cmd/pack", "-runtime", str(runtime_dir), "-entry", entry,
-         "-version", version, "-source", ".", "-output", str(output),
-         "-app", str(application), "-app-checksum", str(checksum),
-         "-site", str(site), "-site-version", version],
+        ["go", "run", "./cmd/pack", "-target", target, "-runtime", str(runtime_dir),
+         "-payload", str(payload), "-version", version, "-output", str(output)],
         cwd=LAUNCHER_SRC, check=True, capture_output=True, text=True,
         timeout=WAITS["fixture_pack"].seconds,
     )
 
 
-def pack_fixture(entry, version, output, name="fixture"):
-    """Build a launcher whose runtime is the stub, packed under entry, for a site called name,
+def pack_fixture(version, output, name="fixture"):
+    """Build a launcher whose runtime is the stub, packed under ENTRY, for a site called name,
     which names its cache root."""
     with tempfile.TemporaryDirectory(prefix="drupack-fixture-") as work:
         work = Path(work)
         runtime_dir = work / "runtime"
         runtime_dir.mkdir()
-        _build_stub(work, runtime_dir, entry, version)
-        _run_pack(work, runtime_dir, entry, version, output, name)
+        _build_stub(work, runtime_dir, version)
+        _run_pack(work, runtime_dir, version, output, name)
     return output
 
 
-def pack_corrupted_fixture(entry, version, output):
+def pack_corrupted_fixture(version, output):
     """Build a fixture like pack_fixture, then flip one hex digit of its entry's checksum.
 
     The checksum is embedded in the binary as literal hex text, so the edit is unique and
@@ -300,9 +303,9 @@ def pack_corrupted_fixture(entry, version, output):
         work = Path(work)
         runtime_dir = work / "runtime"
         runtime_dir.mkdir()
-        _build_stub(work, runtime_dir, entry, version)
-        correct = hashlib.sha256((runtime_dir / entry).read_bytes()).hexdigest()
-        _run_pack(work, runtime_dir, entry, version, output, "fixture")
+        _build_stub(work, runtime_dir, version)
+        correct = hashlib.sha256((runtime_dir / ENTRY).read_bytes()).hexdigest()
+        _run_pack(work, runtime_dir, version, output, "fixture")
 
     data = bytearray(output.read_bytes())
     needle = correct.encode()
