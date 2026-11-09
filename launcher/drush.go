@@ -88,7 +88,6 @@ func openSite(l Launch, site siteconfig.Site, c command, cwd string, e environ) 
 	if err != nil {
 		return openedSite{}, err
 	}
-	files := served.FilesDir
 
 	restrictUmask()
 	data, err = filepath.EvalSymlinks(data)
@@ -96,8 +95,8 @@ func openSite(l Launch, site siteconfig.Site, c command, cwd string, e environ) 
 		return openedSite{}, err
 	}
 	warnExposed(data)
-	named := files != ""
-	files, scratch, err := siteDirs(data, files, site.Static != nil)
+	named := served.FilesDir != ""
+	files, scratch, err := siteDirs(data, served.FilesDir, site.Static != nil)
 	if err != nil {
 		return openedSite{}, err
 	}

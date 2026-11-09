@@ -20,12 +20,10 @@ type Site struct {
 	AdvisesRestart bool
 }
 
-// siteTarget is the Site of a Drupack site with Site data.
 func siteTarget(site siteconfig.Site) Site {
 	return Site{DefaultListen: loopbackIP + ":" + strconv.Itoa(site.Port), AdvisesRestart: true}
 }
 
-// target is the Site of the engine's project.
 func (f engineProject) target() Site {
 	return Site{DefaultListen: defaultListen, AnyHost: true}
 }
@@ -37,9 +35,8 @@ type Typed struct {
 
 // Address is where the last start served.
 type Address struct {
-	Bind         string
-	Port         int
-	Host, Scheme string
+	Bind, Host, Scheme string
+	Port               int
 	// StaticListen is the typed static listen address, else the recorded one, unparsed.
 	StaticListen string
 	// Recorded is false when no start has recorded a listener.
@@ -54,7 +51,6 @@ func (a Address) URL() string {
 	return siteURL(a.Scheme, a.Host, a.Port)
 }
 
-// Mercure is the hub's URL.
 func (a Address) Mercure() string {
 	return mercureURL(a.Scheme, a.Bind, a.Port)
 }
