@@ -5,6 +5,7 @@ package build
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -136,7 +137,7 @@ func NewPlan(r Request) (Plan, error) {
 		{Name: "lay the engine over the site", Func: func(io.Writer) error { return layEngine(r.Engine, application, r.Site.Docroot) }},
 	}}
 	if r.Site.Node != "" {
-		plan.Steps = slices.Insert(plan.Steps, 0, resolveNode(&r.Site, nodeTargets(r, libcs, natives), r.Work))
+		plan.Steps = slices.Insert(plan.Steps, 0, resolveNode(&r.Site, nodeTargets(r, libcs, natives), filepath.Join(payload, NodeDirName)))
 	}
 	// A site without a recipe ships no seed, and serves only a database that holds it.
 	if r.Site.Recipe != "" {
@@ -147,7 +148,9 @@ func NewPlan(r Request) (Plan, error) {
 	plan.Steps = append(plan.Steps,
 		Step{Name: "archive the application",
 			Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload, r.Site.Docroot}},
-		Step{Name: "compress the application", Func: func(io.Writer) error { return compressPayload(payload) }})
+		Step{Name: "compress the application", Func: func(io.Writer) error {
+			return errors.Join(compressPayload(payload), copyInto(payload, filepath.Join(application, siteconfig.OutputName)))
+		}})
 	destination := filepath.Join(r.Output, "payload")
 	if r.PayloadOnly || len(natives) > 0 {
 		exported := natives
@@ -155,7 +158,7 @@ func NewPlan(r Request) (Plan, error) {
 			exported = payloadTargets
 		}
 		plan.Steps = append(plan.Steps, Step{Name: "export the payload", Func: func(io.Writer) error {
-			return exportPayload(payload, application, destination, r.Site.Node != "", r.Work, exported)
+			return exportPayload(payload, destination, r.Site.Node != "", exported)
 		}})
 	}
 	if r.PayloadOnly {
@@ -177,8 +180,7 @@ func NewPlan(r Request) (Plan, error) {
 	plan.Steps = append(plan.Steps, Step{Name: "write site.json beside the executables", Func: func(io.Writer) error {
 		return siteconfig.Write(r.Site, r.Output)
 	}})
-	plan.Steps = append(plan.Steps, packSteps(r, libcs, resolved, "pack ", r.Site.Name, payload,
-		"-site", filepath.Join(application, siteconfig.OutputName), "-site-version", r.SiteVersion)...)
+	plan.Steps = append(plan.Steps, packSteps(r, libcs, resolved, "pack ", r.Site.Name, payload, "-site-version", r.SiteVersion)...)
 	// The suite runs on the host's first file, the glibc one when the build packs both.
 	tested := ""
 	for _, platform := range r.Platforms {
@@ -222,15 +224,11 @@ func nodeTargets(r Request, libcs, natives []string) []string {
 	return targets
 }
 
-func nodeArchives(work string) string {
-	return filepath.Join(work, "node")
-}
-
-// resolveNode fetches the verified Node archive of each target into the work directory and sets
+// resolveNode fetches the verified Node archive of each target into dir and sets
 // site.Node to the exact version, which the later site.json steps write.
-func resolveNode(site *siteconfig.Site, targets []string, work string) Step {
+func resolveNode(site *siteconfig.Site, targets []string, dir string) Step {
 	return Step{Name: "resolve Node", Func: func(log io.Writer) error {
-		resolved, err := node.Resolve(node.Request{Value: site.Node, Targets: targets, Dir: nodeArchives(work)})
+		resolved, err := node.Resolve(node.Request{Value: site.Node, Targets: targets, Dir: dir})
 		if err != nil {
 			return err
 		}
@@ -240,25 +238,16 @@ func resolveNode(site *siteconfig.Site, targets []string, work string) Step {
 	}}
 }
 
-// packSteps packs one file per platform and libc, to OUTPUT/NAME-TARGET. extra adds the packer's
-// flags. A site asking for Node carries it on each target Node builds for.
+// packSteps packs one file per platform and libc, to OUTPUT/NAME-TARGET, from the payload directory.
+// extra adds the packer's flags. Pack decides from the target and the payload which file carries Node.
 func packSteps(r Request, libcs []string, resolved map[string]string, step, name, payload string, extra ...string) []Step {
 	var steps []Step
 	for _, platform := range r.Platforms {
 		for _, libc := range libcs {
 			target := runtime.Target(platform, libc)
-			command := append([]string{"go", "run", "./cmd/pack", "-runtime", resolved[platform+"/"+libc],
-				"-entry", "drupack", "-version", r.EngineVersion,
-				"-source", filepath.Join(r.Engine, "launcher"),
-				"-output", filepath.Join(r.Output, Executable(name, target)),
-				"-app", filepath.Join(payload, PayloadName), "-app-checksum", filepath.Join(payload, ChecksumName),
-				"-goarch", runtime.Platforms[platform]}, extra...)
-			if libc == "musl" {
-				command = append(command, "-musl")
-			}
-			if archive, carried := node.Archive(nodeArchives(r.Work), target); r.Site.Node != "" && carried {
-				command = append(command, "-node", archive)
-			}
+			command := append([]string{"go", "run", "./cmd/pack", "-target", target, "-runtime", resolved[platform+"/"+libc],
+				"-payload", payload, "-version", r.EngineVersion,
+				"-output", filepath.Join(r.Output, Executable(name, target))}, extra...)
 			steps = append(steps, Step{Name: step + target, Command: command,
 				Dir: filepath.Join(r.Engine, "launcher"), Env: []string{"CGO_ENABLED=0"}})
 		}
@@ -566,18 +555,17 @@ func layEngine(engine, application, docroot string) error {
 	return nil
 }
 
-// exportPayload puts the payload and its site.json where a later platform build
-// reads them, with the Node archive of each of targets in node/ for a site
-// carrying Node.
-func exportPayload(payload, application, destination string, carriesNode bool, work string, targets []string) error {
+// exportPayload puts the payload where a later platform build reads it, with the
+// Node archive of each of targets for a site carrying Node.
+func exportPayload(payload, destination string, carriesNode bool, targets []string) error {
 	err := copyInto(destination, filepath.Join(payload, PayloadName),
-		filepath.Join(payload, ChecksumName), filepath.Join(application, siteconfig.OutputName))
+		filepath.Join(payload, ChecksumName), filepath.Join(payload, siteconfig.OutputName))
 	if err != nil || !carriesNode {
 		return err
 	}
 	for _, target := range targets {
-		archive, _ := node.Archive(nodeArchives(work), target)
-		if err := copyInto(filepath.Join(destination, "node"), archive); err != nil {
+		archive, _ := node.Archive(filepath.Join(payload, NodeDirName), target)
+		if err := copyInto(filepath.Join(destination, NodeDirName), archive); err != nil {
 			return err
 		}
 	}

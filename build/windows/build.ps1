@@ -148,8 +148,7 @@ Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\entrypoint.go') (Join-Path $fr
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\watch\watch.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_watch.go')
 
 # php.net publishes x64 builds alone, so a Windows on Arm host builds the amd64
-# runtime too, with its own clang. cmd/pack builds the launcher for its own
-# architecture, which GOARCH also sets for go run below.
+# runtime too, with its own clang.
 $clangHost = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'ARM64' } else { 'x64' }
 $env:PATH = @("$buildTools\VC\Tools\Llvm\$clangHost\bin", "$vcpkgRoot\bin", $watcherRoot, $php, $env:PATH) -join ';'
 $env:GOARCH = 'amd64'
@@ -196,15 +195,12 @@ if (-not $outputDirectory) { $outputDirectory = '.' }
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
 $outputPath = Join-Path (Resolve-Path $outputDirectory).Path (Split-Path -Leaf $Output)
 $launcherSource = (Resolve-Path (Join-Path $PSScriptRoot '..\..\launcher')).Path
-# The payload of a site asking for Node holds each target's verified archive.
-$nodeArchive = Join-Path $payload 'node\windows-amd64.zip'
-$node = if (Test-Path $nodeArchive) { @('-node', $nodeArchive) } else { @() }
 $env:CGO_ENABLED = '0'
 Push-Location $launcherSource
 try {
-  go run ./cmd/pack -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $outputPath -app (Join-Path $payload 'app-payload.tar.zst') -app-checksum (Join-Path $payload 'app_checksum.txt') -site (Join-Path $payload 'site.json') -site-version $Version @node
+  go run ./cmd/pack -target windows-amd64 -runtime $runtime -payload $payload -version $Version -output $outputPath
   if ($EnginePayloadDirectory) {
-    go run ./cmd/pack -engine -runtime $runtime -entry frankenphp.exe -version $Version -source $launcherSource -output $engineOutputPath -app (Join-Path $enginePayload 'app-payload.tar.zst') -app-checksum (Join-Path $enginePayload 'app_checksum.txt')
+    go run ./cmd/pack -engine -target windows-amd64 -runtime $runtime -payload $enginePayload -version $Version -output $engineOutputPath
   }
 } finally {
   Pop-Location
