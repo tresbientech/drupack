@@ -6,6 +6,7 @@ lines this appends to --output. The flags it prints reproduce the plan where `gh
 import argparse
 import json
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -15,9 +16,9 @@ TITLE = "Release candidate {version}"
 ZERO = "0" * 40
 # Documentation reaches no executable. A path this pattern does not name builds.
 DOCS = re.compile(r"^docs/|^LICENSE$|^[^/]+\.md$")
-# The macOS test classes split into this many shards per architecture.
+# One Intel runner takes 45 minutes over the suite, so four take a share each. GitHub runs five macOS jobs
+# at once, and the arm64 row is the fifth. An architecture's last row also runs the variant cases.
 SHARDS = {"amd64": 4, "arm64": 1}
-KEYS = ("version", "build", "candidate", "image_tags", "linux", "linux_runtime", "macos", "macos_tests", "windows")
 
 
 def listed(path, body, key, fields):
@@ -30,9 +31,9 @@ def listed(path, body, key, fields):
     return entries
 
 
-def candidate(event, name, fetch):
+def candidate(event, version, fetch):
     """The id of the successful candidate run for this commit, unless its files expired."""
-    title = TITLE.format(version=name)
+    title = TITLE.format(version=version)
     path = f"repos/{event['repo']}/actions/workflows/release.yml/runs?head_sha={event['sha']}&event=workflow_dispatch&status=success"
     runs = listed(path, fetch(path), "workflow_runs", {"display_title": str, "id": int})
     run = next((run["id"] for run in runs if run["display_title"] == title), None)
@@ -55,28 +56,33 @@ def linux_runtime(targets, linux):
 
 def plan(event, targets, fetch):
     tag = event["ref_type"] == "tag"
-    name = event["ref_name"] if tag else event["version"] or "dev-" + event["sha"][:12]
+    version = event["ref_name"] if tag else (event["version"] or "dev-" + event["sha"][:12])
+    # build.yml reads sha-COMMIT at a tag and dev-COMMIT on a branch, and a tag run publishes its candidate's sha-COMMIT.
     image_tags = "sha" if tag else "dev sha" if event["version"] and event["platform"] == "all" else "dev"
     linux = macos = windows = []
-    run = candidate(event, name, fetch) if tag else None
+    run = candidate(event, version, fetch) if tag else None
     if run is None and (tag or event["event_name"] == "workflow_dispatch"):
         linux, macos, windows = (platform_matrix(targets, system, event["platform"])
                                  for system in ("linux", "macos", "windows"))
+    # A new branch reports an all-zero before, which compares against nothing.
     elif run is None and event["before"] == ZERO:
         linux = [{"arch": "amd64"}]
     elif run is None:
         path = f"repos/{event['repo']}/compare/{event['before']}...{event['sha']}"
         files = listed(path, fetch(path), "files", {"filename": str})
         linux = [{"arch": "amd64"}] if any(not DOCS.search(file["filename"]) for file in files) else []
+    # Every platform packs the payload job's output, so any target calls for it.
     build = bool(linux or macos or windows)
     runtimes = linux_runtime(targets, linux)
     if build:
+        # The payload job runs PHP from the amd64 musl runtime, so any build compiles it.
         payload = [row for row in linux_runtime(targets, [{"arch": "amd64"}]) if row["libc"] == "musl"]
         runtimes += [row for row in payload if row not in runtimes]
         runtimes.sort(key=lambda row: (row["arch"], row["builder"], row["libc"], row["suffix"]))
     tests = [{"arch": row["arch"], "shard": f"{index}/{SHARDS[row['arch']]}", "results": f"macos-{row['arch']}-{index}",
               "variant": index == SHARDS[row["arch"]]} for row in macos for index in range(1, SHARDS[row["arch"]] + 1)]
-    return dict(zip(KEYS, (name, build, run, image_tags, linux, runtimes, macos, tests, windows)))
+    return {"version": version, "build": build, "candidate": run, "image_tags": image_tags, "linux": linux,
+            "linux_runtime": runtimes, "macos": macos, "macos_tests": tests, "windows": windows}
 
 
 def encode(key, value):
@@ -91,16 +97,22 @@ def main(argv):
         parser.add_argument("--" + flag, required=True)
     parser.add_argument("--output")
     args = parser.parse_args(argv)
-    print("Flags:", " ".join(f"--{name.replace('_', '-')} '{value}'" for name, value in vars(args).items() if value is not None))
+    print("Flags:", " ".join(f"--{name.replace('_', '-')} {shlex.quote(value)}" for name, value in vars(args).items() if name != "output"))
+    fetched = []
 
     def fetch(path):
         print("Fetching", path)
+        fetched.append(path)
         return json.loads(subprocess.run(["gh", "api", path], check=True, stdout=subprocess.PIPE).stdout)
 
     result = plan(vars(args), json.loads(Path(args.targets).read_text()), fetch)
+    # Artifacts are fetched only for a matching candidate, so a plan without one dropped it.
+    expired = [path for path in fetched if "/artifacts?" in path]
+    if expired and result["candidate"] is None:
+        print(f"The files of candidate run {expired[0].split('/')[5]} expired.")
     print(f"Publishing the files of candidate run {result['candidate']}." if result["candidate"] is not None
           else "Building." if result["build"] else "Nothing to build.")
-    lines = "".join(f"{key}={encode(key, result[key])}\n" for key in KEYS)
+    lines = "".join(f"{key}={encode(key, value)}\n" for key, value in result.items())
     print(lines, end="")
     if args.output:
         with open(args.output, "a") as output:

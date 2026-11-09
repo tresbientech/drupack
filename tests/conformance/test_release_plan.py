@@ -60,6 +60,9 @@ def with_expired(flags):
     return {"artifacts": [{"expired": flag} for flag in flags]}
 
 
+class Unscripted(Exception): ...  # a path the test did not script
+
+
 class Row(unittest.TestCase):
     def run_plan(self, event, responses={}):
         """The plan for event, with the paths fetched kept in self.fetched."""
@@ -67,6 +70,8 @@ class Row(unittest.TestCase):
 
         def fetch(path):
             self.fetched.append(path)
+            if path not in responses:
+                raise Unscripted(path)
             return copy.deepcopy(responses[path])
 
         return release_plan.plan(event, TARGETS, fetch)
@@ -149,12 +154,11 @@ class Push(Row):
 
 class LinuxRuntime(Row):
     def test_the_runtime_rows_follow_the_build_and_add_the_amd64_musl_payload(self):
-        rows = {
+        for label, (dispatched, expected) in {
             "an arm64 build adds the payload row": (dispatch(platform="linux-arm64"), [runtime("amd64", MUSL), runtime("arm64", GLIBC), runtime("arm64", MUSL)]),
             "an amd64 build has no duplicate row": (event(before="0" * 40), [runtime("amd64", GLIBC), runtime("amd64", MUSL)]),
             "a macos-only build still compiles the payload": (dispatch(platform="macos-amd64"), [runtime("amd64", MUSL)]),
-        }
-        for label, (dispatched, expected) in rows.items():
+        }.items():
             with self.subTest(label):
                 self.assertEqual(expected, self.run_plan(dispatched)["linux_runtime"])
 
@@ -164,21 +168,18 @@ class LinuxRuntime(Row):
 
 class MacosTests(Row):
     def test_each_architecture_takes_its_shards_and_the_last_runs_the_variant(self):
-        def shards(arch, count):
-            return [{"arch": arch, "shard": f"{index}/{count}", "results": f"macos-{arch}-{index}", "variant": index == count}
-                    for index in range(1, count + 1)]
-
-        rows = {"macos-amd64": shards("amd64", 4), "macos-arm64": shards("arm64", 1), "all": shards("amd64", 4) + shards("arm64", 1)}
-        for platform, expected in rows.items():
+        amd64 = [{"arch": "amd64", "shard": f"{i}/4", "results": f"macos-amd64-{i}", "variant": i == 4} for i in (1, 2, 3, 4)]
+        arm64 = [{"arch": "arm64", "shard": "1/1", "results": "macos-arm64-1", "variant": True}]
+        for platform, expected in {"macos-amd64": amd64, "macos-arm64": arm64, "all": amd64 + arm64}.items():
             with self.subTest(platform):
                 self.assertEqual(expected, self.run_plan(dispatch(platform=platform))["macos_tests"])
 
 
 class Failure(Row):
     def test_a_failed_fetch_stops_the_plan(self):
-        for label, planned in (("compare", event()), ("candidate lookup", TAG)):
-            with self.subTest(label), self.assertRaises(KeyError):
-                self.run_plan(planned, {})
+        for label, planned, responses in (("compare", event(), {}), ("runs", TAG, {}), ("artifacts", TAG, {RUNS_PATH: RUNS})):
+            with self.subTest(label), self.assertRaises(Unscripted):
+                self.run_plan(planned, responses)
 
     def test_a_response_of_another_shape_is_refused_naming_its_path(self):
         title = RUNS["workflow_runs"][0]["display_title"]

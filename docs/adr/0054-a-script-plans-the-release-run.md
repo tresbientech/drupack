@@ -30,6 +30,9 @@ rebuilt what it could have published.
 ## Consequences
 
 - A change to the plan fails a unit test before it fails a release.
-- A tag whose candidate lookup fails stops the gate instead of rebuilding.
+- A failed lookup of the candidate runs stops the gate. The bash read it as no
+  candidate and rebuilt.
+- A failed lookup of the candidate's artifacts stops the gate. The bash kept the
+  candidate.
 - The version rule copied in `build.yml` and `ci/drupack.gitlab-ci.yml` stays
   as it is. Site repositories run those copies.

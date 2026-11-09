@@ -6,8 +6,8 @@ import (
 	"fmt"
 )
 
-// targets.json is the one table of build targets. The release workflow and
-// build/release-files.py read the same file.
+// targets.json is the one table of build targets. The launcher,
+// build/release-plan.py and build/release-files.py read the same file.
 //
 //go:embed targets.json
 var targetsJSON []byte
