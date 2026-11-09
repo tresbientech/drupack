@@ -154,7 +154,13 @@ def main(argv):
         lock = suite_lock()  # held until this process exits
         # Emptied under the lock, so no other run is writing into it.
         reset_results(harness.RESULTS)
-        cache_dir = tempfile.mkdtemp(prefix="drupack-cache-")
+        # Windows %TEMP% can carry an ACL entry for another account, which the launcher's
+        # cache rule refuses; %LOCALAPPDATA% holds the launcher's own default cache.
+        run_root = tempfile.mkdtemp(prefix="drupack-cache-",
+                                    dir=os.environ["LOCALAPPDATA"] if os.name == "nt" else None)
+        cache_dir = os.path.join(run_root, "shared")
+        if os.name == "nt":
+            harness.CASE_CACHES = Path(run_root) / "cases"
         os.environ["DRUPACK_CACHE_DIR"] = cache_dir
         try:
             warm_cache()
@@ -162,7 +168,7 @@ def main(argv):
         finally:
             # A plain TemporaryDirectory cleanup would raise on a handle Windows has not yet
             # released, turning a green run red; harness.remove_cache_dir retries instead.
-            harness.remove_cache_dir(cache_dir, harness.WAITS["cache_cleanup"].seconds)
+            harness.remove_cache_dir(run_root, harness.WAITS["cache_cleanup"].seconds)
             if lock is not None:
                 lock.close()
     if program.result.skipped:

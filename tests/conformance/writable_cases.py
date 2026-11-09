@@ -30,7 +30,7 @@ class WritableDirectories(harness.ConformanceCase):
         cls.themes = next((directory for directory in harness.SITE["writable"]
                            if directory == themes or directory.startswith(themes + "/")), None)
         # clean empties the cache this case names, and no other case reads it.
-        cls.env = dict(os.environ, DRUPACK_CACHE_DIR=str(cls.class_dir / "cache"))
+        cls.env = dict(os.environ, DRUPACK_CACHE_DIR=str(harness.reserved_dir(cls.class_dir / "cache")))
 
     def setUp(self):
         if self.themes is None:

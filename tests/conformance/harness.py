@@ -209,11 +209,20 @@ def fresh_dir(path):
     return path
 
 
+# Set by __main__ on Windows to a folder under %LOCALAPPDATA%. The launcher refuses a cache
+# root a parent lets another account change, and a Windows runner's workspace inherits
+# Modify for Authenticated Users from its drive root.
+CASE_CACHES = None
+
+
 def reserved_dir(path):
     """Clear path without creating it, for a case that hands path to the launcher as a cache
-    root. runtime.Root() creates a missing root itself, at the private mode 0700 runtime.Exposure()
-    requires; a directory this process pre-created would carry the host umask instead.
+    root, and return it. runtime.Root() creates a missing root itself, at the private mode 0700
+    runtime.Exposure() requires; a directory this process pre-created would carry the host umask
+    instead. On Windows the root moves under CASE_CACHES, at its place below RESULTS.
     """
+    if CASE_CACHES is not None:
+        path = CASE_CACHES / path.relative_to(RESULTS)
     shutil.rmtree(path, ignore_errors=True)
     return path
 

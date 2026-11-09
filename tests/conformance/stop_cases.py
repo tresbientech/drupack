@@ -100,7 +100,7 @@ class StopCases(harness.ConformanceCase):
 
     def test_stop_unpacks_nothing(self):
         # The launcher creates the cache root owner-only, and refuses one any other user can read.
-        cache = self.case_dir / "cache"
+        cache = harness.reserved_dir(self.case_dir / "cache")
         result = harness.run([str(harness.BINARY), "stop", "--data-dir", str(self.case_dir / "never-made")],
                              cwd=self.case_dir, env={**os.environ, "DRUPACK_CACHE_DIR": str(cache)},
                              capture_output=True, text=True, timeout=harness.WAITS["refusal"].seconds)
