@@ -266,11 +266,7 @@ func asciiRoot(root, name string, notice io.Writer) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	mkdir := func(dir string) error {
-		_, err := claimRoot(dir)
-		return err
-	}
-	return resolveASCIIRoot(root, fallback, mkdir, shortPathName, notice)
+	return resolveASCIIRoot(root, fallback, claimRoot, shortPathName, notice)
 }
 
 // fallbackRoot names asciiRoot's temp rung. %TMP% and %TEMP% are policy- and reader-writable,

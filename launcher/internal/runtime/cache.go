@@ -38,7 +38,8 @@ const holdRetryInterval = 10 * time.Millisecond
 const usageName = ".inuse"
 
 // Root returns the cache directory a runtime unpacks into, creating it. A user-named
-// directory that refuses writes is reported, never swapped for another. On Windows, a root
+// directory that refuses writes is reported, never swapped for another. A refused candidate
+// before the one used gets one line to notice. On Windows, a root
 // PHP cannot read as ASCII falls to the temporary directory with one line to notice; a root
 // with no ASCII form anywhere stops the start.
 func Root(name string, notice io.Writer) (string, error) {
@@ -50,15 +51,18 @@ func Root(name string, notice io.Writer) (string, error) {
 		return asciiRoot(root, name, notice)
 	}
 
-	var lastErr error
+	var refused []error
 	for _, candidate := range cacheRoots(name) {
 		root, err := claimRoot(candidate)
 		if err == nil {
+			for _, earlier := range refused {
+				fmt.Fprintf(notice, "%s. Using %s instead.\n", earlier, root)
+			}
 			return asciiRoot(root, name, notice)
 		}
-		lastErr = err
+		refused = append(refused, err)
 	}
-	return "", lastErr
+	return "", refused[len(refused)-1]
 }
 
 // claimRoot creates dir and returns its real path once no other account can
@@ -88,17 +92,18 @@ func claimRoot(dir string) (string, error) {
 
 // resolveASCIIRoot returns the first candidate PHP startup can locate: root, then fallback.
 // PHP resolves its PHPRC-derived configuration path through the ANSI code page, so a root
-// outside it breaks extension loading. mkdir runs first because Windows allocates a short name
+// outside it breaks extension loading. claim creates and checks a candidate and returns the path
+// it checked, which the rest goes on from. It runs first because Windows allocates a short name
 // only for a path that exists. An ASCII candidate is returned untouched, since resolve also
 // rewrites a long ASCII segment. Falling to fallback writes one line to notice. Two exhausted
 // candidates stop the start, since a site missing its extensions is worse than a refused start.
-func resolveASCIIRoot(root, fallback string, mkdir func(string) error, resolve func(string) (string, error), notice io.Writer) (string, error) {
-	ascii, rootErr := asciiForm(root, mkdir, resolve)
+func resolveASCIIRoot(root, fallback string, claim func(string) (string, error), resolve func(string) (string, error), notice io.Writer) (string, error) {
+	ascii, rootErr := asciiForm(root, claim, resolve)
 	if rootErr == nil {
 		return ascii, nil
 	}
 
-	ascii, fallbackErr := asciiForm(fallback, mkdir, resolve)
+	ascii, fallbackErr := asciiForm(fallback, claim, resolve)
 	if fallbackErr == nil {
 		fmt.Fprintf(notice, "Could not use cache root %s: %s. Using %s instead.\n", root, rootErr, fallback)
 		return ascii, nil
@@ -110,10 +115,11 @@ func resolveASCIIRoot(root, fallback string, mkdir func(string) error, resolve f
 	)
 }
 
-// asciiForm creates candidate, then returns it when ASCII, or its resolved short name
-// when that is ASCII.
-func asciiForm(candidate string, mkdir func(string) error, resolve func(string) (string, error)) (string, error) {
-	if err := mkdir(candidate); err != nil {
+// asciiForm claims candidate, then returns the claimed path when ASCII, or its resolved
+// short name when that is ASCII.
+func asciiForm(candidate string, claim func(string) (string, error), resolve func(string) (string, error)) (string, error) {
+	candidate, err := claim(candidate)
+	if err != nil {
 		return "", err
 	}
 	if isASCII(candidate) {

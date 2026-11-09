@@ -109,12 +109,16 @@ func TestRootSkipsAUserCacheUnderAnOpenHome(t *testing.T) {
 	t.Setenv("DRUPACK_CACHE_DIR", "")
 	t.Setenv("XDG_CACHE_HOME", "")
 	t.Setenv("HOME", home)
-	root, err := runtimepkg.Root("acme", io.Discard)
+	var notice strings.Builder
+	root, err := runtimepkg.Root("acme", &notice)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.HasPrefix(root, home) {
 		t.Fatalf("Root used %s under an open home", root)
+	}
+	if !strings.Contains(notice.String(), home) || !strings.Contains(notice.String(), "Using "+root+" instead.") {
+		t.Errorf("the notice %q names neither the refused home nor the root used", notice.String())
 	}
 }
 
