@@ -30,7 +30,7 @@ func TestServed(t *testing.T) {
 		record    *state.Listener
 		raw       string
 		typed     state.Listener
-		noun      string // a row that names the project asks for the static plan
+		noun      string // "" for a row that calls no Plan
 		hasStatic bool
 		want      Address
 		plan      startPlan
