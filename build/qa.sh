@@ -36,6 +36,9 @@ docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e DRUPACK_CA_FILE=/opt/
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -w /src drupack-job \
     drupack-build --site "$demo" --platform "$platform" --libc glibc \
     --output dist --work "$work/work"
+# Each build's own test results take about 30 GB, which the runner's disk cannot hold
+# alongside the conformance results below. A failed build stops the script first.
+rm -rf "$work/work/test-results"
 # The variant fixture's build tests its glibc file. Its musl file's Node refusal and hub cases run below.
 variant_site=$(mktemp -d)
 trap 'rm -rf "$variant_site"' EXIT
@@ -43,6 +46,7 @@ bash build/variant-fixture.sh "$demo" "$variant_site"
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -v "$variant_site:/variant-site" -w /src drupack-job \
     drupack-build --site /variant-site --platform "$platform" --libc both \
     --output dist/variant --work "$work/variant-work"
+rm -rf "$work/variant-work/test-results"
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -w /src drupack-job \
     drupack-build --engine-executable --platform "$platform" --libc glibc --output dist/engine --work "$work/engine-work"
 
