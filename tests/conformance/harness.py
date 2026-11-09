@@ -265,6 +265,8 @@ def _run_pack(work, runtime_dir, version, output, name):
     output.parent.mkdir(parents=True, exist_ok=True)
     # pack builds for the host's operating system and the architecture Go builds for.
     goos, goarch = subprocess.run(["go", "env", "GOOS", "GOARCH"], check=True, capture_output=True, text=True).stdout.split()
+    # The Windows runtime is amd64 alone, and a Windows on Arm host runs it emulated.
+    target = "windows-amd64" if goos == "windows" else f"{'macos' if goos == 'darwin' else goos}-{goarch}"
     # An empty compressed archive, under a checksum of the version so two fixtures never share a cache entry.
     payload = work / "payload"
     payload.mkdir()
@@ -272,7 +274,7 @@ def _run_pack(work, runtime_dir, version, output, name):
     (payload / "app_checksum.txt").write_text(hashlib.sha256(version.encode()).hexdigest())
     (payload / "site.json").write_text(json.dumps({"name": name}))
     subprocess.run(
-        ["go", "run", "./cmd/pack", "-target", f"{'macos' if goos == 'darwin' else goos}-{goarch}", "-runtime", str(runtime_dir),
+        ["go", "run", "./cmd/pack", "-target", target, "-runtime", str(runtime_dir),
          "-payload", str(payload), "-version", version, "-output", str(output)],
         cwd=LAUNCHER_SRC, check=True, capture_output=True, text=True,
         timeout=WAITS["fixture_pack"].seconds,

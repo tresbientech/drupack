@@ -681,14 +681,9 @@ func TestOnlyATargetNodeBuildsForCarriesIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Pack decides from -target and the payload's node/ directory which file carries Node.
-	nodeDir := filepath.Join("/work", "payload", "node")
 	for name, target := range map[string]string{"pack linux-amd64": "linux-amd64", "pack linux-amd64-musl": "linux-amd64-musl"} {
-		command := step(t, plan, name).Command
-		if slices.Contains(command, "-node") || flag(t, plan, name, "-target") != target {
-			t.Errorf("%s = %v", name, command)
-		}
-		if slices.ContainsFunc(command, func(argument string) bool { return strings.HasPrefix(argument, nodeDir) }) {
-			t.Errorf("%s names a Node archive: %v", name, command)
+		if flag(t, plan, name, "-target") != target || flag(t, plan, name, "-payload") != filepath.Join("/work", "payload") {
+			t.Errorf("%s = %v", name, step(t, plan, name).Command)
 		}
 	}
 }

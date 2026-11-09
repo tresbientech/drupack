@@ -138,6 +138,7 @@ func TestASiteNamesNodeOnlyWhenItCarriesIt(t *testing.T) {
 	glibc := payloadDir(t, acmeNodeSite, "linux-amd64.tar.gz")
 	musl := payloadDir(t, acmeNodeSite)
 	missing := payloadDir(t, acmeNodeSite)
+	unnamed := payloadDir(t, acmeSite, "linux-amd64.tar.gz")
 	for _, row := range []struct {
 		name, target, directory, archive string
 		components                       string
@@ -145,6 +146,7 @@ func TestASiteNamesNodeOnlyWhenItCarriesIt(t *testing.T) {
 	}{
 		{"glibc carries", "linux-amd64", glibc, archive(glibc, "linux-amd64.tar.gz"), "Node 24.21.0\nDrupal 11.4.7\nDrush 13.8.0", false},
 		{"musl carries none", "linux-amd64-musl", musl, "", "Drupal 11.4.7\nDrush 13.8.0", false},
+		{"a site naming no Node carries none", "linux-amd64", unnamed, "", "Drupal 11.4.7\nDrush 13.8.0", false},
 		{"a missing archive fails", "linux-amd64", missing, "", "", true},
 	} {
 		got, err := resolve(options{target: row.target, payload: row.directory, version: "1.0.0"})

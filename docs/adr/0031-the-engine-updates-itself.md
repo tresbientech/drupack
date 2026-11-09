@@ -19,7 +19,7 @@ size and SHA-256.
   request. Composer and the site's publisher own those updates.
 - A version is newer by `X.Y.Z`, then by prerelease, with digit runs compared as
   numbers. A release older than the running file is never installed.
-- `pack -musl` stamps a musl file, so an update fetches the build the reader
+- `pack` stamps a file whose target names musl, so an update fetches the build the reader
   runs. The launcher cannot tell its libc at run time.
 - Windows moves the running file to `.old`, and a later run removes it.
 - Once a day an engine run starts `self-update --check` detached. The

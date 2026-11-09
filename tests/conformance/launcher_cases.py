@@ -32,9 +32,6 @@ NODE_PATTERN = re.compile(
 
 PROGRESS_PATTERN = re.compile(r"^  (\d+) of (\d+) MB$", re.MULTILINE)
 
-# The real launcher's entry file in a cache directory: what each platform's build packs.
-ENTRY = harness.ENTRY
-
 # Pinned like network_cases.py's copy: docker buildx imagetools inspect debian --format '{{.Manifest.Digest}}'
 DEBIAN_IMAGE = "debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171"
 
@@ -90,7 +87,7 @@ class ColdWarmStart(harness.ConformanceCase):
             if path.is_dir() and path.name not in NOT_RUNTIMES
         )
         self.assertTrue((self.cache / key / "manifest.json").is_file(), "the cache entry has no manifest.json")
-        self.assertTrue((self.cache / key / ENTRY).is_file(), f"the cache entry has no {ENTRY} executable")
+        self.assertTrue((self.cache / key / harness.ENTRY).is_file(), f"the cache entry has no {harness.ENTRY} executable")
         self.assertEqual(
             (self.cache / "active").read_text().strip(), key, "a cold start did not activate the runtime"
         )
@@ -311,7 +308,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
             "a first start did not forward arguments, environment and PHPRC",
         )
         self.assertFalse(data.exists(), "a first start wrote Site data")
-        self.assertTrue((entry1 / ENTRY).is_file(), "a first start did not extract the runtime")
+        self.assertTrue((entry1 / harness.ENTRY).is_file(), "a first start did not extract the runtime")
         manifest = json.loads((entry1 / "manifest.json").read_text())
         self.assertEqual(manifest["version"], "test-v1", "a first start did not persist the stored manifest")
 
@@ -339,7 +336,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
             _active_entry(cache), entry1, "a start with a stray pending file changed the active entry"
         )
 
-        with open(entry1 / ENTRY, "ab") as handle:
+        with open(entry1 / harness.ENTRY, "ab") as handle:
             handle.write(b"x")
         code, out, err = run(self.case_dir, fixture, "resized", "php-cli", "--site-name=resized", env=env)
         self.assertEqual(code, 0, f"a start past a resized entry exited non-zero: inspect {err}")
@@ -354,9 +351,9 @@ class WindowsLauncherCases(harness.ConformanceCase):
 
         # A running site holds its executable with shared read and delete access, the way
         # the Windows loader does; the re-stage must claim a name of its own instead.
-        with open(entry2 / ENTRY, "ab") as handle:
+        with open(entry2 / harness.ENTRY, "ab") as handle:
             handle.write(b"y")
-        held = _open_locked(entry2 / ENTRY, _FILE_SHARE_READ | _FILE_SHARE_DELETE)
+        held = _open_locked(entry2 / harness.ENTRY, _FILE_SHARE_READ | _FILE_SHARE_DELETE)
         try:
             code, out, err = run(self.case_dir, fixture, "held", "php-cli", "--site-name=held", env=env)
             self.assertEqual(code, 0, f"a start past a held entry exited non-zero: inspect {err}")
@@ -371,9 +368,9 @@ class WindowsLauncherCases(harness.ConformanceCase):
 
         # An exclusive handle blocks both rename and delete; the start still serves, since it
         # never touches the entry the handle holds.
-        with open(entry3 / ENTRY, "ab") as handle:
+        with open(entry3 / harness.ENTRY, "ab") as handle:
             handle.write(b"z")
-        exclusive = _open_locked(entry3 / ENTRY, 0)
+        exclusive = _open_locked(entry3 / harness.ENTRY, 0)
         try:
             code, out, err = run(self.case_dir, fixture, "exclusive", "php-cli", "--site-name=exclusive", env=env)
             self.assertEqual(code, 0, f"a start past an exclusive entry exited non-zero: inspect {err}")
@@ -434,7 +431,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
             active.startswith("vtest-v4-") or active.startswith("vtest-v5-"),
             f"active named neither concurrent release: {active}",
         )
-        self.assertTrue((cache / active / ENTRY).is_file(), "the active release directory is incomplete")
+        self.assertTrue((cache / active / harness.ENTRY).is_file(), "the active release directory is incomplete")
 
     def test_corrupted_payload_with_unreadable_stored_manifest_exits_nonzero(self):
         cache = harness.reserved_dir(self.case_dir / "cache")
