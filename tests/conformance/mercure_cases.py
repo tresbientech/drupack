@@ -1,8 +1,9 @@
-"""The Mercure hub a site's contract turns on: a request publishes through mercure_publish(),
-a subscriber that accepts gzip and holds a Mercure 1.0 access token signed with the Site
-data secret, in a header or a browser's cookie, receives it as it is published, a reconnect replays the history, a publisher token posts over HTTP, `drush` sees the hub's
-variables once a start created the secrets, and a site without the key serves no hub and
-writes no secret.
+"""The Mercure hub a site's contract turns on: a publisher token posts over HTTP, a
+subscriber that accepts gzip and holds a Mercure 1.0 access token signed with the Site
+data secret, in a header or a browser's cookie, receives it as it is published, a reconnect
+replays the history, `drush` sees the hub's variables once a start created the secrets, and
+a site without the key serves no hub and writes no secret. The cases post rather than call
+mercure_publish(), which needs a PHP file in the site; engine_cases.py covers that call.
 """
 
 import base64
@@ -44,6 +45,26 @@ def token(secret, port, action, scheme="http"):
         "authorization_details": [{"type": "https://mercure.rocks/authorization-detail",
                                    "actions": [action], "topics": [{"match": TOPIC}]}],
     })
+
+
+def post(port, secret, data, context=None):
+    """Posts data to TOPIC as a private update with a publisher token, and returns its id."""
+    timeout = harness.WAITS["http_request"].seconds
+    if context is None:
+        connection, scheme = http.client.HTTPConnection("localhost", port, timeout=timeout), "http"
+    else:
+        connection, scheme = http.client.HTTPSConnection("localhost", port, timeout=timeout, context=context), "https"
+    try:
+        connection.request("POST", HUB, body=urlencode({"topic": TOPIC, "data": data, "private": "on"}), headers={
+            "Authorization": f"Bearer {token(secret, port, 'publish', scheme)}",
+            "Content-Type": "application/x-www-form-urlencoded"})
+        response = connection.getresponse()
+        update = response.read().decode()
+        if response.status != 200:
+            raise AssertionError(f"the hub answered the post with {response.status}: {update!r}")
+        return update
+    finally:
+        connection.close()
 
 
 class Stream:
@@ -108,21 +129,8 @@ class MercureHub(harness.ConformanceCase):
         return token(self.secret("mercure_subscriber_secret"), self.site.port, "subscribe")
 
     def publish(self, data):
-        """Publishes data through the probe, which calls mercure_publish(), and returns the update's id."""
-        status, _, body = self.site.fetch(f"/mercure-probe.php?data={data}")
-        self.assertEqual(status, 200, body)
-        return body
-
-    def test_a_subscriber_receives_what_a_request_publishes(self):
-        stream = Stream(self.site.port, self.subscriber_token())
-        try:
-            self.assertEqual(stream.response.status, 200)
-            # The hub opens every stream with a comment line, so the subscription exists before the publish.
-            stream.read_until(":")
-            update = self.publish("live")
-            stream.read_until(f"id: {update}\ndata: live\n")
-        finally:
-            stream.close()
+        """Posts data with the Site data publisher secret, and returns the update's id."""
+        return post(self.site.port, self.secret("mercure_publisher_secret"), data)
 
     def test_a_browser_subscribes_with_the_token_in_a_cookie(self):
         stream = Stream(self.site.port, self.subscriber_token(), cookie=True)
@@ -171,18 +179,13 @@ class MercureHub(harness.ConformanceCase):
 
     def test_an_http_publish_reaches_a_subscriber(self):
         stream = Stream(self.site.port, self.subscriber_token())
-        connection = http.client.HTTPConnection("localhost", self.site.port, timeout=harness.WAITS["http_request"].seconds)
         try:
+            self.assertEqual(stream.response.status, 200)
+            # The hub opens every stream with a comment line, so the subscription exists before the publish.
             stream.read_until(":")
-            bearer = token(self.secret("mercure_publisher_secret"), self.site.port, "publish")
-            connection.request("POST", HUB, body=urlencode({"topic": TOPIC, "data": "posted", "private": "on"}),
-                               headers={"Authorization": f"Bearer {bearer}", "Content-Type": "application/x-www-form-urlencoded"})
-            response = connection.getresponse()
-            update = response.read().decode()
-            self.assertEqual(response.status, 200, update)
+            update = self.publish("posted")
             stream.read_until(f"id: {update}\ndata: posted\n")
         finally:
-            connection.close()
             stream.close()
 
     def test_drush_sees_the_hub_variables(self):
@@ -217,7 +220,7 @@ class MercureHub(harness.ConformanceCase):
 
 class MercureHubHttps(harness.ConformanceCase):
     """The hub of a site serving HTTPS from a trusted local root names https, and a
-    subscriber over TLS receives what a request publishes."""
+    subscriber over TLS receives what a publisher posts over TLS."""
 
     PLATFORMS = (harness.LINUX,)
     TOOLS = ("openssl",)
@@ -250,14 +253,13 @@ class MercureHubHttps(harness.ConformanceCase):
                              cwd=self.class_dir, capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
         self.assertEqual(result.stdout.strip(), "0 401", result.stderr)
 
-    def test_a_subscriber_over_https_receives_what_a_request_publishes(self):
+    def test_a_subscriber_over_https_receives_a_post(self):
         secret = (self.data / "mercure_subscriber_secret").read_text()
         stream = Stream(self.site.port, token(secret, self.site.port, "subscribe", "https"), context=self.context)
         try:
             self.assertEqual(stream.response.status, 200)
             stream.read_until(":")
-            status, _, update = self.site.fetch("/mercure-probe.php?data=secure")
-            self.assertEqual(status, 200, update)
+            update = post(self.site.port, (self.data / "mercure_publisher_secret").read_text(), "secure", self.context)
             stream.read_until(f"id: {update}\ndata: secure\n")
         finally:
             stream.close()
