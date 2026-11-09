@@ -31,6 +31,8 @@ ARTIFACTS_PATH = f"repos/{REPO}/actions/runs/{CANDIDATE}/artifacts?per_page=100"
 COMPARE_PATH = f"repos/{REPO}/compare/{BEFORE}...{SHA}"
 
 AMD64 = [{"arch": "amd64"}]
+BOTH = AMD64 + [{"arch": "arm64"}]
+MACOS = [{"arch": "amd64", "suite": False}, {"arch": "arm64", "suite": True}]
 GLIBC = {"builder": "gnu", "libc": "glibc", "suffix": ""}
 MUSL = {"builder": "musl", "libc": "musl", "suffix": "-musl"}
 
@@ -84,7 +86,6 @@ class Row(unittest.TestCase):
 class Tag(Row):
     def test_a_tag_picks_its_candidate_from_the_recorded_runs(self):
         other = event(ref_type="tag", ref_name="1.0.0-beta16")
-        both = [{"arch": "amd64"}, {"arch": "arm64"}]
         both_fetches = [RUNS_PATH, ARTIFACTS_PATH]
         rows = {
             "no candidate": (TAG, {RUNS_PATH: {"workflow_runs": []}}, None, [RUNS_PATH]),
@@ -100,7 +101,7 @@ class Tag(Row):
                 self.assertEqual(fetched, self.fetched)
                 if candidate is None:
                     self.assertTrue(result["build"])
-                    self.assertEqual((both, both, AMD64), (result["linux"], result["macos"], result["windows"]))
+                    self.assertEqual((BOTH, MACOS, AMD64), (result["linux"], result["macos"], result["windows"]))
                 else:
                     self.assertNotBuilding(result)
 
@@ -113,11 +114,10 @@ class Tag(Row):
 
 class Dispatch(Row):
     def test_a_dispatch_plans_without_a_fetch(self):
-        both = [{"arch": "amd64"}, {"arch": "arm64"}]
         rows = {
-            "a named dispatch on all builds every platform": (dispatch(version="2.0.0"), "2.0.0", "dev sha", both, both, AMD64),
-            "a named dispatch on one platform builds it alone": (dispatch(version="2.0.0", platform="macos-arm64"), "2.0.0", "dev", [], [{"arch": "arm64"}], []),
-            "an unnamed dispatch takes the commit for its version": (dispatch(before=""), "dev-" + SHA[:12], "dev", both, both, AMD64),
+            "a named dispatch on all builds every platform": (dispatch(version="2.0.0"), "2.0.0", "dev sha", BOTH, MACOS, AMD64),
+            "a named dispatch on one platform builds it alone": (dispatch(version="2.0.0", platform="macos-arm64"), "2.0.0", "dev", [], MACOS[1:], []),
+            "an unnamed dispatch takes the commit for its version": (dispatch(before=""), "dev-" + SHA[:12], "dev", BOTH, MACOS, AMD64),
         }
         for label, (dispatched, version, image_tags, linux, macos, windows) in rows.items():
             with self.subTest(label):
@@ -167,10 +167,9 @@ class LinuxRuntime(Row):
 
 
 class MacosTests(Row):
-    def test_each_architecture_takes_its_shards_and_the_last_runs_the_variant(self):
+    def test_an_architecture_with_several_shares_takes_a_row_each_and_the_last_runs_the_variant(self):
         amd64 = [{"arch": "amd64", "shard": f"{i}/4", "results": f"macos-amd64-{i}", "variant": i == 4} for i in (1, 2, 3, 4)]
-        arm64 = [{"arch": "arm64", "shard": "1/1", "results": "macos-arm64-1", "variant": True}]
-        for platform, expected in {"macos-amd64": amd64, "macos-arm64": arm64, "all": amd64 + arm64}.items():
+        for platform, expected in {"macos-amd64": amd64, "macos-arm64": [], "all": amd64}.items():
             with self.subTest(platform):
                 self.assertEqual(expected, self.run_plan(dispatch(platform=platform))["macos_tests"])
 
