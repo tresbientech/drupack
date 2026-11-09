@@ -82,7 +82,7 @@ func startSite(l Launch, c command) error {
 		}
 		return filepath.Join(cwd, path)
 	}
-	e := environ{entries: environment(l), fold: l.FoldCase}
+	e := environ{entries: Facts{Launch: l}.Env(Reader), fold: l.FoldCase}
 	var inputs []string
 	for _, name := range startInputs {
 		if value := c.options[name]; value != "" {

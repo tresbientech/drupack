@@ -142,7 +142,7 @@ func runInFolder(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
-	e := environ{entries: environment(l), fold: l.FoldCase}
+	e := environ{entries: Facts{Launch: l}.Env(Reader), fold: l.FoldCase}
 	var call Command
 	switch {
 	case c.word == "drush" && l.Engine:

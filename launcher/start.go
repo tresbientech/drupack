@@ -170,7 +170,7 @@ func startEngine(l Launch, c command) error {
 	if err := caddyfile.RefuseBraces("The docroot", docroot); err != nil {
 		return err
 	}
-	e := environ{entries: environment(l), fold: l.FoldCase}
+	e := environ{entries: Facts{Launch: l}.Env(Reader), fold: l.FoldCase}
 	var probe struct {
 		// Installed is nil when the probe cannot tell, such as for a database it cannot reach.
 		Installed *bool `json:"installed"`

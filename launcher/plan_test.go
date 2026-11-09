@@ -53,7 +53,7 @@ func TestPlanRunsNode(t *testing.T) {
 	}
 }
 
-func TestPlanEnvironment(t *testing.T) {
+func TestEnvReader(t *testing.T) {
 	path := string(os.PathListSeparator)
 	for _, c := range []struct {
 		name  string
