@@ -30,8 +30,14 @@ the site. A link that points elsewhere is left out, and the build log names it.
 
 The build stops when the copied files hold a credential, and names every one:
 
-- `auth.json`
-- `.env`, and any `.env.*` other than `.env.example` and `.env.dist`
+- `auth.json`, `secrets.json`, and any name ending in `credentials.json`
+- `.env`, any name starting or ending with `.env`, apart from the templates
+  `.env.example`, `.env.dist`, `.env.defaults`, `.env.sample` and
+  `.env.template`, with `.` or `-` after `.env`
+- `.git-credentials`, `.netrc`, `.npmrc`, `.pypirc`, `.s3cfg` and `.boto`
+- the SSH private keys `id_rsa`, `id_dsa`, `id_ecdsa` and `id_ed25519`
+- any file under `.aws/`, plus `.docker/config.json`, `.kube/config`,
+  `.claude/settings.local.json` and `.vscode/sftp.json`
 - a `.key` or `.pem` file holding a private key
 
 Add each to `.gitignore`, or delete it. The top-level `vendor/` is not checked,

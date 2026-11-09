@@ -961,7 +961,10 @@ func stageFiles(t *testing.T, files map[string]string) error {
 const privateKey = "-----BEGIN PRIVATE KEY-----\nMIIB\n-----END PRIVATE KEY-----\n"
 
 func TestStagingRefusesCredentials(t *testing.T) {
-	for _, name := range []string{"auth.json", ".env", ".env.local", "web/.env.production", "certs/site.pem", "certs/site.key"} {
+	for _, name := range []string{"auth.json", ".env", ".env.local", "web/.env.production", ".env~", ".env1", "config.env",
+		"certs/site.pem", "certs/site.key", "secrets.json", "gcp-credentials.json", ".git-credentials", ".netrc", ".npmrc",
+		".pypirc", ".s3cfg", ".boto", "keys/id_rsa", ".ssh/id_ed25519", ".aws/credentials", "deploy/.aws/config",
+		".docker/config.json", ".kube/config", ".claude/settings.local.json", "web/.vscode/sftp.json"} {
 		t.Run(name, func(t *testing.T) {
 			err := stageFiles(t, map[string]string{name: privateKey, "keep.txt": "kept"})
 			if err == nil || !strings.Contains(err.Error(), ": "+name+". Add each to .gitignore") {
@@ -977,11 +980,18 @@ func TestStagingRefusesCredentials(t *testing.T) {
 
 func TestStagingKeepsFilesThatHoldNoCredential(t *testing.T) {
 	err := stageFiles(t, map[string]string{
-		".env.example":         "A=",
-		".env.dist":            "A=",
-		"certs/ca.pem":         "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n",
-		"vendor/acme/.env":     "A=1",
-		"vendor/acme/test.key": privateKey,
+		".env.example": "A=",
+		".env.dist":    "A=",
+		"web/modules/contrib/canvas/.env.defaults": "A=",
+		".env.sample":           "A=",
+		".env.template":         "A=",
+		".env-example":          "A=",
+		".ssh/id_rsa.pub":       "ssh-ed25519 AAAA",
+		".claude/settings.json": "{}",
+		"docker/config.json":    "{}",
+		"certs/ca.pem":          "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n",
+		"vendor/acme/.env":      "A=1",
+		"vendor/acme/test.key":  privateKey,
 	})
 	if err != nil {
 		t.Fatalf("staging = %v, want no refusal", err)
