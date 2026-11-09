@@ -33,7 +33,7 @@ NODE_PATTERN = re.compile(
 PROGRESS_PATTERN = re.compile(r"^  (\d+) of (\d+) MB$", re.MULTILINE)
 
 # The real launcher's entry file in a cache directory: what each platform's build packs.
-ENTRY = "frankenphp.exe" if harness.current_platform() == harness.WINDOWS else "drupack"
+ENTRY = harness.ENTRY
 
 # Pinned like network_cases.py's copy: docker buildx imagetools inspect debian --format '{{.Manifest.Digest}}'
 DEBIAN_IMAGE = "debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171"
@@ -296,7 +296,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
     def test_forwards_arguments_environment_and_phprc_then_restages_past_locked_handles(self):
         cache = harness.reserved_dir(self.case_dir / "cache")
         env = dict(os.environ, DRUPACK_CACHE_DIR=str(cache), DRUPACK_TEST_VALUE="forwarded")
-        fixture = harness.pack_fixture(ENTRY, "test-v1", self.case_dir / "fixture")
+        fixture = harness.pack_fixture("test-v1", self.case_dir / "fixture")
         data = self.case_dir / "data"
 
         code, out, err = run(self.case_dir, fixture, "first", "php-cli", "--data-dir", str(data), "--site-name", "alpha", "--admin-user", "beta", env=env)
@@ -392,8 +392,8 @@ class WindowsLauncherCases(harness.ConformanceCase):
     def test_concurrent_starts_of_different_releases_each_run_their_own_runtime(self):
         cache = harness.reserved_dir(self.case_dir / "cache")
         env = dict(os.environ, DRUPACK_CACHE_DIR=str(cache))
-        fixture_c = harness.pack_fixture(ENTRY, "test-v4", self.case_dir / "fixture-c")
-        fixture_d = harness.pack_fixture(ENTRY, "test-v5", self.case_dir / "fixture-d")
+        fixture_c = harness.pack_fixture("test-v4", self.case_dir / "fixture-c")
+        fixture_d = harness.pack_fixture("test-v5", self.case_dir / "fixture-d")
 
         started = []
         for label, fixture, arg in (("c", fixture_c, "from-c"), ("d", fixture_d, "from-d")):
@@ -439,14 +439,14 @@ class WindowsLauncherCases(harness.ConformanceCase):
     def test_corrupted_payload_with_unreadable_stored_manifest_exits_nonzero(self):
         cache = harness.reserved_dir(self.case_dir / "cache")
         env = dict(os.environ, DRUPACK_CACHE_DIR=str(cache))
-        good = harness.pack_fixture(ENTRY, "test-v6", self.case_dir / "fixture-good")
+        good = harness.pack_fixture("test-v6", self.case_dir / "fixture-good")
         code, _, err = run(self.case_dir, good, "install", "--help", env=env)
         self.assertEqual(code, 0, f"installing the good version exited non-zero: inspect {err}")
         good_key = (cache / "active").read_text().strip()
 
         (cache / good_key / "manifest.json").write_text("{}")
 
-        broken = harness.pack_corrupted_fixture(ENTRY, "test-v7", self.case_dir / "fixture-broken")
+        broken = harness.pack_corrupted_fixture("test-v7", self.case_dir / "fixture-broken")
         code, out, err = run(self.case_dir, broken, "untrusted", "--site-name=untrusted", env=env)
         self.assertNotEqual(code, 0, "a corrupted payload with an unreadable stored manifest exited zero")
         self.assertNotIn(
@@ -521,7 +521,7 @@ class SiteNamedCaches(harness.ConformanceCase):
         env = {key: value for key, value in os.environ.items() if key != "DRUPACK_CACHE_DIR"}
         env["XDG_CACHE_HOME"] = str(cache_home)
         sites = {
-            name: harness.pack_fixture(ENTRY, f"test-{name}", case_dir / name, name=name)
+            name: harness.pack_fixture(f"test-{name}", case_dir / name, name=name)
             for name in ("alpha", "beta")
         }
         for name, fixture in sites.items():

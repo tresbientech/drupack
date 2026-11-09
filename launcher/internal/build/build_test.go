@@ -54,10 +54,20 @@ func step(t *testing.T, plan build.Plan, name string) build.Step {
 	return build.Step{}
 }
 
-func packed(t *testing.T, plan build.Plan, name string) (string, string) {
+// flag returns the value of the pack command's flag.
+func flag(t *testing.T, plan build.Plan, name, flag string) string {
 	t.Helper()
 	command := step(t, plan, name).Command
-	return command[slices.Index(command, "-runtime")+1], command[slices.Index(command, "-output")+1]
+	index := slices.Index(command, flag)
+	if index < 0 {
+		t.Fatalf("%s: %v has no %s", name, command, flag)
+	}
+	return command[index+1]
+}
+
+func packed(t *testing.T, plan build.Plan, name string) (string, string) {
+	t.Helper()
+	return flag(t, plan, name, "-runtime"), flag(t, plan, name, "-output")
 }
 
 func packSteps(plan build.Plan) []string {
@@ -100,9 +110,12 @@ func TestEachFileCarriesTheRuntimeOfItsLibc(t *testing.T) {
 			t.Errorf("%s packs %s to %s; want %s to %s", name, runtime, output, want[0], want[1])
 		}
 	}
-	for name, want := range map[string]bool{"pack linux-arm64": false, "pack linux-arm64-musl": true} {
-		if got := slices.Contains(step(t, plan, name).Command, "-musl"); got != want {
-			t.Errorf("%s passes -musl: %t; want %t", name, got, want)
+	for name, want := range map[string]string{"pack linux-arm64": "linux-arm64", "pack linux-arm64-musl": "linux-arm64-musl"} {
+		if got := flag(t, plan, name, "-target"); got != want {
+			t.Errorf("%s passes -target %s; want %s", name, got, want)
+		}
+		if got := flag(t, plan, name, "-payload"); got != filepath.Join("/work", "payload") {
+			t.Errorf("%s passes -payload %s", name, got)
 		}
 	}
 }
@@ -126,7 +139,7 @@ func TestEveryFileIsPackedAndOnlyTheHostGlibcFileIsTested(t *testing.T) {
 	}
 	pack := strings.Join(step(t, plan, "pack linux-arm64").Command, " ")
 	for _, want := range []string{
-		"-goarch arm64", "-output " + filepath.Join("/out", "acme-linux-arm64"), "-site-version 1.4.0", "-version 0.3.0",
+		"-target linux-arm64", "-payload " + filepath.Join("/work", "payload"), "-output " + filepath.Join("/out", "acme-linux-arm64"), "-site-version 1.4.0", "-version 0.3.0",
 	} {
 		if !strings.Contains(pack, want) {
 			t.Errorf("the arm64 pack command lacks %q: %s", want, pack)
@@ -667,20 +680,16 @@ func TestOnlyATargetNodeBuildsForCarriesIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	glibc := step(t, plan, "pack linux-amd64").Command
-	if index := slices.Index(glibc, "-node"); index < 0 || glibc[index+1] != filepath.Join("/work", "node", "linux-amd64.tar.gz") {
-		t.Errorf("the glibc pack command %v does not carry the Node archive", glibc)
-	}
-	if musl := step(t, plan, "pack linux-amd64-musl").Command; slices.Contains(musl, "-node") {
-		t.Errorf("the musl pack command %v carries Node", musl)
-	}
-	r.Site.Node = ""
-	plan, err = build.NewPlan(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if glibc := step(t, plan, "pack linux-amd64").Command; slices.Contains(glibc, "-node") {
-		t.Errorf("a site without Node packs %v", glibc)
+	// Pack decides from -target and the payload's node/ directory which file carries Node.
+	nodeDir := filepath.Join("/work", "payload", "node")
+	for name, target := range map[string]string{"pack linux-amd64": "linux-amd64", "pack linux-amd64-musl": "linux-amd64-musl"} {
+		command := step(t, plan, name).Command
+		if slices.Contains(command, "-node") || flag(t, plan, name, "-target") != target {
+			t.Errorf("%s = %v", name, command)
+		}
+		if slices.ContainsFunc(command, func(argument string) bool { return strings.HasPrefix(argument, nodeDir) }) {
+			t.Errorf("%s names a Node archive: %v", name, command)
+		}
 	}
 }
 
@@ -688,9 +697,9 @@ func TestAPayloadOnlyBuildExportsTheNodeArchiveOfEachPayloadTarget(t *testing.T)
 	r := request([]string{"linux-amd64"}, "both")
 	r.Runtimes, r.PayloadOnly, r.Site.Node = nil, true, "24"
 	r.Work, r.Output = t.TempDir(), t.TempDir()
-	for _, name := range []string{"payload/app-payload.tar.zst", "payload/app_checksum.txt", "app/site.json",
-		"node/linux-amd64.tar.gz", "node/linux-arm64.tar.gz",
-		"node/macos-amd64.tar.gz", "node/macos-arm64.tar.gz", "node/windows-amd64.zip"} {
+	for _, name := range []string{"payload/app-payload.tar.zst", "payload/app_checksum.txt", "payload/site.json",
+		"payload/node/linux-amd64.tar.gz", "payload/node/linux-arm64.tar.gz",
+		"payload/node/macos-amd64.tar.gz", "payload/node/macos-arm64.tar.gz", "payload/node/windows-amd64.zip"} {
 		path := filepath.Join(r.Work, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
@@ -707,7 +716,7 @@ func TestAPayloadOnlyBuildExportsTheNodeArchiveOfEachPayloadTarget(t *testing.T)
 		t.Fatal(err)
 	}
 	for _, name := range []string{"linux-amd64.tar.gz", "linux-arm64.tar.gz", "macos-amd64.tar.gz", "macos-arm64.tar.gz", "windows-amd64.zip"} {
-		if content, err := os.ReadFile(filepath.Join(r.Output, "payload", "node", name)); err != nil || string(content) != "node/"+name {
+		if content, err := os.ReadFile(filepath.Join(r.Output, "payload", "node", name)); err != nil || string(content) != "payload/node/"+name {
 			t.Errorf("payload/node/%s = %q, %v", name, content, err)
 		}
 	}
@@ -716,7 +725,7 @@ func TestAPayloadOnlyBuildExportsTheNodeArchiveOfEachPayloadTarget(t *testing.T)
 // listed runs the plan's export and list steps over a written payload and returns the native targets.
 func listed(t *testing.T, r build.Request, plan build.Plan) string {
 	t.Helper()
-	for _, name := range []string{"payload/app-payload.tar.zst", "payload/app_checksum.txt", "app/site.json"} {
+	for _, name := range []string{"payload/app-payload.tar.zst", "payload/app_checksum.txt", "payload/site.json"} {
 		path := filepath.Join(r.Work, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
@@ -834,8 +843,8 @@ func TestANativeBuildRefusesAddedExtensionsNamingBoth(t *testing.T) {
 func TestANativeBuildExportsTheNodeArchiveOfEachNativeTarget(t *testing.T) {
 	r := nativeRequest(t, "linux-amd64", "macos-arm64", "windows-amd64")
 	r.Site.Node = "24"
-	for _, name := range []string{"payload/app-payload.tar.zst", "payload/app_checksum.txt", "app/site.json",
-		"node/linux-amd64.tar.gz", "node/macos-arm64.tar.gz", "node/windows-amd64.zip"} {
+	for _, name := range []string{"payload/app-payload.tar.zst", "payload/app_checksum.txt", "payload/site.json",
+		"payload/node/linux-amd64.tar.gz", "payload/node/macos-arm64.tar.gz", "payload/node/windows-amd64.zip"} {
 		path := filepath.Join(r.Work, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
@@ -877,11 +886,10 @@ func TestBothFilesOfOneSitePackFromOneCompressedPayload(t *testing.T) {
 	}
 	var apps []string
 	for _, name := range packSteps(plan) {
-		command := step(t, plan, name).Command
-		apps = append(apps, command[slices.Index(command, "-app")+1])
+		apps = append(apps, flag(t, plan, name, "-payload"))
 	}
-	if len(apps) != 2 || apps[0] != apps[1] || filepath.Base(apps[0]) != build.PayloadName {
-		t.Fatalf("the pack steps take %v; want one %s", apps, build.PayloadName)
+	if len(apps) != 2 || apps[0] != apps[1] || apps[0] != filepath.Join("/work", "payload") {
+		t.Fatalf("the pack steps take %v; want one payload directory", apps)
 	}
 }
 
@@ -893,6 +901,13 @@ func TestCompressingWritesOneZstdCopyOfTheTar(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(payload, "app-payload.tar"), []byte("an application"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	application := filepath.Join(r.Work, "app")
+	if err := os.MkdirAll(application, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := siteconfig.Write(r.Site, application); err != nil {
 		t.Fatal(err)
 	}
 	plan, err := build.NewPlan(r)
@@ -913,6 +928,9 @@ func TestCompressingWritesOneZstdCopyOfTheTar(t *testing.T) {
 	defer decoder.Close()
 	if got, _ := io.ReadAll(decoder); string(got) != "an application" {
 		t.Fatalf("the payload holds %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(payload, siteconfig.OutputName)); err != nil {
+		t.Errorf("the payload directory lacks the site.json: %v", err)
 	}
 }
 

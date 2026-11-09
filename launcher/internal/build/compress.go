@@ -8,11 +8,12 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// Names of the application payload's files: build/app-payload.sh writes the tar and the
-// checksum, compressPayload the compressed copy every pack step carries.
+// Names in the application payload: build/app-payload.sh writes the tar and the checksum,
+// compressPayload the compressed copy every pack step carries, NodeDirName holds Node.
 const (
 	PayloadName    = "app-payload.tar.zst"
 	ChecksumName   = "app_checksum.txt"
+	NodeDirName    = "node"
 	payloadTarName = "app-payload.tar"
 )
 
