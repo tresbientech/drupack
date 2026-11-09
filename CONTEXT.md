@@ -78,7 +78,10 @@ An environment variable that selects the default Site data directory for a Packa
 The Drupack and Drupal versions that last served a Site data directory.
 
 **Listener record**:
-The listen address, static listener address, permitted host and scheme the last start served, and the Files directory it named, held in Site data.
+The listen address, static listener address, permitted host and scheme the last start served, and the Files directory it named, held in Site data. `Served` is its only reader.
+
+**Served address**:
+What the last start served, read from the Listener record with the reader's typed values first, then the record, then the default. It holds the bind address and port, and `Plan` gives the static listener.
 
 **Site host**:
 A site's own host name, `<label>.drupack.site`, whose public DNS answers `127.0.0.1`. The label comes from `composer.json` `extra.drupack.subdomain`, otherwise from the Site contract's name or the Project folder's name. A start's URL names it when the resolver answers it with `127.0.0.1`.
