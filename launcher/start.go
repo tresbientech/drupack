@@ -170,12 +170,12 @@ func startEngine(l Launch, c command) error {
 	if err := caddyfile.RefuseBraces("The docroot", docroot); err != nil {
 		return err
 	}
-	e := environ{entries: Facts{Launch: l}.Env(Reader), fold: l.FoldCase}
+	f := Facts{Launch: l}
 	var probe struct {
 		// Installed is nil when the probe cannot tell, such as for a database it cannot reach.
 		Installed *bool `json:"installed"`
 	}
-	if err := operate(l, e.entries, &probe, false, "check", "folder", project, docroot); err != nil {
+	if err := operate(l, f.Env(Operate), &probe, false, "check", "folder", project, docroot); err != nil {
 		return err
 	}
 	choice, err := tls.Choose(l.TLSDir, bind, cmp.Or(composer.Subdomain, path.Base(project)), bind, "")
@@ -189,7 +189,7 @@ func startEngine(l Launch, c command) error {
 	entry := state.FolderEntry(l.Root, project, l.FoldCase)
 	staticRoot := ""
 	if plan.Static != nil {
-		if staticRoot, err = engineStaticRoot(l, e.entries, project, docroot, entry.Path()); err != nil {
+		if staticRoot, err = engineStaticRoot(l, f.Env(Operate), project, docroot, entry.Path()); err != nil {
 			return err
 		}
 	}
@@ -209,11 +209,11 @@ func startEngine(l Launch, c command) error {
 	if err := entry.ClearStopRecord(); err != nil {
 		return err
 	}
-	if err := storeBundle(&e, entry, choice); err != nil {
+	if f.CAFile, err = storeBundle(f, entry, choice); err != nil {
 		return err
 	}
 	url := strings.TrimSuffix(plan.URL, "/")
-	link, install, err := entrance(l, e.entries, project, probe.Installed, url)
+	link, install, err := entrance(l, f.Env(Drush), project, probe.Installed, url)
 	if err != nil {
 		return err
 	}
@@ -230,12 +230,9 @@ func startEngine(l Launch, c command) error {
 	fmt.Fprintf(os.Stdout, "  Project: %s\n", project)
 	fmt.Fprint(os.Stdout, nameHint(choice), trustHint(l, choice))
 	fmt.Fprintln(os.Stdout, "Starting the web server.")
-	// The server opens no browser, so a value inherited from an earlier start is cleared.
-	e.drop("DRUPACK_RUNTIME_OPEN")
 	entryPath := runtime.Canonical(entry.Path())
-	var hub *caddyfile.Mercure
 	if composer.Mercure {
-		if hub, err = serveHub(&e, entry, plan, entryPath+"/mercure.db"); err != nil {
+		if f.Hub, err = serveHub(entry, plan, entryPath+"/mercure.db"); err != nil {
 			return err
 		}
 	}
@@ -243,16 +240,13 @@ func startEngine(l Launch, c command) error {
 	if err := entry.WriteListener(plan.record()); err != nil {
 		return err
 	}
-	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: docroot, Mercure: hub}
+	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: docroot, Mercure: f.Hub}
 	if plan.Static != nil {
 		// The server creates no export directory.
 		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: staticRoot, Dynamic: composer.Static.Dynamic}
 	}
-	// Drush's, Tome's and a request's child processes run the php on PATH, which bin/ points
-	// back at this runtime.
-	searchPath, _ := e.get("PATH")
-	e.put("PATH=" + filepath.Join(l.Application, "bin") + string(os.PathListSeparator) + searchPath)
-	return execServer(l, e, entry, lease, config, choice, plan, project, l.Args[0], project)
+	f.Bin = l.Application
+	return execServer(f, entry, lease, config, choice, plan, project, l.Args[0], project)
 }
 
 // engineStaticRoot returns the directory Tome exports into: the project's tome_static_directory,
@@ -269,22 +263,20 @@ func engineStaticRoot(l Launch, env []string, project, docroot, cacheEntry strin
 	return checkStaticRoot(root, []string{docroot, cacheEntry}, l.FoldCase)
 }
 
-// serveHub creates dir's Mercure secrets and gives the server and its children
-// the hub's address and secrets. db is the hub's database file.
-func serveHub(e *environ, dir state.Dir, plan startPlan, db string) (*caddyfile.Mercure, error) {
+// serveHub creates dir's Mercure secrets and returns the hub the server runs.
+// db is the hub's database file.
+func serveHub(dir state.Dir, plan startPlan, db string) (*caddyfile.Mercure, error) {
 	publisher, subscriber, err := dir.CreateMercureSecrets()
 	if err != nil {
 		return nil, err
 	}
-	hub := &caddyfile.Mercure{URL: mercureURL(plan.Scheme, plan.Bind, plan.Port), Publisher: publisher, Subscriber: subscriber, DB: db}
-	putMercureEnvironment(e, publisher, subscriber, hub.URL)
-	return hub, nil
+	return &caddyfile.Mercure{URL: mercureURL(plan.Scheme, plan.Bind, plan.Port), Publisher: publisher, Subscriber: subscriber, DB: db}, nil
 }
 
 // execServer renders config into dir's Caddyfile and becomes the runtime's
 // server on it, under lease. rules is the folder that may hold a drupack.caddy,
 // argv0 the name the server's process shows and cwd the folder it runs in.
-func execServer(l Launch, e environ, dir state.Dir, lease *state.Lease, config caddyfile.Config, choice tls.Choice, plan startPlan, rules, argv0, cwd string) error {
+func execServer(f Facts, dir state.Dir, lease *state.Lease, config caddyfile.Config, choice tls.Choice, plan startPlan, rules, argv0, cwd string) error {
 	config.Bind, config.Port, config.TLS = plan.Bind, plan.Port, choice
 	if info, err := os.Stat(rules + "/drupack.caddy"); err == nil && info.Mode().IsRegular() {
 		config.ProjectRules = rules + "/drupack.caddy"
@@ -297,15 +289,13 @@ func execServer(l Launch, e environ, dir state.Dir, lease *state.Lease, config c
 	if err != nil {
 		return err
 	}
-	for _, value := range serverEnvironment(config.ID, dir, choice, plan) {
-		e.put(value)
-	}
+	f.ID, f.Probe, f.StopRecord, f.TLSRoot = config.ID, plan.Probe, dir.StopRecordPath(), choice.Root
 	serverArguments := []string{argv0, "php-server", runtime.Canonical(file)}
 	if config.ProjectRules != "" {
 		// The runtime names the file when its rules fail to adapt.
 		serverArguments = append(serverArguments, config.ProjectRules)
 	}
-	err = launch(Command{Path: l.Entry, Args: serverArguments, Env: e.entries, Dir: cwd})
+	err = launch(Command{Path: f.Entry, Args: serverArguments, Env: f.Env(Server), Dir: cwd})
 	// A collected file would close its descriptor, and the lease with it, before the exec.
 	goruntime.KeepAlive(lease)
 	return err
@@ -337,27 +327,25 @@ func entrance(l Launch, env []string, project string, installed *bool, url strin
 }
 
 // storeBundle writes an HTTPS start's CA bundle into the folder's entry and
-// points e's children at it. An HTTP start deletes it, so Drush stops trusting
-// a root the site no longer serves.
-func storeBundle(e *environ, entry state.Dir, choice tls.Choice) error {
+// returns its path. An HTTP start deletes it, so Drush stops trusting a root
+// the site no longer serves, and the path is "".
+func storeBundle(f Facts, entry state.Dir, choice tls.Choice) (string, error) {
 	if choice.Source == "none" {
-		return entry.RemoveBundle()
+		return "", entry.RemoveBundle()
 	}
-	publicRoots, _ := e.get("DRUPACK_CA_FILE")
-	public, err := os.ReadFile(publicRoots)
+	public, err := os.ReadFile(f.value(Reader, "DRUPACK_CA_FILE"))
 	if err != nil {
-		return err
+		return "", err
 	}
 	root, err := os.ReadFile(choice.Root)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := entry.WriteBundle(append(append(public, '\n'), root...)); err != nil {
-		return err
+		return "", err
 	}
 	bundle, _ := entry.Bundle()
-	e.put("DRUPACK_CA_FILE=" + runtime.Canonical(bundle))
-	return nil
+	return bundle, nil
 }
 
 func nameHint(choice tls.Choice) string {
@@ -374,19 +362,4 @@ func trustHint(l Launch, choice tls.Choice) string {
 		return ""
 	}
 	return fmt.Sprintf("HTTPS: run \"%s trust\" once to serve this site over HTTPS.\n", siteName)
-}
-
-// serverEnvironment lists the variables the runtime's watch reads: the readiness
-// address and the token id names dir by, the stop record and the root a client
-// verifies HTTPS with.
-func serverEnvironment(id string, dir state.Dir, choice tls.Choice, plan startPlan) []string {
-	entries := []string{
-		"DRUPACK_RUNTIME_ID=" + id,
-		"DRUPACK_RUNTIME_URL=" + plan.Probe,
-		"DRUPACK_RUNTIME_STOP_RECORD=" + runtime.Canonical(dir.StopRecordPath()),
-	}
-	if choice.Root != "" {
-		entries = append(entries, "DRUPACK_RUNTIME_TLS_ROOT="+choice.Root)
-	}
-	return entries
 }

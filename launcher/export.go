@@ -25,15 +25,15 @@ type exportCall struct {
 
 // siteExport plans the Packaged site's export of the Site data c names. It
 // addresses the static listener where the last start served it.
-func siteExport(l Launch, c command, cwd string, e environ) (exportCall, error) {
-	site, err := siteconfig.Load(l.Application)
+func siteExport(f Facts, c command, cwd string) (exportCall, error) {
+	site, err := siteconfig.Load(f.Application)
 	if err != nil {
 		return exportCall{}, err
 	}
 	if site.Static == nil {
 		return exportCall{}, errors.New("export needs a site whose composer.json sets extra.drupack.static")
 	}
-	s, err := openSite(l, site, c, cwd, e)
+	s, err := openSite(f, site, c, cwd)
 	if err != nil {
 		return exportCall{}, err
 	}
@@ -42,15 +42,15 @@ func siteExport(l Launch, c command, cwd string, e environ) (exportCall, error) 
 		uri = ""
 	}
 	return exportCall{
-		probe: s.drush(l, []string{"php:eval", tomeProbe}),
-		run:   s.drush(l, exportWords(uri, c.words)),
+		probe: s.drush(Export, []string{"php:eval", tomeProbe}),
+		run:   s.drush(Export, exportWords(uri, c.words)),
 	}, nil
 }
 
 // engineExport plans the engine's export of the project holding cwd. A project
 // exported before its first start has no recorded URL, so the words must name one.
-func engineExport(l Launch, c command, cwd string, e environ) (exportCall, error) {
-	f, err := openFolder(l, cwd)
+func engineExport(facts Facts, c command, cwd string) (exportCall, error) {
+	f, err := openFolder(facts.Launch, cwd)
 	if err != nil {
 		return exportCall{}, err
 	}
@@ -59,7 +59,7 @@ func engineExport(l Launch, c command, cwd string, e environ) (exportCall, error
 	}
 	uri := ""
 	if !namesURI(c.words) {
-		a, err := Served(f.entry, l.Name, engineTarget(), state.Listener{})
+		a, err := Served(f.entry, facts.Name, engineTarget(), state.Listener{})
 		if err != nil {
 			return exportCall{}, err
 		}
@@ -72,11 +72,11 @@ func engineExport(l Launch, c command, cwd string, e environ) (exportCall, error
 		}
 		uri = plan.Static.URL
 	}
-	run, err := f.drush(l, e, exportWords(uri, c.words))
+	run, err := f.drush(facts, Export, exportWords(uri, c.words))
 	if err != nil {
 		return exportCall{}, err
 	}
-	probe, err := f.drush(l, e, []string{"php:eval", tomeProbe})
+	probe, err := f.drush(facts, Export, []string{"php:eval", tomeProbe})
 	return exportCall{probe, run}, err
 }
 
@@ -124,7 +124,7 @@ func (x exportCall) requireTomeStatic() error {
 
 // engineCore plans the engine's `dr`, the Drupal core command line a project
 // ships from Drupal 11.4, in the project holding cwd.
-func engineCore(l Launch, c command, cwd string, e environ) (Command, error) {
+func engineCore(f Facts, c command, cwd string) (Command, error) {
 	project, err := vendorRoot(cwd)
 	if err != nil {
 		return Command{}, err
@@ -133,5 +133,5 @@ func engineCore(l Launch, c command, cwd string, e environ) (Command, error) {
 	if info, err := os.Stat(script); err != nil || !info.Mode().IsRegular() {
 		return Command{}, fmt.Errorf("%s has no Drupal core command line: %s does not exist. Drupal 11.4 and later ship it.", runtime.Canonical(project), runtime.Canonical(script))
 	}
-	return runtimePHPCall(l, e, l.Application, append([]string{script}, c.words...)), nil
+	return runtimePHPCall(f, Drush, f.Application, append([]string{script}, c.words...)), nil
 }

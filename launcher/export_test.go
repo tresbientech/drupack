@@ -33,8 +33,7 @@ func TestEngineExportReadsTheRecordedStaticAddress(t *testing.T) {
 	if err := entry.WriteListener(state.Listener{Listen: "127.0.0.1:3787", Host: "shop.drupack.site", Scheme: "https", StaticListen: "127.0.0.1:3788"}); err != nil {
 		t.Fatal(err)
 	}
-	e := environ{entries: []string{"PATH=/usr/bin"}}
-	x, err := engineExport(f.launch(), parseLine(t, true, "export", "--", "--extra"), f.cwd, e)
+	x, err := engineExport(Facts{Launch: f.launch()}, parseLine(t, true, "export", "--", "--extra"), f.cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +48,7 @@ func TestEngineExportReadsTheRecordedStaticAddress(t *testing.T) {
 		t.Errorf("probe Args = %q, want %q", x.probe.Args, want)
 	}
 	// A reader who names the URL gets none added, and the record is not read.
-	x, err = engineExport(f.launch(), parseLine(t, true, "export", "-l", "http://other:1/"), f.cwd, e)
+	x, err = engineExport(Facts{Launch: f.launch()}, parseLine(t, true, "export", "-l", "http://other:1/"), f.cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,35 +58,34 @@ func TestEngineExportReadsTheRecordedStaticAddress(t *testing.T) {
 }
 
 func TestEngineExportRefusals(t *testing.T) {
-	e := environ{entries: []string{"PATH=/usr/bin"}}
 	none := newProject(t, `{}`)
-	_, err := engineExport(none.launch(), parseLine(t, true, "export"), none.cwd, e)
+	_, err := engineExport(Facts{Launch: none.launch()}, parseLine(t, true, "export"), none.cwd)
 	if want := runtime.Canonical(none.project) + "/composer.json sets no extra.drupack.static, so there is nothing to export."; err == nil || err.Error() != want {
 		t.Errorf("no static: %v, want %q", err, want)
 	}
 	f := staticProject(t)
 	want := "Cannot read a recorded static URL for " + runtime.Canonical(f.project) + ". Start it once, or pass --uri URL."
-	_, err = engineExport(f.launch(), parseLine(t, true, "export"), f.cwd, e)
+	_, err = engineExport(Facts{Launch: f.launch()}, parseLine(t, true, "export"), f.cwd)
 	if err == nil || err.Error() != want {
 		t.Errorf("never started: %v, want %q", err, want)
 	}
 	// A folder an earlier release served holds the old files alone, which read as never started.
 	entry := state.FolderEntry(f.root, runtime.Canonical(f.project), false)
 	put(t, filepath.Join(entry.Path(), "static_url"), "http://127.0.0.1:3788/")
-	if _, err = engineExport(f.launch(), parseLine(t, true, "export"), f.cwd, e); err == nil || err.Error() != want {
+	if _, err = engineExport(Facts{Launch: f.launch()}, parseLine(t, true, "export"), f.cwd); err == nil || err.Error() != want {
 		t.Errorf("old files: %v, want %q", err, want)
 	}
 	if err := entry.WriteListener(state.Listener{Listen: "127.0.0.1:3787", Host: "localhost", Scheme: "http"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = engineExport(f.launch(), parseLine(t, true, "export"), f.cwd, e); err == nil || err.Error() != want {
+	if _, err = engineExport(Facts{Launch: f.launch()}, parseLine(t, true, "export"), f.cwd); err == nil || err.Error() != want {
 		t.Errorf("a record with no static listener: %v, want %q", err, want)
 	}
 	noDrush := staticProject(t)
 	if err := os.Remove(filepath.Join(noDrush.project, "vendor", "drush", "drush", "drush.php")); err != nil {
 		t.Fatal(err)
 	}
-	_, err = engineExport(noDrush.launch(), parseLine(t, true, "export", "--uri=http://x/"), noDrush.cwd, e)
+	_, err = engineExport(Facts{Launch: noDrush.launch()}, parseLine(t, true, "export", "--uri=http://x/"), noDrush.cwd)
 	if err == nil || !strings.Contains(err.Error(), "has no Drush") {
 		t.Errorf("no Drush: %v", err)
 	}
@@ -114,14 +112,13 @@ func TestEngineCore(t *testing.T) {
 	f := newProject(t, `{}`)
 	l := f.launch()
 	l.Args = []string{"drupack", "dr"}
-	e := environ{entries: []string{"PATH=/usr/bin"}}
-	_, err := engineCore(l, parseLine(t, true, "dr", "list"), f.cwd, e)
+	_, err := engineCore(Facts{Launch: l}, parseLine(t, true, "dr", "list"), f.cwd)
 	script := filepath.Join(f.project, "vendor/bin/dr")
 	if want := runtime.Canonical(f.project) + " has no Drupal core command line: " + runtime.Canonical(script) + " does not exist. Drupal 11.4 and later ship it."; err == nil || err.Error() != want {
 		t.Errorf("error = %v, want %q", err, want)
 	}
 	put(t, script, "<?php")
-	call, err := engineCore(l, parseLine(t, true, "dr", "list", "--raw"), f.cwd, e)
+	call, err := engineCore(Facts{Launch: l}, parseLine(t, true, "dr", "list", "--raw"), f.cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,8 +134,7 @@ func TestSiteExportAddressesTheRecordedStaticListener(t *testing.T) {
 	f := newSite(t, siteconfig.Site{Port: 8123, Static: &siteconfig.Static{}})
 	f.record(t, `{"listen":"127.0.0.1:9000","host":"shop.drupack.site","scheme":"https","static-listen":"127.0.0.1:9100"}`)
 	c := parseLine(t, false, "export", "--data-dir", f.data, "--", "--extra")
-	e := environ{entries: []string{"PATH=/usr/bin"}}
-	x, err := siteExport(f.launch(), c, f.cwd, e)
+	x, err := siteExport(Facts{Launch: f.launch()}, c, f.cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +149,7 @@ func TestSiteExportAddressesTheRecordedStaticListener(t *testing.T) {
 		t.Errorf("DRUPACK_RUNTIME_STATIC_ROOT = %q", got)
 	}
 	// A reader who names the URL gets none added.
-	x, err = siteExport(f.launch(), parseLine(t, false, "export", "--data-dir", f.data, "-l", "http://other:1/"), f.cwd, e)
+	x, err = siteExport(Facts{Launch: f.launch()}, parseLine(t, false, "export", "--data-dir", f.data, "-l", "http://other:1/"), f.cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +160,7 @@ func TestSiteExportAddressesTheRecordedStaticListener(t *testing.T) {
 
 func TestSiteExportDefaultsToTheNextPortOnUnrecordedSiteData(t *testing.T) {
 	f := newSite(t, siteconfig.Site{Port: 8123, Static: &siteconfig.Static{}})
-	x, err := siteExport(f.launch(), parseLine(t, false, "export", "--data-dir", f.data), f.cwd, environ{entries: []string{"PATH=/usr/bin"}})
+	x, err := siteExport(Facts{Launch: f.launch()}, parseLine(t, false, "export", "--data-dir", f.data), f.cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,20 +170,19 @@ func TestSiteExportDefaultsToTheNextPortOnUnrecordedSiteData(t *testing.T) {
 }
 
 func TestSiteExportRefusals(t *testing.T) {
-	e := environ{entries: []string{"PATH=/usr/bin"}}
 	plain := newSite(t, siteconfig.Site{Port: 1})
-	_, err := siteExport(plain.launch(), parseLine(t, false, "export", "--data-dir", plain.data), plain.cwd, e)
+	_, err := siteExport(Facts{Launch: plain.launch()}, parseLine(t, false, "export", "--data-dir", plain.data), plain.cwd)
 	if want := "export needs a site whose composer.json sets extra.drupack.static"; err == nil || err.Error() != want {
 		t.Errorf("no static: %v, want %q", err, want)
 	}
 	f := newSite(t, siteconfig.Site{Port: 1, Static: &siteconfig.Static{}})
-	_, err = siteExport(f.launch(), parseLine(t, false, "export", "--data-dir", f.data, "--database", "oracle"), f.cwd, e)
+	_, err = siteExport(Facts{Launch: f.launch()}, parseLine(t, false, "export", "--data-dir", f.data, "--database", "oracle"), f.cwd)
 	// The recorded settings.php names the database, so an export reads no --database.
 	if err != nil {
 		t.Errorf("database: %v, want none", err)
 	}
 	os.Remove(filepath.Join(f.data, "settings.php"))
-	_, err = siteExport(f.launch(), parseLine(t, false, "export", "--data-dir", f.data), f.cwd, e)
+	_, err = siteExport(Facts{Launch: f.launch()}, parseLine(t, false, "export", "--data-dir", f.data), f.cwd)
 	if want := "This Site data has no site yet: " + runtime.Canonical(f.data) + ". Start fixture-site once to create one."; err == nil || err.Error() != want {
 		t.Errorf("no site: %v, want %q", err, want)
 	}
