@@ -296,7 +296,9 @@ jobs:
   builder-push:
     name: Push the Linux ${{ matrix.arch }} ${{ matrix.libc }} builder
     needs: [gate, linux-runtime]
-    if: needs.gate.outputs.linux_runtime != '[]' && github.event.repository.fork == false
+    # A leg that built its image pushes it when another leg failed. The artifact
+    # lookup below skips a leg that built nothing.
+    if: ${{ !cancelled() && needs.gate.result == 'success' && needs.gate.outputs.linux_runtime != '[]' && github.event.repository.fork == false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
