@@ -16,7 +16,7 @@ Durable decisions that apply across all phases:
 - **D8**: `tests/conformance/test_release_plan.py`, run by `build/unit-tests.sh`.
 - **D9**: each row's expected plan is checked against the bash before the bash leaves.
 - **D10**: `test_targets.py` keeps its options check and gains the `run-name` check.
-- **D11**: the step's `run:` body, its helpers and five `env:` entries leave the workflow.
+- **D11**: the step's `run:` body, its helpers and its `SHA` and `TARGETS` entries leave the workflow; `BEFORE`, `PLATFORM` and `NAMED` stay in `env:`.
 - **D12**: ADR 0054, and an amendment line in ADR 0018.
 - **Tests**: `bash build/unit-tests.sh` runs the Python unit files. The parity harness lives in the session's scratchpad, outside the repository.
 
@@ -48,7 +48,7 @@ The script and its table test exist, and the workflow is untouched. A parity har
 
 ### What to build
 
-The `targets` step runs the script with the event's values and `--output "$GITHUB_OUTPUT"`. Its bash, both jq helpers and the five `env:` entries are gone. `test_targets.py` checks the `run-name` against the script's title. ADR 0054 records the decision, and this plan file is deleted.
+The `targets` step runs the script with the event's values and `--output "$GITHUB_OUTPUT"`. Its bash, both jq helpers and the `SHA` and `TARGETS` entries are gone. `test_targets.py` checks the `run-name` against the script's title. ADR 0054 records the decision, and this plan file is deleted.
 
 ### Acceptance criteria
 
