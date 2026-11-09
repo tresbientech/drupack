@@ -102,7 +102,7 @@ func startSite(l Launch, c command) error {
 	if err := operate(l, withInputs(e, inputs), &owed, false, "check", "site", runtime.Canonical(data)); err != nil {
 		return err
 	}
-	listen := cmp.Or(c.options["listen"], loopbackIP+":"+strconv.Itoa(site.Port))
+	listen := cmp.Or(c.options["listen"], siteTarget(site).DefaultListen)
 	bind, port, err := parseListen(listen, "--listen")
 	if err != nil {
 		return err

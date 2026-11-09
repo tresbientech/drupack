@@ -1,14 +1,11 @@
 package main
 
 import (
-	"cmp"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
@@ -79,35 +76,15 @@ func openSite(l Launch, site siteconfig.Site, c command, cwd string, e environ) 
 	if _, err := os.Stat(filepath.Join(data, "settings.php")); err != nil {
 		return openedSite{}, fmt.Errorf("This Site data has no site yet: %s. Start %s once to create one.", runtime.Canonical(data), l.Name)
 	}
-	record, recorded, err := readListener(state.At(data), l.Name)
-	if err != nil {
-		return openedSite{}, err
-	}
-	listen, staticListen, host, scheme := c.options["listen"], c.options["static-listen"], c.options["host"], "http"
-	files := ""
+	typed := Typed{Listen: c.options["listen"], StaticListen: c.options["static-listen"], Host: c.options["host"]}
 	if c.options["files-dir"] != "" {
-		files = fromCwd(c.options["files-dir"])
+		typed.FilesDir = fromCwd(c.options["files-dir"])
 	}
-	if recorded {
-		listen = cmp.Or(listen, record.Listen)
-		staticListen = cmp.Or(staticListen, record.StaticListen)
-		host = cmp.Or(host, record.Host)
-		scheme = record.Scheme
-		files = cmp.Or(files, record.FilesDir)
-	}
-	listen = cmp.Or(listen, loopbackIP+":"+strconv.Itoa(site.Port))
-	bind, port, err := parseListen(listen, "--listen")
+	served, err := Served(state.At(data), l.Name, siteTarget(site), typed)
 	if err != nil {
 		return openedSite{}, err
 	}
-	// A reader types --host. A recorded one is the launcher's own.
-	if typed := c.options["host"]; typed != "" && !validHost(typed) {
-		return openedSite{}, errors.New("Invalid --host value")
-	}
-	plan, err := planStart(bind, port, staticListen, site.Static != nil, "site", cmp.Or(host, unrecordedHost), scheme)
-	if err != nil {
-		return openedSite{}, err
-	}
+	plan, files := served.startPlan, served.FilesDir
 
 	restrictUmask()
 	data, err = filepath.EvalSymlinks(data)
@@ -133,7 +110,7 @@ func openSite(l Launch, site siteconfig.Site, c command, cwd string, e environ) 
 		e.put("DRUPACK_CA_FILE=" + runtime.Canonical(bundle))
 	}
 	if site.Mercure {
-		if err := putMercure(&e, state.At(data), mercureURL(scheme, bind, port)); err != nil {
+		if err := putMercure(&e, state.At(data), served.Mercure()); err != nil {
 			return openedSite{}, err
 		}
 	}
