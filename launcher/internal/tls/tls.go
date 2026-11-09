@@ -305,7 +305,8 @@ func Choose(dir, bind, label, fallback, host string) (Choice, error) {
 // Loopback reports whether bind accepts this computer alone. A login link and
 // the session it opens cross any other network in clear text.
 func Loopback(bind string) bool {
-	return bind == "::1" || strings.HasPrefix(bind, "127.")
+	ip := net.ParseIP(bind)
+	return ip != nil && ip.IsLoopback()
 }
 
 // Trust creates the local root on first use and installs it into the system's

@@ -131,8 +131,14 @@ Name: demo.drupack.site did not resolve to 127.0.0.1 (no answer), so the URL use
 ```
 
 An offline machine gets no answer. A resolver that drops private answers may
-return another address, such as `0.0.0.0`. The server answers the name,
-`localhost`, `127.0.0.1` and `[::1]` in every case.
+return another address, such as `0.0.0.0`.
+
+A loopback start answers the name, `localhost`, `127.0.0.1`, `[::1]`, its bind
+address and its `--host`, over HTTP or HTTPS. A request for any other name gets
+an empty response, so a web page that points its own name at `127.0.0.1`
+reaches nothing. A name of your own in `/etc/hosts` needs `--host`. A start on
+any other address answers every name, so the network reaches it by IP or by a
+name of its own. An engine `--listen` with a host name counts as such a start.
 
 A Project folder keeps its own settings. When they set `trusted_host_patterns`,
 add `'^.+\.drupack\.site$'` so Drupal accepts the name.

@@ -43,7 +43,7 @@
 
 # One address per name the TLS source covers, so Caddy issues no certificate for a name
 # a page asks for.
-"http://:3787" {
+"http://shop.drupack.site:3787", "http://localhost:3787", "http://127.0.0.1:3787", "http://[::1]:3787" {
 	bind "127.0.0.1"
 	root * "/drupack-test/project/web"
 	encode zstd br gzip

@@ -464,6 +464,12 @@ class EngineExecutable(harness.ConformanceCase):
         with urlopen(request, timeout=harness.WAITS["http_request"].seconds) as response:
             self.assertEqual(response.status, 200)
 
+    def test_a_loopback_start_answers_no_name_of_another_site(self):
+        # A page that points its own name at 127.0.0.1 sends that name as its Host.
+        port, _ = self.start("start-foreign-host", str(self.project))
+        self.assertEqual(self.fetch(port, "/user/login", {"Host": f"evil.example:{port}"})[::2], (200, ""))
+        self.assertEqual(self.status(port, "/user/login"), 200)
+
     def with_subdomain(self, value, project=None):
         """Sets extra.drupack.subdomain in a project's composer.json until the case ends, or removes it
         for None. The project defaults to the demo's copy, whose composer.json sets one."""
