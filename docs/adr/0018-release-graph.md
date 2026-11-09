@@ -3,6 +3,8 @@
 Accepted on 2026-09-22. Amended on 2026-09-23: the Dockerfile lost its `packed` and
 `artifact` stages, and a local build runs `drupack-build` in the job image.
 Amended on 2026-11-09: macOS and Windows test in jobs apart from their build.
+Amended on 2026-11-09: [ADR 0054](0054-a-script-plans-the-release-run.md) moves the gate's
+plan into `build/release-plan.py`.
 
 ## Context
 
