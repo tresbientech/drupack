@@ -720,8 +720,8 @@ jobs:
           if-no-files-found: error
 
   # Each job runs one share of the test classes on the files the windows job built.
-  # Emulation doubles each case's time, so the Arm host splits the suite in four
-  # and runs the variant cases in a job of their own.
+  # Emulation doubles each case's time, so the Arm host runs the variant cases
+  # in a job of their own.
   windows-test:
     name: ${{ matrix.name }}
     needs: [gate, windows]
