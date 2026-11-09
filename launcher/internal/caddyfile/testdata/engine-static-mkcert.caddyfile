@@ -77,9 +77,11 @@
 			X-Content-Type-Options nosniff
 		}
 		request_header -Proxy
-		# A raw path opening with //, /\ or a control character reads as a host in a Location
-		# header. The path matchers see a cleaned path; the expression sees the raw one.
-		@hostLikePath expression `{http.request.uri.path}.matches("^/[/\\\\]|[\\x00-\\x1f\\x7f]")`
+		# A path opening with //, /\ or a control character reads as a host in a Location
+		# header. Windows reads a backslash anywhere as a separator once these guards have
+		# matched, so /sites\default\settings.php passes every rule below. The path matchers
+		# see a cleaned path; the expression sees the decoded path before cleaning.
+		@hostLikePath expression `{http.request.uri.path}.matches("^//|[\\\\\\x00-\\x1f\\x7f]")`
 		respond @hostLikePath 403
 
 		# files/.htaccess. 404, ahead of the 403 below.
@@ -200,9 +202,11 @@
 				X-Content-Type-Options nosniff
 			}
 			request_header -Proxy
-			# A raw path opening with //, /\ or a control character reads as a host in a Location
-			# header. The path matchers see a cleaned path; the expression sees the raw one.
-			@hostLikePath expression `{http.request.uri.path}.matches("^/[/\\\\]|[\\x00-\\x1f\\x7f]")`
+			# A path opening with //, /\ or a control character reads as a host in a Location
+			# header. Windows reads a backslash anywhere as a separator once these guards have
+			# matched, so /sites\default\settings.php passes every rule below. The path matchers
+			# see a cleaned path; the expression sees the decoded path before cleaning.
+			@hostLikePath expression `{http.request.uri.path}.matches("^//|[\\\\\\x00-\\x1f\\x7f]")`
 			respond @hostLikePath 403
 
 			# files/.htaccess. 404, ahead of the 403 below.

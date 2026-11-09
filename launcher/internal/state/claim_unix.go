@@ -17,10 +17,15 @@ type Lease struct {
 	file *os.File
 }
 
+// noFollow makes an open of a link fail, where OpenFile's Lstat sees a file
+// swapped in after it looked.
+const noFollow = syscall.O_NOFOLLOW
+
 // lockFile opens the lease with flags and takes flock(2) on it without waiting,
 // as the previous release's PHP does. file is nil when another server holds it.
+// A link at the lease is refused.
 func lockFile(path string, flags int) (file *os.File, err error) {
-	fd, err := syscall.Open(path, flags, 0o600)
+	fd, err := syscall.Open(path, flags|noFollow, 0o600)
 	if err != nil {
 		return nil, leaseRefusal(path)
 	}

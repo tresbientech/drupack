@@ -64,6 +64,18 @@ the directory you started Drupack in, never against the unpacked application.
 A start refuses a value that contains `{` or `}`. The path reaches the
 Caddyfile, where Caddy reads a brace as a placeholder.
 
+A start creates a missing Site data directory readable and writable by you
+alone. Every start, `drush` and `export` check Site data and a named
+`--files-dir` by the cache folder rule below, reading access aside. When another
+account can change one, they print a warning and go on. The warning names the
+folder, the account and a fix:
+
+- a folder open on Unix: `chmod -R go-w FOLDER`
+- a parent open on Unix: `chmod go-w PARENT`
+- a folder or parent open on Windows: `icacls FOLDER /inheritance:d`, then
+  `icacls FOLDER /remove:g ACCOUNT /T`, with `/T` for the folder alone
+- a folder another account owns: move Site data into a folder you own
+
 A site whose `drupack.yml` lists `writable` directories keeps its own
 application in `app` in Site data. A start lays it there once per release.
 `drush` refuses an `app` another release laid, until a start lays this one.
@@ -131,8 +143,14 @@ Name: demo.drupack.site did not resolve to 127.0.0.1 (no answer), so the URL use
 ```
 
 An offline machine gets no answer. A resolver that drops private answers may
-return another address, such as `0.0.0.0`. The server answers the name,
-`localhost`, `127.0.0.1` and `[::1]` in every case.
+return another address, such as `0.0.0.0`.
+
+A loopback start answers the name, `localhost`, `127.0.0.1`, `[::1]`, its bind
+address and its `--host`, over HTTP or HTTPS. A request for any other name gets
+an empty response, so a web page that points its own name at `127.0.0.1`
+reaches nothing. A name of your own in `/etc/hosts` needs `--host`. A start on
+any other address answers every name, so the network reaches it by IP or by a
+name of its own. An engine `--listen` with a host name counts as such a start.
 
 A Project folder keeps its own settings. When they set `trusted_host_patterns`,
 add `'^.+\.drupack\.site$'` so Drupal accepts the name.
@@ -343,6 +361,14 @@ Five variables have no option:
 | `DRUPACK_TLS_DIR` | the folder holding the local root, `drupack/tls` in your config folder by default |
 | `DRUPACK_DNS_ANSWER` | a fixed answer for the [Site host](#site-hosts) lookup, for tests: a comma list of addresses, or `none` |
 | `DRUPACK_NO_UPDATE_CHECK` | `1` turns off the engine executable's daily release check |
+
+A start runs the PHP and Caddy it unpacked into the cache, so it refuses a cache
+folder that another account can change. The folder itself must be yours and
+readable and writable by you alone. Each folder above it must belong to you, to
+root or to the system, and let no other account rename what it holds. A
+world-writable folder with the sticky bit, such as `/tmp`, passes. The refusal
+names the folder and the account. `DRUPACK_CACHE_DIR` follows the same rule, so
+point it at a folder under your home.
 
 ## The engine executable
 

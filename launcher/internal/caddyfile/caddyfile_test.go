@@ -98,13 +98,28 @@ func TestRefuseBraces(t *testing.T) {
 }
 
 func TestAddresses(t *testing.T) {
-	c := Config{TLS: tls.Choice{Source: "none"}}
-	if got, err := c.Addresses(3787); got != `"http://:3787"` || err != nil {
-		t.Errorf("none: %s", got)
-	}
-	c = Config{TLS: tls.Choice{Source: "mkcert", Alias: "a.drupack.site"}}
-	want := `"https://a.drupack.site:3788", "https://localhost:3788", "https://127.0.0.1:3788", "https://[::1]:3788"`
-	if got, err := c.Addresses(3788); got != want || err != nil {
-		t.Errorf("mkcert: %s", got)
+	plain := tls.Choice{Source: "none", Alias: "a.drupack.site", Host: "a.drupack.site"}
+	for name, row := range map[string]struct {
+		choice tls.Choice
+		bind   string
+		want   string
+	}{
+		"loopback http": {plain, "127.0.0.1",
+			`"http://a.drupack.site:3787", "http://localhost:3787", "http://127.0.0.1:3787", "http://[::1]:3787"`},
+		"another loopback address": {plain, "127.0.0.2",
+			`"http://a.drupack.site:3787", "http://localhost:3787", "http://127.0.0.1:3787", "http://[::1]:3787", "http://127.0.0.2:3787"`},
+		"a host the reader named": {tls.Choice{Source: "none", Alias: "a.drupack.site", Host: "shop.test"}, "::1",
+			`"http://a.drupack.site:3787", "http://localhost:3787", "http://127.0.0.1:3787", "http://[::1]:3787", "http://shop.test:3787"`},
+		"no alias": {tls.Choice{Source: "none", Host: "localhost"}, "127.0.0.1",
+			`"http://localhost:3787", "http://127.0.0.1:3787", "http://[::1]:3787"`},
+		"network http":   {plain, "0.0.0.0", `"http://:3787"`},
+		"host name bind": {plain, "127.example.com", `"http://:3787"`},
+		"mkcert": {tls.Choice{Source: "mkcert", Alias: "a.drupack.site", Host: "shop.test"}, "127.0.0.1",
+			`"https://a.drupack.site:3787", "https://localhost:3787", "https://127.0.0.1:3787", "https://[::1]:3787"`},
+	} {
+		got, err := Config{TLS: row.choice}.Addresses(row.bind, 3787)
+		if got != row.want || err != nil {
+			t.Errorf("%s: %s %v", name, got, err)
+		}
 	}
 }

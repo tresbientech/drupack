@@ -53,6 +53,11 @@ in `/`.
 - A raw path that opens with `//` or `/\`, or holds a control character,
   answers 403. Apache merges the slashes. Caddy's redirects repeat the raw
   path, where a browser reads it as a host once it has dropped any tab.
+- A path holding a backslash anywhere answers 403, on the site port and the
+  static port. Windows reads `\` as a separator after the guards matched, so
+  `/sites%5Cdefault%5Csettings.php` would reach the file every slash rule
+  refuses. Apache on Windows answers 404 to an encoded backslash unless
+  `AllowEncodedSlashes` is on, so core's `.htaccess` names no such rule.
 - Every response carries `X-Content-Type-Options: nosniff`, set after the
   handler so Drupal's own header is replaced. The `Proxy` request header is
   removed. An existing `.svgz` answers `image/svg+xml` with

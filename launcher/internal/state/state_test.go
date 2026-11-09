@@ -239,3 +239,56 @@ func TestMercureSecretsAreCreatedOnceAndReadBack(t *testing.T) {
 		t.Errorf("a directory in the secret's place = %v", err)
 	}
 }
+
+// link plants a link at path to target, or skips where this account cannot
+// make one, as Windows refuses without Developer Mode.
+func link(t *testing.T, target, path string) {
+	t.Helper()
+	if err := os.Symlink(target, path); err != nil {
+		t.Skipf("cannot make a link: %v", err)
+	}
+}
+
+func TestALinkAtTheLeaseIsRefused(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(t.TempDir(), "elsewhere")
+	link(t, target, filepath.Join(dir, state.LeaseName))
+	if lease, err := state.At(dir).Claim(); err == nil || lease != nil {
+		t.Errorf("Claim() = %v, %v, want a refusal", lease, err)
+	}
+	if _, err := os.Lstat(target); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Claim() created the link's target: %v", err)
+	}
+	if err := os.WriteFile(target, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if held, err := state.At(dir).Lease(); err == nil {
+		t.Errorf("Lease() = %v, nil, want a refusal", held)
+	}
+}
+
+func TestALinkAtAMercureSecretIsRefused(t *testing.T) {
+	for _, name := range []string{"mercure_publisher_secret", "mercure_subscriber_secret"} {
+		t.Run(name, func(t *testing.T) {
+			dir := state.At(t.TempDir())
+			if _, _, err := dir.CreateMercureSecrets(); err != nil {
+				t.Fatal(err)
+			}
+			target := filepath.Join(t.TempDir(), "elsewhere")
+			if err := os.WriteFile(target, []byte("not a secret"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(dir.Path(), name)
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			link(t, target, path)
+			if _, _, err := dir.CreateMercureSecrets(); err == nil || !strings.HasPrefix(err.Error(), "Cannot create the Mercure secret: ") {
+				t.Errorf("CreateMercureSecrets() = %v, want a refusal", err)
+			}
+			if _, _, ok, err := dir.MercureSecrets(); err == nil {
+				t.Errorf("MercureSecrets() = %v, nil, want a refusal", ok)
+			}
+		})
+	}
+}

@@ -38,7 +38,11 @@ func TestRootFallsBackToTempDirWhenTheCacheDirRefusesWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(os.TempDir(), fmt.Sprintf("acme-%d", os.Getuid()), "runtime")
+	temporary, err := filepath.EvalSymlinks(os.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(temporary, fmt.Sprintf("acme-%d", os.Getuid()), "runtime")
 	if root != want {
 		t.Fatalf("expected the root %q, got %q", want, root)
 	}
@@ -47,7 +51,11 @@ func TestRootFallsBackToTempDirWhenTheCacheDirRefusesWrites(t *testing.T) {
 func TestRootIsNamedAfterTheSite(t *testing.T) {
 	t.Setenv("DRUPACK_CACHE_DIR", "")
 	t.Setenv("XDG_CACHE_HOME", "")
-	t.Setenv("HOME", t.TempDir())
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
 	cache, err := os.UserCacheDir()
 	if err != nil {
 		t.Fatal(err)

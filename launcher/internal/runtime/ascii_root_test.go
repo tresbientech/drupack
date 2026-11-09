@@ -17,7 +17,7 @@ func fakeResolve(aliases map[string]string) func(string) (string, error) {
 	}
 }
 
-func noopMkdir(string) error { return nil }
+func noopMkdir(dir string) (string, error) { return dir, nil }
 
 func TestResolveASCIIRootRungOrder(t *testing.T) {
 	cases := []struct {
@@ -85,9 +85,9 @@ func TestResolveASCIIRootRungOrder(t *testing.T) {
 // breaks on a real Windows volume while staying green here.
 func TestResolveASCIIRootRunsMkdirBeforeResolve(t *testing.T) {
 	var calls []string
-	mkdir := func(candidate string) error {
+	mkdir := func(candidate string) (string, error) {
 		calls = append(calls, "mkdir:"+candidate)
-		return nil
+		return candidate, nil
 	}
 	resolve := func(candidate string) (string, error) {
 		calls = append(calls, "resolve:"+candidate)
@@ -171,5 +171,20 @@ func TestIsASCII(t *testing.T) {
 		if got := isASCII(c.s); got != c.want {
 			t.Errorf("isASCII(%q) = %v, want %v", c.s, got, c.want)
 		}
+	}
+}
+
+// A fallback reached through a link serves from the folder the claim checked, so
+// whoever owns the link cannot retarget it after the check.
+func TestResolveASCIIRootServesTheClaimedPath(t *testing.T) {
+	claim := func(candidate string) (string, error) {
+		if candidate == "/tmp/fallback" {
+			return "/real/fallback", nil
+		}
+		return candidate, nil
+	}
+	got, err := resolveASCIIRoot("/cache/tëst", "/tmp/fallback", claim, fakeResolve(nil), io.Discard)
+	if err != nil || got != "/real/fallback" {
+		t.Fatalf("resolveASCIIRoot() = %q, %v, want /real/fallback", got, err)
 	}
 }

@@ -16,9 +16,15 @@ type Lease struct {
 	handle windows.Handle
 }
 
+// noFollow is 0: Windows has no open flag that refuses a link. OpenFile's Lstat
+// refuses one, and only an account that can already write the folder can swap
+// one in after it.
+const noFollow = 0
+
 // lockFile opens the lease and locks its whole range without waiting, as PHP's
 // flock does. The handle is 0 when another server holds it. PHP opens the file
-// and shares reading and writing, so these opens do the same.
+// and shares reading and writing, so these opens do the same. A reparse point
+// at the lease opens as itself, and is refused.
 func lockFile(path string, access, disposition uint32) (windows.Handle, error) {
 	refused := leaseRefusal(path)
 	pointer, err := windows.UTF16PtrFromString(path)
@@ -26,8 +32,14 @@ func lockFile(path string, access, disposition uint32) (windows.Handle, error) {
 		return 0, refused
 	}
 	handle, err := windows.CreateFile(pointer, access,
-		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, nil, disposition, windows.FILE_ATTRIBUTE_NORMAL, 0)
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, nil, disposition,
+		windows.FILE_ATTRIBUTE_NORMAL|windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
 	if err != nil {
+		return 0, refused
+	}
+	var info windows.ByHandleFileInformation
+	if err := windows.GetFileInformationByHandle(handle, &info); err != nil || info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+		windows.CloseHandle(handle)
 		return 0, refused
 	}
 	if err := windows.LockFileEx(handle, windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 0xFFFFFFFF, 0xFFFFFFFF, new(windows.Overlapped)); err != nil {

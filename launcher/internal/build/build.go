@@ -3,12 +3,15 @@
 package build
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -374,7 +377,72 @@ func stageSite(log io.Writer, site, application string, builds ...string) error 
 			return err
 		}
 	}
-	return nil
+	return refuseCredentials(application)
+}
+
+// refuseCredentials names every staged file that holds a credential by its name,
+// as credentialName lists them, and every .key or .pem holding a private key.
+// It reads the staged copy, where a linked directory is already expanded. The
+// build installs the top-level vendor/ from the lock, so it is skipped.
+func refuseCredentials(application string) error {
+	var found []string
+	err := filepath.WalkDir(application, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		relative, _ := filepath.Rel(application, path)
+		relative = filepath.ToSlash(relative)
+		if entry.IsDir() {
+			if relative == "vendor" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		name := entry.Name()
+		credential := credentialName(relative, name)
+		if !credential && (strings.HasSuffix(name, ".key") || strings.HasSuffix(name, ".pem")) {
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			credential = bytes.Contains(content, []byte("PRIVATE KEY-----"))
+		}
+		if credential {
+			found = append(found, relative)
+		}
+		return nil
+	})
+	if err != nil || found == nil {
+		return err
+	}
+	return fmt.Errorf("The site holds credentials the build would ship: %s. Add each to .gitignore, or delete it.", strings.Join(found, ", "))
+}
+
+// credentialFiles hold a credential wherever they sit.
+var credentialFiles = []string{"auth.json", "secrets.json", ".git-credentials", ".netrc", ".npmrc", ".pypirc",
+	".s3cfg", ".boto", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"}
+
+// credentialPaths hold a credential inside the folder their tool reads.
+var credentialPaths = []string{".docker/config.json", ".kube/config", ".claude/settings.local.json", ".vscode/sftp.json"}
+
+// envTemplate names the .env files a project commits as a template, with no values.
+var envTemplate = regexp.MustCompile(`^\.env[.-](example|dist|defaults|sample|template)$`)
+
+// credentialName reports whether the staged file at relative, named name, holds
+// a credential by its name: a credentialFiles name, a credentialPaths path, a
+// file under .aws/, a *credentials.json, or a .env file other than a template.
+func credentialName(relative, name string) bool {
+	switch {
+	case slices.Contains(credentialFiles, name), strings.HasSuffix(name, "credentials.json"):
+		return true
+	case strings.HasPrefix(name, ".env"), strings.HasSuffix(name, ".env"):
+		return !envTemplate.MatchString(name)
+	case strings.HasPrefix(relative, ".aws/"), strings.Contains(relative, "/.aws/"):
+		return true
+	}
+	return slices.ContainsFunc(credentialPaths, func(path string) bool {
+		return relative == path || strings.HasSuffix(relative, "/"+path)
+	})
 }
 
 // stageEntry copies one entry of the site. The executable's unpacker takes

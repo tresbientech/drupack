@@ -506,3 +506,39 @@ func TestValidHost(t *testing.T) {
 		}
 	}
 }
+
+func TestVendorRootFindsTheProjectFromItsSubfolder(t *testing.T) {
+	project := realDir(t)
+	put(t, filepath.Join(project, "vendor", "autoload.php"), "<?php")
+	cwd := filepath.Join(project, "web", "modules", "custom")
+	if err := os.MkdirAll(cwd, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := vendorRoot(cwd); err != nil || got != project {
+		t.Fatalf("vendorRoot() = %q, %v, want %q", got, err, project)
+	}
+}
+
+func TestVendorRootRefusesALinkedVendor(t *testing.T) {
+	elsewhere := realDir(t)
+	put(t, filepath.Join(elsewhere, "vendor", "autoload.php"), "<?php")
+	for name, target := range map[string]string{
+		"vendor":              filepath.Join(elsewhere, "vendor"),
+		"vendor/autoload.php": filepath.Join(elsewhere, "vendor", "autoload.php"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			project := realDir(t)
+			if name != "vendor" {
+				if err := os.Mkdir(filepath.Join(project, "vendor"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.Symlink(target, filepath.Join(project, name)); err != nil {
+				t.Skipf("cannot make a link: %v", err)
+			}
+			if _, err := vendorRoot(project); err == nil || !strings.Contains(err.Error(), "is a link") {
+				t.Fatalf("vendorRoot() = %v, want a refusal naming the link", err)
+			}
+		})
+	}
+}

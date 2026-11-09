@@ -7,6 +7,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -56,21 +57,37 @@ type Static struct {
 	Dynamic []string
 }
 
-// Addresses lists the names the TLS source serves on port. A source with no
-// certificate answers any address of the bind.
-func (c Config) Addresses(port int) (string, error) {
+// Addresses lists the names a listener on bind and port answers. A source with
+// no certificate answers any name on a bind beyond this computer, which readers
+// on the network reach by its address or a name of their own. On loopback it
+// answers the start's own names alone, so a page that points its own name at
+// 127.0.0.1 reaches nothing.
+func (c Config) Addresses(bind string, port int) (string, error) {
 	p := strconv.Itoa(port)
+	scheme, names := "https://", []string{c.TLS.Alias, "localhost", "127.0.0.1", "::1"}
 	if c.TLS.Source == "none" {
-		return quote("http://:" + p)
+		if !tls.Loopback(bind) {
+			return quote("http://:" + p)
+		}
+		scheme, names = "http://", append(names, bind, c.TLS.Host)
 	}
-	names := []string{c.TLS.Alias, "localhost", "127.0.0.1", "[::1]"}
-	for i, name := range names {
-		var err error
-		if names[i], err = quote("https://" + name + ":" + p); err != nil {
+	var addresses []string
+	for _, name := range names {
+		if name == "" {
+			continue
+		}
+		if strings.Contains(name, ":") {
+			name = "[" + name + "]"
+		}
+		address, err := quote(scheme + name + ":" + p)
+		if err != nil {
 			return "", err
 		}
+		if !slices.Contains(addresses, address) {
+			addresses = append(addresses, address)
+		}
 	}
-	return strings.Join(names, ", "), nil
+	return strings.Join(addresses, ", "), nil
 }
 
 // unquotable is a value no Caddyfile token can hold.

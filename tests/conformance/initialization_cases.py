@@ -3,8 +3,11 @@ lease, site naming, and PostgreSQL recovery. Linux only; the PostgreSQL cases ta
 server from harness.DatabaseServer.
 """
 
+import json
 import os
+import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import time
@@ -110,6 +113,7 @@ class FirstStartAndListener(harness.ConformanceCase):
                 "[3/3] Creating the administrator account",
             ):
                 self.assertIn(report, started, "a first start reported no progress")
+            self.assertNotIn("Warning:", started)
             self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), harness.SITE["site_name"])
             assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
             # site.start() got its 200 from /user/login, but the launcher's own poller writes
@@ -149,6 +153,52 @@ class FirstStartAndListener(harness.ConformanceCase):
         finally:
             site.stop()
 
+    def test_a_start_on_site_data_every_account_can_write_warns_and_serves(self):
+        data = self.case_dir / "open-data"
+        data.mkdir(parents=True)
+        data.chmod(0o777)
+        site = harness.Site(harness.BINARY, self.case_dir / "open-start")
+        site.start(data, "--admin-user", "init-admin", "--admin-password", PASSWORD)
+        try:
+            started = site.log_path.read_text(errors="replace")
+            self.assertIn(f"Warning: {os.path.realpath(data)} is open to every account", started)
+            self.assertIn(f"chmod -R go-w {os.path.realpath(data)}", started)
+            harness.wait_for_line(site.log_path, 0, harness.ready_line(), harness.WAITS["start"].seconds)
+        finally:
+            site.stop()
+
+
+    def test_a_first_start_replaces_the_seeds_keys_and_a_later_start_keeps_them(self):
+        def identity():
+            values = []
+            for command in (("state:get", "system.cron_key"), ("state:get", "system.private_key"),
+                            ("config:get", "system.site", "uuid", "--format=json")):
+                result = harness.run_drush(harness.BINARY, self.case_dir, data, *command)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                values.append(result.stdout.strip())
+            values[2] = json.loads(values[2])["system.site:uuid"]
+            return values
+
+        with sqlite3.connect(self.site_application() / "seed" / "site.sqlite") as seed:
+            states = dict(seed.execute(
+                "SELECT name, value FROM key_value WHERE collection = 'state' AND name IN ('system.cron_key', 'system.private_key')"))
+            config = seed.execute("SELECT data FROM config WHERE collection = '' AND name = 'system.site'").fetchone()[0]
+        unserialized = lambda text, pattern: re.search(pattern, text.decode() if isinstance(text, bytes) else text).group(1)
+        seeded = [unserialized(states["system.cron_key"], r'^s:\d+:"(.*)";$'),
+                  unserialized(states["system.private_key"], r'^s:\d+:"(.*)";$'),
+                  unserialized(config, r's:4:"uuid";s:36:"([^"]+)"')]
+
+        data = self.case_dir / "data"
+        site = harness.Site(harness.BINARY, self.case_dir / "first-start")
+        site.start(data, "--admin-user", "init-admin", "--admin-password", PASSWORD)
+        site.stop()
+        first = identity()
+        for name, seed_value, value in zip(("cron key", "private key", "site UUID"), seeded, first):
+            self.assertNotEqual(value, seed_value, f"the first start kept the seed's {name}")
+        site = harness.Site(harness.BINARY, self.case_dir / "later-start")
+        site.start(data)
+        site.stop()
+        self.assertEqual(identity(), first, "a later start replaced the site's keys")
 
 class RecordedBackendAndAdoption(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX,)

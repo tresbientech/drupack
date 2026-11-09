@@ -184,3 +184,12 @@ static-php-cli runs in a job whose token reads packages only, and a job without 
 - [ ] `grep -n "packages: write" .github/workflows/release.yml` lists no job that runs `build-builder.sh`, `spc-craft.sh` or `embed.sh`.
 - [ ] `actionlint .github/workflows/release.yml .github/workflows/build.yml` reports nothing.
 - [ ] A release-candidate `workflow_dispatch` run for all platforms passes after the push of step 7 of the run.
+
+---
+
+## Deviations
+
+- D7: `Exposure` returns `(*Exposed, error)` in place of `(reason string, err error)`. D12's warning builds its fix command from the folder, the account, and whether the folder is the checked path or a parent. A string carries none of these apart. Ruled in the shape review of 2026-11-09.
+- D18: the refusal reads the staged copy in place of the site's file list, since staging expands a linked directory. On 2026-11-09 the owner widened the names after the access logs showed what scanners request: `secrets.json`, `*credentials.json`, the tool credential files, SSH keys, `.aws/`, and any `.env` name apart from five templates. `.sql` dumps stay out by the owner's choice. `.env.defaults`, `.env.sample` and `.env.template` join the templates, since `drupal/canvas` ships `.env.defaults`.
+- D9: the Windows ancestor rule also refuses an untrusted `WRITE_DAC`, `WRITE_OWNER` or `GENERIC_ALL` on the parent or the child, since each lets an account grant itself the delete right. ADR 0051 states it.
+- D14: `vendorRoot` also refuses a link at `vendor/` or the autoloader. The owner check follows a link, so the account owning the link could retarget it after the check. Found in the whole-branch review.

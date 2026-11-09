@@ -10,6 +10,8 @@ import (
 	"os/signal"
 	"syscall"
 	"unsafe"
+
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
 
 const foldCase = true
@@ -46,6 +48,20 @@ func launch(c Command) error {
 
 // restrictUmask does nothing: Windows has no umask.
 func restrictUmask() {}
+
+// fixCommand is the advice that ends e. An inherited entry cannot be removed
+// alone, so the first command copies inherited entries onto the folder.
+func fixCommand(e *runtime.Exposed) string {
+	if e.Owns {
+		return "Move the Site data into a folder you own."
+	}
+	folder, account := shellWord(e.Folder, true), shellWord(e.Account, true)
+	recurse := ""
+	if e.Leaf {
+		recurse = " /T"
+	}
+	return "Run: icacls " + folder + " /inheritance:d, then icacls " + folder + " /remove:g " + account + recurse
+}
 
 // createNoWindow gives a process a console no window shows. syscall does not define it.
 const createNoWindow = 0x08000000

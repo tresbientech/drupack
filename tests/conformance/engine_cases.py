@@ -255,6 +255,9 @@ class EngineExecutable(harness.ConformanceCase):
             # A browser drops the tab from the third shape.
             "host-like path": (403, ["//evil.example/../probe-dir", "/%5Cevil.example/../probe-dir",
                                      "/%09/evil.example/../../probe-dir", "//probe-both"]),
+            # Windows opens these as the files the slash forms name.
+            "backslash": (403, ["/modules%5Cx%5Cy.php", "/sites%5Cdefault%5Cfiles%5Cprobe.php",
+                                "/sites%5Cdefault%5Csettings.php", "/SITES%5CDEFAULT%5CSETTINGS.PHP."]),
         }
         for rule, (expected, paths) in refused.items():
             for path in paths:
@@ -461,6 +464,12 @@ class EngineExecutable(harness.ConformanceCase):
         with urlopen(request, timeout=harness.WAITS["http_request"].seconds) as response:
             self.assertEqual(response.status, 200)
 
+    def test_a_loopback_start_answers_no_name_of_another_site(self):
+        # A page that points its own name at 127.0.0.1 sends that name as its Host.
+        port, _ = self.start("start-foreign-host", str(self.project))
+        self.assertEqual(self.fetch(port, "/user/login", {"Host": f"evil.example:{port}"})[::2], (200, ""))
+        self.assertEqual(self.status(port, "/user/login"), 200)
+
     def with_subdomain(self, value, project=None):
         """Sets extra.drupack.subdomain in a project's composer.json until the case ends, or removes it
         for None. The project defaults to the demo's copy, whose composer.json sets one."""
@@ -582,6 +591,17 @@ class EngineExecutable(harness.ConformanceCase):
                                  env=dict(os.environ, PATH=str(empty)))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), version.stdout)
+
+    def test_a_database_the_engine_creates_is_its_owners_alone(self):
+        if harness.current_platform() == harness.WINDOWS:
+            self.skipTest("Windows files have no mode bits")
+        database = harness.fresh_dir(self.class_dir / "created-database") / "site.sqlite"
+        script = self.docroot / "engine-case-database.php"
+        script.write_text(f"<?php new PDO('sqlite:' . {json.dumps(str(database))}); echo 'created';")
+        self.addCleanup(script.unlink)
+        port, log = self.start("created-database", str(self.project))
+        self.assertEqual(self.fetch(port, "/engine-case-database.php")[2], "created", f"inspect {log}")
+        self.assertEqual(stat.S_IMODE(database.stat().st_mode) & 0o077, 0, oct(database.stat().st_mode))
 
     def test_a_request_child_process_runs_on_the_runtime_php_with_no_php_on_path(self):
         version = self.engine_run("php", "-r", "echo PHP_VERSION;")

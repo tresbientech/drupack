@@ -5,30 +5,101 @@ package runtime
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"syscall"
 )
 
-// privateRoot reports root when it is a directory this user owns and no other
-// account can write. A launch runs what the root holds, so an unowned or
-// shared one is refused rather than repaired.
-func privateRoot(root string) (string, error) {
-	info, err := os.Lstat(root)
+// leaf reports the account other than this user that owns dir, or can write
+// into it. readers counts read access too, for a directory whose contents
+// should stay unseen.
+func leaf(dir string, readers bool) (*Exposed, error) {
+	info, stat, err := lstat(dir)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	if !info.IsDir() || info.Mode().Perm()&0077 != 0 {
-		return "", fmt.Errorf("cache root is not a private directory: %s", root)
+	if int(stat.Uid) != os.Getuid() {
+		return &Exposed{Folder: dir, Account: userName(stat.Uid), Owns: true, Leaf: true}, nil
 	}
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok || int(stat.Uid) != os.Getuid() {
-		return "", fmt.Errorf("cache root is not owned by the current user: %s", root)
+	mask := fs.FileMode(0o022)
+	if readers {
+		mask = 0o077
 	}
-	return root, nil
+	if account := modeHolder(info.Mode().Perm()&mask, stat.Gid); account != "" {
+		return &Exposed{Folder: dir, Account: account, Leaf: true}, nil
+	}
+	return nil, nil
 }
 
-func makeRoot(dir string) error {
+// ancestor reports the account other than this user or root that owns dir, or
+// can rename child out of it. A sticky directory lets an account rename only
+// its own entries, so a shared /tmp holds a child no other account can move.
+func ancestor(dir, child string) (*Exposed, error) {
+	info, stat, err := lstat(dir)
+	if err != nil {
+		return nil, err
+	}
+	if int(stat.Uid) != os.Getuid() && stat.Uid != 0 {
+		return &Exposed{Folder: dir, Account: userName(stat.Uid), Owns: true}, nil
+	}
+	if info.Mode()&fs.ModeSticky != 0 {
+		return nil, nil
+	}
+	if account := modeHolder(info.Mode().Perm()&0o022, stat.Gid); account != "" {
+		return &Exposed{Folder: dir, Account: account}, nil
+	}
+	return nil, nil
+}
+
+func lstat(dir string) (fs.FileInfo, *syscall.Stat_t, error) {
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !info.IsDir() {
+		return nil, nil, fmt.Errorf("not a directory: %s", dir)
+	}
+	return info, info.Sys().(*syscall.Stat_t), nil
+}
+
+// modeHolder names who the permission bits grant: other accounts before
+// the group, since they are the wider set.
+func modeHolder(bits fs.FileMode, gid uint32) string {
+	switch {
+	case bits&0o007 != 0:
+		return "every account"
+	case bits&0o070 != 0:
+		if group, err := user.LookupGroupId(strconv.Itoa(int(gid))); err == nil {
+			return "group " + group.Name
+		}
+		return fmt.Sprintf("group %d", gid)
+	}
+	return ""
+}
+
+func userName(uid uint32) string {
+	if account, err := user.LookupId(strconv.Itoa(int(uid))); err == nil {
+		return account.Username
+	}
+	return fmt.Sprintf("uid %d", uid)
+}
+
+// Owner names the account that owns path, following a link, and reports whether
+// it is this user or root.
+func Owner(path string) (account string, trusted bool, err error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", false, err
+	}
+	uid := info.Sys().(*syscall.Stat_t).Uid
+	return userName(uid), int(uid) == os.Getuid() || uid == 0, nil
+}
+
+// Create makes dir and any missing parent, each with mode 0700 under the umask.
+func Create(dir string) error {
 	return os.MkdirAll(dir, rootMode)
 }
 

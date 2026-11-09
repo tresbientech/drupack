@@ -933,3 +933,67 @@ func TestOnlyTheSiteArchiveNamesADocroot(t *testing.T) {
 		t.Errorf("the engine archive %v takes more than the script, files and output", command)
 	}
 }
+
+// stageFiles stages a site holding composer.json and files, and returns the error.
+func stageFiles(t *testing.T, files map[string]string) error {
+	t.Helper()
+	site := t.TempDir()
+	files["composer.json"] = "{}"
+	for name, content := range files {
+		path := filepath.Join(site, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := request([]string{"linux-amd64"}, "both")
+	r.SiteDir = site
+	r.Work = t.TempDir()
+	plan, err := build.NewPlan(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return step(t, plan, "stage the site").Func(io.Discard)
+}
+
+const privateKey = "-----BEGIN PRIVATE KEY-----\nMIIB\n-----END PRIVATE KEY-----\n"
+
+func TestStagingRefusesCredentials(t *testing.T) {
+	for _, name := range []string{"auth.json", ".env", ".env.local", "web/.env.production", ".env~", ".env1", "config.env",
+		"certs/site.pem", "certs/site.key", "secrets.json", "gcp-credentials.json", ".git-credentials", ".netrc", ".npmrc",
+		".pypirc", ".s3cfg", ".boto", "keys/id_rsa", ".ssh/id_ed25519", ".aws/credentials", "deploy/.aws/config",
+		".docker/config.json", ".kube/config", ".claude/settings.local.json", "web/.vscode/sftp.json"} {
+		t.Run(name, func(t *testing.T) {
+			err := stageFiles(t, map[string]string{name: privateKey, "keep.txt": "kept"})
+			if err == nil || !strings.Contains(err.Error(), ": "+name+". Add each to .gitignore") {
+				t.Fatalf("staging = %v, want a refusal naming %s", err, name)
+			}
+		})
+	}
+	err := stageFiles(t, map[string]string{"auth.json": "{}", ".env": "A=1"})
+	if err == nil || !strings.Contains(err.Error(), ": .env, auth.json. ") {
+		t.Errorf("staging two credentials = %v, want both named", err)
+	}
+}
+
+func TestStagingKeepsFilesThatHoldNoCredential(t *testing.T) {
+	err := stageFiles(t, map[string]string{
+		".env.example": "A=",
+		".env.dist":    "A=",
+		"web/modules/contrib/canvas/.env.defaults": "A=",
+		".env.sample":           "A=",
+		".env.template":         "A=",
+		".env-example":          "A=",
+		".ssh/id_rsa.pub":       "ssh-ed25519 AAAA",
+		".claude/settings.json": "{}",
+		"docker/config.json":    "{}",
+		"certs/ca.pem":          "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n",
+		"vendor/acme/.env":      "A=1",
+		"vendor/acme/test.key":  privateKey,
+	})
+	if err != nil {
+		t.Fatalf("staging = %v, want no refusal", err)
+	}
+}

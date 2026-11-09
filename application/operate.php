@@ -385,6 +385,13 @@ function configureAdministrator(string $binary): void
     runDrush($binary, [drushPath(), 'php:eval', '$account = \\Drupal\\user\\Entity\\User::load(1); $account->set("name", getenv("DRUPACK_ADMIN_USER")); $account->setPassword(getenv("DRUPACK_ADMIN_PASSWORD")); $account->save();'], 'Cannot configure Drupal administrator');
 }
 
+// Every copy of a release carries the seed's cron key, private key and site UUID, so the
+// first start replaces them with values of its own.
+function configureSeedIdentity(string $binary): void
+{
+    runDrush($binary, [drushPath(), 'php:eval', '$random = fn() => \\Drupal\\Component\\Utility\\Crypt::randomBytesBase64(55); \\Drupal::state()->set("system.cron_key", $random()); \\Drupal::service("private_key")->set($random()); \\Drupal::configFactory()->getEditable("system.site")->set("uuid", \\Drupal::service("uuid")->generate())->save();'], 'Cannot replace the seed site\'s keys');
+}
+
 // The first start renames the seed's build-time site name.
 function configureSeedSiteName(string $binary, string $name): void
 {
@@ -420,6 +427,7 @@ function runStep(Step $step, SiteData $site, array $options, string $binary, boo
             return false;
         case Step::Administrator:
             configureAdministrator($binary);
+            configureSeedIdentity($binary);
             configureSeedSiteName($binary, $options['site-name']);
             return false;
         case Step::Install:
