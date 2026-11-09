@@ -41,7 +41,7 @@ bash prints today.
 - D8: `tests/conformance/test_release_plan.py` holds one row per branch of the bash, with a fake `fetch` over recorded responses that raises on an unscripted path and records its calls. `build/unit-tests.sh` runs it. Evidence: that script lists the Python unit files by name.
 - D9: Before the bash leaves the workflow, each row's expected plan is checked against the bash itself, run with a stub `gh` on the same inputs.
 - D10: `tests/conformance/test_targets.py` keeps its platform options check and gains one: the workflow's `run-name` formats to the script's title.
-- D11: The gate step's `run:` body, its `matrix()` and `runtimes()` helpers and its `BEFORE`, `SHA`, `PLATFORM`, `NAMED` and `TARGETS` entries leave the workflow.
+- D11: The gate step's `run:` body, its `matrix()` and `runtimes()` helpers and its `SHA` and `TARGETS` entries leave the workflow. `BEFORE`, `PLATFORM` and `NAMED` stay in `env:`, since an expression pasted into a run script is a shell injection path.
 - D12: ADR 0054 records the decision, and ADR 0018 gains an amendment line. Evidence: ADR 0018 describes the release graph the gate opens.
 
 ### Considered options
