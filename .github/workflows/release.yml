@@ -59,6 +59,7 @@ jobs:
       linux: ${{ steps.targets.outputs.linux }}
       linux_runtime: ${{ steps.targets.outputs.linux_runtime }}
       macos: ${{ steps.targets.outputs.macos }}
+      macos_tests: ${{ steps.targets.outputs.macos_tests }}
       windows: ${{ steps.targets.outputs.windows }}
       demo_repository: ${{ steps.demo.outputs.repository }}
       demo_ref: ${{ steps.demo.outputs.ref }}
@@ -153,6 +154,12 @@ jobs:
               echo 'Documentation alone changed. Nothing to build.'
             fi
           fi
+          # One macOS test row per share of the test classes. One Intel runner takes
+          # 45 minutes over the suite, so four take a share each. GitHub runs five
+          # macOS jobs at once, and the arm64 row is the fifth. An architecture's last
+          # row also runs the variant cases.
+          macos_tests=$(jq -c '[.[] | (if .arch == "amd64" then 4 else 1 end) as $count | range(1; $count + 1) as $index
+            | {arch, shard: "\($index)/\($count)", results: "macos-\(.arch)-\($index)", variant: ($index == $count)}]' <<<"$macos")
           # One runtime row per Linux architecture and libc, naming the libc's builder image.
           runtimes() {
             jq -c --argjson arches "$1" \
@@ -175,6 +182,7 @@ jobs:
             printf 'linux=%s\n' "$linux"
             printf 'linux_runtime=%s\n' "$linux_runtime"
             printf 'macos=%s\n' "$macos"
+            printf 'macos_tests=%s\n' "$macos_tests"
             printf 'windows=%s\n' "$windows"
           } >>"$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
@@ -604,34 +612,19 @@ jobs:
           if-no-files-found: error
 
   # install.ps1 installs the amd64 build on Windows on Arm too, which runs it under
-  # the system's x64 emulation. The Arm legs build the amd64 executables on an Arm
-  # host and test them there. Emulation doubles each case's time, so two Arm
-  # runners each take half of the test classes. The amd64 leg ships the files.
+  # the system's x64 emulation. This job builds the amd64 executables once, and the
+  # windows-test jobs run the suite on those files on both hosts.
   windows:
-    name: ${{ matrix.name }}
+    name: Windows amd64 build
     needs: [gate, payload]
     if: needs.gate.outputs.windows != '[]'
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.timeout }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {name: Windows amd64, runner: windows-2025, timeout: 90, results: windows-amd64, ships: true, variant: true, shard: ''}
-          - {name: 'Windows arm64 (amd64 emulated, 1/2)', runner: windows-11-arm, timeout: 120, results: windows-arm64-1, ships: false, variant: false, shard: 1/2}
-          - {name: 'Windows arm64 (amd64 emulated, 2/2)', runner: windows-11-arm, timeout: 120, results: windows-arm64-2, ships: false, variant: true, shard: 2/2}
+    runs-on: windows-2025
+    timeout-minutes: 60
     defaults:
       run:
         shell: pwsh
     steps:
       - uses: actions/checkout@v7
-
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ needs.gate.outputs.demo_repository }}
-          ref: ${{ needs.gate.outputs.demo_ref }}
-          path: demo
-          persist-credentials: false
 
       - uses: actions/setup-go@v7
         with:
@@ -639,7 +632,6 @@ jobs:
           cache: false
 
       - name: Run the Go unit tests
-        if: matrix.ships
         shell: bash
         run: bash build/go-tests.sh
 
@@ -653,6 +645,11 @@ jobs:
           name: engine-payload-archive
           path: dist/engine-payload
 
+      - uses: actions/download-artifact@v8
+        with:
+          name: variant-payload-archive
+          path: dist/variant-payload
+
       - uses: actions/cache@v6
         with:
           path: |
@@ -661,60 +658,41 @@ jobs:
             ~\AppData\Local\vcpkg\archives
             ~\go\pkg\mod
             ~\AppData\Local\go-build
-          key: ${{ matrix.ships && 'windows' || 'windows-arm' }}-build-${{ hashFiles('build/windows/build.ps1') }}
+          key: windows-build-${{ hashFiles('build/windows/build.ps1') }}
 
       - name: Build the executables
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
           ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupacked-demo.exe -EnginePayloadDirectory dist\engine-payload -EngineOutput dist\engine\drupack.exe
+          Copy-Item dist\payload\site.json dist\site.json
 
-      # The engine uploads before the suite, so a run the suite hangs still keeps it.
       - uses: actions/upload-artifact@v7
-        if: matrix.ships
         with:
           name: drupack-windows-amd64
           path: dist/engine/drupack.exe
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v7
-        if: matrix.ships
         with:
           name: runtime-windows-amd64
           path: ${{ runner.temp }}\drupack\runtime
           if-no-files-found: error
 
       - name: Report the runtime's components
-        if: matrix.ships
         run: |
           New-Item -ItemType Directory -Path runtime-components | Out-Null
           python build/sbom.py runtime --target windows-amd64 "$env:RUNNER_TEMP\drupack\runtime\frankenphp.exe" >runtime-components\windows-amd64.json
 
       - uses: actions/upload-artifact@v7
-        if: matrix.ships
         with:
           name: runtime-components-windows-amd64
           path: runtime-components
           if-no-files-found: error
 
-      - name: Run the conformance suite
-        env:
-          DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
-          DRUPACK_SHARD: ${{ matrix.shard }}
-        run: |
-          Copy-Item dist\payload\site.json dist\site.json
-          python tests/conformance dist\drupacked-demo.exe test-results\conformance --site-tests demo\tests
-
-      - uses: actions/download-artifact@v8
-        if: matrix.variant
-        with:
-          name: variant-payload-archive
-          path: dist/variant-payload
-
       # The variant fixture packs on the runtime the build above left in its work
       # directory, with the amd64 launcher the release ships.
-      - name: Run the variant fixture cases
-        if: matrix.variant
+      - name: Pack the variant fixture
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
@@ -723,7 +701,75 @@ jobs:
           go run ./cmd/pack -goarch amd64 -runtime "$env:RUNNER_TEMP\drupack\runtime" -entry frankenphp.exe -version $env:DRUPACK_VERSION -source . -output ..\dist\variant\variant-demo.exe -app ..\dist\variant-payload\app-payload.tar.zst -app-checksum ..\dist\variant-payload\app_checksum.txt -site ..\dist\variant-payload\site.json -site-version $env:DRUPACK_VERSION -node ..\dist\variant-payload\node\windows-amd64.zip
           Pop-Location
           Copy-Item dist\variant-payload\site.json dist\variant\site.json
-          python tests/conformance dist\variant\variant-demo.exe test-results\variant -k Node -k MercureHub -k ProjectRules
+
+      # The files the windows-test jobs run. The name stays outside the patterns the
+      # sbom and publish jobs download. The retention stays the default: the gate
+      # rebuilds a candidate when any of its artifacts expired.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: suite-windows-amd64
+          path: |
+            dist/drupacked-demo.exe
+            dist/site.json
+            dist/engine/drupack.exe
+            dist/variant
+          compression-level: 0
+          if-no-files-found: error
+
+  # Each job runs one share of the test classes on the files the windows job built.
+  # Emulation doubles each case's time, so the Arm host splits the suite in four
+  # and runs the variant cases in a job of their own.
+  windows-test:
+    name: ${{ matrix.name }}
+    needs: [gate, windows]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: 'Windows amd64 tests (1/3)', runner: windows-2025, results: windows-amd64-1, shard: 1/3, variant: false}
+          - {name: 'Windows amd64 tests (2/3)', runner: windows-2025, results: windows-amd64-2, shard: 2/3, variant: false}
+          - {name: 'Windows amd64 tests (3/3)', runner: windows-2025, results: windows-amd64-3, shard: 3/3, variant: true}
+          - {name: 'Windows arm64 tests (amd64 emulated, 1/4)', runner: windows-11-arm, results: windows-arm64-1, shard: 1/4, variant: false}
+          - {name: 'Windows arm64 tests (amd64 emulated, 2/4)', runner: windows-11-arm, results: windows-arm64-2, shard: 2/4, variant: false}
+          - {name: 'Windows arm64 tests (amd64 emulated, 3/4)', runner: windows-11-arm, results: windows-arm64-3, shard: 3/4, variant: false}
+          - {name: 'Windows arm64 tests (amd64 emulated, 4/4)', runner: windows-11-arm, results: windows-arm64-4, shard: 4/4, variant: false}
+          - {name: 'Windows arm64 variant tests (amd64 emulated)', runner: windows-11-arm, results: windows-arm64-variant, shard: '', variant: true}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ needs.gate.outputs.demo_repository }}
+          ref: ${{ needs.gate.outputs.demo_ref }}
+          path: demo
+          persist-credentials: false
+
+      # The suite packs its fixture launchers with Go.
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: suite-windows-amd64
+          path: dist
+
+      - name: Run the conformance suite
+        if: matrix.shard != ''
+        env:
+          DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
+          DRUPACK_SHARD: ${{ matrix.shard }}
+        run: python tests/conformance dist\drupacked-demo.exe test-results\conformance --site-tests demo\tests
+
+      - name: Run the variant fixture cases
+        if: matrix.variant
+        run: python tests/conformance dist\variant\variant-demo.exe test-results\variant -k Node -k MercureHub -k ProjectRules
 
       - name: Upload test results
         if: failure()
@@ -732,8 +778,10 @@ jobs:
           name: test-results-${{ matrix.results }}
           path: test-results
 
+  # Builds each architecture's executables once. The macos-test jobs run the suite
+  # on those files.
   macos:
-    name: macOS ${{ matrix.arch }}
+    name: macOS ${{ matrix.arch }} build
     needs: [gate, payload]
     if: needs.gate.outputs.macos != '[]'
     runs-on: ${{ matrix.arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
@@ -744,13 +792,6 @@ jobs:
         include: ${{ fromJSON(needs.gate.outputs.macos) }}
     steps:
       - uses: actions/checkout@v7
-
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ needs.gate.outputs.demo_repository }}
-          ref: ${{ needs.gate.outputs.demo_ref }}
-          path: demo
-          persist-credentials: false
 
       - uses: actions/setup-go@v7
         with:
@@ -776,6 +817,11 @@ jobs:
           name: engine-payload-archive
           path: dist/engine-payload
 
+      - uses: actions/download-artifact@v8
+        with:
+          name: variant-payload-archive
+          path: dist/variant-payload
+
       # The buildroot holds the PHP the allowlist names, so the list files belong
       # in the key beside the script that compiles them.
       - uses: actions/cache/restore@v6
@@ -795,7 +841,7 @@ jobs:
           bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/drupacked-demo dist/engine-payload dist/engine/drupack
           cp dist/payload/site.json dist/site.json
 
-      # Saved before the tests, so a failed test does not repeat the PHP build.
+      # Saved before the later steps, so a failure in one does not repeat the PHP build.
       - uses: actions/cache/save@v6
         with:
           path: |
@@ -823,18 +869,7 @@ jobs:
           path: runtime-components
           if-no-files-found: error
 
-      - name: Run the test scripts
-        env:
-          DRUPACK_TEST_ENGINE: dist/engine/drupack
-        run: |
-          python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests demo/tests
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: variant-payload-archive
-          path: dist/variant-payload
-
-      - name: Run the variant fixture cases
+      - name: Pack the variant fixture
         env:
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
         run: |
@@ -845,21 +880,27 @@ jobs:
             -site ../dist/variant-payload/site.json -site-version "$DRUPACK_VERSION" \
             -node "../dist/variant-payload/node/macos-${{ matrix.arch }}.tar.gz")
           cp dist/variant-payload/site.json dist/variant/site.json
-          python3 tests/conformance dist/variant/variant-demo test-results/variant -k Node -k MercureHub -k ProjectRules
 
       - name: Check the unsigned launch steps
         run: |
-          cp dist/drupacked-demo test-results/quarantined
-          xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" test-results/quarantined
-          xattr -d com.apple.quarantine test-results/quarantined
-          test-results/quarantined --help
+          cp dist/drupacked-demo "$RUNNER_TEMP/quarantined"
+          xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" "$RUNNER_TEMP/quarantined"
+          xattr -d com.apple.quarantine "$RUNNER_TEMP/quarantined"
+          "$RUNNER_TEMP/quarantined" --help
 
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@v7
+      # The files the macos-test jobs run. The name stays outside the patterns the
+      # sbom and publish jobs download. The retention stays the default: the gate
+      # rebuilds a candidate when any of its artifacts expired.
+      - uses: actions/upload-artifact@v7
         with:
-          name: test-results-macos-${{ matrix.arch }}
-          path: test-results
+          name: suite-macos-${{ matrix.arch }}
+          path: |
+            dist/drupacked-demo
+            dist/site.json
+            dist/engine/drupack
+            dist/variant
+          compression-level: 0
+          if-no-files-found: error
 
       - uses: actions/upload-artifact@v7
         with:
@@ -867,14 +908,72 @@ jobs:
           path: dist/engine/drupack
           if-no-files-found: error
 
-  # An all-platform dispatch also runs build/qa.sh. upstream.yml dispatches one
-  # for each release candidate.
+  # Each job runs one share of the test classes on the files the macos job built.
+  macos-test:
+    name: macOS ${{ matrix.arch }} tests (${{ matrix.shard }})
+    needs: [gate, macos]
+    if: needs.gate.outputs.macos_tests != '[]'
+    runs-on: ${{ matrix.arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.gate.outputs.macos_tests) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ needs.gate.outputs.demo_repository }}
+          ref: ${{ needs.gate.outputs.demo_ref }}
+          path: demo
+          persist-credentials: false
+
+      # The suite packs its fixture launchers with Go.
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: suite-macos-${{ matrix.arch }}
+          path: dist
+
+      # An artifact keeps no file mode.
+      - name: Mark the executables
+        run: chmod +x dist/drupacked-demo dist/engine/drupack dist/variant/variant-demo
+
+      - name: Run the test scripts
+        env:
+          DRUPACK_TEST_ENGINE: dist/engine/drupack
+          DRUPACK_SHARD: ${{ matrix.shard }}
+        run: |
+          python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests demo/tests
+
+      - name: Run the variant fixture cases
+        if: matrix.variant
+        run: python3 tests/conformance dist/variant/variant-demo test-results/variant -k Node -k MercureHub -k ProjectRules
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-${{ matrix.results }}
+          path: test-results
+
+  # An all-platform dispatch also runs build/qa.sh, one phase per job. upstream.yml
+  # dispatches one for each release candidate.
   qa:
-    name: QA
+    name: QA ${{ matrix.phase }}
     needs: [linux-runtime, builder-push]
     if: github.event_name == 'workflow_dispatch' && inputs.platform == 'all'
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        phase: [demo, variant, host]
     permissions:
       contents: read
       packages: read
@@ -905,15 +1004,19 @@ jobs:
           done
 
       - name: Run build/qa.sh
+        env:
+          PHASE: ${{ matrix.phase }}
         run: |
           set -o pipefail
-          bash build/qa.sh 2>&1 | tee "$RUNNER_TEMP/qa.log"
+          bash build/qa.sh "$PHASE" 2>&1 | tee "$RUNNER_TEMP/qa.log"
 
       - name: Summarize the QA
         if: always()
+        env:
+          PHASE: ${{ matrix.phase }}
         run: |
           {
-            printf '### build/qa.sh\n\n```\n'
+            printf '### build/qa.sh %s\n\n```\n' "$PHASE"
             grep -E '^(Ran |OK|FAILED|ok |FAIL)' "$RUNNER_TEMP/qa.log" || true
             printf '```\n'
           } >>"$GITHUB_STEP_SUMMARY"
@@ -923,7 +1026,7 @@ jobs:
   # The scans read the downloaded folders as they land: the merge keeps each
   # component's name, version and identifiers, never its file path.
   sbom:
-    needs: [gate, linux, windows, macos, demo]
+    needs: [gate, linux, windows, windows-test, macos, macos-test, demo]
     if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' }}
     runs-on: ubuntu-24.04
     permissions:
@@ -983,7 +1086,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [gate, linux, windows, macos, demo, sbom]
+    needs: [gate, linux, windows, windows-test, macos, macos-test, demo, sbom]
     if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' }}
     runs-on: ubuntu-24.04
     permissions:

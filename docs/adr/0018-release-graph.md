@@ -2,6 +2,7 @@
 
 Accepted on 2026-09-22. Amended on 2026-09-23: the Dockerfile lost its `packed` and
 `artifact` stages, and a local build runs `drupack-build` in the job image.
+Amended on 2026-11-09: macOS and Windows test in jobs apart from their build.
 
 ## Context
 
@@ -70,3 +71,47 @@ on `b6ceb1d` and on the last full green run.
 - The application that Linux ships is the one Windows and macOS tested.
 - CI and a local build pack through the same `drupack-build`, so a pack break
   shows up in a run.
+
+## Amendment, 2026-11-09: macOS and Windows build once and test in shares
+
+The 1.0.0-beta15 candidate run took 87 minutes of wall clock. Runtimes and the
+payload took the first 12. One serial suite run then set the length of each
+long job:
+
+- Intel macOS: 75 minutes, with 45 in the suite
+- QA: 69 minutes
+- Windows arm64: 48 and 58 minutes for its two halves, with 43 in each
+- Windows amd64: 53 minutes, with 43 in the suite
+
+The suite's time is spread over its cases: about 6 seconds each on Linux and
+16 on Intel macOS.
+
+- The `macos` and `windows` jobs build, pack the variant fixture, and upload
+  the files the suite runs as a `suite-*` artifact.
+- `macos-test` and `windows-test` download that artifact. Each job runs one
+  `DRUPACK_SHARD` share of the test classes.
+- Intel macOS runs four shares and macOS arm64 one.
+- Windows amd64 runs three shares. Windows arm64 runs four, and its variant
+  cases in a fifth job.
+- The Windows arm64 jobs test the files the amd64 host built. Each built its
+  own before.
+- `build/qa.sh` takes a phase: `demo`, `variant` or `host`. The `qa` job runs
+  one phase per job. The `demo` and `host` phases each build Drupacked Demo,
+  and each build runs one half of its suite.
+- Linux keeps one job per architecture, at 23 to 27 minutes.
+
+This takes "build then verify" from the options above for macOS and Windows.
+Each test job pays an artifact download and a Go setup.
+
+Consequences:
+
+- Every case runs once on every host, as before.
+- The expected wall clock is about 50 minutes. No run has measured it.
+- The graph peaks at 19 jobs: 2 Linux, 1 demo, 3 QA, 8 Windows test and 5
+  macOS. GitHub's free plan runs 20 jobs at once, 5 of them on macOS.
+- A suite rerun on macOS or Windows downloads the build.
+- An executable uploads before its tests pass. A tag publishes it from a green
+  candidate run, or after the test jobs `publish` needs.
+- No CI job builds on a Windows arm64 host.
+- The `suite-*` artifacts keep the default retention. The gate rebuilds a
+  candidate when any of its artifacts expired.
