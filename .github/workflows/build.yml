@@ -172,7 +172,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: test-results
-          path: /tmp/drupack/work/test-results
+          # The folder also holds each case's project, about 2 GB over 400,000 files.
+          path: |
+            /tmp/drupack/work/test-results/**/*.log
+            /tmp/drupack/work/test-results/**/run.out
+            /tmp/drupack/work/test-results/**/run.err
 
       # The payload stays out of the executables, and goes up only for the native jobs.
       - uses: actions/upload-artifact@v7
@@ -285,7 +289,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: test-results-${{ matrix.target }}
-          path: test-results
+          # The folder also holds each case's project, about 2 GB over 400,000 files.
+          path: |
+            test-results/**/*.log
+            test-results/**/run.out
+            test-results/**/run.err
 
   # php.net publishes no arm64 PHP, so Windows on Arm runs the windows-amd64
   # executable under emulation. This job runs the suite on it there.
@@ -349,7 +357,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: test-results-windows-arm64
-          path: test-results
+          # The folder also holds each case's project, about 2 GB over 400,000 files.
+          path: |
+            test-results/**/*.log
+            test-results/**/run.out
+            test-results/**/run.err
 
   # The calling job grants contents: write, id-token: write and attestations: write.
   publish:
