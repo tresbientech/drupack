@@ -58,18 +58,18 @@ func engineExport(l Launch, c command, cwd string, e environ) (exportCall, error
 	}
 	uri := ""
 	if !namesURI(c.words) {
-		record, recorded, err := f.entry.Listener()
+		a, err := Served(f.entry, l.Name, f.target(), Typed{})
 		if err != nil {
 			return exportCall{}, err
 		}
-		if !recorded || record.StaticListen == "" {
+		if !a.Recorded || !a.StaticRecorded {
 			return exportCall{}, fmt.Errorf("Cannot read a recorded static URL for %s. Start it once, or pass --uri URL.", runtime.Canonical(f.project))
 		}
-		_, port, err := parseListen(record.StaticListen, "--static-listen")
+		plan, err := a.Plan(true, "project")
 		if err != nil {
 			return exportCall{}, err
 		}
-		uri = siteURL(record.Scheme, record.Host, port)
+		uri = plan.Static.URL
 	}
 	run, err := f.drush(l, e, exportWords(uri, c.words))
 	if err != nil {

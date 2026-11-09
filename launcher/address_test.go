@@ -13,39 +13,54 @@ import (
 
 func TestServed(t *testing.T) {
 	plain := siteTarget(siteconfig.Site{Port: 1})
-	static := siteTarget(siteconfig.Site{Port: 1, Static: &siteconfig.Static{}})
-	engine := Site{DefaultListen: "127.0.0.1:3787", Noun: "project", AnyHost: true}
+	engine := Site{DefaultListen: "127.0.0.1:3787", AnyHost: true}
 	record := state.Listener{Listen: "127.0.0.1:8080", Host: "shop.drupack.site", Scheme: "https", FilesDir: "/recorded/files"}
 	withStatic := record
 	withStatic.StaticListen = "127.0.0.1:8081"
+	shop := Address{Bind: "127.0.0.1", Port: 8080, Host: "shop.drupack.site", Scheme: "https", Recorded: true, FilesDir: "/recorded/files"}
+	with := func(change func(*Address)) Address {
+		a := shop
+		change(&a)
+		return a
+	}
 
 	for _, row := range []struct {
-		name   string
-		site   Site
-		record *state.Listener
-		raw    string
-		typed  Typed
-		want   Address
-		err    string
+		name      string
+		site      Site
+		record    *state.Listener
+		raw       string
+		typed     Typed
+		noun      string // a row that names the project asks for the static plan
+		hasStatic bool
+		want      Address
+		plan      startPlan
+		err       string
 	}{
 		{name: "no record", site: plain,
-			want: Address{startPlan: mustPlan(t, "127.0.0.1", 1, "", false, "localhost", "http")}},
-		{name: "record alone", site: plain, record: &record,
-			want: Address{startPlan: mustPlan(t, "127.0.0.1", 8080, "", false, "shop.drupack.site", "https"), Recorded: true, FilesDir: "/recorded/files"}},
+			want: Address{Bind: "127.0.0.1", Port: 1, Host: "localhost", Scheme: "http"}},
+		{name: "an engine with no record", site: engine,
+			want: Address{Bind: "127.0.0.1", Port: 3787, Host: "localhost", Scheme: "http"}},
+		{name: "record alone", site: plain, record: &record, want: shop},
 		{name: "typed listen over record", site: plain, record: &record, typed: Typed{Listen: "127.0.0.1:9000"},
-			want: Address{startPlan: mustPlan(t, "127.0.0.1", 9000, "", false, "shop.drupack.site", "https"), Recorded: true, FilesDir: "/recorded/files"}},
-		{name: "typed static listen over record", site: static, record: &withStatic, typed: Typed{StaticListen: "127.0.0.1:9001"},
-			want: Address{startPlan: mustPlan(t, "127.0.0.1", 8080, "127.0.0.1:9001", true, "shop.drupack.site", "https"), Recorded: true, StaticRecorded: true, FilesDir: "/recorded/files"}},
+			want: with(func(a *Address) { a.Port = 9000 })},
+		{name: "typed static listen over record", site: plain, record: &withStatic, typed: Typed{StaticListen: "127.0.0.1:9001"},
+			noun: "site", hasStatic: true,
+			want: with(func(a *Address) { a.StaticListen, a.StaticRecorded = "127.0.0.1:9001", true }),
+			plan: mustPlan(t, "127.0.0.1", 8080, "127.0.0.1:9001", true, "shop.drupack.site", "https")},
 		{name: "typed host over record", site: plain, record: &record, typed: Typed{Host: "blog.drupack.site"},
-			want: Address{startPlan: mustPlan(t, "127.0.0.1", 8080, "", false, "blog.drupack.site", "https"), Recorded: true, FilesDir: "/recorded/files"}},
+			want: with(func(a *Address) { a.Host = "blog.drupack.site" })},
 		{name: "typed files directory over record", site: plain, record: &record, typed: Typed{FilesDir: "/typed/files"},
-			want: Address{startPlan: mustPlan(t, "127.0.0.1", 8080, "", false, "shop.drupack.site", "https"), Recorded: true, FilesDir: "/typed/files"}},
+			want: with(func(a *Address) { a.FilesDir = "/typed/files" })},
 		{name: "a hostname record read with any host", site: engine, record: &state.Listener{Listen: "localhost:8080", Host: "localhost", Scheme: "http"},
-			want: Address{startPlan: mustPlan(t, "localhost", 8080, "", false, "localhost", "http"), Recorded: true}},
-		{name: "a record with a static listener", site: static, record: &withStatic,
-			want: Address{startPlan: mustPlan(t, "127.0.0.1", 8080, "127.0.0.1:8081", true, "shop.drupack.site", "https"), Recorded: true, StaticRecorded: true, FilesDir: "/recorded/files"}},
-		{name: "a record with no static listener", site: static, record: &record,
-			want: Address{startPlan: mustPlan(t, "127.0.0.1", 8080, "", true, "shop.drupack.site", "https"), Recorded: true, FilesDir: "/recorded/files"}},
+			want: Address{Bind: "localhost", Port: 8080, Host: "localhost", Scheme: "http", Recorded: true}},
+		{name: "a record with a static listener", site: plain, record: &withStatic, noun: "site", hasStatic: true,
+			want: with(func(a *Address) { a.StaticListen, a.StaticRecorded = "127.0.0.1:8081", true }),
+			plan: mustPlan(t, "127.0.0.1", 8080, "127.0.0.1:8081", true, "shop.drupack.site", "https")},
+		{name: "a record with no static listener", site: plain, record: &record, noun: "site", hasStatic: true, want: shop,
+			plan: mustPlan(t, "127.0.0.1", 8080, "", true, "shop.drupack.site", "https")},
+		{name: "a hostname record with no static listener", site: engine, record: &state.Listener{Listen: "localhost:8080", Host: "localhost", Scheme: "http"},
+			noun: "project", hasStatic: true,
+			err: "--static-listen requires IP:PORT, with IPv6 enclosed in brackets"},
 
 		{name: "an unreadable record", site: plain, raw: "not json",
 			err: "Cannot read the recorded listener: {dir}/listener. Remove that file, then start fixture-site again to record it."},
@@ -55,10 +70,12 @@ func TestServed(t *testing.T) {
 			err: "--listen requires IP:PORT, with IPv6 enclosed in brackets"},
 		{name: "a listener port out of range", site: plain, typed: Typed{Listen: "127.0.0.1:70000"},
 			err: "Invalid --listen address or port"},
-		{name: "a static listener on the site's port", site: static, typed: Typed{Listen: "127.0.0.1:5", StaticListen: "127.0.0.1:5"},
+		{name: "a static listener on the site's port", site: plain, typed: Typed{Listen: "127.0.0.1:5", StaticListen: "127.0.0.1:5"},
+			noun: "site", hasStatic: true,
 			err: "--static-listen must name a port other than the site's 5"},
 		{name: "a static listener on a site without one", site: plain, typed: Typed{StaticListen: "127.0.0.1:5"},
-			err: "--static-listen needs a site whose composer.json sets extra.drupack.static"},
+			noun: "site",
+			err:  "--static-listen needs a site whose composer.json sets extra.drupack.static"},
 		{name: "a host that is no name", site: plain, typed: Typed{Host: "not a host"},
 			err: "Invalid --host value"},
 	} {
@@ -75,6 +92,10 @@ func TestServed(t *testing.T) {
 				}
 			}
 			got, err := Served(state.At(dir), "fixture-site", row.site, row.typed)
+			var plan startPlan
+			if err == nil && row.noun != "" {
+				plan, err = got.Plan(row.hasStatic, row.noun)
+			}
 			if row.err != "" {
 				want := strings.ReplaceAll(row.err, "{dir}", dir)
 				if err == nil || err.Error() != want {
@@ -87,6 +108,12 @@ func TestServed(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, row.want) {
 				t.Errorf("Served = %+v, want %+v", got, row.want)
+			}
+			if !reflect.DeepEqual(plan, row.plan) {
+				t.Errorf("Plan = %+v, want %+v", plan, row.plan)
+			}
+			if got.URL() != siteURL(row.want.Scheme, row.want.Host, row.want.Port) || got.Mercure() != mercureURL(row.want.Scheme, row.want.Bind, row.want.Port) {
+				t.Errorf("URL %s, Mercure %s", got.URL(), got.Mercure())
 			}
 		})
 	}

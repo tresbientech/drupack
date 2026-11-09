@@ -84,7 +84,11 @@ func openSite(l Launch, site siteconfig.Site, c command, cwd string, e environ) 
 	if err != nil {
 		return openedSite{}, err
 	}
-	plan, files := served.startPlan, served.FilesDir
+	plan, err := served.Plan(site.Static != nil, "site")
+	if err != nil {
+		return openedSite{}, err
+	}
+	files := served.FilesDir
 
 	restrictUmask()
 	data, err = filepath.EvalSymlinks(data)
@@ -201,16 +205,12 @@ func (f engineProject) drush(l Launch, e environ, words []string) (Command, erro
 		e.put("DRUPACK_CA_FILE=" + runtime.Canonical(bundle))
 	}
 	if f.composer.Mercure {
-		record, recorded, err := f.entry.Listener()
+		a, err := Served(f.entry, l.Name, f.target(), Typed{})
 		if err != nil {
 			return Command{}, err
 		}
-		if recorded {
-			bind, port, err := engineListen(record.Listen)
-			if err != nil {
-				return Command{}, err
-			}
-			if err := putMercure(&e, f.entry, mercureURL(record.Scheme, bind, port)); err != nil {
+		if a.Recorded {
+			if err := putMercure(&e, f.entry, a.Mercure()); err != nil {
 				return Command{}, err
 			}
 		}
