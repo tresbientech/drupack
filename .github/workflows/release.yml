@@ -600,7 +600,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: test-results-linux-${{ matrix.arch }}
-          path: test-results
+          # The folder also holds each case's project, about 2 GB over 400,000 files.
+          path: |
+            test-results/**/*.log
+            test-results/**/run.out
+            test-results/**/run.err
 
       - uses: actions/upload-artifact@v7
         with:
@@ -782,7 +786,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: test-results-${{ matrix.results }}
-          path: test-results
+          # The folder also holds each case's project, about 2 GB over 400,000 files.
+          path: |
+            test-results/**/*.log
+            test-results/**/run.out
+            test-results/**/run.err
 
   # Builds each architecture's executables once. The macos-test jobs run the suite
   # on those files, and an architecture with one share runs it here.
@@ -936,7 +944,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: test-results-macos-${{ matrix.arch }}
-          path: test-results
+          # The folder also holds each case's project, about 2 GB over 400,000 files.
+          path: |
+            test-results/**/*.log
+            test-results/**/run.out
+            test-results/**/run.err
 
   # Each job runs one share of the test classes on the files the macos job built.
   macos-test:
@@ -990,7 +1002,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: test-results-${{ matrix.results }}
-          path: test-results
+          # The folder also holds each case's project, about 2 GB over 400,000 files.
+          path: |
+            test-results/**/*.log
+            test-results/**/run.out
+            test-results/**/run.err
 
   # An all-platform dispatch also runs build/qa.sh, one phase per job. upstream.yml
   # dispatches one for each release candidate.

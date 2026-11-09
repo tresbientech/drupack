@@ -355,7 +355,7 @@ system: `macos-15` for `macos-arm64`, `macos-15-intel` for `macos-amd64` and
 `windows-2025` for `windows-amd64`. The job downloads the runtime file of the
 engine release, checks its SHA-256 against that release's `checksums.txt`, and
 packs it with the site. The conformance suite then runs on the result, with the
-site's tests. A failed native job uploads its test results as
+site's tests. A failed native job uploads its test logs as
 `test-results-TARGET`.
 
 Windows on Arm runs the `windows-amd64` executable under emulation, since
