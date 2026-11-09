@@ -92,6 +92,24 @@ func exposedTo(folder, writer string) *Exposed {
 	return &Exposed{Folder: folder, Account: writer}
 }
 
+// Owner names the account that owns path, following a link, and reports whether
+// it is one of trustedAccounts.
+func Owner(path string) (account string, trusted bool, err error) {
+	accounts, err := trustedAccounts()
+	if err != nil {
+		return "", false, err
+	}
+	sd, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION)
+	if err != nil {
+		return "", false, err
+	}
+	owner, _, err := sd.Owner()
+	if err != nil {
+		return "", false, err
+	}
+	return accountName(owner), trusts(accounts, owner), nil
+}
+
 // security reads the owner and DACL of the directory dir.
 func security(dir string) (*windows.SECURITY_DESCRIPTOR, *windows.SID, error) {
 	info, err := os.Lstat(dir)

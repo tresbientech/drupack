@@ -87,6 +87,17 @@ func userName(uid uint32) string {
 	return fmt.Sprintf("uid %d", uid)
 }
 
+// Owner names the account that owns path, following a link, and reports whether
+// it is this user or root.
+func Owner(path string) (account string, trusted bool, err error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", false, err
+	}
+	uid := info.Sys().(*syscall.Stat_t).Uid
+	return userName(uid), int(uid) == os.Getuid() || uid == 0, nil
+}
+
 // Create makes dir and any missing parent, each with mode 0700 under the umask.
 func Create(dir string) error {
 	return os.MkdirAll(dir, rootMode)

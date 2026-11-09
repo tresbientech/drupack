@@ -254,14 +254,25 @@ func engineDrush(l Launch, c command, cwd string, e environ) (Command, error) {
 
 // vendorRoot finds the project holding cwd: the nearest directory at or above
 // it with a vendor/autoload.php. Drupal core and many modules carry a
-// composer.json and no vendor/.
+// composer.json and no vendor/. The autoloader runs as this user, so the first
+// one found must belong, with its folders, to this user or the system.
 func vendorRoot(cwd string) (string, error) {
 	start, err := filepath.EvalSymlinks(cwd)
 	if err != nil {
 		return "", err
 	}
 	for dir := start; ; dir = filepath.Dir(dir) {
-		if info, err := os.Stat(filepath.Join(dir, "vendor", "autoload.php")); err == nil && info.Mode().IsRegular() {
+		autoload := filepath.Join(dir, "vendor", "autoload.php")
+		if info, err := os.Stat(autoload); err == nil && info.Mode().IsRegular() {
+			for _, path := range []string{autoload, filepath.Dir(autoload), dir} {
+				account, trusted, err := runtime.Owner(path)
+				if err != nil {
+					return "", err
+				}
+				if !trusted {
+					return "", fmt.Errorf("Refusing the project at %s: %s is owned by %s. Run drush from a project you own.", runtime.Canonical(dir), runtime.Canonical(path), account)
+				}
+			}
 			return dir, nil
 		}
 		if filepath.Dir(dir) == dir {

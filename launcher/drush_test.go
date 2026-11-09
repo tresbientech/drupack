@@ -506,3 +506,15 @@ func TestValidHost(t *testing.T) {
 		}
 	}
 }
+
+func TestVendorRootFindsTheProjectFromItsSubfolder(t *testing.T) {
+	project := realDir(t)
+	put(t, filepath.Join(project, "vendor", "autoload.php"), "<?php")
+	cwd := filepath.Join(project, "web", "modules", "custom")
+	if err := os.MkdirAll(cwd, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := vendorRoot(cwd); err != nil || got != project {
+		t.Fatalf("vendorRoot() = %q, %v, want %q", got, err, project)
+	}
+}
