@@ -23,11 +23,19 @@ The site repository can be private. The examples use a site named `acme`.
 [drupacked-demo](https://github.com/tresbientech/drupacked-demo) is a complete site repository.
 
 The build copies into the executable every file git tracks or would track,
-except its own output and work directories. List credentials such as
-`auth.json` or `.env` in `.gitignore`. A site outside any git checkout is
-copied whole. In a checkout git cannot read, the build stops with git's error. A link is copied as the
-file or directory it names when that lies inside the site. A link that points
-elsewhere is left out, and the build log names it.
+except its own output and work directories. A site outside any git checkout
+is copied whole. In a checkout git cannot read, the build stops with git's
+error. A link is copied as the file or directory it names when that lies inside
+the site. A link that points elsewhere is left out, and the build log names it.
+
+The build stops when the copied files hold a credential, and names every one:
+
+- `auth.json`
+- `.env`, and any `.env.*` other than `.env.example` and `.env.dist`
+- a `.key` or `.pem` file holding a private key
+
+Add each to `.gitignore`, or delete it. The top-level `vendor/` is not checked,
+since the build installs it from `composer.lock`.
 
 `drupack.yml` fields:
 

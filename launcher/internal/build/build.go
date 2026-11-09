@@ -3,9 +3,11 @@
 package build
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -374,7 +376,45 @@ func stageSite(log io.Writer, site, application string, builds ...string) error 
 			return err
 		}
 	}
-	return nil
+	return refuseCredentials(application)
+}
+
+// refuseCredentials names every staged file that holds a credential: auth.json,
+// .env, a .env.* other than the examples, and a .key or .pem holding a private
+// key. It reads the staged copy, where a linked directory is already expanded.
+// The build installs the top-level vendor/ from the lock, so it is skipped.
+func refuseCredentials(application string) error {
+	var found []string
+	err := filepath.WalkDir(application, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		relative, _ := filepath.Rel(application, path)
+		if entry.IsDir() {
+			if relative == "vendor" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		name := entry.Name()
+		credential := name == "auth.json" || name == ".env" ||
+			strings.HasPrefix(name, ".env.") && name != ".env.example" && name != ".env.dist"
+		if !credential && (strings.HasSuffix(name, ".key") || strings.HasSuffix(name, ".pem")) {
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			credential = bytes.Contains(content, []byte("PRIVATE KEY-----"))
+		}
+		if credential {
+			found = append(found, filepath.ToSlash(relative))
+		}
+		return nil
+	})
+	if err != nil || found == nil {
+		return err
+	}
+	return fmt.Errorf("The site holds credentials the build would ship: %s. Add each to .gitignore, or delete it.", strings.Join(found, ", "))
 }
 
 // stageEntry copies one entry of the site. The executable's unpacker takes
