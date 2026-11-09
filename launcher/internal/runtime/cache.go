@@ -43,10 +43,7 @@ const usageName = ".inuse"
 // with no ASCII form anywhere stops the start.
 func Root(name string, notice io.Writer) (string, error) {
 	if dir := os.Getenv("DRUPACK_CACHE_DIR"); dir != "" {
-		if err := makeRoot(dir); err != nil {
-			return "", err
-		}
-		root, err := privateRoot(dir)
+		root, err := claimRoot(dir)
 		if err != nil {
 			return "", err
 		}
@@ -54,18 +51,39 @@ func Root(name string, notice io.Writer) (string, error) {
 	}
 
 	var lastErr error
-	for _, root := range cacheRoots(name) {
-		if err := makeRoot(root); err != nil {
-			lastErr = err
-			continue
+	for _, candidate := range cacheRoots(name) {
+		root, err := claimRoot(candidate)
+		if err == nil {
+			return asciiRoot(root, name, notice)
 		}
-		if owned, err := privateRoot(root); err == nil && owned != "" {
-			return asciiRoot(owned, name, notice)
-		} else if err != nil {
-			lastErr = err
-		}
+		lastErr = err
 	}
 	return "", lastErr
+}
+
+// claimRoot creates dir and returns its real path once no other account can
+// change it or a parent above it, since a launch runs what the root holds. A
+// root that fails is refused rather than repaired.
+func claimRoot(dir string) (string, error) {
+	if err := Create(dir); err != nil {
+		return "", err
+	}
+	root, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	if root, err = filepath.EvalSymlinks(root); err != nil {
+		return "", err
+	}
+	exposed, err := Exposure(root, true)
+	if err != nil {
+		return "", fmt.Errorf("cannot check who can change the cache root %s: %w", root, err)
+	}
+	if exposed != nil {
+		return "", fmt.Errorf("cache root %s refused: %w. Remove that access, or set DRUPACK_CACHE_DIR "+
+			"to a directory that only you can change, under parents only you or the system can change", root, exposed)
+	}
+	return root, nil
 }
 
 // resolveASCIIRoot returns the first candidate PHP startup can locate: root, then fallback.

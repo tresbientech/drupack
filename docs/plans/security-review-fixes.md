@@ -184,3 +184,9 @@ static-php-cli runs in a job whose token reads packages only, and a job without 
 - [ ] `grep -n "packages: write" .github/workflows/release.yml` lists no job that runs `build-builder.sh`, `spc-craft.sh` or `embed.sh`.
 - [ ] `actionlint .github/workflows/release.yml .github/workflows/build.yml` reports nothing.
 - [ ] A release-candidate `workflow_dispatch` run for all platforms passes after the push of step 7 of the run.
+
+---
+
+## Deviations
+
+- D7: `Exposure` returns `(*Exposed, error)` in place of `(reason string, err error)`. D12's warning builds its fix command from the folder, the account, and whether the folder is the checked path or a parent. A string carries none of these apart. Ruled in the shape review of 2026-11-09.
