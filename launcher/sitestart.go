@@ -101,7 +101,7 @@ func startSite(l Launch, c command) error {
 	}
 	target := siteTarget(site)
 	listen := cmp.Or(c.options["listen"], target.DefaultListen)
-	bind, port, err := target.Listen(c.options["listen"])
+	bind, port, err := target.Listen(listen)
 	if err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func startSite(l Launch, c command) error {
 		return err
 	}
 	warnExposed(data)
-	served, err := Served(state.At(data), l.Name, siteTarget(site), state.Listener{FilesDir: files})
+	served, err := Served(state.At(data), l.Name, target, state.Listener{FilesDir: files})
 	if err != nil {
 		return err
 	}
@@ -286,17 +286,17 @@ func (s packagedStart) served(installed bool) error {
 	if !installed {
 		return fmt.Errorf("Another %s start is preparing this Site data: %s", s.l.Name, s.data)
 	}
-	// The record names the address that server took, not the one this start planned.
-	// A Site data a release before 0.6.0 installed holds no record, and neither does
-	// one whose unreadable record the reader removed. Those
-	// fall back to this start's plan.
+	// The record names the address that server took, not the one this start
+	// planned. A Site data a release before 0.6.0 installed holds no record, and
+	// neither does one whose unreadable record the reader removed. Those fall
+	// back to this start's plan.
 	bind, url := s.plan.Bind, siteURL(state.UnrecordedScheme, s.plan.Host, s.plan.Port)
 	a, err := Served(state.At(s.data), s.l.Name, siteTarget(s.site), state.Listener{})
 	if err != nil {
 		return err
 	}
 	if a.Recorded {
-		bind, url = a.Bind, a.URL()
+		bind, url = a.Bind, siteURL(a.Scheme, a.Host, a.Port)
 	}
 	if !s.personPresent() {
 		return fmt.Errorf("%s already serves this Site data at %s: %s", s.l.Name, url, s.data)

@@ -10,7 +10,6 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
-// Site is what differs between the modes that ask for a served address.
 type Site struct {
 	DefaultListen string
 	// Engine takes a hostname listen and gives an unreadable record no restart advice.
@@ -28,9 +27,7 @@ func engineTarget() Site {
 // unresolvedHost is the host of a site whose drupack.site name does not resolve.
 const unresolvedHost = "localhost"
 
-// Listen parses typed, else the default, as the mode's --listen.
-func (s Site) Listen(typed string) (bind string, port int, err error) {
-	listen := cmp.Or(typed, s.DefaultListen)
+func (s Site) Listen(listen string) (bind string, port int, err error) {
 	if s.Engine {
 		return engineListen(listen)
 	}
@@ -46,15 +43,11 @@ type Address struct {
 	Recorded bool
 }
 
-func (a Address) URL() string {
-	return siteURL(a.Scheme, a.Host, a.Port)
-}
-
 func (a Address) Mercure() string {
 	return mercureURL(a.Scheme, a.Bind, a.Port)
 }
 
-// Plan refuses a hostname listen: it builds the static address from the bind address.
+// With no static listen, Plan builds it from the bind address and refuses a hostname.
 func (a Address) Plan(hasStatic bool, noun string) (startPlan, error) {
 	return planStart(a.Bind, a.Port, a.StaticListen, hasStatic, noun, a.Host, a.Scheme)
 }
@@ -73,14 +66,14 @@ func Served(dir state.Dir, name string, s Site, typed state.Listener) (Address, 
 	record.StaticListen = cmp.Or(typed.StaticListen, record.StaticListen)
 	record.FilesDir = cmp.Or(typed.FilesDir, record.FilesDir)
 	record.Scheme = cmp.Or(record.Scheme, state.UnrecordedScheme)
+	bind, port, err := s.Listen(record.Listen)
+	if err != nil {
+		return Address{}, err
+	}
 	// A reader types --host. A recorded one is the launcher's own.
 	if typed.Host != "" && !validHost(typed.Host) {
 		return Address{}, errors.New("Invalid --host value")
 	}
 	record.Host = cmp.Or(typed.Host, record.Host, unresolvedHost)
-	bind, port, err := s.Listen(record.Listen)
-	if err != nil {
-		return Address{}, err
-	}
 	return Address{record, bind, port, recorded}, nil
 }

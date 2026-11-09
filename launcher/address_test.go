@@ -76,6 +76,8 @@ func TestServed(t *testing.T) {
 		{name: "a static listener on a site without one", site: plain, typed: state.Listener{StaticListen: "127.0.0.1:5"},
 			noun: "site",
 			err:  "--static-listen needs a site whose composer.json sets extra.drupack.static"},
+		{name: "a bad listener with a bad host", site: plain, typed: state.Listener{Listen: "localhost:80", Host: "not a host"},
+			err: "--listen requires IP:PORT, with IPv6 enclosed in brackets"},
 		{name: "a host that is no name", site: plain, typed: state.Listener{Host: "not a host"},
 			err: "Invalid --host value"},
 	} {
@@ -112,8 +114,8 @@ func TestServed(t *testing.T) {
 			if !reflect.DeepEqual(plan, row.plan) {
 				t.Errorf("Plan = %+v, want %+v", plan, row.plan)
 			}
-			if got.URL() != siteURL(row.want.Scheme, row.want.Host, row.want.Port) || got.Mercure() != mercureURL(row.want.Scheme, row.want.Bind, row.want.Port) {
-				t.Errorf("URL %s, Mercure %s", got.URL(), got.Mercure())
+			if got.Mercure() != mercureURL(row.want.Scheme, row.want.Bind, row.want.Port) {
+				t.Errorf("Mercure %s", got.Mercure())
 			}
 		})
 	}
@@ -137,13 +139,12 @@ func TestSiteListen(t *testing.T) {
 		port  int
 		err   string
 	}{
-		{name: "a site's default", site: siteTarget(siteconfig.Site{Port: 7}), bind: "127.0.0.1", port: 7},
-		{name: "a site's typed value", site: siteTarget(siteconfig.Site{Port: 7}), typed: "[::1]:9", bind: "::1", port: 9},
+		{name: "a site's value", site: siteTarget(siteconfig.Site{Port: 7}), typed: "[::1]:9", bind: "::1", port: 9},
 		{name: "a site's hostname", site: siteTarget(siteconfig.Site{Port: 7}), typed: "localhost:9",
 			err: "--listen requires IP:PORT, with IPv6 enclosed in brackets"},
-		{name: "the engine's default", site: engineTarget(), bind: "127.0.0.1", port: 3787},
-		{name: "the engine's typed value", site: engineTarget(), typed: "localhost:9", bind: "localhost", port: 9},
+		{name: "the engine's value", site: engineTarget(), typed: "localhost:9", bind: "localhost", port: 9},
 		{name: "the engine's refusal", site: engineTarget(), typed: "localhost:x", err: "--listen takes IP:PORT, got localhost:x"},
+		{name: "the engine's empty value", site: engineTarget(), err: "--listen takes IP:PORT, got "},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			bind, port, err := row.site.Listen(row.typed)
