@@ -238,8 +238,8 @@ of that day runs the macOS and Windows suites and the QA chain in parallel
 jobs, for an expected 50 minutes. Still open, keeping every feature and
 platform:
 
-- the candidate's measured wall time after that split, and the share counts it
-  calls for
+- the candidate's measured wall time with five Windows shares per architecture
+  and the macOS arm64 suite in its build job
 - the Intel macOS build, which takes 20 minutes on a cache hit
 - the Windows suite under Defender, where the 4 cases of `AsciiCacheRootCases`
   take 10.6 minutes

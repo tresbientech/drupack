@@ -92,9 +92,10 @@ The suite's time is spread over its cases: about 6 seconds each on Linux and
   the files the suite runs as a `suite-*` artifact.
 - `macos-test` and `windows-test` download that artifact. Each job runs one
   `DRUPACK_SHARD` share of the test classes.
-- Intel macOS runs four shares and macOS arm64 one.
-- Windows amd64 runs three shares. Windows arm64 runs four, and its variant
-  cases in a fifth job.
+- Intel macOS runs four shares. macOS arm64 has one, which runs in its build
+  job: `macos-test` waits for both builds, and the Intel one takes 24 minutes.
+- Windows amd64 and Windows arm64 run five shares each. Windows arm64 runs its
+  variant cases in a sixth job.
 - The Windows arm64 jobs test the files the amd64 host built. Each built its
   own before.
 - `build/qa.sh` takes a phase: `demo`, `variant` or `host`. The `qa` job runs
@@ -108,10 +109,17 @@ Each test job pays an artifact download and a Go setup.
 Consequences:
 
 - Every case runs once on every host, as before.
-- The expected wall clock is about 50 minutes. No run has measured it.
-- The graph peaks at 19 jobs: 2 Linux, 1 demo, 3 QA, 8 Windows test and 5
-  macOS. GitHub's free plan runs 20 jobs at once, 5 of them on macOS.
-- A suite rerun on macOS or Windows downloads the build.
+- Run 42696202800 on 2026-11-09 had three Windows amd64 shares, four Windows
+  arm64 shares and macOS arm64 tested after both builds. Its last Intel macOS
+  share ended at minute 51 and its macOS arm64 suite at minute 60.
+- One Windows arm64 share of that run spent 35 minutes in the suite, failed one
+  case, and ended at minute 73 after its results upload.
+- A share holds every Nth class in name order. Two classes of one case each
+  take 8 to 9 minutes on Windows arm64, so the shares differ in length.
+- The graph peaks at 19 jobs: 2 Linux, 1 demo, 3 QA, 2 macOS builds and 11
+  Windows tests. GitHub's free plan runs 20 jobs at once, 5 of them on macOS.
+- A suite rerun on Intel macOS or Windows downloads the build. One on macOS
+  arm64 builds again.
 - An executable uploads before its tests pass. A tag publishes it from a green
   candidate run, or after the test jobs `publish` needs.
 - No CI job builds on a Windows arm64 host.

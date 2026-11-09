@@ -31,9 +31,6 @@ var errReported = errors.New("reported")
 // has a DRUPACK_ variable a reader may set, and a credential never reaches argv.
 var startInputs = []string{"database", "db-host", "db-port", "db-name", "db-user", "db-password", "admin-user", "admin-password", "site-name"}
 
-// siteFallbackHost is the host a site's URL names when its drupack.site name does not resolve.
-const siteFallbackHost = "localhost"
-
 type packagedStart struct {
 	l    Launch
 	c    command
@@ -102,8 +99,9 @@ func startSite(l Launch, c command) error {
 	if err := operate(l, withInputs(e, inputs), &owed, false, "check", "site", runtime.Canonical(data)); err != nil {
 		return err
 	}
-	listen := cmp.Or(c.options["listen"], loopbackIP+":"+strconv.Itoa(site.Port))
-	bind, port, err := parseListen(listen, "--listen")
+	target := siteTarget(site)
+	listen := cmp.Or(c.options["listen"], target.DefaultListen)
+	bind, port, err := target.Listen(listen)
 	if err != nil {
 		return err
 	}
@@ -121,7 +119,7 @@ func startSite(l Launch, c command) error {
 			return err
 		}
 	}
-	choice, err := tls.Choose(l.TLSDir, bind, cmp.Or(site.Subdomain, l.Name), siteFallbackHost, c.options["host"])
+	choice, err := tls.Choose(l.TLSDir, bind, cmp.Or(site.Subdomain, l.Name), unresolvedHost, c.options["host"])
 	if err != nil {
 		return err
 	}
@@ -138,13 +136,11 @@ func startSite(l Launch, c command) error {
 		return err
 	}
 	warnExposed(data)
-	record, recorded, err := readListener(state.At(data), l.Name)
+	served, err := Served(state.At(data), l.Name, target, state.Listener{FilesDir: files})
 	if err != nil {
 		return err
 	}
-	if files == "" && recorded {
-		files = record.FilesDir
-	}
+	files = served.FilesDir
 	named := files != ""
 	files, scratch, err := siteDirs(data, files, site.Static != nil)
 	if err != nil {
@@ -245,16 +241,6 @@ func warnExposed(dir string) {
 	}
 }
 
-// readListener reads the Listener record, naming the way out of an unreadable one.
-func readListener(dir state.Dir, name string) (state.Listener, bool, error) {
-	record, recorded, err := dir.Listener()
-	var unreadable *state.UnreadableError
-	if errors.As(err, &unreadable) {
-		return state.Listener{}, false, fmt.Errorf("%w. Remove that file, then start %s again to record it.", err, name)
-	}
-	return record, recorded, err
-}
-
 // putSiteEnvironment gives settings.php, Drush and Tome the Site data's paths,
 // the host Drupal trusts and the URL its links name. staticRoot is "" for a
 // site without a static listener.
@@ -300,21 +286,17 @@ func (s packagedStart) served(installed bool) error {
 	if !installed {
 		return fmt.Errorf("Another %s start is preparing this Site data: %s", s.l.Name, s.data)
 	}
-	// The record names the address that server took, not the one this start planned.
-	// A Site data a release before 0.6.0 installed holds no record, and neither does
-	// one whose unreadable record the reader removed as readListener says. Those
-	// fall back to this start's plan.
+	// The record names the address that server took, not the one this start
+	// planned. A Site data a release before 0.6.0 installed holds no record, and
+	// neither does one whose unreadable record the reader removed. Those fall
+	// back to this start's plan.
 	bind, url := s.plan.Bind, siteURL(state.UnrecordedScheme, s.plan.Host, s.plan.Port)
-	record, recorded, err := readListener(state.At(s.data), s.l.Name)
+	a, err := Served(state.At(s.data), s.l.Name, siteTarget(s.site), state.Listener{})
 	if err != nil {
 		return err
 	}
-	if recorded {
-		var port int
-		if bind, port, err = parseListen(record.Listen, "--listen"); err != nil {
-			return err
-		}
-		url = siteURL(record.Scheme, record.Host, port)
+	if a.Recorded {
+		bind, url = a.Bind, siteURL(a.Scheme, a.Host, a.Port)
 	}
 	if !s.personPresent() {
 		return fmt.Errorf("%s already serves this Site data at %s: %s", s.l.Name, url, s.data)
