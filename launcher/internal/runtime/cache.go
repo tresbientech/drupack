@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -61,6 +62,10 @@ func Root(name string, notice io.Writer) (string, error) {
 			return asciiRoot(root, name, notice)
 		}
 		refused = append(refused, err)
+	}
+	// Windows lists no candidate when it names no local application data folder.
+	if refused == nil {
+		return "", errors.New("no cache directory to unpack into: set DRUPACK_CACHE_DIR")
 	}
 	return "", refused[len(refused)-1]
 }

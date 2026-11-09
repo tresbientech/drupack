@@ -430,7 +430,8 @@ var envTemplate = regexp.MustCompile(`^\.env[.-](example|dist|defaults|sample|te
 
 // credentialName reports whether the staged file at relative, named name, holds
 // a credential by its name: a credentialFiles name, a credentialPaths path, a
-// file under .aws/, a *credentials.json, or a .env file other than a template.
+// file under .aws/, a *credentials.json, or any name starting or ending with
+// .env, such as .envrc or mail.env, other than a template.
 func credentialName(relative, name string) bool {
 	switch {
 	case slices.Contains(credentialFiles, name), strings.HasSuffix(name, "credentials.json"):

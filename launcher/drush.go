@@ -268,7 +268,11 @@ func vendorRoot(cwd string) (string, error) {
 		autoload := filepath.Join(dir, "vendor", "autoload.php")
 		if info, err := os.Stat(autoload); err == nil && info.Mode().IsRegular() {
 			for _, path := range []string{autoload, filepath.Dir(autoload)} {
-				if info, err := os.Lstat(path); err != nil || info.Mode()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
+				info, err := os.Lstat(path)
+				if err != nil {
+					return "", err
+				}
+				if info.Mode()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
 					return "", fmt.Errorf("Refusing the project at %s: %s is a link. Run drush from a project whose vendor/ is its own.", runtime.Canonical(dir), runtime.Canonical(path))
 				}
 			}
