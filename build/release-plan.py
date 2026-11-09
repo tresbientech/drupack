@@ -1,14 +1,6 @@
-#!/usr/bin/env python3
-"""Plans a release run: the version, the image tags, the candidate run to reuse,
-the build matrices and the macOS test rows.
-
-Usage: release-plan.py --ref-type TYPE --ref-name NAME --event-name EVENT --sha SHA
-           --before SHA --platform PLATFORM --version VERSION --repo OWNER/NAME
-           --targets targets.json [--output FILE]
-
-The release workflow's gate job passes the event it runs for and reads the nine
-key=value lines this appends to FILE. The same flags reproduce a run's plan on
-any machine where `gh` is logged in.
+"""Plans a release run: the version, the image tags, the candidate run to reuse, the build
+matrices and the macOS test rows. The gate job passes the event and reads the nine key=value
+lines this appends to --output. The flags it prints reproduce the plan where `gh` is logged in.
 """
 
 import argparse
@@ -28,40 +20,19 @@ SHARDS = {"amd64": 4, "arm64": 1}
 KEYS = ("version", "build", "candidate", "image_tags", "linux", "linux_runtime", "macos", "macos_tests", "windows")
 
 
-def gh(path):
-    return json.loads(subprocess.run(["gh", "api", path], check=True, capture_output=True).stdout)
-
-
 def listed(path, body, key, fields):
     """The entries of body[key], each an object holding the typed fields."""
     entries = body.get(key) if isinstance(body, dict) else None
-    if not isinstance(entries, list):
-        raise ValueError(f"{path}: {key} is not a list")
-    for entry in entries:
-        if not isinstance(entry, dict) or not all(
-                isinstance(entry.get(name), kind) and not (kind is int and isinstance(entry[name], bool))
-                for name, kind in fields.items()):
-            raise ValueError(f"{path}: an entry of {key} lacks {', '.join(fields)} of the right type")
+    if not (isinstance(entries, list) and all(
+            isinstance(entry, dict) and all(type(entry.get(name)) is kind for name, kind in fields.items())
+            for entry in entries)):
+        raise ValueError(f"{path}: {key} is not a list of objects holding {', '.join(fields)} of the right type")
     return entries
 
 
-def version(event):
-    if event["ref_type"] == "tag":
-        return event["ref_name"]
-    return event["version"] or "dev-" + event["sha"][:12]
-
-
-def image_tags(event):
-    if event["ref_type"] == "tag":
-        return "sha"
-    return "dev sha" if event["version"] and event["platform"] == "all" else "dev"
-
-
-def candidate(event, fetch):
+def candidate(event, name, fetch):
     """The id of the successful candidate run for this commit, unless its files expired."""
-    if event["ref_type"] != "tag":
-        return None
-    title = TITLE.format(version=version(event))
+    title = TITLE.format(version=name)
     path = f"repos/{event['repo']}/actions/workflows/release.yml/runs?head_sha={event['sha']}&event=workflow_dispatch&status=success"
     runs = listed(path, fetch(path), "workflow_runs", {"display_title": str, "id": int})
     run = next((run["id"] for run in runs if run["display_title"] == title), None)
@@ -77,59 +48,45 @@ def platform_matrix(targets, system, platform):
             if name.startswith(system + "-") and platform in ("all", name)]
 
 
-def changed_outside_docs(event, fetch):
-    path = f"repos/{event['repo']}/compare/{event['before']}...{event['sha']}"
-    files = listed(path, fetch(path), "files", {"filename": str})
-    return [file["filename"] for file in files if not DOCS.search(file["filename"])]
-
-
-def macos_tests(macos):
-    return [{"arch": row["arch"], "shard": f"{index}/{SHARDS[row['arch']]}",
-             "results": f"macos-{row['arch']}-{index}", "variant": index == SHARDS[row["arch"]]}
-            for row in macos for index in range(1, SHARDS[row["arch"]] + 1)]
-
-
 def linux_runtime(targets, linux):
     return [{"arch": row["arch"], "libc": libc["name"], "builder": libc["builder"], "suffix": libc["suffix"]}
             for row in linux for libc in targets["libcs"]]
 
 
 def plan(event, targets, fetch):
+    tag = event["ref_type"] == "tag"
+    name = event["ref_name"] if tag else event["version"] or "dev-" + event["sha"][:12]
+    image_tags = "sha" if tag else "dev sha" if event["version"] and event["platform"] == "all" else "dev"
     linux = macos = windows = []
-    run = candidate(event, fetch)
-    if run is None and (event["ref_type"] == "tag" or event["event_name"] == "workflow_dispatch"):
+    run = candidate(event, name, fetch) if tag else None
+    if run is None and (tag or event["event_name"] == "workflow_dispatch"):
         linux, macos, windows = (platform_matrix(targets, system, event["platform"])
                                  for system in ("linux", "macos", "windows"))
-    elif run is None and (event["before"] == ZERO or changed_outside_docs(event, fetch)):
+    elif run is None and event["before"] == ZERO:
         linux = [{"arch": "amd64"}]
+    elif run is None:
+        path = f"repos/{event['repo']}/compare/{event['before']}...{event['sha']}"
+        files = listed(path, fetch(path), "files", {"filename": str})
+        linux = [{"arch": "amd64"}] if any(not DOCS.search(file["filename"]) for file in files) else []
     build = bool(linux or macos or windows)
     runtimes = linux_runtime(targets, linux)
     if build:
         payload = [row for row in linux_runtime(targets, [{"arch": "amd64"}]) if row["libc"] == "musl"]
-        unique = {tuple(sorted(row.items())): row for row in runtimes + payload}.values()
-        runtimes = sorted(unique, key=lambda row: (row["arch"], row["builder"], row["libc"], row["suffix"]))
-    return dict(zip(KEYS, (version(event), build, run, image_tags(event), linux, runtimes, macos,
-                           macos_tests(macos), windows)))
-
-
-def reason(result):
-    if result["candidate"] is not None:
-        return f"Publishing the files of candidate run {result['candidate']}."
-    return "Building." if result["build"] else "Nothing to build."
+        runtimes += [row for row in payload if row not in runtimes]
+        runtimes.sort(key=lambda row: (row["arch"], row["builder"], row["libc"], row["suffix"]))
+    tests = [{"arch": row["arch"], "shard": f"{index}/{SHARDS[row['arch']]}", "results": f"macos-{row['arch']}-{index}",
+              "variant": index == SHARDS[row["arch"]]} for row in macos for index in range(1, SHARDS[row["arch"]] + 1)]
+    return dict(zip(KEYS, (name, build, run, image_tags, linux, runtimes, macos, tests, windows)))
 
 
 def encode(key, value):
-    if key == "build":
-        return str(value).lower()
-    if key == "candidate":
-        return "" if value is None else str(value)
-    if isinstance(value, list):
-        return json.dumps(value, separators=(",", ":"))
-    return value
+    if key in ("version", "image_tags"):
+        return value
+    return "" if value is None else json.dumps(value, separators=(",", ":"))
 
 
 def main(argv):
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(description=__doc__)
     for flag in ("ref-type", "ref-name", "event-name", "sha", "before", "platform", "version", "repo", "targets"):
         parser.add_argument("--" + flag, required=True)
     parser.add_argument("--output")
@@ -138,11 +95,11 @@ def main(argv):
 
     def fetch(path):
         print("Fetching", path)
-        return gh(path)
+        return json.loads(subprocess.run(["gh", "api", path], check=True, stdout=subprocess.PIPE).stdout)
 
-    event = {name: getattr(args, name) for name in ("ref_type", "ref_name", "event_name", "sha", "before", "platform", "version", "repo")}
-    result = plan(event, json.loads(Path(args.targets).read_text()), fetch)
-    print(reason(result))
+    result = plan(vars(args), json.loads(Path(args.targets).read_text()), fetch)
+    print(f"Publishing the files of candidate run {result['candidate']}." if result["candidate"] is not None
+          else "Building." if result["build"] else "Nothing to build.")
     lines = "".join(f"{key}={encode(key, result[key])}\n" for key in KEYS)
     print(lines, end="")
     if args.output:

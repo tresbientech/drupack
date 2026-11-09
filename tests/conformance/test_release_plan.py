@@ -31,13 +31,16 @@ ARTIFACTS_PATH = f"repos/{REPO}/actions/runs/{CANDIDATE}/artifacts?per_page=100"
 COMPARE_PATH = f"repos/{REPO}/compare/{BEFORE}...{SHA}"
 
 AMD64 = [{"arch": "amd64"}]
-ARM64 = [{"arch": "arm64"}]
 GLIBC = {"builder": "gnu", "libc": "glibc", "suffix": ""}
 MUSL = {"builder": "musl", "libc": "musl", "suffix": "-musl"}
 
 
 def runtime(arch, libc):
     return {"arch": arch, **libc}
+
+
+def dispatch(**fields):
+    return event(event_name="workflow_dispatch", **fields)
 
 
 def event(**fields):
@@ -47,7 +50,6 @@ def event(**fields):
 
 
 TAG = event(ref_type="tag", ref_name=VERSION, before="0" * 40)
-DISPATCH = event(event_name="workflow_dispatch", before="")
 
 
 def changed(*names):
@@ -59,9 +61,8 @@ def with_expired(flags):
 
 
 class Row(unittest.TestCase):
-    def run_plan(self, event, responses=None):
+    def run_plan(self, event, responses={}):
         """The plan for event, with the paths fetched kept in self.fetched."""
-        responses = responses or {}
         self.fetched = []
 
         def fetch(path):
@@ -72,179 +73,125 @@ class Row(unittest.TestCase):
 
     def assertNotBuilding(self, result):
         self.assertFalse(result["build"])
-        for key in ("linux", "linux_runtime", "macos", "macos_tests", "windows"):
-            self.assertEqual([], result[key])
+        self.assertEqual([[]] * 5, [result[key] for key in ("linux", "linux_runtime", "macos", "macos_tests", "windows")])
 
 
 class Tag(Row):
-    def test_a_tag_without_a_candidate_builds_every_platform(self):
-        result = self.run_plan(TAG, {RUNS_PATH: {"workflow_runs": []}})
-        self.assertEqual(VERSION, result["version"])
-        self.assertEqual("sha", result["image_tags"])
-        self.assertIsNone(result["candidate"])
-        self.assertTrue(result["build"])
-        self.assertEqual([{"arch": "amd64"}, {"arch": "arm64"}], result["linux"])
-        self.assertEqual([{"arch": "amd64"}, {"arch": "arm64"}], result["macos"])
-        self.assertEqual(AMD64, result["windows"])
-        self.assertEqual([RUNS_PATH], self.fetched)
-
-    def test_a_tag_with_a_live_candidate_publishes_its_files(self):
-        result = self.run_plan(TAG, {RUNS_PATH: RUNS, ARTIFACTS_PATH: ARTIFACTS})
-        self.assertEqual(CANDIDATE, result["candidate"])
-        self.assertNotBuilding(result)
-        self.assertEqual([RUNS_PATH, ARTIFACTS_PATH], self.fetched)
-
-    def test_a_tag_with_an_expired_candidate_builds_again(self):
-        result = self.run_plan(TAG, {RUNS_PATH: RUNS, ARTIFACTS_PATH: with_expired([False, True])})
-        self.assertIsNone(result["candidate"])
-        self.assertTrue(result["build"])
-        self.assertEqual([{"arch": "amd64"}, {"arch": "arm64"}], result["linux"])
-        self.assertEqual([RUNS_PATH, ARTIFACTS_PATH], self.fetched)
-
-    def test_a_tag_with_no_matching_run_fetches_no_artifacts(self):
+    def test_a_tag_picks_its_candidate_from_the_recorded_runs(self):
         other = event(ref_type="tag", ref_name="1.0.0-beta16")
-        result = self.run_plan(other, {RUNS_PATH: RUNS})
-        self.assertIsNone(result["candidate"])
-        self.assertTrue(result["build"])
-        self.assertEqual([RUNS_PATH], self.fetched)
-
-    def test_an_empty_artifact_list_keeps_the_candidate(self):
-        result = self.run_plan(TAG, {RUNS_PATH: RUNS, ARTIFACTS_PATH: with_expired([])})
-        self.assertEqual(CANDIDATE, result["candidate"])
-        self.assertNotBuilding(result)
+        both = [{"arch": "amd64"}, {"arch": "arm64"}]
+        both_fetches = [RUNS_PATH, ARTIFACTS_PATH]
+        rows = {
+            "no candidate": (TAG, {RUNS_PATH: {"workflow_runs": []}}, None, [RUNS_PATH]),
+            "a live candidate": (TAG, {RUNS_PATH: RUNS, ARTIFACTS_PATH: ARTIFACTS}, CANDIDATE, both_fetches),
+            "an expired candidate": (TAG, {RUNS_PATH: RUNS, ARTIFACTS_PATH: with_expired([False, True])}, None, both_fetches),
+            "no matching run fetches no artifacts": (other, {RUNS_PATH: RUNS}, None, [RUNS_PATH]),
+            "an empty artifact list": (TAG, {RUNS_PATH: RUNS, ARTIFACTS_PATH: with_expired([])}, CANDIDATE, both_fetches),
+        }
+        for label, (tag, responses, candidate, fetched) in rows.items():
+            with self.subTest(label):
+                result = self.run_plan(tag, responses)
+                self.assertEqual((tag["ref_name"], "sha", candidate), (result["version"], result["image_tags"], result["candidate"]))
+                self.assertEqual(fetched, self.fetched)
+                if candidate is None:
+                    self.assertTrue(result["build"])
+                    self.assertEqual((both, both, AMD64), (result["linux"], result["macos"], result["windows"]))
+                else:
+                    self.assertNotBuilding(result)
 
     def test_the_first_matching_run_is_the_candidate(self):
-        runs = {"workflow_runs": [RUNS["workflow_runs"][1], RUNS["workflow_runs"][0],
-                                  {"id": 7, "display_title": RUNS["workflow_runs"][0]["display_title"]}]}
+        first, second = RUNS["workflow_runs"][1], RUNS["workflow_runs"][0]
+        runs = {"workflow_runs": [first, second, {"id": 7, "display_title": second["display_title"]}]}
         result = self.run_plan(TAG, {RUNS_PATH: runs, ARTIFACTS_PATH: ARTIFACTS})
         self.assertEqual(CANDIDATE, result["candidate"])
 
 
 class Dispatch(Row):
-    def test_a_named_dispatch_on_all_builds_every_platform(self):
-        result = self.run_plan(event(event_name="workflow_dispatch", version="2.0.0"))
-        self.assertEqual("2.0.0", result["version"])
-        self.assertEqual("dev sha", result["image_tags"])
-        self.assertIsNone(result["candidate"])
-        self.assertEqual([{"arch": "amd64"}, {"arch": "arm64"}], result["linux"])
-        self.assertEqual(AMD64, result["windows"])
-        self.assertEqual([], self.fetched)
-
-    def test_a_named_dispatch_on_one_platform_builds_it_alone(self):
-        result = self.run_plan(event(event_name="workflow_dispatch", version="2.0.0", platform="macos-arm64"))
-        self.assertEqual("dev", result["image_tags"])
-        self.assertEqual([], result["linux"])
-        self.assertEqual(ARM64, result["macos"])
-        self.assertEqual([], result["windows"])
-        self.assertEqual([], self.fetched)
-
-    def test_an_unnamed_dispatch_takes_the_commit_for_its_version(self):
-        result = self.run_plan(DISPATCH)
-        self.assertEqual("dev-" + SHA[:12], result["version"])
-        self.assertEqual("dev", result["image_tags"])
-        self.assertTrue(result["build"])
-        self.assertEqual([], self.fetched)
+    def test_a_dispatch_plans_without_a_fetch(self):
+        both = [{"arch": "amd64"}, {"arch": "arm64"}]
+        rows = {
+            "a named dispatch on all builds every platform": (dispatch(version="2.0.0"), "2.0.0", "dev sha", both, both, AMD64),
+            "a named dispatch on one platform builds it alone": (dispatch(version="2.0.0", platform="macos-arm64"), "2.0.0", "dev", [], [{"arch": "arm64"}], []),
+            "an unnamed dispatch takes the commit for its version": (dispatch(before=""), "dev-" + SHA[:12], "dev", both, both, AMD64),
+        }
+        for label, (dispatched, version, image_tags, linux, macos, windows) in rows.items():
+            with self.subTest(label):
+                result = self.run_plan(dispatched)
+                self.assertEqual((version, image_tags, None, True), (result["version"], result["image_tags"], result["candidate"], result["build"]))
+                self.assertEqual((linux, macos, windows), (result["linux"], result["macos"], result["windows"]))
+                self.assertEqual([], self.fetched)
 
 
 class Push(Row):
     def test_a_new_branch_builds_linux_amd64_without_a_fetch(self):
         result = self.run_plan(event(before="0" * 40))
-        self.assertEqual(AMD64, result["linux"])
-        self.assertEqual([], result["macos"])
-        self.assertEqual([], result["windows"])
-        self.assertTrue(result["build"])
+        self.assertEqual((AMD64, [], [], True), (result["linux"], result["macos"], result["windows"], result["build"]))
         self.assertEqual("dev-" + SHA[:12], result["version"])
         self.assertEqual([], self.fetched)
 
-    def test_a_documentation_only_push_builds_nothing(self):
-        result = self.run_plan(event(), {COMPARE_PATH: COMPARE})
-        self.assertNotBuilding(result)
-        self.assertEqual([COMPARE_PATH], self.fetched)
-
-    def test_a_nested_readme_builds(self):
-        result = self.run_plan(event(), {COMPARE_PATH: changed("docs/a.md", "launcher/README.md")})
-        self.assertEqual(AMD64, result["linux"])
-
-    def test_a_license_and_a_top_level_markdown_file_build_nothing(self):
-        result = self.run_plan(event(), {COMPARE_PATH: changed("LICENSE", "README.md", "docs/x/y.png")})
-        self.assertNotBuilding(result)
-
-    def test_a_code_file_builds(self):
-        result = self.run_plan(event(), {COMPARE_PATH: changed("README.md", "build/qa.sh")})
-        self.assertEqual(AMD64, result["linux"])
-
-    def test_an_empty_compare_builds_nothing(self):
-        self.assertNotBuilding(self.run_plan(event(), {COMPARE_PATH: changed()}))
+    def test_the_compare_decides_whether_a_push_builds(self):
+        rows = {
+            "documentation alone": (COMPARE, False),
+            "a nested readme": (changed("docs/a.md", "launcher/README.md"), True),
+            "a license and a top-level markdown file": (changed("LICENSE", "README.md", "docs/x/y.png"), False),
+            "a code file": (changed("README.md", "build/qa.sh"), True),
+            "an empty compare": (changed(), False),
+        }
+        for label, (files, builds) in rows.items():
+            with self.subTest(label):
+                result = self.run_plan(event(), {COMPARE_PATH: files})
+                self.assertEqual([COMPARE_PATH], self.fetched)
+                if builds:
+                    self.assertEqual(AMD64, result["linux"])
+                else:
+                    self.assertNotBuilding(result)
 
 
 class LinuxRuntime(Row):
-    def test_an_arm64_build_adds_the_amd64_musl_payload_row(self):
-        result = self.run_plan(event(event_name="workflow_dispatch", platform="linux-arm64"))
-        self.assertEqual([runtime("amd64", MUSL), runtime("arm64", GLIBC), runtime("arm64", MUSL)],
-                         result["linux_runtime"])
-
-    def test_an_amd64_build_has_no_duplicate_row(self):
-        result = self.run_plan(event(before="0" * 40))
-        self.assertEqual([runtime("amd64", GLIBC), runtime("amd64", MUSL)], result["linux_runtime"])
-
-    def test_a_macos_only_build_still_compiles_the_amd64_musl_payload(self):
-        result = self.run_plan(event(event_name="workflow_dispatch", platform="macos-amd64"))
-        self.assertEqual([runtime("amd64", MUSL)], result["linux_runtime"])
+    def test_the_runtime_rows_follow_the_build_and_add_the_amd64_musl_payload(self):
+        rows = {
+            "an arm64 build adds the payload row": (dispatch(platform="linux-arm64"), [runtime("amd64", MUSL), runtime("arm64", GLIBC), runtime("arm64", MUSL)]),
+            "an amd64 build has no duplicate row": (event(before="0" * 40), [runtime("amd64", GLIBC), runtime("amd64", MUSL)]),
+            "a macos-only build still compiles the payload": (dispatch(platform="macos-amd64"), [runtime("amd64", MUSL)]),
+        }
+        for label, (dispatched, expected) in rows.items():
+            with self.subTest(label):
+                self.assertEqual(expected, self.run_plan(dispatched)["linux_runtime"])
 
     def test_no_build_has_no_runtime_row(self):
-        result = self.run_plan(event(), {COMPARE_PATH: COMPARE})
-        self.assertEqual([], result["linux_runtime"])
+        self.assertEqual([], self.run_plan(event(), {COMPARE_PATH: COMPARE})["linux_runtime"])
 
 
 class MacosTests(Row):
-    def test_amd64_takes_four_shards_and_the_last_runs_the_variant(self):
-        result = self.run_plan(event(event_name="workflow_dispatch", platform="macos-amd64"))
-        self.assertEqual([{"arch": "amd64", "shard": f"{index}/4", "results": f"macos-amd64-{index}",
-                           "variant": index == 4} for index in range(1, 5)], result["macos_tests"])
+    def test_each_architecture_takes_its_shards_and_the_last_runs_the_variant(self):
+        def shards(arch, count):
+            return [{"arch": arch, "shard": f"{index}/{count}", "results": f"macos-{arch}-{index}", "variant": index == count}
+                    for index in range(1, count + 1)]
 
-    def test_arm64_takes_one_shard_with_the_variant(self):
-        result = self.run_plan(event(event_name="workflow_dispatch", platform="macos-arm64"))
-        self.assertEqual([{"arch": "arm64", "shard": "1/1", "results": "macos-arm64-1", "variant": True}],
-                         result["macos_tests"])
-
-    def test_both_architectures_list_amd64_first(self):
-        result = self.run_plan(DISPATCH)
-        self.assertEqual(["macos-amd64-1", "macos-amd64-2", "macos-amd64-3", "macos-amd64-4", "macos-arm64-1"],
-                         [row["results"] for row in result["macos_tests"]])
+        rows = {"macos-amd64": shards("amd64", 4), "macos-arm64": shards("arm64", 1), "all": shards("amd64", 4) + shards("arm64", 1)}
+        for platform, expected in rows.items():
+            with self.subTest(platform):
+                self.assertEqual(expected, self.run_plan(dispatch(platform=platform))["macos_tests"])
 
 
 class Failure(Row):
     def test_a_failed_fetch_stops_the_plan(self):
-        with self.assertRaises(KeyError):
-            self.run_plan(event(), {})
+        for label, planned in (("compare", event()), ("candidate lookup", TAG)):
+            with self.subTest(label), self.assertRaises(KeyError):
+                self.run_plan(planned, {})
 
-    def test_a_failed_candidate_lookup_stops_the_plan(self):
-        with self.assertRaises(KeyError):
-            self.run_plan(TAG, {})
-
-    def test_a_run_without_an_integer_id_is_refused(self):
-        for bad in ("12", True, None):
-            runs = {"workflow_runs": [{"id": bad, "display_title": RUNS["workflow_runs"][0]["display_title"]}]}
-            with self.subTest(id=bad), self.assertRaisesRegex(ValueError, "actions/workflows/release.yml/runs"):
-                self.run_plan(TAG, {RUNS_PATH: runs})
-
-    def test_a_run_without_a_string_title_is_refused(self):
-        with self.assertRaisesRegex(ValueError, "actions/workflows/release.yml/runs"):
-            self.run_plan(TAG, {RUNS_PATH: {"workflow_runs": [{"id": 1, "display_title": None}]}})
-
-    def test_runs_that_are_not_a_list_are_refused(self):
-        with self.assertRaisesRegex(ValueError, "actions/workflows/release.yml/runs"):
-            self.run_plan(TAG, {RUNS_PATH: {"workflow_runs": {"id": 1}}})
-
-    def test_an_artifact_without_a_boolean_expired_is_refused(self):
-        for bad in ({"artifacts": [{"expired": "false"}]}, {"artifacts": [{}]}, {"artifacts": "none"}):
-            with self.subTest(body=bad), self.assertRaisesRegex(ValueError, "artifacts"):
-                self.run_plan(TAG, {RUNS_PATH: RUNS, ARTIFACTS_PATH: bad})
-
-    def test_a_file_without_a_string_filename_is_refused(self):
-        for bad in ({"files": [{"filename": 3}]}, {"files": [{}]}, {"files": None}):
-            with self.subTest(body=bad), self.assertRaisesRegex(ValueError, "compare"):
-                self.run_plan(event(), {COMPARE_PATH: bad})
+    def test_a_response_of_another_shape_is_refused_naming_its_path(self):
+        title = RUNS["workflow_runs"][0]["display_title"]
+        run = lambda **fields: {"workflow_runs": [{"id": 1, "display_title": title, **fields}]}
+        rows = [(TAG, RUNS_PATH, "actions/workflows/release.yml/runs", {}, bad) for bad in (
+            run(id="12"), run(id=True), run(id=None), run(display_title=None), {"workflow_runs": {"id": 1}})]
+        rows += [(TAG, ARTIFACTS_PATH, "artifacts", {RUNS_PATH: RUNS}, bad) for bad in (
+            {"artifacts": [{"expired": "false"}]}, {"artifacts": [{}]}, {"artifacts": "none"})]
+        rows += [(event(), COMPARE_PATH, "compare", {}, bad) for bad in (
+            {"files": [{"filename": 3}]}, {"files": [{}]}, {"files": None})]
+        for planned, path, pattern, others, bad in rows:
+            with self.subTest(path=path, body=bad), self.assertRaisesRegex(ValueError, pattern):
+                self.run_plan(planned, {**others, path: bad})
 
 
 if __name__ == "__main__":

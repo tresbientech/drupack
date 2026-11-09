@@ -88,104 +88,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BEFORE: ${{ github.event.before }}
-          SHA: ${{ github.sha }}
           PLATFORM: ${{ inputs.platform || 'all' }}
           NAMED: ${{ inputs.version }}
-          TARGETS: launcher/internal/runtime/targets.json
         run: |
-          # Every job that builds a runtime or packs one names the same version.
-          if [ "$GITHUB_REF_TYPE" = tag ]; then
-            version=$GITHUB_REF_NAME
-          elif [ -n "$NAMED" ]; then
-            version=$NAMED
-          else
-            version=dev-${SHA:0:12}
-          fi
-          linux='[]'
-          macos='[]'
-          windows='[]'
-          candidate=
-          # The job image's tags: build.yml reads sha-COMMIT at a tag and dev-COMMIT
-          # on a branch, and a tag run publishes its candidate's sha-COMMIT.
-          image_tags=dev
-          if [ "$GITHUB_REF_TYPE" = tag ]; then
-            image_tags=sha
-          elif [ -n "$NAMED" ] && [ "$PLATFORM" = all ]; then
-            image_tags='dev sha'
-          fi
-          # The forge tags the commit its candidate run built, under the same version.
-          if [ "$GITHUB_REF_TYPE" = tag ]; then
-            candidate=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/release.yml/runs?head_sha=$SHA&event=workflow_dispatch&status=success" \
-              | jq -r --arg title "Release candidate $version" '[.workflow_runs[] | select(.display_title == $title)][0].id // empty')
-          fi
-          # Artifacts expire after 90 days, and a candidate without them is rebuilt.
-          if [ -n "$candidate" ] && [ "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$candidate/artifacts?per_page=100" \
-            --jq 'any(.artifacts[]; .expired)')" = true ]; then
-            echo "The files of candidate run $candidate expired."
-            candidate=
-          fi
-          if [ -n "$candidate" ]; then
-            echo "Publishing the files of candidate run $candidate."
-          elif [ "$GITHUB_REF_TYPE" = tag ] || [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
-            # One matrix row per architecture of SYSTEM that the platform input names.
-            matrix() {
-              jq -c --arg system "$1-" --arg platform "$PLATFORM" \
-                '[.platforms | keys[] | select(startswith($system) and ($platform == "all" or . == $platform))
-                  | {arch: ltrimstr($system)}]' "$TARGETS"
-            }
-            linux=$(matrix linux)
-            macos=$(matrix macos)
-            windows=$(matrix windows)
-          # A new branch reports an all-zero before, which compares against nothing.
-          elif [ "$BEFORE" = 0000000000000000000000000000000000000000 ]; then
-            linux='[{"arch":"amd64"}]'
-          else
-            # A comparison that fails reports no file, which would read as a
-            # documentation commit and skip the build, so it fails the run first.
-            files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" \
-              --jq '.files[].filename')
-            # Documentation reaches no executable. A path this list does not name
-            # builds rather than skips, so a new directory never goes untested.
-            changed=$(printf '%s\n' "$files" | grep -vE '^docs/|^LICENSE$|^[^/]+\.md$' || true)
-            if [ -n "$changed" ]; then
-              printf 'Building for:\n%s\n' "$changed"
-              linux='[{"arch":"amd64"}]'
-            else
-              echo 'Documentation alone changed. Nothing to build.'
-            fi
-          fi
-          # One macOS test row per share of the test classes. One Intel runner takes
-          # 45 minutes over the suite, so four take a share each. GitHub runs five
-          # macOS jobs at once, and the arm64 row is the fifth. An architecture's last
-          # row also runs the variant cases.
-          macos_tests=$(jq -c '[.[] | (if .arch == "amd64" then 4 else 1 end) as $count | range(1; $count + 1) as $index
-            | {arch, shard: "\($index)/\($count)", results: "macos-\(.arch)-\($index)", variant: ($index == $count)}]' <<<"$macos")
-          # One runtime row per Linux architecture and libc, naming the libc's builder image.
-          runtimes() {
-            jq -c --argjson arches "$1" \
-              '[$arches[] as $arch | .libcs[] | {arch: $arch.arch, libc: .name, builder: .builder, suffix: .suffix}]' "$TARGETS"
-          }
-          linux_runtime=$(runtimes "$linux")
-          # Every platform packs the payload job's output, so any target calls for it.
-          build=true
-          [ "$linux$macos$windows" != '[][][]' ] || build=false
-          # The payload job runs PHP from the amd64 musl runtime, so any build compiles it.
-          if [ "$build" = true ]; then
-            linux_runtime=$(jq -cn --argjson runtimes "$linux_runtime" --argjson payload "$(runtimes '[{"arch":"amd64"}]')" \
-              '$runtimes + [$payload[] | select(.libc == "musl")] | unique')
-          fi
-          {
-            printf 'version=%s\n' "$version"
-            printf 'build=%s\n' "$build"
-            printf 'candidate=%s\n' "$candidate"
-            printf 'image_tags=%s\n' "$image_tags"
-            printf 'linux=%s\n' "$linux"
-            printf 'linux_runtime=%s\n' "$linux_runtime"
-            printf 'macos=%s\n' "$macos"
-            printf 'macos_tests=%s\n' "$macos_tests"
-            printf 'windows=%s\n' "$windows"
-          } >>"$GITHUB_OUTPUT"
-          cat "$GITHUB_OUTPUT"
+          python3 build/release-plan.py --ref-type "$GITHUB_REF_TYPE" --ref-name "$GITHUB_REF_NAME" \
+            --event-name "$GITHUB_EVENT_NAME" --sha "$GITHUB_SHA" --before "$BEFORE" \
+            --platform "$PLATFORM" --version "$NAMED" --repo "$GITHUB_REPOSITORY" \
+            --targets launcher/internal/runtime/targets.json --output "$GITHUB_OUTPUT"
 
   # A builder image carries the PHP its own build compiled, so one image serves
   # one libc on one architecture. Its content follows the inputs
