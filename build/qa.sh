@@ -93,17 +93,17 @@ with open(sys.argv[1]) as handle:
 del site["node"]
 del site["static"]
 with open(sys.argv[2], "w") as handle:
-    json.dump(site, handle, indent=2)' dist/site.json dist/no-node/site.json
+    json.dump(site, handle, indent=2)' dist/site.json "$no_node/site.json"
+    cp "$no_node/site.json" dist/no-node/site.json
     cp "$work/work/payload/app-payload.tar" "$no_node/app-payload.tar"
     tar --delete -f "$no_node/app-payload.tar" ./site.json
     tar --mtime=@0 --owner=0 --group=0 --numeric-owner --mode=u+rw,go+rX -rf "$no_node/app-payload.tar" \
-        -C dist/no-node ./site.json
+        -C "$no_node" ./site.json
     sha256sum "$no_node/app-payload.tar" | cut -d ' ' -f 1 | tr -d '\n' >"$no_node/app_checksum.txt"
     zstd -q -19 -f --rm "$no_node/app-payload.tar" -o "$no_node/app-payload.tar.zst"
     docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -w /src/launcher -e CGO_ENABLED=0 drupack-job \
-        sh -c 'go run ./cmd/pack -runtime "/opt/drupack/runtimes/$1-glibc" -entry drupack -version "$DRUPACK_ENGINE_VERSION" \
-            -source . -output "../dist/no-node/drupacked-demo-$1" -app "$2/app-payload.tar.zst" -app-checksum "$2/app_checksum.txt" \
-            -site ../dist/no-node/site.json -site-version dev' sh "$platform" "$no_node"
+        sh -c 'go run ./cmd/pack -target "$1" -runtime "/opt/drupack/runtimes/$1-glibc" -payload "$2" \
+            -version "$DRUPACK_ENGINE_VERSION" -site-version dev -output "../dist/no-node/drupacked-demo-$1"' sh "$platform" "$no_node"
 
     DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" "$work/results/conformance" --site-tests "$demo/tests" \
         -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \

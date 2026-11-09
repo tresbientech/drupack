@@ -89,25 +89,14 @@ CGO_ENABLED=1 CGO_CFLAGS="$php_includes -DFRANKENPHP_VERSION=$frankenphp_version
 # names them at every hop.
 cp "$repository/application/php.ini" "$repository/application/cacert.pem" "$runtime/"
 
-# The payload of a site asking for Node holds each target's verified archive.
-# bash 3.2 calls an empty array unset, hence the guarded expansion below.
-node=()
-if [ -f "$payload/node/$target.tar.gz" ]; then
-    node=(-node "$payload/node/$target.tar.gz")
-fi
 # The subshell keeps the packer's build inside the launcher module, off this FrankenPHP checkout.
 (cd "$repository/launcher" \
-  && go run ./cmd/pack -runtime "$runtime" -entry "$entry" \
-     -version "$drupack_version" \
-     -source "$repository/launcher" -output "$output" \
-     -app "$payload/app-payload.tar.zst" -app-checksum "$payload/app_checksum.txt" \
-     -site "$payload/site.json" -site-version "$drupack_version" ${node[@]+"${node[@]}"})
+  && go run ./cmd/pack -target "$target" -runtime "$runtime" -payload "$payload" \
+     -version "$drupack_version" -output "$output")
 "$output" --version
 if [ -n "$engine_payload" ]; then
     (cd "$repository/launcher" \
-      && go run ./cmd/pack -engine -runtime "$runtime" -entry "$entry" \
-         -version "$drupack_version" \
-         -source "$repository/launcher" -output "$engine_output" \
-         -app "$engine_payload/app-payload.tar.zst" -app-checksum "$engine_payload/app_checksum.txt")
+      && go run ./cmd/pack -engine -target "$target" -runtime "$runtime" -payload "$engine_payload" \
+         -version "$drupack_version" -output "$engine_output")
     "$engine_output" --version
 fi
