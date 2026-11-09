@@ -11,6 +11,7 @@ import (
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
 // tomeProbe prints 1 when the project's Drupal has the module tome:static comes from.
@@ -58,11 +59,11 @@ func engineExport(l Launch, c command, cwd string, e environ) (exportCall, error
 	}
 	uri := ""
 	if !namesURI(c.words) {
-		a, err := Served(f.entry, l.Name, f.target(), Typed{})
+		a, err := Served(f.entry, l.Name, f.target(), state.Listener{})
 		if err != nil {
 			return exportCall{}, err
 		}
-		if !a.Recorded || !a.StaticRecorded {
+		if !a.Recorded || a.StaticListen == "" {
 			return exportCall{}, fmt.Errorf("Cannot read a recorded static URL for %s. Start it once, or pass --uri URL.", runtime.Canonical(f.project))
 		}
 		plan, err := a.Plan(true, "project")

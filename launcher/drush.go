@@ -76,7 +76,7 @@ func openSite(l Launch, site siteconfig.Site, c command, cwd string, e environ) 
 	if _, err := os.Stat(filepath.Join(data, "settings.php")); err != nil {
 		return openedSite{}, fmt.Errorf("This Site data has no site yet: %s. Start %s once to create one.", runtime.Canonical(data), l.Name)
 	}
-	typed := Typed{Listen: c.options["listen"], StaticListen: c.options["static-listen"], Host: c.options["host"]}
+	typed := state.Listener{Listen: c.options["listen"], StaticListen: c.options["static-listen"], Host: c.options["host"]}
 	if c.options["files-dir"] != "" {
 		typed.FilesDir = fromCwd(c.options["files-dir"])
 	}
@@ -204,7 +204,7 @@ func (f engineProject) drush(l Launch, e environ, words []string) (Command, erro
 		e.put("DRUPACK_CA_FILE=" + runtime.Canonical(bundle))
 	}
 	if f.composer.Mercure {
-		a, err := Served(f.entry, l.Name, f.target(), Typed{})
+		a, err := Served(f.entry, l.Name, f.target(), state.Listener{})
 		if err != nil {
 			return Command{}, err
 		}

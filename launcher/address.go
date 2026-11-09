@@ -12,39 +12,26 @@ import (
 
 // Site is what differs between the modes that ask for a served address.
 type Site struct {
-	// DefaultListen is the --listen value when neither the reader nor a record names one.
 	DefaultListen string
-	// AnyHost reads the listen address with the engine's parser, which takes a hostname.
-	AnyHost bool
-	// AdvisesRestart adds the way out of an unreadable record to its refusal.
-	AdvisesRestart bool
+	// Engine takes a hostname listen and gives an unreadable record no restart advice.
+	Engine bool
 }
 
 func siteTarget(site siteconfig.Site) Site {
-	return Site{DefaultListen: loopbackIP + ":" + strconv.Itoa(site.Port), AdvisesRestart: true}
+	return Site{DefaultListen: loopbackIP + ":" + strconv.Itoa(site.Port)}
 }
 
 func (f engineProject) target() Site {
-	return Site{DefaultListen: defaultListen, AnyHost: true}
+	return Site{DefaultListen: defaultListen, Engine: true}
 }
 
-// Typed is what the reader typed. "" leaves a field to the record.
-type Typed struct {
-	Listen, StaticListen, Host, FilesDir string
-}
-
-// Address is where the last start served.
+// Address is where the last start served. The record holds each typed value,
+// else the recorded one, else the default. Recorded is false without a record.
 type Address struct {
-	Bind, Host, Scheme string
-	Port               int
-	// StaticListen is the typed static listen address, else the recorded one, unparsed.
-	StaticListen string
-	// Recorded is false when no start has recorded a listener.
+	state.Listener
+	Bind     string
+	Port     int
 	Recorded bool
-	// StaticRecorded is true when the record names a static listen address.
-	StaticRecorded bool
-	// FilesDir is "" when neither the reader nor the record names one.
-	FilesDir string
 }
 
 func (a Address) URL() string {
@@ -55,47 +42,39 @@ func (a Address) Mercure() string {
 	return mercureURL(a.Scheme, a.Bind, a.Port)
 }
 
-// Plan plans the static listener beside the main address, which refuses a
-// hostname listen: the static address is built from the bind address.
+// Plan refuses a hostname listen: it builds the static address from the bind address.
 func (a Address) Plan(hasStatic bool, noun string) (startPlan, error) {
 	return planStart(a.Bind, a.Port, a.StaticListen, hasStatic, noun, a.Host, a.Scheme)
 }
 
-// Served reads the Listener record in dir and returns the address it served,
-// with each typed value taking precedence over the recorded one and the
-// recorded one over the default.
-func Served(dir state.Dir, name string, s Site, t Typed) (Address, error) {
+// Served returns the address the Listener record in dir served, with typed values first.
+func Served(dir state.Dir, name string, s Site, typed state.Listener) (Address, error) {
 	record, recorded, err := dir.Listener()
 	var unreadable *state.UnreadableError
-	if errors.As(err, &unreadable) && s.AdvisesRestart {
+	if errors.As(err, &unreadable) && !s.Engine {
 		return Address{}, fmt.Errorf("%w. Remove that file, then start %s again to record it.", err, name)
 	}
 	if err != nil {
 		return Address{}, err
 	}
-	listen := cmp.Or(t.Listen, record.Listen, s.DefaultListen)
+	record.Listen = cmp.Or(typed.Listen, record.Listen, s.DefaultListen)
+	record.StaticListen = cmp.Or(typed.StaticListen, record.StaticListen)
+	record.FilesDir = cmp.Or(typed.FilesDir, record.FilesDir)
+	record.Scheme = cmp.Or(record.Scheme, state.UnrecordedScheme)
+	// A reader types --host. A recorded one is the launcher's own.
+	if typed.Host != "" && !validHost(typed.Host) {
+		return Address{}, errors.New("Invalid --host value")
+	}
+	record.Host = cmp.Or(typed.Host, record.Host, unrecordedHost)
 	var bind string
 	var port int
-	if s.AnyHost {
-		bind, port, err = engineListen(listen)
+	if s.Engine {
+		bind, port, err = engineListen(record.Listen)
 	} else {
-		bind, port, err = parseListen(listen, "--listen")
+		bind, port, err = parseListen(record.Listen, "--listen")
 	}
 	if err != nil {
 		return Address{}, err
 	}
-	// A reader types --host. A recorded one is the launcher's own.
-	if t.Host != "" && !validHost(t.Host) {
-		return Address{}, errors.New("Invalid --host value")
-	}
-	return Address{
-		Bind:           bind,
-		Port:           port,
-		Host:           cmp.Or(t.Host, record.Host, unrecordedHost),
-		Scheme:         cmp.Or(record.Scheme, state.UnrecordedScheme),
-		StaticListen:   cmp.Or(t.StaticListen, record.StaticListen),
-		Recorded:       recorded,
-		StaticRecorded: record.StaticListen != "",
-		FilesDir:       cmp.Or(t.FilesDir, record.FilesDir),
-	}, nil
+	return Address{record, bind, port, recorded}, nil
 }

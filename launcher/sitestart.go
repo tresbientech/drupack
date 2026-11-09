@@ -138,7 +138,7 @@ func startSite(l Launch, c command) error {
 		return err
 	}
 	warnExposed(data)
-	served, err := Served(state.At(data), l.Name, siteTarget(site), Typed{FilesDir: files})
+	served, err := Served(state.At(data), l.Name, siteTarget(site), state.Listener{FilesDir: files})
 	if err != nil {
 		return err
 	}
@@ -293,7 +293,7 @@ func (s packagedStart) served(installed bool) error {
 	// one whose unreadable record the reader removed. Those
 	// fall back to this start's plan.
 	bind, url := s.plan.Bind, siteURL(state.UnrecordedScheme, s.plan.Host, s.plan.Port)
-	a, err := Served(state.At(s.data), s.l.Name, siteTarget(s.site), Typed{})
+	a, err := Served(state.At(s.data), s.l.Name, siteTarget(s.site), state.Listener{})
 	if err != nil {
 		return err
 	}
