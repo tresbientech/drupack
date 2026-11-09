@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -153,5 +155,21 @@ func TestTakeChildReadsTheParentsWordsAndLeavesTheReaders(t *testing.T) {
 	got := takeChild([]string{"./demo", childWord, "/data/logs/server.log", "1", "--data-dir", "d", "--foreground"})
 	if !slices.Equal(got, []string{"./demo", "--data-dir", "d", "--foreground"}) || *child != (detachedChild{log: "/data/logs/server.log", person: true}) {
 		t.Fatalf("a child's line became %q, child %+v", got, child)
+	}
+}
+
+func TestTakeLogRefusesALink(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "elsewhere")
+	log := filepath.Join(t.TempDir(), "server.log")
+	if err := os.Symlink(target, log); err != nil {
+		t.Skipf("cannot make a link: %v", err)
+	}
+	child = &detachedChild{log: log}
+	t.Cleanup(func() { child = nil })
+	if err := takeLog(); err == nil {
+		t.Fatal("takeLog() = nil, want a refusal")
+	}
+	if _, err := os.Lstat(target); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("takeLog() created the link's target: %v", err)
 	}
 }

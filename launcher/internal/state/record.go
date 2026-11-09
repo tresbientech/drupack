@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -80,10 +81,15 @@ func (d Dir) Bundle() (path string, ok bool) {
 func (d Dir) MercureSecrets() (publisher, subscriber string, ok bool, err error) {
 	var values [2]string
 	for i, name := range []string{publisherName, subscriberName} {
-		content, err := os.ReadFile(filepath.Join(d.path, name))
+		file, err := OpenFile(filepath.Join(d.path, name), os.O_RDONLY, 0)
 		if errors.Is(err, fs.ErrNotExist) {
 			return "", "", false, nil
 		}
+		if err != nil {
+			return "", "", false, err
+		}
+		content, err := io.ReadAll(file)
+		file.Close()
 		if err != nil {
 			return "", "", false, err
 		}
@@ -151,8 +157,8 @@ func (d Dir) RemoveBundle() error {
 }
 
 // CreateMercureSecrets reads the hub's two secrets, creating either that is
-// missing with 32 random bytes in hex. Exclusive creation refuses a link
-// already at the path.
+// missing with 32 random bytes in hex. Exclusive creation and the read both
+// refuse a link at the path.
 func (d Dir) CreateMercureSecrets() (publisher, subscriber string, err error) {
 	var values [2]string
 	for i, name := range []string{publisherName, subscriberName} {
@@ -168,10 +174,13 @@ func (d Dir) CreateMercureSecrets() (publisher, subscriber string, err error) {
 			if err != nil {
 				return "", "", fmt.Errorf("Cannot write the Mercure secret: %s", path)
 			}
-		} else if info, statErr := os.Stat(path); statErr != nil || !info.Mode().IsRegular() {
+		}
+		file, err = OpenFile(path, os.O_RDONLY, 0)
+		if err != nil {
 			return "", "", fmt.Errorf("Cannot create the Mercure secret: %s", path)
 		}
-		content, err := os.ReadFile(path)
+		content, err := io.ReadAll(file)
+		file.Close()
 		if err != nil {
 			return "", "", err
 		}

@@ -64,6 +64,18 @@ the directory you started Drupack in, never against the unpacked application.
 A start refuses a value that contains `{` or `}`. The path reaches the
 Caddyfile, where Caddy reads a brace as a placeholder.
 
+A start creates a missing Site data directory readable and writable by you
+alone. Every start, `drush` and `export` check Site data and a named
+`--files-dir` by the cache folder rule below, reading access aside. When another
+account can change one, they print a warning and go on. The warning names the
+folder, the account and a fix:
+
+- a folder open on Unix: `chmod -R go-w FOLDER`
+- a parent open on Unix: `chmod go-w PARENT`
+- a folder or parent open on Windows: `icacls FOLDER /inheritance:d`, then
+  `icacls FOLDER /remove:g ACCOUNT /T`, with `/T` for the folder alone
+- a folder another account owns: move Site data into a folder you own
+
 A site whose `drupack.yml` lists `writable` directories keeps its own
 application in `app` in Site data. A start lays it there once per release.
 `drush` refuses an `app` another release laid, until a start lays this one.

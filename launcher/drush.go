@@ -113,9 +113,14 @@ func openSite(l Launch, site siteconfig.Site, c command, cwd string, e environ) 
 	if err != nil {
 		return openedSite{}, err
 	}
+	warnExposed(data)
+	named := files != ""
 	files, scratch, err := siteDirs(data, files, site.Static != nil)
 	if err != nil {
 		return openedSite{}, err
+	}
+	if named {
+		warnExposed(files)
 	}
 	staticRoot, staticURL := "", ""
 	if plan.Static != nil {

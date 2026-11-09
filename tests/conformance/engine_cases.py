@@ -592,6 +592,17 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), version.stdout)
 
+    def test_a_database_the_engine_creates_is_its_owners_alone(self):
+        if harness.current_platform() == harness.WINDOWS:
+            self.skipTest("Windows files have no mode bits")
+        database = harness.fresh_dir(self.class_dir / "created-database") / "site.sqlite"
+        script = self.docroot / "engine-case-database.php"
+        script.write_text(f"<?php new PDO('sqlite:' . {json.dumps(str(database))}); echo 'created';")
+        self.addCleanup(script.unlink)
+        port, log = self.start("created-database", str(self.project))
+        self.assertEqual(self.fetch(port, "/engine-case-database.php")[2], "created", f"inspect {log}")
+        self.assertEqual(stat.S_IMODE(database.stat().st_mode) & 0o077, 0, oct(database.stat().st_mode))
+
     def test_a_request_child_process_runs_on_the_runtime_php_with_no_php_on_path(self):
         version = self.engine_run("php", "-r", "echo PHP_VERSION;")
         self.assertEqual(version.returncode, 0, version.stderr)

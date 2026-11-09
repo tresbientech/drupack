@@ -110,6 +110,7 @@ class FirstStartAndListener(harness.ConformanceCase):
                 "[3/3] Creating the administrator account",
             ):
                 self.assertIn(report, started, "a first start reported no progress")
+            self.assertNotIn("Warning:", started)
             self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), harness.SITE["site_name"])
             assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
             # site.start() got its 200 from /user/login, but the launcher's own poller writes
@@ -146,6 +147,20 @@ class FirstStartAndListener(harness.ConformanceCase):
             self.assertEqual(fallback.returncode, 0, fallback.stderr)
             self.assertTrue(fallback.stdout.strip().startswith(f"http://localhost:{harness.SITE['port']}/"), fallback.stdout)
             listener_path.write_bytes(saved_listener)
+        finally:
+            site.stop()
+
+    def test_a_start_on_site_data_every_account_can_write_warns_and_serves(self):
+        data = self.case_dir / "open-data"
+        data.mkdir(parents=True)
+        data.chmod(0o777)
+        site = harness.Site(harness.BINARY, self.case_dir / "open-start")
+        site.start(data, "--admin-user", "init-admin", "--admin-password", PASSWORD)
+        try:
+            started = site.log_path.read_text(errors="replace")
+            self.assertIn(f"Warning: {os.path.realpath(data)} is open to every account", started)
+            self.assertIn(f"chmod -R go-w {os.path.realpath(data)}", started)
+            harness.wait_for_line(site.log_path, 0, harness.ready_line(), harness.WAITS["start"].seconds)
         finally:
             site.stop()
 

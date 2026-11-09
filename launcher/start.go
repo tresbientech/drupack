@@ -121,6 +121,7 @@ func operate(l Launch, env []string, record any, stream bool, arguments ...strin
 // Without --foreground, and with no console of its own, it first detaches into
 // a child that does all of it.
 func startEngine(l Launch, c command) error {
+	restrictUmask()
 	if c.options["foreground"] == "" && !l.ConsoleOwned {
 		project, err := projectFolder(cmp.Or(c.target, defaultFolder))
 		if err != nil {

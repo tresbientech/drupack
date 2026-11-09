@@ -131,12 +131,13 @@ func startSite(l Launch, c command) error {
 	}
 
 	restrictUmask()
-	if err := os.MkdirAll(data, 0o700); err != nil {
+	if err := runtime.Create(data); err != nil {
 		return err
 	}
 	if data, err = filepath.EvalSymlinks(data); err != nil {
 		return err
 	}
+	warnExposed(data)
 	record, recorded, err := readListener(state.At(data), l.Name)
 	if err != nil {
 		return err
@@ -148,6 +149,9 @@ func startSite(l Launch, c command) error {
 	files, scratch, err := siteDirs(data, files, site.Static != nil)
 	if err != nil {
 		return err
+	}
+	if named {
+		warnExposed(files)
 	}
 	// The Caddyfile holds the resolved paths, and a link can lead to a brace.
 	if err := caddyfile.RefuseBraces("--data-dir", runtime.Canonical(data)); err != nil {
@@ -226,6 +230,19 @@ func siteDirs(data, files string, static bool) (resolved, scratch string, err er
 	}
 	scratch, err = filepath.EvalSymlinks(filepath.Join(data, "runtime"))
 	return resolved, scratch, err
+}
+
+// warnExposed names the account other than this user, root or the system that
+// can change dir, and the command that takes its access away. The command goes
+// on: a folder someone else can write still serves its own site.
+func warnExposed(dir string) {
+	exposed, err := runtime.Exposure(dir, false)
+	switch {
+	case err != nil:
+		fmt.Fprintf(os.Stderr, "Warning: cannot check who can change %s: %v\n", runtime.Canonical(dir), err)
+	case exposed != nil:
+		fmt.Fprintf(os.Stderr, "Warning: %s, so another account can change this site's code and database. %s\n", exposed, fixCommand(exposed))
+	}
 }
 
 // readListener reads the Listener record, naming the way out of an unreadable one.

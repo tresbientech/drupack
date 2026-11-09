@@ -6,7 +6,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -56,6 +58,19 @@ func (d Dir) Path() string {
 
 func (d Dir) lease() string {
 	return filepath.Join(d.path, LeaseName)
+}
+
+// OpenFile opens path as os.OpenFile does, and refuses a path that holds a link
+// or anything else other than a regular file.
+func OpenFile(path string, flag int, perm os.FileMode) (*os.File, error) {
+	info, err := os.Lstat(path)
+	switch {
+	case err == nil && !info.Mode().IsRegular():
+		return nil, &os.PathError{Op: "open", Path: path, Err: errors.New("not a regular file")}
+	case err != nil && !errors.Is(err, fs.ErrNotExist):
+		return nil, err
+	}
+	return os.OpenFile(path, flag|noFollow, perm)
 }
 
 // leaseRefusal is the error for a lease this process cannot open.

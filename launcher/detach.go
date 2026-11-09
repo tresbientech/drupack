@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
 // What the relay matches in the server's log. runtime/watch/watch.go prints both, and
@@ -132,12 +133,12 @@ func detachStart(l Launch, log, stop string) error {
 // takeLog points a detached child's output at the server log, which it
 // empties, and tells the parent to relay that file. It runs once the child
 // holds the lease, so a start that loses the race leaves the log of the server
-// that won untouched.
+// that won untouched. A link at the log is refused.
 func takeLog() error {
 	if child == nil {
 		return nil
 	}
-	file, err := os.OpenFile(child.log, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_APPEND, 0o600)
+	file, err := state.OpenFile(child.log, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
 	}
