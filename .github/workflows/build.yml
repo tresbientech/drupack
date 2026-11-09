@@ -374,7 +374,7 @@ jobs:
 
       # syft scans the site before the engine and the executables join the workspace.
       - name: Scan the site
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           path: ${{ inputs.site }}
           format: cyclonedx-json
@@ -397,7 +397,7 @@ jobs:
 
       # syft reads the launcher's Go modules from the executables.
       - name: Scan the executables
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           path: executables
           format: cyclonedx-json

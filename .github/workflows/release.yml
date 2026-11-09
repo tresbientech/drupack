@@ -188,9 +188,11 @@ jobs:
     if: needs.gate.outputs.linux_runtime != '[]'
     runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 180
+    # static-php-cli and the sources it fetches run in this job, so its token
+    # cannot write packages. builder-push pushes the image this job builds.
     permissions:
       contents: read
-      packages: write
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -233,13 +235,24 @@ jobs:
           bash runtime/build-builder.sh "$BUILDER" "$IMAGE" "$RUNNER_TEMP/builder"
           echo 'built=true' >>"$GITHUB_OUTPUT"
 
-      # A fork holds a read-only token. The image it built stays on the runner,
-      # where the build below finds it under the same name.
-      - name: Publish the builder image
+      # The build below finds the image on the runner under the same name. A
+      # fork's image stays there.
+      - name: Save the builder image
         if: steps.image.outputs.built == 'true' && github.event.repository.fork == false
         env:
           IMAGE: ${{ steps.builder.outputs.image }}
-        run: docker push "$IMAGE"
+        run: |
+          mkdir builder-image
+          docker save "$IMAGE" | zstd -T0 -3 >builder-image/image.tar.zst
+
+      - if: steps.image.outputs.built == 'true' && github.event.repository.fork == false
+        uses: actions/upload-artifact@v7
+        with:
+          name: builder-linux-${{ matrix.arch }}-${{ matrix.libc }}
+          path: builder-image
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
 
       - name: Build the runtime
         env:
@@ -276,6 +289,55 @@ jobs:
           name: runtime-components-linux-${{ matrix.arch }}-${{ matrix.libc }}
           path: runtime-components
           if-no-files-found: error
+
+  # Pushes each builder image linux-runtime built. This job runs no code from the
+  # image or its build, and it names the image itself, so a loaded archive can
+  # push under no other name.
+  builder-push:
+    name: Push the Linux ${{ matrix.arch }} ${{ matrix.libc }} builder
+    needs: [gate, linux-runtime]
+    if: needs.gate.outputs.linux_runtime != '[]' && github.event.repository.fork == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.gate.outputs.linux_runtime) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # linux-runtime uploads an image only when it built one.
+      - id: artifact
+        name: Look for a built image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: builder-linux-${{ matrix.arch }}-${{ matrix.libc }}
+          BUILDER: ${{ matrix.builder }}
+        run: |
+          count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$NAME" --jq '.total_count')
+          if [ "$count" != 0 ]; then
+            printf 'image=ghcr.io/%s-builder:%s\n' "$GITHUB_REPOSITORY" "$(bash runtime/builder-tag.sh "$BUILDER")" >>"$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.artifact.outputs.image != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: builder-linux-${{ matrix.arch }}-${{ matrix.libc }}
+          path: builder-image
+
+      - name: Push the builder image
+        if: steps.artifact.outputs.image != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ${{ steps.artifact.outputs.image }}
+        run: |
+          zstd -dc builder-image/image.tar.zst | docker load
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE"
 
   # The application (PHP source, vendor, translations, seeded database) is the same
   # on every platform, so every executable packs this one build. Every run pushes
@@ -807,7 +869,7 @@ jobs:
   # for each release candidate.
   qa:
     name: QA
-    needs: linux-runtime
+    needs: [linux-runtime, builder-push]
     if: github.event_name == 'workflow_dispatch' && inputs.platform == 'all'
     runs-on: ubuntu-24.04
     timeout-minutes: 150
@@ -828,7 +890,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       # The Dockerfile builds on drupack-builder-{gnu,musl}:local, which the
-      # runtime jobs of this run published under their digest tags.
+      # builder-push jobs of this run published under their digest tags.
       - name: Pull the builder images
         env:
           GH_TOKEN: ${{ github.token }}
@@ -855,8 +917,71 @@ jobs:
           } >>"$GITHUB_STEP_SUMMARY"
 
   # A tag run that publishes its candidate's files skips every build job.
-  publish:
+  # syft and the action run in a job of their own, whose token writes nothing.
+  # The scans read the downloaded folders as they land: the merge keeps each
+  # component's name, version and identifiers, never its file path.
+  sbom:
     needs: [gate, linux, windows, macos, demo]
+    if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      # download-artifact reads another run only when it has a token, and its own
+      # run when the token is empty.
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: drupack-*
+          path: candidates
+          run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
+          github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: runtime-macos-*
+          path: runtimes
+          run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
+          github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: runtime-windows-amd64
+          path: runtimes/runtime-windows-amd64
+          run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
+          github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
+
+      - name: Make the scans folder
+        run: mkdir "$RUNNER_TEMP/scans"
+
+      # syft reads the launcher's Go modules from the executables, and FrankenPHP's
+      # from the macOS and Windows runtimes. upload-artifact is off: the action's
+      # own artifact, drupack-sbom.cyclonedx.json, would match the drupack-*
+      # download above on a rerun of this job.
+      - name: Scan the executables
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: candidates
+          format: cyclonedx-json
+          output-file: ${{ runner.temp }}/scans/executables.cdx.json
+          upload-artifact: false
+
+      - name: Scan the runtimes
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: runtimes
+          format: cyclonedx-json
+          output-file: ${{ runner.temp }}/scans/runtimes.cdx.json
+          upload-artifact: false
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sbom-scans
+          path: ${{ runner.temp }}/scans
+          if-no-files-found: error
+
+  publish:
+    needs: [gate, linux, windows, macos, demo, sbom]
     if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' }}
     runs-on: ubuntu-24.04
     permissions:
@@ -923,25 +1048,10 @@ jobs:
             --base-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$VERSION" \
             --commit "$GITHUB_SHA" "${runtimes[@]}" built/*
 
-      # syft reads the launcher's Go modules from the executables, and FrankenPHP's
-      # from the macOS and Windows runtimes. The action's own artifact,
-      # drupack-publish.cyclonedx.json, would match the drupack-* download above
-      # on a rerun of this job.
-      - name: Scan the executables
-        uses: anchore/sbom-action@v0
+      - uses: actions/download-artifact@v8
         with:
-          path: built
-          format: cyclonedx-json
-          output-file: ${{ runner.temp }}/executables.cdx.json
-          upload-artifact: false
-
-      - name: Scan the runtimes
-        uses: anchore/sbom-action@v0
-        with:
-          path: runtimes
-          format: cyclonedx-json
-          output-file: ${{ runner.temp }}/runtimes.cdx.json
-          upload-artifact: false
+          name: sbom-scans
+          path: ${{ runner.temp }}/scans
 
       # Each runtime's report names what the executables carry compressed. A site
       # build reads the macOS and Windows reports from runtime-components.json.
@@ -949,7 +1059,7 @@ jobs:
         run: |
           python3 build/sbom.py merge --name drupack --version "$VERSION" \
             --runtime-components runtime-components/*.json --output release/drupack.cdx.json \
-            "$RUNNER_TEMP/executables.cdx.json" "$RUNNER_TEMP/runtimes.cdx.json"
+            "$RUNNER_TEMP/scans/executables.cdx.json" "$RUNNER_TEMP/scans/runtimes.cdx.json"
           jq -s add runtime-components/*.json >release/runtime-components.json
 
       - name: Attest the release files
