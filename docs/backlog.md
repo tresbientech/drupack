@@ -245,8 +245,10 @@ open, keeping every feature and platform:
   arm64 failure of run 42696202800 has no proven cause.
 - the launcher's `portTaken` probe, a connect, passes on a port held that way.
   The reader then gets Caddy's bind error in place of the launcher's sentence.
-- the candidate's measured wall time with shares dealt by class seconds and
-  the `qa` job image built from the runtime jobs' files
+- the Linux jobs, one unsharded suite per architecture: 24 to 26 minutes,
+  ended at minute 36 to 38 of a 42 minute run
+- Windows arm64 shares, 16 to 22.5 minutes against 18 planned from one run's
+  times
 - a command that writes `tests/conformance/class-seconds.json` from a run's
   logs. The table of 2026-11-10 came from a one-off script.
 - the Windows suite under Defender, where the 4 cases of `AsciiCacheRootCases`

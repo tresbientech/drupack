@@ -139,6 +139,10 @@ Consequences:
   from it counts as the mean.
 - The `qa` jobs build the job image from the runtime jobs' files, as `payload`
   does. The build from the builder images took 4 minutes after a 5 minute pull.
+- Run 42782226030 on 2026-11-10 had both changes and ended green in 42 minutes.
+  `QA host` took 25 minutes against 37 and ended at minute 32. Two macOS test
+  jobs waited 4 minutes for a runner, and the last of them ended the run.
+  Windows arm64 shares took 16 to 22.5 minutes.
 - The graph peaks at 19 jobs: 2 Linux, 1 demo, 3 QA, 2 macOS builds and 11
   Windows tests. GitHub's free plan runs 20 jobs at once, 5 of them on macOS.
 - A suite rerun on macOS or Windows downloads the build.
