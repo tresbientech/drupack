@@ -14,7 +14,7 @@ bash runtime/build-builder.sh gnu drupack-builder-gnu:local
 bash build/qa.sh
 ```
 
-`build/qa.sh` builds the `job` image, runs `drupack-build` inside it, then runs the tests. `build/qa.sh demo`, `variant` or `host` runs one phase of that chain, as the release candidate's three QA jobs do. The image carries this architecture's two runtimes under `/opt/drupack/runtimes`, one `PLATFORM-LIBC` directory each, so the build names none.
+`build/qa.sh` builds the `job` image, runs `drupack-build` inside it, then runs the tests. `build/qa.sh demo`, `variant` or `host` runs one phase of that chain, as the release candidate's three QA jobs do. The image carries this architecture's two runtimes under `/opt/drupack/runtimes`, one `PLATFORM-LIBC` directory each, so the build names none. On the host, `build/qa.sh` also needs Go, `python3` and `zstd`, which compresses the payload of the copy without Node.
 
 The site every build packs is Drupacked Demo, from its own repository. `build/demo-pin.sh` names the commit. `build/qa.sh` fetches it on each run. A hand build needs a clone in `demo/`, which git ignores:
 
@@ -84,7 +84,7 @@ The Windows executable is the same launcher as Linux and macOS. It carries the P
 
 ## Tests
 
-The suites run against the published executable, which is the launcher.
+The conformance suite runs against the published executable, which is the launcher. A case asserts what only a live run shows: an HTTP answer, a served certificate, a process, a database or an OS. A choice that a pure function makes, such as a refusal message or a start plan, has a unit test instead. `build/go-tests.sh` runs the Go unit tests, and `build/unit-tests.sh` runs the Python tests of the build scripts.
 
 ```sh
 DRUPACK_TEST_ENGINE=dist/engine/drupack-linux-amd64 python3 tests/conformance dist/drupacked-demo-linux-amd64 test-results/conformance --site-tests demo/tests

@@ -93,14 +93,11 @@ class WritableDirectories(harness.ConformanceCase):
         self.assertEqual(cleaned.returncode, 0)
         self.assertTrue((theme / "probe.info.yml").is_file(), "clean removed the site's application")
 
-        # Another release laid this application: `drush` refuses, and a start lays this release
+        # Another release laid this application: a start lays this release
         # over it, keeping the theme the site wrote.
         release = app / ".release"
         current = release.read_text()
         release.write_text("an-earlier-release")
-        refused = self.drush("status")
-        self.assertNotEqual(refused.returncode, 0, "drush ran on another release's application")
-        self.assertIn("Start", refused.stderr)
         self.serves_the_probe()
         self.assertEqual(release.read_text(), current)
         self.assertFalse((self.data / ".previous-app").exists(), "the upgrade left the old application")

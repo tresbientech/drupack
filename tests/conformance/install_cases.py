@@ -8,7 +8,6 @@ curl piped to sh on Linux and macOS, irm piped to iex in PowerShell on Windows.
 import functools
 import hashlib
 import http.server
-import json
 import os
 import platform
 import re
@@ -119,37 +118,6 @@ class InstallScript(harness.ConformanceCase):
         result = harness.run(command, cwd=directory, capture_output=True, text=True, env=env,
                              timeout=harness.WAITS["drush"].seconds)
         return result, directory
-
-    def test_the_release_names_each_build_with_its_version(self):
-        musl = harness.fresh_dir(self.class_dir / "musl-build") / f"{self.name}-linux-amd64-musl"
-        musl.write_bytes(b"a musl build")
-        release = self.release("names", self.host_build(), musl)
-        executables = [f"{self.name}-{VERSION}-{self.target}{self.extension}", f"{self.name}-{VERSION}-linux-amd64-musl"]
-        scripts = [f"install-{self.name}.sh", *([f"install-{self.name}.ps1"] if self.windows else [])]
-        self.assertEqual(sorted(path.name for path in release.iterdir()),
-                         sorted([*executables, "checksums.txt", "release.json", *scripts]))
-        checksums = (release / "checksums.txt").read_text()
-        assets = {asset["asset"]: asset for asset in json.loads((release / "release.json").read_text())["assets"]}
-        for executable in executables:
-            self.assertIn(f"{sha256(release / executable)}  {executable}\n", checksums)
-        self.assertEqual(assets[executables[1]]["target"], "linux-amd64-musl")
-
-    def test_the_step_refuses_a_file_named_for_no_target(self):
-        stray = self.class_dir / "site.json"
-        stray.write_text("{}")
-        result = harness.run([sys.executable, str(RELEASE_FILES), "--output", str(self.class_dir / "stray"),
-                              "--version", VERSION, "--base-url", self.url, "--commit", "install-case", str(stray)],
-                             capture_output=True, text=True, timeout=harness.WAITS["php_cli"].seconds)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("site.json is not named NAME-TARGET", result.stderr)
-
-    def test_the_step_refuses_a_version_holding_a_path_separator(self):
-        result = harness.run([sys.executable, str(RELEASE_FILES), "--output", str(self.class_dir / "separator"),
-                              "--version", "release/1.0", "--base-url", self.url, "--commit", "install-case",
-                              str(self.host_build())],
-                             capture_output=True, text=True, timeout=harness.WAITS["php_cli"].seconds)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("'release/1.0' holds a character", result.stderr)
 
     def test_the_script_writes_through_no_link_planted_in_the_working_directory(self):
         if self.windows:

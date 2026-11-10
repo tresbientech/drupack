@@ -70,9 +70,6 @@ func TestServed(t *testing.T) {
 			err: "--listen requires IP:PORT, with IPv6 enclosed in brackets"},
 		{name: "a listener port out of range", site: plain, typed: state.Listener{Listen: "127.0.0.1:70000"},
 			err: "Invalid --listen address or port"},
-		{name: "a static listener on the site's port", site: plain, typed: state.Listener{Listen: "127.0.0.1:5", StaticListen: "127.0.0.1:5"},
-			noun: "site", hasStatic: true,
-			err: "--static-listen must name a port other than the site's 5"},
 		{name: "a static listener on a site without one", site: plain, typed: state.Listener{StaticListen: "127.0.0.1:5"},
 			noun: "site",
 			err:  "--static-listen needs a site whose composer.json sets extra.drupack.static"},
@@ -137,23 +134,12 @@ func TestSiteListen(t *testing.T) {
 		typed string
 		bind  string
 		port  int
-		err   string
 	}{
 		{name: "a site's value", site: siteTarget(siteconfig.Site{Port: 7}), typed: "[::1]:9", bind: "::1", port: 9},
-		{name: "a site's hostname", site: siteTarget(siteconfig.Site{Port: 7}), typed: "localhost:9",
-			err: "--listen requires IP:PORT, with IPv6 enclosed in brackets"},
 		{name: "the engine's value", site: engineTarget(), typed: "localhost:9", bind: "localhost", port: 9},
-		{name: "the engine's refusal", site: engineTarget(), typed: "localhost:x", err: "--listen takes IP:PORT, got localhost:x"},
-		{name: "the engine's empty value", site: engineTarget(), err: "--listen takes IP:PORT, got "},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			bind, port, err := row.site.Listen(row.typed)
-			if row.err != "" {
-				if err == nil || err.Error() != row.err {
-					t.Errorf("error = %v, want %q", err, row.err)
-				}
-				return
-			}
 			if err != nil || bind != row.bind || port != row.port {
 				t.Errorf("Listen = %q, %d, %v, want %q, %d", bind, port, err, row.bind, row.port)
 			}

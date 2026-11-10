@@ -65,9 +65,6 @@ class DetachedCases(harness.ConformanceCase):
     def test_a_first_start_returns_once_the_site_answers(self):
         self._assert_returns_with_a_running_site()
 
-    def test_the_start_word_acts_as_no_word(self):
-        self._assert_returns_with_a_running_site("start")
-
     def _assert_powershell_runs_the_printed_stop(self, binary, cwd, word):
         """PowerShell hands a program its full path, which the harness passes the same way."""
         if harness.current_platform() != harness.WINDOWS:

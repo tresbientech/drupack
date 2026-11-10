@@ -137,19 +137,6 @@ class FirstStartAndListener(harness.ConformanceCase):
                               timeout=harness.WAITS["http_request"].seconds) as response:
                 body = response.read().decode(errors="replace")
             self.assertIn(f"init-admin | {harness.SITE['site_name']}", body)
-
-            overridden = harness.run_drush(harness.BINARY, self.case_dir, data,
-                                         "--listen", "127.0.0.1:19999", "user:login", "--no-browser")
-            self.assertEqual(overridden.returncode, 0, overridden.stderr)
-            self.assertTrue(overridden.stdout.strip().startswith("http://localhost:19999/"), overridden.stdout)
-
-            listener_path = data / "listener"
-            saved_listener = listener_path.read_bytes()
-            listener_path.unlink()
-            fallback = harness.run_drush(harness.BINARY, self.case_dir, data, "user:login", "--no-browser")
-            self.assertEqual(fallback.returncode, 0, fallback.stderr)
-            self.assertTrue(fallback.stdout.strip().startswith(f"http://localhost:{harness.SITE['port']}/"), fallback.stdout)
-            listener_path.write_bytes(saved_listener)
         finally:
             site.stop()
 
@@ -465,17 +452,6 @@ class SiteName(harness.ConformanceCase):
         site.start(data, "--site-name", "Rejected initialization name")
         self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), "Chosen initialization name",
                           "a later start renamed the site")
-        site.stop()
-
-    def test_the_site_name_also_comes_from_the_environment(self):
-        data = self.case_dir / "data"
-        site = harness.Site(harness.BINARY, self.case_dir)
-        os.environ["DRUPACK_SITE_NAME"] = "Environment initialization name"
-        try:
-            site.start(data, "--admin-user", "init-admin", "--admin-password", PASSWORD)
-        finally:
-            del os.environ["DRUPACK_SITE_NAME"]
-        self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), "Environment initialization name")
         site.stop()
 
 

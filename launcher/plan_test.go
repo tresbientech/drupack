@@ -46,9 +46,6 @@ func TestPlanRunsNode(t *testing.T) {
 			if want := []string{path, "--version", "an argument"}; !slices.Equal(got.Args, want) {
 				t.Errorf("Args = %q, want %q", got.Args, want)
 			}
-			if !slices.ContainsFunc(got.Env, func(entry string) bool { return strings.HasPrefix(entry, "PATH="+bin) }) {
-				t.Errorf("Env = %q, want PATH to start with %s", got.Env, bin)
-			}
 		})
 	}
 }

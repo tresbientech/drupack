@@ -4,11 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/tls"
 )
 
 func TestEngineListen(t *testing.T) {
@@ -80,6 +81,75 @@ func TestPlanStart(t *testing.T) {
 	}
 }
 
+func TestRecordKeepsTheStaticListener(t *testing.T) {
+	for _, row := range []struct {
+		bind      string
+		hasStatic bool
+		want      string
+	}{
+		{"127.0.0.1", true, "127.0.0.1:3788"},
+		{"::1", true, "[::1]:3788"},
+		{"127.0.0.1", false, ""},
+	} {
+		plan, err := planStart(row.bind, 3787, "", row.hasStatic, "site", "localhost", "http")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := plan.record().StaticListen; got != row.want {
+			t.Errorf("%s, static %v: StaticListen = %q, want %q", row.bind, row.hasStatic, got, row.want)
+		}
+	}
+}
+
+func TestNameHint(t *testing.T) {
+	if got := nameHint(tls.Choice{Host: "shop.drupack.site", Alias: "shop.drupack.site"}); got != "" {
+		t.Errorf("a resolved name prints %q", got)
+	}
+	choice := tls.Choice{Host: "localhost", Alias: "shop.drupack.site", Reason: "answered 0.0.0.0"}
+	if got, want := nameHint(choice), "Name: shop.drupack.site did not resolve to 127.0.0.1 (answered 0.0.0.0), so the URL uses localhost.\n"; got != want {
+		t.Errorf("nameHint = %q, want %q", got, want)
+	}
+	unnamed := tls.Choice{Host: "127.0.0.1", Alias: "project.drupack.site", Reason: "no answer"}
+	if got, want := nameHint(unnamed), "Name: project.drupack.site did not resolve to 127.0.0.1 (no answer), so the URL uses 127.0.0.1.\n"; got != want {
+		t.Errorf("nameHint on the bind address = %q, want %q", got, want)
+	}
+}
+
+func TestExecServerRefusesAHubFileWithoutTheMercureKey(t *testing.T) {
+	rules := t.TempDir()
+	hub := filepath.Join(rules, "drupack.mercure.caddy")
+	if err := os.WriteFile(hub, []byte("anonymous\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := execServer(Facts{}, state.Dir{}, nil, caddyfile.Config{}, tls.Choice{}, startPlan{}, rules, "drupack", rules)
+	want := hub + " holds Mercure hub directives, and " + rules + "/composer.json does not set extra.drupack.mercure to true"
+	if err == nil || err.Error() != want {
+		t.Errorf("execServer = %v, want %q", err, want)
+	}
+}
+
+func TestTrustHint(t *testing.T) {
+	saved := siteName
+	siteName = "demo"
+	t.Cleanup(func() { siteName = saved })
+	hint := "HTTPS: run \"demo trust\" once to serve this site over HTTPS.\n"
+	for _, row := range []struct {
+		name   string
+		dir    string
+		choice tls.Choice
+		want   string
+	}{
+		{"a loopback start with no root", "/tls", tls.Choice{Source: "none", Eligible: true}, hint},
+		{"a start that serves HTTPS", "/tls", tls.Choice{Source: "drupack", Eligible: true}, ""},
+		{"a start another computer reaches", "/tls", tls.Choice{Source: "none"}, ""},
+		{"an account with no config folder", "", tls.Choice{Source: "none", Eligible: true}, ""},
+	} {
+		if got := trustHint(Launch{TLSDir: row.dir}, row.choice); got != row.want {
+			t.Errorf("%s: trustHint = %q, want %q", row.name, got, row.want)
+		}
+	}
+}
+
 func TestDrupalDocroot(t *testing.T) {
 	packedAs(t, "fixture-site", "dev", false)
 	project := t.TempDir()
@@ -109,27 +179,5 @@ func TestDrupalDocroot(t *testing.T) {
 	write("core/lib/Drupal.php")
 	if got, err := drupalDocroot(project, "."); err != nil || got != project {
 		t.Errorf("drupalDocroot(.) = %q, %v", got, err)
-	}
-}
-
-func TestEnvServer(t *testing.T) {
-	f := Facts{Launch: Launch{Engine: true}, ID: "f0123456789abcdef", Probe: "http://127.0.0.1:3787/",
-		StopRecord: state.At("/cache/folders/f0123456789abcdef").StopRecordPath()}
-	watch := func(f Facts) []string {
-		return slices.DeleteFunc(f.Env(Server), func(entry string) bool { return !strings.HasPrefix(entry, "DRUPACK_RUNTIME_") })
-	}
-	base := []string{
-		"DRUPACK_RUNTIME_NAME=", "DRUPACK_RUNTIME_SITE_VERSION=", "DRUPACK_RUNTIME_COMPONENTS=",
-		"DRUPACK_RUNTIME_ID=f0123456789abcdef",
-		"DRUPACK_RUNTIME_URL=http://127.0.0.1:3787/",
-		"DRUPACK_RUNTIME_STOP_RECORD=/cache/folders/f0123456789abcdef/stop.json",
-	}
-	if got := watch(f); !slices.Equal(got, base) {
-		t.Errorf("plain http: %v", got)
-	}
-	// The runtime's watch verifies HTTPS with the root of the TLS source that serves it.
-	f.TLSRoot = "/r.pem"
-	if want := append(base, "DRUPACK_RUNTIME_TLS_ROOT=/r.pem"); !slices.Equal(watch(f), want) {
-		t.Errorf("https: %v", watch(f))
 	}
 }

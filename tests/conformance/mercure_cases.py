@@ -1,10 +1,11 @@
 """The Mercure hub a site's contract turns on: a publisher token posts over HTTP, a
 subscriber that accepts gzip and holds a Mercure 1.0 access token signed with the Site
 data secret, in a header or a browser's cookie, receives it as it is published, a reconnect
-replays the history, a granted token sees who subscribes, `drush` sees the hub's variables
-once a start created the secrets, and a site without the key serves no hub and writes no
-secret. The cases post rather than call mercure_publish(), which needs a PHP file in the
-site; engine_cases.py covers that call.
+replays the history, a token without a valid signature is refused, a granted token sees who
+subscribes, the secrets stay private and survive a restart, `drush` and a subscriber reach
+the hub over https, and a site without the key serves no hub and writes no secret. The cases
+post rather than call mercure_publish(), which needs a PHP file in the site; engine_cases.py
+covers that call.
 """
 
 import base64
@@ -197,14 +198,6 @@ class MercureHub(harness.ConformanceCase):
                 finally:
                     connection.close()
 
-    def drush_environment(self):
-        """The hub variables a `drush` command's PHP sees, empty when unset."""
-        code = "echo json_encode(array_map('getenv', ['DRUPACK_MERCURE_URL', 'DRUPACK_MERCURE_PUBLISHER_SECRET', 'DRUPACK_MERCURE_SUBSCRIBER_SECRET']));"
-        result = harness.run([str(harness.BINARY), "drush", "--data-dir", str(self.data), "php:eval", code],
-                             cwd=self.class_dir, capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        return json.loads(result.stdout)
-
     def test_an_http_publish_reaches_a_subscriber(self):
         stream = Stream(self.site.port, self.subscriber_token())
         try:
@@ -277,24 +270,6 @@ class MercureHub(harness.ConformanceCase):
         status, body = self.api(SUBSCRIPTIONS, self.subscriber_token())
         self.assertEqual(status, 403, body)
 
-    def test_drush_sees_the_hub_variables(self):
-        self.assertEqual(self.drush_environment(), [
-            f"http://127.0.0.1:{self.site.port}{HUB}",
-            self.secret("mercure_publisher_secret"),
-            self.secret("mercure_subscriber_secret"),
-        ])
-
-    def test_drush_creates_no_secret(self):
-        for name in SECRETS:
-            os.replace(self.data / name, self.class_dir / name)
-        try:
-            self.assertEqual(self.drush_environment(), [False, False, False])
-            for name in SECRETS:
-                self.assertFalse((self.data / name).exists(), name)
-        finally:
-            for name in SECRETS:
-                os.replace(self.class_dir / name, self.data / name)
-
     def test_the_secrets_stay_private_and_survive_a_restart(self):
         before = {name: self.secret(name) for name in SECRETS}
         for name, value in before.items():
@@ -327,12 +302,6 @@ class MercureHubHttps(harness.ConformanceCase):
     @classmethod
     def tearDownClass(cls):
         cls.site.stop()
-
-    def test_drush_names_the_https_hub(self):
-        code = "echo getenv('DRUPACK_MERCURE_URL');"
-        result = harness.run([str(harness.BINARY), "drush", "--data-dir", str(self.data), "php:eval", code],
-                             cwd=self.class_dir, capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
-        self.assertEqual(result.stdout.strip(), f"https://127.0.0.1:{self.site.port}{HUB}", result.stderr)
 
     def test_drush_reaches_the_https_hub(self):
         # 401 means curl verified the site's certificate and the hub asked for a token.

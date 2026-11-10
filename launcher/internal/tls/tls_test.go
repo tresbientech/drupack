@@ -341,6 +341,14 @@ func TestAnUntrustedMkcertRootFallsThroughToTheDrupackRoot(t *testing.T) {
 	}
 }
 
+func TestAnUntrustedMkcertRootWithoutADrupackRootServesHTTP(t *testing.T) {
+	stubMkcert(t, 800*24*time.Hour, true, "localhost", "*.drupack.site")
+	choice, err := tlsSource(t.TempDir(), x509.NewCertPool(), "localhost", "x.drupack.site")
+	if err != nil || choice.Source != "none" {
+		t.Fatalf("choice = %+v, %v, want none", choice, err)
+	}
+}
+
 func TestMkcertWithoutItsRootIsSkipped(t *testing.T) {
 	dir := t.TempDir()
 	stubMkcert(t, 800*24*time.Hour, false, "localhost", "*.drupack.site")
@@ -420,6 +428,15 @@ func TestTLSSourceNamesThePackedSiteOrFallsBackToLocalhost(t *testing.T) {
 	}
 	if c := source(t, "127.0.0.1", "drupacked-demo", "localhost", "example.test"); c.Host != "example.test" || c.Reason != "" {
 		t.Errorf("--host: %+v", c)
+	}
+}
+
+func TestHostLocalhostKeepsLocalhostWhenTheNameResolves(t *testing.T) {
+	noMkcert(t)
+	t.Setenv("DRUPACK_DNS_ANSWER", "127.0.0.1")
+	choice, err := Choose(t.TempDir(), "127.0.0.1", "drupacked-demo", "localhost", "localhost")
+	if err != nil || choice.Host != "localhost" || choice.Reason != "" || choice.Source != "none" || !choice.Eligible {
+		t.Fatalf("choice = %+v, %v, want localhost, no reason, no source, eligible", choice, err)
 	}
 }
 

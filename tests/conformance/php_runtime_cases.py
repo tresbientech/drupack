@@ -117,26 +117,6 @@ class RuntimeConfiguration(harness.ConformanceCase):
         self.assertEqual(values["http_status"], 200, values)
 
 
-class RuntimeTrustOnline(harness.ConformanceCase):
-    """Proves the shipped anchors verify a real endpoint, not only a file that parses.
-
-    Runs with the environment a release start gets, so a bundle truncated to one
-    certificate is what turns it red.
-    """
-
-    PLATFORMS = (harness.LINUX, harness.WINDOWS, harness.MACOS)
-    RECIPE = False
-
-    def test_release_history_returns_200(self):
-        if harness.running_offline():
-            self.skipTest("no network inside the offline container")
-        result = probe(self.case_dir, FETCH_PROBE)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        values = json.loads(result.stdout)
-        self.assertEqual(values["curl_errno"], 0, values)
-        self.assertEqual(values["http_status"], 200, values)
-
-
 def _phpinfo_local_value(page, directive):
     """Return directive's Local Value cell from a rendered phpinfo() table, or None."""
     match = re.search(

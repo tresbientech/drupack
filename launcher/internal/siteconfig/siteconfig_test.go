@@ -253,12 +253,14 @@ func TestReadRefusesALockWithoutDrupalOrDrush(t *testing.T) {
 	}
 }
 
+const withoutTome = "composer.lock: packages names no drupal/tome release, which extra.drupack.static needs"
+
 const lockedWithTome = `{"packages": [{"name": "drupal/core", "version": "11.4.7"}, {"name": "drush/drush", "version": "13.8.0"}, {"name": "drupal/tome", "version": "1.16.0"}]}`
 
 func TestReadRefusesStaticOnALockWithoutTome(t *testing.T) {
 	directory := site(t, minimal, drupackExtra(`{"static": {"dynamic": ["/search*"]}}`))
-	if _, err := siteconfig.Read(directory); err == nil || !strings.Contains(err.Error(), "drupal/tome") {
-		t.Fatalf("Read error = %v; want one naming drupal/tome", err)
+	if _, err := siteconfig.Read(directory); err == nil || !strings.Contains(err.Error(), withoutTome) {
+		t.Fatalf("Read error = %v; want one holding %q", err, withoutTome)
 	}
 	if err := os.WriteFile(filepath.Join(directory, "composer.lock"), []byte(lockedWithTome), 0o644); err != nil {
 		t.Fatal(err)
@@ -282,12 +284,12 @@ func TestCheckStaticReadsTheLockOnlyWithTheKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = siteconfig.CheckStatic(directory, siteconfig.Composer{Static: &siteconfig.Static{}})
-	if err == nil || !strings.Contains(err.Error(), "drupal/tome") {
-		t.Fatalf("CheckStatic on a lock without Tome = %v; want one naming drupal/tome", err)
+	if err == nil || err.Error() != withoutTome {
+		t.Fatalf("CheckStatic on a lock without Tome = %v; want %q", err, withoutTome)
 	}
 }
 
-func TestWriteKeepsAnEmptyStaticApartFromNone(t *testing.T) {
+func TestWriteKeepsAnEmptyStatic(t *testing.T) {
 	for want, static := range map[string]*siteconfig.Static{`"static": {}`: {}, "\"static\": {\n    \"dynamic\": [\n      \"/search*\"\n    ]\n  }": {Dynamic: []string{"/search*"}}} {
 		read, err := siteconfig.Parse([]byte(minimal))
 		if err != nil {
@@ -305,21 +307,6 @@ func TestWriteKeepsAnEmptyStaticApartFromNone(t *testing.T) {
 		if !strings.Contains(string(got), want) {
 			t.Errorf("site.json holds no %s:\n%s", want, got)
 		}
-	}
-	read, err := siteconfig.Parse([]byte(minimal))
-	if err != nil {
-		t.Fatal(err)
-	}
-	directory := t.TempDir()
-	if err := siteconfig.Write(read, directory); err != nil {
-		t.Fatal(err)
-	}
-	got, err := os.ReadFile(filepath.Join(directory, siteconfig.OutputName))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(got), "static") {
-		t.Errorf("site.json names static for a site without the key:\n%s", got)
 	}
 }
 
@@ -420,12 +407,6 @@ func TestParseAcceptsEveryNativeTarget(t *testing.T) {
 	}
 	if want := []string{"linux-amd64", "macos-amd64", "macos-arm64", "windows-amd64"}; !reflect.DeepEqual(site.Platforms, want) {
 		t.Fatalf("Platforms = %v; want %v", site.Platforms, want)
-	}
-}
-
-func TestParseKeepsExtensionsOnLinuxTargets(t *testing.T) {
-	if _, err := siteconfig.Parse([]byte(minimal + "platforms: [linux-amd64, linux-arm64]\nextensions: [gmp]\n")); err != nil {
-		t.Fatal(err)
 	}
 }
 

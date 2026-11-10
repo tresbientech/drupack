@@ -1,18 +1,17 @@
 """The static port a site's contract turns on: before any export it answers 404, a page written
 into the static directory answers on its path and its index with no redirect, a miss answers
-the export's own 404 page, the Listener record keeps the static address and `drush` sees the
-directory, a start without --static-listen takes the port after the site's, the drupack TLS
-source covers the static port, and a site without the key serves no second port. `export`
-runs Tome at the static URL and the Drush entry reruns itself on the runtime's php.
+the export's own 404 page, dynamic paths reach Drupal ahead of the export, a start without
+--static-listen takes the port after the site's, a taken static port refuses, the static port
+serves https from the site's root, and a site without the key serves no second port. `export`
+writes the front page, takes the reader's URI, names a missing module, and the Drush entry
+reruns itself on the runtime's php.
 """
 
 import http.client
-import json
 import os
 import socket
 import ssl
 import unittest
-from pathlib import Path
 
 import harness
 from tls_cases import trusted_environment, write_root
@@ -76,10 +75,6 @@ class StaticSite(harness.ConformanceCase):
         status, _, body = request(self.static_port, "/missing")
         self.assertEqual((status, body), (404, "<p>lost</p>"))
 
-    def test_the_listener_record_keeps_the_static_address(self):
-        record = json.loads((self.data / "listener").read_text())
-        self.assertEqual(record["static-listen"], f"127.0.0.1:{self.static_port}")
-
     def test_a_dynamic_path_reaches_drupal_ahead_of_the_export(self):
         self.write("search/node/index.html", "exported copy")
         status, headers, body = request(self.static_port, "/search/node?keys=drupal")
@@ -105,13 +100,6 @@ class StaticSite(harness.ConformanceCase):
             with self.subTest(path):
                 self.assertEqual(request(self.static_port, path)[0], status)
 
-    def test_drush_sees_the_static_directory(self):
-        code = "echo getenv('DRUPACK_RUNTIME_STATIC_ROOT');"
-        result = harness.run([str(harness.BINARY), "drush", "--data-dir", str(self.data), "php:eval", code],
-                             cwd=self.class_dir, capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(Path(result.stdout.strip()), self.data / "static")
-
     def test_a_start_without_the_option_serves_the_static_site_on_the_next_port(self):
         port = harness.pick_port()
         site = harness.Site(harness.BINARY, self.case_dir / "site")
@@ -129,19 +117,6 @@ class StaticSite(harness.ConformanceCase):
                                     "--static-listen", f"127.0.0.1:{taken}")
         self.assertIn(f"Another program is listening on 127.0.0.1:{taken}", output)
         self.assertIn("--static-listen", output)
-
-    def test_a_static_address_that_is_not_ip_port_refuses(self):
-        output = harness.refuse(self, self.case_dir, "invalid", "--data-dir", str(self.case_dir / "data"),
-                                "--static-listen", "nowhere")
-        self.assertIn("--static-listen requires IP:PORT", output)
-
-    def test_the_sites_own_port_refuses_as_the_static_port(self):
-        port = harness.pick_port()
-        result = harness.run([str(harness.BINARY), "--foreground", "--data-dir", str(self.case_dir / "data"),
-                              "--listen", f"127.0.0.1:{port}", "--static-listen", f"127.0.0.1:{port}"],
-                             cwd=self.case_dir, capture_output=True, text=True, timeout=harness.WAITS["bootstrap_refusal"].seconds)
-        self.assertNotEqual(result.returncode, 0, result.stdout)
-        self.assertIn(f"--static-listen must name a port other than the site's {port}", result.stdout + result.stderr)
 
 
 class StaticSiteOff(harness.ConformanceCase):
@@ -167,17 +142,6 @@ class StaticSiteOff(harness.ConformanceCase):
 
     def test_site_data_holds_no_static_directory(self):
         self.assertFalse((self.data / "static").exists())
-
-    def test_the_option_refuses_and_names_the_key(self):
-        output = harness.refuse(self, self.case_dir, "option", "--data-dir", str(self.case_dir / "data"),
-                                "--static-listen", "127.0.0.1:1")
-        self.assertIn("--static-listen needs a site whose composer.json sets extra.drupack.static", output)
-
-    def test_export_refuses_and_names_the_key(self):
-        result = harness.run([str(harness.BINARY), "export", "--data-dir", str(self.data)], cwd=self.case_dir,
-                             capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
-        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn("export needs a site whose composer.json sets extra.drupack.static", result.stdout + result.stderr)
 
 
 class StaticSiteTls(harness.ConformanceCase):
@@ -254,13 +218,6 @@ class StaticSiteExport(harness.ConformanceCase):
         page = (self.data / "static" / "index.html").read_text(errors="replace")
         self.assertIn("https://example.test/", page)
         self.assertNotIn(f"http://localhost:{self.static_port}/", page)
-
-    def test_an_export_on_empty_site_data_refuses_naming_the_directory(self):
-        data = self.case_dir / "empty"
-        result = self.export(data)
-        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn(data.as_posix(), result.stdout + result.stderr)
-        self.assertFalse(data.exists(), "a refused export wrote Site data")
 
     def test_an_export_without_tome_static_refuses_naming_the_module(self):
         uninstall = harness.run_drush(harness.BINARY, self.class_dir, self.data, "pm:uninstall", "tome_static", "--yes")

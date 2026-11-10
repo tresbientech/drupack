@@ -1,4 +1,4 @@
-"""The runtime Release files build/release-files.py writes, checked on a small runtime directory.
+"""The Release files build/release-files.py writes, checked on small builds and a small runtime directory.
 Run with:
 
     python3 -m unittest discover -s tests/conformance -p test_release_files.py
@@ -64,6 +64,50 @@ class RuntimeReleaseFiles(unittest.TestCase):
         result = self.write(self.runtime("runtime-linux-amd64"))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("runtime-linux-amd64 is not named runtime-TARGET", result.stderr)
+
+
+class SiteReleaseFiles(unittest.TestCase):
+    def setUp(self):
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.scratch = Path(scratch.name)
+        self.output = self.scratch / "release"
+
+    def build(self, name):
+        path = self.scratch / name
+        path.write_bytes(f"the {name} build".encode())
+        return path
+
+    def write(self, version, *builds):
+        return subprocess.run([sys.executable, RELEASE_FILES, "--output", self.output, "--version", version,
+                               "--base-url", BASE_URL, "--commit", "release-case", *builds],
+                              capture_output=True, text=True)
+
+    def test_the_release_names_each_build_with_its_version(self):
+        result = self.write("1.2.3", self.build("demo-linux-amd64"), self.build("demo-linux-amd64-musl"),
+                            self.build("demo-windows-amd64.exe"))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        executables = ["demo-1.2.3-linux-amd64", "demo-1.2.3-linux-amd64-musl", "demo-1.2.3-windows-amd64.exe"]
+        self.assertEqual(sorted(path.name for path in self.output.iterdir()),
+                         sorted([*executables, "checksums.txt", "install-demo.sh", "install-demo.ps1", "release.json"]))
+        checksums = (self.output / "checksums.txt").read_text()
+        for executable in executables:
+            sha256 = hashlib.sha256((self.output / executable).read_bytes()).hexdigest()
+            self.assertIn(f"{sha256}  {executable}\n", checksums)
+        assets = {asset["asset"]: asset for asset in json.loads((self.output / "release.json").read_text())["assets"]}
+        self.assertEqual(assets["demo-1.2.3-linux-amd64-musl"]["target"], "linux-amd64-musl")
+
+    def test_the_step_refuses_a_file_named_for_no_target(self):
+        stray = self.scratch / "site.json"
+        stray.write_text("{}")
+        result = self.write("1.2.3", stray)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("site.json is not named NAME-TARGET", result.stderr)
+
+    def test_the_step_refuses_a_version_holding_a_path_separator(self):
+        result = self.write("release/1.0", self.build("demo-linux-amd64"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("'release/1.0' holds a character", result.stderr)
 
 
 if __name__ == "__main__":
