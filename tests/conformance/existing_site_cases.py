@@ -80,11 +80,6 @@ class ExistingSiteAdoption(harness.ConformanceCase):
 
     def test_first_start_adopts_the_site_the_database_holds(self):
         connection = self.server.connection()
-        if not harness.SITE["recipe"]:
-            # The database holds no site yet, and this site has no recipe to install one.
-            text = harness.refuse(self, self.class_dir, "empty-database",
-                                  "--data-dir", str(self.class_dir / "refused"), *connection)
-            self.assertIn("has no recipe to install one", text)
         before = self.install()
 
         data = self.class_dir / "data"

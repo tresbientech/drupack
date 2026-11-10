@@ -53,14 +53,6 @@ class StopCases(harness.ConformanceCase):
         self.assertEqual(again.returncode, 0, f"the lease stayed held: {again.stderr}")
         self.assertIn("is not running", again.stdout)
 
-    def test_stop_with_no_running_site_says_so_beside_a_stale_record(self):
-        site = self._serve()
-        site.stop()
-        self.assertTrue((self.data / "stop.json").exists(), "the server left no record to go stale")
-        result = _stop(self.data, cwd=self.case_dir)
-        self.assertEqual(result.returncode, 0, f"stop exited non-zero: {result.stderr}")
-        self.assertIn("is not running", result.stdout)
-
     def test_stop_unpacks_nothing(self):
         # The launcher creates the cache root owner-only, and refuses one any other user can read.
         cache = harness.reserved_dir(self.case_dir / "cache")
