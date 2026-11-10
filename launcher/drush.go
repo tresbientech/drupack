@@ -219,7 +219,8 @@ func engineDrush(facts Facts, c command, cwd string) (Command, error) {
 // vendorRoot finds the project holding cwd: the nearest directory at or above
 // it with a vendor/autoload.php. Drupal core and many modules carry a
 // composer.json and no vendor/. The autoloader runs as this user, so the first
-// one found must belong, with its folders, to this user or the system. A link at
+// one found must belong, with its folders, to this user, the system or one of
+// this user's groups on Unix. A link at
 // vendor/ or the autoloader is refused: whoever owns the link can retarget it
 // after the owner check.
 func vendorRoot(cwd string) (string, error) {

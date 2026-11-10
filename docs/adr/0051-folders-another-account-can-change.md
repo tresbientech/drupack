@@ -97,3 +97,9 @@ the secrets.
 A reader whose umask is `022` now gets project files that others can read,
 as any program they run would write them.
 
+On Unix the `vendor/` check also accepts a path whose group is one of the
+reader's groups. A server account then runs `drush` and `export` on a checkout
+its deploy account owns. Any member of that group can plant an autoloader there.
+The same members can already write the code the server runs from that tree.
+Windows keeps the owner rule.
+
