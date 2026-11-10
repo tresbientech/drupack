@@ -381,6 +381,24 @@ engine payload carries no `support/`. The conformance case
 `test_a_start_serves_the_static_port_and_export_fills_it` skips its export on
 Windows. Lean: the engine registers the provider for the folder it serves.
 
+## The client address behind a reverse proxy
+
+A server behind a proxy logs the proxy's address as `remote_ip` and
+`client_ip` in its access log, since the rendered Caddyfile sets no
+`trusted_proxies`. tresbien.tech runs behind Nginx Proxy Manager and asked for
+a start option, `--trusted-proxies=CIDR[,CIDR]`.
+
+The line already holds the address the proxy forwarded, under
+`request.headers`, as `X-Forwarded-For` and `X-Real-Ip`. Caddy redacts `Cookie`
+and `Authorization` there. Drupal's own view of the client comes from
+`reverse_proxy` and `reverse_proxy_addresses` in `settings.php`.
+
+The option would add two things: the address in `client_ip`, which log tools
+read first, and a forwarded header ignored from a peer outside the ranges. It
+takes explicit ranges and has no default, since a trusted range that is too
+wide lets a client forge its address. Lean: build it when a second deployment
+asks, or when a server's ports are reachable by more than its proxy.
+
 ## FrankenPHP's log levels on Windows
 
 `build/windows/build.ps1` rewrites `go_log` in FrankenPHP's source. PHP's
