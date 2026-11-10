@@ -30,5 +30,5 @@ An engine server also lost most PHP messages. Its process log goes to standard e
 - A packaged site's drush reads the start's options, so it accepts both and ignores them.
 - The level of the error log is fixed. A reader who wants PHP notices and deprecations has no option for them.
 - PHP's Windows headers number `LOG_ERR` 4 and `LOG_WARNING` 5, and FrankenPHP 1.13.5 reads the Unix numbers. `build/windows/build.ps1` rewrites both in `go_log`, so a Windows log holds the levels the other platforms hold.
-- An engine's Caddy log still drops PHP warnings without `--error-log`. The backlog holds that.
+- An engine's Caddy log still drops PHP warnings without `--error-log`. [Issue 3636040](https://git.drupalcode.org/project/drupack/-/work_items/3636040) holds that.
 - A detached engine first sent that log to `server.log`, which never rolled. Since 2026-11-10 it writes `caddy.log` in the folder's cache entry, rolled like the other files, and `server.log` holds the start's own output.

@@ -237,4 +237,5 @@ Decisions for the build were made after the PRD, and stay out of this ADR:
 - The Windows paths this ADR changed compiled under `GOOS=windows` and run only
   on a tag run.
 - `docs/cli.md`, `CONTEXT.md` and `CONTRIBUTING.md` follow the launcher as
-  built. `docs/backlog.md` lists the Windows checks that stay open.
+  built. [Issue 3636037](https://git.drupalcode.org/project/drupack/-/work_items/3636037)
+  lists the Windows checks that stay open.

@@ -66,3 +66,19 @@ candidate build. The push of `main` and the tag deletes the branch.
 
 Gitea starts no workflow for a push made with `gitea.token`. The upstream run
 therefore calls the mirror job itself, and `mirror.yml` accepts `workflow_call`.
+
+## Amendment, 2026-11-10
+
+The drupal.org project's
+[issue queue](https://git.drupalcode.org/project/drupack/-/work_items) holds
+Drupack's open questions, follow-ups and plans. `docs/backlog.md` and
+`docs/plans/` are deleted, and each open entry became an issue.
+
+- A plan lives whole in its issue description. The issue closes at merge.
+- A decided question still lands as a numbered ADR, and its issue closes with a
+  link to it.
+- An issue an LLM session files carries the `LLM` label and the template's AI
+  disclosure. The `nod_bot` account files it after the maintainer approves the
+  text.
+- ADRs and PRDs stay in the repository.
+- GitHub still takes no issues.

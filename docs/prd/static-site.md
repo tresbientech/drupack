@@ -23,8 +23,9 @@ a project folder the engine serves. Drupacked Demo ships with the listener on.
 ## Out of Scope
 
 - An export that follows content changes: a cache-tag invalidation signal is in
-  `docs/backlog.md`.
-- The Mercure hub on the static port, also in `docs/backlog.md`.
+  [issue 3636033](https://git.drupalcode.org/project/drupack/-/work_items/3636033).
+- The Mercure hub on the static port, in
+  [issue 3636034](https://git.drupalcode.org/project/drupack/-/work_items/3636034).
 - An engine override of the export directory when a project moves
   `tome_static_directory`.
 - Pushing the export to a host, or the `quant_tome` and `tome_aws` modules.

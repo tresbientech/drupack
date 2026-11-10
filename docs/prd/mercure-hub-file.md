@@ -127,7 +127,9 @@ the folder's file, and a packaged site reads the copy its payload carries.
   - `CONTEXT.md` adds the hub file to the "Mercure hub" entry.
 - D12: `docs/adr/0056-a-project-tunes-its-mercure-hub.md` records D1 to D10. It
   amends ADR 0034 and ADR 0048, which each gain an "Amended by" line.
-- D13: `docs/backlog.md`, "The Mercure hub on the static port", loses the claim
+- D13: the backlog entry "The Mercure hub on the static port", now
+  [issue 3636034](https://git.drupalcode.org/project/drupack/-/work_items/3636034),
+  loses the claim
   that a second `mercure` directive shares nothing. Two hubs with one `name`
   and identical `bolt` blocks share a transport. Evidence: the engine test of
   2026-11-10, in which `mercure_publish()` reached a subscriber of the second hub.

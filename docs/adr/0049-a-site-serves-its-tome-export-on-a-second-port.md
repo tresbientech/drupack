@@ -112,4 +112,6 @@ Tome ships no recipe, and drupal.org has none.
   elsewhere needs `export --uri` with its address.
 - A change to a page reaches the export at the next `export`. An export that
   follows cache-tag invalidation, and the Mercure hub on the static port, are
-  open in `docs/backlog.md`.
+  open in issues
+  [3636033](https://git.drupalcode.org/project/drupack/-/work_items/3636033) and
+  [3636034](https://git.drupalcode.org/project/drupack/-/work_items/3636034).

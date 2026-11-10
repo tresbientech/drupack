@@ -83,7 +83,9 @@ covered Linux alone. `1.0.0-alpha4` failed its Windows job after such a tag.
 - Every candidate commit rewrites the version `docs/build-your-site.md` names,
   through `build/pin-docs.py`. The fingerprint is taken before that rewrite.
 - No person pushes a version tag, and no tag waits on a `qa-green` record. The
-  forge still accepts such a push; `docs/backlog.md` holds that question.
+  forge still accepts such a push;
+  [issue 3636023](https://git.drupalcode.org/project/drupack/-/work_items/3636023)
+  holds that question.
 - `.gitea/workflows/release-node.yml` runs each day before the upstream run. It
   fails while Packagist lists no `drupal/drupack` release for the highest tag.
 - [ADR 0032](0032-drupacked-demo-own-repository.md) takes Drupacked Demo out of
