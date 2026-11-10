@@ -1,7 +1,7 @@
 # One conformance suite covers every platform
 
 Accepted on 2026-09-19. Amended on 2026-11-08 by
-[ADR 0051](0051-unit-tests-own-pure-choices.md): a choice a pure function makes is tested by its unit test alone, and a case asserts what only the built executable shows.
+[ADR 0057](0057-unit-tests-own-pure-choices.md): a choice a pure function makes is tested by its unit test alone, and a case asserts what only the built executable shows.
 
 ## Context
 

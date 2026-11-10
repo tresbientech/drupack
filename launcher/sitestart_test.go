@@ -28,11 +28,11 @@ func TestCheckDatabase(t *testing.T) {
 		if row.option != "" {
 			words = append(words, "--database", row.option)
 		}
-		e := environ{}
+		f := Facts{}
 		if row.inherited != "" {
-			e.put("DRUPACK_DATABASE=" + row.inherited)
+			f.Parent = []string{"DRUPACK_DATABASE=" + row.inherited}
 		}
-		err := checkDatabase(parseLine(t, false, words...), e)
+		err := checkDatabase(parseLine(t, false, words...), f)
 		if row.refused && (err == nil || err.Error() != "--database requires sqlite, mysql, or pgsql") || !row.refused && err != nil {
 			t.Errorf("%s: checkDatabase = %v", row.name, err)
 		}
@@ -45,7 +45,7 @@ func TestServedRefusesWhenNobodyWatches(t *testing.T) {
 	}
 	f := newSite(t, siteconfig.Site{Port: 7225})
 	f.record(t, `{"listen":"127.0.0.1:9000","host":"localhost","scheme":"https"}`)
-	s := packagedStart{l: f.launch(), data: f.data, plan: startPlan{Bind: "127.0.0.1", Port: 7225, Host: "localhost"}}
+	s := packagedStart{Facts: Facts{Launch: f.launch(), Data: f.data}, plan: startPlan{Bind: "127.0.0.1", Port: 7225, Host: "localhost"}}
 	if err, want := s.served(false), "Another fixture-site start is preparing this Site data: "+f.data; err == nil || err.Error() != want {
 		t.Errorf("a holder still preparing: %v, want %q", err, want)
 	}

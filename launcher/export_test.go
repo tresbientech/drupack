@@ -193,7 +193,7 @@ func TestSiteExportRefusals(t *testing.T) {
 		t.Errorf("no site: %v, want %q", err, want)
 	}
 	absent := filepath.Join(f.cwd, "empty")
-	_, err = siteExport(f.launch(), parseLine(t, false, "export", "--data-dir", absent), f.cwd, e)
+	_, err = siteExport(Facts{Launch: f.launch()}, parseLine(t, false, "export", "--data-dir", absent), f.cwd)
 	if want := "This Site data has no site yet: " + absent + ". Start fixture-site once to create one."; err == nil || err.Error() != want {
 		t.Errorf("no Site data: %v, want %q", err, want)
 	}
