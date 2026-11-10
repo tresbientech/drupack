@@ -767,6 +767,20 @@ class EngineExecutable(harness.ConformanceCase):
         finally:
             stream.close()
 
+    def test_a_broken_hub_file_stops_the_start(self):
+        self.with_mercure()
+        hub = self.with_hub_file("not_a_hub_directive foo\n")
+        # Both project files, so the server word takes its longest argument list.
+        snippet = self.project / "drupack.caddy"
+        snippet.write_text("header X-Project-Rule applied\n")
+        self.addCleanup(snippet.unlink)
+        result = self.engine_run("start", str(self.project), "--foreground", "--listen", f"127.0.0.1:{harness.pick_port()}")
+        self.assertNotEqual(result.returncode, 0)
+        output = result.stdout + result.stderr
+        self.assertIn("not_a_hub_directive", output)
+        self.assertIn(hub.resolve().as_posix(), output)
+        self.assertIn(snippet.resolve().as_posix(), output)
+
     def test_a_hub_file_without_the_mercure_key_stops_the_start(self):
         hub = self.with_hub_file("anonymous\n")
         result = self.engine_run("start", str(self.project), "--foreground", "--listen", f"127.0.0.1:{harness.pick_port()}")

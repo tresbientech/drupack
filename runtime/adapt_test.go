@@ -256,4 +256,9 @@ func TestAdaptRefusesBrokenProjectRules(t *testing.T) {
 	if _, err = adapt(s.file); err == nil || !strings.Contains(err.Error(), "unrecognized directive: not_a_directive") {
 		t.Errorf("adapt error = %v", err)
 	}
+	s = place(t, string(rendered), "")
+	write(t, filepath.Join(s.root, "app", "drupack.mercure.caddy"), "not_a_hub_directive foo\n")
+	if _, err = adapt(s.file); err == nil || !strings.Contains(err.Error(), "not_a_hub_directive") {
+		t.Errorf("adapt error with a broken hub file = %v", err)
+	}
 }

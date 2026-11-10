@@ -304,9 +304,12 @@ func execServer(f Facts, dir state.Dir, lease *state.Lease, config caddyfile.Con
 	}
 	f.ID, f.Probe, f.StopRecord, f.TLSRoot = config.ID, plan.Probe, dir.StopRecordPath(), choice.Root
 	serverArguments := []string{argv0, "php-server", runtime.Canonical(file)}
+	// The runtime names each project file when the configuration fails to adapt.
 	if config.ProjectRules != "" {
-		// The runtime names the file when its rules fail to adapt.
 		serverArguments = append(serverArguments, config.ProjectRules)
+	}
+	if config.Mercure != nil && config.Mercure.ProjectRules != "" {
+		serverArguments = append(serverArguments, config.Mercure.ProjectRules)
 	}
 	err = launch(Command{Path: f.Entry, Args: serverArguments, Env: f.Env(Server), Dir: cwd})
 	// A collected file would close its descriptor, and the lease with it, before the exec.

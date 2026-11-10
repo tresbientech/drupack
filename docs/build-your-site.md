@@ -267,7 +267,7 @@ opens and one when it closes, for each topic it matches.
 ### Hub settings of your own
 
 A `drupack.mercure.caddy` beside `composer.json` holds
-[Mercure directives](https://mercure.rocks/docs/hub/config) for the hub. The
+[Mercure directives](https://mercure.rocks/docs/deployment/configuration) for the hub. The
 engine executable reads it from the folder it serves, and a packaged site
 reads the copy its build packed. A change takes a restart.
 
