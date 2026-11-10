@@ -244,6 +244,26 @@ The hub speaks Mercure protocol 1.0. Each token is an HS256 access token with:
 symfony/mercure 0.9 and later mints this shape by default. A subscriber names
 its topics with `?match=`.
 
+### Who is subscribed
+
+The hub publishes its
+[subscriptions](https://mercure.rocks/docs/concepts/active-subscriptions), so a
+collaboration screen can list who else has a page open:
+
+- Each stream that opens or closes sends a private event on
+  `/.well-known/mercure/subscriptions/{match_type}/{match}/{subscriber}`.
+- `GET /.well-known/mercure/subscriptions` lists the open streams.
+
+A token reads the events with a `subscribe` grant on the URL pattern
+`/.well-known/mercure/subscriptions/:match_type/:match/:subscriber`, with
+`match_type` set to `urlpattern`. The list takes an exact grant on
+`/.well-known/mercure/subscriptions`, and a token without it gets 403. A
+`payload` in a subscriber's grant rides in its events, so peers see a name
+without a request to Drupal.
+
+These events count toward the hub's last 1000 updates. A tab adds one when it
+opens and one when it closes, for each topic it matches.
+
 ## A static site
 
 `extra.drupack.static` in the site's `composer.json` serves the site's Tome

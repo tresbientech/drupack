@@ -244,7 +244,9 @@ file. A site without Node answers each word as an unknown command.
 A site or project whose `composer.json` sets `extra.drupack.mercure` to `true`
 serves a Mercure hub at `/.well-known/mercure`. A start creates
 `mercure_publisher_secret` and `mercure_subscriber_secret` when they are
-missing. The hub keeps its last 1000 updates in `mercure.db`.
+missing. The hub keeps its last 1000 updates in `mercure.db`. It also publishes
+who subscribes, which
+[the build guide](build-your-site.md#who-is-subscribed) describes.
 
 These files live in Site data for a Packaged site. The engine executable keeps
 them in the folder's cache entry, so the project folder gains no file. Moving

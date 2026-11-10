@@ -207,10 +207,13 @@
 		# the hub's address. PHP publishes through mercure_publish() with none. A browser's
 		# EventSource sends no Authorization header, so its token rides in a cookie. A site may
 		# serve plain http, where browsers drop the protocol's default __Secure- cookie name.
-		# The hub sits in php_server's route block, where FrankenPHP finds it.
+		# The hub sits in php_server's route block, where FrankenPHP finds it. Its subscription
+		# events and API are private updates: only a token granting the subscriptions topics
+		# reads them, and they take places in the 1000-update history.
 		mercure {
 			resource_identifier "http://127.0.0.1:3787/.well-known/mercure"
 			cookie_name mercure_access_token
+			subscriptions
 			issuer "http://127.0.0.1:3787/.well-known/mercure" {
 				publisher {
 					jwt "p0" HS256
