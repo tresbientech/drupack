@@ -4,6 +4,11 @@
 bind {{quote .Static.Bind}}
 root * {{quote .Static.Root}}
 encode zstd br gzip
+{{- if .AccessLog}}
+log static {
+{{include "log-file" .AccessLog | indent 1}}
+}
+{{- end}}
 route {
 {{- if .Static.Dynamic}}
 {{include "static-dynamic.caddy" . | indent 1}}

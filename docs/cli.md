@@ -54,6 +54,7 @@ One line per component follows, each naming the component and its release:
 | `--site-name` | NAME | the site's name, `Drupacked Demo` for the Drupacked Demo | `DRUPACK_SITE_NAME` | first start |
 | `--no-browser` | none | off | none | every start |
 | `--foreground` | none | off | none | every start |
+| `--access-log` | FILE, optional | off | none | every start (see [Access log](#access-log)) |
 
 ## Site data
 
@@ -327,6 +328,23 @@ front, which cmd does not accept.
 or a systemd unit needs. A Windows start from a file manager owns its window,
 so it serves in the foreground too.
 
+## Access log
+
+`--access-log` makes a start log each request of the site port and of the
+static port to one file. A start without it logs no request.
+
+- `--access-log` writes `logs/access.log` in Site data.
+- `--access-log=FILE` writes FILE, relative to the working directory.
+- `--access-log FILE` is refused, since the file takes the `=`.
+
+Each line is JSON. Its `logger` field holds `http.log.access.site` for the
+site port and `http.log.access.static` for the static port. The file rolls at
+100 MiB, and 10 rolled files stay. The start prints the file's path.
+
+The start refuses a FILE that holds `{` or `}`. It refuses a FILE inside a
+directory the server answers requests from: the application, the public files
+directory and the static export.
+
 Once the site answers, the server listens on a random port of `127.0.0.1`,
 whatever `--listen` names. It writes that port, a random token and its PID to
 `stop.json` in Site data. On Unix only its owner can read the file; on Windows
@@ -375,7 +393,7 @@ point it at a folder under your home.
 ## The engine executable
 
 ```
-drupack [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground]
+drupack [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground] [--access-log[=FILE]]
 drupack stop [DIR]
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
@@ -431,6 +449,10 @@ and says it already serves.
   [Static site](#static-site) describes. The start writes the static URL into
   the folder's cache entry.
 - Caddy's errors go to standard error.
+- `--access-log` logs requests as [Access log](#access-log) describes. Its
+  default file is `access.log` in the folder's cache entry, and the directories
+  it refuses are the docroot and the static export. `DIR` goes before a bare
+  `--access-log`.
 - The server keeps the umask it starts with. The engine's own state stays
   owner-only.
 

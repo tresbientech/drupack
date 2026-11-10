@@ -15,10 +15,12 @@ No PRD exists. The decisions below come from the design interview of 2026-11-10.
   that names the `=` form.
 - **D4**: A packaged site's defaults are `<data>/logs/access.log` and
   `<data>/logs/error.log`. An engine's defaults are `access.log` and
-  `error.log` beside `server.log` in the folder's cache entry.
+  `error.log` beside `server.log` in the folder's cache entry. A packaged
+  site's Caddy log is `logs/caddy.log`, and `logs/server.log` holds a detached
+  start's output.
 - **D5**: The engine start and the packaged site start take both flags.
-- **D6**: The engine's stderr log at `ERROR` and the site's `server.log` do
-  not change.
+- **D6**: The engine's stderr log at `ERROR` and the site's `logs/caddy.log`
+  and `logs/server.log` do not change.
 - **D7**: Both files share one shape and one set of path rules, listed below.
 
 File shape (D7):
@@ -26,6 +28,7 @@ File shape (D7):
 - JSON, `roll_size 100MiB`, `roll_keep 10`, Caddy's default mode 0600
 - `--foreground` keeps stderr and still writes the files
 - the start's output names each log path whose flag is set
+- the launcher's readiness polls of `/.drupack-id` stay out of the access log
 
 Path rules (D7):
 
@@ -72,7 +75,8 @@ sections of `docs/cli.md`.
       `<data>/logs/access.log`.
 - [ ] `--access-log=logs/a.log` from a detached start writes under the
       caller's working directory.
-- [ ] `--access-log FILE` refuses and names the `=` form.
+- [ ] `--access-log FILE` refuses and names the `=` form. On the engine the
+      same refusal meets a folder written after the bare flag.
 - [ ] A FILE with a brace, in the docroot or in the static directory refuses,
       each with a Go unit test.
 - [ ] The start's output names the access log path.

@@ -42,6 +42,8 @@ type Config struct {
 	// FilesDir and LogPath are the Site mode's.
 	FilesDir string
 	LogPath  string
+	// AccessLog is the file both ports log their requests to, "" for none.
+	AccessLog string
 }
 
 type Mercure struct {

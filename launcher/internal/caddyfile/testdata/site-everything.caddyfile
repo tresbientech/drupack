@@ -66,6 +66,14 @@
 	bind "127.0.0.1"
 	root * "/drupack-test/project/web"
 	encode zstd br gzip
+	# A named logger tags each line, and the static port's writes to the same file.
+	log site {
+		output file "/drupack-test/data/logs/access.log" {
+			roll_size 100MiB
+			roll_keep 10
+		}
+		format json
+	}
 
 	# One route block keeps the written order, so every guard runs before Drupal.
 	route {
@@ -76,6 +84,8 @@
 			path /.drupack-id
 			query "id=site-id"
 		}
+		# The launcher's own polls stay out of the access log.
+		log_skip @drupackIdentity
 		respond @drupackIdentity 204
 		@drupackIdentityOther path /.drupack-id
 		respond @drupackIdentityOther 404
@@ -249,6 +259,13 @@
 	bind "127.0.0.1"
 	root * "/drupack-test/data/static"
 	encode zstd br gzip
+	log static {
+		output file "/drupack-test/data/logs/access.log" {
+			roll_size 100MiB
+			roll_keep 10
+		}
+		format json
+	}
 	route {
 		# The dynamic paths of the static port: extra.drupack.static.dynamic, one quoted path token
 		# per pattern, handed to Drupal ahead of the files.

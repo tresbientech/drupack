@@ -192,6 +192,15 @@ func startEngine(l Launch, c command) error {
 			return err
 		}
 	}
+	entryPath := runtime.Canonical(entry.Path())
+	served := []string{docroot}
+	if staticRoot != "" {
+		served = append(served, staticRoot)
+	}
+	accessLog, err := logFile(c.options, accessLogOption.name, entryPath+"/access.log", served, l.FoldCase)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(entry.Path(), 0o700); err != nil {
 		return err
 	}
@@ -227,9 +236,11 @@ func startEngine(l Launch, c command) error {
 		fmt.Fprintf(os.Stdout, "  Static:  %s\n", plan.Static.URL)
 	}
 	fmt.Fprintf(os.Stdout, "  Project: %s\n", project)
+	if accessLog != "" {
+		fmt.Fprintf(os.Stdout, "  Access:  %s\n", accessLog)
+	}
 	fmt.Fprint(os.Stdout, nameHint(choice), trustHint(l, choice))
 	fmt.Fprintln(os.Stdout, "Starting the web server.")
-	entryPath := runtime.Canonical(entry.Path())
 	if composer.Mercure {
 		if f.Hub, err = serveHub(entry, plan, entryPath+"/mercure.db"); err != nil {
 			return err
@@ -239,7 +250,7 @@ func startEngine(l Launch, c command) error {
 	if err := entry.WriteListener(plan.record()); err != nil {
 		return err
 	}
-	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: docroot, Mercure: f.Hub}
+	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: docroot, Mercure: f.Hub, AccessLog: accessLog}
 	if plan.Static != nil {
 		// The server creates no export directory.
 		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: staticRoot, Dynamic: composer.Static.Dynamic}

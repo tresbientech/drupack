@@ -758,9 +758,9 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertIn(url, body)
         self.assertEqual(self.snapshot("html"), before, "the export wrote outside html")
 
-    def test_the_static_port_hands_dynamic_paths_to_drupal(self):
+    def test_the_static_port_hands_dynamic_paths_to_drupal_and_both_ports_log_their_requests(self):
         port = harness.pick_port()
-        _, log = self.start("dynamic", str(self.project), port=port)
+        _, log = self.start("dynamic", str(self.project), "--access-log", port=port)
         static = port + 1
         self.assertIn(f"  Static:  http://127.0.0.1:{static}/\n", log.read_text(errors="replace"))
         page = self.export_directory() / "search" / "node" / "index.html"
@@ -772,6 +772,9 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertNotIn("exported copy", body)
         self.assertEqual(self.status(static, "/user/login"), 404)
         self.assertEqual(self.status(static, "/search/x.php"), 403)
+        access = Path(harness.wait_for_line(log, 0, "  Access:  ", 1))
+        self.assertEqual(access.name, "access.log")
+        harness.wait_for_loggers(access, {"http.log.access.site", "http.log.access.static"})
 
     def test_the_static_port_serves_the_directory_the_projects_settings_name(self):
         settings = self.docroot / "sites" / "default" / "settings.php"
