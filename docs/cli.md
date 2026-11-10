@@ -54,6 +54,8 @@ One line per component follows, each naming the component and its release:
 | `--site-name` | NAME | the site's name, `Drupacked Demo` for the Drupacked Demo | `DRUPACK_SITE_NAME` | first start |
 | `--no-browser` | none | off | none | every start |
 | `--foreground` | none | off | none | every start |
+| `--access-log` | FILE, optional | off | none | every start (see [Access log](#access-log)) |
+| `--error-log` | FILE, optional | off | none | every start (see [Error log](#error-log)) |
 
 ## Site data
 
@@ -327,6 +329,37 @@ front, which cmd does not accept.
 or a systemd unit needs. A Windows start from a file manager owns its window,
 so it serves in the foreground too.
 
+## Access log
+
+`--access-log` makes a start log each request of the site port and of the
+static port to one file. A start without it logs no request.
+
+- `--access-log` writes `logs/access.log` in Site data.
+- `--access-log=FILE` writes FILE, relative to the working directory.
+- `--access-log FILE` is refused, since the file takes the `=`.
+
+Each line is JSON. Its `logger` field holds `http.log.access.site` for the
+site port and `http.log.access.static` for the static port. The file rolls at
+100 MiB, and 10 rolled files stay. The start prints the file's path.
+
+The start refuses a FILE that holds `{` or `}`. It refuses a FILE inside a
+directory the server answers requests from: the application, the public files
+directory and the static export.
+
+## Error log
+
+`--error-log` makes a start log PHP's and Caddy's warnings and errors to one
+file. It takes its FILE as `--access-log` does, refuses the same files, and
+rolls the same way. The two options refuse one FILE for both.
+
+- `--error-log` writes `logs/error.log` in Site data.
+- A PHP fatal error and a PHP warning each write a line under the logger
+  `http.handlers.php`.
+- A PHP notice, a deprecation and an `error_log()` call write none.
+- A request writes none, whatever its status.
+
+`logs/caddy.log` and `logs/server.log` hold what they hold without the option.
+
 Once the site answers, the server listens on a random port of `127.0.0.1`,
 whatever `--listen` names. It writes that port, a random token and its PID to
 `stop.json` in Site data. On Unix only its owner can read the file; on Windows
@@ -375,7 +408,7 @@ point it at a folder under your home.
 ## The engine executable
 
 ```
-drupack [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground]
+drupack [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground] [--access-log[=FILE]] [--error-log[=FILE]]
 drupack stop [DIR]
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
@@ -431,6 +464,12 @@ and says it already serves.
   [Static site](#static-site) describes. The start writes the static URL into
   the folder's cache entry.
 - Caddy's errors go to standard error.
+- `--access-log` and `--error-log` log as [Access log](#access-log) and
+  [Error log](#error-log) describe. Their default files are `access.log` and
+  `error.log` in the folder's cache entry. The directories they refuse are the
+  docroot and the static export. `DIR` goes before either option written bare.
+- Without `--error-log`, standard error holds PHP's fatal errors and none of
+  its warnings.
 - The server keeps the umask it starts with. The engine's own state stays
   owner-only.
 

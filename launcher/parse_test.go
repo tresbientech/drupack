@@ -47,6 +47,19 @@ func TestParse(t *testing.T) {
 		{"the engine takes a listener option's next word whatever it holds", []string{"drupack", "--listen", "--foreground"}, true, unset,
 			command{word: "start", options: map[string]string{"listen": "--foreground"}}, ""},
 		{"the engine refuses a listener with no word", []string{"drupack", "--static-listen"}, true, unset, command{}, "--static-listen takes IP:PORT"},
+		{"a start reads a bare --access-log", []string{"SITE", "--access-log", "--foreground"}, false, unset, command{word: "start", options: map[string]string{"data-dir": "./data", "access-log": "", "foreground": "1"}}, ""},
+		{"a start reads the file of --access-log", []string{"SITE", "--access-log=a.log"}, false, unset, command{word: "start", options: map[string]string{"data-dir": "./data", "access-log": "a.log"}}, ""},
+		{"a start refuses a file after --access-log", []string{"SITE", "--access-log", "a.log"}, false, unset, command{}, "--access-log takes its value as --access-log=FILE"},
+		{"a start refuses an empty --access-log=", []string{"SITE", "--access-log="}, false, unset, command{}, "Missing value for --access-log"},
+		{"drush keeps the word after --access-log", []string{"SITE", "drush", "--access-log", "status"}, false, unset, command{word: "drush", options: map[string]string{"data-dir": "./data", "access-log": ""}, words: []string{"status"}}, ""},
+		{"the engine reads --access-log after its folder", []string{"drupack", "project", "--access-log"}, true, unset,
+			command{word: "start", target: "project", options: map[string]string{"access-log": ""}}, ""},
+		{"the engine reads the file of --access-log", []string{"drupack", "--access-log=a.log", "project"}, true, unset,
+			command{word: "start", target: "project", options: map[string]string{"access-log": "a.log"}}, ""},
+		{"the engine reads both log options", []string{"drupack", "--error-log=e.log", "--access-log"}, true, unset,
+			command{word: "start", options: map[string]string{"access-log": "", "error-log": "e.log"}}, ""},
+		{"a start refuses a file after --error-log", []string{"SITE", "--error-log", "e.log"}, false, unset, command{}, "--error-log takes its value as --error-log=FILE"},
+		{"the engine refuses a word after --access-log", []string{"drupack", "--access-log", "a.log"}, true, unset, command{}, "--access-log takes its value as --access-log=FILE"},
 		{"the engine refuses a second folder", []string{"drupack", "a", "b"}, true, unset, command{}, "Unknown argument b. Run fixture-site --help."},
 		{"the engine refuses an option", []string{"drupack", "start", "--help"}, true, unset, command{}, "Unknown argument --help. Run fixture-site --help."},
 		{"the engine answers --help first", []string{"drupack", "--help"}, true, unset, command{word: "help"}, ""},
@@ -178,7 +191,10 @@ func TestEngineUsageMatchesTheParserAndTheReference(t *testing.T) {
 	line := "Usage: %[1]s [start] [DIR]"
 	for _, o := range engineOptions {
 		line += " [--" + o.name
-		if o.value != "" {
+		switch {
+		case o.optional:
+			line += "[=" + o.value + "]"
+		case o.value != "":
 			line += " " + o.value
 		}
 		line += "]"

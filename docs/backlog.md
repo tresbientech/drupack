@@ -381,12 +381,15 @@ engine payload carries no `support/`. The conformance case
 `test_a_start_serves_the_static_port_and_export_fills_it` skips its export on
 Windows. Lean: the engine registers the provider for the folder it serves.
 
-## Access logs on an engine server
+## The engine's `server.log`
 
-An engine start logs Caddy's errors to standard error and records no request.
-Its Caddyfile sets one global logger at level `ERROR`, and neither the site port
-nor the static port declares a `log`. A server that kept an access log before it
-moved to Drupack loses it. `drupack.caddy` cannot turn one on: Caddy refuses
-`log` inside the route that imports the snippet, and the static port imports no
-snippet. Lean: decide whether the engine writes one, and where, since a project
-folder has no `logs/` directory.
+A detached engine start sends the server's standard error to `server.log` in
+the folder's cache entry. Two gaps remain after
+[ADR 0058](adr/0058-a-start-writes-its-logs-on-request.md):
+
+- The file never rolls, so a long-lived server grows it without bound.
+- Its level is `ERROR`, so it holds PHP's fatal errors and none of its
+  warnings. `--error-log` writes them to a file of its own.
+
+Lean: leave both until a reader reports a full disk or a missed warning, since
+`--error-log` covers a server that needs either.

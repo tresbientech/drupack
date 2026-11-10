@@ -42,6 +42,10 @@ type Config struct {
 	// FilesDir and LogPath are the Site mode's.
 	FilesDir string
 	LogPath  string
+	// AccessLog is the file both ports log their requests to, "" for none.
+	AccessLog string
+	// ErrorLog is the file that takes PHP's and Caddy's warnings and errors, "" for none.
+	ErrorLog string
 }
 
 type Mercure struct {

@@ -14,7 +14,8 @@ type command struct {
 	// target is stop's Site data or folder, or the engine start's folder, as
 	// the reader wrote it. An engine start without one holds "".
 	target string
-	// options holds the options a reader wrote, by name. A flag holds "1".
+	// options holds the options a reader wrote, by name. A flag holds "1", and
+	// an optional-value option written bare holds "".
 	// A site's start, drush and export always hold data-dir.
 	options map[string]string
 	// words are drush's own words, after the options a site's drush or export reads.
@@ -24,6 +25,24 @@ type command struct {
 // option is one option a word takes, as the help text writes it.
 type option struct {
 	name, value string
+	// optional marks a value the reader may leave out, and writes as --name=VALUE alone.
+	optional bool
+}
+
+var accessLogOption = option{name: "access-log", value: "FILE", optional: true}
+var errorLogOption = option{name: "error-log", value: "FILE", optional: true}
+
+// optionalValue reads the value of an optional-value option from argument, ""
+// for the bare option. following is the argument after it, "" for none.
+func optionalValue(o option, argument, following string) (string, error) {
+	_, value, inline := strings.Cut(argument, "=")
+	switch {
+	case inline && value == "":
+		return "", fmt.Errorf("Missing value for --%s", o.name)
+	case !inline && following != "" && !strings.HasPrefix(following, "-"):
+		return "", fmt.Errorf("--%[1]s takes its value as --%[1]s=%[2]s", o.name, o.value)
+	}
+	return value, nil
 }
 
 var dataDirOption = option{name: "data-dir", value: "PATH"}
@@ -51,6 +70,8 @@ var siteOptions = []option{
 	{name: "site-name", value: "NAME"},
 	{name: "no-browser"},
 	{name: "foreground"},
+	accessLogOption,
+	errorLogOption,
 }
 
 // engineOptions are the options the engine's start takes. parse_test.go asserts
@@ -59,6 +80,8 @@ var engineOptions = []option{
 	{name: "listen", value: "IP:PORT"},
 	{name: "static-listen", value: "IP:PORT"},
 	{name: "foreground"},
+	accessLogOption,
+	errorLogOption,
 }
 
 // defaultDataDir is the Site data of a reader who names none.
@@ -171,10 +194,22 @@ func scanOptions(arguments []string, table []option, lookup func(string) (string
 		if i < 0 {
 			break
 		}
+		argument := arguments[0]
 		arguments = arguments[1:]
 		o := table[i]
 		if o.value == "" {
 			options[o.name] = "1"
+			continue
+		}
+		if o.optional {
+			// Drush's own words follow its options, so only a strict scan reads the next argument.
+			following := ""
+			if strict && len(arguments) > 0 {
+				following = arguments[0]
+			}
+			if options[o.name], err = optionalValue(o, argument, following); err != nil {
+				return nil, nil, false, err
+			}
 			continue
 		}
 		if !inline && len(arguments) > 0 {
@@ -204,6 +239,16 @@ func parseEngineStart(arguments []string) (command, error) {
 		switch {
 		case i >= 0 && engineOptions[i].value == "":
 			c.options[engineOptions[i].name] = "1"
+		case i >= 0 && engineOptions[i].optional:
+			following := ""
+			if len(arguments) > 0 {
+				following = arguments[0]
+			}
+			value, err := optionalValue(engineOptions[i], argument, following)
+			if err != nil {
+				return command{}, err
+			}
+			c.options[engineOptions[i].name] = value
 		case i >= 0:
 			o := engineOptions[i]
 			value, inline := strings.CutPrefix(argument, "--"+o.name+"=")

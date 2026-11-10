@@ -1,13 +1,14 @@
 """The static port a site's contract turns on: before any export it answers 404, a page written
 into the static directory answers on its path and its index with no redirect, a miss answers
 the export's own 404 page, dynamic paths reach Drupal ahead of the export, a start without
---static-listen takes the port after the site's, a taken static port refuses, the static port
-serves https from the site's root, and a site without the key serves no second port. `export`
+--static-listen takes the port after the site's, a taken static port refuses, both ports log their requests to
+the file --access-log names, --error-log writes warnings and no request, the static port serves https from the site's root, and a site without the key serves no second port. `export`
 writes the front page, takes the reader's URI, names a missing module, and the Drush entry
 reruns itself on the runtime's php.
 """
 
 import http.client
+import json
 import os
 import socket
 import ssl
@@ -49,7 +50,9 @@ class StaticSite(harness.ConformanceCase):
         cls.data = cls.class_dir / "data"
         cls.static_port = harness.pick_port()
         cls.site = harness.Site(harness.BINARY, cls.class_dir / "site")
-        cls.site.start(cls.data, "--static-listen", f"127.0.0.1:{cls.static_port}")
+        cls.access_log = cls.class_dir / "access.log"
+        cls.site.start(cls.data, "--static-listen", f"127.0.0.1:{cls.static_port}", f"--access-log={cls.access_log}",
+                       "--error-log")
 
     @classmethod
     def tearDownClass(cls):
@@ -62,6 +65,21 @@ class StaticSite(harness.ConformanceCase):
 
     def test_the_static_port_answers_404_before_an_export(self):
         self.assertEqual(request(self.static_port, "/")[0], 404)
+
+    def test_both_ports_log_their_requests_to_the_access_log(self):
+        request(self.site.port, "/user/login")
+        request(self.static_port, "/")
+        harness.wait_for_loggers(self.access_log, {"http.log.access.site", "http.log.access.static"})
+        uris = [json.loads(line)["request"]["uri"] for line in self.access_log.read_text().splitlines()]
+        self.assertEqual([uri for uri in uris if uri.startswith("/.drupack-id")], [], "the readiness probe is logged")
+
+    def test_the_error_log_holds_warnings_and_no_request(self):
+        # A plain HTTP listener makes Caddy warn that it skips HTTP/2 and HTTP/3.
+        errors = self.data / "logs" / "error.log"
+        harness.wait_for_loggers(errors, {"http"})
+        lines = [json.loads(line) for line in errors.read_text().splitlines()]
+        self.assertEqual({line["level"] for line in lines} - {"warn", "error"}, set())
+        self.assertEqual([line["logger"] for line in lines if line["logger"].startswith("http.log.access")], [])
 
     def test_a_page_answers_on_its_path_and_its_index_with_no_redirect(self):
         self.write("hello/index.html", "<p>hello</p>")

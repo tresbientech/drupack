@@ -384,6 +384,19 @@ def wait_for_line(log_path, offset, prefix, timeout):
     raise AssertionError(f"no line starting with {prefix!r} in {log_path}")
 
 
+def wait_for_loggers(log_path, names):
+    """Poll a JSON log until its lines name every logger of names."""
+    deadline = time.monotonic() + WAITS["http_request"].seconds
+    found = set()
+    while time.monotonic() < deadline:
+        if log_path.exists():
+            found = {json.loads(line)["logger"] for line in log_path.read_text().splitlines()}
+            if names <= found:
+                return
+        time.sleep(0.25)
+    raise AssertionError(f"{log_path} names the loggers {sorted(found)}, not all of {sorted(names)}")
+
+
 def opener_name():
     """The name runtime/entrypoint.go's openBrowser looks up on PATH for this platform."""
     return "open" if current_platform() == MACOS else "xdg-open"

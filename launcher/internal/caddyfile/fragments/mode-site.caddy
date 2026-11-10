@@ -1,9 +1,5 @@
 {{define "site-log"}}log {
-	output file {{quote .LogPath}} {
-		roll_size 100MiB
-		roll_keep 10
-	}
-	format json
+{{include "log-file" .LogPath | indent 1}}
 }{{end}}
 {{define "site-files"}}# Public files live outside the application, which one release shares across sites. The
 # address stays root-relative, so it survives a restart on another port.

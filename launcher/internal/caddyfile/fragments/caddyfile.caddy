@@ -11,6 +11,14 @@
 	}
 	order php_server before file_server
 {{include (print .Mode "-log") . | indent 1}}
+{{- if .ErrorLog}}
+	# Caddy logs the access entry of a 5xx answer at ERROR, under an access logger.
+	log errors {
+{{include "log-file" .ErrorLog | indent 2}}
+		level WARN
+		exclude http.log.access
+	}
+{{- end}}
 }
 
 # Snippets are defined before their first import.
@@ -25,6 +33,12 @@
 	bind {{quote .Bind}}
 	root * {{quote .Docroot}}
 	encode zstd br gzip
+{{- if .AccessLog}}
+	# A named logger tags each line, and the static port's writes to the same file.
+	log site {
+{{include "log-file" .AccessLog | indent 2}}
+	}
+{{- end}}
 
 	# One route block keeps the written order, so every guard runs before Drupal.
 	route {
@@ -35,6 +49,10 @@
 			path /.drupack-id
 			query {{quote (print "id=" .ID)}}
 		}
+{{- if .AccessLog}}
+		# The launcher's own polls stay out of the access log.
+		log_skip @drupackIdentity
+{{- end}}
 		respond @drupackIdentity 204
 		@drupackIdentityOther path /.drupack-id
 		respond @drupackIdentityOther 404

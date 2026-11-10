@@ -33,6 +33,9 @@ Options:
   --site-name NAME           Site name for a first start, the packaged site's name by default
   --no-browser               Do not open a browser
   --foreground               Serve in this terminal until a signal stops the site
+  --access-log[=FILE]        Log each request to FILE, logs/access.log in Site data by default
+  --error-log[=FILE]         Log PHP's and Caddy's warnings and errors to FILE,
+                             logs/error.log in Site data by default
   --version, --help
 
 Commands:
@@ -66,7 +69,7 @@ docs/cli.md explains every option.`
 
 // engineUsage is the text the engine's --help prints. %[1]s is the executable's
 // name and %[2]s the default listener.
-const engineUsage = `Usage: %[1]s [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground]
+const engineUsage = `Usage: %[1]s [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground] [--access-log[=FILE]] [--error-log[=FILE]]
        %[1]s stop [DIR]
        %[1]s drush DRUSH_COMMAND
        %[1]s dr DRUPAL_COMMAND
@@ -83,6 +86,10 @@ signal stops it. --listen defaults to %[2]s. A project whose composer.json sets
 extra.drupack.static serves its Tome export on --static-listen, the
 listener's address on the next port by default. The export is the
 tome_static_directory its settings.php sets, or html beside the docroot.
+--access-log logs each request of both listeners to FILE, access.log in the
+folder's cache entry by default. --error-log logs PHP's and Caddy's warnings
+and errors to FILE, error.log there by default. DIR goes before either
+option written bare.
 
 Commands:
   start    Serve the project, which a bare command does too
