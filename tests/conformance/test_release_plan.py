@@ -79,7 +79,7 @@ class Row(unittest.TestCase):
 
     def assertNotBuilding(self, result):
         self.assertFalse(result["build"])
-        self.assertEqual([[]] * 5, [result[key] for key in ("linux", "linux_runtime", "macos", "macos_tests", "windows")])
+        self.assertEqual([[]] * 6, [result[key] for key in ("linux", "linux_tests", "linux_runtime", "macos", "macos_tests", "windows")])
 
 
 class Tag(Row):
@@ -163,6 +163,14 @@ class LinuxRuntime(Row):
 
     def test_no_build_has_no_runtime_row(self):
         self.assertEqual([], self.run_plan(event(), {COMPARE_PATH: COMPARE})["linux_runtime"])
+
+
+class LinuxTests(Row):
+    def test_an_architecture_takes_a_row_per_share_and_the_first_runs_the_extras(self):
+        rows = {arch: [{"arch": arch, "shard": f"{i}/2", "first": i == 1} for i in (1, 2)] for arch in ("amd64", "arm64")}
+        for platform, expected in {"linux-arm64": rows["arm64"], "all": rows["amd64"] + rows["arm64"]}.items():
+            with self.subTest(platform):
+                self.assertEqual(expected, self.run_plan(dispatch(platform=platform))["linux_tests"])
 
 
 class MacosTests(Row):

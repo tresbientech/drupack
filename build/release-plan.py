@@ -1,5 +1,5 @@
 """Plans a release run: the version, the image tags, the candidate run to reuse, the build
-matrices and the macOS test rows. The gate job passes the event and reads the nine key=value
+matrices and the Linux and macOS test rows. The gate job passes the event and reads the ten key=value
 lines this appends to --output. The flags it prints reproduce the plan where `gh` is logged in.
 """
 
@@ -19,6 +19,9 @@ DOCS = re.compile(r"^docs/|^LICENSE$|^[^/]+\.md$")
 # The macOS test rows per architecture, one per share of the test classes. GitHub runs five macOS jobs at
 # once. An architecture's last test row also runs the variant cases.
 SHARDS = {"amd64": 3, "arm64": 2}
+# The Linux test rows per architecture. The first also runs the unit tests and the musl start,
+# and uploads the engine executables.
+LINUX_SHARDS = 2
 
 
 def listed(path, body, key, fields):
@@ -82,8 +85,11 @@ def plan(event, targets, fetch):
     tests = [{"arch": row["arch"], "shard": f"{index}/{SHARDS[row['arch']]}", "results": f"macos-{row['arch']}-{index}",
               "variant": index == SHARDS[row["arch"]]} for row in macos
              for index in range(1, SHARDS[row["arch"]] + 1)]
+    linux_tests = [{"arch": row["arch"], "shard": f"{index}/{LINUX_SHARDS}", "first": index == 1}
+                   for row in linux for index in range(1, LINUX_SHARDS + 1)]
     return {"version": version, "build": build, "candidate": run, "image_tags": image_tags, "linux": linux,
-            "linux_runtime": runtimes, "macos": macos, "macos_tests": tests, "windows": windows}
+            "linux_tests": linux_tests, "linux_runtime": runtimes, "macos": macos, "macos_tests": tests,
+            "windows": windows}
 
 
 def encode(key, value):

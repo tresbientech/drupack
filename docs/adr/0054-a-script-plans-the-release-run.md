@@ -13,12 +13,12 @@ rebuilt what it could have published.
 ## Decision
 
 - `build/release-plan.py` owns the release plan. `plan(event, targets, fetch)`
-  returns the nine values the jobs read.
+  returns the ten values the jobs read.
 - `fetch` is the one port to GitHub. The command line passes a function that
   runs `gh api PATH`. Tests pass a fake over recorded responses.
 - A failed GitHub call stops the gate. `plan` also stops on a response of
   another shape and names the path.
-- The step passes the event as flags and appends the nine lines to
+- The step passes the event as flags and appends the ten lines to
   `$GITHUB_OUTPUT`. It prints the flags, so a log reproduces the plan on any
   machine where `gh` is logged in.
 - Expressions reach the script through `env:`, as `BEFORE`, `PLATFORM` and
