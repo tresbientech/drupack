@@ -119,9 +119,10 @@ func operate(l Launch, env []string, record any, stream bool, arguments ...strin
 // startEngine plans and runs the engine's start. It refuses what a reader's
 // command line, project or machine gets wrong before it claims the lease.
 // Without --foreground, and with no console of its own, it first detaches into
-// a child that does all of it.
+// a child that does all of it. It keeps the caller's umask: a project folder can
+// be shared with the accounts that deploy it, and the engine's own state takes
+// explicit owner-only modes.
 func startEngine(l Launch, c command) error {
-	restrictUmask()
 	if c.options["foreground"] == "" && !l.ConsoleOwned {
 		project, err := projectFolder(cmp.Or(c.target, defaultFolder))
 		if err != nil {

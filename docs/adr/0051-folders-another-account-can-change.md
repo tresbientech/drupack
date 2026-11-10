@@ -79,3 +79,21 @@ Windows project under `C:\`, which every start serves.
 - Windows has no open flag that refuses a link. An `Lstat` refuses one, and only
   an account that can already write the folder can swap a link in after it.
 - The Windows cases run on a tag run or a dispatched `windows-amd64` run.
+
+## Amendment, 2026-11-10
+
+The engine start no longer sets the umask to `077`; it keeps the caller's.
+
+A server account serving a checkout that a deploy account updates shares that
+tree through a group. Under `077`, an upload, a config export or compiled Twig
+reached the deploy account as `0600` or `0700`, and the next `git pull` or
+`drush cex` failed on it.
+
+The engine's own state does not depend on the umask. The cache root, the folder's
+cache entry, the lease, the stop record and `server.log` take explicit `0700` or
+`0600` modes. A site start keeps `077`, since Site data holds the database and
+the secrets.
+
+A reader whose umask is `022` now gets project files that others can read,
+as any program they run would write them.
+

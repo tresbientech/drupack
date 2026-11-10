@@ -431,6 +431,9 @@ and says it already serves.
   [Static site](#static-site) describes. The start writes the static URL into
   the folder's cache entry.
 - Caddy's errors go to standard error.
+- The server keeps the umask it starts with, so a project folder shared with
+  a deploy account keeps group write on what Drupal writes. The engine's own
+  state stays owner-only.
 
 `drush` runs the Drush of the nearest directory at or above the working directory
 that holds `vendor/autoload.php`. Drush's child processes find a `php` on
