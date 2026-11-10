@@ -197,14 +197,6 @@ class MercureHub(harness.ConformanceCase):
                 finally:
                     connection.close()
 
-    def drush_environment(self):
-        """The hub variables a `drush` command's PHP sees, empty when unset."""
-        code = "echo json_encode(array_map('getenv', ['DRUPACK_MERCURE_URL', 'DRUPACK_MERCURE_PUBLISHER_SECRET', 'DRUPACK_MERCURE_SUBSCRIBER_SECRET']));"
-        result = harness.run([str(harness.BINARY), "drush", "--data-dir", str(self.data), "php:eval", code],
-                             cwd=self.class_dir, capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        return json.loads(result.stdout)
-
     def test_an_http_publish_reaches_a_subscriber(self):
         stream = Stream(self.site.port, self.subscriber_token())
         try:

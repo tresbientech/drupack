@@ -7,12 +7,10 @@ runs Tome at the static URL and the Drush entry reruns itself on the runtime's p
 """
 
 import http.client
-import json
 import os
 import socket
 import ssl
 import unittest
-from pathlib import Path
 
 import harness
 from tls_cases import trusted_environment, write_root

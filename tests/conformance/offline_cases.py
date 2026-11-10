@@ -40,10 +40,9 @@ class OfflineRun(harness.ConformanceCase):
             "--entrypoint", "/usr/local/bin/python3",
             OFFLINE_IMAGE,
             "/tests/conformance", "/artifact/drupack", "/results",
-            # Proves SeededSite works with no network and RuntimeTrustOnline skips by name. The
-            # class name is the selector: "site_cases" would also match this method's name.
+            # Proves SeededSite works with no network. The class name is the selector:
+            # "site_cases" would also match this method's name.
             "-k", "SeededSite",
-            "-k", "RuntimeTrustOnline",
         ]
         with open(log_path, "w") as log_handle:
             try:
