@@ -392,15 +392,12 @@ an engine's standard error held neither.
 The build stops when a FrankenPHP bump moves the line it reads. Lean: report
 the mapping to FrankenPHP, and drop the rewrite once a release fixes it.
 
-## The engine's `server.log`
+## PHP warnings on an engine without `--error-log`
 
-A detached engine start sends the server's standard error to `server.log` in
-the folder's cache entry. Two gaps remain after
-[ADR 0058](adr/0058-a-start-writes-its-logs-on-request.md):
+An engine's Caddy log has level `ERROR`: standard error with `--foreground`,
+`caddy.log` in the folder's cache entry otherwise. It holds PHP's fatal errors
+and none of its warnings. `--error-log` writes them to a file of its own
+([ADR 0058](adr/0058-a-start-writes-its-logs-on-request.md)).
 
-- The file never rolls, so a long-lived server grows it without bound.
-- Its level is `ERROR`, so it holds PHP's fatal errors and none of its
-  warnings. `--error-log` writes them to a file of its own.
-
-Lean: leave both until a reader reports a full disk or a missed warning, since
-`--error-log` covers a server that needs either.
+Lean: leave the level until a reader reports a missed warning, since
+`--error-log` covers a server that needs them.
