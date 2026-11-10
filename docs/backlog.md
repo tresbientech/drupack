@@ -235,7 +235,7 @@ conformance suite, because each case starts a real site.
 
 The 1.0.0-beta15 candidate took 87 minutes on 2026-11-09. ADR 0018's amendment
 of that day runs the macOS and Windows suites and the QA chain in parallel
-jobs. An all-platform run took 44 minutes on warm caches on 2026-11-10. Still
+jobs. An all-platform run took 42 minutes on warm caches on 2026-11-10. Still
 open, keeping every feature and platform:
 
 - a site start that dies on its static port. It failed one job in three of
@@ -253,6 +253,16 @@ open, keeping every feature and platform:
   logs. The table of 2026-11-10 came from a one-off script.
 - the Windows suite under Defender, where the 4 cases of `AsciiCacheRootCases`
   take 10.6 minutes
+- the FrankenPHP link, 3 minutes per run in each runtime job and macOS build
+- `build.yml`'s demo job, whose "Stop containers" step takes 5.5 minutes
+- two macOS test jobs of run 42782226030, which waited 4 minutes for a runner
+  after both builds had ended. Seen once, no cause.
+- `build/windows/build.ps1` supports an Arm64 build host. No CI job builds on
+  one since the Windows arm64 jobs test the amd64 host's files.
+- the `windows-arm-build-*` cache on GitHub, which no job reads any more
+- `build/install-translations.php` stops the build when core's translation
+  gets no answer in four attempts. A module's file is left out and counted.
+  Open: whether core's file follows the same rule.
 
 Kept as they are: the browser cases' 10-second waits for an absence, which
 match the budget a real browser gets, and the QA and Linux amd64 suite runs,
