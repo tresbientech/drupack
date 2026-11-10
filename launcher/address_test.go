@@ -63,7 +63,7 @@ func TestServed(t *testing.T) {
 			err: "--static-listen requires IP:PORT, with IPv6 enclosed in brackets"},
 
 		{name: "an unreadable record", site: plain, raw: "not json",
-			err: "Cannot read the recorded listener: {dir}/listener. Remove that file, then start fixture-site again to record it."},
+			err: "Cannot read the recorded listener: {record}. Remove that file, then start fixture-site again to record it."},
 		{name: "a record with no host", site: plain, raw: `{"listen":"127.0.0.1:1"}`,
 			err: "Recorded listener has no host"},
 		{name: "a listener that is no address", site: plain, typed: state.Listener{Listen: "localhost:80"},
@@ -99,7 +99,7 @@ func TestServed(t *testing.T) {
 				plan, err = got.Plan(row.hasStatic, row.noun)
 			}
 			if row.err != "" {
-				want := strings.ReplaceAll(row.err, "{dir}", dir)
+				want := strings.ReplaceAll(row.err, "{record}", filepath.Join(dir, "listener"))
 				if err == nil || err.Error() != want {
 					t.Errorf("error = %v, want %q", err, want)
 				}
