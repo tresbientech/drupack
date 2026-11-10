@@ -1,5 +1,6 @@
-{{define "log-file"}}output file {{quote .}} {
+{{define "log-rolled"}}output file {{quote .}} {
 	roll_size 100MiB
 	roll_keep 10
-}
+}{{end}}
+{{define "log-file"}}{{include "log-rolled" .}}
 format json{{end}}

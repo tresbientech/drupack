@@ -25,6 +25,7 @@ func rows() map[string]Config {
 	mkcert := engine
 	mkcert.TLS = tls.Choice{Source: "mkcert", Alias: alias, Root: Root + "/tls/root.pem", Certificate: Root + "/tls/cert.pem", Key: Root + "/tls/key.pem"}
 	mkcert.Static = &Static{Bind: "127.0.0.1", Port: 3788, Root: Root + "/project/html"}
+	mkcert.LogPath = Root + "/state/caddy.log"
 	everything := engine
 	everything.Mode, everything.ID = Site, "site-id"
 	everything.FilesDir, everything.LogPath = Root+"/data/files", Root+"/data/logs/server.log"

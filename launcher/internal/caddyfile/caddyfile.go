@@ -39,9 +39,10 @@ type Config struct {
 	Mercure *Mercure
 	// Static is nil for a project that serves no static listener.
 	Static *Static
-	// FilesDir and LogPath are the Site mode's.
+	// FilesDir is the Site mode's.
 	FilesDir string
-	LogPath  string
+	// LogPath is the file of Caddy's own log. An engine with "" logs to standard error.
+	LogPath string
 	// AccessLog is the file both ports log their requests to, "" for none.
 	AccessLog string
 	// ErrorLog is the file that takes PHP's and Caddy's warnings and errors, "" for none.

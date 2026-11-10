@@ -457,7 +457,10 @@ as `drupack`, and `start` and `stop` are reserved: a folder with either name
 takes `./start`.
 
 The server runs in the background. The start prints its progress and the login
-link, returns once the site answers, and names the log file. `--foreground`
+link, returns once the site answers, and names its two log files. `server.log`
+holds the start's own output, and each start empties it. `caddy.log` holds
+Caddy's errors and PHP's fatal errors; it rolls at 100 MiB, and 10 rolled files
+stay. `--foreground`
 serves in the terminal until a signal stops it. `drupack stop [DIR]` ends the
 server of `DIR`, the working directory by default. The server's lease, stop
 record and log live in the cache, keyed by the folder, so the folder gains no
@@ -486,7 +489,7 @@ and says it already serves.
   beside its docroot on `--static-listen`, and `drupack export` writes it, as
   [Static site](#static-site) describes. The start writes the static URL into
   the folder's cache entry.
-- Caddy's errors go to standard error.
+- With `--foreground`, Caddy's errors go to standard error.
 - `--access-log` and `--error-log` log as [Access log](#access-log) and
   [Error log](#error-log) describe. Their default files are `access.log` and
   `error.log` in the folder's cache entry. The directories they refuse are the

@@ -1,5 +1,9 @@
 {{define "engine-log"}}log {
+{{- if .LogPath}}
+{{include "log-rolled" .LogPath | indent 1}}
+{{- else}}
 	output stderr
+{{- end}}
 	format console
 	level ERROR
 }{{end}}

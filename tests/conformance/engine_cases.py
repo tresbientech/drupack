@@ -377,12 +377,29 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertEqual(self.snapshot(), before, "the start changed the project outside its public files directory")
 
     def test_a_detached_start_returns_once_ready_and_stop_ends_it(self):
+        settings = self.docroot / "sites" / "default" / "settings.php"
+        original = settings.read_text()
+        self.addCleanup(settings.write_text, original)
+        # Drupal's handler keeps an uncaught error out of PHP's log, so PHP's takes this one.
+        settings.write_text(original + """
+if (isset($_GET['drupack-log-case'])) {
+  restore_exception_handler();
+  drupack_fatal_case();
+}
+""")
         port, start = self.detached_start(str(self.project))
         self.assertEqual(start.returncode, 0, f"the start exited non-zero: {start.stdout}{start.stderr}")
         self.assertIn("  Login:", start.stdout)
         self.assertIn("runs in the background. Its log: ", start.stdout)
         self.assertNotIn("Press Ctrl+C", start.stdout)
         self.assertEqual(self.status(port, "/"), 200)
+        # Caddy's log goes to a file that rolls, and the start's own output to server.log.
+        output = Path(start.stdout.split("Its log: ")[1].splitlines()[0])
+        caddy = Path(start.stdout.split("  Log:     ")[1].splitlines()[0])
+        self.assertEqual((output.name, caddy.name, caddy.parent), ("server.log", "caddy.log", output.parent))
+        self.assertEqual(self.status(port, "/?drupack-log-case"), 500)
+        harness.wait_for_text(caddy, "drupack_fatal_case")
+        self.assertNotIn("drupack_fatal_case", output.read_text(errors="replace"))
         stop = self.engine_run("stop", str(self.project))
         self.assertEqual(stop.returncode, 0, stop.stderr)
         self.assertIn("stopped", stop.stdout)

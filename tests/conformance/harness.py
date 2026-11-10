@@ -384,6 +384,16 @@ def wait_for_line(log_path, offset, prefix, timeout):
     raise AssertionError(f"no line starting with {prefix!r} in {log_path}")
 
 
+def wait_for_text(path, text):
+    """Poll a file until it holds text."""
+    deadline = time.monotonic() + WAITS["http_request"].seconds
+    while time.monotonic() < deadline:
+        if path.exists() and text in path.read_text(errors="replace"):
+            return
+        time.sleep(0.25)
+    raise AssertionError(f"{path} never held {text!r}")
+
+
 def wait_for_loggers(log_path, names):
     """Poll a JSON log until its lines name every logger of names."""
     deadline = time.monotonic() + WAITS["http_request"].seconds

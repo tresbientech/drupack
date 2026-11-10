@@ -246,6 +246,12 @@ func startEngine(l Launch, c command) error {
 	if errorLog != "" {
 		fmt.Fprintf(os.Stdout, "  Errors:  %s\n", errorLog)
 	}
+	// A background server outlives its terminal, so its Caddy log goes to a file that rolls.
+	caddyLog := ""
+	if child != nil {
+		caddyLog = entryPath + "/caddy.log"
+		fmt.Fprintf(os.Stdout, "  Log:     %s\n", caddyLog)
+	}
 	fmt.Fprint(os.Stdout, nameHint(choice), trustHint(l, choice))
 	fmt.Fprintln(os.Stdout, "Starting the web server.")
 	if composer.Mercure {
@@ -257,7 +263,7 @@ func startEngine(l Launch, c command) error {
 	if err := entry.WriteListener(plan.record()); err != nil {
 		return err
 	}
-	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: docroot, Mercure: f.Hub, AccessLog: accessLog, ErrorLog: errorLog, TrustedProxies: proxies}
+	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: docroot, Mercure: f.Hub, LogPath: caddyLog, AccessLog: accessLog, ErrorLog: errorLog, TrustedProxies: proxies}
 	if plan.Static != nil {
 		// The server creates no export directory.
 		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: staticRoot, Dynamic: composer.Static.Dynamic}
