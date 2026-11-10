@@ -1,7 +1,8 @@
 # A project tunes its Mercure hub
 
-Accepted on 2026-11-10. Amends [ADR 0034](0034-a-site-turns-on-a-mercure-hub.md)
-and [ADR 0048](0048-a-project-adds-its-own-caddy-rules.md).
+Accepted on 2026-11-10. Amends [ADR 0034](0034-a-site-turns-on-a-mercure-hub.md),
+[ADR 0048](0048-a-project-adds-its-own-caddy-rules.md) and
+[ADR 0050](0050-the-launcher-owns-a-start.md).
 
 ## Context
 
@@ -30,6 +31,8 @@ an engine test showed on 2026-11-10.
 - The server word takes every project file the start found. On an adapter error
   it prints one line per file.
 - The guards refuse `/drupack.mercure.caddy` by name.
+- Drupack's hub keeps its other defaults. `anonymous`, `debugger` and
+  `write_timeout` change only through the file.
 - Drupack checks no directive in the file. Only the project's author writes it,
   as ADR 0048 holds for `drupack.caddy`.
 

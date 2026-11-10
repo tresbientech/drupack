@@ -18,6 +18,8 @@ The site repository can be private. The examples use a site named `acme`.
 - `drupack.yml`, the site contract.
 - `drupack.caddy`, optional Caddy rules of the site's own, which
   [a later section](#a-sites-own-caddy-rules) describes.
+- `drupack.mercure.caddy`, optional directives for the site's Mercure hub,
+  which [Hub settings of your own](#hub-settings-of-your-own) describes.
 - `tests/`, optional conformance cases the suite runs after the engine's own.
 
 [drupacked-demo](https://github.com/tresbientech/drupacked-demo) is a complete site repository.
@@ -334,7 +336,7 @@ reproduce Drupal's `.htaccess` family, and before Drupal. It adds headers,
 redirects, rewrites, refusals and proxies. A rule on a path the guards refuse,
 such as `settings.php` or a PHP file below the docroot root, is dead text,
 since the guard answers first. A rewrite the snippet makes is not checked
-again. The guards also refuse `/drupack.caddy` itself.
+again. The guards also refuse `/drupack.caddy` and `/drupack.mercure.caddy`.
 
 A `mercure` block in this file fails the start, or under a `name` splits the
 hub from `mercure_publish()`. Hub directives go in

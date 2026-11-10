@@ -3,8 +3,8 @@ subscriber that accepts gzip and holds a Mercure 1.0 access token signed with th
 data secret, in a header or a browser's cookie, receives it as it is published, a reconnect
 replays the history, a granted token sees who subscribes, `drush` sees the hub's variables
 once a start created the secrets, and a site without the key serves no hub and writes no
-secret. The cases post rather than call
-mercure_publish(), which needs a PHP file in the site; engine_cases.py covers that call.
+secret. The cases post rather than call mercure_publish(), which needs a PHP file in the
+site; engine_cases.py covers that call.
 """
 
 import base64

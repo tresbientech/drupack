@@ -156,6 +156,8 @@ Each row records a decision as built, with its reason.
   empty pipe, so a reload
   needs a restart.
 - A project's `drupack.caddy` path travels as a fourth argument of `php-server`.
+  [ADR 0056](0056-a-project-tunes-its-mercure-hub.md) adds the hub file's path
+  after it.
   The runtime prints it after an adapt error, since Caddy names the rendered
   file and not the imported one.
 - The site and engine starts share one start plan. The Caddyfile lives in Site
