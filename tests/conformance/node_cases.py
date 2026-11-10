@@ -1,6 +1,6 @@
-"""Bundled Node: the node, npm and npx commands, Node first on PATH for Drush and the
-server, the release unpacked once into the cache, clean, and the refusals of a musl
-build and of a site that carries no Node.
+"""Bundled Node: the node, npm and npx commands with the reader's directory, arguments and
+exit status, the bundled license, Node first on PATH for Drush and the server, and npx
+fetching a package into the reader's home.
 """
 
 import json

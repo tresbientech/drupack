@@ -1,6 +1,6 @@
-"""SITE stop: ending a site a start serves in the foreground, what it says when nothing runs,
-the stop channel's own token check and loopback binding, and a server the previous release
-started.
+"""SITE stop: ending a site a start serves in the foreground and freeing its lease and port,
+what it says when nothing runs, a stop that unpacks nothing, and a server the previous
+release started.
 """
 
 import os

@@ -84,11 +84,12 @@ class SiteReleaseFiles(unittest.TestCase):
                               capture_output=True, text=True)
 
     def test_the_release_names_each_build_with_its_version(self):
-        result = self.write("1.2.3", self.build("demo-linux-amd64"), self.build("demo-linux-amd64-musl"))
+        result = self.write("1.2.3", self.build("demo-linux-amd64"), self.build("demo-linux-amd64-musl"),
+                            self.build("demo-windows-amd64.exe"))
         self.assertEqual(result.returncode, 0, result.stderr)
-        executables = ["demo-1.2.3-linux-amd64", "demo-1.2.3-linux-amd64-musl"]
+        executables = ["demo-1.2.3-linux-amd64", "demo-1.2.3-linux-amd64-musl", "demo-1.2.3-windows-amd64.exe"]
         self.assertEqual(sorted(path.name for path in self.output.iterdir()),
-                         sorted([*executables, "checksums.txt", "install-demo.sh", "release.json"]))
+                         sorted([*executables, "checksums.txt", "install-demo.sh", "install-demo.ps1", "release.json"]))
         checksums = (self.output / "checksums.txt").read_text()
         for executable in executables:
             sha256 = hashlib.sha256((self.output / executable).read_bytes()).hexdigest()

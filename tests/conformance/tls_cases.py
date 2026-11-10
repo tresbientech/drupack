@@ -56,7 +56,7 @@ def trusted_environment(tls_dir, bundle):
 
 
 # Stands in for the reader's mkcert: reports CAROOT and signs a certificate for the names it
-# receives, valid for DAYS days, and logs every call. It names openssl by path:
+# receives, valid for 800 days. It names openssl by path:
 # trusted_environment drops the folder of a real mkcert, which can hold openssl too.
 MKCERT_STUB = """#!/bin/sh
 if [ "$1" = -CAROOT ]; then echo {caroot}; exit 0; fi
@@ -124,7 +124,7 @@ class TlsSources(harness.ConformanceCase):
         bundle.write_text("".join(Path(root).read_text() for root in trusted))
         return trusted_environment(tls_dir, bundle)
 
-    def start(self, root, trusted, mkcert=None, name="site", bind="127.0.0.1", answer="none", options=()):
+    def start(self, root, trusted, mkcert=None, bind="127.0.0.1", answer="none"):
         tls_dir = self.root.parent if root else self.case_dir / "tls"
         system = [self.root] if trusted else []
         served = self.root if trusted and bind == "127.0.0.1" else None
@@ -136,8 +136,8 @@ class TlsSources(harness.ConformanceCase):
         env["DRUPACK_DNS_ANSWER"] = answer
         if mkcert is not None:
             env["PATH"] = f"{mkcert}{os.pathsep}{env['PATH']}"
-        site = harness.Site(harness.BINARY, self.case_dir / name, root=served)
-        site.start(self.data, *options, bind=bind, env=env)
+        site = harness.Site(harness.BINARY, self.case_dir / "site", root=served)
+        site.start(self.data, bind=bind, env=env)
         self.addCleanup(site.stop)
         return site
 

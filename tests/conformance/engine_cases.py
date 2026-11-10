@@ -604,11 +604,11 @@ class EngineExecutable(harness.ConformanceCase):
         edit(content)
         path.write_text(json.dumps(content, indent=4))
 
-    def with_mercure(self, value=True):
+    def with_mercure(self):
         """Sets extra.drupack.mercure in the project's composer.json and adds the probe that
         publishes through mercure_publish(), until the case ends."""
         self.edit_json(self.project / "composer.json",
-                       lambda content: content.setdefault("extra", {}).setdefault("drupack", {}).update(mercure=value))
+                       lambda content: content.setdefault("extra", {}).setdefault("drupack", {}).update(mercure=True))
         probe = self.docroot / "mercure-probe.php"
         probe.write_text("<?php echo mercure_publish('drupack/probe', (string) ($_GET['data'] ?? ''), true);")
         self.addCleanup(probe.unlink)

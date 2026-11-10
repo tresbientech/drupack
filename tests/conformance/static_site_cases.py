@@ -1,9 +1,10 @@
 """The static port a site's contract turns on: before any export it answers 404, a page written
 into the static directory answers on its path and its index with no redirect, a miss answers
-the export's own 404 page, the Listener record keeps the static address and `drush` sees the
-directory, a start without --static-listen takes the port after the site's, the drupack TLS
-source covers the static port, and a site without the key serves no second port. `export`
-runs Tome at the static URL and the Drush entry reruns itself on the runtime's php.
+the export's own 404 page, dynamic paths reach Drupal ahead of the export, a start without
+--static-listen takes the port after the site's, a taken static port refuses, the static port
+serves https from the site's root, and a site without the key serves no second port. `export`
+writes the front page, takes the reader's URI, names a missing module, and the Drush entry
+reruns itself on the runtime's php.
 """
 
 import http.client

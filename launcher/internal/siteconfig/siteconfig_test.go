@@ -289,7 +289,7 @@ func TestCheckStaticReadsTheLockOnlyWithTheKey(t *testing.T) {
 	}
 }
 
-func TestWriteKeepsAnEmptyStaticApartFromNone(t *testing.T) {
+func TestWriteKeepsAnEmptyStatic(t *testing.T) {
 	for want, static := range map[string]*siteconfig.Static{`"static": {}`: {}, "\"static\": {\n    \"dynamic\": [\n      \"/search*\"\n    ]\n  }": {Dynamic: []string{"/search*"}}} {
 		read, err := siteconfig.Parse([]byte(minimal))
 		if err != nil {

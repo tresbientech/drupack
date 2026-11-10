@@ -134,19 +134,12 @@ func TestSiteListen(t *testing.T) {
 		typed string
 		bind  string
 		port  int
-		err   string
 	}{
 		{name: "a site's value", site: siteTarget(siteconfig.Site{Port: 7}), typed: "[::1]:9", bind: "::1", port: 9},
 		{name: "the engine's value", site: engineTarget(), typed: "localhost:9", bind: "localhost", port: 9},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			bind, port, err := row.site.Listen(row.typed)
-			if row.err != "" {
-				if err == nil || err.Error() != row.err {
-					t.Errorf("error = %v, want %q", err, row.err)
-				}
-				return
-			}
 			if err != nil || bind != row.bind || port != row.port {
 				t.Errorf("Listen = %q, %d, %v, want %q, %d", bind, port, err, row.bind, row.port)
 			}

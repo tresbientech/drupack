@@ -312,26 +312,22 @@ func TestSiteDrushRefusals(t *testing.T) {
 		name    string
 		site    siteconfig.Site
 		prepare func(t *testing.T, f siteFixture)
-		words   []string
 		err     func(f siteFixture) string
 	}{
 		{"Site data with no settings", siteconfig.Site{Port: 1}, func(t *testing.T, f siteFixture) { os.Remove(filepath.Join(f.data, "settings.php")) },
-			nil, func(f siteFixture) string {
+			func(f siteFixture) string {
 				return "This Site data has no site yet: " + runtime.Canonical(f.data) + ". Start fixture-site once to create one."
 			}},
 		{"another release's application", siteconfig.Site{Port: 1, Writable: []string{"files"}}, func(t *testing.T, f siteFixture) {
 			put(t, filepath.Join(f.data, "app", ".release"), "release-0")
-		}, nil, func(f siteFixture) string {
+		}, func(f siteFixture) string {
 			return "This Site data holds another release's application. Start fixture-site once to lay this release's: " + runtime.Canonical(f.data)
 		}},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			f := newSite(t, row.site)
-			if row.prepare != nil {
-				row.prepare(t, f)
-			}
-			words := append([]string{"--data-dir", f.data}, row.words...)
-			_, err := drushPlan(f.launch(), parseDrush(t, false, append(words, "status")...), f.cwd)
+			row.prepare(t, f)
+			_, err := drushPlan(f.launch(), parseDrush(t, false, "--data-dir", f.data, "status"), f.cwd)
 			if err == nil || err.Error() != row.err(f) {
 				t.Errorf("error = %v, want %q", err, row.err(f))
 			}
