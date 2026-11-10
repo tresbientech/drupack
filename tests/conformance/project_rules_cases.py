@@ -1,5 +1,6 @@
-"""A packaged site serves the drupack.caddy its build packed. build/variant-fixture.sh writes
-the snippet; a build's own run skips the class on a site without one."""
+"""A packaged site serves the drupack.caddy and the drupack.mercure.caddy its build packed.
+build/variant-fixture.sh writes both; a build's own run skips the class on a site without a
+drupack.caddy, and the hub case on a site whose hub file leaves the debugger off."""
 
 import unittest
 from urllib.error import HTTPError
@@ -31,3 +32,9 @@ class ProjectRules(harness.ConformanceCase):
         with self.assertRaises(HTTPError) as error:
             self.site.fetch("/sites/default/settings.php")
         self.assertEqual(error.exception.code, 403)
+
+    def test_the_packed_hub_file_turns_on_the_debugger(self):
+        hub = self.site_application() / "drupack.mercure.caddy"
+        if not hub.is_file() or "debugger" not in hub.read_text().split():
+            self.skipTest("the packaged site's hub file turns on no debugger")
+        self.assertEqual(self.site.fetch("/.well-known/mercure/debug/")[0], 200)
