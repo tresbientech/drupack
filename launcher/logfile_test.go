@@ -12,6 +12,8 @@ import (
 func TestLogFile(t *testing.T) {
 	root := runtime.Canonical(resolved(t.TempDir()))
 	docroot, export := root+"/project/web", root+"/project/html"
+	// A disk that folds case resolves a folder that exists to its own casing, so the casing rows name one that does not.
+	absent := root + "/absent/web"
 	for _, directory := range []string{docroot, export, root + "/logs"} {
 		if err := os.MkdirAll(directory, 0o755); err != nil {
 			t.Fatal(err)
@@ -36,10 +38,10 @@ func TestLogFile(t *testing.T) {
 		{"in the docroot", map[string]string{"access-log": "project/web/a.log"}, "", "--access-log names " + root + "/project/web/a.log inside " + docroot + ",", false},
 		{"under the docroot", map[string]string{"access-log": "project/web/sites/a.log"}, "", "inside " + docroot + ",", false},
 		{"in the static export", map[string]string{"access-log": "project/html/a.log"}, "", "inside " + export + ",", false},
-		{"another casing", map[string]string{"access-log": "project/WEB/a.log"}, root + "/project/WEB/a.log", "", false},
-		{"another casing on a folding disk", map[string]string{"access-log": "project/WEB/a.log"}, "", "inside " + docroot + ",", true},
+		{"another casing", map[string]string{"access-log": "absent/WEB/a.log"}, root + "/absent/WEB/a.log", "", false},
+		{"another casing on a folding disk", map[string]string{"access-log": "absent/WEB/a.log"}, "", "inside " + absent + ",", true},
 	} {
-		got, err := logFile(row.options, "access-log", fallback, []string{docroot, export}, row.fold)
+		got, err := logFile(row.options, "access-log", fallback, []string{docroot, export, absent}, row.fold)
 		switch {
 		case row.err == "" && (err != nil || got != row.want):
 			t.Errorf("%s: %q, %v, want %q", row.name, got, err, row.want)
