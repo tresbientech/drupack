@@ -241,8 +241,10 @@ open, keeping every feature and platform:
 - a site start that dies on its static port. It failed one job in three of
   nine runs. On Linux a closed outgoing connection holds its source port for a
   minute, and the suite picked site ports whose successor was such a port.
-  `harness.pick_port()` checks the successor since 2026-11-10. The Windows
-  arm64 failure of run 42696202800 has no proven cause.
+  `harness.pick_port()` checks the successor since 2026-11-10. On Windows the
+  start of run 42796056253 then failed on that successor with WSAEACCES, a
+  port Hyper-V reserves from the ephemeral range. Since the same day the picker
+  takes ports from 20000 to 32766, below every ephemeral range.
 - the launcher's `portTaken` probe, a connect, passes on a port held that way.
   The reader then gets Caddy's bind error in place of the launcher's sentence.
 - the Linux jobs, one unsharded suite per architecture: 24 to 26 minutes,

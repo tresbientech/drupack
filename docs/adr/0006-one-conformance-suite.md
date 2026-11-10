@@ -15,8 +15,8 @@ on more than one platform. A Windows defect could pass every check.
 - Every case drives the built executable. Nothing tests the source tree.
 - One launcher cache per run, in a temporary directory. A run never touches the
   reader's own cache.
-- One port per case, taken from the operating system. One case owns the default
-  port 7225 and runs alone.
+- One port per case, picked below the ephemeral port ranges and checked free
+  with its successor. One case owns the default port 7225 and runs alone.
 - Every wait in the table exceeds the product deadline below it.
 
 ## Consequences

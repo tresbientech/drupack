@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import platform
+import random
 import shutil
 import signal
 import socket
@@ -186,19 +187,19 @@ WAITS = {wait.name: wait for wait in WAIT_TABLE}
 def pick_port():
     """A free port on 127.0.0.1 whose successor is free too: a site with a static listener binds both.
 
-    The OS hands the successor to outgoing connections, and a closed one holds it for a minute.
+    The port lies below every platform's ephemeral range, which starts at 32768 on Linux and
+    49152 on macOS and Windows. The OS hands ephemeral ports to outgoing connections, a closed
+    one holds its port for a minute on Linux, and Windows reserves blocks of them for Hyper-V,
+    so a bind that passed here can fail in the start with WSAEACCES.
     """
     while True:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-            probe.bind(("127.0.0.1", 0))
-            port = probe.getsockname()[1]
-        if port == 65535:
+        port = random.randrange(20000, 32767)
+        try:
+            for candidate in (port, port + 1):
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+                    probe.bind(("127.0.0.1", candidate))
+        except OSError:
             continue
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-            try:
-                probe.bind(("127.0.0.1", port + 1))
-            except OSError:
-                continue
         return port
 
 
