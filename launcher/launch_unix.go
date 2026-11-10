@@ -23,7 +23,7 @@ func launch(c Command) error {
 	return syscall.Exec(c.Path, c.Args, c.Env)
 }
 
-// restrictUmask keeps the files a command creates to its owner, as every start does.
+// restrictUmask keeps the files a command creates to its owner, as a site start and site-mode drush do.
 func restrictUmask() {
 	syscall.Umask(0o077)
 }

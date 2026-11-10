@@ -183,7 +183,7 @@ func TestSiteExportRefusals(t *testing.T) {
 	}
 	absent := filepath.Join(f.cwd, "empty")
 	_, err = siteExport(Facts{Launch: f.launch()}, parseLine(t, false, "export", "--data-dir", absent), f.cwd)
-	if want := "This Site data has no site yet: " + absent + ". Start fixture-site once to create one."; err == nil || err.Error() != want {
+	if want := "This Site data has no site yet: " + runtime.Canonical(absent) + ". Start fixture-site once to create one."; err == nil || err.Error() != want {
 		t.Errorf("no Site data: %v, want %q", err, want)
 	}
 	if _, err := os.Stat(absent); !os.IsNotExist(err) {

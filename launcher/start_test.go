@@ -122,7 +122,7 @@ func TestExecServerRefusesAHubFileWithoutTheMercureKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := execServer(Facts{}, state.Dir{}, nil, caddyfile.Config{}, tls.Choice{}, startPlan{}, rules, "drupack", rules)
-	want := hub + " holds Mercure hub directives, and " + rules + "/composer.json does not set extra.drupack.mercure to true"
+	want := rules + "/drupack.mercure.caddy holds Mercure hub directives, and " + rules + "/composer.json does not set extra.drupack.mercure to true"
 	if err == nil || err.Error() != want {
 		t.Errorf("execServer = %v, want %q", err, want)
 	}
