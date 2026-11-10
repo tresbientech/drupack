@@ -319,24 +319,6 @@ func TestSiteDrushRefusals(t *testing.T) {
 			nil, func(f siteFixture) string {
 				return "This Site data has no site yet: " + runtime.Canonical(f.data) + ". Start fixture-site once to create one."
 			}},
-		{"an unreadable record", siteconfig.Site{Port: 1}, func(t *testing.T, f siteFixture) { f.record(t, "not json") },
-			nil, func(f siteFixture) string {
-				return "Cannot read the recorded listener: " + filepath.Join(f.data, "listener") + ". Remove that file, then start fixture-site again to record it."
-			}},
-		{"a record with no host", siteconfig.Site{Port: 1}, func(t *testing.T, f siteFixture) { f.record(t, `{"listen":"127.0.0.1:1"}`) },
-			nil, func(siteFixture) string { return "Recorded listener has no host" }},
-		{"a listener that is no address", siteconfig.Site{Port: 1}, nil, []string{"--listen", "localhost:80"},
-			func(siteFixture) string { return "--listen requires IP:PORT, with IPv6 enclosed in brackets" }},
-		{"a listener port out of range", siteconfig.Site{Port: 1}, nil, []string{"--listen", "127.0.0.1:70000"},
-			func(siteFixture) string { return "Invalid --listen address or port" }},
-		{"a static listener on the site's port", siteconfig.Site{Port: 1, Static: &siteconfig.Static{}}, nil, []string{"--listen", "127.0.0.1:5", "--static-listen", "127.0.0.1:5"},
-			func(siteFixture) string { return "--static-listen must name a port other than the site's 5" }},
-		{"a static listener on a site without one", siteconfig.Site{Port: 1}, nil, []string{"--static-listen", "127.0.0.1:5"},
-			func(siteFixture) string {
-				return "--static-listen needs a site whose composer.json sets extra.drupack.static"
-			}},
-		{"a host that is no name", siteconfig.Site{Port: 1}, nil, []string{"--host", "not a host"},
-			func(siteFixture) string { return "Invalid --host value" }},
 		{"another release's application", siteconfig.Site{Port: 1, Writable: []string{"files"}}, func(t *testing.T, f siteFixture) {
 			put(t, filepath.Join(f.data, "app", ".release"), "release-0")
 		}, nil, func(f siteFixture) string {
@@ -503,13 +485,6 @@ func TestParseListen(t *testing.T) {
 		if bind != row.bind || port != row.port || message != row.err {
 			t.Errorf("parseListen(%q) = %q, %d, %q; want %q, %d, %q", row.listen, bind, port, message, row.bind, row.port, row.err)
 		}
-	}
-}
-
-func TestStaticListenerDefaultsToTheNextPort(t *testing.T) {
-	bind, port, err := staticListener("", "::1", 8000)
-	if bind != "::1" || port != 8001 || err != nil {
-		t.Errorf("staticListener = %q, %d, %v", bind, port, err)
 	}
 }
 

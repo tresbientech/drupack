@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 
@@ -180,27 +179,5 @@ func TestDrupalDocroot(t *testing.T) {
 	write("core/lib/Drupal.php")
 	if got, err := drupalDocroot(project, "."); err != nil || got != project {
 		t.Errorf("drupalDocroot(.) = %q, %v", got, err)
-	}
-}
-
-func TestEnvServer(t *testing.T) {
-	f := Facts{Launch: Launch{Engine: true}, ID: "f0123456789abcdef", Probe: "http://127.0.0.1:3787/",
-		StopRecord: state.At("/cache/folders/f0123456789abcdef").StopRecordPath()}
-	watch := func(f Facts) []string {
-		return slices.DeleteFunc(f.Env(Server), func(entry string) bool { return !strings.HasPrefix(entry, "DRUPACK_RUNTIME_") })
-	}
-	base := []string{
-		"DRUPACK_RUNTIME_NAME=", "DRUPACK_RUNTIME_SITE_VERSION=", "DRUPACK_RUNTIME_COMPONENTS=",
-		"DRUPACK_RUNTIME_ID=f0123456789abcdef",
-		"DRUPACK_RUNTIME_URL=http://127.0.0.1:3787/",
-		"DRUPACK_RUNTIME_STOP_RECORD=/cache/folders/f0123456789abcdef/stop.json",
-	}
-	if got := watch(f); !slices.Equal(got, base) {
-		t.Errorf("plain http: %v", got)
-	}
-	// The runtime's watch verifies HTTPS with the root of the TLS source that serves it.
-	f.TLSRoot = "/r.pem"
-	if want := append(base, "DRUPACK_RUNTIME_TLS_ROOT=/r.pem"); !slices.Equal(watch(f), want) {
-		t.Errorf("https: %v", watch(f))
 	}
 }

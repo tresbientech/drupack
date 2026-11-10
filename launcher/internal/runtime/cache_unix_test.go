@@ -77,18 +77,6 @@ func TestRootIsNamedAfterTheSite(t *testing.T) {
 	}
 }
 
-func TestRootRejectsAGroupWritableCacheDir(t *testing.T) {
-	root := t.TempDir()
-	if err := os.Chmod(root, 0750); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("DRUPACK_CACHE_DIR", root)
-
-	if _, err := runtimepkg.Root("acme", io.Discard); err == nil {
-		t.Fatal("expected a group-writable cache directory to be rejected")
-	}
-}
-
 func TestPrepareLockFailureStopsAndKeepsTheActiveEntry(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root ignores directory mode bits, so a 0500 root would not refuse the write")

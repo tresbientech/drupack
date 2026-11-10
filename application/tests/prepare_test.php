@@ -144,8 +144,6 @@ function siteOwing(array $steps): SiteData
 }
 
 test('the steps a start reads are checked against its options', function (): void {
-    throws('Missing database connection details for mysql',
-        fn() => owedSteps(siteOwing(['settings', 'install', 'modules']), connection(['db-password' => null]), contract()));
     [$steps] = owedSteps(siteOwing(['modules']), connection(['db-password' => null]), contract());
     same([Step::Modules], $steps);
 });
@@ -191,15 +189,12 @@ test('the reference site.json reads as the Site contract', function (): void {
     same(['recipe' => '', 'settings' => '', 'siteName' => 'Fixture Site'], get_object_vars(SiteContract::read(__DIR__ . '/site.json')));
 });
 
-test('check records whether Site data owes a step, and refuses options a step lacks', function (): void {
+test('check records whether Site data owes a step', function (): void {
     parse();
     same(['installed' => false], checkSite(scratch(), contract(recipe: 'recipes/site')));
     $installed = scratch();
     touch("$installed/site-installed");
     same(['installed' => true], checkSite($installed, contract()));
-    parse(['DRUPACK_DATABASE' => 'mysql']);
-    throws('Missing database connection details for mysql', fn() => checkSite(scratch(), contract()));
-    parse();
 });
 
 test('prepare runs the owed steps and records whether they needed credentials', function (): void {

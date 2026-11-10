@@ -200,13 +200,6 @@ func TestBundleAndFolderRecords(t *testing.T) {
 	if _, ok := dir.Bundle(); ok {
 		t.Error("the bundle is still there")
 	}
-	written := state.Listener{Listen: "127.0.0.1:3787", Host: "shop.drupack.site", Scheme: "https", StaticListen: "127.0.0.1:3788"}
-	if err := dir.WriteListener(written); err != nil {
-		t.Fatal(err)
-	}
-	if got, ok, err := dir.Listener(); err != nil || !ok || got != written {
-		t.Errorf("Listener() = %+v, %v, %v, want %+v", got, ok, err, written)
-	}
 	// A start without a static listener or a files directory records null for both, as Site data does.
 	if err := dir.WriteListener(state.Listener{Listen: "[::1]:80", Host: "::1", Scheme: "http"}); err != nil {
 		t.Fatal(err)

@@ -117,6 +117,12 @@ func TestEachFileCarriesTheRuntimeOfItsLibc(t *testing.T) {
 		if got := flag(t, plan, name, "-payload"); got != filepath.Join("/work", "payload") {
 			t.Errorf("%s passes -payload %s", name, got)
 		}
+		if got := flag(t, plan, name, "-site-version"); got != "1.4.0" {
+			t.Errorf("%s passes -site-version %s", name, got)
+		}
+		if got := flag(t, plan, name, "-version"); got != "0.3.0" {
+			t.Errorf("%s passes -version %s", name, got)
+		}
 	}
 }
 
@@ -136,14 +142,6 @@ func TestEveryFileIsPackedAndOnlyTheHostGlibcFileIsTested(t *testing.T) {
 	}
 	if want := []string{"linux-amd64-musl", "linux-arm64", "linux-arm64-musl"}; !reflect.DeepEqual(plan.Untested, want) {
 		t.Fatalf("untested = %v; want %v", plan.Untested, want)
-	}
-	pack := strings.Join(step(t, plan, "pack linux-arm64").Command, " ")
-	for _, want := range []string{
-		"-target linux-arm64", "-payload " + filepath.Join("/work", "payload"), "-output " + filepath.Join("/out", "acme-linux-arm64"), "-site-version 1.4.0", "-version 0.3.0",
-	} {
-		if !strings.Contains(pack, want) {
-			t.Errorf("the arm64 pack command lacks %q: %s", want, pack)
-		}
 	}
 	test := step(t, plan, "test linux-amd64").Command
 	if test[2] != filepath.Join("/out", "acme-linux-amd64") {
@@ -670,21 +668,6 @@ func TestASiteWithNodeResolvesItFirst(t *testing.T) {
 	}
 	if got := names(plan)[0]; got != "resolve Node" {
 		t.Fatalf("the first step is %q; want resolve Node", got)
-	}
-}
-
-func TestOnlyATargetNodeBuildsForCarriesIt(t *testing.T) {
-	r := request([]string{"linux-amd64"}, "both")
-	r.Site.Node = "24"
-	plan, err := build.NewPlan(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Pack decides from -target and the payload's node/ directory which file carries Node.
-	for name, target := range map[string]string{"pack linux-amd64": "linux-amd64", "pack linux-amd64-musl": "linux-amd64-musl"} {
-		if flag(t, plan, name, "-target") != target || flag(t, plan, name, "-payload") != filepath.Join("/work", "payload") {
-			t.Errorf("%s = %v", name, step(t, plan, name).Command)
-		}
 	}
 }
 

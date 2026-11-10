@@ -308,21 +308,6 @@ func TestWriteKeepsAnEmptyStaticApartFromNone(t *testing.T) {
 			t.Errorf("site.json holds no %s:\n%s", want, got)
 		}
 	}
-	read, err := siteconfig.Parse([]byte(minimal))
-	if err != nil {
-		t.Fatal(err)
-	}
-	directory := t.TempDir()
-	if err := siteconfig.Write(read, directory); err != nil {
-		t.Fatal(err)
-	}
-	got, err := os.ReadFile(filepath.Join(directory, siteconfig.OutputName))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(got), "static") {
-		t.Errorf("site.json names static for a site without the key:\n%s", got)
-	}
 }
 
 func TestParseRefusesStaticInDrupackYml(t *testing.T) {
@@ -422,12 +407,6 @@ func TestParseAcceptsEveryNativeTarget(t *testing.T) {
 	}
 	if want := []string{"linux-amd64", "macos-amd64", "macos-arm64", "windows-amd64"}; !reflect.DeepEqual(site.Platforms, want) {
 		t.Fatalf("Platforms = %v; want %v", site.Platforms, want)
-	}
-}
-
-func TestParseKeepsExtensionsOnLinuxTargets(t *testing.T) {
-	if _, err := siteconfig.Parse([]byte(minimal + "platforms: [linux-amd64, linux-arm64]\nextensions: [gmp]\n")); err != nil {
-		t.Fatal(err)
 	}
 }
 

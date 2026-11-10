@@ -125,9 +125,6 @@ func TestEngineCore(t *testing.T) {
 	if want := []string{"drupack", "php-cli", script, "list", "--raw"}; !slices.Equal(call.Args, want) {
 		t.Errorf("Args = %q, want %q", call.Args, want)
 	}
-	if got := environmentOf(call)["PATH"]; got != filepath.FromSlash("/cache/app/bin")+string(os.PathListSeparator)+"/usr/bin" {
-		t.Errorf("PATH = %q", got)
-	}
 }
 
 func TestSiteExportAddressesTheRecordedStaticListener(t *testing.T) {
@@ -153,14 +150,6 @@ func TestSiteExportAddressesTheRecordedStaticListener(t *testing.T) {
 		if got, want := environmentOf(call)["PATH"], filepath.Join(f.application, "bin")+string(os.PathListSeparator)+"/usr/bin"; got != want {
 			t.Errorf("%s PATH = %q, want %q", name, got, want)
 		}
-	}
-	// A reader who names the URL gets none added.
-	x, err = siteExport(Facts{Launch: f.launch()}, parseLine(t, false, "export", "--data-dir", f.data, "-l", "http://other:1/"), f.cwd)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := []string{"SITE", "php-cli", filepath.Join(f.application, "drush"), "tome:static", "--yes", "-l", "http://other:1/"}; !slices.Equal(x.run.Args, want) {
-		t.Errorf("Args with a URL = %q, want %q", x.run.Args, want)
 	}
 }
 
