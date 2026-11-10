@@ -79,3 +79,14 @@ Windows project under `C:\`, which every start serves.
 - Windows has no open flag that refuses a link. An `Lstat` refuses one, and only
   an account that can already write the folder can swap a link in after it.
 - The Windows cases run on a tag run or a dispatched `windows-amd64` run.
+
+## Amendment, 2026-11-10
+
+The engine start keeps the caller's umask instead of `077`. A server account and a
+deploy account share a checkout through a group, and under `077` Drupal's uploads
+and exports reached the deploy account as `0600`. The engine's own state takes
+explicit `0700` or `0600` modes. A site start keeps `077`.
+
+On Unix the `vendor/` check also accepts a path one of the reader's groups owns.
+Any member of that group can then plant an autoloader, as it can already write the
+code the server runs from that tree. Windows keeps the owner rule.

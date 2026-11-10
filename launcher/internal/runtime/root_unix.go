@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"syscall"
 )
@@ -88,14 +89,23 @@ func userName(uid uint32) string {
 }
 
 // Owner names the account that owns path, following a link, and reports whether
-// it is this user or root.
+// this user trusts it.
 func Owner(path string) (account string, trusted bool, err error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return "", false, err
 	}
-	uid := info.Sys().(*syscall.Stat_t).Uid
-	return userName(uid), int(uid) == os.Getuid() || uid == 0, nil
+	groups, err := os.Getgroups()
+	if err != nil {
+		return "", false, err
+	}
+	stat := info.Sys().(*syscall.Stat_t)
+	return userName(stat.Uid), trustedOwner(stat.Uid, stat.Gid, os.Getuid(), append(groups, os.Getgid())), nil
+}
+
+// trustedOwner accepts a path owned by me or root, or by one of my groups.
+func trustedOwner(uid, gid uint32, me int, groups []int) bool {
+	return int(uid) == me || uid == 0 || slices.Contains(groups, int(gid))
 }
 
 // Create makes dir and any missing parent, each with mode 0700 under the umask.

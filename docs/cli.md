@@ -431,10 +431,14 @@ and says it already serves.
   [Static site](#static-site) describes. The start writes the static URL into
   the folder's cache entry.
 - Caddy's errors go to standard error.
+- The server keeps the umask it starts with. The engine's own state stays
+  owner-only.
 
 `drush` runs the Drush of the nearest directory at or above the working directory
 that holds `vendor/autoload.php`. Drush's child processes find a `php` on
 `PATH` that runs the bundled PHP.
+It refuses a project whose `vendor/autoload.php`, `vendor/` or folder another
+account owns, unless on Unix one of your groups owns it.
 
 `dr` runs Drupal core's own command line, `vendor/bin/dr`, of the same
 project, the same way. Drupal 11.4 and later ship it.

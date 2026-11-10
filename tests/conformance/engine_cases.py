@@ -90,16 +90,17 @@ class EngineExecutable(harness.ConformanceCase):
         return harness.run([str(self.engine), *arguments], cwd=cwd or self.class_dir, env=env,
                            capture_output=True, text=True, timeout=harness.WAITS[wait].seconds)
 
-    def start(self, name, *arguments, cwd=None, env=None, port=None):
+    def start(self, name, *arguments, cwd=None, env=None, port=None, umask=-1):
         """Starts the engine executable on a port of its own, whose successor is free for the static site,
         waits for /user/login and the ready line, and returns the port and log. Drupal can answer before
-        the server writes its stop record, which precedes the ready line."""
+        the server writes its stop record, which precedes the ready line. umask is the child's, -1 this
+        process's."""
         port = port or harness.pick_port()
         log = self.class_dir / f"{name}.log"
         with open(log, "wb") as handle:
             process = harness.popen([str(self.engine), *arguments, "--foreground", "--listen", f"127.0.0.1:{port}"],
                                     cwd=cwd or self.class_dir, env=env, stdout=handle, stderr=subprocess.STDOUT,
-                                    start_new_session=True)
+                                    start_new_session=True, umask=umask)
         self.addCleanup(harness.stop_process, process, harness.WAITS["stop"].seconds, f": inspect {log}")
         deadline = time.monotonic() + harness.WAITS["start"].seconds
         while time.monotonic() < deadline:
@@ -552,16 +553,17 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), version.stdout)
 
-    def test_a_database_the_engine_creates_is_its_owners_alone(self):
+    def test_a_file_the_engine_server_writes_keeps_the_callers_umask(self):
         if harness.current_platform() == harness.WINDOWS:
             self.skipTest("Windows files have no mode bits")
-        database = harness.fresh_dir(self.class_dir / "created-database") / "site.sqlite"
-        script = self.docroot / "engine-case-database.php"
-        script.write_text(f"<?php new PDO('sqlite:' . {json.dumps(str(database))}); echo 'created';")
+        written = harness.fresh_dir(self.class_dir / "shared-umask") / "written.txt"
+        script = self.docroot / "engine-case-umask.php"
+        script.write_text(f"<?php file_put_contents({json.dumps(str(written))}, 'x'); echo 'written';")
         self.addCleanup(script.unlink)
-        port, log = self.start("created-database", str(self.project))
-        self.assertEqual(self.fetch(port, "/engine-case-database.php")[2], "created", f"inspect {log}")
-        self.assertEqual(stat.S_IMODE(database.stat().st_mode) & 0o077, 0, oct(database.stat().st_mode))
+        port, log = self.start("shared-umask", str(self.project), umask=0o002)
+        self.assertEqual(self.fetch(port, "/engine-case-umask.php")[2], "written", f"inspect {log}")
+        # file_put_contents creates 0666 less the umask, so 0664 shows the server ran under 002.
+        self.assertEqual(stat.S_IMODE(written.stat().st_mode), 0o664, oct(written.stat().st_mode))
 
     def test_a_request_child_process_runs_on_the_runtime_php_with_no_php_on_path(self):
         version = self.engine_run("php", "-r", "echo PHP_VERSION;")
