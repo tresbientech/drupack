@@ -35,7 +35,14 @@ git -C "$demo" checkout -q --detach FETCH_HEAD
 
 # The job image carries both of this architecture's runtimes, so the build names
 # none. The chain tests the glibc file alone, so it packs no musl one.
-docker build --target job -t drupack-job .
+# DRUPACK_QA_RUNTIMES names a folder of built runtimes, one linux-ARCH-LIBC folder
+# each, which carry DRUPACK_VERSION. Without it the builder images build both.
+job_arguments=()
+if [ -n "${DRUPACK_QA_RUNTIMES:-}" ]; then
+    job_arguments=(--build-arg RUNTIMES=release-runtimes --build-context "release-runtimes=$DRUPACK_QA_RUNTIMES"
+        --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION")
+fi
+docker build --target job "${job_arguments[@]}" -t drupack-job .
 
 # A build's own test results take about 30 GB. The whole chain deletes them, since
 # the runner's disk cannot hold two builds' results and the later steps' own. One
@@ -119,12 +126,12 @@ with open(sys.argv[2], "w") as handle:
 case $phase in
     demo)
         unit_checks
-        build_demo 1/2
+        build_demo 1/2+extra
         php_unit_files
         ;;
     variant) variant ;;
     host)
-        build_demo 2/2
+        build_demo 2/2+extra
         host_cases
         ;;
     '')

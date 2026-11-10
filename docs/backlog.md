@@ -245,12 +245,10 @@ open, keeping every feature and platform:
   arm64 failure of run 42696202800 has no proven cause.
 - the launcher's `portTaken` probe, a connect, passes on a port held that way.
   The reader then gets Caddy's bind error in place of the launcher's sentence.
-- the `qa` jobs' setup, about 13 minutes: four builder image pulls, and a
-  rebuild of the image `payload` already pushes
-- Intel macOS share 3/3, which also runs the variant cases and takes 18 to 25
-  minutes against 15 for the others
-- Windows arm64 share 1/5, at 24 minutes against 16. Shares dealt by measured
-  class time come to 18.5 minutes each.
+- the candidate's measured wall time with shares dealt by class seconds and
+  the `qa` job image built from the runtime jobs' files
+- a command that writes `tests/conformance/class-seconds.json` from a run's
+  logs. The table of 2026-11-10 came from a one-off script.
 - the Windows suite under Defender, where the 4 cases of `AsciiCacheRootCases`
   take 10.6 minutes
 

@@ -127,8 +127,18 @@ Consequences:
   found no cache and took 45 minutes. Two Linux jobs failed a `TlsSources`
   start and passed on the rerun.
 - A failed `qa` job uploads the logs under `/tmp/drupack-qa`.
-- A share holds every Nth class in name order. Two classes of one case each
-  take 8 to 9 minutes on Windows arm64, so the shares differ in length.
+- A share held every Nth class in name order until 2026-11-10, and Windows
+  arm64 shares ran 15 to 24 minutes. `tests/conformance/class-seconds.json` now
+  holds each class's seconds per platform, measured on run 42742364797. The
+  classes go longest first to the share with the fewest seconds. Replayed on
+  that run's times, the Windows arm64 shares come to 18 minutes each.
+- `+extra` on a share starts the last share with the seconds of its job's
+  other cases: the variant cases on macOS and Windows amd64, the host cases in
+  `build/qa.sh host`.
+- The table needs a new measure when the classes' times move. A class missing
+  from it counts as the mean.
+- The `qa` jobs build the job image from the runtime jobs' files, as `payload`
+  does. The build from the builder images took 4 minutes after a 5 minute pull.
 - The graph peaks at 19 jobs: 2 Linux, 1 demo, 3 QA, 2 macOS builds and 11
   Windows tests. GitHub's free plan runs 20 jobs at once, 5 of them on macOS.
 - A suite rerun on macOS or Windows downloads the build.

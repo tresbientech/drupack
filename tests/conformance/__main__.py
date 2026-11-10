@@ -6,6 +6,7 @@ suite's default. The site.json beside EXECUTABLE names the site the cases expect
 DRUPACK_SHARD=K/N runs the Kth of N shares of the test classes.
 """
 
+import json
 import os
 import shutil
 import sys
@@ -113,17 +114,32 @@ def flatten(suite):
 
 
 def shard(suite, spec):
-    """Keeps every Nth test class in name order, from the Kth, for DRUPACK_SHARD=K/N.
+    """Keeps the Kth of N shares of the test classes, for DRUPACK_SHARD=K/N or K/N+extra.
 
+    class-seconds.json holds each class's measured seconds on this platform. The classes go
+    longest first, each to the share with the fewest seconds. A class the table lacks counts
+    as the mean. +extra starts the last share with the seconds of the other work its job runs.
     A class stays whole, so its shared setUpClass runs on one runner.
     """
-    index, count = (int(part) for part in spec.split("/"))
+    shares, _, extra = spec.partition("+")
+    index, count = (int(part) for part in shares.split("/"))
     if not 1 <= index <= count:
         raise SystemExit(f"DRUPACK_SHARD={spec} needs 1 <= K <= N")
+    table = json.loads((Path(__file__).parent / "class-seconds.json").read_text())[sys.platform]
+    seconds = table["classes"]
+    mean = sum(seconds.values()) / len(seconds)
     tests = list(flatten(suite))
     def key(test):
         return f"{type(test).__module__}.{type(test).__qualname__}"
-    kept = set(sorted({key(test) for test in tests})[index - 1::count])
+    loads = [0] * count
+    if extra:
+        loads[-1] = table["extra"]
+    kept = set()
+    for name in sorted({key(test) for test in tests}, key=lambda name: (-seconds.get(name, mean), name)):
+        lightest = loads.index(min(loads))
+        loads[lightest] += seconds.get(name, mean)
+        if lightest == index - 1:
+            kept.add(name)
     return unittest.TestSuite(test for test in tests if key(test) in kept)
 
 
