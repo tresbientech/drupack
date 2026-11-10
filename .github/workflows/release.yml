@@ -940,6 +940,17 @@ jobs:
           # A phase keeps its builds' test results, so its log shows the room left.
           df -h /
 
+      # build/qa.sh works under /tmp/drupack-qa, one folder per checkout name.
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-qa-${{ matrix.phase }}
+          path: |
+            /tmp/drupack-qa/**/*.log
+            /tmp/drupack-qa/**/run.out
+            /tmp/drupack-qa/**/run.err
+
   # A tag run that publishes its candidate's files skips every build job.
   # syft and the action run in a job of their own, whose token writes nothing.
   # The scans read the downloaded folders as they land: the merge keeps each

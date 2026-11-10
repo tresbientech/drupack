@@ -121,6 +121,12 @@ Consequences:
   share ended at minute 51 and its macOS arm64 suite at minute 60.
 - One Windows arm64 share of that run spent 35 minutes in the suite, failed one
   case, and ended at minute 73 after its results upload.
+- Run 42734479576 on 2026-11-10 had the graph above on warm caches and ended
+  green in 44 minutes. Its last jobs were Intel macOS share 3/3 and `QA host`.
+- Run 42742364797 on main took 88 minutes the same day. Its Intel macOS build
+  found no cache and took 45 minutes. Two Linux jobs failed a `TlsSources`
+  start and passed on the rerun.
+- A failed `qa` job uploads the logs under `/tmp/drupack-qa`.
 - A share holds every Nth class in name order. Two classes of one case each
   take 8 to 9 minutes on Windows arm64, so the shares differ in length.
 - The graph peaks at 19 jobs: 2 Linux, 1 demo, 3 QA, 2 macOS builds and 11

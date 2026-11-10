@@ -235,12 +235,18 @@ conformance suite, because each case starts a real site.
 
 The 1.0.0-beta15 candidate took 87 minutes on 2026-11-09. ADR 0018's amendment
 of that day runs the macOS and Windows suites and the QA chain in parallel
-jobs, for an expected 50 minutes. Still open, keeping every feature and
-platform:
+jobs. An all-platform run took 44 minutes on warm caches on 2026-11-10. Still
+open, keeping every feature and platform:
 
-- the candidate's measured wall time with five Windows shares per architecture
-  and the macOS arm64 suite in its build job
-- the Intel macOS build, which takes 20 minutes on a cache hit
+- a site start that dies on its static port. It failed one job in three of
+  nine runs: Caddy's bind found the port taken after the launcher's probe
+  passed. Seen in `TlsSources` on Linux and in a second start on Windows arm64.
+- the `qa` jobs' setup, about 13 minutes: four builder image pulls, and a
+  rebuild of the image `payload` already pushes
+- Intel macOS share 3/3, which also runs the variant cases and takes 18 to 25
+  minutes against 15 for the others
+- Windows arm64 share 1/5, at 24 minutes against 16. Shares dealt by measured
+  class time come to 18.5 minutes each.
 - the Windows suite under Defender, where the 4 cases of `AsciiCacheRootCases`
   take 10.6 minutes
 
