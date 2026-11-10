@@ -3,6 +3,8 @@
 Accepted on 2026-10-17.
 Amended on 2026-10-18 by [ADR 0035](0035-composer-json-turns-on-the-mercure-hub.md): the
 key moved to `composer.json`, and the Engine executable serves the hub.
+Amended on 2026-11-10 by [ADR 0056](0056-a-project-tunes-its-mercure-hub.md): the hub
+publishes its subscriptions, and a project's `drupack.mercure.caddy` adds directives.
 
 ## Context
 

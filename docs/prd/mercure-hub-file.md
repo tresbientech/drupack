@@ -125,7 +125,7 @@ the folder's file, and a packaged site reads the copy its payload carries.
     the hub, and points to the hub file.
   - `docs/cli.md#mercure-hub` gains one line.
   - `CONTEXT.md` adds the hub file to the "Mercure hub" entry.
-- D12: `docs/adr/0052-a-project-tunes-its-mercure-hub.md` records D1 to D10. It
+- D12: `docs/adr/0056-a-project-tunes-its-mercure-hub.md` records D1 to D10. It
   amends ADR 0034 and ADR 0048, which each gain an "Amended by" line.
 - D13: `docs/backlog.md`, "The Mercure hub on the static port", loses the claim
   that a second `mercure` directive shares nothing. Two hubs with one `name`

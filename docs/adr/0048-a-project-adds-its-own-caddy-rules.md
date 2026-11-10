@@ -2,6 +2,8 @@
 
 Accepted on 2026-10-26. Amends [ADR 0022](0022-engine-executable.md) and
 [ADR 0047](0047-request-guards-match-htaccess.md). Amended on 2026-11-08 by [ADR 0050](0050-the-launcher-owns-a-start.md): the Caddyfile imports the file by absolute path, and the runtime adapts once.
+Amended on 2026-11-10 by [ADR 0056](0056-a-project-tunes-its-mercure-hub.md): a second
+file, `drupack.mercure.caddy`, holds the hub's directives, and an adapter error names both.
 
 ## Context
 

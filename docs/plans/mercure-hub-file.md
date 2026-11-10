@@ -24,7 +24,7 @@ From the PRD, in its words:
   `playground`.
 - **D10**: Drupack's hub keeps its other defaults.
 - **D11**: The docs name both features.
-- **D12**: ADR 0052 records D1 to D10 and amends ADR 0034 and ADR 0048.
+- **D12**: ADR 0056 records D1 to D10 and amends ADR 0034 and ADR 0048.
 - **D13**: The backlog's static-port hub entry loses its shared-transport claim.
 
 Durable decisions the PRD leaves implicit:
@@ -162,12 +162,12 @@ the file and the start imported it.
 
 ### What to build
 
-ADR 0052 records D1 to D10. ADR 0034 and ADR 0048 gain an "Amended by" line. The
+ADR 0056 records D1 to D10. ADR 0034 and ADR 0048 gain an "Amended by" line. The
 backlog's static-port hub entry drops its shared-transport claim and cites the
 engine test.
 
 ### Acceptance criteria
 
-- [ ] `ls docs/adr/0052-a-project-tunes-its-mercure-hub.md` succeeds.
-- [ ] `grep -l 0052 docs/adr/0034-*.md docs/adr/0048-*.md` lists both files.
+- [ ] `ls docs/adr/0056-a-project-tunes-its-mercure-hub.md` succeeds.
+- [ ] `grep -l 0056 docs/adr/0034-*.md docs/adr/0048-*.md` lists both files.
 - [ ] `grep -c 'would share nothing' docs/backlog.md` prints 0.
