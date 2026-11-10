@@ -17,24 +17,30 @@ function translationProjects(array $packages): array
     return $projects;
 }
 
-function fetchTranslation(string $url): ?string
+// Returns the file, null when the server has none (404), or false when four
+// attempts got no usable answer.
+function fetchTranslation(string $url): string|null|false
 {
-    $request = curl_init($url);
-    // Builder images differ in what trust store they carry, and this libcurl ignores
-    // CURL_CA_BUNDLE, so the bundle the build pins is named on the handle itself.
-    curl_setopt_array($request, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60,
-        CURLOPT_CAINFO => getenv('CURL_CA_BUNDLE'),
-        CURLOPT_FOLLOWLOCATION => true, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS]);
-    $body = curl_exec($request);
-    $status = curl_getinfo($request, CURLINFO_RESPONSE_CODE);
-    // Translation HTTP responses are external data; only an explicit 404 means unavailable.
-    if ($status === 404) {
-        return null;
+    foreach ([0, 2, 8, 30] as $pause) {
+        sleep($pause);
+        $request = curl_init($url);
+        // Builder images differ in what trust store they carry, and this libcurl ignores
+        // CURL_CA_BUNDLE, so the bundle the build pins is named on the handle itself.
+        curl_setopt_array($request, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60,
+            CURLOPT_CAINFO => getenv('CURL_CA_BUNDLE'),
+            CURLOPT_FOLLOWLOCATION => true, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS]);
+        $body = curl_exec($request);
+        $status = curl_getinfo($request, CURLINFO_RESPONSE_CODE);
+        // Translation HTTP responses are external data; only an explicit 404 means unavailable.
+        if ($status === 404) {
+            return null;
+        }
+        if ($status === 200 && $body !== false && str_contains($body, 'msgid')) {
+            return $body;
+        }
+        fprintf(STDERR, "Translation fetch got no usable answer: %s (HTTP %d)\n", $url, $status);
     }
-    if ($status !== 200 || $body === false || !str_contains($body, 'msgid')) {
-        throw new RuntimeException("Cannot fetch translation: $url (HTTP $status)");
-    }
-    return $body;
+    return false;
 }
 
 // The build passes the application directory, which holds the lock and site.json.
@@ -44,15 +50,16 @@ $languages = json_decode(file_get_contents("$application/site.json"), true, flag
 mkdir("$application/translations");
 $downloaded = 0;
 $unavailable = 0;
+$failed = 0;
 foreach (translationProjects($lock['packages']) as $project => $version) {
     foreach ($languages as $language) {
         $name = "$project-$version.$language.po";
         $body = fetchTranslation("https://ftp.drupal.org/files/translations/all/$project/$name");
-        if ($body === null) {
+        if ($body === null || $body === false) {
             if ($project === 'drupal') {
                 throw new RuntimeException("Required core translation unavailable: $language");
             }
-            $unavailable++;
+            $body === null ? $unavailable++ : $failed++;
             continue;
         }
         if (file_put_contents("$application/translations/$name", $body) === false) {
@@ -61,4 +68,5 @@ foreach (translationProjects($lock['packages']) as $project => $version) {
         $downloaded++;
     }
 }
-printf("Translations: %d downloaded, %d unavailable\n", $downloaded, $unavailable);
+// A module's missing file leaves its strings in English. The site still builds.
+printf("Translations: %d downloaded, %d unavailable, %d not fetched\n", $downloaded, $unavailable, $failed);
