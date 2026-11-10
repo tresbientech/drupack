@@ -201,6 +201,10 @@ func startEngine(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
+	proxies, err := trustedProxies(c.options[trustedProxiesOption.name])
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(entry.Path(), 0o700); err != nil {
 		return err
 	}
@@ -253,7 +257,7 @@ func startEngine(l Launch, c command) error {
 	if err := entry.WriteListener(plan.record()); err != nil {
 		return err
 	}
-	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: docroot, Mercure: f.Hub, AccessLog: accessLog, ErrorLog: errorLog}
+	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: docroot, Mercure: f.Hub, AccessLog: accessLog, ErrorLog: errorLog, TrustedProxies: proxies}
 	if plan.Static != nil {
 		// The server creates no export directory.
 		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: staticRoot, Dynamic: composer.Static.Dynamic}

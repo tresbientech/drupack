@@ -31,6 +31,7 @@ type option struct {
 
 var accessLogOption = option{name: "access-log", value: "FILE", optional: true}
 var errorLogOption = option{name: "error-log", value: "FILE", optional: true}
+var trustedProxiesOption = option{name: "trusted-proxies", value: "CIDR[,CIDR]"}
 
 // optionalValue reads the value of an optional-value option from argument, ""
 // for the bare option. following is the argument after it, "" for none.
@@ -72,6 +73,7 @@ var siteOptions = []option{
 	{name: "foreground"},
 	accessLogOption,
 	errorLogOption,
+	trustedProxiesOption,
 }
 
 // engineOptions are the options the engine's start takes. parse_test.go asserts
@@ -82,6 +84,7 @@ var engineOptions = []option{
 	{name: "foreground"},
 	accessLogOption,
 	errorLogOption,
+	trustedProxiesOption,
 }
 
 // defaultDataDir is the Site data of a reader who names none.

@@ -33,6 +33,7 @@ func rows() map[string]Config {
 	everything.ProjectRules = Root + "/app/drupack.caddy"
 	everything.Static = &Static{Bind: "127.0.0.1", Port: 3788, Root: Root + "/data/static", Dynamic: []string{"/api/*"}}
 	everything.AccessLog, everything.ErrorLog = Root+"/data/logs/access.log", Root+"/data/logs/error.log"
+	everything.TrustedProxies = []string{"192.168.0.58/32", "fd00::/8"}
 	return map[string]Config{"engine-none": engine, "engine-static-mkcert": mkcert, "site-everything": everything}
 }
 

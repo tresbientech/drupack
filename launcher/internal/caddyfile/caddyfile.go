@@ -46,6 +46,8 @@ type Config struct {
 	AccessLog string
 	// ErrorLog is the file that takes PHP's and Caddy's warnings and errors, "" for none.
 	ErrorLog string
+	// TrustedProxies are the CIDR ranges whose forwarded headers name the client, none by default.
+	TrustedProxies []string
 }
 
 type Mercure struct {

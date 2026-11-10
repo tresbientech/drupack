@@ -788,14 +788,18 @@ if (isset($_GET['drupack-log-case'])) {
 }
 """)
         port = harness.pick_port()
-        _, log = self.start("logs", str(self.project), "--access-log", "--error-log", port=port)
+        _, log = self.start("logs", str(self.project), "--access-log", "--error-log",
+                            "--trusted-proxies", "127.0.0.1,::1", port=port)
         self.assertEqual(self.status(port, "/?drupack-log-case"), 500)
+        self.fetch(port, "/user/login", headers={"X-Forwarded-For": "203.0.113.9"})
         self.assertEqual(self.status(port + 1, "/"), 404)
         access = Path(harness.wait_for_line(log, 0, "  Access:  ", 1))
         errors = Path(harness.wait_for_line(log, 0, "  Errors:  ", 1))
         self.assertEqual((access.name, errors.name, access.parent), ("access.log", "error.log", errors.parent))
         harness.wait_for_loggers(access, {"http.log.access.site", "http.log.access.static"})
         harness.wait_for_loggers(errors, {"http.handlers.php"})
+        clients = {json.loads(line)["request"]["client_ip"] for line in access.read_text().splitlines()}
+        self.assertEqual(clients, {"127.0.0.1", "203.0.113.9"}, "a trusted proxy's forwarded header names the client")
         lines = [json.loads(line) for line in errors.read_text().splitlines()]
         messages = " ".join(line["msg"] for line in lines)
         self.assertIn("drupack warning case", messages)

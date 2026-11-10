@@ -56,6 +56,7 @@ One line per component follows, each naming the component and its release:
 | `--foreground` | none | off | none | every start |
 | `--access-log` | FILE, optional | off | none | every start (see [Access log](#access-log)) |
 | `--error-log` | FILE, optional | off | none | every start (see [Error log](#error-log)) |
+| `--trusted-proxies` | CIDR[,CIDR] | none | none | every start (see [Trusted proxies](#trusted-proxies)) |
 
 ## Site data
 
@@ -360,6 +361,28 @@ rolls the same way. The two options refuse one FILE for both.
 
 `logs/caddy.log` and `logs/server.log` hold what they hold without the option.
 
+## Trusted proxies
+
+A server behind a reverse proxy sees the proxy as the sender of every request.
+`--trusted-proxies` names the proxies, as addresses or CIDR ranges with commas
+between them:
+
+```
+SITE --trusted-proxies 192.168.0.58,10.0.0.0/8
+```
+
+For a request one of them sent, the server takes the client's address from
+`X-Forwarded-For`. The access log's `client_ip` then holds the client, and
+`remote_ip` still holds the proxy. A forwarded header from any other sender is
+ignored.
+
+- No proxy is trusted without the option.
+- The start refuses `0.0.0.0/0` and `::/0`, which would let any client name
+  its own address.
+- PHP's `REMOTE_ADDR` stays the proxy's address. Drupal reads the client from
+  the header once `settings.php` sets `reverse_proxy` and
+  `reverse_proxy_addresses`.
+
 Once the site answers, the server listens on a random port of `127.0.0.1`,
 whatever `--listen` names. It writes that port, a random token and its PID to
 `stop.json` in Site data. On Unix only its owner can read the file; on Windows
@@ -408,7 +431,7 @@ point it at a folder under your home.
 ## The engine executable
 
 ```
-drupack [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground] [--access-log[=FILE]] [--error-log[=FILE]]
+drupack [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground] [--access-log[=FILE]] [--error-log[=FILE]] [--trusted-proxies CIDR[,CIDR]]
 drupack stop [DIR]
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
@@ -470,6 +493,8 @@ and says it already serves.
   docroot and the static export. `DIR` goes before either option written bare.
 - Without `--error-log`, standard error holds PHP's fatal errors and none of
   its warnings.
+- `--trusted-proxies` names the proxies in front of the server, as
+  [Trusted proxies](#trusted-proxies) describes.
 - The server keeps the umask it starts with. The engine's own state stays
   owner-only.
 

@@ -36,6 +36,8 @@ Options:
   --access-log[=FILE]        Log each request to FILE, logs/access.log in Site data by default
   --error-log[=FILE]         Log PHP's and Caddy's warnings and errors to FILE,
                              logs/error.log in Site data by default
+  --trusted-proxies CIDR[,CIDR]
+                             Proxies whose forwarded header names the client, none by default
   --version, --help
 
 Commands:
@@ -69,7 +71,7 @@ docs/cli.md explains every option.`
 
 // engineUsage is the text the engine's --help prints. %[1]s is the executable's
 // name and %[2]s the default listener.
-const engineUsage = `Usage: %[1]s [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground] [--access-log[=FILE]] [--error-log[=FILE]]
+const engineUsage = `Usage: %[1]s [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground] [--access-log[=FILE]] [--error-log[=FILE]] [--trusted-proxies CIDR[,CIDR]]
        %[1]s stop [DIR]
        %[1]s drush DRUSH_COMMAND
        %[1]s dr DRUPAL_COMMAND
@@ -89,7 +91,8 @@ tome_static_directory its settings.php sets, or html beside the docroot.
 --access-log logs each request of both listeners to FILE, access.log in the
 folder's cache entry by default. --error-log logs PHP's and Caddy's warnings
 and errors to FILE, error.log there by default. DIR goes before either
-option written bare.
+option written bare. --trusted-proxies names the proxies whose forwarded header
+gives the client's address.
 
 Commands:
   start    Serve the project, which a bare command does too

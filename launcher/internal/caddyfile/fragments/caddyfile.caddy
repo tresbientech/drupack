@@ -10,6 +10,12 @@
 		php_ini "opcache.cache_id" {{quote .ID}}
 	}
 	order php_server before file_server
+{{- if .TrustedProxies}}
+	# client_ip and the access log take the client from a forwarded header these peers sent.
+	servers {
+		trusted_proxies static{{range .TrustedProxies}} {{.}}{{end}}
+	}
+{{- end}}
 {{include (print .Mode "-log") . | indent 1}}
 {{- if .ErrorLog}}
 	# Caddy logs the access entry of a 5xx answer at ERROR, under an access logger.
