@@ -154,14 +154,10 @@ jobs:
               echo 'Documentation alone changed. Nothing to build.'
             fi
           fi
-          # One Intel runner takes 45 minutes over the suite, so four take a share of
-          # the test classes each. GitHub runs five macOS jobs at once. An architecture
-          # with one share runs it in its build job, which waits for no other build.
-          shares='def shares: if .arch == "amd64" then 4 else 1 end;'
-          macos=$(jq -c "$shares"' map(. + {suite: (shares == 1)})' <<<"$macos")
-          # One macOS test row per share. An architecture's last row also runs the
-          # variant cases.
-          macos_tests=$(jq -c "$shares"' [.[] | shares as $count | select($count > 1) | range(1; $count + 1) as $index
+          # One macOS test row per share of the test classes. GitHub runs five macOS
+          # jobs at once: three Intel shares and two arm64 ones. An architecture's last
+          # row also runs the variant cases.
+          macos_tests=$(jq -c '[.[] | (if .arch == "amd64" then 3 else 2 end) as $count | range(1; $count + 1) as $index
             | {arch, shard: "\($index)/\($count)", results: "macos-\(.arch)-\($index)", variant: ($index == $count)}]' <<<"$macos")
           # One runtime row per Linux architecture and libc, naming the libc's builder image.
           runtimes() {
@@ -795,7 +791,7 @@ jobs:
             test-results/**/run.err
 
   # Builds each architecture's executables once. The macos-test jobs run the suite
-  # on those files, and an architecture with one share runs it here.
+  # on those files.
   macos:
     name: macOS ${{ matrix.arch }} build
     needs: [gate, payload]
@@ -908,7 +904,6 @@ jobs:
       # sbom and publish jobs download. The retention stays the default: the gate
       # rebuilds a candidate when any of its artifacts expired.
       - uses: actions/upload-artifact@v7
-        if: ${{ !matrix.suite }}
         with:
           name: suite-macos-${{ matrix.arch }}
           path: |
@@ -924,33 +919,6 @@ jobs:
           name: drupack-macos-${{ matrix.arch }}
           path: dist/engine/drupack
           if-no-files-found: error
-
-      - uses: actions/checkout@v7
-        if: matrix.suite
-        with:
-          repository: ${{ needs.gate.outputs.demo_repository }}
-          ref: ${{ needs.gate.outputs.demo_ref }}
-          path: demo
-          persist-credentials: false
-
-      - name: Run the test scripts
-        if: matrix.suite
-        env:
-          DRUPACK_TEST_ENGINE: dist/engine/drupack
-        run: |
-          python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests demo/tests
-          python3 tests/conformance dist/variant/variant-demo test-results/variant -k Node -k MercureHub -k ProjectRules
-
-      - name: Upload test results
-        if: failure() && matrix.suite
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-results-macos-${{ matrix.arch }}
-          # The folder also holds each case's project, about 2 GB over 400,000 files.
-          path: |
-            test-results/**/*.log
-            test-results/**/run.out
-            test-results/**/run.err
 
   # Each job runs one share of the test classes on the files the macos job built.
   macos-test:
