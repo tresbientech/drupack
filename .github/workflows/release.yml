@@ -860,7 +860,8 @@ jobs:
       - name: Run the test scripts
         env:
           DRUPACK_TEST_ENGINE: dist/engine/drupack
-          # Each architecture's last row also runs the variant cases.
+          # Each architecture's last row also runs the variant cases. Every row
+          # says so, since each one deals all the shares to find its own.
           DRUPACK_SHARD: ${{ matrix.shard }}+extra
         run: |
           python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests demo/tests
