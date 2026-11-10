@@ -46,6 +46,8 @@ type Config struct {
 
 type Mercure struct {
 	URL, Publisher, Subscriber, DB string
+	// ProjectRules is the project's drupack.mercure.caddy, "" for a project without one.
+	ProjectRules string
 }
 
 type Static struct {

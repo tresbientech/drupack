@@ -273,13 +273,26 @@ func serveHub(dir state.Dir, plan startPlan, db string) (*caddyfile.Mercure, err
 	return &caddyfile.Mercure{URL: mercureURL(plan.Scheme, plan.Bind, plan.Port), Publisher: publisher, Subscriber: subscriber, DB: db}, nil
 }
 
+// projectFile returns rules/name when it is a regular file, else "".
+func projectFile(rules, name string) string {
+	if info, err := os.Stat(rules + "/" + name); err == nil && info.Mode().IsRegular() {
+		return rules + "/" + name
+	}
+	return ""
+}
+
 // execServer renders config into dir's Caddyfile and becomes the runtime's
-// server on it, under lease. rules is the folder that may hold a drupack.caddy,
-// argv0 the name the server's process shows and cwd the folder it runs in.
+// server on it, under lease. rules is the folder that may hold a drupack.caddy
+// and a drupack.mercure.caddy, argv0 the name the server's process shows and
+// cwd the folder it runs in.
 func execServer(f Facts, dir state.Dir, lease *state.Lease, config caddyfile.Config, choice tls.Choice, plan startPlan, rules, argv0, cwd string) error {
 	config.Bind, config.Port, config.TLS = plan.Bind, plan.Port, choice
-	if info, err := os.Stat(rules + "/drupack.caddy"); err == nil && info.Mode().IsRegular() {
-		config.ProjectRules = rules + "/drupack.caddy"
+	config.ProjectRules = projectFile(rules, "drupack.caddy")
+	if hub := projectFile(rules, "drupack.mercure.caddy"); hub != "" {
+		if config.Mercure == nil {
+			return fmt.Errorf("%s holds Mercure hub directives, and %s/composer.json does not set extra.drupack.mercure to true", hub, rules)
+		}
+		config.Mercure.ProjectRules = hub
 	}
 	rendered, err := caddyfile.Render(config)
 	if err != nil {
@@ -291,9 +304,12 @@ func execServer(f Facts, dir state.Dir, lease *state.Lease, config caddyfile.Con
 	}
 	f.ID, f.Probe, f.StopRecord, f.TLSRoot = config.ID, plan.Probe, dir.StopRecordPath(), choice.Root
 	serverArguments := []string{argv0, "php-server", runtime.Canonical(file)}
+	// The runtime names each project file when the configuration fails to adapt.
 	if config.ProjectRules != "" {
-		// The runtime names the file when its rules fail to adapt.
 		serverArguments = append(serverArguments, config.ProjectRules)
+	}
+	if config.Mercure != nil && config.Mercure.ProjectRules != "" {
+		serverArguments = append(serverArguments, config.Mercure.ProjectRules)
 	}
 	err = launch(Command{Path: f.Entry, Args: serverArguments, Env: f.Env(Server), Dir: cwd})
 	// A collected file would close its descriptor, and the lease with it, before the exec.

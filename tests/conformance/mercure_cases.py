@@ -1,9 +1,10 @@
 """The Mercure hub a site's contract turns on: a publisher token posts over HTTP, a
 subscriber that accepts gzip and holds a Mercure 1.0 access token signed with the Site
 data secret, in a header or a browser's cookie, receives it as it is published, a reconnect
-replays the history, `drush` sees the hub's variables once a start created the secrets, and
-a site without the key serves no hub and writes no secret. The cases post rather than call
-mercure_publish(), which needs a PHP file in the site; engine_cases.py covers that call.
+replays the history, a granted token sees who subscribes, `drush` sees the hub's variables
+once a start created the secrets, and a site without the key serves no hub and writes no
+secret. The cases post rather than call mercure_publish(), which needs a PHP file in the
+site; engine_cases.py covers that call.
 """
 
 import base64
@@ -27,6 +28,10 @@ HUB = "/.well-known/mercure"
 TOPIC = "drupack/probe"
 SECRETS = ("mercure_publisher_secret", "mercure_subscriber_secret")
 COOKIE = "mercure_access_token"
+SUBSCRIPTIONS = HUB + "/subscriptions"
+# The topics of every subscription event, as a URL pattern relative to the hub.
+PRESENCE = SUBSCRIPTIONS + "/:match_type/:match/:subscriber"
+BOOK = "https://example.com/books/1"
 
 
 def signed(secret, header, claims):
@@ -37,13 +42,16 @@ def signed(secret, header, claims):
     return (body + b"." + encode(hmac.new(secret.encode(), body, hashlib.sha256).digest())).decode()
 
 
-def token(secret, port, action, scheme="http"):
-    """A Mercure 1.0 access token granting action on TOPIC, whose iss and aud name the hub."""
+def token(secret, port, action, scheme="http", topics=None, payload=None):
+    """A Mercure 1.0 access token granting action on topics, TOPIC by default, whose iss and
+    aud name the hub. A payload rides in the grant, and subscription events carry it."""
     hub = f"{scheme}://127.0.0.1:{port}{HUB}"
+    detail = {"type": "https://mercure.rocks/authorization-detail", "actions": [action],
+              "topics": [{"match": TOPIC}] if topics is None else topics}
+    if payload is not None:
+        detail["payload"] = payload
     return signed(secret, {"typ": "at+jwt"}, {
-        "iss": hub, "aud": hub, "exp": int(time.time()) + 600,
-        "authorization_details": [{"type": "https://mercure.rocks/authorization-detail",
-                                   "actions": [action], "topics": [{"match": TOPIC}]}],
+        "iss": hub, "aud": hub, "exp": int(time.time()) + 600, "authorization_details": [detail],
     })
 
 
@@ -68,10 +76,11 @@ def post(port, secret, data, context=None):
 
 
 class Stream:
-    """One subscription to TOPIC that accepts gzip, read as it arrives. The token goes in the
-    Authorization header, or in the cookie a browser's EventSource sends when cookie is set."""
+    """One subscription that accepts gzip, read as it arrives. query holds its matchers, TOPIC
+    by default. The token goes in the Authorization header, or in the cookie a browser's
+    EventSource sends when cookie is set."""
 
-    def __init__(self, port, bearer, last_event_id=None, cookie=False, context=None):
+    def __init__(self, port, bearer, last_event_id=None, cookie=False, context=None, query=None):
         timeout = harness.WAITS["http_request"].seconds
         if context is None:
             self.connection = http.client.HTTPConnection("localhost", port, timeout=timeout)
@@ -84,24 +93,43 @@ class Stream:
             headers["Authorization"] = f"Bearer {bearer}"
         if last_event_id is not None:
             headers["Last-Event-ID"] = last_event_id
-        self.connection.request("GET", f"{HUB}?match={TOPIC}", headers=headers)
+        matchers = urlencode({"match": TOPIC} if query is None else query)
+        self.connection.request("GET", f"{HUB}?{matchers}", headers=headers)
         self.response = self.connection.getresponse()
         # Caddy's encode skips a response whose first write falls under its minimum length,
         # and the hub opens every stream with a two-byte comment line.
         gzip = self.response.getheader("Content-Encoding") == "gzip"
         self.decode = zlib.decompressobj(16 + zlib.MAX_WBITS).decompress if gzip else bytes
         self.text = ""
+        # The end of the last event next_event() returned.
+        self.consumed = 0
+
+    def read_more(self, deadline, wanted):
+        """Appends the next chunk to text, and fails past deadline or at the stream's end."""
+        if time.monotonic() > deadline:
+            raise AssertionError(f"the stream never carried {wanted}: {self.text!r}")
+        chunk = self.response.read1(4096)
+        if not chunk:
+            raise AssertionError(f"the stream ended before {wanted}: {self.text!r}")
+        self.text += self.decode(chunk).decode()
 
     def read_until(self, needle, seconds=15):
         """Reads until the decoded stream holds needle, and fails after seconds."""
         deadline = time.monotonic() + seconds
         while needle not in self.text:
-            if time.monotonic() > deadline:
-                raise AssertionError(f"the stream never carried {needle!r}: {self.text!r}")
-            chunk = self.response.read1(4096)
-            if not chunk:
-                raise AssertionError(f"the stream ended before {needle!r}: {self.text!r}")
-            self.text += self.decode(chunk).decode()
+            self.read_more(deadline, repr(needle))
+
+    def next_event(self, seconds=15):
+        """The data of the next event that carries any, skipping comment-only blocks."""
+        deadline = time.monotonic() + seconds
+        while True:
+            while (end := self.text.find("\n\n", self.consumed)) == -1:
+                self.read_more(deadline, "another event")
+            block, self.consumed = self.text[self.consumed:end], end + 2
+            data = [line.removeprefix("data:").removeprefix(" ") for line in block.split("\n")
+                    if line.startswith("data:")]
+            if data:
+                return "\n".join(data)
 
     def close(self):
         self.connection.close()
@@ -187,6 +215,67 @@ class MercureHub(harness.ConformanceCase):
             stream.read_until(f"id: {update}\ndata: posted\n")
         finally:
             stream.close()
+
+    def granted(self, topics, payload=None):
+        """A subscriber token for the site's hub granting topics."""
+        return token(self.secret("mercure_subscriber_secret"), self.site.port, "subscribe",
+                     topics=topics, payload=payload)
+
+    def api(self, path, bearer):
+        """The status and body of a subscription API request for path."""
+        connection = http.client.HTTPConnection("localhost", self.site.port, timeout=harness.WAITS["http_request"].seconds)
+        try:
+            connection.request("GET", path, headers={"Authorization": f"Bearer {bearer}"})
+            response = connection.getresponse()
+            return response.status, response.read().decode()
+        finally:
+            connection.close()
+
+    @staticmethod
+    def presence(listener, wanted):
+        """The next subscription event on listener for which wanted returns true."""
+        while not wanted(event := json.loads(listener.next_event())):
+            pass
+        return event
+
+    def test_a_presence_listener_sees_a_subscriber_arrive_and_leave(self):
+        listener = Stream(self.site.port, self.granted([{"match": PRESENCE, "match_type": "urlpattern"}]),
+                          query={"match_urlpattern": PRESENCE})
+        try:
+            self.assertEqual(listener.response.status, 200)
+            listener.read_until(":")
+            alice = Stream(self.site.port, self.granted([{"match": TOPIC}], {"username": "alice"}))
+            try:
+                self.assertEqual(alice.response.status, 200)
+                arrived = self.presence(listener, lambda event: event["active"] and event.get("payload") == {"username": "alice"})
+            finally:
+                alice.close()
+            self.assertEqual((arrived["match"], arrived["match_type"]), (TOPIC, "exact"))
+            left = self.presence(listener, lambda event: not event["active"] and event["subscriber"] == arrived["subscriber"])
+            self.assertEqual(left["id"], arrived["id"])
+        finally:
+            listener.close()
+
+    def test_the_subscription_api_lists_a_subscriber_of_a_url_topic(self):
+        # The decoded id of a URL topic's subscription crosses the guard on dotted segments.
+        book = Stream(self.site.port, self.granted([{"match": BOOK}]), query={"match": BOOK})
+        try:
+            self.assertEqual(book.response.status, 200)
+            book.read_until(":")
+            reader = self.granted([{"match": SUBSCRIPTIONS}, {"match": PRESENCE, "match_type": "urlpattern"}])
+            status, body = self.api(SUBSCRIPTIONS, reader)
+            self.assertEqual(status, 200, body)
+            entries = [entry for entry in json.loads(body)["subscriptions"] if entry["match"] == BOOK]
+            self.assertEqual(len(entries), 1, body)
+            status, body = self.api(entries[0]["id"], reader)
+            self.assertEqual(status, 200, body)
+            self.assertEqual(json.loads(body)["match"], BOOK)
+        finally:
+            book.close()
+
+    def test_the_subscription_api_refuses_a_token_without_the_grant(self):
+        status, body = self.api(SUBSCRIPTIONS, self.subscriber_token())
+        self.assertEqual(status, 403, body)
 
     def test_drush_sees_the_hub_variables(self):
         self.assertEqual(self.drush_environment(), [

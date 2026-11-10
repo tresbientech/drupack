@@ -113,6 +113,8 @@ func place(t *testing.T, rendered string, projectRules string) served {
 	write(t, filepath.Join(s.root, "data", "static", "index.html"), "exported page")
 	write(t, filepath.Join(s.root, "project", "drupack.caddy"), projectRules)
 	write(t, filepath.Join(s.root, "app", "drupack.caddy"), projectRules)
+	write(t, filepath.Join(s.root, "project", "drupack.mercure.caddy"), "debugger\n")
+	write(t, filepath.Join(s.root, "app", "drupack.mercure.caddy"), "debugger\n")
 	write(t, filepath.Join(s.root, "data", "files", "stored.txt"), "stored file")
 	write(t, filepath.Join(s.root, "state", "keep"), "")
 	certificates(t, filepath.Join(s.root, "tls"))
@@ -230,6 +232,10 @@ func TestAdaptRenderedFiles(t *testing.T) {
 				if status, _ := get(t, scheme, s.port, "/.well-known/mercure"); status == 404 {
 					t.Error("the Mercure hub answered 404")
 				}
+				// The project's hub file turns the debugger on.
+				if status, _ := get(t, scheme, s.port, "/.well-known/mercure/debug/"); status != 200 {
+					t.Errorf("the Mercure debugger: %d", status)
+				}
 			}
 		})
 	}
@@ -249,5 +255,10 @@ func TestAdaptRefusesBrokenProjectRules(t *testing.T) {
 	s := place(t, string(rendered), "not_a_directive foo\n")
 	if _, err = adapt(s.file); err == nil || !strings.Contains(err.Error(), "unrecognized directive: not_a_directive") {
 		t.Errorf("adapt error = %v", err)
+	}
+	s = place(t, string(rendered), "")
+	write(t, filepath.Join(s.root, "app", "drupack.mercure.caddy"), "not_a_hub_directive foo\n")
+	if _, err = adapt(s.file); err == nil || !strings.Contains(err.Error(), "not_a_hub_directive") {
+		t.Errorf("adapt error with a broken hub file = %v", err)
 	}
 }

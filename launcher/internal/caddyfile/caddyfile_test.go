@@ -29,7 +29,7 @@ func rows() map[string]Config {
 	everything.Mode, everything.ID = Site, "site-id"
 	everything.FilesDir, everything.LogPath = Root+"/data/files", Root+"/data/logs/server.log"
 	everything.TLS = tls.Choice{Source: "drupack", Alias: alias, Root: Root + "/tls/root.pem", RootKey: Root + "/tls/root.key", Authority: "Drupack local root"}
-	everything.Mercure = &Mercure{URL: "http://127.0.0.1:3787/.well-known/mercure", Publisher: "p0", Subscriber: "s0", DB: Root + "/state/mercure.db"}
+	everything.Mercure = &Mercure{URL: "http://127.0.0.1:3787/.well-known/mercure", Publisher: "p0", Subscriber: "s0", DB: Root + "/state/mercure.db", ProjectRules: Root + "/app/drupack.mercure.caddy"}
 	everything.ProjectRules = Root + "/app/drupack.caddy"
 	everything.Static = &Static{Bind: "127.0.0.1", Port: 3788, Root: Root + "/data/static", Dynamic: []string{"/api/*"}}
 	return map[string]Config{"engine-none": engine, "engine-static-mkcert": mkcert, "site-everything": everything}

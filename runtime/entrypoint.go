@@ -199,9 +199,9 @@ const cronFirstDelay = 2 * time.Minute
 // Caddy's run logs an adapter error into its early-start buffer after flushing it, so
 // the error never prints. The adapter runs once here, without Caddy's logger, and run
 // reads the adapted JSON from a pipe on its stdin. Caddy names the line that imports
-// a project's drupack.caddy when the error sits inside it, so the file's path, when
-// the start passes one, follows the error.
-func serveCaddyfile(config, projectRules string) {
+// a project's file when the error sits inside it, so the path of each project file
+// the start passes follows the error.
+func serveCaddyfile(config string, projectFiles []string) {
 	body, err := os.ReadFile(config)
 	if err != nil {
 		panic(err)
@@ -209,8 +209,8 @@ func serveCaddyfile(config, projectRules string) {
 	adapted, _, err := caddyconfig.GetAdapter("caddyfile").Adapt(body, map[string]any{"filename": config})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		if projectRules != "" {
-			fmt.Fprintf(os.Stderr, "The project's %s is part of this configuration.\n", projectRules)
+		for _, file := range projectFiles {
+			fmt.Fprintf(os.Stderr, "The project's %s is part of this configuration.\n", file)
 		}
 		os.Exit(1)
 	}
@@ -260,7 +260,7 @@ func init() {
 			panic(err)
 		}
 	}
-	if (len(os.Args) == 3 || len(os.Args) == 4) && os.Args[1] == "php-server" {
+	if len(os.Args) >= 3 && len(os.Args) <= 5 && os.Args[1] == "php-server" {
 		// A Windows server redirected to a file writes from the file's end.
 		if runtime.GOOS == "windows" {
 			writeFromRedirectedEnd()
@@ -293,11 +293,7 @@ func init() {
 			firstCron:   cronFirstDelay,
 			cronEvery:   cronInterval,
 		}, os.Stdout, os.Stderr, openBrowser, func() { stopServer(guardSignals) })
-		projectRules := ""
-		if len(os.Args) == 4 {
-			projectRules = os.Args[3]
-		}
-		serveCaddyfile(os.Args[2], projectRules)
+		serveCaddyfile(os.Args[2], os.Args[3:])
 		return
 	}
 	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {

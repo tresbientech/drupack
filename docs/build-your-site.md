@@ -18,6 +18,8 @@ The site repository can be private. The examples use a site named `acme`.
 - `drupack.yml`, the site contract.
 - `drupack.caddy`, optional Caddy rules of the site's own, which
   [a later section](#a-sites-own-caddy-rules) describes.
+- `drupack.mercure.caddy`, optional directives for the site's Mercure hub,
+  which [Hub settings of your own](#hub-settings-of-your-own) describes.
 - `tests/`, optional conformance cases the suite runs after the engine's own.
 
 [drupacked-demo](https://github.com/tresbientech/drupacked-demo) is a complete site repository.
@@ -244,6 +246,53 @@ The hub speaks Mercure protocol 1.0. Each token is an HS256 access token with:
 symfony/mercure 0.9 and later mints this shape by default. A subscriber names
 its topics with `?match=`.
 
+### Who is subscribed
+
+The hub publishes its
+[subscriptions](https://mercure.rocks/docs/concepts/active-subscriptions), so a
+collaboration screen can list who else has a page open:
+
+- Each stream that opens or closes sends a private event on
+  `/.well-known/mercure/subscriptions/{match_type}/{match}/{subscriber}`.
+- `GET /.well-known/mercure/subscriptions` lists the open streams.
+
+A token reads the events with a `subscribe` grant on the URL pattern
+`/.well-known/mercure/subscriptions/:match_type/:match/:subscriber`, with
+`match_type` set to `urlpattern`. The list takes an exact grant on
+`/.well-known/mercure/subscriptions`, and a token without it gets 403. A
+`payload` in a subscriber's grant rides in its events, so peers see a name
+without a request to Drupal.
+
+These events count toward the hub's last 1000 updates. A tab adds one when it
+opens and one when it closes, for each topic it matches.
+
+### Hub settings of your own
+
+A `drupack.mercure.caddy` beside `composer.json` holds
+[Mercure directives](https://mercure.rocks/docs/deployment/configuration) for the hub. The
+engine executable reads it from the folder it serves, and a packaged site
+reads the copy its build packed. A change takes a restart.
+
+```caddyfile
+anonymous
+debugger
+write_timeout 0s
+```
+
+- `anonymous` lets a subscriber with no token receive public updates, which a
+  page from Drupal's page cache needs.
+- `debugger` serves a UI at `/.well-known/mercure/debug/` that takes a token
+  you paste.
+- `write_timeout 0s` keeps a stream open past the default 10 minutes.
+
+Drupack's own address, cookie name, secrets and history file stay in force
+over the file. An `issuer` block of yours joins Drupack's. A start refuses the
+file in a project that leaves `extra.drupack.mercure` off, and the server
+refuses a request for `/drupack.mercure.caddy`.
+
+Drupack checks no directive in the file. `playground` hands every visitor an
+all-access token, so keep it out of a site you ship.
+
 ## A static site
 
 `extra.drupack.static` in the site's `composer.json` serves the site's Tome
@@ -287,7 +336,11 @@ reproduce Drupal's `.htaccess` family, and before Drupal. It adds headers,
 redirects, rewrites, refusals and proxies. A rule on a path the guards refuse,
 such as `settings.php` or a PHP file below the docroot root, is dead text,
 since the guard answers first. A rewrite the snippet makes is not checked
-again. The guards also refuse `/drupack.caddy` itself.
+again. The guards also refuse `/drupack.caddy` and `/drupack.mercure.caddy`.
+
+A `mercure` block in this file fails the start, or under a `name` splits the
+hub from `mercure_publish()`. Hub directives go in
+[`drupack.mercure.caddy`](#hub-settings-of-your-own).
 
 A header Drupal also sends, such as `X-Frame-Options`, needs Caddy's `defer`
 block, or the response carries both values. A matcher name Drupack's own rules
