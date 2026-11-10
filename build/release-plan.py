@@ -9,6 +9,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 # The workflow's run-name formats the same title for a candidate run.
@@ -110,6 +111,12 @@ def main(argv):
     def fetch(path):
         print("Fetching", path)
         fetched.append(path)
+        # GitHub answers 500 for a compare under load, so a failed read gets two more tries.
+        for pause in (10, 30):
+            result = subprocess.run(["gh", "api", path], stdout=subprocess.PIPE)
+            if result.returncode == 0:
+                return json.loads(result.stdout)
+            time.sleep(pause)
         return json.loads(subprocess.run(["gh", "api", path], check=True, stdout=subprocess.PIPE).stdout)
 
     result = plan(vars(args), json.loads(Path(args.targets).read_text()), fetch)

@@ -438,12 +438,24 @@ def popen(args, **kwargs):
     return subprocess.Popen(args, **kwargs)
 
 
+def report_output(command, stdout, stderr):
+    """Prints what a timed-out command wrote, since its failure names the command alone."""
+    for name, output in (("stdout", stdout), ("stderr", stderr)):
+        if output:
+            text = output if isinstance(output, str) else output.decode(errors="replace")
+            print(f"{command} timed out. Its {name} ends:\n{text[-2000:]}", file=sys.stderr, flush=True)
+
+
 def run(args, **kwargs):
     """subprocess.run's counterpart to popen()."""
     timeout = kwargs.get("timeout")
     if current_platform() != WINDOWS or timeout is None:
         kwargs.setdefault("stdin", subprocess.DEVNULL)
-        return subprocess.run(args, **kwargs)
+        try:
+            return subprocess.run(args, **kwargs)
+        except subprocess.TimeoutExpired as expired:
+            report_output(args, expired.stdout, expired.stderr)
+            raise
     # On a timeout subprocess.run kills the child alone, then reads its pipes to the end.
     # On Windows a grandchild that inherited them, such as trust's root-store prompt,
     # holds them open and the read never returns, so the whole tree goes first.
@@ -461,6 +473,8 @@ def run(args, **kwargs):
             stdout, stderr = process.communicate(data, timeout=timeout)
         except subprocess.TimeoutExpired:
             stop_process(process, timeout)
+            # The tree is gone, so the pipes end and the read returns.
+            report_output(args, *process.communicate())
             raise
     result = subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
     if check:
