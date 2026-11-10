@@ -356,8 +356,6 @@ rolls the same way. The two options refuse one FILE for both.
 - A PHP fatal error and a PHP warning each write a line under the logger
   `http.handlers.php`.
 - A PHP notice, a deprecation and an `error_log()` call write none.
-- On Windows a PHP warning writes none either. The runtime reads its level
-  below `WARN` there.
 - A request writes none, whatever its status.
 
 `logs/caddy.log` and `logs/server.log` hold what they hold without the option.

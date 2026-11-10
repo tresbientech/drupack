@@ -381,17 +381,16 @@ engine payload carries no `support/`. The conformance case
 `test_a_start_serves_the_static_port_and_export_fills_it` skips its export on
 Windows. Lean: the engine registers the provider for the folder it serves.
 
-## PHP log levels on Windows
+## FrankenPHP's log levels on Windows
 
-On Windows `--error-log` holds a PHP fatal error and no PHP warning, as the
-engine's log case showed on 2026-11-10. Likely cause, not verified: PHP's
-Windows `syslog.h` numbers `LOG_ERR` 4 and `LOG_WARNING` 5, and FrankenPHP maps
-the Unix numbers, where 4 is a warning and 5 a notice. A fatal error would then
-log at `WARN` and a warning at `INFO`.
+`build/windows/build.ps1` rewrites `go_log` in FrankenPHP's source. PHP's
+`win32/syslog.h` numbers `LOG_ERR` 4 and `LOG_WARNING` 5, and FrankenPHP 1.13.5
+reads the Unix numbers, where 4 is a warning and 5 a notice. Before the rewrite
+a Windows server logged a PHP fatal error at `WARN` and a warning at `INFO`, so
+an engine's standard error held neither.
 
-If so, an engine on Windows also drops PHP's fatal errors from standard error,
-whose level is `ERROR`. Lean: read the level of the fatal line in a Windows
-error log, then report the mapping to FrankenPHP.
+The build stops when a FrankenPHP bump moves the line it reads. Lean: report
+the mapping to FrankenPHP, and drop the rewrite once a release fixes it.
 
 ## The engine's `server.log`
 

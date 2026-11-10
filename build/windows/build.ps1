@@ -135,6 +135,14 @@ git -c core.autocrlf=false clone --quiet --depth 1 --branch "v$frankenphpVersion
 # A tag can move, so the checkout must match the pinned commit.
 $frankenphpHead = git -C $frankenphp rev-parse HEAD
 if ($frankenphpHead -ne $frankenphpCommit) { throw "FrankenPHP v$frankenphpVersion resolved to $frankenphpHead, expected $frankenphpCommit" }
+# PHP's win32/syslog.h numbers LOG_ERR 4 and LOG_WARNING 5. go_log reads the Unix
+# numbers, where 4 is a warning and 5 a notice, so a fatal error logged as a
+# warning and a warning as a notice. The rewrite gives both their Unix number.
+$logSource = Join-Path $frankenphp 'frankenphp.go'
+$logAnchor = "`tle := syslogLevelInfo`n"
+$logCode = Get-Content -Raw $logSource
+if ([regex]::Matches($logCode, [regex]::Escape($logAnchor)).Count -ne 1) { throw 'frankenphp.go does not hold the go_log line the level rewrite reads' }
+Set-Content -Path $logSource -NoNewline -Value $logCode.Replace($logAnchor, "`tswitch level {`n`tcase 4:`n`t`tlevel = 3`n`tcase 5:`n`t`tlevel = 4`n`t}`n$logAnchor")
 $vcpkgInstalled = Join-Path $frankenphp 'vcpkg_installed'
 & (Join-Path $vcpkg 'vcpkg.exe') install --vcpkg-root=$vcpkg --x-manifest-root=$frankenphp --x-install-root=$vcpkgInstalled --triplet=x64-windows --disable-metrics
 $vcpkgRoot = Join-Path $vcpkgInstalled 'x64-windows'
