@@ -47,6 +47,29 @@ func TestLogFile(t *testing.T) {
 			t.Errorf("%s: error %v, want one holding %q", row.name, err, row.err)
 		}
 	}
+	for _, row := range []struct {
+		name                string
+		options             map[string]string
+		access, errors, err string
+		fold                bool
+	}{
+		{"neither option", map[string]string{}, "", "", "", false},
+		{"both bare", map[string]string{"access-log": "", "error-log": ""}, root + "/cache/access.log", root + "/cache/error.log", "", false},
+		{"the error log alone", map[string]string{"error-log": "logs/e.log"}, "", root + "/logs/e.log", "", false},
+		{"one file for both", map[string]string{"access-log": "logs/a.log", "error-log": root + "/logs/a.log"}, "", "", "--access-log and --error-log name one file: " + root + "/logs/a.log", false},
+		{"one file, the default of the other", map[string]string{"access-log": "cache/error.log", "error-log": ""}, "", "", "name one file", false},
+		{"two casings", map[string]string{"access-log": "logs/a.log", "error-log": "logs/A.log"}, root + "/logs/a.log", root + "/logs/A.log", "", false},
+		{"two casings on a folding disk", map[string]string{"access-log": "logs/a.log", "error-log": "logs/A.log"}, "", "", "name one file", true},
+		{"an error log in the docroot", map[string]string{"error-log": "project/web/e.log"}, "", "", "--error-log names " + root + "/project/web/e.log inside " + docroot + ",", false},
+	} {
+		access, errors, err := logFiles(row.options, root+"/cache", []string{docroot, export}, row.fold)
+		switch {
+		case row.err == "" && (err != nil || access != row.access || errors != row.errors):
+			t.Errorf("%s: %q, %q, %v, want %q, %q", row.name, access, errors, err, row.access, row.errors)
+		case row.err != "" && (err == nil || !strings.Contains(err.Error(), row.err)):
+			t.Errorf("%s: error %v, want one holding %q", row.name, err, row.err)
+		}
+	}
 	if linked {
 		if _, err := logFile(map[string]string{"access-log": filepath.Join(link, "a.log")}, "access-log", fallback, []string{docroot}, false); err == nil || !strings.Contains(err.Error(), "inside "+docroot+",") {
 			t.Errorf("a link into the docroot: %v", err)

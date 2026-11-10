@@ -42,8 +42,9 @@ type packagedStart struct {
 	plan          startPlan
 	// listen is the IP:PORT text the refusals name.
 	listen string
-	// accessLog is the file of --access-log, "" for a start without it.
-	accessLog string
+	// accessLog and errorLog are the files of --access-log and --error-log,
+	// each "" for a start without its option.
+	accessLog, errorLog string
 }
 
 // startSite plans a Packaged site's start, refuses what the reader's line or
@@ -161,7 +162,7 @@ func startSite(l Launch, c command) error {
 		s.StaticRoot = s.Data + "/static"
 		answered = append(answered, s.StaticRoot)
 	}
-	if s.accessLog, err = logFile(c.options, accessLogOption.name, s.Data+"/logs/access.log", answered, l.FoldCase); err != nil {
+	if s.accessLog, s.errorLog, err = logFiles(c.options, s.Data+"/logs", answered, l.FoldCase); err != nil {
 		return err
 	}
 
@@ -397,6 +398,9 @@ func (s packagedStart) serve(lease *state.Lease) error {
 	if s.accessLog != "" {
 		fmt.Printf("  Access:    %s\n", s.accessLog)
 	}
+	if s.errorLog != "" {
+		fmt.Printf("  Errors:    %s\n", s.errorLog)
+	}
 	if link != "" && !tls.Loopback(plan.Bind) {
 		fmt.Printf("No browser opens: %s accepts other computers over plain HTTP. Sign in from another computer only through a TLS proxy.\n", s.listen)
 	}
@@ -409,7 +413,7 @@ func (s packagedStart) serve(lease *state.Lease) error {
 	config := caddyfile.Config{
 		Mode: caddyfile.Site, ID: siteToken(s.Data, l.FoldCase),
 		Docroot: application + "/" + site.Docroot, Mercure: s.Hub,
-		FilesDir: s.Files, LogPath: logPath, AccessLog: s.accessLog,
+		FilesDir: s.Files, LogPath: logPath, AccessLog: s.accessLog, ErrorLog: s.errorLog,
 	}
 	if plan.Static != nil {
 		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: s.StaticRoot, Dynamic: site.Static.Dynamic}

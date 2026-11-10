@@ -112,7 +112,20 @@ adds one entry for the parked engine `server.log` gaps: no rotation, and the
 - [ ] The engine's stderr output and the site's `server.log` hold what they
       held before the flag.
 - [ ] The same FILE for both flags refuses, with a Go unit test.
-- [ ] One live case per start reads a PHP warning from the file.
+- [ ] The engine's live case reads a PHP warning from the file. The site's
+      reads a Caddy warning, as the Deviations say.
 - [ ] `parse_test.go` passes against the help text and `docs/cli.md`.
 - [ ] `docs/backlog.md` loses the access-log entry and gains the `server.log`
       entry.
+
+---
+
+## Deviations
+
+- Phase 2, PHP warning on a packaged site: no live case raises one. A packaged
+  site's `settings.php` sits in the shared application, and Drupal's handler
+  keeps a warning out of PHP's log. The site's live case reads Caddy's own
+  warning and asserts no request line. The engine's case edits its folder's
+  `settings.php` and reads the PHP warning through the same fragment.
+- D3 on the engine: `drupack --access-log DIR` is refused, since the parser
+  cannot tell a folder from a file there. `drupack DIR --access-log` starts.

@@ -8,6 +8,21 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
 
+// logFiles returns the files of --access-log and --error-log, each "" for a
+// start without its option. A bare option writes its default file in directory.
+func logFiles(options map[string]string, directory string, served []string, fold bool) (access, errors string, err error) {
+	if access, err = logFile(options, accessLogOption.name, directory+"/access.log", served, fold); err != nil {
+		return "", "", err
+	}
+	if errors, err = logFile(options, errorLogOption.name, directory+"/error.log", served, fold); err != nil {
+		return "", "", err
+	}
+	if access != "" && holds(access, errors, fold) {
+		return "", "", fmt.Errorf("--%s and --%s name one file: %s", accessLogOption.name, errorLogOption.name, access)
+	}
+	return access, errors, nil
+}
+
 // logFile returns the file the log option name writes: "" for a start without
 // the option, fallback for the bare option, else the file the reader named,
 // from the working directory. served are the directories a port answers from.

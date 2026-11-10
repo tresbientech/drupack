@@ -11,6 +11,14 @@
 	}
 	order php_server before file_server
 {{include (print .Mode "-log") . | indent 1}}
+{{- if .ErrorLog}}
+	# Caddy logs the access entry of a 5xx answer at ERROR, under an access logger.
+	log errors {
+{{include "log-file" .ErrorLog | indent 2}}
+		level WARN
+		exclude http.log.access
+	}
+{{- end}}
 }
 
 # Snippets are defined before their first import.

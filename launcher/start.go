@@ -197,7 +197,7 @@ func startEngine(l Launch, c command) error {
 	if staticRoot != "" {
 		served = append(served, staticRoot)
 	}
-	accessLog, err := logFile(c.options, accessLogOption.name, entryPath+"/access.log", served, l.FoldCase)
+	accessLog, errorLog, err := logFiles(c.options, entryPath, served, l.FoldCase)
 	if err != nil {
 		return err
 	}
@@ -239,6 +239,9 @@ func startEngine(l Launch, c command) error {
 	if accessLog != "" {
 		fmt.Fprintf(os.Stdout, "  Access:  %s\n", accessLog)
 	}
+	if errorLog != "" {
+		fmt.Fprintf(os.Stdout, "  Errors:  %s\n", errorLog)
+	}
 	fmt.Fprint(os.Stdout, nameHint(choice), trustHint(l, choice))
 	fmt.Fprintln(os.Stdout, "Starting the web server.")
 	if composer.Mercure {
@@ -250,7 +253,7 @@ func startEngine(l Launch, c command) error {
 	if err := entry.WriteListener(plan.record()); err != nil {
 		return err
 	}
-	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: docroot, Mercure: f.Hub, AccessLog: accessLog}
+	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: docroot, Mercure: f.Hub, AccessLog: accessLog, ErrorLog: errorLog}
 	if plan.Static != nil {
 		// The server creates no export directory.
 		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: staticRoot, Dynamic: composer.Static.Dynamic}
