@@ -89,7 +89,7 @@ func userName(uid uint32) string {
 }
 
 // Owner names the account that owns path, following a link, and reports whether
-// trustedOwner accepts it for this user.
+// this user trusts it.
 func Owner(path string) (account string, trusted bool, err error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -103,9 +103,7 @@ func Owner(path string) (account string, trusted bool, err error) {
 	return userName(stat.Uid), trustedOwner(stat.Uid, stat.Gid, os.Getuid(), append(groups, os.Getgid())), nil
 }
 
-// trustedOwner accepts a path owned by me or root, or carrying one of my
-// groups. A member of that group can plant code there, as it can already write
-// the code a server sharing the tree runs.
+// trustedOwner accepts a path owned by me or root, or by one of my groups.
 func trustedOwner(uid, gid uint32, me int, groups []int) bool {
 	return int(uid) == me || uid == 0 || slices.Contains(groups, int(gid))
 }

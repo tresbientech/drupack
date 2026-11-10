@@ -82,24 +82,11 @@ Windows project under `C:\`, which every start serves.
 
 ## Amendment, 2026-11-10
 
-The engine start no longer sets the umask to `077`; it keeps the caller's.
+The engine start keeps the caller's umask instead of `077`. A server account and a
+deploy account share a checkout through a group, and under `077` Drupal's uploads
+and exports reached the deploy account as `0600`. The engine's own state takes
+explicit `0700` or `0600` modes. A site start keeps `077`.
 
-A server account serving a checkout that a deploy account updates shares that
-tree through a group. Under `077`, an upload, a config export or compiled Twig
-reached the deploy account as `0600` or `0700`, and the next `git pull` or
-`drush cex` failed on it.
-
-The engine's own state does not depend on the umask. The cache root, the folder's
-cache entry, the lease, the stop record and `server.log` take explicit `0700` or
-`0600` modes. A site start keeps `077`, since Site data holds the database and
-the secrets.
-
-A reader whose umask is `022` now gets project files that others can read,
-as any program they run would write them.
-
-On Unix the `vendor/` check also accepts a path whose group is one of the
-reader's groups. A server account then runs `drush` and `export` on a checkout
-its deploy account owns. Any member of that group can plant an autoloader there.
-The same members can already write the code the server runs from that tree.
-Windows keeps the owner rule.
-
+On Unix the `vendor/` check also accepts a path one of the reader's groups owns.
+Any member of that group can then plant an autoloader, as it can already write the
+code the server runs from that tree. Windows keeps the owner rule.

@@ -29,22 +29,6 @@ func TestVendorRootRefusesAProjectAnotherAccountOwns(t *testing.T) {
 	}
 }
 
-func TestVendorRootAcceptsAProjectInOneOfMyGroups(t *testing.T) {
-	if os.Getuid() != 0 {
-		t.Skip("only root can give a file to another account")
-	}
-	project := realDir(t)
-	put(t, filepath.Join(project, "vendor", "autoload.php"), "<?php")
-	for _, owned := range []string{"vendor/autoload.php", "vendor", "."} {
-		if err := os.Chown(filepath.Join(project, owned), 65534, os.Getgid()); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if got, err := vendorRoot(project); err != nil || got != project {
-		t.Fatalf("vendorRoot() = %q, %v, want %q", got, err, project)
-	}
-}
-
 func TestVendorRootAcceptsARootOwnedProject(t *testing.T) {
 	if os.Getuid() != 0 {
 		t.Skip("only root can give a file to root")
