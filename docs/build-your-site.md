@@ -15,7 +15,10 @@ The site repository can be private. The examples use a site named `acme`.
   or `docroot/`, and the build refuses a project that leaves it unset. The
   build refuses a lock without `drupal/core` and `drush/drush`, whose releases
   `--version` names.
-- `drupack.yml`, the site contract.
+- `drupack.yml`, the site contract. It holds what only packing needs. A key the
+  engine's start reads too, such as the Mercure hub, sits in `composer.json`
+  under `extra.drupack`
+  ([ADR 0059](adr/0059-composer-json-holds-what-an-engine-start-reads.md)).
 - `drupack.caddy`, optional Caddy rules of the site's own, which
   [a later section](#a-sites-own-caddy-rules) describes.
 - `drupack.mercure.caddy`, optional directives for the site's Mercure hub,
