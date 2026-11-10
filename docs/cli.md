@@ -39,9 +39,9 @@ One line per component follows, each naming the component and its release:
 | Option | Value | Default | Environment | Applies |
 |---|---|---|---|---|
 | `--data-dir` | PATH | `./data` | `DRUPACK_DATA_DIR` | every start, `drush` |
-| `--listen` | IP:PORT | `127.0.0.1` on the site's port, `7225` for the Drupacked Demo | none | every start |
+| `--listen` | IP:PORT | `127.0.0.1` on the site's port, `7225` for the Drupacked Demo | none | every start, `drush` |
 | `--static-listen` | IP:PORT | the site listener's address on its port plus one | none | every start, `drush` and `export` of a site with a static export |
-| `--host` | HOST | the site's drupack.site host when it resolves to 127.0.0.1, `localhost` otherwise (see [Site hosts](#site-hosts)) | none | every start |
+| `--host` | HOST | the site's drupack.site host when it resolves to 127.0.0.1, `localhost` otherwise (see [Site hosts](#site-hosts)) | none | every start, `drush` |
 | `--files-dir` | PATH | `files` in Site data | none | every start, `drush` |
 | `--database` | `sqlite`, `mysql`, `pgsql` | `sqlite` | `DRUPACK_DATABASE` | first start |
 | `--db-host` | HOST | none | `DRUPACK_DB_HOST` | first start |
@@ -218,8 +218,8 @@ one-time login link. The generated password is never shown.
 Drush command. The first word that is not one of them starts the command, and
 everything after it reaches Drush unchanged.
 
-`drush` acts on `--data-dir`, `--listen` and `--host`. It parses the other ten and
-acts on none of them:
+`drush` acts on `--data-dir`, `--listen`, `--static-listen`, `--host` and
+`--files-dir`. It parses the other 14 and acts on none of them:
 
 - `drush --admin-password x user:login` spends the secret for nothing
 - `drush --site-name Foo status` renames nothing
