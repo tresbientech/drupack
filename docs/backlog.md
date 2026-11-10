@@ -382,3 +382,13 @@ root-relative. A folder's own `settings.php` loads nothing of Drupack's, and the
 engine payload carries no `support/`. The conformance case
 `test_a_start_serves_the_static_port_and_export_fills_it` skips its export on
 Windows. Lean: the engine registers the provider for the folder it serves.
+
+## Access logs on an engine server
+
+An engine start logs Caddy's errors to standard error and records no request.
+Its Caddyfile sets one global logger at level `ERROR`, and neither the site port
+nor the static port declares a `log`. A server that kept an access log before it
+moved to Drupack loses it. `drupack.caddy` cannot turn one on: Caddy refuses
+`log` inside the route that imports the snippet, and the static port imports no
+snippet. Lean: decide whether the engine writes one, and where, since a project
+folder has no `logs/` directory.
