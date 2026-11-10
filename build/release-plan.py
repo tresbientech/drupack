@@ -16,9 +16,9 @@ TITLE = "Release candidate {version}"
 ZERO = "0" * 40
 # Documentation reaches no executable. A path this pattern does not name builds.
 DOCS = re.compile(r"^docs/|^LICENSE$|^[^/]+\.md$")
-# One Intel runner takes 45 minutes over the suite, so four take a share of the test classes each. GitHub
-# runs five macOS jobs at once. An architecture's last test row also runs the variant cases.
-SHARDS = {"amd64": 4, "arm64": 1}
+# The macOS test rows per architecture, one per share of the test classes. GitHub runs five macOS jobs at
+# once. An architecture's last test row also runs the variant cases.
+SHARDS = {"amd64": 3, "arm64": 2}
 
 
 def listed(path, body, key, fields):
@@ -79,10 +79,8 @@ def plan(event, targets, fetch):
         payload = [row for row in linux_runtime(targets, [{"arch": "amd64"}]) if row["libc"] == "musl"]
         runtimes += [row for row in payload if row not in runtimes]
         runtimes.sort(key=lambda row: (row["arch"], row["builder"], row["libc"], row["suffix"]))
-    # An architecture with one share runs the suite in its build job, which waits for no other build.
-    macos = [row | {"suite": SHARDS[row["arch"]] == 1} for row in macos]
     tests = [{"arch": row["arch"], "shard": f"{index}/{SHARDS[row['arch']]}", "results": f"macos-{row['arch']}-{index}",
-              "variant": index == SHARDS[row["arch"]]} for row in macos if not row["suite"]
+              "variant": index == SHARDS[row["arch"]]} for row in macos
              for index in range(1, SHARDS[row["arch"]] + 1)]
     return {"version": version, "build": build, "candidate": run, "image_tags": image_tags, "linux": linux,
             "linux_runtime": runtimes, "macos": macos, "macos_tests": tests, "windows": windows}

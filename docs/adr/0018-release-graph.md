@@ -92,8 +92,15 @@ The suite's time is spread over its cases: about 6 seconds each on Linux and
   the files the suite runs as a `suite-*` artifact.
 - `macos-test` and `windows-test` download that artifact. Each job runs one
   `DRUPACK_SHARD` share of the test classes.
-- Intel macOS runs four shares. macOS arm64 has one, which runs in its build
-  job: `macos-test` waits for both builds, and the Intel one takes 24 minutes.
+- Intel macOS runs three shares and macOS arm64 two, which fills GitHub's five
+  macOS jobs. `macos-test` waits for both builds.
+- `build/macos/build.sh` compiles PHP only when the restored buildroot lacks
+  `libphp.a`. The Intel build step took 19 minutes on a cache hit before, and 4
+  after.
+- A QA phase keeps its builds' test results, whose deletion took 6 to 10
+  minutes. The whole chain still deletes them.
+- A failed test job uploads its logs alone. The whole results folder took 17
+  minutes to upload.
 - Windows amd64 and Windows arm64 run five shares each. Windows arm64 runs its
   variant cases in a sixth job.
 - The Windows arm64 jobs test the files the amd64 host built. Each built its
@@ -118,8 +125,9 @@ Consequences:
   take 8 to 9 minutes on Windows arm64, so the shares differ in length.
 - The graph peaks at 19 jobs: 2 Linux, 1 demo, 3 QA, 2 macOS builds and 11
   Windows tests. GitHub's free plan runs 20 jobs at once, 5 of them on macOS.
-- A suite rerun on Intel macOS or Windows downloads the build. One on macOS
-  arm64 builds again.
+- A suite rerun on macOS or Windows downloads the build.
+- An edit to `build/macos/build.sh` or to a PHP pin changes the macOS cache
+  key. The next run then builds for 43 minutes on Intel and 23 on arm64.
 - An executable uploads before its tests pass. A tag publishes it from a green
   candidate run, or after the test jobs `publish` needs.
 - No CI job builds on a Windows arm64 host.

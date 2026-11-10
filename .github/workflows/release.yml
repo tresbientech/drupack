@@ -694,7 +694,7 @@ jobs:
             test-results/**/run.err
 
   # Builds each architecture's executables once. The macos-test jobs run the suite
-  # on those files, and an architecture with one share runs it here.
+  # on those files.
   macos:
     name: macOS ${{ matrix.arch }} build
     needs: [gate, payload]
@@ -805,7 +805,6 @@ jobs:
       # sbom and publish jobs download. The retention stays the default: the gate
       # rebuilds a candidate when any of its artifacts expired.
       - uses: actions/upload-artifact@v7
-        if: ${{ !matrix.suite }}
         with:
           name: suite-macos-${{ matrix.arch }}
           path: |
@@ -821,33 +820,6 @@ jobs:
           name: drupack-macos-${{ matrix.arch }}
           path: dist/engine/drupack
           if-no-files-found: error
-
-      - uses: actions/checkout@v7
-        if: matrix.suite
-        with:
-          repository: ${{ needs.gate.outputs.demo_repository }}
-          ref: ${{ needs.gate.outputs.demo_ref }}
-          path: demo
-          persist-credentials: false
-
-      - name: Run the test scripts
-        if: matrix.suite
-        env:
-          DRUPACK_TEST_ENGINE: dist/engine/drupack
-        run: |
-          python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests demo/tests
-          python3 tests/conformance dist/variant/variant-demo test-results/variant -k Node -k MercureHub -k ProjectRules
-
-      - name: Upload test results
-        if: failure() && matrix.suite
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-results-macos-${{ matrix.arch }}
-          # The folder also holds each case's project, about 2 GB over 400,000 files.
-          path: |
-            test-results/**/*.log
-            test-results/**/run.out
-            test-results/**/run.err
 
   # Each job runs one share of the test classes on the files the macos job built.
   macos-test:
