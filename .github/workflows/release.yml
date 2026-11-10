@@ -386,7 +386,7 @@ jobs:
       platforms: linux-amd64
 
   linux:
-    name: Linux ${{ matrix.arch }}
+    name: Linux ${{ matrix.arch }} (${{ matrix.shard }}/2)
     # GitHub waits on the whole linux-runtime matrix, so this architecture also
     # waits on the other one's two legs. With the builder images published every
     # leg finishes within a minute of the rest.
@@ -396,8 +396,11 @@ jobs:
     timeout-minutes: 90
     strategy:
       fail-fast: false
+      # Two shares of the suite per architecture. The first also runs the unit tests and
+      # the musl start, and uploads the engine executables.
       matrix:
-        include: ${{ fromJSON(needs.gate.outputs.linux) }}
+        arch: ${{ fromJSON(needs.gate.outputs.linux).*.arch }}
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v7
 
@@ -414,6 +417,7 @@ jobs:
           cache: false
 
       - name: Run the Go unit tests
+        if: matrix.shard == 1
         shell: bash
         run: bash build/go-tests.sh
 
@@ -460,15 +464,18 @@ jobs:
           cp ../dist/payload/site.json ../dist/site.json
 
       - name: Run the Python unit tests
+        if: matrix.shard == 1
         run: bash build/unit-tests.sh
 
       - name: Run the test scripts
         env:
           DRUPACK_TEST_ENGINE: dist/engine/drupack
+          DRUPACK_SHARD: ${{ matrix.shard }}/2
         run: |
           python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests demo/tests
 
       - name: Check each file's runtime and size
+        if: matrix.shard == 1
         run: |
           set -eu
           for file in dist/drupacked-demo dist/engine/drupack; do
@@ -482,6 +489,7 @@ jobs:
           done
 
       - name: Start a SQLite site on a musl host
+        if: matrix.shard == 1
         run: |
           docker run -d --name alpine-site --network none \
             --mount type=bind,src="$PWD/dist/musl/drupacked-demo",dst=/usr/local/bin/drupacked-demo,readonly \
@@ -500,7 +508,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: test-results-linux-${{ matrix.arch }}
+          name: test-results-linux-${{ matrix.arch }}-${{ matrix.shard }}
           # The folder also holds each case's project, about 2 GB over 400,000 files.
           path: |
             test-results/**/*.log
@@ -508,12 +516,14 @@ jobs:
             test-results/**/run.err
 
       - uses: actions/upload-artifact@v7
+        if: matrix.shard == 1
         with:
           name: drupack-linux-${{ matrix.arch }}
           path: dist/engine/drupack
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v7
+        if: matrix.shard == 1
         with:
           name: drupack-linux-${{ matrix.arch }}-musl
           path: dist/engine/musl/drupack

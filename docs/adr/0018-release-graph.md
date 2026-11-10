@@ -108,7 +108,8 @@ The suite's time is spread over its cases: about 6 seconds each on Linux and
 - `build/qa.sh` takes a phase: `demo`, `variant` or `host`. The `qa` job runs
   one phase per job. The `demo` and `host` phases each build Drupacked Demo,
   and each build runs one half of its suite.
-- Linux keeps one job per architecture, at 23 to 27 minutes.
+- Linux runs two jobs per architecture since 2026-11-10. Each packs its files,
+  about 3 minutes, and runs one share. One job took 23 to 27 minutes.
 
 This takes "build then verify" from the options above for macOS and Windows.
 Each test job pays an artifact download and a Go setup.
@@ -132,6 +133,9 @@ Consequences:
   holds each class's seconds per platform, measured on run 42742364797. The
   classes go longest first to the share with the fewest seconds. Replayed on
   that run's times, the Windows arm64 shares come to 18 minutes each.
+- `build/class-seconds.py` writes that table from a run's logs. The table of
+  run 42805185885 follows the suite cut of ADR 0057, which left shares uneven:
+  one Windows amd64 share went from 5 to 11 minutes on the old table.
 - `+extra` on a share starts the last share with the seconds of its job's
   other cases: the variant cases on macOS and Windows amd64, the host cases in
   `build/qa.sh host`.
