@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/tls"
 )
@@ -108,6 +109,23 @@ func TestNameHint(t *testing.T) {
 	choice := tls.Choice{Host: "localhost", Alias: "shop.drupack.site", Reason: "answered 0.0.0.0"}
 	if got, want := nameHint(choice), "Name: shop.drupack.site did not resolve to 127.0.0.1 (answered 0.0.0.0), so the URL uses localhost.\n"; got != want {
 		t.Errorf("nameHint = %q, want %q", got, want)
+	}
+	unnamed := tls.Choice{Host: "127.0.0.1", Alias: "project.drupack.site", Reason: "no answer"}
+	if got, want := nameHint(unnamed), "Name: project.drupack.site did not resolve to 127.0.0.1 (no answer), so the URL uses 127.0.0.1.\n"; got != want {
+		t.Errorf("nameHint on the bind address = %q, want %q", got, want)
+	}
+}
+
+func TestExecServerRefusesAHubFileWithoutTheMercureKey(t *testing.T) {
+	rules := t.TempDir()
+	hub := filepath.Join(rules, "drupack.mercure.caddy")
+	if err := os.WriteFile(hub, []byte("anonymous\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := execServer(Facts{}, state.Dir{}, nil, caddyfile.Config{}, tls.Choice{}, startPlan{}, rules, "drupack", rules)
+	want := hub + " holds Mercure hub directives, and " + rules + "/composer.json does not set extra.drupack.mercure to true"
+	if err == nil || err.Error() != want {
+		t.Errorf("execServer = %v, want %q", err, want)
 	}
 }
 

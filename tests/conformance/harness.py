@@ -259,7 +259,7 @@ def _build_stub(work, runtime_dir, version):
 EMPTY_ZSTD = bytes.fromhex("28b52ffd24000100 0099e9d851".replace(" ", ""))
 
 
-def _run_pack(work, runtime_dir, version, output, name):
+def _run_pack(work, runtime_dir, version, output):
     output.parent.mkdir(parents=True, exist_ok=True)
     # pack builds for the host's operating system and the architecture Go builds for.
     goos, goarch = subprocess.run(["go", "env", "GOOS", "GOARCH"], check=True, capture_output=True, text=True).stdout.split()
@@ -270,7 +270,7 @@ def _run_pack(work, runtime_dir, version, output, name):
     payload.mkdir()
     (payload / "app-payload.tar.zst").write_bytes(EMPTY_ZSTD)
     (payload / "app_checksum.txt").write_text(hashlib.sha256(version.encode()).hexdigest())
-    (payload / "site.json").write_text(json.dumps({"name": name}))
+    (payload / "site.json").write_text(json.dumps({"name": "fixture"}))
     subprocess.run(
         ["go", "run", "./cmd/pack", "-target", target, "-runtime", str(runtime_dir),
          "-payload", str(payload), "-version", version, "-output", str(output)],
@@ -279,15 +279,14 @@ def _run_pack(work, runtime_dir, version, output, name):
     )
 
 
-def pack_fixture(version, output, name="fixture"):
-    """Build a launcher whose runtime is the stub, packed under ENTRY, for a site called name,
-    which names its cache root."""
+def pack_fixture(version, output):
+    """Build a launcher whose runtime is the stub, packed under ENTRY."""
     with tempfile.TemporaryDirectory(prefix="drupack-fixture-") as work:
         work = Path(work)
         runtime_dir = work / "runtime"
         runtime_dir.mkdir()
         _build_stub(work, runtime_dir, version)
-        _run_pack(work, runtime_dir, version, output, name)
+        _run_pack(work, runtime_dir, version, output)
     return output
 
 
@@ -303,7 +302,7 @@ def pack_corrupted_fixture(version, output):
         runtime_dir.mkdir()
         _build_stub(work, runtime_dir, version)
         correct = hashlib.sha256((runtime_dir / ENTRY).read_bytes()).hexdigest()
-        _run_pack(work, runtime_dir, version, output, "fixture")
+        _run_pack(work, runtime_dir, version, output)
 
     data = bytearray(output.read_bytes())
     needle = correct.encode()

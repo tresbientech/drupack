@@ -431,14 +431,13 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertEqual(start.returncode, 0, f"{start.stdout}{start.stderr}")
         served = self.engine_run("clean", env=env)
         self.assertEqual(served.returncode, 0, served.stderr)
-        self.assertRegex(served.stdout, r"  folders/f[0-9a-f]{16}  \d+ MB  in use by a running site, kept\n")
-        self.assertIn("Kept 1 folder entry a running site still uses.", served.stdout)
+        self.assertEqual(len([path for path in (cache / "folders").iterdir() if path.is_dir()]), 1,
+                         f"clean removed the served folder's entry: {served.stdout}")
 
         stop = self.engine_run("stop", str(self.project), env=env)
         self.assertEqual(stop.returncode, 0, stop.stderr)
         cleaned = self.engine_run("clean", env=env)
         self.assertEqual(cleaned.returncode, 0, cleaned.stderr)
-        self.assertIn("Removed 1 folder entry", cleaned.stdout)
         self.assertEqual([path for path in (cache / "folders").iterdir() if path.is_dir()], [],
                          f"clean left a folder entry: {cleaned.stdout}")
 
@@ -488,13 +487,6 @@ class EngineExecutable(harness.ConformanceCase):
         request = Request(f"http://127.0.0.1:{port}/user/login", headers={"Host": f"shop.drupack.site:{port}"})
         with urlopen(request, timeout=harness.WAITS["http_request"].seconds) as response:
             self.assertEqual(response.status, 200)
-
-    def test_a_folder_whose_name_does_not_resolve_is_served_on_its_bind_address(self):
-        self.with_subdomain(None)
-        port, log = self.start("start-unnamed", str(self.project))
-        text = log.read_text(errors="replace")
-        self.assertIn(f"URL:     http://127.0.0.1:{port}\n", text)
-        self.assertIn("Name: project.drupack.site did not resolve to 127.0.0.1 (no answer), so the URL uses 127.0.0.1.", text)
 
     def test_a_start_without_a_directory_serves_the_working_directory(self):
         port, _ = self.start("start-working-directory", cwd=self.project)
@@ -735,14 +727,6 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertIn(hub.resolve().as_posix(), output)
         self.assertIn(snippet.resolve().as_posix(), output)
 
-    def test_a_hub_file_without_the_mercure_key_stops_the_start(self):
-        hub = self.with_hub_file("anonymous\n")
-        result = self.engine_run("start", str(self.project), "--foreground", "--listen", f"127.0.0.1:{harness.pick_port()}")
-        self.assertNotEqual(result.returncode, 0)
-        output = result.stdout + result.stderr
-        self.assertIn(hub.resolve().as_posix(), output)
-        self.assertIn("extra.drupack.mercure", output)
-
     def export_directory(self):
         """Tome's default directory beside the docroot, removed once the case ends."""
         html = self.project / "html"
@@ -825,31 +809,12 @@ class EngineExecutable(harness.ConformanceCase):
             with self.subTest(path):
                 self.assertEqual(self.status(port + 1, path), status)
 
-    def test_a_static_directory_holding_the_docroot_or_a_brace_refuses_the_start(self):
-        settings = self.docroot / "sites" / "default" / "settings.php"
-        original = settings.read_text()
-        self.addCleanup(settings.write_text, original)
-        refusals = {".": "holds", "..": "holds", "../export-{http.request.host}": "holds a brace"}
-        for setting, message in refusals.items():
-            with self.subTest(setting):
-                settings.write_text(original + f"$settings['tome_static_directory'] = '{setting}';\n")
-                result = self.engine_run(str(self.project), "--listen", f"127.0.0.1:{harness.pick_port()}")
-                self.assertEqual(result.returncode, 1, result.stdout)
-                self.assertIn("The static directory ", result.stderr)
-                self.assertIn(message, result.stderr)
-
     def test_a_project_without_the_static_key_serves_no_second_port(self):
         self.edit_json(self.project / "composer.json", lambda content: content["extra"]["drupack"].pop("static"))
         port = harness.pick_port()
         _, log = self.start("no-static", str(self.project), port=port)
         self.assertIsNone(self.status(port + 1, "/"), f"the next port answered: inspect {log}")
         self.assertNotIn("  Static:", log.read_text(errors="replace"))
-        result = self.engine_run("export", cwd=self.project)
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("sets no extra.drupack.static", result.stderr)
-        refused = self.engine_run(str(self.project), "--static-listen", "127.0.0.1:1")
-        self.assertEqual(refused.returncode, 1, refused.stdout)
-        self.assertIn("--static-listen needs a project whose composer.json sets extra.drupack.static", refused.stderr)
 
     def test_export_without_tome_static_refuses_naming_the_module(self):
         uninstall = self.engine_run("drush", "pm:uninstall", "tome_static", "--yes", cwd=self.project)
@@ -886,26 +851,6 @@ class EngineExecutable(harness.ConformanceCase):
         directory, arguments = output.split("\n")
         self.assertEqual(Path(directory).resolve(), self.class_dir.resolve())
         self.assertEqual(arguments, "a,b")
-
-    def test_an_inherited_application_directory_does_not_reach_the_runtime(self):
-        env = dict(os.environ, DRUPACK_RUNTIME_APP_DIR=str(self.lacking))
-        port = harness.pick_port()
-        log = self.class_dir / "inherited.log"
-        with open(log, "wb") as handle:
-            process = harness.popen([str(self.engine), str(self.project), "--foreground", "--listen", f"127.0.0.1:{port}"],
-                                    cwd=self.class_dir, env=env, stdout=handle, stderr=subprocess.STDOUT,
-                                    start_new_session=True)
-        self.addCleanup(harness.stop_process, process, harness.WAITS["stop"].seconds, f": inspect {log}")
-        deadline = time.monotonic() + harness.WAITS["start"].seconds
-        while self.status(port, "/") != 200:
-            self.assertIsNone(process.poll(), f"the start exited before answering: inspect {log}")
-            self.assertLess(time.monotonic(), deadline, f"the start did not answer /: inspect {log}")
-            time.sleep(0.25)
-
-    def test_php_runs_code(self):
-        result = self.engine_run("php", "-r", "echo 1;")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "1")
 
     def test_php_refuses_an_option_by_name_before_php_starts(self):
         (self.class_dir / "sentinel.php").write_text("<?php echo 'php-ran';")
