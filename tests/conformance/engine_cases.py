@@ -94,7 +94,7 @@ class EngineExecutable(harness.ConformanceCase):
         """Starts the engine executable on a port of its own, whose successor is free for the static site,
         waits for /user/login and the ready line, and returns the port and log. Drupal can answer before
         the server writes its stop record, which precedes the ready line."""
-        port = port or harness.pick_port_pair()
+        port = port or harness.pick_port()
         log = self.class_dir / f"{name}.log"
         with open(log, "wb") as handle:
             process = harness.popen([str(self.engine), *arguments, "--foreground", "--listen", f"127.0.0.1:{port}"],
@@ -135,7 +135,7 @@ class EngineExecutable(harness.ConformanceCase):
     def detached_start(self, *arguments, cwd=None, env=None):
         """Starts the engine executable in the background on a port of its own, which the
         case's cleanup stops, and returns the port and the finished start."""
-        port = harness.pick_port_pair()
+        port = harness.pick_port()
         target = str(cwd or self.class_dir)
         self.addCleanup(self.engine_run, "stop", str(self.project), cwd=target, env=env)
         start = harness.run([str(self.engine), *arguments, "--listen", f"127.0.0.1:{port}"], cwd=target, env=env,
@@ -158,7 +158,7 @@ class EngineExecutable(harness.ConformanceCase):
             self.skipTest("needs Linux and openssl")
         case_dir = self.class_dir / "https"
         root = write_root(case_dir / "tls")
-        port = harness.pick_port_pair()
+        port = harness.pick_port()
         log = case_dir / "start.log"
         with open(log, "wb") as handle:
             process = harness.popen(
@@ -732,7 +732,7 @@ class EngineExecutable(harness.ConformanceCase):
     def test_a_start_serves_the_static_port_and_export_fills_it(self):
         before = self.snapshot()
         html = self.export_directory()
-        port = harness.pick_port_pair()
+        port = harness.pick_port()
         while (static := harness.pick_port()) == port:
             pass
         _, log = self.start("static", str(self.project), "--static-listen", f"127.0.0.1:{static}", port=port)
@@ -753,7 +753,7 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertEqual(self.snapshot("html"), before, "the export wrote outside html")
 
     def test_the_static_port_hands_dynamic_paths_to_drupal(self):
-        port = harness.pick_port_pair()
+        port = harness.pick_port()
         _, log = self.start("dynamic", str(self.project), port=port)
         static = port + 1
         self.assertIn(f"  Static:  http://127.0.0.1:{static}/\n", log.read_text(errors="replace"))
@@ -776,7 +776,7 @@ class EngineExecutable(harness.ConformanceCase):
         self.addCleanup(shutil.rmtree, export, ignore_errors=True)
         export.mkdir()
         (export / "index.html").write_text("exported into the setting")
-        port = harness.pick_port_pair()
+        port = harness.pick_port()
         self.start("static-setting", str(self.project), port=port)
         status, _, body = self.fetch(port + 1, "/")
         self.assertEqual(status, 200, body[:300])
@@ -797,7 +797,7 @@ class EngineExecutable(harness.ConformanceCase):
         for path in (".env", "index.php", "composer.json", "sites/default/settings.php", "page/index.html"):
             (html / path).parent.mkdir(parents=True, exist_ok=True)
             (html / path).write_text("kept out")
-        port = harness.pick_port_pair()
+        port = harness.pick_port()
         self.start("refusals", str(self.project), port=port)
         expected = {"/.env": 403, "/index.php": 403, "/composer.json": 403,
                     "/sites/default/settings.php": 403, "/page/": 200}
@@ -837,7 +837,7 @@ class EngineExecutable(harness.ConformanceCase):
 
     def test_a_project_without_the_static_key_serves_no_second_port(self):
         self.edit_json(self.project / "composer.json", lambda content: content["extra"]["drupack"].pop("static"))
-        port = harness.pick_port_pair()
+        port = harness.pick_port()
         _, log = self.start("no-static", str(self.project), port=port)
         self.assertIsNone(self.status(port + 1, "/"), f"the next port answered: inspect {log}")
         self.assertNotIn("  Static:", log.read_text(errors="replace"))
@@ -906,7 +906,7 @@ class EngineExecutable(harness.ConformanceCase):
 
     def test_an_inherited_application_directory_does_not_reach_the_runtime(self):
         env = dict(os.environ, DRUPACK_RUNTIME_APP_DIR=str(self.lacking))
-        port = harness.pick_port_pair()
+        port = harness.pick_port()
         log = self.class_dir / "inherited.log"
         with open(log, "wb") as handle:
             process = harness.popen([str(self.engine), str(self.project), "--foreground", "--listen", f"127.0.0.1:{port}"],

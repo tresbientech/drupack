@@ -113,7 +113,7 @@ class StaticSite(harness.ConformanceCase):
         self.assertEqual(Path(result.stdout.strip()), self.data / "static")
 
     def test_a_start_without_the_option_serves_the_static_site_on_the_next_port(self):
-        port = harness.pick_port_pair()
+        port = harness.pick_port()
         site = harness.Site(harness.BINARY, self.case_dir / "site")
         site.start(self.case_dir / "data", port=port)
         self.addCleanup(site.stop)
@@ -154,7 +154,7 @@ class StaticSiteOff(harness.ConformanceCase):
         if harness.SITE.get("static") is not None:
             raise unittest.SkipTest("the site's contract has a static export")
         cls.data = cls.class_dir / "data"
-        cls.port = harness.pick_port_pair()
+        cls.port = harness.pick_port()
         cls.site = harness.Site(harness.BINARY, cls.class_dir / "site")
         cls.site.start(cls.data, port=cls.port)
 

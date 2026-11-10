@@ -239,8 +239,12 @@ jobs. An all-platform run took 44 minutes on warm caches on 2026-11-10. Still
 open, keeping every feature and platform:
 
 - a site start that dies on its static port. It failed one job in three of
-  nine runs: Caddy's bind found the port taken after the launcher's probe
-  passed. Seen in `TlsSources` on Linux and in a second start on Windows arm64.
+  nine runs. On Linux a closed outgoing connection holds its source port for a
+  minute, and the suite picked site ports whose successor was such a port.
+  `harness.pick_port()` checks the successor since 2026-11-10. The Windows
+  arm64 failure of run 42696202800 has no proven cause.
+- the launcher's `portTaken` probe, a connect, passes on a port held that way.
+  The reader then gets Caddy's bind error in place of the launcher's sentence.
 - the `qa` jobs' setup, about 13 minutes: four builder image pulls, and a
   rebuild of the image `payload` already pushes
 - Intel macOS share 3/3, which also runs the variant cases and takes 18 to 25

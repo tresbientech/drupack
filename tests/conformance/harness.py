@@ -184,19 +184,17 @@ WAITS = {wait.name: wait for wait in WAIT_TABLE}
 
 
 def pick_port():
-    """Ask the OS for a free port on 127.0.0.1, then release it for the caller to bind."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-        probe.bind(("127.0.0.1", 0))
-        return probe.getsockname()[1]
+    """A free port on 127.0.0.1 whose successor is free too: a site with a static listener binds both.
 
-
-def pick_port_pair():
-    """A free port whose successor is free too, which a start with a static site binds as well."""
+    The OS hands the successor to outgoing connections, and a closed one holds it for a minute.
+    """
     while True:
-        port = pick_port()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
         if port == 65535:
             continue
-        with socket.socket() as probe:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
             try:
                 probe.bind(("127.0.0.1", port + 1))
             except OSError:
