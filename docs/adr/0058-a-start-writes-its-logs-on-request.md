@@ -29,4 +29,5 @@ An engine server also lost most PHP messages. Its process log goes to standard e
 - The engine's default files sit in a cache folder that `drupack stop` and `clean` manage. A server run under a service manager names its own FILE.
 - A packaged site's drush reads the start's options, so it accepts both and ignores them.
 - The level of the error log is fixed. A reader who wants PHP notices and deprecations has no option for them.
+- On Windows the error log holds PHP's fatal errors and none of its warnings. The candidate run of 2026-11-10 showed the fatal error in the file and no warning. The backlog holds the likely cause.
 - The engine's `server.log` still never rolls, and its standard error still drops PHP warnings. The backlog holds both.
