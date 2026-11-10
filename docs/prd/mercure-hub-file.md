@@ -90,7 +90,8 @@ the folder's file, and a packaged site reads the copy its payload carries.
   block. `caddyfile.Mercure` gains the file's path, empty for a project without
   one. Mercure's parser keeps the last value of a single-value key and appends
   each `issuer` block. Drupack's `resource_identifier`, `cookie_name`, `issuer`
-  and `transport` lines follow the import, so their values win. Evidence:
+  and `transport` lines follow the import, so the three single-value lines
+  win, and a project's issuer joins Drupack's. Evidence:
   `UnmarshalCaddyfile()` in Mercure's `caddy/mercure.go`. On 2026-11-10 the
   runtime's `adapt` of a test Caddyfile kept a later `cookie_name` over an
   earlier one.

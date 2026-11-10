@@ -113,6 +113,8 @@ func place(t *testing.T, rendered string, projectRules string) served {
 	write(t, filepath.Join(s.root, "data", "static", "index.html"), "exported page")
 	write(t, filepath.Join(s.root, "project", "drupack.caddy"), projectRules)
 	write(t, filepath.Join(s.root, "app", "drupack.caddy"), projectRules)
+	write(t, filepath.Join(s.root, "project", "drupack.mercure.caddy"), "debugger\n")
+	write(t, filepath.Join(s.root, "app", "drupack.mercure.caddy"), "debugger\n")
 	write(t, filepath.Join(s.root, "data", "files", "stored.txt"), "stored file")
 	write(t, filepath.Join(s.root, "state", "keep"), "")
 	certificates(t, filepath.Join(s.root, "tls"))
@@ -229,6 +231,10 @@ func TestAdaptRenderedFiles(t *testing.T) {
 			if strings.Contains(name, "everything") {
 				if status, _ := get(t, scheme, s.port, "/.well-known/mercure"); status == 404 {
 					t.Error("the Mercure hub answered 404")
+				}
+				// The project's hub file turns the debugger on.
+				if status, _ := get(t, scheme, s.port, "/.well-known/mercure/debug/"); status != 200 {
+					t.Errorf("the Mercure debugger: %d", status)
 				}
 			}
 		})

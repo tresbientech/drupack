@@ -122,9 +122,9 @@
 			not path_regexp "^/\.well-known/([^./][^/]*/)*([^./][^/]*)?$"
 		}
 		respond @dotSegment 403
-		# .htaccess 6, plus SQLite files and drupack.caddy. A name that is not a script takes no
+		# .htaccess 6, plus SQLite files and the project's two Caddy files. A name that is not a script takes no
 		# tail and the CVS names keep their case, so /clients/acme.inc/edit and /tag reach Drupal.
-		@protectedName path_regexp "(?i)(\.(engine|inc|install|make|module|profile|po|sh|[^/]*sql(ite3?)?|theme|twig|tpl|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?|/(composer\.(json|lock)|web\.config|yarn\.lock|package(-lock)?\.json|drupack\.caddy)|(?-i:/(Entries[^/]*|Repository|Root|Tag|Template))|/#[^/]*#)[. ]*$|(?i)\.(tpl\.php|php(~|\.sw[op]|\.bak|\.orig|\.save))[. ]*(/|$)"
+		@protectedName path_regexp "(?i)(\.(engine|inc|install|make|module|profile|po|sh|[^/]*sql(ite3?)?|theme|twig|tpl|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?|/(composer\.(json|lock)|web\.config|yarn\.lock|package(-lock)?\.json|drupack(\.mercure)?\.caddy)|(?-i:/(Entries[^/]*|Repository|Root|Tag|Template))|/#[^/]*#)[. ]*$|(?i)\.(tpl\.php|php(~|\.sw[op]|\.bak|\.orig|\.save))[. ]*(/|$)"
 		respond @protectedName 403
 		# vendor/.htaccess and the files FileSecurity writes, when the directory exists. A file
 		# matcher matches a directory only through an entry ending in /.
@@ -210,7 +210,10 @@
 		# The hub sits in php_server's route block, where FrankenPHP finds it. Its subscription
 		# events and API are private updates: only a token granting the subscriptions topics
 		# reads them, and they take places in the 1000-update history.
+		# The project's hub directives come first: Mercure keeps the last value of a repeated
+		# setting, so the lines below win, and an issuer block of the project's joins this one.
 		mercure {
+			import "/drupack-test/app/drupack.mercure.caddy"
 			resource_identifier "http://127.0.0.1:3787/.well-known/mercure"
 			cookie_name mercure_access_token
 			subscriptions
@@ -293,9 +296,9 @@
 				not path_regexp "^/\.well-known/([^./][^/]*/)*([^./][^/]*)?$"
 			}
 			respond @dotSegment 403
-			# .htaccess 6, plus SQLite files and drupack.caddy. A name that is not a script takes no
+			# .htaccess 6, plus SQLite files and the project's two Caddy files. A name that is not a script takes no
 			# tail and the CVS names keep their case, so /clients/acme.inc/edit and /tag reach Drupal.
-			@protectedName path_regexp "(?i)(\.(engine|inc|install|make|module|profile|po|sh|[^/]*sql(ite3?)?|theme|twig|tpl|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?|/(composer\.(json|lock)|web\.config|yarn\.lock|package(-lock)?\.json|drupack\.caddy)|(?-i:/(Entries[^/]*|Repository|Root|Tag|Template))|/#[^/]*#)[. ]*$|(?i)\.(tpl\.php|php(~|\.sw[op]|\.bak|\.orig|\.save))[. ]*(/|$)"
+			@protectedName path_regexp "(?i)(\.(engine|inc|install|make|module|profile|po|sh|[^/]*sql(ite3?)?|theme|twig|tpl|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?|/(composer\.(json|lock)|web\.config|yarn\.lock|package(-lock)?\.json|drupack(\.mercure)?\.caddy)|(?-i:/(Entries[^/]*|Repository|Root|Tag|Template))|/#[^/]*#)[. ]*$|(?i)\.(tpl\.php|php(~|\.sw[op]|\.bak|\.orig|\.save))[. ]*(/|$)"
 			respond @protectedName 403
 			# vendor/.htaccess and the files FileSecurity writes, when the directory exists. A file
 			# matcher matches a directory only through an entry ending in /.
@@ -399,9 +402,9 @@
 				not path_regexp "^/\.well-known/([^./][^/]*/)*([^./][^/]*)?$"
 			}
 			respond @dotSegment 403
-			# .htaccess 6, plus SQLite files and drupack.caddy. A name that is not a script takes no
+			# .htaccess 6, plus SQLite files and the project's two Caddy files. A name that is not a script takes no
 			# tail and the CVS names keep their case, so /clients/acme.inc/edit and /tag reach Drupal.
-			@protectedName path_regexp "(?i)(\.(engine|inc|install|make|module|profile|po|sh|[^/]*sql(ite3?)?|theme|twig|tpl|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?|/(composer\.(json|lock)|web\.config|yarn\.lock|package(-lock)?\.json|drupack\.caddy)|(?-i:/(Entries[^/]*|Repository|Root|Tag|Template))|/#[^/]*#)[. ]*$|(?i)\.(tpl\.php|php(~|\.sw[op]|\.bak|\.orig|\.save))[. ]*(/|$)"
+			@protectedName path_regexp "(?i)(\.(engine|inc|install|make|module|profile|po|sh|[^/]*sql(ite3?)?|theme|twig|tpl|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?|/(composer\.(json|lock)|web\.config|yarn\.lock|package(-lock)?\.json|drupack(\.mercure)?\.caddy)|(?-i:/(Entries[^/]*|Repository|Root|Tag|Template))|/#[^/]*#)[. ]*$|(?i)\.(tpl\.php|php(~|\.sw[op]|\.bak|\.orig|\.save))[. ]*(/|$)"
 			respond @protectedName 403
 			# vendor/.htaccess and the files FileSecurity writes, when the directory exists. A file
 			# matcher matches a directory only through an entry ending in /.

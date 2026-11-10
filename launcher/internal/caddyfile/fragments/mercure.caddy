@@ -6,7 +6,12 @@
 # The hub sits in php_server's route block, where FrankenPHP finds it. Its subscription
 # events and API are private updates: only a token granting the subscriptions topics
 # reads them, and they take places in the 1000-update history.
+# The project's hub directives come first: Mercure keeps the last value of a repeated
+# setting, so the lines below win, and an issuer block of the project's joins this one.
 mercure {
+{{- if .Mercure.ProjectRules}}
+	import {{quote .Mercure.ProjectRules}}
+{{- end}}
 	resource_identifier {{quote .Mercure.URL}}
 	cookie_name mercure_access_token
 	subscriptions

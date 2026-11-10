@@ -221,7 +221,8 @@ class EngineExecutable(harness.ConformanceCase):
             self.marker(relative, PHP_MARKER)
         for relative in ("vendor/notes.txt", "sites/default/files/config_probe/sync/plain.txt",
                          "package-lock.json", ".well-known/probe.txt", ".well-known/.hidden",
-                         ".well-known-evil/x.txt", "probe.sqlite", "sites/default/files/.probe", "drupack.caddy"):
+                         ".well-known-evil/x.txt", "probe.sqlite", "sites/default/files/.probe", "drupack.caddy",
+                         "drupack.mercure.caddy"):
             self.marker(relative, TEXT_MARKER)
         self.marker("probe.svgz", gzip.compress(SVG_MARKER))
         self.marker("probe-proxy.php", '<?php echo "proxy=", var_export($_SERVER["HTTP_PROXY"] ?? null, true);')
@@ -247,7 +248,8 @@ class EngineExecutable(harness.ConformanceCase):
             "dotted segment": (403, ["/.well-known/.hidden", "/.well-known-evil/x.txt",
                                      "/sites/default/files/.probe"]),
             "protected name": (403, ["/package-lock.json", "/PACKAGE-LOCK.JSON", "/probe.sqlite",
-                                     "/core/composer.json", "/clients/acme.inc", "/Tag", "/drupack.caddy"]),
+                                     "/core/composer.json", "/clients/acme.inc", "/Tag", "/drupack.caddy",
+                                     "/drupack.mercure.caddy"]),
             "protected directory": (403, ["/vendor/notes.txt", "/vendor/",
                                           "/sites/default/files/config_probe/sync/plain.txt"]),
             "public storage php": (404, ["/sites/default/files/probe.php", "/sites/default/files/probe.php/x",
@@ -722,6 +724,56 @@ class EngineExecutable(harness.ConformanceCase):
         result = self.engine_run(str(self.project))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("extra.drupack.mercure must be true or false", result.stderr)
+
+    def with_hub_file(self, text):
+        """Writes the project's drupack.mercure.caddy until the case ends, and returns it."""
+        hub = self.project / "drupack.mercure.caddy"
+        hub.write_text(text)
+        self.addCleanup(hub.unlink)
+        return hub
+
+    def test_a_hub_file_lets_a_subscriber_without_a_token_in(self):
+        self.with_mercure()
+        self.with_hub_file("anonymous\n")
+        port, log = self.start("hub-anonymous", str(self.project))
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=harness.WAITS["http_request"].seconds)
+        try:
+            connection.request("GET", f"{HUB}?match={TOPIC}", headers={"Accept": "text/event-stream"})
+            self.assertEqual(connection.getresponse().status, 200, f"inspect {log}")
+        finally:
+            connection.close()
+
+    def test_drupack_keeps_its_hub_settings_over_a_hub_file(self):
+        # A cookie of Drupack's name, a token whose aud is Drupack's address, and a replay,
+        # which the local transport has no history for, each show Drupack's line won.
+        self.with_mercure()
+        self.with_hub_file('cookie_name other\n'
+                           'resource_identifier "https://elsewhere.example/.well-known/mercure"\n'
+                           'transport local\n')
+        port, log = self.start("hub-pinned", str(self.project))
+        secret = (self.hub_entry(port) / "mercure_subscriber_secret").read_text()
+
+        def publish(data):
+            with urlopen(f"http://127.0.0.1:{port}/mercure-probe.php?data={data}",
+                         timeout=harness.WAITS["http_request"].seconds) as response:
+                return response.read().decode()
+
+        first = publish("first")
+        publish("second")
+        stream = Stream(port, token(secret, port, "subscribe"), last_event_id=first, cookie=True)
+        try:
+            self.assertEqual(stream.response.status, 200, f"inspect {log}")
+            stream.read_until("data: second\n")
+        finally:
+            stream.close()
+
+    def test_a_hub_file_without_the_mercure_key_stops_the_start(self):
+        hub = self.with_hub_file("anonymous\n")
+        result = self.engine_run("start", str(self.project), "--foreground", "--listen", f"127.0.0.1:{harness.pick_port()}")
+        self.assertNotEqual(result.returncode, 0)
+        output = result.stdout + result.stderr
+        self.assertIn(hub.resolve().as_posix(), output)
+        self.assertIn("extra.drupack.mercure", output)
 
     def export_directory(self):
         """Tome's default directory beside the docroot, removed once the case ends."""

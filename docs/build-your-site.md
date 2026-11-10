@@ -264,6 +264,33 @@ without a request to Drupal.
 These events count toward the hub's last 1000 updates. A tab adds one when it
 opens and one when it closes, for each topic it matches.
 
+### Hub settings of your own
+
+A `drupack.mercure.caddy` beside `composer.json` holds
+[Mercure directives](https://mercure.rocks/docs/hub/config) for the hub. The
+engine executable reads it from the folder it serves, and a packaged site
+reads the copy its build packed. A change takes a restart.
+
+```caddyfile
+anonymous
+debugger
+write_timeout 0s
+```
+
+- `anonymous` lets a subscriber with no token receive public updates, which a
+  page from Drupal's page cache needs.
+- `debugger` serves a UI at `/.well-known/mercure/debug/` that takes a token
+  you paste.
+- `write_timeout 0s` keeps a stream open past the default 10 minutes.
+
+Drupack's own address, cookie name, secrets and history file stay in force
+over the file. An `issuer` block of yours joins Drupack's. A start refuses the
+file in a project that leaves `extra.drupack.mercure` off, and the server
+refuses a request for `/drupack.mercure.caddy`.
+
+Drupack checks no directive in the file. `playground` hands every visitor an
+all-access token, so keep it out of a site you ship.
+
 ## A static site
 
 `extra.drupack.static` in the site's `composer.json` serves the site's Tome
@@ -308,6 +335,10 @@ redirects, rewrites, refusals and proxies. A rule on a path the guards refuse,
 such as `settings.php` or a PHP file below the docroot root, is dead text,
 since the guard answers first. A rewrite the snippet makes is not checked
 again. The guards also refuse `/drupack.caddy` itself.
+
+A `mercure` block in this file fails the start, or under a `name` splits the
+hub from `mercure_publish()`. Hub directives go in
+[`drupack.mercure.caddy`](#hub-settings-of-your-own).
 
 A header Drupal also sends, such as `X-Frame-Options`, needs Caddy's `defer`
 block, or the response carries both values. A matcher name Drupack's own rules
