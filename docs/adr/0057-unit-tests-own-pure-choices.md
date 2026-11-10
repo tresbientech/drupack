@@ -1,6 +1,6 @@
 # Unit tests own pure choices, the suite owns live behaviour
 
-Accepted on 2026-11-08. Amends [ADR 0006](0006-one-conformance-suite.md).
+Accepted on 2026-11-10. Amends [ADR 0006](0006-one-conformance-suite.md).
 
 ## Context
 
@@ -21,8 +21,9 @@ On 2026-11-08 each method of the suite was matched against the Go and PHP unit t
 
 ## Consequences
 
-- The suite lost 44 cases, and three more moved to `test_release_files.py`. Ten new Go tests and four tightened ones assert what they covered. The tests shrank by 234 lines in all.
+- Applied on 2026-11-10 at `2ec9cf9`, the suite went from 243 test methods to 185, and the Go tests from 298 to 304. The unit layers lost their own duplicates too. The tests shrank by 515 lines in all.
 - A changed refusal fails `go test` in seconds. The suite needs a built executable and about seven minutes on Linux.
 - A pure function that a start never calls still passes its unit test. The live cases cover each command's main path, not each refusal.
 - `phpArguments` in `runtime/entrypoint.go` builds only inside FrankenPHP's main package, in the builder image. Its two refusal cases stay in the suite.
+- Three unit tests assert what an OS does: Ctrl+Break on a Windows process group, a lock that survives exec, and PHP's argv. They stay in their unit layer.
 - The mysql and pgsql refusals in `argument_cases.py` stay live. They are the one proof that PHP's `check` writes no Site data before a start refuses.
