@@ -8,6 +8,7 @@ use Drupal\canvas\Plugin\ComponentPluginManager;
 use Drupal\Core\DependencyInjection\ContainerBuilder;
 use Drupal\Core\DependencyInjection\ServiceModifierInterface;
 use Drupal\Core\Theme\Icon\IconFinder;
+use Drupal\tome_static\StaticGeneratorInterface;
 
 class WindowsPathServiceProvider implements ServiceModifierInterface {
 
@@ -23,6 +24,12 @@ class WindowsPathServiceProvider implements ServiceModifierInterface {
     // plugin.manager.sdc on Canvas's own class until then.
     if (class_exists(ComponentPluginManager::class)) {
       $container->getDefinition('plugin.manager.sdc')->setClass(RootRelativeComponentPluginManager::class);
+    }
+    // Tome's interface loads once tome_static is installed.
+    if (interface_exists(StaticGeneratorInterface::class)) {
+      $container->register('drupack.exported_upload_subscriber', ExportedUploadSubscriber::class)
+        ->addArgument(StaticGeneratorInterface::REQUEST_KEY)
+        ->addTag('event_subscriber');
     }
   }
 

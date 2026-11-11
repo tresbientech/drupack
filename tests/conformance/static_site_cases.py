@@ -3,16 +3,18 @@ into the static directory answers on its path and its index with no redirect, a 
 the export's own 404 page, dynamic paths reach Drupal ahead of the export, a start without
 --static-listen takes the port after the site's, a taken static port refuses, both ports log their requests to
 the file --access-log names, --error-log writes warnings and no request, the static port serves https from the site's root, and a site without the key serves no second port. `export`
-writes the front page, takes the reader's URI, names a missing module, and the Drush entry
+writes the front page and the uploads its pages show, takes the reader's URI, names a missing module, and the Drush entry
 reruns itself on the runtime's php.
 """
 
 import http.client
 import json
 import os
+import re
 import socket
 import ssl
 import unittest
+import urllib.parse
 
 import harness
 from tls_cases import trusted_environment, write_root
@@ -193,6 +195,7 @@ class StaticSiteTls(harness.ConformanceCase):
 
 class StaticSiteExport(harness.ConformanceCase):
     """`export` on Site data of its own: Tome writes the front page and the static port serves it,
+    the export holds the uploads its pages show,
     a --uri the reader names wins, empty Site data refuses, and Drush's children run on the
     runtime's php with no php on PATH.
     """
@@ -229,6 +232,18 @@ class StaticSiteExport(harness.ConformanceCase):
         status, _, body = request(self.static_port, "/")
         self.assertEqual(status, 200)
         self.assertIn(f"http://localhost:{self.static_port}/", body)
+
+    def test_an_export_holds_the_uploads_its_pages_show(self):
+        result = self.export(self.data)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        static = self.data / "static"
+        pages = "".join(page.read_text(errors="replace") for page in static.rglob("index.html"))
+        # Styles are derivatives Drupal generates; every other file under the address is an upload.
+        uploads = {urllib.parse.unquote(path) for path in re.findall(r'src="/(sites/default/files/[^"?]+)', pages)
+                   if not path.startswith("sites/default/files/styles/")}
+        if not uploads:
+            self.skipTest("no exported page shows an upload")
+        self.assertEqual([path for path in sorted(uploads) if not (static / path).is_file()], [])
 
     def test_a_uri_the_reader_names_replaces_the_static_url(self):
         result = self.export(self.data, "--uri", "https://example.test/")

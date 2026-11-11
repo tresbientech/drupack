@@ -16,7 +16,7 @@ use Symfony\Component\Filesystem\Path;
  */
 final class SiteDataPublicStream extends PublicStream {
 
-  private const ADDRESS = 'sites/default/files';
+  public const ADDRESS = 'sites/default/files';
 
   public function getDirectoryPath() {
     return self::ADDRESS;

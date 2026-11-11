@@ -3,6 +3,7 @@
 Accepted on 2026-11-06. Amends [ADR 0004](0004-listener-record-and-default-port.md),
 [ADR 0022](0022-engine-executable.md), [ADR 0040](0040-a-start-plans-its-listener.md)
 and [ADR 0044](0044-one-reader-takes-a-projects-composer-settings.md).
+Amended on 2026-11-11: an export of a Packaged site holds the uploads its pages show.
 
 ## Context
 
@@ -115,3 +116,23 @@ Tome ships no recipe, and drupal.org has none.
   open in issues
   [3636033](https://git.drupalcode.org/project/drupack/-/work_items/3636033) and
   [3636034](https://git.drupalcode.org/project/drupack/-/work_items/3636034).
+
+## Amendment, 2026-11-11: an export holds the uploads its pages show
+
+Drupacked Demo 2026.11.4 exported pages whose images answered 404 on the static
+port. Tome copies a file it finds under the docroot and asks Drupal for any
+other path. A Packaged site keeps its uploads in the Files directory, outside
+the docroot, and Drupal has no route for a public file.
+
+- `ExportedUploadSubscriber` in `application/support` answers a public file to
+  a request Tome makes in process, as a file response. Tome copies it into the
+  export, as it copies an image derivative.
+- The export holds each upload an exported page shows, as it stood at that
+  export.
+- `drush tome:static` and Tome's form copy the same files as `export`.
+- The engine is unchanged: a project's uploads sit under its docroot.
+
+Considered: a route on the static port that answers
+`/sites/default/files/*` from the Files directory. An upload would then change
+on the static port before the next export, and an export sent to another host
+would hold none.
