@@ -1,0 +1,42 @@
+name: Sync from drupal.org
+
+# drupal.org holds main and the version tags. Its webhook starts this workflow
+# on each push there, and the workflow copies both to this repository.
+
+on:
+  repository_dispatch:
+    types: [drupal-org-push]
+  workflow_dispatch:
+
+# Queued runs start in push order, so a later run never pushes an older clone.
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Clone the drupal.org repository
+        run: git clone --bare --quiet https://git.drupalcode.org/project/drupack.git repository.git
+
+      # A push made with GITHUB_TOKEN starts no workflow, and release.yml runs on
+      # this push, so it goes out with the deploy key.
+      - name: Push main and the tags
+        env:
+          # A secret is masked in logs only when it is one line, so the key is stored base64-encoded.
+          DEPLOY_KEY_BASE64: ${{ secrets.MIRROR_DEPLOY_KEY_BASE64 }}
+        run: |
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s' "$DEPLOY_KEY_BASE64" | base64 -d >"$HOME/.ssh/deploy"
+          # GitHub's published host key, from https://api.github.com/meta
+          printf 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n' >"$HOME/.ssh/known_hosts"
+          # GitHub refuses these tag names for good: each held an immutable release in the repository deleted on 2026-09-19.
+          GIT_SSH_COMMAND="ssh -i $HOME/.ssh/deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
+            git -C repository.git push "git@github.com:$GITHUB_REPOSITORY.git" \
+            'refs/heads/main:refs/heads/main' 'refs/tags/*:refs/tags/*' \
+            '^refs/tags/0.1.1' '^refs/tags/0.1.2' '^refs/tags/0.1.5'

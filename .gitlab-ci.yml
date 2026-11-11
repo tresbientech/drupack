@@ -1,0 +1,30 @@
+# drupal.org's runners run the unit tests of a merge request and nothing else.
+# GitHub's release.yml builds and tests the executables.
+
+tests:
+  image: golang:bookworm
+  interruptible: true
+  rules:
+    # GitLab's changes takes no negation, so the list names every tracked path
+    # outside docs/, LICENSE and the root Markdown files.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - .github/**/*
+        - .gitlab-ci.yml
+        - Dockerfile
+        - application/**/*
+        - build/**/*
+        - ci/**/*
+        - composer.json
+        - composer/**/*
+        - launcher/**/*
+        - runtime/**/*
+        - tests/**/*
+  script:
+    # build/release-files.py packs with zstd.
+    - apt-get update --quiet --quiet && apt-get install --yes --quiet --quiet --no-install-recommends python3 zstd
+    # go downloads the toolchain release.yml pins.
+    - |
+      export GOTOOLCHAIN="go$(sed -n "s/^  GO_VERSION: '\(.*\)'$/\1/p" .github/workflows/release.yml)"
+    - bash build/go-tests.sh
+    - bash build/unit-tests.sh
