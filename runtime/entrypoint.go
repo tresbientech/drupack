@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +21,7 @@ import (
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
 	caddycmd "github.com/caddyserver/caddy/v2/cmd"
+	"github.com/caddyserver/caddy/v2/modules/caddytls"
 	"github.com/dunglas/frankenphp"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap/exp/zapslog"
@@ -226,6 +228,61 @@ func stopServer(guardSignals chan<- os.Signal) {
 const cronInterval = 3 * time.Hour
 const cronFirstDelay = 2 * time.Minute
 
+// certificateWait bounds the wait for Caddy's own certificates. A start past it
+// serves, and Caddy keeps issuing.
+const certificateWait = 5 * time.Second
+
+// issuedNames lists the names Caddy's internal issuer signs for in an adapted
+// configuration.
+func issuedNames(adapted []byte) ([]string, error) {
+	var config struct {
+		Apps struct {
+			TLS struct {
+				Automation struct {
+					Policies []struct {
+						Subjects []string
+						Issuers  []struct{ Module string }
+					}
+				}
+			}
+		}
+	}
+	if err := json.Unmarshal(adapted, &config); err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, policy := range config.Apps.TLS.Automation.Policies {
+		for _, issuer := range policy.Issuers {
+			if issuer.Module == "internal" {
+				names = append(names, policy.Subjects...)
+			}
+		}
+	}
+	return names, nil
+}
+
+// certified reports whether Caddy holds an unexpired certificate for every name.
+func certified(names []string) bool {
+	for _, name := range names {
+		valid := false
+		for _, certificate := range caddytls.AllMatchingCertificates(name) {
+			valid = valid || !certificate.Expired()
+		}
+		if !valid {
+			return false
+		}
+	}
+	return true
+}
+
+// awaitCertificates returns once Caddy holds a certificate for every name. Caddy
+// issues after the load, and a handshake before that fails.
+func awaitCertificates(names []string) {
+	for deadline := time.Now().Add(certificateWait); !certified(names) && time.Now().Before(deadline); {
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 // adapt returns the JSON of the Caddyfile at config. Caddy names the line that
 // imports a project's file when the error sits inside it, so the path of each
 // project file the start passes follows the error.
@@ -269,6 +326,11 @@ func serve(arguments []string) error {
 	if err := caddy.Load(adapted, true); err != nil {
 		return err
 	}
+	names, err := issuedNames(adapted)
+	if err != nil {
+		return err
+	}
+	awaitCertificates(names)
 	// The engine executable has no application and runs no cron.
 	var cron []string
 	if application != "" {

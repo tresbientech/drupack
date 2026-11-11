@@ -178,6 +178,16 @@ func TestAdaptRenderedFiles(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer caddy.Stop()
+			if strings.Contains(name, "everything") {
+				names, err := issuedNames(adapted)
+				if err != nil || len(names) == 0 {
+					t.Fatalf("issuedNames = %v, %v; want the site's names", names, err)
+				}
+				awaitCertificates(names)
+				if !certified(names) {
+					t.Errorf("Caddy holds no certificate for one of %v", names)
+				}
+			}
 			scheme := "http"
 			if strings.Contains(name, "mkcert") || strings.Contains(name, "drupack") || strings.Contains(name, "everything") {
 				scheme = "https"
