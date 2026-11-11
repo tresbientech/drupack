@@ -74,7 +74,7 @@ change meant editing PHP, Go and Caddy snippets together.
   steps or handover, then the server. The parent relays the child's output and
   exits with its code. `--foreground` and a console the start owns skip the
   detach.
-- On Unix the child execs `runtime php-server`. On Windows it waits for the
+- On Unix the child execs `runtime drupack-serve`. On Windows it waits for the
   runtime, so its handle holds the lease until the server exits.
 - The runtime alone decides readiness. The parent relays until the line the
   watch prints, or until the child exits.
@@ -110,8 +110,9 @@ change meant editing PHP, Go and Caddy snippets together.
 - One `drush` entry requires the script `DRUPACK_DRUSH_SCRIPT` names. `bin/php`,
   `bin/php.cmd` and `drush.cmd` stay, since Tome's children rerun `argv[0]`.
 - `settings.php` keeps reading the environment under the same variable names.
-- The runtime answers `php-cli`, `php-server`, `php` and the version flags. The
-  launcher runs Node from its own release directory.
+- The runtime answers `php-cli`, `drupack-serve`, `php` and `drupack-version`.
+  The launcher turns a version flag into that last word, and runs Node from its
+  own release directory.
 - On Unix the launcher replaces itself with Node, so the shell sees Node's exit
   status. On Windows it waits for Node, which shares its console.
 
@@ -151,11 +152,10 @@ Each row records a decision as built, with its reason.
 - A value whose backslash precedes a double quote or ends it goes into the
   Caddyfile between backticks, since no double-quote escape holds it. A value
   that also holds a backtick is refused.
-- The runtime feeds the adapted JSON to `run --config -` through a pipe set as
-  `os.Stdin`, so no file holds the secrets twice. A SIGUSR1 reload rereads an
-  empty pipe, so a reload
-  needs a restart.
-- A project's `drupack.caddy` path travels as a fourth argument of `php-server`.
+- The runtime adapts the Caddyfile and hands the JSON to `caddy.Load` in
+  memory, so no file holds the secrets twice. It names Caddy no source file, so
+  Caddy ignores a SIGUSR1 and a reload needs a restart.
+- A project's `drupack.caddy` path travels as a fourth argument of `drupack-serve`.
   [ADR 0056](0056-a-project-tunes-its-mercure-hub.md) adds the hub file's path
   after it.
   The runtime prints it after an adapt error, since Caddy names the rendered
@@ -187,7 +187,7 @@ Each row records a decision as built, with its reason.
   The JSON literal `null` reads as no listen address.
 - The static-listen, host and brace refusals precede the TLS and start-plan
   refusals. The static refusal names the planned address.
-- The engine passes the canonical Caddyfile path to `php-server`, as the site
+- The engine passes the canonical Caddyfile path to `drupack-serve`, as the site
   does, so a Windows engine start shows forward slashes.
 - A Windows engine start runs the server in the project folder. A Unix one keeps
   the reader's directory.

@@ -19,8 +19,9 @@ port free and served anyway.
 - The same lease covers initialization, so the separate startup lock goes.
 - The port is probed only for the question it can answer, whether another
   program holds the address.
-- `/.drupack-id` stays, as the readiness probe the entry point polls. Only a 204
-  from it counts as ready.
+- No route answers a readiness probe. The runtime reads readiness from the
+  return of `caddy.Load`, by
+  [ADR 0061](0061-the-runtime-registers-caddy-commands.md).
 
 ## Consequences
 

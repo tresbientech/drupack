@@ -55,11 +55,22 @@ type Command struct {
 }
 
 // Plan returns the runtime's command for a line it reads itself: php, php-cli, the
-// version flags, and Node's words where this file carries Node.
+// version flags, and Node's words where this file carries Node. The runtime's
+// command line belongs to Caddy, whose own --version it cannot replace, so a
+// version flag becomes the runtime's drupack-version.
 func Plan(l Launch) Command {
 	if len(l.Args) > 1 && l.NodeBin != "" && slices.Contains(nodeWords, l.Args[1]) {
 		path := filepath.Join(l.NodeBin, nodeFile(l.Args[1]))
 		return Command{Path: path, Args: append([]string{path}, l.Args[2:]...), Env: Facts{Launch: l}.Env(Reader)}
 	}
-	return Command{Path: l.Entry, Args: l.Args, Env: Facts{Launch: l}.Env(Reader)}
+	arguments := l.Args
+	if versionLine(arguments) {
+		arguments = []string{arguments[0], "drupack-version"}
+	}
+	return Command{Path: l.Entry, Args: arguments, Env: Facts{Launch: l}.Env(Reader)}
+}
+
+// versionLine reports whether args is a version flag and nothing else.
+func versionLine(args []string) bool {
+	return len(args) == 2 && (args[1] == "--version" || args[1] == "-v")
 }

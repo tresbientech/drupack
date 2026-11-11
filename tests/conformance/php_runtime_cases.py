@@ -5,7 +5,7 @@ which ini loaded, the memory limit, a certificate path that parses, a working-di
 php.ini changing nothing, and a fetch that survives a broken host trust store.
 
 RuntimeConfigurationServed asserts the same settings from inside a started site's
-php-server hop, which php-cli probes would not catch if php.ini stopped reaching it.
+serving hop, which php-cli probes would not catch if php.ini stopped reaching it.
 """
 
 import json
@@ -126,10 +126,10 @@ def _phpinfo_local_value(page, directive):
 
 
 class RuntimeConfigurationServed(harness.ConformanceCase):
-    """The shipped php.ini, read from inside a started site's php-server hop.
+    """The shipped php.ini, read from inside a started site's serving hop.
 
     PHPRC carries php.ini to the hop that answers requests. If it stopped reaching
-    php-server, every php-cli probe would stay green while a live site ran at PHP's 128M
+    the server, every php-cli probe would stay green while a live site ran at PHP's 128M
     default and a 2M upload cap. This starts a site, follows its one-time login link and
     reads phpinfo() at the status-report page.
     """
@@ -169,7 +169,7 @@ class RuntimeConfigurationServed(harness.ConformanceCase):
             page = response.read().decode(errors="replace")
         self.assertEqual(
             _phpinfo_local_value(page, "memory_limit"), "512M",
-            "phase 6: 512M memory limit, read from the running php-server hop",
+            "phase 6: 512M memory limit, read from the running serving hop",
         )
         self.assertEqual(
             _phpinfo_local_value(page, "upload_max_filesize"), "64M",

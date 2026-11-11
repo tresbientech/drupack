@@ -15,14 +15,11 @@ COMPONENTS     writers=launcher/childenv.go  readers=runtime/entrypoint.go  kind
 DATA_DIR       writers=launcher/internal/build/build.go,launcher/childenv.go  readers=application/settings.php,build/site-settings.php  kinds=server,operate,drush,export  modes=site
 FILES_DIR      writers=launcher/childenv.go,launcher/internal/build/build.go  readers=application/operate.php,application/support/PublicFilesTemplateLoader.php,application/support/SiteDataPublicStream.php  kinds=server,operate,drush,export  modes=site
 HOST           writers=launcher/childenv.go,launcher/internal/build/build.go  readers=application/settings.php  kinds=server,operate,drush,export  modes=site
-ID             writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=server  modes=site,engine
 NAME           writers=launcher/childenv.go,launcher/internal/build/build.go  readers=runtime/entrypoint.go,application/operate.php  kinds=reader,server,operate,drush,export  modes=site,engine
 OPEN           writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=server  modes=site
 SITE_VERSION   writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=reader,server,operate,drush,export  modes=site,engine
 STATIC_ROOT    writers=launcher/childenv.go  readers=application/settings.php  kinds=server,operate,drush,export  modes=site
 STOP_RECORD    writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=server  modes=site,engine
-TLS_ROOT       writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=server  modes=site,engine
-URL            writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=server  modes=site,engine
 DRUPACK_CA_FILE writers=launcher/childenv.go,launcher/internal/build/build.go  readers=application/php.ini,launcher/update.go  kinds=reader,server,operate,drush,export  modes=site,engine
 DRUPACK_DRUSH_SCRIPT writers=launcher/childenv.go,launcher/internal/build/build.go  readers=application/drush  kinds=server,operate,drush,export  modes=site,engine
 DRUPACK_MERCURE_PUBLISHER_SECRET writers=launcher/childenv.go  readers=  kinds=server,operate,drush,export  modes=site,engine

@@ -84,7 +84,7 @@ data.
 A folder mode start holds a Serving lease on its cache entry, keyed by the
 folder's path, beside that entry's `stop.json` and `server.log`. The lease
 guards `drupack stop` and a second start on the same folder, and the folder
-gets no new file. It runs the site's readiness runner without cron. ADR 0028
+gets no new file. It runs the site's stop channel and prints its ready line, without cron. ADR 0028
 records the detached start and the stop channel.
 
 ## Amendment, 2026-10-01

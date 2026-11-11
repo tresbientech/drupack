@@ -87,7 +87,7 @@ CGO_ENABLED=1 CGO_CFLAGS="$php_includes -DFRANKENPHP_VERSION=$frankenphp_version
     go build -buildmode=pie -tags=nobadger,nomysql,nopgx \
     -ldflags="-s -w -linkmode=external -X 'main.version=$drupack_version' -X 'main.frankenphpVersion=$frankenphp_version' -X 'main.sqliteVersion=$sqlite_version' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $php_version Caddy'" \
     -o "$runtime/$entry"
-"$runtime/$entry" --version
+"$runtime/$entry" drupack-version
 
 # php.ini and the trust bundle ride beside the entry executable, where PHPRC
 # names them at every hop.

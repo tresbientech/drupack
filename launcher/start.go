@@ -29,8 +29,6 @@ type startPlan struct {
 	Host   string
 	Scheme string
 	URL    string
-	// Probe is the address the readiness check polls.
-	Probe string
 	// Static is nil for a project that serves no static listener.
 	Static *staticPlan
 }
@@ -57,8 +55,7 @@ type staticPlan struct {
 func planStart(bind string, port int, staticListen string, hasStatic bool, noun, host, scheme string) (startPlan, error) {
 	plan := startPlan{
 		Bind: bind, Port: port, Host: host, Scheme: scheme,
-		URL:   siteURL(scheme, host, port),
-		Probe: siteURL(scheme, probeHost(bind), port),
+		URL: siteURL(scheme, host, port),
 	}
 	switch {
 	case hasStatic:
@@ -325,19 +322,24 @@ func execServer(f Facts, dir state.Dir, lease *state.Lease, config caddyfile.Con
 	if err != nil {
 		return err
 	}
-	f.ID, f.Probe, f.StopRecord, f.TLSRoot = config.ID, plan.Probe, dir.StopRecordPath(), choice.Root
-	serverArguments := []string{argv0, "php-server", runtime.Canonical(file)}
-	// The runtime names each project file when the configuration fails to adapt.
-	if config.ProjectRules != "" {
-		serverArguments = append(serverArguments, config.ProjectRules)
-	}
-	if config.Mercure != nil && config.Mercure.ProjectRules != "" {
-		serverArguments = append(serverArguments, config.Mercure.ProjectRules)
-	}
-	err = launch(Command{Path: f.Entry, Args: serverArguments, Env: f.Env(Server), Dir: cwd})
+	f.StopRecord = dir.StopRecordPath()
+	err = launch(Command{Path: f.Entry, Args: serveArguments(argv0, file, config), Env: f.Env(Server), Dir: cwd})
 	// A collected file would close its descriptor, and the lease with it, before the exec.
 	goruntime.KeepAlive(lease)
 	return err
+}
+
+// serveArguments is the runtime's drupack-serve line for the Caddyfile at file.
+// The runtime names each project file when the configuration fails to adapt.
+func serveArguments(argv0, file string, config caddyfile.Config) []string {
+	arguments := []string{argv0, "drupack-serve", runtime.Canonical(file)}
+	if config.ProjectRules != "" {
+		arguments = append(arguments, config.ProjectRules)
+	}
+	if config.Mercure != nil && config.Mercure.ProjectRules != "" {
+		arguments = append(arguments, config.Mercure.ProjectRules)
+	}
+	return arguments
 }
 
 // entrance returns the install address of a site not installed yet, or the

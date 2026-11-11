@@ -28,8 +28,8 @@ second usage text.
 - `launch.php`'s `command()` reads `start`, `drush` or `stop` from its argv, as
   `serve.php` does. It answers help, an unknown word and a Node word on a musl
   build.
-- The entry point handles `php-server`, `browser-open`, the Engine's `php`, the
-  version flags and Node. FrankenPHP's own command line takes `php-cli` and every
+- The entry point handles `drupack-serve`, `browser-open`, the Engine's `php`,
+  `drupack-version` and Node. FrankenPHP's own command line takes `php-cli` and every
   other line.
 - `launch.php`'s `HELP` is the one usage text. The command line is described in
   three places: `options()`, `HELP` and `docs/cli.md`.

@@ -96,7 +96,7 @@ def runtime_components(runtime):
     # The launcher points PHPRC at the runtime directory, whose php.ini loads the
     # extensions a Windows runtime carries as DLLs.
     environment = {**os.environ, "PHPRC": str(Path(runtime).parent)}
-    lines = subprocess.run([runtime, "--version"], check=True, capture_output=True, text=True,
+    lines = subprocess.run([runtime, "drupack-version"], check=True, capture_output=True, text=True,
                            env=environment).stdout.splitlines()
     components = [REPORTED[name](version) for name, version in (line.split(" ", 1) for line in lines[1:])]
     with tempfile.NamedTemporaryFile("w", suffix=".php", delete=False) as script:

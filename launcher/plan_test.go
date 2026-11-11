@@ -15,11 +15,8 @@ func TestPlanPassesTheReadersLineOn(t *testing.T) {
 		engine bool
 	}{
 		{"the Engine passes php on", []string{"drupack", "php", "-r", "echo 1;"}, true},
-		{"the Engine passes --version on", []string{"drupack", "--version"}, true},
-		{"the Engine passes -v on", []string{"drupack", "-v"}, true},
 		{"a site passes php on", []string{"demo", "php", "x.php"}, false},
 		{"a site passes php-cli on", []string{"demo", "php-cli", "x.php", "a"}, false},
-		{"a site passes --version on", []string{"demo", "--version"}, false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			l := Launch{Args: c.args, Entry: "/runtime/dir/frankenphp", Application: filepath.Join("cache", "app"), Engine: c.engine}
@@ -31,6 +28,21 @@ func TestPlanPassesTheReadersLineOn(t *testing.T) {
 				t.Fatalf("Plan(%q).Args = %q, want the line unchanged", c.args, got.Args)
 			}
 		})
+	}
+}
+
+func TestPlanTurnsAVersionFlagIntoTheRuntimesWord(t *testing.T) {
+	for _, engine := range []bool{true, false} {
+		for _, flag := range []string{"--version", "-v"} {
+			got := Plan(Launch{Args: []string{"demo", flag}, Entry: "/runtime/dir/frankenphp", Engine: engine})
+			if want := []string{"demo", "drupack-version"}; !slices.Equal(got.Args, want) {
+				t.Errorf("Plan(%s), engine %v: Args = %q, want %q", flag, engine, got.Args, want)
+			}
+		}
+	}
+	line := []string{"demo", "--version", "extra"}
+	if got := Plan(Launch{Args: line, Entry: "/runtime/dir/frankenphp"}); !slices.Equal(got.Args, line) {
+		t.Errorf("Plan(%q).Args = %q, want the line unchanged", line, got.Args)
 	}
 }
 

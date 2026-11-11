@@ -7,15 +7,12 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,28 +20,24 @@ import (
 )
 
 type plan struct {
-	probe       string         // the identity route's URL, token included
-	roots       *x509.CertPool // the roots an https probe trusts, nil for the system's
-	open        string         // the login link to open once ready, "" for none
-	cron        []string       // one cron run's argv, empty for a server that runs no cron
-	dir         string         // the directory cron runs in
-	stopRecord  string         // the file that tells SITE stop where the stop channel listens
-	poll        time.Duration
-	readyWithin time.Duration
-	firstCron   time.Duration
-	cronEvery   time.Duration
+	open       string   // the login link to open once ready, "" for none
+	cron       []string // one cron run's argv, empty for a server that runs no cron
+	dir        string   // the directory cron runs in
+	stopRecord string   // the file that tells SITE stop where the stop channel listens
+	firstCron  time.Duration
+	cronEvery  time.Duration
 }
 
-// shutdown stops the process when a request to the stop channel carries the token.
-// run returns once stopping ends and any cron child in flight has exited, when the
-// site never answers, or at once after the ready line when p has no cron.
-func run(stopping context.Context, site string, p plan, out, errs io.Writer, opener func(string), shutdown func()) {
-	if !ready(stopping, p, errs) {
-		return
-	}
+// run opens the stop channel, announces the site and runs cron. The caller has
+// loaded the server's configuration, so the site already answers. shutdown stops
+// the process when a request to the stop channel carries the token. run returns
+// the error of a stop channel it cannot open, at once after the ready line when
+// p has no cron, and otherwise once stopping ends and any cron child in flight
+// has exited.
+func run(stopping context.Context, site string, p plan, out, errs io.Writer, opener func(string), shutdown func()) error {
 	// The record precedes the ready line, so a start that has returned is always stoppable.
 	if err := serveStop(stopping, p.stopRecord, shutdown); err != nil {
-		panic(err)
+		return err
 	}
 	fmt.Fprintf(out, "\n%s is ready. Press Ctrl+C to stop.\n", site)
 	if p.open != "" {
@@ -53,6 +46,7 @@ func run(stopping context.Context, site string, p plan, out, errs io.Writer, ope
 	if len(p.cron) > 0 {
 		scheduleCron(stopping, p, errs)
 	}
+	return nil
 }
 
 type stopRecord struct {
@@ -124,47 +118,6 @@ func writeOwnerOnly(path string, content []byte) error {
 	return err
 }
 
-// The open link is a one-time login link, which a request spends, so the poll
-// asks the identity route instead.
-//
-// Only 204 counts. A 500 from a failed bootstrap and a 400 from a rejected host
-// both reach a client that connects, so a poll accepting any answer would
-// announce a site nobody can use.
-func ready(stopping context.Context, p plan, errs io.Writer) bool {
-	// A cold start answers its first request slowly, and a request that never returns would
-	// otherwise hold the poll past the deadline.
-	client := http.Client{
-		Timeout:   30 * time.Second,
-		Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: p.roots}},
-	}
-	started := time.Now()
-	deadline := started.Add(p.readyWithin)
-	var last error
-	for time.Now().Before(deadline) {
-		response, err := client.Get(p.probe)
-		if err == nil {
-			response.Body.Close()
-			if response.StatusCode == http.StatusNoContent {
-				return true
-			}
-			err = fmt.Errorf("the server answered %s", response.Status)
-		}
-		last = err
-		select {
-		case <-time.After(p.poll):
-		case <-stopping.Done():
-			return false
-		}
-	}
-	// The line names the site's address, without the identity token the probe carries.
-	address, _ := url.Parse(p.probe)
-	address.Path, address.RawQuery = "/", ""
-	// The site keeps serving, so this names what the wait saw rather than stopping anything.
-	fmt.Fprintf(errs, "Drupal did not answer at %s within %s: %v\n",
-		address, time.Since(started).Round(time.Second), last)
-	return false
-}
-
 // automated_cron runs the same work inside whichever request arrives after its
 // interval elapses, where a fetch that cannot reach drupal.org, or a slow queue,
 // holds that request's PHP thread and the database rows behind it. Ending
@@ -201,20 +154,4 @@ func guard(signals <-chan os.Signal, deadline time.Duration, exit func(int)) con
 		exit(1)
 	}()
 	return stopping
-}
-
-// An http site names no root and gets nil.
-func rootPool(path string) (*x509.CertPool, error) {
-	if path == "" {
-		return nil, nil
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	roots := x509.NewCertPool()
-	if !roots.AppendCertsFromPEM(data) {
-		return nil, fmt.Errorf("%s holds no certificate", path)
-	}
-	return roots, nil
 }

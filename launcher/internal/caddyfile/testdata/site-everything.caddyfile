@@ -91,19 +91,6 @@
 
 	# One route block keeps the written order, so every guard runs before Drupal.
 	route {
-		# The readiness probe runtime/watch/watch.go polls until this server answers. The
-		# token names this state, and a caller without it gets 404. Caddy answers without
-		# reaching Drupal. Placed ahead of the guards, which refuse any dot path.
-		@drupackIdentity {
-			path /.drupack-id
-			query "id=site-id"
-		}
-		# The launcher's own polls stay out of the access log.
-		log_skip @drupackIdentity
-		respond @drupackIdentity 204
-		@drupackIdentityOther path /.drupack-id
-		respond @drupackIdentityOther 404
-
 		# Request guards and cache headers ahead of Drupal, rendered inside a route block, which
 		# keeps this order. refusals.caddy holds the refusals, which the static port applies too.
 

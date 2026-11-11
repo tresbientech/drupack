@@ -27,7 +27,7 @@ const (
 // Config is every value a rendered Caddyfile holds. A path is a canonical path.
 type Config struct {
 	Mode string
-	// ID names the served state. The readiness probe and the PHP cache id read it.
+	// ID names the served state. The PHP cache id reads it.
 	ID      string
 	Bind    string
 	Port    int

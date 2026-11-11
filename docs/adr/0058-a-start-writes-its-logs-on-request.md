@@ -19,7 +19,6 @@ An engine server also lost most PHP messages. Its process log goes to standard e
 - Both files roll at 100 MiB and keep 10 rolled files, as `logs/caddy.log` does. Caddy creates them with mode 0600.
 - A FILE resolves against the working directory. The start refuses a FILE that holds a brace, and one inside a directory the server answers requests from.
 - The start prints the path of each log it writes.
-- The launcher's readiness polls of `/.drupack-id` stay out of the access log.
 
 ## Consequences
 

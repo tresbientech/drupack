@@ -17,12 +17,9 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
-// What the relay matches in the server's log. runtime/watch/watch.go prints both, and
+// What the relay matches in the server's log. runtime/watch/watch.go prints it, and
 // detach_test.go reads that file to check the text is still there.
-const (
-	readyMarker   = " is ready."
-	timeoutMarker = "Drupal did not answer at"
-)
+const readyMarker = " is ready."
 
 const relayPoll = 100 * time.Millisecond
 
@@ -148,8 +145,7 @@ func takeLog() error {
 }
 
 // relay copies the log to out line by line and returns the start's exit code: 0 at the ready
-// line (not copied), the server's code if it exits first (after the rest of the log), and 1 at
-// the timeout line, since the server still runs.
+// line (not copied), and the server's code if it exits first (after the rest of the log).
 func relay(log string, exited <-chan int, out io.Writer, stop string, colour bool, poll time.Duration) int {
 	file, err := os.Open(log)
 	if err != nil {
@@ -182,21 +178,15 @@ func relay(log string, exited <-chan int, out io.Writer, stop string, colour boo
 			}
 			line := pending[:end+1]
 			pending = pending[end+1:]
-			switch {
-			case strings.Contains(line, timeoutMarker):
-				fmt.Fprint(out, line)
-				fmt.Fprintf(out, "\nThe server still runs. Stop it with:\n\n    %s\n\n", stop)
-				return 1
-			case strings.Contains(line, readyMarker):
+			if strings.Contains(line, readyMarker) {
 				if !blank {
 					fmt.Fprintln(out)
 				}
 				fmt.Fprintf(out, "%s runs in the background. Its log: %s\n\nStop it with:\n\n    %s\n\n", siteName, log, stop)
 				return 0
-			default:
-				fmt.Fprint(out, line)
-				blank = line == "\n"
 			}
+			fmt.Fprint(out, line)
+			blank = line == "\n"
 		}
 		if gone {
 			fmt.Fprint(out, pending)

@@ -135,8 +135,7 @@ def docker_answers():
 Wait = namedtuple("Wait", ["name", "seconds", "deadline", "covers"])
 
 WAIT_TABLE = [
-    # watch.go polls 2 min with a 30s request timeout; a request in flight at the end adds 30s: 150s.
-    Wait("start", 180, 150, "readiness of a start"),
+    Wait("start", 180, None, "readiness of a start"),
     # watch.go forces the exit 10s after the first stop signal.
     Wait("stop", 30, 10, "stop after the first signal"),
     # openBrowser runs in the goroutine that printed the ready line: a process spawn, no poll.
@@ -162,8 +161,7 @@ WAIT_TABLE = [
     Wait("cache_full_kill", 30, None, "removing a hung cache-full container after its budget expires"),
     Wait("probe", 10, None, "a local process-table lookup (ps, pgrep) against a running start"),
     Wait("port_closed", 2, None, "confirming a stopped server's port refuses a connection"),
-    # watch.go's readiness poller gives each request 30s; case requests carry the same deadline.
-    Wait("http_request", 60, 30, "an HTTP request against a running site or a login link"),
+    Wait("http_request", 60, None, "an HTTP request against a running site or a login link"),
     Wait("progress", 180, None, "a first start to record its pending administrator step"),
     Wait("database_container", 300, None, "starting a database container, including an image pull"),
     Wait("database_ready", 180, None, "a database container answering a readiness probe"),

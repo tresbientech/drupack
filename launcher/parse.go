@@ -123,7 +123,7 @@ func parse(args []string, engine bool, lookup func(string) (string, bool)) (comm
 		return command{word: "stop", target: options[dataDirOption.name]}, nil
 	case word == "drush" && engine:
 		return command{word: "drush", words: rest}, nil
-	case word == "php" || len(args) == 2 && (word == "--version" || word == "-v"):
+	case word == "php" || versionLine(args):
 		return command{}, nil
 	case engine && (word == "export" || word == "dr"):
 		return command{word: word, words: rest}, nil

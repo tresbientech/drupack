@@ -72,8 +72,6 @@ class StaticSite(harness.ConformanceCase):
         request(self.site.port, "/user/login")
         request(self.static_port, "/")
         harness.wait_for_loggers(self.access_log, {"http.log.access.site", "http.log.access.static"})
-        uris = [json.loads(line)["request"]["uri"] for line in self.access_log.read_text().splitlines()]
-        self.assertEqual([uri for uri in uris if uri.startswith("/.drupack-id")], [], "the readiness probe is logged")
 
     def test_the_error_log_holds_warnings_and_no_request(self):
         # A plain HTTP listener makes Caddy warn that it skips HTTP/2 and HTTP/3.

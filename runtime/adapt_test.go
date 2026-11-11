@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
-	"github.com/caddyserver/caddy/v2/caddyconfig"
 )
 
 // renderedRoot is the directory every path of a rendered file starts with.
@@ -123,15 +122,6 @@ func place(t *testing.T, rendered string, projectRules string) served {
 	return s
 }
 
-func adapt(file string) ([]byte, error) {
-	body, err := os.ReadFile(file)
-	if err != nil {
-		return nil, err
-	}
-	adapted, _, err := caddyconfig.GetAdapter("caddyfile").Adapt(body, map[string]any{"filename": file})
-	return adapted, err
-}
-
 func get(t *testing.T, scheme string, port int, path string) (int, string) {
 	status, body, _ := fetch(t, scheme, port, path)
 	return status, body
@@ -180,7 +170,7 @@ func TestAdaptRenderedFiles(t *testing.T) {
 			t.Setenv("XDG_DATA_HOME", t.TempDir())
 			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 			s := place(t, string(rendered), "header X-Project-Rule applied\n")
-			adapted, err := adapt(s.file)
+			adapted, err := adapt(s.file, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -191,17 +181,6 @@ func TestAdaptRenderedFiles(t *testing.T) {
 			scheme := "http"
 			if strings.Contains(name, "mkcert") || strings.Contains(name, "drupack") || strings.Contains(name, "everything") {
 				scheme = "https"
-			}
-			// site-everything serves the drupack source.
-			id := "f0123456789abcdef"
-			if strings.HasPrefix(name, "site-") {
-				id = "site-id"
-			}
-			if status, _ := get(t, scheme, s.port, "/.drupack-id?id="+id); status != 204 {
-				t.Errorf("the readiness probe answered %d", status)
-			}
-			if status, _ := get(t, scheme, s.port, "/.drupack-id?id=other"); status != 404 {
-				t.Errorf("a probe with another token answered %d", status)
 			}
 			if status, body := get(t, scheme, s.port, "/hello.txt"); status != 200 || body != "hello from a docroot" {
 				t.Errorf("a file in the docroot: %d %q", status, body)
@@ -253,12 +232,14 @@ func TestAdaptRefusesBrokenProjectRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := place(t, string(rendered), "not_a_directive foo\n")
-	if _, err = adapt(s.file); err == nil || !strings.Contains(err.Error(), "unrecognized directive: not_a_directive") {
-		t.Errorf("adapt error = %v", err)
+	_, err = adapt(s.file, []string{"/p/drupack.caddy"})
+	if err == nil || !strings.Contains(err.Error(), "unrecognized directive: not_a_directive") ||
+		!strings.HasSuffix(err.Error(), "\nThe project's /p/drupack.caddy is part of this configuration.") {
+		t.Errorf("adapt error = %v, want the directive and the project file's line", err)
 	}
 	s = place(t, string(rendered), "")
 	write(t, filepath.Join(s.root, "app", "drupack.mercure.caddy"), "not_a_hub_directive foo\n")
-	if _, err = adapt(s.file); err == nil || !strings.Contains(err.Error(), "not_a_hub_directive") {
+	if _, err = adapt(s.file, nil); err == nil || !strings.Contains(err.Error(), "not_a_hub_directive") {
 		t.Errorf("adapt error with a broken hub file = %v", err)
 	}
 }

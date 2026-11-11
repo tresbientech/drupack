@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"net/url"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -18,7 +19,10 @@ import (
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig"
+	caddycmd "github.com/caddyserver/caddy/v2/cmd"
 	"github.com/dunglas/frankenphp"
+	"github.com/spf13/cobra"
+	"go.uber.org/zap/exp/zapslog"
 )
 
 var version = "dev"
@@ -46,36 +50,53 @@ func release() string {
 	return site + " (drupack " + version + ", " + libc + ")"
 }
 
-func components() []string {
+func components() ([]string, error) {
+	caddyRelease, err := caddyVersion()
+	if err != nil {
+		return nil, err
+	}
 	lines := []string{
 		"FrankenPHP " + frankenphpVersion,
 		"PHP " + frankenphp.Version().Version,
-		"Caddy " + strings.TrimPrefix(caddyVersion(), "v"),
+		"Caddy " + strings.TrimPrefix(caddyRelease, "v"),
 		"SQLite " + sqliteVersion,
 	}
 	if site := os.Getenv("DRUPACK_RUNTIME_COMPONENTS"); site != "" {
 		lines = append(lines, strings.Split(site, "\n")...)
 	}
-	return lines
+	return lines, nil
 }
 
 // caddy.Version prefixes the CustomVersion the build scripts set.
-func caddyVersion() string {
+func caddyVersion() (string, error) {
 	info, _ := debug.ReadBuildInfo()
 	for _, module := range info.Deps {
 		if module.Path == caddy.ImportPath {
-			return module.Version
+			return module.Version, nil
 		}
 	}
-	panic("the build information names no " + caddy.ImportPath)
+	return "", errors.New("the build information names no " + caddy.ImportPath)
+}
+
+// printVersion prints what the launcher shows for --version: the release line,
+// then one line per component.
+func printVersion() error {
+	lines, err := components()
+	if err != nil {
+		return err
+	}
+	fmt.Println(release())
+	fmt.Println(strings.Join(lines, "\n"))
+	return nil
 }
 
 const phpUsage = `Usage: %[1]s php SCRIPT [ARGUMENTS]
        %[1]s php -r CODE`
 
-// php-cli reads no PHP option and passes -r code no $argv. The arguments come
-// from the reader or from Drush, so any other form stops here, before PHP starts.
-func phpArguments(arguments []string) []string {
+// phpArguments refuses a line php-cli would misread: it reads no PHP option and
+// passes -r code no $argv. The arguments come from the reader or from Drush, so
+// any other form stops here, before PHP starts.
+func phpArguments(arguments []string) error {
 	var refusal string
 	switch {
 	case len(arguments) == 0:
@@ -87,17 +108,26 @@ func phpArguments(arguments []string) []string {
 	case arguments[0] != "-r" && strings.HasPrefix(arguments[0], "-"):
 		refusal = fmt.Sprintf("php option %s is not supported.", arguments[0])
 	default:
-		return append([]string{"php-cli"}, arguments...)
+		return nil
 	}
-	fmt.Fprintf(os.Stderr, "%s\n\n", refusal)
-	fmt.Fprintf(os.Stderr, phpUsage+"\n", siteName())
-	os.Exit(1)
-	return nil
+	return fmt.Errorf("%s\n\n%s", refusal, fmt.Sprintf(phpUsage, siteName()))
 }
 
-// The Caddyfile answers 204 for this site's identity token and 404 for any other,
-// without reaching Drupal, so the readiness poll in watch.go renders no page.
-const readinessPath = "/.drupack-id?id="
+// php runs a script or -r CODE from the reader's directory, as FrankenPHP's own
+// php-cli command does, and exits with PHP's status.
+func php(arguments []string) error {
+	if err := phpArguments(arguments); err != nil {
+		return err
+	}
+	if err := os.Chdir(origin); err != nil {
+		return err
+	}
+	// PHP's command line reads its first argument as the program's name.
+	line := append([]string{os.Args[0]}, arguments...)
+	logger := slog.New(zapslog.NewHandler(caddy.Log().Core(), zapslog.WithName("frankenphp")))
+	os.Exit(frankenphp.ExecuteScriptCLI(line[0], line, frankenphp.WithLogger(logger)))
+	return nil
+}
 
 func openBrowser(address string) {
 	var command *exec.Cmd
@@ -117,16 +147,17 @@ func openBrowser(address string) {
 // server starts would otherwise hold the lease after the server exits.
 // syscall.CloseOnExec takes an int on Unix and a Handle on Windows, which
 // never calls this.
-func closeInherited[F ~int | ~uintptr](closeOnExec func(F)) {
+func closeInherited[F ~int | ~uintptr](closeOnExec func(F)) error {
 	entries, err := os.ReadDir("/dev/fd")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	for _, entry := range entries {
 		if fd, _ := strconv.Atoi(entry.Name()); fd > 2 {
 			closeOnExec(F(fd))
 		}
 	}
+	return nil
 }
 
 // A healthy stop takes about three seconds.
@@ -136,11 +167,11 @@ const shutdownDeadline = 10 * time.Second
 // past PHP's lines. Two handles on one file would each keep their own offset, so stderr
 // writes through stdout when both name the same file. The reader's shell sets these
 // handles: a missing one fails Stat, and a console or pipe one has no end to seek.
-func writeFromRedirectedEnd() {
+func writeFromRedirectedEnd() error {
 	for _, stream := range []*os.File{os.Stdout, os.Stderr} {
 		if info, err := stream.Stat(); err == nil && info.Mode().IsRegular() {
 			if _, err := stream.Seek(0, io.SeekEnd); err != nil {
-				panic(err)
+				return err
 			}
 		}
 	}
@@ -149,6 +180,7 @@ func writeFromRedirectedEnd() {
 	if outErr == nil && errsErr == nil && out.Mode().IsRegular() && os.SameFile(out, errs) {
 		os.Stderr = os.Stdout
 	}
+	return nil
 }
 
 // stopGuard runs only for a server. Notifying on these signals suppresses Go's own
@@ -169,12 +201,11 @@ func stopGuard() (context.Context, chan<- os.Signal) {
 // gracefully, and stopGuard's signal.Notify sees the same one. Windows cannot deliver
 // os.Interrupt to a process, so there the guard is armed through its channel and
 // Caddy stops directly.
+// It runs in the stop channel's request, where no caller takes an error, so a
+// failure prints and exits with 1.
 func stopServer(guardSignals chan<- os.Signal) {
 	self, err := os.FindProcess(os.Getpid())
-	if err != nil {
-		panic(err)
-	}
-	if self.Signal(os.Interrupt) == nil {
+	if err == nil && self.Signal(os.Interrupt) == nil {
 		return
 	}
 	select {
@@ -182,7 +213,8 @@ func stopServer(guardSignals chan<- os.Signal) {
 	default:
 	}
 	if err := caddy.Stop(); err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 	os.Exit(0)
 }
@@ -194,37 +226,69 @@ func stopServer(guardSignals chan<- os.Signal) {
 const cronInterval = 3 * time.Hour
 const cronFirstDelay = 2 * time.Minute
 
-// PHPRC already names the runtime directory in every hop, including this one,
-// so php.ini loads from there without a scan path naming the application too.
-// Caddy's run logs an adapter error into its early-start buffer after flushing it, so
-// the error never prints. The adapter runs once here, without Caddy's logger, and run
-// reads the adapted JSON from a pipe on its stdin. Caddy names the line that imports
-// a project's file when the error sits inside it, so the path of each project file
-// the start passes follows the error.
-func serveCaddyfile(config string, projectFiles []string) {
+// adapt returns the JSON of the Caddyfile at config. Caddy names the line that
+// imports a project's file when the error sits inside it, so the path of each
+// project file the start passes follows the error.
+func adapt(config string, projectFiles []string) ([]byte, error) {
 	body, err := os.ReadFile(config)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	adapted, _, err := caddyconfig.GetAdapter("caddyfile").Adapt(body, map[string]any{"filename": config})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
 		for _, file := range projectFiles {
-			fmt.Fprintf(os.Stderr, "The project's %s is part of this configuration.\n", file)
+			err = fmt.Errorf("%w\nThe project's %s is part of this configuration.", err, file)
 		}
-		os.Exit(1)
 	}
-	reader, writer, err := os.Pipe()
+	return adapted, err
+}
+
+// serve loads the Caddyfile at arguments[0], then runs the stop channel and cron
+// beside the server until the process exits. PHPRC already names the runtime
+// directory in every hop, including this one, so php.ini loads from there
+// without a scan path naming the application too. The server waits for itself:
+// a separate process would first extract its own copy of the embedded
+// application, which takes longer than the wait on a slow disk.
+func serve(arguments []string) error {
+	caddy.TrapSignals()
+	stopping, guardSignals := stopGuard()
+	// A Windows server redirected to a file writes from the file's end.
+	var err error
+	if runtime.GOOS == "windows" {
+		err = writeFromRedirectedEnd()
+	} else {
+		err = closeInherited(syscall.CloseOnExec)
+	}
 	if err != nil {
-		panic(err)
+		return err
 	}
-	// The pipe holds less than the JSON, so a goroutine feeds it while run reads.
-	go func() {
-		_, _ = writer.Write(adapted)
-		_ = writer.Close()
-	}()
-	os.Stdin = reader
-	os.Args = []string{os.Args[0], "run", "--config", "-"}
+	adapted, err := adapt(arguments[0], arguments[1:])
+	if err != nil {
+		return err
+	}
+	if err := caddy.Load(adapted, true); err != nil {
+		return err
+	}
+	// The engine executable has no application and runs no cron.
+	var cron []string
+	if application != "" {
+		cron = []string{executable, "php-cli",
+			filepath.Join(application, "vendor", "drush", "drush", "drush.php"), "cron"}
+	}
+	err = run(stopping, siteName(), plan{
+		open:       os.Getenv("DRUPACK_RUNTIME_OPEN"),
+		cron:       cron,
+		dir:        application,
+		stopRecord: os.Getenv("DRUPACK_RUNTIME_STOP_RECORD"),
+		firstCron:  cronFirstDelay,
+		cronEvery:  cronInterval,
+	}, os.Stdout, os.Stderr, openBrowser, func() { stopServer(guardSignals) })
+	if err != nil {
+		// A site nothing can stop does not serve.
+		return errors.Join(err, caddy.Stop())
+	}
+	// Caddy ends the process once it has stopped.
+	select {}
 }
 
 // This file builds inside frankenphp's own module, which cannot import the
@@ -233,73 +297,54 @@ func canonical(path string) string {
 	return filepath.ToSlash(path)
 }
 
+// executable is this file's path, origin the directory the process started in,
+// and application the directory of the Drupal application, "" for a build step
+// that runs the binary on its own. init sets all three.
+var executable, origin, application string
+
+// register adds a command that takes its words unparsed and prints a failure
+// as Caddy's command line prints one.
+func register(name, usage, short string, arguments cobra.PositionalArgs, handler func([]string) error) {
+	caddycmd.RegisterCommand(caddycmd.Command{
+		Name: name, Usage: usage, Short: short,
+		CobraFunc: func(cmd *cobra.Command) {
+			cmd.DisableFlagParsing = true
+			cmd.Args = arguments
+			cmd.RunE = func(_ *cobra.Command, words []string) error { return handler(words) }
+		},
+	})
+}
+
 func init() {
-	executable, err := os.Executable()
-	if err != nil {
+	var err error
+	if executable, err = os.Executable(); err != nil {
 		panic(err)
 	}
 	// PHP, Caddy and the reader's terminal read this variable.
 	if err := os.Setenv("DRUPACK_RUNTIME_BINARY", canonical(executable)); err != nil {
 		panic(err)
 	}
+	if origin, err = os.Getwd(); err != nil {
+		panic(err)
+	}
 	// The launcher unpacks the application once per release and names its directory.
-	application := os.Getenv("DRUPACK_RUNTIME_APP_DIR")
+	application = os.Getenv("DRUPACK_RUNTIME_APP_DIR")
 	if application == "" {
 		application = frankenphp.EmbeddedAppPath
 	}
-	// The php word runs a script from the reader's directory on both executables, so it
-	// goes before the change into the application.
-	if len(os.Args) > 1 && os.Args[1] == "php" {
-		os.Args = append([]string{os.Args[0]}, phpArguments(os.Args[2:])...)
-		return
-	}
-	// A build step runs this binary on its own to read its version, with no
-	// launcher to name a directory and no embedded application to fall back to.
+	// FrankenPHP's own php-cli, which the launcher and cron call, runs from the
+	// application. A build step runs this binary on its own, with no launcher to
+	// name a directory and no embedded application to fall back to.
 	if application != "" {
 		if err := os.Chdir(application); err != nil {
 			panic(err)
 		}
 	}
-	if len(os.Args) >= 3 && len(os.Args) <= 5 && os.Args[1] == "php-server" {
-		// A Windows server redirected to a file writes from the file's end.
-		if runtime.GOOS == "windows" {
-			writeFromRedirectedEnd()
-		} else {
-			closeInherited(syscall.CloseOnExec)
-		}
-		// The server waits for itself. A separate process would first extract its own copy
-		// of the embedded application, which takes longer than the wait on a slow disk.
-		stopping, guardSignals := stopGuard()
-		// The engine executable has no application and runs no cron.
-		var cron []string
-		if application != "" {
-			cron = []string{executable, "php-cli",
-				filepath.Join(application, "vendor", "drush", "drush", "drush.php"), "cron"}
-		}
-		roots, err := rootPool(os.Getenv("DRUPACK_RUNTIME_TLS_ROOT"))
-		if err != nil {
-			panic(err)
-		}
-		go run(stopping, siteName(), plan{
-			probe: strings.TrimSuffix(os.Getenv("DRUPACK_RUNTIME_URL"), "/") +
-				readinessPath + url.QueryEscape(os.Getenv("DRUPACK_RUNTIME_ID")),
-			roots:       roots,
-			open:        os.Getenv("DRUPACK_RUNTIME_OPEN"),
-			cron:        cron,
-			dir:         application,
-			stopRecord:  os.Getenv("DRUPACK_RUNTIME_STOP_RECORD"),
-			poll:        500 * time.Millisecond,
-			readyWithin: 2 * time.Minute,
-			firstCron:   cronFirstDelay,
-			cronEvery:   cronInterval,
-		}, os.Stdout, os.Stderr, openBrowser, func() { stopServer(guardSignals) })
-		serveCaddyfile(os.Args[2], os.Args[3:])
-		return
-	}
-	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
-		fmt.Println(release())
-		fmt.Println(strings.Join(components(), "\n"))
-		os.Exit(0)
-	}
+	register("drupack-serve", "CADDYFILE [PROJECT_FILE...]", "Serves the site of a Caddyfile the launcher rendered",
+		cobra.RangeArgs(1, 3), serve)
+	register("php", "SCRIPT [ARGUMENTS] | -r CODE", "Runs a script or -r CODE on the bundled PHP, with no PHP option",
+		cobra.ArbitraryArgs, php)
+	register("drupack-version", "", "Prints the release and the release of each component",
+		cobra.NoArgs, func([]string) error { return printVersion() })
 	// FrankenPHP's own command line takes every other line.
 }

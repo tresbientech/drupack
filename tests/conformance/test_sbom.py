@@ -11,10 +11,10 @@ import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[2] / "build" / "sbom.py"
-# The stub answers --version as the runtime does, and php-cli with the lines the
+# The stub answers drupack-version as the runtime does, and php-cli with the lines the
 # report script prints. An empty library line names an extension it does not load.
 RUNTIME = """#!/bin/sh
-if [ "$1" = --version ]; then
+if [ "$1" = drupack-version ]; then
     printf ' (drupack dev)\\nFrankenPHP 1.12.7\\nPHP 8.5.11\\nCaddy 2.11.4\\nSQLite %s\\n'
 else
     printf 'extension\\tCore\\t8.5.11\\nextension\\tmysqlnd\\tmysqlnd 8.5.11\\n'

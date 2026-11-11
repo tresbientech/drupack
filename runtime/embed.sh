@@ -89,5 +89,5 @@ mkdir -p /out
 "$GOROOT/bin/go" build -mod=readonly -buildmode=pie -tags="$build_tags" \
     -ldflags="-s -w -linkmode=external -extldflags '$linker_flags' -X 'main.version=${DRUPACK_VERSION:-dev}' -X 'main.libc=$libc' -X 'main.frankenphpVersion=$frankenphp_version' -X 'main.sqliteVersion=$sqlite_version' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphp_version PHP $($php_config --version) Caddy'" \
     -o /out/drupack ./frankenphp
-/out/drupack --version
+/out/drupack drupack-version
 

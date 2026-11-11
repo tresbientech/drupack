@@ -908,7 +908,8 @@ if (isset($_GET['drupack-log-case'])) {
 
     def test_php_refuses_an_option_by_name_before_php_starts(self):
         (self.class_dir / "sentinel.php").write_text("<?php echo 'php-ran';")
-        commands = (["-d", "x=1", "sentinel.php"], ["-l", "sentinel.php"], ["-v"], ["-S", "127.0.0.1:0", "sentinel.php"])
+        commands = (["-d", "x=1", "sentinel.php"], ["-l", "sentinel.php"], ["-v"], ["-S", "127.0.0.1:0", "sentinel.php"],
+                    ["-h"], ["--help"])
         for command in commands:
             with self.subTest(route="launcher", option=command[0]):
                 result = self.engine_run("php", *command)

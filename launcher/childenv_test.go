@@ -46,15 +46,15 @@ func TestEnvKinds(t *testing.T) {
 		"DRUPACK_RUNTIME_STATIC_ROOT": "/data/static",
 	})
 	serving := laid
-	serving.Open, serving.Alias, serving.ID, serving.Probe, serving.StopRecord = "http://[::1]:8080/user/reset/1", "demo.drupack.site", "token", "http://[::1]:8080/", "/data/stop.json"
-	watch := map[string]string{"DRUPACK_RUNTIME_ID": "token", "DRUPACK_RUNTIME_URL": "http://[::1]:8080/", "DRUPACK_RUNTIME_STOP_RECORD": "/data/stop.json"}
+	serving.Open, serving.Alias, serving.StopRecord = "http://[::1]:8080/user/reset/1", "demo.drupack.site", "/data/stop.json"
+	watch := map[string]string{"DRUPACK_RUNTIME_STOP_RECORD": "/data/stop.json"}
 	folder := Facts{Launch: engine, CAFile: "/entry/ca.pem", Hub: hub, Bin: "/cache/app", Script: "/project/vendor/drush/drush/drush.php"}
 	folderVariables := map[string]string{
 		"PATH": filepath.FromSlash("/cache/app/bin") + separator + "/bin", "DRUPACK_DRUSH_SCRIPT": "/project/vendor/drush/drush/drush.php",
 		"DRUPACK_CA_FILE": "/entry/ca.pem", "DRUPACK_MERCURE_URL": hub.URL, "DRUPACK_ADMIN_PASSWORD": "inherited",
 	}
 	folderServing := folder
-	folderServing.Script, folderServing.ID, folderServing.Probe, folderServing.StopRecord, folderServing.TLSRoot = "", "token", "http://[::1]:8080/", "/data/stop.json", "/r.pem"
+	folderServing.Script, folderServing.StopRecord = "", "/data/stop.json"
 	for _, row := range []struct {
 		name  string
 		facts Facts
@@ -75,7 +75,7 @@ func TestEnvKinds(t *testing.T) {
 			with(laidVariables, map[string]string{"DRUPACK_ADMIN_PASSWORD": "inherited"}), []string{"DRUPACK_DATABASE"}},
 		{"a site's server loses the password and opens the link", serving, Server,
 			with(with(laidVariables, watch), map[string]string{"DRUPACK_RUNTIME_OPEN": "http://[::1]:8080/user/reset/1", "DRUPACK_RUNTIME_ALIAS": "demo.drupack.site"}),
-			[]string{"DRUPACK_ADMIN_PASSWORD", "DRUPACK_DATABASE", "DRUPACK_RUNTIME_TLS_ROOT"}},
+			[]string{"DRUPACK_ADMIN_PASSWORD", "DRUPACK_DATABASE"}},
 		{"the engine's check reads the reader's environment", Facts{Launch: engine}, Operate,
 			map[string]string{"PATH": "/bin", "DRUPACK_ADMIN_PASSWORD": "inherited"}, []string{"DRUPACK_RUNTIME_APP_DIR", "DRUPACK_DRUSH_SCRIPT"}},
 		{"the engine's drush reads the last start's bundle and hub", folder, Drush, folderVariables, []string{"DRUPACK_RUNTIME_DATA_DIR", "DRUPACK_RUNTIME_APP_DIR"}},
@@ -83,7 +83,7 @@ func TestEnvKinds(t *testing.T) {
 		{"the engine's core call leads PATH and names no Drush", Facts{Launch: engine, Bin: "/cache/app"}, Drush,
 			map[string]string{"PATH": filepath.FromSlash("/cache/app/bin") + separator + "/bin"}, []string{"DRUPACK_DRUSH_SCRIPT"}},
 		{"the engine's server opens no browser and keeps the password", folderServing, Server,
-			with(watch, map[string]string{"DRUPACK_RUNTIME_TLS_ROOT": "/r.pem", "DRUPACK_ADMIN_PASSWORD": "inherited", "DRUPACK_CA_FILE": "/entry/ca.pem"}),
+			with(watch, map[string]string{"DRUPACK_ADMIN_PASSWORD": "inherited", "DRUPACK_CA_FILE": "/entry/ca.pem"}),
 			[]string{"DRUPACK_RUNTIME_OPEN", "DRUPACK_RUNTIME_ALIAS", "DRUPACK_DRUSH_SCRIPT"}},
 	} {
 		got := environmentOf(Command{Env: row.facts.Env(row.kind)})
@@ -108,7 +108,7 @@ func TestEnvDeclared(t *testing.T) {
 		t.Fatal(err)
 	}
 	hub := &caddyfile.Mercure{}
-	engine := Facts{Launch: Launch{Engine: true}, CAFile: "x", Hub: hub, Bin: "x", Script: "x", ID: "x", Probe: "x", StopRecord: "x", TLSRoot: "x"}
+	engine := Facts{Launch: Launch{Engine: true}, CAFile: "x", Hub: hub, Bin: "x", Script: "x", StopRecord: "x"}
 	site := engine
 	site.Engine = false
 	site.Data, site.StaticRoot, site.SiteApp, site.Open, site.Alias = "x", "x", "x", "x", "x"

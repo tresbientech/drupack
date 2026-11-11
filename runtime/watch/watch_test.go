@@ -3,19 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"maps"
-	"math/big"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -87,41 +79,21 @@ func (o *output) String() string {
 	return o.buffer.String()
 }
 
-func scripted(t *testing.T, statuses ...int) (*httptest.Server, func() time.Time) {
-	var mu sync.Mutex
-	var readyAt time.Time
-	served := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		status := statuses[min(served, len(statuses)-1)]
-		served++
-		if status == http.StatusNoContent && readyAt.IsZero() {
-			readyAt = time.Now()
-		}
-		mu.Unlock()
-		w.WriteHeader(status)
-	}))
-	t.Cleanup(server.Close)
-	return server, func() time.Time {
-		mu.Lock()
-		defer mu.Unlock()
-		return readyAt
-	}
-}
-
 type watching struct {
 	out, errs output
 	opened    chan string
 	shutdowns chan struct{}
 	stop      context.CancelFunc
 	done      chan struct{}
+	// err is what run returned, set before done closes.
+	err error
 }
 
 func watch(t *testing.T, p plan) *watching {
 	stopping, stop := context.WithCancel(context.Background())
 	w := &watching{opened: make(chan string, 10), shutdowns: make(chan struct{}, 10), stop: stop, done: make(chan struct{})}
 	go func() {
-		run(stopping, "Demo", p, &w.out, &w.errs, func(link string) { w.opened <- link },
+		w.err = run(stopping, "Demo", p, &w.out, &w.errs, func(link string) { w.opened <- link },
 			func() { w.shutdowns <- struct{}{} })
 		close(w.done)
 	}()
@@ -141,24 +113,20 @@ func (w *watching) returns(t *testing.T, limit time.Duration) {
 	}
 }
 
-func probing(t *testing.T, server *httptest.Server, open string) plan {
+func planned(t *testing.T, open string) plan {
 	return plan{
-		probe:       server.URL + "/.drupack-id?id=token",
-		open:        open,
-		stopRecord:  filepath.Join(t.TempDir(), "stop.json"),
-		cron:        []string{"cron-never-runs"},
-		poll:        10 * time.Millisecond,
-		readyWithin: 5 * time.Second,
-		firstCron:   time.Hour,
-		cronEvery:   time.Hour,
+		open:       open,
+		stopRecord: filepath.Join(t.TempDir(), "stop.json"),
+		cron:       []string{"cron-never-runs"},
+		firstCron:  time.Hour,
+		cronEvery:  time.Hour,
 	}
 }
 
 const readyLine = "\nDemo is ready. Press Ctrl+C to stop.\n"
 
 func TestRunAnnouncesReadyOnceThenOpensTheLink(t *testing.T) {
-	server, _ := scripted(t, http.StatusNotFound, http.StatusNotFound, http.StatusNoContent)
-	w := watch(t, probing(t, server, "http://login"))
+	w := watch(t, planned(t, "http://login"))
 	select {
 	case link := <-w.opened:
 		if link != "http://login" {
@@ -180,8 +148,7 @@ func TestRunAnnouncesReadyOnceThenOpensTheLink(t *testing.T) {
 }
 
 func TestRunReturnsAfterTheReadyLineWhenThePlanHasNoCron(t *testing.T) {
-	server, _ := scripted(t, http.StatusNoContent)
-	p := probing(t, server, "")
+	p := planned(t, "")
 	p.cron = nil
 	w := watch(t, p)
 	w.returns(t, 5*time.Second)
@@ -190,31 +157,24 @@ func TestRunReturnsAfterTheReadyLineWhenThePlanHasNoCron(t *testing.T) {
 	}
 }
 
-func TestRunNamesTheLastAnswerWhenTheSiteNeverAnswers204(t *testing.T) {
-	server, _ := scripted(t, http.StatusInternalServerError)
-	p := probing(t, server, "http://login")
-	p.readyWithin = 100 * time.Millisecond
+func TestRunReturnsTheErrorOfAStopRecordItCannotWrite(t *testing.T) {
+	p := planned(t, "http://login")
+	p.stopRecord = filepath.Join(t.TempDir(), "missing", "stop.json")
 	w := watch(t, p)
 	w.returns(t, 5*time.Second)
-	errs := w.errs.String()
-	if !strings.Contains(errs, "Drupal did not answer at "+server.URL+"/ within") ||
-		!strings.Contains(errs, "the server answered 500 Internal Server Error") {
-		t.Fatalf("reported %q, want the address and the 500", errs)
-	}
-	if strings.Contains(errs, "token") {
-		t.Fatalf("reported %q, which carries the identity token", errs)
+	if w.err == nil {
+		t.Fatal("run returned no error for a stop record it cannot write")
 	}
 	if got := w.out.String(); got != "" {
 		t.Fatalf("printed %q, want no ready line", got)
 	}
 	if len(w.opened) != 0 {
-		t.Fatal("the browser opened for a site that never answered")
+		t.Fatal("the browser opened for a site nothing can stop")
 	}
 }
 
 func TestRunWithNoLinkAnnouncesReadyAndOpensNothing(t *testing.T) {
-	server, _ := scripted(t, http.StatusNoContent)
-	w := watch(t, probing(t, server, ""))
+	w := watch(t, planned(t, ""))
 	deadline := time.Now().Add(5 * time.Second)
 	for w.out.String() == "" && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
@@ -263,8 +223,7 @@ func request(t *testing.T, record stopRecord, method, path, authorization string
 }
 
 func TestStopRecordHoldsThePortTheTokenAndThePidOwnerOnly(t *testing.T) {
-	server, _ := scripted(t, http.StatusNoContent)
-	p := probing(t, server, "")
+	p := planned(t, "")
 	w := watch(t, p)
 	record := w.stopChannel(t, p)
 	if record.Port == 0 || record.Pid != os.Getpid() || len(record.Token) != 64 {
@@ -348,8 +307,7 @@ func TestStopChannelAnswersOnLoopbackAlone(t *testing.T) {
 }
 
 func TestStopWithTheTokenAnswers204ThenShutsDown(t *testing.T) {
-	server, _ := scripted(t, http.StatusNoContent)
-	p := probing(t, server, "")
+	p := planned(t, "")
 	w := watch(t, p)
 	record := w.stopChannel(t, p)
 	if status := request(t, record, http.MethodPost, "/stop", "Bearer "+record.Token); status != http.StatusNoContent {
@@ -363,8 +321,7 @@ func TestStopWithTheTokenAnswers204ThenShutsDown(t *testing.T) {
 }
 
 func TestStopWithAWrongOrMissingTokenAnswers403AndStopsNothing(t *testing.T) {
-	server, _ := scripted(t, http.StatusNoContent)
-	p := probing(t, server, "")
+	p := planned(t, "")
 	w := watch(t, p)
 	record := w.stopChannel(t, p)
 	for _, authorization := range []string{"", "Bearer " + strings.Repeat("0", 64), record.Token, "Bearer"} {
@@ -378,8 +335,7 @@ func TestStopWithAWrongOrMissingTokenAnswers403AndStopsNothing(t *testing.T) {
 }
 
 func TestStopChannelAnswers404ToAnythingButPostStop(t *testing.T) {
-	server, _ := scripted(t, http.StatusNoContent)
-	p := probing(t, server, "")
+	p := planned(t, "")
 	w := watch(t, p)
 	record := w.stopChannel(t, p)
 	bearer := "Bearer " + record.Token
@@ -396,8 +352,7 @@ func TestStopChannelAnswers404ToAnythingButPostStop(t *testing.T) {
 }
 
 func TestStopChannelClosesWhenStoppingEnds(t *testing.T) {
-	server, _ := scripted(t, http.StatusNoContent)
-	p := probing(t, server, "")
+	p := planned(t, "")
 	w := watch(t, p)
 	record := w.stopChannel(t, p)
 	w.stop()
@@ -441,10 +396,10 @@ func TestHelperProcess(t *testing.T) {
 	os.Exit(0)
 }
 
-func cronning(t *testing.T, server *httptest.Server, mode string, first, every time.Duration) (plan, func(n int) []time.Time) {
+func cronning(t *testing.T, mode string, first, every time.Duration) (plan, func(n int) []time.Time) {
 	t.Setenv("DRUPACK_WATCH_HELPER", "1")
 	record := filepath.Join(t.TempDir(), "runs")
-	p := probing(t, server, "")
+	p := planned(t, "")
 	p.cron = []string{os.Args[0], "-test.run=^TestHelperProcess$", "--", mode, record}
 	p.dir = t.TempDir()
 	p.firstCron, p.cronEvery = first, every
@@ -472,13 +427,13 @@ func cronning(t *testing.T, server *httptest.Server, mode string, first, every t
 }
 
 func TestCronRunsAfterItsFirstDelayThenOnItsInterval(t *testing.T) {
-	server, readyAt := scripted(t, http.StatusNotFound, http.StatusNotFound, http.StatusNotFound, http.StatusNoContent)
 	const first, every = 150 * time.Millisecond, 300 * time.Millisecond
-	p, runs := cronning(t, server, "succeed", first, every)
+	p, runs := cronning(t, "succeed", first, every)
+	started := time.Now()
 	watch(t, p)
 	recorded := runs(2)
-	if early := readyAt().Add(first).Sub(recorded[0]); early > 0 {
-		t.Fatalf("the first run started %s before its delay after ready", early)
+	if early := started.Add(first).Sub(recorded[0]); early > 0 {
+		t.Fatalf("the first run started %s before its delay", early)
 	}
 	if gap := recorded[1].Sub(recorded[0]); gap < every {
 		t.Fatalf("the second run started %s after the first, before the %s interval", gap, every)
@@ -486,8 +441,7 @@ func TestCronRunsAfterItsFirstDelayThenOnItsInterval(t *testing.T) {
 }
 
 func TestCronReportsAFailedRunAndRunsAgain(t *testing.T) {
-	server, _ := scripted(t, http.StatusNoContent)
-	p, runs := cronning(t, server, "fail", 10*time.Millisecond, 10*time.Millisecond)
+	p, runs := cronning(t, "fail", 10*time.Millisecond, 10*time.Millisecond)
 	w := watch(t, p)
 	runs(2)
 	errs := w.errs.String()
@@ -497,97 +451,12 @@ func TestCronReportsAFailedRunAndRunsAgain(t *testing.T) {
 }
 
 func TestStoppingEndsACronRunInFlight(t *testing.T) {
-	server, _ := scripted(t, http.StatusNoContent)
-	p, runs := cronning(t, server, "hang", 10*time.Millisecond, time.Hour)
+	p, runs := cronning(t, "hang", 10*time.Millisecond, time.Hour)
 	w := watch(t, p)
 	runs(1)
 	w.stop()
 	w.returns(t, 5*time.Second)
 	if errs := w.errs.String(); errs != "" {
 		t.Fatalf("reported %q for a run the stop ended", errs)
-	}
-}
-
-func tlsServer(t *testing.T) (*httptest.Server, string) {
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	t.Cleanup(server.Close)
-	root := filepath.Join(t.TempDir(), "root.pem")
-	block := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
-	if err := os.WriteFile(root, block, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return server, root
-}
-
-// otherRoot writes a self-signed root that signed nothing the test servers present.
-// Every httptest TLS server shares one built-in certificate.
-func otherRoot(t *testing.T) string {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	template := &x509.Certificate{
-		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "other root"},
-		NotBefore:             time.Now().Add(-time.Hour),
-		NotAfter:              time.Now().Add(time.Hour),
-		KeyUsage:              x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-		IsCA:                  true,
-	}
-	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(t.TempDir(), "other.pem")
-	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
-
-func TestAnHTTPSProbeTrustsTheNamedRoot(t *testing.T) {
-	server, root := tlsServer(t)
-	roots, err := rootPool(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	p := probing(t, server, "")
-	p.roots = roots
-	w := watch(t, p)
-	deadline := time.Now().Add(5 * time.Second)
-	for !strings.Contains(w.out.String(), "is ready") {
-		if time.Now().After(deadline) {
-			t.Fatalf("no ready line; reported %q", w.errs.String())
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-}
-
-func TestAnHTTPSProbeRefusesAnotherRoot(t *testing.T) {
-	server, _ := tlsServer(t)
-	roots, err := rootPool(otherRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	p := probing(t, server, "")
-	p.roots = roots
-	p.readyWithin = 200 * time.Millisecond
-	w := watch(t, p)
-	w.returns(t, 5*time.Second)
-	if got := w.out.String(); got != "" {
-		t.Fatalf("printed %q for a certificate from another root", got)
-	}
-	if !strings.Contains(w.errs.String(), "certificate") {
-		t.Fatalf("reported %q, want the certificate failure", w.errs.String())
-	}
-}
-
-func TestAnHTTPSiteNamesNoRoot(t *testing.T) {
-	roots, err := rootPool("")
-	if roots != nil || err != nil {
-		t.Fatalf("rootPool(\"\") = %v, %v, want nil, nil", roots, err)
 	}
 }

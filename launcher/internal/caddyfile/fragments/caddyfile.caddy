@@ -48,21 +48,6 @@
 
 	# One route block keeps the written order, so every guard runs before Drupal.
 	route {
-		# The readiness probe runtime/watch/watch.go polls until this server answers. The
-		# token names this state, and a caller without it gets 404. Caddy answers without
-		# reaching Drupal. Placed ahead of the guards, which refuse any dot path.
-		@drupackIdentity {
-			path /.drupack-id
-			query {{quote (print "id=" .ID)}}
-		}
-{{- if .AccessLog}}
-		# The launcher's own polls stay out of the access log.
-		log_skip @drupackIdentity
-{{- end}}
-		respond @drupackIdentity 204
-		@drupackIdentityOther path /.drupack-id
-		respond @drupackIdentityOther 404
-
 {{include "guards.caddy" . | indent 2}}
 {{- if .ProjectRules}}
 		# The project's own rules, after the guards.

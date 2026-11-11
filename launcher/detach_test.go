@@ -71,14 +71,6 @@ func TestRelayReturnsTheChildsCodeAfterTheRestOfTheLog(t *testing.T) {
 	}
 }
 
-func TestRelayExitsOneAndNamesTheStopCommandOnTheTimeoutLine(t *testing.T) {
-	out, code := served(t, "Drupal did not answer at http://localhost:7225/ within 2m0s: boom\n", make(chan int), false)
-	if code != 1 || !strings.Contains(out, "Drupal did not answer at") || !strings.Contains(out, "still runs") ||
-		!strings.Contains(out, "    ./demo stop\n") {
-		t.Fatalf("code %d, printed %q, want 1, the line and the stop command", code, out)
-	}
-}
-
 func TestRelayWaitsForTheLogToGrow(t *testing.T) {
 	siteName = "demo"
 	path := filepath.Join(t.TempDir(), "server.log")
@@ -107,15 +99,13 @@ func TestRelayWaitsForTheLogToGrow(t *testing.T) {
 
 // The relay matches text runtime/watch/watch.go prints. The two cannot share a constant,
 // since the runtime build copies that file alone, so this reads it.
-func TestTheRelayMarkersAreStillWhatTheWatcherPrints(t *testing.T) {
+func TestTheRelayMarkerIsStillWhatTheWatcherPrints(t *testing.T) {
 	source, err := os.ReadFile(filepath.Join("..", "runtime", "watch", "watch.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, marker := range []string{readyMarker, timeoutMarker} {
-		if !strings.Contains(string(source), marker) {
-			t.Fatalf("runtime/watch/watch.go no longer prints %q", marker)
-		}
+	if !strings.Contains(string(source), readyMarker) {
+		t.Fatalf("runtime/watch/watch.go no longer prints %q", readyMarker)
 	}
 }
 

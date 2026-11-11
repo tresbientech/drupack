@@ -42,9 +42,8 @@ type Facts struct {
 	Bin, Script string
 	// Open is the link the server opens a browser on. Alias is the drupack.site name.
 	Open, Alias string
-	// ID, Probe, StopRecord and TLSRoot are what the runtime's watch reads: the token and
-	// address of the readiness probe, the stop record and the root a client verifies HTTPS with.
-	ID, Probe, StopRecord, TLSRoot string
+	// StopRecord is the file the runtime's watch writes the stop channel's address to.
+	StopRecord string
 }
 
 // value returns what the reader's own child reads under name, "" when it is unset.
@@ -138,12 +137,7 @@ func (f Facts) Env(k Kind) []string {
 		if f.Open != "" {
 			e.put("DRUPACK_RUNTIME_OPEN=" + f.Open)
 		}
-		e.put("DRUPACK_RUNTIME_ID=" + f.ID)
-		e.put("DRUPACK_RUNTIME_URL=" + f.Probe)
 		e.put("DRUPACK_RUNTIME_STOP_RECORD=" + runtime.Canonical(f.StopRecord))
-		if f.TLSRoot != "" {
-			e.put("DRUPACK_RUNTIME_TLS_ROOT=" + f.TLSRoot)
-		}
 		if !f.Engine {
 			// Every step that needed the administrator password has run. The server passes
 			// its environment to every process it starts, including PHP code a site runs.

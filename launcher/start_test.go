@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -51,19 +52,19 @@ func TestPlanStart(t *testing.T) {
 		err          string
 	}{
 		{"http on loopback", "127.0.0.1", 3787, "", false, "127.0.0.1", "http",
-			startPlan{Bind: "127.0.0.1", Port: 3787, Host: "127.0.0.1", Scheme: "http", URL: "http://127.0.0.1:3787/", Probe: "http://127.0.0.1:3787/"}, ""},
+			startPlan{Bind: "127.0.0.1", Port: 3787, Host: "127.0.0.1", Scheme: "http", URL: "http://127.0.0.1:3787/"}, ""},
 		{"https on a drupack.site name", "127.0.0.1", 3787, "", false, "shop.drupack.site", "https",
-			startPlan{Bind: "127.0.0.1", Port: 3787, Host: "shop.drupack.site", Scheme: "https", URL: "https://shop.drupack.site:3787/", Probe: "https://127.0.0.1:3787/"}, ""},
+			startPlan{Bind: "127.0.0.1", Port: 3787, Host: "shop.drupack.site", Scheme: "https", URL: "https://shop.drupack.site:3787/"}, ""},
 		{"a wildcard probes its own loopback", "::", 8080, "", false, "::", "http",
-			startPlan{Bind: "::", Port: 8080, Host: "::", Scheme: "http", URL: "http://[::]:8080/", Probe: "http://[::1]:8080/"}, ""},
+			startPlan{Bind: "::", Port: 8080, Host: "::", Scheme: "http", URL: "http://[::]:8080/"}, ""},
 		{"static on the next port", "127.0.0.1", 3787, "", true, "localhost", "http",
-			startPlan{Bind: "127.0.0.1", Port: 3787, Host: "localhost", Scheme: "http", URL: "http://localhost:3787/", Probe: "http://127.0.0.1:3787/",
+			startPlan{Bind: "127.0.0.1", Port: 3787, Host: "localhost", Scheme: "http", URL: "http://localhost:3787/",
 				Static: &staticPlan{Bind: "127.0.0.1", Port: 3788, URL: "http://localhost:3788/"}}, ""},
 		{"static on the site address of an IPv6 bind", "::1", 3787, "", true, "::1", "http",
-			startPlan{Bind: "::1", Port: 3787, Host: "::1", Scheme: "http", URL: "http://[::1]:3787/", Probe: "http://[::1]:3787/",
+			startPlan{Bind: "::1", Port: 3787, Host: "::1", Scheme: "http", URL: "http://[::1]:3787/",
 				Static: &staticPlan{Bind: "::1", Port: 3788, URL: "http://[::1]:3788/"}}, ""},
 		{"static typed", "127.0.0.1", 3787, "0.0.0.0:9000", true, "localhost", "https",
-			startPlan{Bind: "127.0.0.1", Port: 3787, Host: "localhost", Scheme: "https", URL: "https://localhost:3787/", Probe: "https://127.0.0.1:3787/",
+			startPlan{Bind: "127.0.0.1", Port: 3787, Host: "localhost", Scheme: "https", URL: "https://localhost:3787/",
 				Static: &staticPlan{Bind: "0.0.0.0", Port: 9000, URL: "https://localhost:9000/"}}, ""},
 		{"static on the site's port", "127.0.0.1", 3787, "127.0.0.1:3787", true, "localhost", "http", startPlan{}, "--static-listen must name a port other than the site's 3787"},
 		{"static past the last port", "127.0.0.1", 65535, "", true, "localhost", "http", startPlan{}, "Invalid --static-listen address or port"},
@@ -125,6 +126,18 @@ func TestExecServerRefusesAHubFileWithoutTheMercureKey(t *testing.T) {
 	want := rules + "/drupack.mercure.caddy holds Mercure hub directives, and " + rules + "/composer.json does not set extra.drupack.mercure to true"
 	if err == nil || err.Error() != want {
 		t.Errorf("execServer = %v, want %q", err, want)
+	}
+}
+
+func TestServeArgumentsNameTheCommandTheFileAndEachProjectFile(t *testing.T) {
+	config := caddyfile.Config{ProjectRules: "/p/drupack.caddy", Mercure: &caddyfile.Mercure{ProjectRules: "/p/drupack.mercure.caddy"}}
+	got := serveArguments("demo", "/state/Caddyfile", config)
+	want := []string{"demo", "drupack-serve", "/state/Caddyfile", "/p/drupack.caddy", "/p/drupack.mercure.caddy"}
+	if !slices.Equal(got, want) {
+		t.Errorf("serveArguments = %q, want %q", got, want)
+	}
+	if got := serveArguments("demo", "/state/Caddyfile", caddyfile.Config{}); !slices.Equal(got, want[:3]) {
+		t.Errorf("serveArguments with no project file = %q, want %q", got, want[:3])
 	}
 }
 
