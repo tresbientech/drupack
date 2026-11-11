@@ -117,7 +117,8 @@ module download. No one saw it, and beta2 stayed unpublished.
 
 - A `tag` job runs after `mirror`. It waits for the tag's `release.yml` run,
   reruns its failed jobs once, and fails if that rerun fails too.
-- `build/wait-for-run.sh` finds and waits for a run, and reruns it on request.
+- `build/wait-for-run.sh` finds and waits for a run, and reruns its failed jobs
+  once.
   The candidate step and the `tag` job both call it.
 - Every Go module fetch in CI gets a second attempt through `GOPROXY`.
 - `RELEASE_PUBLISH_TOKEN`, a GitHub Actions secret, creates the GitHub Release.
@@ -174,34 +175,24 @@ Consequences:
 - A zip replaced under the same name still fails the Windows build, as it did
   on 2026-10-26.
 
-## Amendment, 2026-11-09: the first red job ends the wait
+## Amendment, 2026-11-09: the candidate's QA is the release's QA
 
-The forge job waited for a candidate run to complete. Four failed runs
-completed 39 to 98 minutes after their first red job. The owner's checkout
-still set `qa.command`, and a local `build/qa.sh` run preceded the 1.0.0-beta15
-candidate, whose `qa` job ran the same chain.
+The forge job waited for a candidate run to complete and said nothing until
+then. Four failed runs completed 39 to 98 minutes after their first red job.
+The owner's checkout still set `qa.command`, and a local `build/qa.sh` run
+preceded the 1.0.0-beta15 candidate, whose `qa` job ran the same chain.
 
-- `build/wait-for-run.sh` reads the run's jobs at each poll. The candidate step
-  exits red at the first job that failed, timed out or was cancelled, and
-  prints its name and link.
+- `build/wait-for-run.sh` reads the run's jobs at each poll. It prints the name
+  and link of each job that failed, timed out or was cancelled.
 - The GitHub run goes on, so one attempt shows every red platform.
-- The `tag` job passes `--rerun` and waits for the run to complete. GitHub
-  reruns the failed jobs of a completed run alone.
 - The candidate's `qa` jobs are the release's QA. No local `build/qa.sh` run
   precedes a release, and the checkout sets no `qa.command`.
 - `build/qa.sh` stays the chain a developer runs by hand, whole or one phase.
 
 Consequences:
 
-- The forge reports a red candidate at the first poll after its first red job.
-  It polls every two minutes.
-- A red candidate frees the forge runner slot while its GitHub run still holds
-  runners. A candidate dispatched then shares GitHub's 20 jobs with it.
-- The forge job deletes the candidate branch while the run goes on. A later job
-  checks out the candidate's commit by its SHA, which GitHub serves after the
-  branch is gone.
-- The failed-candidate skip reads completed runs. A dispatch made while the red
-  run goes on builds the same bump again.
+- The forge's log names a red job at the first poll after it ends. It polls
+  every two minutes.
 
 ## Amendment, 2026-11-11: a failed candidate gets one rerun
 
@@ -212,16 +203,15 @@ did not touch:
 - The first Node command of the Windows variant outlasted its 150 seconds.
 - `docker rm` of a MySQL container outlasted 30 seconds in a class teardown.
 
-Each ended the forge job at its first red job, and each release needed a new
+The forge job then ended at the first red job, so each release needed a new
 dispatch and a whole new candidate.
 
-- `build/wait-for-run.sh` takes no `--rerun` option. Every wait names a red job
-  when it ends, waits for the run to complete, and reruns the failed jobs once.
+- Every wait of `build/wait-for-run.sh` lasts until the run completes, then
+  reruns the failed jobs once. GitHub reruns the jobs of a completed run alone.
 - The candidate step and the `tag` job call it the same way.
-- A failure the change caused fails the rerun too. The forge job then ends red
-  after the run and the rerun, later than the 2026-11-09 amendment's first red
-  job. Its log still names the job as soon as it ends.
-- Cancelling the GitHub run no longer stops a release, since the wait reruns a
-  cancelled job. Cancelling the forge job does.
+- A failure the change caused fails the rerun too. The forge job ends red after
+  the run and the rerun.
+- A cancelled GitHub run gets its cancelled jobs rerun. Cancelling the forge
+  job stops a release.
 - A container removal that outlasts its wait in a suite teardown prints a
   warning. The cases it served have their results by then.
