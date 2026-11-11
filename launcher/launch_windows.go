@@ -49,18 +49,9 @@ func launch(c Command) error {
 // restrictUmask does nothing: Windows has no umask.
 func restrictUmask() {}
 
-// fixCommand is the advice that ends e. An inherited entry cannot be removed
-// alone, so the first command copies inherited entries onto the folder.
+// fixCommand is the advice that ends e, which on Windows names an owner alone.
 func fixCommand(e *runtime.Exposed) string {
-	if e.Owns {
-		return "Move the Site data into a folder you own."
-	}
-	folder, account := shellWord(e.Folder, true), shellWord(e.Account, true)
-	recurse := ""
-	if e.Leaf {
-		recurse = " /T"
-	}
-	return "Run: icacls " + folder + " /inheritance:d, then icacls " + folder + " /remove:g " + account + recurse
+	return "Move the Site data into a folder you own."
 }
 
 // createNoWindow gives a process a console no window shows. syscall does not define it.

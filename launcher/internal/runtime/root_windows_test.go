@@ -62,85 +62,36 @@ func TestCreateMakesARootExposureAccepts(t *testing.T) {
 	}
 }
 
+func TestCreateProtectsTheRootFromItsParentsEntries(t *testing.T) {
+	parent := filepath.Join(t.TempDir(), "parent")
+	if err := os.Mkdir(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	withDACL(t, parent, "D:P(A;OICI;FA;;;"+currentUserSID(t)+")(A;OICI;0x1301bf;;;BU)")
+	dir := filepath.Join(parent, "root")
+	if err := Create(dir); err != nil {
+		t.Fatal(err)
+	}
+	sd, err := windows.GetNamedSecurityInfo(dir, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sddl := sd.String(); strings.Contains(sddl, ";BU)") || !strings.Contains(sddl, "D:P") {
+		t.Fatalf("the created root's ACL is %s, want a protected one with no entry for Users", sddl)
+	}
+}
+
 func TestCreateLeavesAnExistingDirectoryAlone(t *testing.T) {
 	dir := createdRoot(t)
 	withDACL(t, dir, "D:P(A;OICI;FA;;;"+currentUserSID(t)+")(A;OICI;0x1301bf;;;BU)")
 	if err := Create(dir); err != nil {
 		t.Fatal(err)
 	}
-	if err := refusal(dir); err == nil {
-		t.Fatal("Create rewrote the ACL of a directory it did not create")
-	}
-}
-
-func TestExposureRefusesARootOtherAccountsCanWrite(t *testing.T) {
-	user := currentUserSID(t)
-	for name, entry := range map[string]string{
-		"modify":         "(A;OICI;0x1301bf;;;BU)",
-		"inherit only":   "(A;OICIIO;FA;;;BU)",
-		"generic write":  "(A;;GW;;;WD)",
-		"delete a child": "(A;;0x40;;;AU)",
-	} {
-		t.Run(name, func(t *testing.T) {
-			dir := createdRoot(t)
-			withDACL(t, dir, "D:P(A;OICI;FA;;;"+user+")"+entry)
-			err := refusal(dir)
-			if err == nil || !strings.Contains(err.Error(), "is open to") {
-				t.Fatalf("Exposure returned %v for an entry %s, want a refusal naming the writer", err, entry)
-			}
-		})
-	}
-}
-
-func TestExposureAcceptsReadAndDenyEntries(t *testing.T) {
-	dir := createdRoot(t)
-	withDACL(t, dir, "D:P(D;OICI;FA;;;BU)(A;OICI;FA;;;"+currentUserSID(t)+")(A;OICI;FRFX;;;BU)")
-	if err := refusal(dir); err != nil {
-		t.Fatalf("a root other accounts can only read was refused: %v", err)
-	}
-}
-
-func TestExposureAcceptsTheDACLPythonsMkdtempSets(t *testing.T) {
-	dir := createdRoot(t)
-	withDACL(t, dir, "D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FA;;;OW)")
-	if err := refusal(dir); err != nil {
-		t.Fatalf("a root granting SYSTEM, Administrators and OWNER RIGHTS was refused: %v", err)
-	}
-}
-
-func TestExposureRefusesANullDACL(t *testing.T) {
-	dir := createdRoot(t)
-	err := windows.SetNamedSecurityInfo(dir, windows.SE_FILE_OBJECT,
-		windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, nil, nil)
+	sd, err := windows.GetNamedSecurityInfo(dir, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := refusal(dir); err == nil || !strings.Contains(err.Error(), "Everyone") {
-		t.Fatalf("Exposure returned %v for a NULL DACL, want a refusal naming Everyone", err)
-	}
-}
-
-func TestExposureRefusesAParentAnotherAccountCanDeleteFrom(t *testing.T) {
-	dir := createdRoot(t)
-	withDACL(t, filepath.Dir(dir), "D:P(A;OICI;FA;;;"+currentUserSID(t)+")(A;;0x40;;;AU)")
-	exposed, err := Exposure(dir, true)
-	if err != nil || exposed == nil || exposed.Leaf || exposed.Folder != filepath.Dir(dir) {
-		t.Fatalf("Exposure returned %+v, %v for a parent granting FILE_DELETE_CHILD, want the parent named", exposed, err)
-	}
-}
-
-func TestExposureAcceptsAParentWhereOthersOnlyCreateFolders(t *testing.T) {
-	dir := createdRoot(t)
-	withDACL(t, filepath.Dir(dir), "D:P(A;OICI;FA;;;"+currentUserSID(t)+")(A;;0x4;;;AU)(A;OICIIO;0x1301bf;;;AU)")
-	if err := refusal(dir); err != nil {
-		t.Fatalf("a parent where others create folders, and modify only what they create, was refused: %v", err)
-	}
-}
-
-func TestTheSystemDriveRootPassesAsAParent(t *testing.T) {
-	drive := filepath.VolumeName(os.Getenv("SystemRoot")) + `\`
-	exposed, err := ancestor(drive, filepath.Join(drive, "Users"))
-	if err != nil || exposed != nil {
-		t.Fatalf("%s as the parent of Users: %+v, %v", drive, exposed, err)
+	if !strings.Contains(sd.String(), ";BU)") {
+		t.Fatalf("Create rewrote the ACL of a directory it did not create: %s", sd.String())
 	}
 }

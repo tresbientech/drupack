@@ -2,134 +2,113 @@
 
 package runtime_test
 
-// These cases build their states out of permission bits, which root honours for the
-// checks Exposure makes: it reads the bits, it does not try a write.
-
 import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	runtimepkg "git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
 
-// folders makes base/parent/leaf with the given modes and returns base, parent and
-// leaf, resolved.
-func folders(t *testing.T, parentMode, leafMode os.FileMode) (string, string, string) {
+// folder makes base/name with mode and returns base and the folder, resolved.
+func folder(t *testing.T, name string, mode os.FileMode) (string, string) {
 	t.Helper()
 	base, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent := filepath.Join(base, "parent")
-	leaf := filepath.Join(parent, "leaf")
-	if err := runtimepkg.Create(leaf); err != nil {
+	dir := filepath.Join(base, name)
+	if err := runtimepkg.Create(dir); err != nil {
 		t.Fatal(err)
 	}
-	for dir, mode := range map[string]os.FileMode{parent: parentMode, leaf: leafMode} {
-		if err := os.Chmod(dir, mode); err != nil {
-			t.Fatal(err)
-		}
+	if err := os.Chmod(dir, mode); err != nil {
+		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chmod(parent, 0o700) })
-	return base, parent, leaf
+	return base, dir
 }
 
-func TestExposureNamesAParentEveryAccountCanWrite(t *testing.T) {
-	_, parent, leaf := folders(t, 0o777, 0o700)
-	exposed, err := runtimepkg.Exposure(leaf, true)
-	if err != nil || exposed == nil || exposed.Folder != parent || exposed.Leaf || exposed.Account != "every account" {
-		t.Fatalf("Exposure(%s) = %+v, %v; want the open parent", leaf, exposed, err)
-	}
-}
-
-func TestExposureAcceptsAStickyParent(t *testing.T) {
-	_, _, leaf := folders(t, os.ModeSticky|0o777, 0o700)
-	if exposed, err := runtimepkg.Exposure(leaf, true); exposed != nil || err != nil {
-		t.Fatalf("a sticky parent was refused: %+v, %v", exposed, err)
-	}
-}
-
-func TestExposureNamesAGroupWritableLeaf(t *testing.T) {
-	_, _, leaf := folders(t, 0o700, 0o775)
-	exposed, err := runtimepkg.Exposure(leaf, false)
-	if err != nil || exposed == nil || !exposed.Leaf || !strings.HasPrefix(exposed.Account, "group ") {
-		t.Fatalf("Exposure(%s) = %+v, %v; want the leaf's group", leaf, exposed, err)
+func TestExposureNamesAGroupWritableFolder(t *testing.T) {
+	_, dir := folder(t, "leaf", 0o775)
+	exposed, err := runtimepkg.Exposure(dir, false)
+	if err != nil || exposed == nil || exposed.Owns || !strings.HasPrefix(exposed.Account, "group ") {
+		t.Fatalf("Exposure(%s) = %+v, %v; want the folder's group", dir, exposed, err)
 	}
 }
 
 func TestExposureWeighsReadAccessOnlyForReaders(t *testing.T) {
-	_, _, leaf := folders(t, 0o700, 0o750)
-	if exposed, err := runtimepkg.Exposure(leaf, false); exposed != nil || err != nil {
-		t.Fatalf("a group-readable leaf was refused without readers: %+v, %v", exposed, err)
+	_, dir := folder(t, "leaf", 0o750)
+	if exposed, err := runtimepkg.Exposure(dir, false); exposed != nil || err != nil {
+		t.Fatalf("a group-readable folder was refused without readers: %+v, %v", exposed, err)
 	}
-	if exposed, err := runtimepkg.Exposure(leaf, true); exposed == nil || err != nil {
-		t.Fatalf("a group-readable leaf passed with readers: %v", err)
+	if exposed, err := runtimepkg.Exposure(dir, true); exposed == nil || err != nil {
+		t.Fatalf("a group-readable folder passed with readers: %v", err)
 	}
 }
 
-func TestExposureNamesAParentAnotherAccountOwns(t *testing.T) {
+func TestExposureNamesAFolderAnotherAccountOwns(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("only root can give a directory to another account")
 	}
-	_, parent, leaf := folders(t, 0o755, 0o700)
-	if err := os.Chown(parent, 65534, 65534); err != nil {
+	_, dir := folder(t, "leaf", 0o700)
+	if err := os.Chown(dir, 65534, 65534); err != nil {
 		t.Fatal(err)
 	}
-	exposed, err := runtimepkg.Exposure(leaf, true)
-	if err != nil || exposed == nil || exposed.Folder != parent || !exposed.Owns {
-		t.Fatalf("Exposure(%s) = %+v, %v; want the parent's owner", leaf, exposed, err)
+	exposed, err := runtimepkg.Exposure(dir, true)
+	if err != nil || exposed == nil || !exposed.Owns {
+		t.Fatalf("Exposure(%s) = %+v, %v; want the folder's owner", dir, exposed, err)
 	}
 }
 
-func TestRootRefusesACacheDirUnderAnOpenParent(t *testing.T) {
-	_, parent, _ := folders(t, 0o777, 0o700)
-	t.Setenv("DRUPACK_CACHE_DIR", filepath.Join(parent, "cache"))
-	if _, err := runtimepkg.Root("acme", io.Discard); err == nil || !strings.Contains(err.Error(), parent) {
-		t.Fatalf("Root under an open parent returned %v, want a refusal naming %s", err, parent)
-	}
-}
-
-func TestRootRefusesALinkIntoAnOpenFolder(t *testing.T) {
-	base, parent, leaf := folders(t, 0o777, 0o700)
+func TestRootRefusesALinkToAnOpenFolder(t *testing.T) {
+	base, dir := folder(t, "leaf", 0o777)
 	link := filepath.Join(base, "link")
-	if err := os.Symlink(leaf, link); err != nil {
+	if err := os.Symlink(dir, link); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("DRUPACK_CACHE_DIR", link)
-	if _, err := runtimepkg.Root("acme", io.Discard); err == nil || !strings.Contains(err.Error(), parent) {
-		t.Fatalf("Root through a link returned %v, want a refusal naming %s", err, parent)
+	if _, err := runtimepkg.Root("acme", io.Discard); err == nil || !strings.Contains(err.Error(), dir) {
+		t.Fatalf("Root through a link returned %v, want a refusal naming %s", err, dir)
 	}
 }
 
-func TestRootSkipsAUserCacheUnderAnOpenHome(t *testing.T) {
-	_, home, _ := folders(t, 0o777, 0o700)
+// openCandidates makes each candidate's per-account folder ahead of Root and
+// returns the two. The user cache one is open to every account, the temporary
+// one private.
+func openCandidates(t *testing.T) (string, string) {
+	t.Helper()
+	home, cache := folder(t, filepath.Join(".cache", "acme"), 0o777)
+	temporary, owned := folder(t, "acme-"+strconv.Itoa(os.Getuid()), 0o700)
 	t.Setenv("DRUPACK_CACHE_DIR", "")
 	t.Setenv("XDG_CACHE_HOME", "")
 	t.Setenv("HOME", home)
+	t.Setenv("TMPDIR", temporary)
+	return cache, owned
+}
+
+func TestRootSkipsACandidateInAFolderOthersCanWrite(t *testing.T) {
+	cache, _ := openCandidates(t)
 	var notice strings.Builder
 	root, err := runtimepkg.Root("acme", &notice)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.HasPrefix(root, home) {
-		t.Fatalf("Root used %s under an open home", root)
+	if strings.HasPrefix(root, cache) {
+		t.Fatalf("Root used %s in a folder others can write", root)
 	}
-	if !strings.Contains(notice.String(), home) || !strings.Contains(notice.String(), "Using "+root+" instead.") {
-		t.Errorf("the notice %q names neither the refused home nor the root used", notice.String())
+	if !strings.Contains(notice.String(), cache) || !strings.Contains(notice.String(), "Using "+root+" instead.") {
+		t.Errorf("the notice %q names neither the refused folder nor the root used", notice.String())
 	}
 }
 
 func TestRootRefusesWhenEveryCandidateIsOpen(t *testing.T) {
-	_, home, _ := folders(t, 0o777, 0o700)
-	_, temporary, _ := folders(t, 0o777, 0o700)
-	t.Setenv("DRUPACK_CACHE_DIR", "")
-	t.Setenv("XDG_CACHE_HOME", "")
-	t.Setenv("HOME", home)
-	t.Setenv("TMPDIR", temporary)
-	if _, err := runtimepkg.Root("acme", io.Discard); err == nil || !strings.Contains(err.Error(), temporary) {
+	_, owned := openCandidates(t)
+	if err := os.Chmod(owned, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtimepkg.Root("acme", io.Discard); err == nil || !strings.Contains(err.Error(), owned) {
 		t.Fatalf("Root returned %v, want the temporary candidate's refusal", err)
 	}
 }

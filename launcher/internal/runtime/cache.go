@@ -54,7 +54,7 @@ func Root(name string, notice io.Writer) (string, error) {
 
 	var refused []error
 	for _, candidate := range cacheRoots(name) {
-		root, err := claimRoot(candidate)
+		root, err := claimCandidate(candidate)
 		if err == nil {
 			for _, earlier := range refused {
 				fmt.Fprintf(notice, "%s. Using %s instead.\n", earlier, root)
@@ -70,9 +70,9 @@ func Root(name string, notice io.Writer) (string, error) {
 	return "", refused[len(refused)-1]
 }
 
-// claimRoot creates dir and returns its real path once no other account can
-// change it or a parent above it, since a launch runs what the root holds. A
-// root that fails is refused rather than repaired.
+// claimRoot creates dir and returns its real path once no other account owns
+// it or can open it, since a launch runs what the root holds. A root that fails
+// is refused rather than repaired.
 func claimRoot(dir string) (string, error) {
 	if err := Create(dir); err != nil {
 		return "", err
@@ -84,15 +84,34 @@ func claimRoot(dir string) (string, error) {
 	if root, err = filepath.EvalSymlinks(root); err != nil {
 		return "", err
 	}
-	exposed, err := Exposure(root, true)
-	if err != nil {
-		return "", fmt.Errorf("cannot check who can change the cache root %s: %w", root, err)
-	}
-	if exposed != nil {
-		return "", fmt.Errorf("cache root %s refused: %w. Remove that access, or set DRUPACK_CACHE_DIR "+
-			"to a directory that only you can change, under parents only you or the system can change", root, exposed)
+	if err := refuseExposed(root, true); err != nil {
+		return "", err
 	}
 	return root, nil
+}
+
+// claimCandidate claims a root this package named, whose parent is the
+// per-account folder Create makes with it. A temporary directory lets another
+// account make that folder first and swap the root inside it, so the folder
+// must be this user's too.
+func claimCandidate(dir string) (string, error) {
+	root, err := claimRoot(dir)
+	if err != nil {
+		return "", err
+	}
+	return root, refuseExposed(filepath.Dir(root), false)
+}
+
+func refuseExposed(dir string, readers bool) error {
+	exposed, err := Exposure(dir, readers)
+	if err != nil {
+		return fmt.Errorf("cannot check who can change the cache folder %s: %w", dir, err)
+	}
+	if exposed != nil {
+		return fmt.Errorf("cache folder %s refused: %w. Remove that access, or set DRUPACK_CACHE_DIR "+
+			"to a directory that only you can change", dir, exposed)
+	}
+	return nil
 }
 
 // resolveASCIIRoot returns the first candidate PHP startup can locate: root, then fallback.

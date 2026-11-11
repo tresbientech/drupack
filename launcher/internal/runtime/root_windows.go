@@ -15,81 +15,25 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// x/sys/windows does not name FILE_DELETE_CHILD.
-const fileDeleteChild = 0x40
-
-// writeAccess holds every right that changes a directory, its ACL or its owner.
-const writeAccess = windows.FILE_WRITE_DATA | windows.FILE_APPEND_DATA | windows.FILE_WRITE_EA |
-	fileDeleteChild | windows.FILE_WRITE_ATTRIBUTES | windows.DELETE | windows.WRITE_DAC |
-	windows.WRITE_OWNER | windows.GENERIC_WRITE | windows.GENERIC_ALL
-
-// replaceAccess holds every right that lets an account remove or rename an
-// entry, or grant itself that right.
-const replaceAccess = windows.DELETE | windows.WRITE_DAC | windows.WRITE_OWNER | windows.GENERIC_ALL
-
-// trustedInstaller owns the root of the system drive. x/sys/windows does not name its SID.
-const trustedInstaller = "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464"
-
-// leaf reports the account outside trustedAccounts that owns dir, or that an ACL
-// entry lets write to it or to what it will hold. Inherit-only entries count,
-// since every entry created below takes them. Windows has no read bits to
-// weigh, so readers changes nothing.
-func leaf(dir string, readers bool) (*Exposed, error) {
-	trusted, err := trustedAccounts()
+// Exposure reports the account outside trustedAccounts that owns the resolved
+// absolute directory dir. It reads no ACL: Create gives a directory it makes a
+// protected one, and an existing directory keeps the access its owner granted.
+// Windows has no read bits to weigh, so readers changes nothing. It returns nil
+// when there is none, and an error when it cannot tell, which a caller treats
+// as exposed.
+func Exposure(dir string, readers bool) (*Exposed, error) {
+	info, err := os.Lstat(dir)
 	if err != nil {
 		return nil, err
 	}
-	sd, owner, err := security(dir)
-	if err != nil {
+	if !info.IsDir() {
+		return nil, fmt.Errorf("not a directory: %s", dir)
+	}
+	account, trusted, err := Owner(dir)
+	if err != nil || trusted {
 		return nil, err
 	}
-	if !trusts(trusted, owner) {
-		return &Exposed{Folder: dir, Account: accountName(owner), Owns: true, Leaf: true}, nil
-	}
-	writer, err := otherWriter(sd, trusted, writeAccess, true)
-	if err != nil || writer == "" {
-		return nil, err
-	}
-	return &Exposed{Folder: dir, Account: writer, Leaf: true}, nil
-}
-
-// ancestor reports the account outside trustedAccounts and TrustedInstaller that
-// owns dir, can delete child out of it, or can delete child itself. A right to
-// create folders in dir, which every signed-in account holds on a drive's root,
-// moves no existing entry.
-func ancestor(dir, child string) (*Exposed, error) {
-	trusted, err := trustedAccounts()
-	if err != nil {
-		return nil, err
-	}
-	installer, err := windows.StringToSid(trustedInstaller)
-	if err != nil {
-		return nil, err
-	}
-	trusted = append(trusted, installer)
-	sd, owner, err := security(dir)
-	if err != nil {
-		return nil, err
-	}
-	if !trusts(trusted, owner) {
-		return &Exposed{Folder: dir, Account: accountName(owner), Owns: true}, nil
-	}
-	if writer, err := otherWriter(sd, trusted, fileDeleteChild|windows.WRITE_DAC|windows.WRITE_OWNER|windows.GENERIC_ALL, false); err != nil || writer != "" {
-		return exposedTo(dir, writer), err
-	}
-	childSD, _, err := security(child)
-	if err != nil {
-		return nil, err
-	}
-	writer, err := otherWriter(childSD, trusted, replaceAccess, false)
-	return exposedTo(child, writer), err
-}
-
-func exposedTo(folder, writer string) *Exposed {
-	if writer == "" {
-		return nil
-	}
-	return &Exposed{Folder: folder, Account: writer}
+	return &Exposed{Folder: dir, Account: account, Owns: true}, nil
 }
 
 // Owner names the account that owns path, following a link, and reports whether
@@ -110,82 +54,15 @@ func Owner(path string) (account string, trusted bool, err error) {
 	return accountName(owner), trusts(accounts, owner), nil
 }
 
-// security reads the owner and DACL of the directory dir.
-func security(dir string) (*windows.SECURITY_DESCRIPTOR, *windows.SID, error) {
-	info, err := os.Lstat(dir)
-	if err != nil {
-		return nil, nil, err
-	}
-	if !info.IsDir() {
-		return nil, nil, fmt.Errorf("not a directory: %s", dir)
-	}
-	sd, err := windows.GetNamedSecurityInfo(dir, windows.SE_FILE_OBJECT,
-		windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
-	if err != nil {
-		return nil, nil, err
-	}
-	owner, _, err := sd.Owner()
-	return sd, owner, err
-}
-
-// otherWriter names the first account outside trusted that sd's DACL grants
-// one of rights, or "" when there is none. inheritOnly counts entries that
-// apply only to what the directory will hold. A missing or NULL DACL grants
-// every account full access. An allow entry of a kind this does not read is a
-// writer.
-func otherWriter(sd *windows.SECURITY_DESCRIPTOR, trusted []*windows.SID, rights windows.ACCESS_MASK, inheritOnly bool) (string, error) {
-	dacl, _, err := sd.DACL()
-	if errors.Is(err, windows.ERROR_OBJECT_NOT_FOUND) || (err == nil && dacl == nil) {
-		return "Everyone", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	for i := uint32(0); i < uint32(dacl.AceCount); i++ {
-		var ace *windows.ACCESS_ALLOWED_ACE
-		if err := windows.GetAce(dacl, i, &ace); err != nil {
-			return "", err
-		}
-		if !inheritOnly && ace.Header.AceFlags&windows.INHERIT_ONLY_ACE != 0 {
-			continue
-		}
-		switch ace.Header.AceType {
-		case windows.ACCESS_ALLOWED_ACE_TYPE:
-			sid := (*windows.SID)(unsafe.Pointer(&ace.SidStart))
-			if ace.Mask&rights != 0 && !trusts(trusted, sid) {
-				return accountName(sid), nil
-			}
-		case windows.ACCESS_DENIED_ACE_TYPE, accessDeniedObjectACE, accessDeniedCallbackACE, accessDeniedCallbackObjectACE:
-			// A deny entry only takes access away.
-		default:
-			return fmt.Sprintf("an ACL entry of type %d", ace.Header.AceType), nil
-		}
-	}
-	return "", nil
-}
-
-// The deny entry types beside ACCESS_DENIED_ACE_TYPE, which x/sys/windows does not name.
-const (
-	accessDeniedObjectACE         = 6
-	accessDeniedCallbackACE       = 10
-	accessDeniedCallbackObjectACE = 12
-)
-
-// trustedAccounts lists who may own or write a cache root: the current user,
-// SYSTEM and Administrators, which can already act as any account, CREATOR
-// OWNER, which is whoever creates each entry, and OWNER RIGHTS, which is the
-// owner leaf has already checked. Python's mkdtemp grants
-// OWNER RIGHTS on the directory it makes.
+// trustedAccounts lists who may own a folder a start runs code from: the current user,
+// and SYSTEM and Administrators, which can already act as any account.
 func trustedAccounts() ([]*windows.SID, error) {
 	current, err := windows.GetCurrentProcessToken().GetTokenUser()
 	if err != nil {
 		return nil, err
 	}
 	trusted := []*windows.SID{current.User.Sid}
-	for _, known := range []windows.WELL_KNOWN_SID_TYPE{
-		windows.WinLocalSystemSid, windows.WinBuiltinAdministratorsSid, windows.WinCreatorOwnerSid,
-		windows.WinCreatorOwnerRightsSid,
-	} {
+	for _, known := range []windows.WELL_KNOWN_SID_TYPE{windows.WinLocalSystemSid, windows.WinBuiltinAdministratorsSid} {
 		sid, err := windows.CreateWellKnownSid(known)
 		if err != nil {
 			return nil, err
@@ -217,8 +94,8 @@ func accountName(sid *windows.SID) string {
 
 // Create makes dir and any missing parent. When this call creates dir, dir gets
 // a protected DACL granting the current user, SYSTEM and Administrators alone,
-// so a directory under a parent other accounts can write still passes leaf. A
-// parent it creates, and an existing dir, keep the ACL they inherit or hold.
+// whatever its parent would have it inherit. A parent it creates, and an
+// existing dir, keep the ACL they inherit or hold.
 func Create(dir string) error {
 	if err := os.MkdirAll(filepath.Dir(dir), rootMode); err != nil {
 		return err
@@ -259,14 +136,14 @@ func cacheRoots(name string) []string {
 
 // asciiRoot resolves root to the ASCII path PHP startup needs, since PHP resolves its
 // PHPRC-derived configuration path through the ANSI code page. The temporary directory is the
-// fallback. Its candidate still runs through claimRoot, since %TEMP% is not account-private
+// fallback. Its candidate still runs through claimCandidate, since %TEMP% is not account-private
 // like cacheRoots' own candidate.
 func asciiRoot(root, name string, notice io.Writer) (string, error) {
 	fallback, err := fallbackRoot(name)
 	if err != nil {
 		return "", err
 	}
-	return resolveASCIIRoot(root, fallback, claimRoot, shortPathName, notice)
+	return resolveASCIIRoot(root, fallback, claimCandidate, shortPathName, notice)
 }
 
 // fallbackRoot names asciiRoot's temp rung. %TMP% and %TEMP% are policy- and reader-writable,

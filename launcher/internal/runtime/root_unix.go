@@ -14,42 +14,25 @@ import (
 	"syscall"
 )
 
-// leaf reports the account other than this user that owns dir, or can write
-// into it. readers counts read access too, for a directory whose contents
-// should stay unseen.
-func leaf(dir string, readers bool) (*Exposed, error) {
+// Exposure reports the account other than this user that owns the resolved
+// absolute directory dir, or can write into it. readers counts read access too,
+// for a directory whose contents should stay unseen. It reads dir alone, so a
+// parent another account can write still lets that account rename dir. It
+// returns nil when there is none, and an error when it cannot tell, which a
+// caller treats as exposed.
+func Exposure(dir string, readers bool) (*Exposed, error) {
 	info, stat, err := lstat(dir)
 	if err != nil {
 		return nil, err
 	}
 	if int(stat.Uid) != os.Getuid() {
-		return &Exposed{Folder: dir, Account: userName(stat.Uid), Owns: true, Leaf: true}, nil
+		return &Exposed{Folder: dir, Account: userName(stat.Uid), Owns: true}, nil
 	}
 	mask := fs.FileMode(0o022)
 	if readers {
 		mask = 0o077
 	}
 	if account := modeHolder(info.Mode().Perm()&mask, stat.Gid); account != "" {
-		return &Exposed{Folder: dir, Account: account, Leaf: true}, nil
-	}
-	return nil, nil
-}
-
-// ancestor reports the account other than this user or root that owns dir, or
-// can rename child out of it. A sticky directory lets an account rename only
-// its own entries, so a shared /tmp holds a child no other account can move.
-func ancestor(dir, child string) (*Exposed, error) {
-	info, stat, err := lstat(dir)
-	if err != nil {
-		return nil, err
-	}
-	if int(stat.Uid) != os.Getuid() && stat.Uid != 0 {
-		return &Exposed{Folder: dir, Account: userName(stat.Uid), Owns: true}, nil
-	}
-	if info.Mode()&fs.ModeSticky != 0 {
-		return nil, nil
-	}
-	if account := modeHolder(info.Mode().Perm()&0o022, stat.Gid); account != "" {
 		return &Exposed{Folder: dir, Account: account}, nil
 	}
 	return nil, nil

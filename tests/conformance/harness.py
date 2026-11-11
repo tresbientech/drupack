@@ -210,9 +210,7 @@ def fresh_dir(path):
     return path
 
 
-# Set by __main__ on Windows to a folder under %LOCALAPPDATA%. The launcher refuses a cache
-# root a parent lets another account change, and a Windows runner's workspace inherits
-# Modify for Authenticated Users from its drive root.
+# Set by __main__ on Windows to a folder under %LOCALAPPDATA%, which holds the cases' cache roots.
 CASE_CACHES = None
 
 

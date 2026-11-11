@@ -237,7 +237,7 @@ One version takes about 400 MB on Linux and macOS, beside your Site data. The sp
 
 `DRUPACK_CACHE_DIR` moves the cache, for a disk with more room. On Linux and macOS a home directory that refuses writes sends the runtime to the temporary directory instead. On Windows, a cache root PHP's startup cannot read sends the runtime to the temporary directory too, printing why.
 
-The cache holds code the executable runs, so no other account may write to it, apart from administrators and the system. A cache directory the executable creates is made private. An existing one that another account can write to stops the start.
+The cache holds code the executable runs, so no other account may write to it, apart from administrators and the system. A cache directory the executable creates is made private. An existing one that another account owns stops the start, as does one on Unix that another account can read or write.
 
 ## TLS trust
 

@@ -69,15 +69,16 @@ Caddyfile, where Caddy reads a brace as a placeholder.
 
 A start creates a missing Site data directory readable and writable by you
 alone. Every start, `drush` and `export` check Site data and a named
-`--files-dir` by the cache folder rule below, reading access aside. When another
-account can change one, they print a warning and go on. The warning names the
-folder, the account and a fix:
+`--files-dir` by the cache folder rule below, reading access aside. When one
+fails the rule, they print a warning and go on. The warning names the folder,
+the account and a fix:
 
 - a folder open on Unix: `chmod -R go-w FOLDER`
-- a parent open on Unix: `chmod go-w PARENT`
-- a folder or parent open on Windows: `icacls FOLDER /inheritance:d`, then
-  `icacls FOLDER /remove:g ACCOUNT /T`, with `/T` for the folder alone
 - a folder another account owns: move Site data into a folder you own
+
+The check reads the folder alone, and on Windows its owner alone. Keep Site data
+under parents no other account can write. On Windows, keep it out of a folder
+whose access list lets other accounts write, such as a new folder under `C:\`.
 
 A site whose `drupack.yml` lists `writable` directories keeps its own
 application in `app` in Site data. A start lays it there once per release.
@@ -421,12 +422,18 @@ Five variables have no option:
 | `DRUPACK_NO_UPDATE_CHECK` | `1` turns off the engine executable's daily release check |
 
 A start runs the PHP and Caddy it unpacked into the cache, so it refuses a cache
-folder that another account can change. The folder itself must be yours and
-readable and writable by you alone. Each folder above it must belong to you, to
-root or to the system, and let no other account rename what it holds. A
-world-writable folder with the sticky bit, such as `/tmp`, passes. The refusal
-names the folder and the account. `DRUPACK_CACHE_DIR` follows the same rule, so
-point it at a folder under your home.
+folder that fails this rule:
+
+- Unix: the folder is yours, and readable and writable by you alone.
+- Windows: the folder belongs to you, to SYSTEM or to Administrators.
+
+The refusal names the folder and the account. A cache folder a start creates
+passes: it gets mode `0700`, or on Windows an access list naming you, SYSTEM
+and Administrators alone.
+
+The check reads no parent folder, and on Windows no access list. Point
+`DRUPACK_CACHE_DIR` at a folder under your home, or at one a start creates. An
+existing Windows folder outside your profile can let other accounts write.
 
 ## The engine executable
 

@@ -31,13 +31,10 @@ func restrictUmask() {
 // fixCommand is the advice that ends e. Only root can give a folder back to this
 // user, so a folder another account owns gets moved instead.
 func fixCommand(e *runtime.Exposed) string {
-	switch {
-	case e.Owns:
+	if e.Owns {
 		return "Move the Site data into a folder you own."
-	case e.Leaf:
-		return "Run: chmod -R go-w " + shellWord(e.Folder, false)
 	}
-	return "Run: chmod go-w " + shellWord(e.Folder, false)
+	return "Run: chmod -R go-w " + shellWord(e.Folder, false)
 }
 
 // consoleOwned is false: a Unix terminal belongs to the shell that started it.
