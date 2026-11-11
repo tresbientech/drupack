@@ -2,7 +2,7 @@
 
 The canonical repository is `tresbientech/drupack` on git.tresbien.tech. GitHub and drupal.org carry mirrors that every push to `main` updates, and neither takes pull requests. [ADR 0001](docs/adr/0001-forge-canonical-github-packaging-mirror.md) records why.
 
-Issues go to the [drupal.org issue queue](https://git.drupalcode.org/project/drupack/-/work_items). It holds the open questions, the follow-ups and the plans. An issue an LLM session files carries the `LLM` label and the template's AI disclosure.
+Issues go to the [drupal.org issue queue](https://git.drupalcode.org/project/drupack/-/work_items). It holds the open questions, the follow-ups, the plans and the specs. An issue an LLM session files carries the `LLM` label and the template's AI disclosure. A commit for an issue uses Drupal core's subject, `fix: #3636009 Title`, and one issue gives one commit on `main`.
 
 ## Build
 
@@ -190,4 +190,4 @@ Each tag needs its drupal.org release node, created by hand. `.gitea/workflows/r
 
 A push to `main` mirrors the same way. It builds and tests Linux amd64 when the push touched a path outside `docs/`, `LICENSE` and the root Markdown files. A documentation commit starts no build.
 
-Documents worth reading before a change: `CONTEXT.md` for the vocabulary, `README.md` for what the product promises, `docs/adr/` for the decisions behind the current shape, the [issue queue](https://git.drupalcode.org/project/drupack/-/work_items) for open questions and plans, and `docs/prd/` for work already scheduled. A decision lands as a short numbered ADR. A plan lives whole in its issue, which closes at merge. A PRD is deleted once the work ships, so the tree holds no finished checklists.
+Documents worth reading before a change: `CONTEXT.md` for the vocabulary, `README.md` for what the product promises, `docs/adr/` for the decisions behind the current shape, the [issue queue](https://git.drupalcode.org/project/drupack/-/work_items) for open questions, plans and work already scheduled. A decision lands as a short numbered ADR. A plan and its spec live whole in their issue, which closes at merge, so the tree holds no checklists.
