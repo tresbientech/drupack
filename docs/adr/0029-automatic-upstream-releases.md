@@ -202,3 +202,26 @@ Consequences:
   branch is gone.
 - The failed-candidate skip reads completed runs. A dispatch made while the red
   run goes on builds the same bump again.
+
+## Amendment, 2026-11-11: a failed candidate gets one rerun
+
+On 2026-11-10 three candidate runs ended on a job that the change under test
+did not touch:
+
+- GitHub had no macOS arm64 runner for 15 minutes and cancelled the job.
+- The first Node command of the Windows variant outlasted its 150 seconds.
+- `docker rm` of a MySQL container outlasted 30 seconds in a class teardown.
+
+Each ended the forge job at its first red job, and each release needed a new
+dispatch and a whole new candidate.
+
+- `build/wait-for-run.sh` takes no `--rerun` option. Every wait names a red job
+  when it ends, waits for the run to complete, and reruns the failed jobs once.
+- The candidate step and the `tag` job call it the same way.
+- A failure the change caused fails the rerun too. The forge job then ends red
+  after the run and the rerun, later than the 2026-11-09 amendment's first red
+  job. Its log still names the job as soon as it ends.
+- Cancelling the GitHub run no longer stops a release, since the wait reruns a
+  cancelled job. Cancelling the forge job does.
+- A container removal that outlasts its wait in a suite teardown prints a
+  warning. The cases it served have their results by then.

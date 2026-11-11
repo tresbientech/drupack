@@ -177,7 +177,7 @@ jobs:
             | curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" \
               -X POST "$GITHUB_API/actions/workflows/release.yml/dispatches" -d @-
           # An earlier candidate of the same bump ran on the same branch name, so the
-          # run is found by its commit.
+          # run is found by its commit. A failed run gets one rerun of its failed jobs.
           bash build/wait-for-run.sh "event=workflow_dispatch&head_sha=$SHA"
 
       # A main that moved since the checkout refuses the fast-forward, and with it the
@@ -225,4 +225,4 @@ jobs:
         env:
           VERSION: ${{ needs.upstream.outputs.version }}
           GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
-        run: bash build/wait-for-run.sh "event=push&branch=$VERSION" --rerun
+        run: bash build/wait-for-run.sh "event=push&branch=$VERSION"

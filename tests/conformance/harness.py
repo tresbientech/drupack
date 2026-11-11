@@ -448,6 +448,16 @@ def popen(args, **kwargs):
     return subprocess.Popen(args, **kwargs)
 
 
+def remove_container(name):
+    """Removes a container and the anonymous volume its image declares. The cases it served
+    have their results by then, so a removal that outlasts its wait is reported and left."""
+    try:
+        subprocess.run(["docker", "rm", "-f", "-v", name], capture_output=True, timeout=WAITS["docker_admin"].seconds)
+    except subprocess.TimeoutExpired:
+        print(f"docker rm of {name} outlasted {WAITS['docker_admin'].seconds}s. The container may remain.",
+              file=sys.stderr, flush=True)
+
+
 def report_output(command, stdout, stderr):
     """Prints what a timed-out command wrote, since its failure names the command alone."""
     for name, output in (("stdout", stdout), ("stderr", stderr)):
@@ -853,7 +863,5 @@ class DatabaseServer:
         with open(self.log_dir / f"{self.backend}-server.log", "wb") as handle:
             subprocess.run(["docker", "logs", self.container], stdout=handle, stderr=subprocess.STDOUT,
                             timeout=WAITS["docker_admin"].seconds)
-        # The database images declare a VOLUME; -v removes the anonymous one this run created.
-        subprocess.run(["docker", "rm", "-f", "-v", self.container], capture_output=True,
-                        timeout=WAITS["docker_admin"].seconds)
+        remove_container(self.container)
         self.container = None

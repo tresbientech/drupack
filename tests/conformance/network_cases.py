@@ -112,7 +112,7 @@ def _remove_site_container(name, log_path):
     with open(log_path, "w") as handle:
         subprocess.run(["docker", "logs", name], stdout=handle, stderr=subprocess.STDOUT,
                         timeout=harness.WAITS["docker_admin"].seconds)
-    subprocess.run(["docker", "rm", "-f", "-v", name], capture_output=True, timeout=harness.WAITS["docker_admin"].seconds)
+    harness.remove_container(name)
 
 
 class NetworkListener(harness.ConformanceCase):
