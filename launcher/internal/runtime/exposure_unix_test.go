@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -79,7 +80,12 @@ func TestRootRefusesALinkToAnOpenFolder(t *testing.T) {
 // one private.
 func openCandidates(t *testing.T) (string, string) {
 	t.Helper()
-	home, cache := folder(t, filepath.Join(".cache", "acme"), 0o777)
+	// os.UserCacheDir answers $HOME/Library/Caches on macOS.
+	caches := ".cache"
+	if runtime.GOOS == "darwin" {
+		caches = filepath.Join("Library", "Caches")
+	}
+	home, cache := folder(t, filepath.Join(caches, "acme"), 0o777)
 	temporary, owned := folder(t, "acme-"+strconv.Itoa(os.Getuid()), 0o700)
 	t.Setenv("DRUPACK_CACHE_DIR", "")
 	t.Setenv("XDG_CACHE_HOME", "")
