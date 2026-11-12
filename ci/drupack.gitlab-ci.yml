@@ -1,5 +1,5 @@
 # A site project on GitLab, such as a drupal.org project, includes this file
-# from the engine's mirror at an engine tag. It builds the site's executables in
+# from the engine's repository at an engine tag. It builds the site's executables in
 # the engine's job image and keeps them as job artifacts. With `publish`, a tag
 # pipeline uploads them to the project's package registry and creates a release.
 #

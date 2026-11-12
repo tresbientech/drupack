@@ -547,7 +547,7 @@ Tested on Gitea 1.27.
 ## drupal.org GitLab
 
 A project on git.drupalcode.org, or any GitLab project, includes the engine's
-template from the `project/drupack` mirror at an engine tag. `version` repeats
+template from the `project/drupack` repository at an engine tag. `version` repeats
 that tag, since GitLab does not tell an included file its ref.
 
 `.gitlab-ci.yml`:

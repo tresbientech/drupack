@@ -23,7 +23,7 @@ on:
           - macos-amd64
           - windows-amd64
       version:
-        description: The version a forge candidate run builds, which its tag run then publishes.
+        description: The version a candidate run builds, which its tag run then publishes.
         type: string
         default: ''
 
@@ -67,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The forge writes the bump table into the candidate commit's message.
+      # upstream.yml writes the bump table into the candidate commit's message.
       - name: Show the candidate's bump
         if: github.ref_type == 'tag' || inputs.version != ''
         run: git log -1 --format='### %s%n%n%b' >>"$GITHUB_STEP_SUMMARY"

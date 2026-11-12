@@ -11,9 +11,9 @@ PHP security release behind, and nothing had reported it.
 
 ## Decision
 
-- `.gitea/workflows/upstream.yml` runs daily on the forge's runner. Nothing
-  outside the LAN reaches the forge, so the job writes the forge with its own
-  token and reaches GitHub outbound.
+- `.github/workflows/upstream.yml` runs daily on GitHub. drupal.org's pipeline
+  schedule dispatches it, as
+  [ADR 0001](0001-drupal-org-canonical-github-packaging.md) describes.
 - `build/upstream.py` moves each pin to its newest version inside its line:
   - PHP 8.5.x, once php.net lists both Windows zips
   - FrankenPHP 1.x, with the commit its tag names
@@ -28,16 +28,13 @@ PHP security release behind, and nothing had reported it.
   the breakage a newer release causes, and every run prints it beside the
   newest version.
 - The bump goes on `main` HEAD, on the candidate branch `upstream/<fingerprint>`
-  that the forge and GitHub both hold. The fingerprint is the SHA-256 of the
-  bump's diff. This amends [ADR 0001](0001-forge-canonical-github-packaging-mirror.md),
-  which pushed only `main` and tags.
+  that GitHub alone holds. The fingerprint is the SHA-256 of the bump's diff.
 - The job dispatches `release.yml` on every platform through the GitHub API, to
   build and test the candidate. Its `qa` job runs `build/qa.sh`. The job finds
   the run by the candidate's commit and polls it.
 - On green, one atomic push sends `main` as a fast-forward and the next version
-  tag to the forge, and deletes the candidate branch. Gitea starts no workflow
-  for a push made with the job's token, so the job then calls `mirror.yml`. The
-  mirror and the tag run publish the tag as a hand tag.
+  tag to drupal.org. A second push sends both to GitHub, where the tag run
+  publishes. The job then deletes the candidate branch.
 - A green candidate run replaces the local `qa-green` record for these tags.
 - A bump whose candidate failed is not built again unless the dispatch sets
   `force`. A failed run on its branch name records the failure.
@@ -46,8 +43,8 @@ PHP security release behind, and nothing had reported it.
 
 ## Considered options
 
-- The job on GitHub Actions, with a forge deploy key. GitHub cannot reach the
-  forge.
+- The job on the forge's runner. It ran there while the forge was canonical,
+  because nothing outside the LAN reaches the forge.
 - One manifest read by bash, PowerShell and Python. The pin files lose their
   literals, and every build needs `jq`.
 - Renovate on the forge. It needs a Gitea token with broad scopes, and php-src
@@ -60,13 +57,10 @@ PHP security release behind, and nothing had reported it.
 - A release costs two full matrices: the candidate run and the tag run.
 - A moved `main` refuses the fast-forward. The run then fails with no tag, and
   the next day's run retries on the new `main`.
-- `RELEASE_DISPATCH_TOKEN` on the forge holds a GitHub fine-grained token with
-  Actions read and write on `tresbientech/drupack`. The candidate branch reaches
-  GitHub with the mirror deploy key.
-- The job holds one forge runner slot for the length of the candidate build.
+- The job's own token dispatches `release.yml`, reads its runs and reruns its
+  failed jobs. Every push to GitHub uses the deploy key.
+- The job holds one GitHub runner for the length of the candidate build.
 - Anything merged on `main` ships with the next automatic tag.
-- A push to `main` during a candidate build mirrors the candidate branch to
-  GitHub and drupal.org. The next mirror run after its deletion prunes it.
 
 ## Amendment, 2026-10-13
 
@@ -82,11 +76,11 @@ covered Linux alone. `1.0.0-alpha4` failed its Windows job after such a tag.
   does not sort above every tag.
 - Every candidate commit rewrites the version `docs/build-your-site.md` names,
   through `build/pin-docs.py`. The fingerprint is taken before that rewrite.
-- No person pushes a version tag, and no tag waits on a `qa-green` record. The
-  forge still accepts such a push;
+- No person pushes a version tag, and no tag waits on a `qa-green` record.
+  drupal.org still accepts such a push;
   [issue 3636023](https://git.drupalcode.org/project/drupack/-/work_items/3636023)
   holds that question.
-- `.gitea/workflows/release-node.yml` runs each day before the upstream run. It
+- `.github/workflows/release-node.yml` runs each day with the upstream run. It
   fails while Packagist lists no `drupal/drupack` release for the highest tag.
 - [ADR 0032](0032-drupacked-demo-own-repository.md) takes Drupacked Demo out of
   this run.
@@ -115,7 +109,7 @@ own repository, with its bumper.
 The 1.0.0-beta2 tag run failed on 2026-10-14 when proxy.golang.org dropped a
 module download. No one saw it, and beta2 stayed unpublished.
 
-- A `tag` job runs after `mirror`. It waits for the tag's `release.yml` run,
+- A `tag` job runs after `upstream`. It waits for the tag's `release.yml` run,
   reruns its failed jobs once, and fails if that rerun fails too.
 - `build/wait-for-run.sh` finds and waits for a run, and reruns its failed jobs
   once.
@@ -130,7 +124,7 @@ Consequences:
 
 - A tag run costs up to two runs of its failed jobs.
 - A red tag run in the consequences above now means two failed attempts, and a
-  red `tag` job on the forge reports it.
+  red `tag` job reports it.
 
 ## Amendment, 2026-10-15: the tag run publishes the candidate
 
@@ -177,7 +171,7 @@ Consequences:
 
 ## Amendment, 2026-11-09: the candidate's QA is the release's QA
 
-The forge job waited for a candidate run to complete and said nothing until
+The upstream job waited for a candidate run to complete and said nothing until
 then. Four failed runs completed 39 to 98 minutes after their first red job.
 The owner's checkout still set `qa.command`, and a local `build/qa.sh` run
 preceded the 1.0.0-beta15 candidate, whose `qa` job ran the same chain.
@@ -191,7 +185,7 @@ preceded the 1.0.0-beta15 candidate, whose `qa` job ran the same chain.
 
 Consequences:
 
-- The forge's log names a red job at the first poll after it ends. It polls
+- The upstream job's log names a red job at the first poll after it ends. It polls
   every two minutes.
 
 ## Amendment, 2026-11-11: a failed candidate gets one rerun
@@ -203,15 +197,15 @@ did not touch:
 - The first Node command of the Windows variant outlasted its 150 seconds.
 - `docker rm` of a MySQL container outlasted 30 seconds in a class teardown.
 
-The forge job then ended at the first red job, so each release needed a new
+The upstream job then ended at the first red job, so each release needed a new
 dispatch and a whole new candidate.
 
 - Every wait of `build/wait-for-run.sh` lasts until the run completes, then
   reruns the failed jobs once. GitHub reruns the jobs of a completed run alone.
 - The candidate step and the `tag` job call it the same way.
-- A failure the change caused fails the rerun too. The forge job ends red after
+- A failure the change caused fails the rerun too. The upstream job ends red after
   the run and the rerun.
-- A cancelled GitHub run gets its cancelled jobs rerun. Cancelling the forge
-  job stops a release.
+- A cancelled candidate run gets its cancelled jobs rerun. Cancelling the
+  upstream job stops a release.
 - A container removal that outlasts its wait in a suite teardown prints a
   warning. The cases it served have their results by then.

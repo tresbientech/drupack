@@ -1,6 +1,6 @@
 # Contributing to Drupack
 
-The canonical repository is `tresbientech/drupack` on git.tresbien.tech. GitHub and drupal.org carry mirrors that every push to `main` updates, and neither takes pull requests. [ADR 0001](docs/adr/0001-forge-canonical-github-packaging-mirror.md) records why.
+The canonical repository is the drupal.org project [`drupack`](https://git.drupalcode.org/project/drupack). Merge requests go there, and each one runs the unit tests. GitHub holds a copy that builds, tests and publishes the executables, and takes no pull requests. [ADR 0001](docs/adr/0001-drupal-org-canonical-github-packaging.md) records why.
 
 Issues go to the [drupal.org issue queue](https://git.drupalcode.org/project/drupack/-/work_items). It holds the open questions, the follow-ups, the plans and the specs. An issue an LLM session files carries the `LLM` label and the template's AI disclosure. A commit for an issue uses Drupal core's subject, `fix: #3636009 Title`, and one issue gives one commit on `main`.
 
@@ -169,25 +169,25 @@ Every published executable is a launcher carrying the real executable, compresse
 
 ## Releases
 
-`.gitea/workflows/upstream.yml` pushes every version tag, as [ADR 0029](docs/adr/0029-automatic-upstream-releases.md) describes. Never push one yourself. To release `main`, dispatch that workflow on the Forge with `version`, such as `1.0.0-beta1`. The run then does four things:
+`.github/workflows/upstream.yml` pushes every version tag, as [ADR 0029](docs/adr/0029-automatic-upstream-releases.md) describes. Never push one yourself. To release `main`, dispatch that workflow on GitHub with `version`, such as `1.0.0-beta1`. The run then does four things:
 
 - refuses a version without a tag's form, or one that does not sort above every tag
 - commits the version to the pinned lines of `docs/build-your-site.md`
 - builds and tests that commit on every platform, `build/qa.sh` included
 - pushes `main` and the tag once the run is green
 
-The candidate's QA jobs are the release's QA, so no local `build/qa.sh` run precedes a release. The Forge run fails at the candidate's first red job and prints its name. The GitHub run goes on to its other jobs.
+The candidate's QA jobs are the release's QA, so no local `build/qa.sh` run precedes a release. The upstream run prints the name of each red job as it ends. The candidate run goes on to its other jobs.
 
-A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.0.0-alpha1`, pushed to the Forge, mirrors to GitHub and drupal.org and starts the release workflow. When the tag's candidate run succeeded, the workflow publishes that run's files. Otherwise it builds all seven targets and runs the suite on each, except the two musl files, which start a site on Alpine. It then publishes a GitHub Release. `build/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, each macOS and Windows runtime as `runtime-VERSION-TARGET.tar.zst`, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. A drupal.org release node, created by hand for the tag, publishes it to Packagist as a version of the Composer package `drupal/drupack`, which [ADR 0024](docs/adr/0024-composer-package.md) describes.
+A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.0.0-alpha1`, reaches drupal.org and GitHub in the same job, and starts the release workflow on GitHub. When the tag's candidate run succeeded, the workflow publishes that run's files. Otherwise it builds all seven targets and runs the suite on each, except the two musl files, which start a site on Alpine. It then publishes a GitHub Release. `build/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, each macOS and Windows runtime as `runtime-VERSION-TARGET.tar.zst`, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. A drupal.org release node, created by hand for the tag, publishes it to Packagist as a version of the Composer package `drupal/drupack`, which [ADR 0024](docs/adr/0024-composer-package.md) describes.
 
 ### Automatic releases
 
-The same workflow runs daily on the forge's runner, and tags a release when PHP, FrankenPHP or a Windows PECL extension moves inside its line. Each candidate also moves `build/demo-pin.sh` forward to the demo's latest release, and holds a commit set by hand until a release contains it. `python3 build/upstream.py` runs its bump in your checkout and prints the summary the workflow logs. The candidate commit carries that summary, and its GitHub run shows it on the run page. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed. After the tag, the workflow waits for the release run the tag starts. A failed run gets one rerun of its failed jobs, and the workflow fails if that rerun fails too.
+drupal.org's pipeline schedule dispatches the same workflow daily, and it tags a release when PHP, FrankenPHP or a Windows PECL extension moves inside its line. Each candidate also moves `build/demo-pin.sh` forward to the demo's latest release, and holds a commit set by hand until a release contains it. `python3 build/upstream.py` runs its bump in your checkout and prints the summary the workflow logs. The candidate commit carries that summary, and its GitHub run shows it on the run page. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed. After the tag, the workflow waits for the release run the tag starts. A failed run gets one rerun of its failed jobs, and the workflow fails if that rerun fails too.
 
-Each tag needs its drupal.org release node, created by hand. `.gitea/workflows/release-node.yml` runs each morning and fails while Packagist lists no `drupal/drupack` release for the highest tag.
+Each tag needs its drupal.org release node, created by hand. `.github/workflows/release-node.yml` runs each morning and fails while Packagist lists no `drupal/drupack` release for the highest tag.
 
 ### Pushes to main
 
-A push to `main` mirrors the same way. It builds and tests Linux amd64 when the push touched a path outside `docs/`, `LICENSE` and the root Markdown files. A documentation commit starts no build.
+A push to drupal.org's `main` fires a webhook, and `.github/workflows/sync.yml` copies `main` and the tags to GitHub. The push builds and tests Linux amd64 when the push touched a path outside `docs/`, `LICENSE` and the root Markdown files. A documentation commit starts no build.
 
 Documents worth reading before a change: `CONTEXT.md` for the vocabulary, `README.md` for what the product promises, `docs/adr/` for the decisions behind the current shape, the [issue queue](https://git.drupalcode.org/project/drupack/-/work_items) for open questions, plans and work already scheduled. A decision lands as a short numbered ADR. A plan and its spec live whole in their issue, which closes at merge, so the tree holds no checklists.

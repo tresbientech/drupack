@@ -2,15 +2,13 @@ name: Upstream
 
 # Releases Drupack when an upstream it pins has a newer version inside its line,
 # or when a dispatch names a version. The candidate is built and tested on every
-# platform, with build/qa.sh, by GitHub's release.yml before the forge receives
-# main and the tag; the mirror and the tag run of release.yml then publish it.
+# platform, with build/qa.sh, by release.yml before drupal.org receives main and
+# the tag; the tag run of release.yml then publishes it.
 #
-# The job runs on the forge because nothing outside the LAN reaches the forge.
-# It writes the forge with gitea.token and reaches GitHub outbound.
+# drupal.org's daily pipeline schedule dispatches this workflow, from the
+# dispatch job of .gitlab-ci.yml.
 
 on:
-  schedule:
-    - cron: '17 5 * * *'
   workflow_dispatch:
     inputs:
       version:
@@ -30,17 +28,20 @@ concurrency:
   group: upstream
   cancel-in-progress: false
 
+# The job's token dispatches release.yml, reads its runs and reruns its failed jobs.
 permissions:
-  contents: write
+  actions: write
+  contents: read
 
 env:
   GITHUB_API: https://api.github.com/repos/tresbientech/drupack
   GITHUB_REMOTE: git@github.com:tresbientech/drupack.git
+  DRUPAL_ORG_REMOTE: https://git.drupalcode.org/project/drupack.git
 
 jobs:
   upstream:
     runs-on: ubuntu-latest
-    # The runner stops any job at three hours; a release.yml run takes one.
+    # A release.yml run takes one hour, and a failed one runs its failed jobs again.
     timeout-minutes: 180
     outputs:
       version: ${{ steps.release.outputs.version }}
@@ -49,11 +50,19 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
+
+      # The release pushes this checkout to drupal.org's main, so a commit that
+      # reached GitHub alone must never ride along.
+      - name: Refuse a main that drupal.org does not hold
+        run: |
+          git fetch --quiet "$DRUPAL_ORG_REMOTE" main
+          [ "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)" ] || { echo "GitHub's main is not drupal.org's main." >&2; exit 1; }
 
       - id: bump
         name: Bump the pins, or take the version the dispatch names
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           NAMED: ${{ inputs.version }}
         run: |
           if [ -n "$NAMED" ]; then
@@ -106,7 +115,7 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
           FORCE: ${{ inputs.force }}
           NAMED: ${{ inputs.version }}
-          GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           if [ "$DRY_RUN" = true ]; then
             git diff
@@ -143,7 +152,8 @@ jobs:
           EOF
           printf 'version=%s\nsha=%s\n' "$VERSION" "$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
 
-      # The mirror deploy key may push to the GitHub repository alone.
+      # A push made with the job's token starts no workflow, and release.yml runs
+      # on the push of main and the tag, so every push goes out with the deploy key.
       - name: Reach GitHub
         if: steps.candidate.outputs.version
         env:
@@ -151,18 +161,16 @@ jobs:
         run: |
           umask 077
           mkdir -p "$HOME/.ssh"
-          printf '%s' "$DEPLOY_KEY_BASE64" | base64 -d >"$HOME/.ssh/github_mirror"
+          printf '%s' "$DEPLOY_KEY_BASE64" | base64 -d >"$HOME/.ssh/deploy"
           printf 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n' >"$HOME/.ssh/known_hosts"
-          git config core.sshCommand "ssh -i $HOME/.ssh/github_mirror -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          git config core.sshCommand "ssh -i $HOME/.ssh/deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
 
-      # The forge holds the branch too, so the mirror's --prune keeps GitHub's copy.
+      # The candidate branch never reaches drupal.org.
       - name: Push the candidate branch
         if: steps.candidate.outputs.version
         env:
           BRANCH: ${{ steps.bump.outputs.branch }}
-        run: |
-          git push --quiet origin "HEAD:refs/heads/$BRANCH"
-          git push --quiet "$GITHUB_REMOTE" "HEAD:refs/heads/$BRANCH"
+        run: git push --quiet "$GITHUB_REMOTE" "HEAD:refs/heads/$BRANCH"
 
       - name: Build and test the candidate on every platform
         if: steps.candidate.outputs.version
@@ -170,7 +178,7 @@ jobs:
           BRANCH: ${{ steps.bump.outputs.branch }}
           SHA: ${{ steps.candidate.outputs.sha }}
           VERSION: ${{ steps.candidate.outputs.version }}
-          GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           # The run builds under the tag's version, so the tag run publishes its files.
           jq -n --arg ref "$BRANCH" --arg version "$VERSION" '{ref: $ref, inputs: {platform: "all", version: $version}}' \
@@ -180,41 +188,35 @@ jobs:
           # run is found by its commit. A failed run gets one rerun of its failed jobs.
           bash build/wait-for-run.sh "event=workflow_dispatch&head_sha=$SHA"
 
-      # A main that moved since the checkout refuses the fast-forward, and with it the
-      # tag. The same push deletes the candidate branch, so the mirror run below
-      # prunes it from GitHub and drupal.org.
+      # A main that moved on drupal.org since the checkout refuses the fast-forward,
+      # and with it the tag. GitHub then receives the same two refs, and its tag push
+      # starts the release.yml run that publishes.
       - id: release
-        name: Push main and the tag to the forge
+        name: Push main and the tag to drupal.org, then to GitHub
         if: steps.candidate.outputs.version
         env:
-          BRANCH: ${{ steps.bump.outputs.branch }}
+          DRUPAL_ORG_TOKEN: ${{ secrets.DRUPAL_ORG_TOKEN }}
           VERSION: ${{ steps.candidate.outputs.version }}
         run: |
           git tag "$VERSION"
-          git push --atomic --quiet origin HEAD:refs/heads/main "refs/tags/$VERSION" ":refs/heads/$BRANCH"
+          # GitLab reads the project access token from the password and ignores the user name.
+          authorization=$(printf 'upstream:%s' "$DRUPAL_ORG_TOKEN" | base64 -w0)
+          git -c "http.extraHeader=Authorization: Basic $authorization" \
+            push --atomic --quiet "$DRUPAL_ORG_REMOTE" HEAD:refs/heads/main "refs/tags/$VERSION"
+          git push --atomic --quiet "$GITHUB_REMOTE" HEAD:refs/heads/main "refs/tags/$VERSION"
           printf 'version=%s\n' "$VERSION" >>"$GITHUB_OUTPUT"
-          echo "Tagged $VERSION on the forge. Create its drupal.org release node, so Packagist lists drupal/drupack $VERSION."
+          echo "Tagged $VERSION on drupal.org. Create its release node, so Packagist lists drupal/drupack $VERSION."
 
       - name: Delete the candidate branch
         if: always() && steps.candidate.outputs.version
         env:
           BRANCH: ${{ steps.bump.outputs.branch }}
-        run: |
-          git push --quiet origin --delete "$BRANCH" || true
-          git push --quiet "$GITHUB_REMOTE" --delete "$BRANCH" || true
+        run: git push --quiet "$GITHUB_REMOTE" --delete "$BRANCH" || true
 
-  # Gitea starts no workflow for a push made with gitea.token, so the mirror
-  # runs from here.
-  mirror:
-    needs: upstream
-    if: needs.upstream.outputs.version
-    uses: ./.gitea/workflows/mirror.yml
-    secrets: inherit
-
-  # The mirror's tag push runs release.yml, which publishes the release. A failed
-  # run gets one rerun of its failed jobs, and fails this job if it fails again.
+  # The tag push runs release.yml, which publishes the release. A failed run gets
+  # one rerun of its failed jobs, and fails this job if it fails again.
   tag:
-    needs: [upstream, mirror]
+    needs: upstream
     if: needs.upstream.outputs.version
     runs-on: ubuntu-latest
     timeout-minutes: 180
@@ -224,5 +226,5 @@ jobs:
       - name: Watch the tag's release run
         env:
           VERSION: ${{ needs.upstream.outputs.version }}
-          GITHUB_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: bash build/wait-for-run.sh "event=push&branch=$VERSION"

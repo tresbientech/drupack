@@ -36,6 +36,6 @@ fix: #3636009 Refuse the options drush cannot use
 
 ## Merge path
 
-- The canonical repository is `tresbientech/drupack` on git.tresbien.tech. drupal.org and GitHub are mirrors.
-- A merge request on the issue's fork shows the diff. A maintainer squashes it onto `main`, and the merge request closes with the commit hash.
-- [Issue 3636051](https://git.drupalcode.org/project/drupack/-/work_items/3636051) holds the move of the canonical repository to drupal.org.
+- The canonical repository is `project/drupack` on drupal.org. GitHub holds a copy that builds and publishes, and takes no pull requests.
+- A merge request on the issue's fork runs the unit tests. A maintainer squash-merges it on drupal.org.
+- `.github/workflows/upstream.yml` pushes every version tag.

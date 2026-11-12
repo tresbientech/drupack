@@ -1,5 +1,6 @@
-# drupal.org's runners run the unit tests of a merge request and nothing else.
-# GitHub's release.yml builds and tests the executables.
+# drupal.org's runners run the unit tests of a merge request, and one daily job
+# that starts GitHub's workflows. GitHub's release.yml builds and tests the
+# executables.
 
 tests:
   image: golang:bookworm
@@ -28,3 +29,19 @@ tests:
       export GOTOOLCHAIN="go$(sed -n "s/^  GO_VERSION: '\(.*\)'$/\1/p" .github/workflows/release.yml)"
     - bash build/go-tests.sh
     - bash build/unit-tests.sh
+
+# GitHub's cron starts late under load, so drupal.org's pipeline schedule is the
+# clock. GITHUB_DISPATCH_TOKEN is a masked, protected CI/CD variable.
+dispatch:
+  image:
+    name: curlimages/curl
+    entrypoint: [""]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  script:
+    - |
+      for workflow in release-node.yml upstream.yml; do
+        curl --fail --silent --show-error --retry 3 -X POST \
+          -H "Authorization: Bearer $GITHUB_DISPATCH_TOKEN" -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/tresbientech/drupack/actions/workflows/$workflow/dispatches" -d '{"ref":"main"}'
+      done
