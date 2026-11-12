@@ -18,7 +18,10 @@ serving with no cron and no stop channel. Eleven failures ended in `panic`.
   `caddycmd.RegisterCommand`, as FrankenPHP registers `php-server` and `php-cli`.
   `init()` reads no argument, and nothing rewrites `os.Args` or `os.Stdin`.
 - `drupack-serve CADDYFILE [PROJECT_FILE...]` adapts the Caddyfile and calls
-  `caddy.Load`. Ready means that call returned.
+  `caddy.Load`. Ready means that call returned and Caddy holds an unexpired
+  certificate for every name its internal issuer signs for.
+- The runtime reads those names from the adapted configuration. It waits for
+  their certificates for 5 seconds at most, then prints the ready line.
 - The stop channel opens before the ready line. A stop channel that cannot open
   stops Caddy and fails the start.
 - A command returns its failure. Caddy's command line prints it as one `Error:`
@@ -38,8 +41,9 @@ serving with no cron and no stop channel. Eleven failures ended in `panic`.
 
 - The `/.drupack-id` route, `DRUPACK_RUNTIME_ID`, `DRUPACK_RUNTIME_URL` and
   `DRUPACK_RUNTIME_TLS_ROOT` are gone.
-- Caddy issues a local certificate after it loads the configuration. The ready
-  line can precede it, so a first HTTPS request can fail its handshake.
+- Caddy issues a local certificate after it loads the configuration, and the
+  certificate lasts 12 hours. A start that issues prints its ready line about
+  15 ms later, and up to 105 ms later as measured on Linux amd64.
 - `drupack-serve` takes no early log buffer and no container memory limit from
   Caddy's `run` command, as FrankenPHP's `php-server` takes neither.
 - An application directory the runtime cannot enter now fails `php` too.
