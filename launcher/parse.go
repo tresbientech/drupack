@@ -8,18 +8,30 @@ import (
 
 // command is a reader's line as the launcher answers it.
 type command struct {
-	// word is "stop", "drush", "export", "help", "start", "dr" for the
-	// engine's, "node" for a site's Node word, or "" for a line the runtime reads.
+	// word is "stop", "drush", "export", "help", "start", "trust", "self-update",
+	// "clean", "dr" for the engine's, "node" for a site's Node word, or "" for a
+	// line the runtime reads.
 	word string
 	// target is stop's Site data or folder, or the engine start's folder, as
 	// the reader wrote it. An engine start without one holds "".
 	target string
-	// options holds the options a reader wrote, by name. A flag holds "1", and
-	// an optional-value option written bare holds "".
-	// A site's start, drush and export always hold data-dir.
-	options map[string]string
-	// words are drush's own words, after the options a site's drush or export reads.
+	// options holds the options a reader wrote. A site's start, drush and export
+	// always hold DataDir, and the engine's start always holds Listen.
+	options options
+	// words are drush's own words, after the options a site's drush or export
+	// reads, or the words after trust, self-update or clean.
 	words []string
+}
+
+// options are the options a reader wrote, each empty when left out.
+type options struct {
+	DataDir, Listen, StaticListen, Host, FilesDir, TrustedProxies string
+	Database, DBHost, DBPort, DBName, DBUser, DBPassword          string
+	AdminUser, AdminPassword, SiteName                            string
+	NoBrowser, Foreground                                         bool
+	// AccessLog and ErrorLog are nil for a line without the option, and hold ""
+	// for the option written bare.
+	AccessLog, ErrorLog *string
 }
 
 // option is one option a word takes, as the help text writes it.
@@ -27,12 +39,17 @@ type option struct {
 	name, value string
 	// optional marks a value the reader may leave out, and writes as --name=VALUE alone.
 	optional bool
+	// set writes the value the reader gave into its field. A flag gets "".
+	set func(o *options, value string)
 }
 
 var (
-	accessLogOption      = option{name: "access-log", value: "FILE", optional: true}
-	errorLogOption       = option{name: "error-log", value: "FILE", optional: true}
-	trustedProxiesOption = option{name: "trusted-proxies", value: "CIDR[,CIDR]"}
+	accessLogOption      = option{name: "access-log", value: "FILE", optional: true, set: func(o *options, v string) { o.AccessLog = &v }}
+	errorLogOption       = option{name: "error-log", value: "FILE", optional: true, set: func(o *options, v string) { o.ErrorLog = &v }}
+	trustedProxiesOption = option{name: "trusted-proxies", value: "CIDR[,CIDR]", set: func(o *options, v string) { o.TrustedProxies = v }}
+	listenOption         = option{name: "listen", value: "IP:PORT", set: func(o *options, v string) { o.Listen = v }}
+	staticListenOption   = option{name: "static-listen", value: "IP:PORT", set: func(o *options, v string) { o.StaticListen = v }}
+	foregroundOption     = option{name: "foreground", set: func(o *options, _ string) { o.Foreground = true }}
 )
 
 // optionalValue reads the value of an optional-value option from argument, ""
@@ -48,7 +65,7 @@ func optionalValue(o option, argument, following string) (string, error) {
 	return value, nil
 }
 
-var dataDirOption = option{name: "data-dir", value: "PATH"}
+var dataDirOption = option{name: "data-dir", value: "PATH", set: func(o *options, v string) { o.DataDir = v }}
 
 // stopOptions are the options a site's stop takes. parse_test.go asserts them
 // against the help text and docs/cli.md.
@@ -58,21 +75,21 @@ var stopOptions = []option{dataDirOption}
 // flag has no value.
 var siteOptions = []option{
 	dataDirOption,
-	{name: "listen", value: "IP:PORT"},
-	{name: "static-listen", value: "IP:PORT"},
-	{name: "host", value: "HOST"},
-	{name: "files-dir", value: "PATH"},
-	{name: "database", value: "sqlite|mysql|pgsql"},
-	{name: "db-host", value: "HOST"},
-	{name: "db-port", value: "PORT"},
-	{name: "db-name", value: "NAME"},
-	{name: "db-user", value: "NAME"},
-	{name: "db-password", value: "PASSWORD"},
-	{name: "admin-user", value: "NAME"},
-	{name: "admin-password", value: "PASSWORD"},
-	{name: "site-name", value: "NAME"},
-	{name: "no-browser"},
-	{name: "foreground"},
+	listenOption,
+	staticListenOption,
+	{name: "host", value: "HOST", set: func(o *options, v string) { o.Host = v }},
+	{name: "files-dir", value: "PATH", set: func(o *options, v string) { o.FilesDir = v }},
+	{name: "database", value: "sqlite|mysql|pgsql", set: func(o *options, v string) { o.Database = v }},
+	{name: "db-host", value: "HOST", set: func(o *options, v string) { o.DBHost = v }},
+	{name: "db-port", value: "PORT", set: func(o *options, v string) { o.DBPort = v }},
+	{name: "db-name", value: "NAME", set: func(o *options, v string) { o.DBName = v }},
+	{name: "db-user", value: "NAME", set: func(o *options, v string) { o.DBUser = v }},
+	{name: "db-password", value: "PASSWORD", set: func(o *options, v string) { o.DBPassword = v }},
+	{name: "admin-user", value: "NAME", set: func(o *options, v string) { o.AdminUser = v }},
+	{name: "admin-password", value: "PASSWORD", set: func(o *options, v string) { o.AdminPassword = v }},
+	{name: "site-name", value: "NAME", set: func(o *options, v string) { o.SiteName = v }},
+	{name: "no-browser", set: func(o *options, _ string) { o.NoBrowser = true }},
+	foregroundOption,
 	accessLogOption,
 	errorLogOption,
 	trustedProxiesOption,
@@ -81,9 +98,9 @@ var siteOptions = []option{
 // engineOptions are the options the engine's start takes. parse_test.go asserts
 // them against the usage text and docs/cli.md.
 var engineOptions = []option{
-	{name: "listen", value: "IP:PORT"},
-	{name: "static-listen", value: "IP:PORT"},
-	{name: "foreground"},
+	listenOption,
+	staticListenOption,
+	foregroundOption,
 	accessLogOption,
 	errorLogOption,
 	trustedProxiesOption,
@@ -101,28 +118,30 @@ const loopbackIP = "127.0.0.1"
 // defaultListen is where the engine serves a reader who names no listener.
 const defaultListen = loopbackIP + ":3787"
 
-// parse reads args, os.Args, for the words the launcher answers. lookup reads
-// the environment.
-func parse(args []string, engine bool, lookup func(string) (string, bool)) (command, error) {
+// parse reads l.Args for the words the launcher answers.
+func parse(l Launch) (command, error) {
+	args, engine, lookup := l.Args, l.Engine, l.lookup
 	if len(args) < 2 && engine {
-		return parseEngineStart(nil)
+		return parseEngineStart(l.Name, nil)
 	}
 	if len(args) < 2 {
 		return siteStart(nil, lookup)
 	}
 	word, rest := args[1], args[2:]
 	switch {
+	case word == "trust" || word == "self-update" || word == "clean":
+		return command{word: word, words: rest}, nil
 	case word == "stop" && engine:
-		return parseFolderStop(rest)
+		return parseFolderStop(l.Name, rest)
 	case word == "stop":
-		options, _, help, err := scanOptions(rest, stopOptions, lookup, true)
+		read, _, help, err := scanOptions(rest, stopOptions, lookup, true)
 		switch {
 		case err != nil:
 			return command{}, err
 		case help:
 			return command{word: "help"}, nil
 		}
-		return command{word: "stop", target: options[dataDirOption.name]}, nil
+		return command{word: "stop", target: read.DataDir}, nil
 	case word == "drush" && engine:
 		return command{word: "drush", words: rest}, nil
 	case word == "php" || versionLine(args):
@@ -132,9 +151,9 @@ func parse(args []string, engine bool, lookup func(string) (string, bool)) (comm
 	case engine && (word == "--help" || word == "-h"):
 		return command{word: "help"}, nil
 	case engine && word == "start":
-		return parseEngineStart(rest)
+		return parseEngineStart(l.Name, rest)
 	case engine:
-		return parseEngineStart(args[1:])
+		return parseEngineStart(l.Name, args[1:])
 	case word == "php-cli":
 		return command{}, nil
 	case word == "--help" || word == "-h":
@@ -142,34 +161,34 @@ func parse(args []string, engine bool, lookup func(string) (string, bool)) (comm
 	case slices.Contains(nodeWords, word):
 		return command{word: "node"}, nil
 	case word == "drush" || word == "export":
-		options, words, _, err := scanOptions(rest, siteOptions, lookup, false)
+		read, words, _, err := scanOptions(rest, siteOptions, lookup, false)
 		if err != nil {
 			return command{}, err
 		}
-		return command{word: word, options: options, words: words}, nil
+		return command{word: word, options: read, words: words}, nil
 	case word == "start":
 		return siteStart(rest, lookup)
 	case strings.HasPrefix(word, "-"):
 		return siteStart(args[1:], lookup)
 	}
-	return command{}, fmt.Errorf("Unknown command: %s\n\n%s", word, siteHelpText())
+	return command{}, fmt.Errorf("Unknown command: %s\n\n%s", word, siteHelpText(l.Name))
 }
 
 func siteStart(arguments []string, lookup func(string) (string, bool)) (command, error) {
-	options, _, help, err := scanOptions(arguments, siteOptions, lookup, true)
+	read, _, help, err := scanOptions(arguments, siteOptions, lookup, true)
 	switch {
 	case err != nil:
 		return command{}, err
 	case help:
 		return command{word: "help"}, nil
 	}
-	return command{word: "start", options: options}, nil
+	return command{word: "start", options: read}, nil
 }
 
 // `start` and `stop` are reserved, so a folder with either name takes ./start or ./stop.
-func parseFolderStop(arguments []string) (command, error) {
+func parseFolderStop(name string, arguments []string) (command, error) {
 	if len(arguments) > 1 || len(arguments) == 1 && strings.HasPrefix(arguments[0], "-") {
-		return command{}, fmt.Errorf("stop takes a folder alone. Run %s --help.", siteName)
+		return command{}, fmt.Errorf("stop takes a folder alone. Run %s --help.", name)
 	}
 	target := defaultFolder
 	if len(arguments) == 1 {
@@ -182,19 +201,19 @@ func parseFolderStop(arguments []string) (command, error) {
 // start's and stop's, refuses any other argument and answers --help; the drush
 // and export scan stops at the first argument that names no option and returns
 // the rest.
-func scanOptions(arguments []string, table []option, lookup func(string) (string, bool), strict bool) (options map[string]string, rest []string, help bool, err error) {
-	options = map[string]string{dataDirOption.name: defaultDataDir}
+func scanOptions(arguments []string, table []option, lookup func(string) (string, bool), strict bool) (read options, rest []string, help bool, err error) {
+	read.DataDir = defaultDataDir
 	if value, _ := lookup("DRUPACK_DATA_DIR"); value != "" {
-		options[dataDirOption.name] = value
+		read.DataDir = value
 	}
 	for len(arguments) > 0 {
 		if strict && arguments[0] == "--help" {
-			return nil, nil, true, nil
+			return options{}, nil, true, nil
 		}
 		name, value, inline := strings.Cut(arguments[0], "=")
 		i := slices.IndexFunc(table, func(o option) bool { return "--"+o.name == name })
 		if i < 0 && strict {
-			return nil, nil, false, fmt.Errorf("Unknown argument: %s", arguments[0])
+			return options{}, nil, false, fmt.Errorf("Unknown argument: %s", arguments[0])
 		}
 		if i < 0 {
 			break
@@ -203,7 +222,7 @@ func scanOptions(arguments []string, table []option, lookup func(string) (string
 		arguments = arguments[1:]
 		o := table[i]
 		if o.value == "" {
-			options[o.name] = "1"
+			o.set(&read, "")
 			continue
 		}
 		if o.optional {
@@ -212,9 +231,11 @@ func scanOptions(arguments []string, table []option, lookup func(string) (string
 			if strict && len(arguments) > 0 {
 				following = arguments[0]
 			}
-			if options[o.name], err = optionalValue(o, argument, following); err != nil {
-				return nil, nil, false, err
+			written, err := optionalValue(o, argument, following)
+			if err != nil {
+				return options{}, nil, false, err
 			}
+			o.set(&read, written)
 			continue
 		}
 		if !inline && len(arguments) > 0 {
@@ -222,18 +243,18 @@ func scanOptions(arguments []string, table []option, lookup func(string) (string
 			arguments = arguments[1:]
 		}
 		if value == "" || strings.HasPrefix(value, "--") {
-			return nil, nil, false, fmt.Errorf("Missing value for --%s", o.name)
+			return options{}, nil, false, fmt.Errorf("Missing value for --%s", o.name)
 		}
-		options[o.name] = value
+		o.set(&read, value)
 	}
-	return options, arguments, false, nil
+	return read, arguments, false, nil
 }
 
 // parseEngineStart reads the engine's start: options in any order and one
 // folder. A listener option takes the next argument whatever it holds, and
 // its value is checked once the start plans it.
-func parseEngineStart(arguments []string) (command, error) {
-	c := command{word: "start", options: map[string]string{}}
+func parseEngineStart(name string, arguments []string) (command, error) {
+	c := command{word: "start", options: options{Listen: defaultListen}}
 	named := false
 	for len(arguments) > 0 {
 		argument := arguments[0]
@@ -243,7 +264,7 @@ func parseEngineStart(arguments []string) (command, error) {
 		})
 		switch {
 		case i >= 0 && engineOptions[i].value == "":
-			c.options[engineOptions[i].name] = "1"
+			engineOptions[i].set(&c.options, "")
 		case i >= 0 && engineOptions[i].optional:
 			following := ""
 			if len(arguments) > 0 {
@@ -253,7 +274,7 @@ func parseEngineStart(arguments []string) (command, error) {
 			if err != nil {
 				return command{}, err
 			}
-			c.options[engineOptions[i].name] = value
+			engineOptions[i].set(&c.options, value)
 		case i >= 0:
 			o := engineOptions[i]
 			value, inline := strings.CutPrefix(argument, "--"+o.name+"=")
@@ -263,11 +284,11 @@ func parseEngineStart(arguments []string) (command, error) {
 				}
 				value, arguments = arguments[0], arguments[1:]
 			}
-			c.options[o.name] = value
+			o.set(&c.options, value)
 		case !named && !strings.HasPrefix(argument, "-"):
 			c.target, named = argument, true
 		default:
-			return command{}, fmt.Errorf("Unknown argument %s. Run %s --help.", argument, siteName)
+			return command{}, fmt.Errorf("Unknown argument %s. Run %s --help.", argument, name)
 		}
 	}
 	return c, nil

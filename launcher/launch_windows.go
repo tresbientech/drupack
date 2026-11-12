@@ -61,12 +61,12 @@ func detachedProcess() *syscall.SysProcAttr {
 
 // consoleOwned reports whether this process is alone on its console, which
 // means a file manager created the window, unless a detaching start created
-// this process. A console from a shell also holds the shell.
-func consoleOwned() bool {
+// this process: detached. A console from a shell also holds the shell.
+func consoleOwned(detached bool) bool {
 	var process uint32
 	count, _, _ := syscall.NewLazyDLL("kernel32.dll").NewProc("GetConsoleProcessList").
 		Call(uintptr(unsafe.Pointer(&process)), 1)
-	return ownsConsole(child != nil, uint32(count))
+	return ownsConsole(detached, uint32(count))
 }
 
 // writeTo makes file the stdout and stderr this process prints to and hands
@@ -79,8 +79,8 @@ func writeTo(file *os.File) error {
 }
 
 // holdConsole keeps a file manager's window open so its reader sees a failure.
-func holdConsole() {
-	if !consoleOwned() {
+func holdConsole(detached bool) {
+	if !consoleOwned(detached) {
 		return
 	}
 	fmt.Fprint(os.Stderr, "Press Enter to close this window.")

@@ -142,9 +142,6 @@ func TestServeArgumentsNameTheCommandTheFileAndEachProjectFile(t *testing.T) {
 }
 
 func TestTrustHint(t *testing.T) {
-	saved := siteName
-	siteName = "demo"
-	t.Cleanup(func() { siteName = saved })
 	hint := "HTTPS: run \"demo trust\" once to serve this site over HTTPS.\n"
 	for _, row := range []struct {
 		name   string
@@ -157,7 +154,7 @@ func TestTrustHint(t *testing.T) {
 		{"a start another computer reaches", "/tls", tls.Choice{Source: "none"}, ""},
 		{"an account with no config folder", "", tls.Choice{Source: "none", Eligible: true}, ""},
 	} {
-		if got := trustHint(Launch{TLSDir: row.dir}, row.choice); got != row.want {
+		if got := trustHint(Launch{TLSDir: row.dir, Name: "demo"}, row.choice); got != row.want {
 			t.Errorf("%s: trustHint = %q, want %q", row.name, got, row.want)
 		}
 	}
@@ -176,21 +173,21 @@ func TestDrupalDocroot(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := drupalDocroot(project, "web"); err == nil ||
+	if _, err := drupalDocroot("fixture-site", project, "web"); err == nil ||
 		err.Error() != project+" is not a Drupal project: "+project+"/web/index.php does not exist. fixture-site serves Drupal alone." {
 		t.Errorf("an empty project: %v", err)
 	}
 	write("web/index.php")
-	if _, err := drupalDocroot(project, "web"); err == nil || !strings.HasSuffix(err.Error(), "web/core/lib/Drupal.php does not exist. fixture-site serves Drupal alone.") {
+	if _, err := drupalDocroot("fixture-site", project, "web"); err == nil || !strings.HasSuffix(err.Error(), "web/core/lib/Drupal.php does not exist. fixture-site serves Drupal alone.") {
 		t.Errorf("a docroot without core: %v", err)
 	}
 	write("web/core/lib/Drupal.php")
-	if got, err := drupalDocroot(project, "web"); err != nil || got != project+"/web" {
+	if got, err := drupalDocroot("fixture-site", project, "web"); err != nil || got != project+"/web" {
 		t.Errorf("drupalDocroot(web) = %q, %v", got, err)
 	}
 	write("index.php")
 	write("core/lib/Drupal.php")
-	if got, err := drupalDocroot(project, "."); err != nil || got != project {
+	if got, err := drupalDocroot("fixture-site", project, "."); err != nil || got != project {
 		t.Errorf("drupalDocroot(.) = %q, %v", got, err)
 	}
 }

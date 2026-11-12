@@ -66,13 +66,13 @@ func openSite(f Facts, site siteconfig.Site, c command, cwd string) (openedSite,
 		}
 		return filepath.Join(cwd, path)
 	}
-	data := fromCwd(c.options["data-dir"])
+	data := fromCwd(c.options.DataDir)
 	if _, err := os.Stat(filepath.Join(data, "settings.php")); err != nil {
 		return openedSite{}, fmt.Errorf("This Site data has no site yet: %s. Start %s once to create one.", runtime.Canonical(data), l.Name)
 	}
-	typed := state.Listener{Listen: c.options["listen"], StaticListen: c.options["static-listen"], Host: c.options["host"]}
-	if c.options["files-dir"] != "" {
-		typed.FilesDir = fromCwd(c.options["files-dir"])
+	typed := state.Listener{Listen: c.options.Listen, StaticListen: c.options.StaticListen, Host: c.options.Host}
+	if c.options.FilesDir != "" {
+		typed.FilesDir = fromCwd(c.options.FilesDir)
 	}
 	served, err := Served(state.At(data), l.Name, siteTarget(site), typed)
 	if err != nil {

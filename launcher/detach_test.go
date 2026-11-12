@@ -14,7 +14,6 @@ import (
 
 func served(t *testing.T, log string, exited chan int, colour bool) (string, int) {
 	t.Helper()
-	siteName = "demo"
 	path := filepath.Join(t.TempDir(), "server.log")
 	if err := os.WriteFile(path, []byte(log), 0o600); err != nil {
 		t.Fatal(err)
@@ -22,7 +21,7 @@ func served(t *testing.T, log string, exited chan int, colour bool) (string, int
 	var out bytes.Buffer
 	code := make(chan int, 1)
 	go func() {
-		got, err := relay(path, exited, &out, "./demo stop", colour, time.Millisecond)
+		got, err := relay("demo", path, exited, &out, "./demo stop", colour, time.Millisecond)
 		if err != nil {
 			t.Error(err)
 		}
@@ -78,7 +77,6 @@ func TestRelayReturnsTheChildsCodeAfterTheRestOfTheLog(t *testing.T) {
 }
 
 func TestRelayWaitsForTheLogToGrow(t *testing.T) {
-	siteName = "demo"
 	path := filepath.Join(t.TempDir(), "server.log")
 	if err := os.WriteFile(path, []byte("first\nhalf of a li"), 0o600); err != nil {
 		t.Fatal(err)
@@ -86,7 +84,7 @@ func TestRelayWaitsForTheLogToGrow(t *testing.T) {
 	var out bytes.Buffer
 	code := make(chan int, 1)
 	go func() {
-		got, _ := relay(path, make(chan int), &out, "./demo stop", false, time.Millisecond)
+		got, _ := relay("demo", path, make(chan int), &out, "./demo stop", false, time.Millisecond)
 		code <- got
 	}()
 	time.Sleep(50 * time.Millisecond)
@@ -108,11 +106,10 @@ func TestRelayWaitsForTheLogToGrow(t *testing.T) {
 
 // An absent log fails the open and a folder fails the read.
 func TestRelayNamesAnUnreadableLogAndTheStopCommand(t *testing.T) {
-	siteName = "demo"
 	folder := t.TempDir()
 	for _, log := range []string{filepath.Join(folder, "absent.log"), folder} {
 		var out bytes.Buffer
-		_, err := relay(log, make(chan int), &out, "./demo stop", true, time.Millisecond)
+		_, err := relay("demo", log, make(chan int), &out, "./demo stop", true, time.Millisecond)
 		if err == nil || !strings.Contains(err.Error(), log) || !strings.HasSuffix(err.Error(), "Stop it with:\n\n    ./demo stop\n") {
 			t.Errorf("relay(%s) = %v, want the log's path and the bare stop command", log, err)
 		}
@@ -157,17 +154,16 @@ func TestTheStopCommandIsTypedForTheReadersShell(t *testing.T) {
 }
 
 func TestTakeChildReadsTheParentsWordsAndLeavesTheReaders(t *testing.T) {
-	t.Cleanup(func() { child = nil })
 	for _, line := range [][]string{
 		{"./demo", "--data-dir", "d"},
 		// The engine serving a folder named detached.
 		{"drupack", "detached", "--listen", "127.0.0.1:9000"},
 	} {
-		if got := takeChild(slices.Clone(line)); !slices.Equal(got, line) || child != nil {
+		if got, child := takeChild(slices.Clone(line)); !slices.Equal(got, line) || child != nil {
 			t.Fatalf("a reader's line became %q, child %v", got, child)
 		}
 	}
-	got := takeChild([]string{"./demo", childWord, "/data/logs/server.log", "1", "--data-dir", "d", "--foreground"})
+	got, child := takeChild([]string{"./demo", childWord, "/data/logs/server.log", "1", "--data-dir", "d", "--foreground"})
 	if !slices.Equal(got, []string{"./demo", "--data-dir", "d", "--foreground"}) || *child != (detachedChild{log: "/data/logs/server.log", person: true}) {
 		t.Fatalf("a child's line became %q, child %+v", got, child)
 	}
@@ -179,9 +175,7 @@ func TestTakeLogRefusesALink(t *testing.T) {
 	if err := os.Symlink(target, log); err != nil {
 		t.Skipf("cannot make a link: %v", err)
 	}
-	child = &detachedChild{log: log}
-	t.Cleanup(func() { child = nil })
-	if err := takeLog(); err == nil {
+	if err := takeLog(&detachedChild{log: log}); err == nil {
 		t.Fatal("takeLog() = nil, want a refusal")
 	}
 	if _, err := os.Lstat(target); !errors.Is(err, fs.ErrNotExist) {

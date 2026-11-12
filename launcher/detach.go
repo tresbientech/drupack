@@ -39,21 +39,18 @@ type detachedChild struct {
 	person bool
 }
 
-// child is nil for a start the reader ran.
-var child *detachedChild
-
 // takeChild reads and strips the words a detaching parent puts before the
-// reader's.
-func takeChild(args []string) []string {
+// reader's. The child is nil for a start the reader ran.
+func takeChild(args []string) ([]string, *detachedChild) {
 	if len(args) < 4 || args[1] != childWord {
-		return args
+		return args, nil
 	}
-	child = &detachedChild{log: args[2], person: args[3] == "1"}
+	child := &detachedChild{log: args[2], person: args[3] == "1"}
 	// A reader's Ctrl+C ends the parent and closes the pipes. A write to them
 	// then fails, where it would end this process, and the start goes on. The
 	// processes it starts keep the default, since an exec resets a caught signal.
 	signal.Notify(make(chan os.Signal, 1), syscall.SIGPIPE)
-	return append([]string{args[0]}, args[4:]...)
+	return append([]string{args[0]}, args[4:]...), child
 }
 
 // detachStart runs this start again as a background child with --foreground.
@@ -110,8 +107,9 @@ func detachStart(l Launch, log, stop string) error {
 		// A line the child left unfinished ends where the marker starts.
 		if before, marked := strings.CutSuffix(line, logMarker); marked {
 			os.Stdout.WriteString(before)
-			colour := runtime.Terminal(os.Stdout) && os.Getenv("NO_COLOR") == ""
-			if code, err = relay(log, exited, os.Stdout, stop, colour, relayPoll); err != nil {
+			plain, _ := l.lookup("NO_COLOR")
+			colour := runtime.Terminal(os.Stdout) && plain == ""
+			if code, err = relay(l.Name, log, exited, os.Stdout, stop, colour, relayPoll); err != nil {
 				return err
 			}
 			break
@@ -133,7 +131,7 @@ func detachStart(l Launch, log, stop string) error {
 // empties, and tells the parent to relay that file. It runs once the child
 // holds the lease, so a start that loses the race leaves the log of the server
 // that won untouched. A link at the log is refused.
-func takeLog() error {
+func takeLog(child *detachedChild) error {
 	if child == nil {
 		return nil
 	}
@@ -150,9 +148,9 @@ func takeLog() error {
 // line (not copied), and the server's code if it exits first (after the rest of the log).
 // A log it cannot read is the error, which carries the stop command since the
 // start goes on in the background.
-func relay(log string, exited <-chan int, out io.Writer, stop string, colour bool, poll time.Duration) (int, error) {
+func relay(name, log string, exited <-chan int, out io.Writer, stop string, colour bool, poll time.Duration) (int, error) {
 	unread := func(err error) (int, error) {
-		return 0, fmt.Errorf("%w. %s still starts in the background. Stop it with:\n\n    %s\n", err, siteName, stop)
+		return 0, fmt.Errorf("%w. %s still starts in the background. Stop it with:\n\n    %s\n", err, name, stop)
 	}
 	file, err := os.Open(log)
 	if err != nil {
@@ -190,7 +188,7 @@ func relay(log string, exited <-chan int, out io.Writer, stop string, colour boo
 				if !blank {
 					fmt.Fprintln(out)
 				}
-				fmt.Fprintf(out, "%s runs in the background. Its log: %s\n\nStop it with:\n\n    %s\n\n", siteName, log, shown)
+				fmt.Fprintf(out, "%s runs in the background. Its log: %s\n\nStop it with:\n\n    %s\n\n", name, log, shown)
 				return 0, nil
 			}
 			fmt.Fprint(out, line)

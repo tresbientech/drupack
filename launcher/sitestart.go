@@ -27,9 +27,28 @@ import (
 // errReported is a failure whose message a child process already printed.
 var errReported = errors.New("reported")
 
-// startInputs are the start options PHP's check and prepare read. Each also
-// has a DRUPACK_ variable a reader may set, and a credential never reaches argv.
-var startInputs = []string{"database", "db-host", "db-port", "db-name", "db-user", "db-password", "admin-user", "admin-password", "site-name"}
+// startInputs are the start options PHP's check and prepare read, as the
+// DRUPACK_ variables a reader may set in their place. A credential never
+// reaches argv.
+func startInputs(o options) []string {
+	var inputs []string
+	for _, input := range [][2]string{
+		{"DATABASE", o.Database},
+		{"DB_HOST", o.DBHost},
+		{"DB_PORT", o.DBPort},
+		{"DB_NAME", o.DBName},
+		{"DB_USER", o.DBUser},
+		{"DB_PASSWORD", o.DBPassword},
+		{"ADMIN_USER", o.AdminUser},
+		{"ADMIN_PASSWORD", o.AdminPassword},
+		{"SITE_NAME", o.SiteName},
+	} {
+		if input[1] != "" {
+			inputs = append(inputs, "DRUPACK_"+input[0]+"="+input[1])
+		}
+	}
+	return inputs
+}
 
 type packagedStart struct {
 	// Facts holds what the start's PHP calls and the server share.
@@ -58,14 +77,14 @@ func startSite(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
-	if c.options["foreground"] == "" && !l.ConsoleOwned {
-		data, err := filepath.Abs(c.options["data-dir"])
+	if !c.options.Foreground && !l.ConsoleOwned {
+		data, err := filepath.Abs(c.options.DataDir)
 		if err != nil {
 			return err
 		}
 		// The stop command names the Site data the way the reader did, or not at all.
 		target := ""
-		if written := c.options["data-dir"]; written != defaultDataDir {
+		if written := c.options.DataDir; written != defaultDataDir {
 			target = " --data-dir " + shellWord(written, goruntime.GOOS == "windows")
 		}
 		return detachStart(l, runtime.Canonical(data)+"/logs/server.log", stopCommand(l.Args[0], cwd, target, goruntime.GOOS == "windows"))
@@ -80,16 +99,11 @@ func startSite(l Launch, c command) error {
 		}
 		return filepath.Join(cwd, path)
 	}
-	f := Facts{Launch: l}
-	for _, name := range startInputs {
-		if value := c.options[name]; value != "" {
-			f.Inputs = append(f.Inputs, "DRUPACK_"+strings.ToUpper(strings.ReplaceAll(name, "-", "_"))+"="+value)
-		}
-	}
+	f := Facts{Launch: l, Inputs: startInputs(c.options)}
 	if err := checkDatabase(c, f); err != nil {
 		return err
 	}
-	data := fromCwd(c.options["data-dir"])
+	data := fromCwd(c.options.DataDir)
 	var owed struct {
 		Installed bool `json:"installed"`
 	}
@@ -97,12 +111,12 @@ func startSite(l Launch, c command) error {
 		return err
 	}
 	target := siteTarget(site)
-	listen := cmp.Or(c.options["listen"], target.DefaultListen)
+	listen := cmp.Or(c.options.Listen, target.DefaultListen)
 	bind, port, err := target.Listen(listen)
 	if err != nil {
 		return err
 	}
-	if typed := c.options["host"]; typed != "" && !validHost(typed) {
+	if typed := c.options.Host; typed != "" && !validHost(typed) {
 		return errors.New("Invalid --host value")
 	}
 	// Both paths reach the Caddyfile.
@@ -110,17 +124,17 @@ func startSite(l Launch, c command) error {
 		return err
 	}
 	files := ""
-	if typed := c.options["files-dir"]; typed != "" {
+	if typed := c.options.FilesDir; typed != "" {
 		files = fromCwd(typed)
 		if err := caddyfile.RefuseBraces("--files-dir", runtime.Canonical(files)); err != nil {
 			return err
 		}
 	}
-	choice, err := tls.Choose(l.TLSDir, bind, cmp.Or(site.Subdomain, l.Name), unresolvedHost, c.options["host"])
+	choice, err := tls.Choose(l.TLSDir, bind, cmp.Or(site.Subdomain, l.Name), unresolvedHost, c.options.Host)
 	if err != nil {
 		return err
 	}
-	plan, err := planStart(bind, port, c.options["static-listen"], site.Static != nil, "site", choice.Host, choice.Scheme())
+	plan, err := planStart(bind, port, c.options.StaticListen, site.Static != nil, "site", choice.Host, choice.Scheme())
 	if err != nil {
 		return err
 	}
@@ -167,7 +181,7 @@ func startSite(l Launch, c command) error {
 	if s.accessLog, s.errorLog, err = logFiles(c.options, s.Data+"/logs", answered, l.FoldCase); err != nil {
 		return err
 	}
-	if s.proxies, err = trustedProxies(c.options[trustedProxiesOption.name]); err != nil {
+	if s.proxies, err = trustedProxies(c.options.TrustedProxies); err != nil {
 		return err
 	}
 
@@ -187,7 +201,7 @@ func startSite(l Launch, c command) error {
 	if static := s.plan.Static; static != nil && portTaken(static.Bind, static.Port) {
 		return fmt.Errorf("Another program is listening on %s. Stop it, or move the static listener to a free port: %s --static-listen %s:%d", s.plan.record().StaticListen, l.Name, urlHost(static.Bind), static.Port+1)
 	}
-	if err := takeLog(); err != nil {
+	if err := takeLog(l.Child); err != nil {
 		return err
 	}
 	return s.serve(lease)
@@ -195,7 +209,7 @@ func startSite(l Launch, c command) error {
 
 // checkDatabase refuses a --database, or a DRUPACK_DATABASE, that names no driver.
 func checkDatabase(c command, f Facts) error {
-	if !slices.Contains([]string{"sqlite", "mysql", "pgsql"}, cmp.Or(c.options["database"], f.value("DRUPACK_DATABASE"), "sqlite")) {
+	if !slices.Contains([]string{"sqlite", "mysql", "pgsql"}, cmp.Or(c.options.Database, f.value("DRUPACK_DATABASE"), "sqlite")) {
 		return errors.New("--database requires sqlite, mysql, or pgsql")
 	}
 	return nil
@@ -253,7 +267,7 @@ func portTaken(bind string, port int) bool {
 // personPresent reports whether someone watches the start: a terminal, a file
 // manager's console, or the terminal a detaching parent had.
 func personPresent(l Launch) bool {
-	return runtime.Terminal(os.Stdin) || l.ConsoleOwned || child != nil && child.person
+	return runtime.Terminal(os.Stdin) || l.ConsoleOwned || l.Child != nil && l.Child.person
 }
 
 // served answers a start whose Site data another server holds. installed is
@@ -293,7 +307,7 @@ func (s packagedStart) served(installed bool) error {
 		return nil
 	}
 	fmt.Printf("  Login:  %s\n", link)
-	if s.c.options["no-browser"] != "" || !tls.Loopback(bind) {
+	if s.c.options.NoBrowser || !tls.Loopback(bind) {
 		return nil
 	}
 	openBrowser(link)
@@ -423,7 +437,7 @@ func (s packagedStart) serve(lease *state.Lease) error {
 	}
 	fmt.Print(nameHint(choice), trustHint(l, choice))
 	// The server opens the browser once the site answers.
-	if link != "" && s.c.options["no-browser"] == "" && tls.Loopback(plan.Bind) {
+	if link != "" && !s.c.options.NoBrowser && tls.Loopback(plan.Bind) {
 		s.Open = link
 	}
 	fmt.Println("Starting the web server.")

@@ -79,7 +79,7 @@ func (f siteFixture) record(t *testing.T, json string) {
 
 func parseLine(t *testing.T, engine bool, words ...string) command {
 	t.Helper()
-	c, err := parse(append([]string{"SITE"}, words...), engine, func(string) (string, bool) { return "", false })
+	c, err := parse(Launch{Args: append([]string{"SITE"}, words...), Engine: engine, Name: "fixture-site"})
 	if err != nil {
 		t.Fatal(err)
 	}

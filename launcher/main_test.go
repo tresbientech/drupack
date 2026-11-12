@@ -21,25 +21,21 @@ func TestTakeConsoleStripsTheLeadingWordAlone(t *testing.T) {
 }
 
 func TestNodeRefusal(t *testing.T) {
-	saved := siteName
-	siteName = "demo"
-	t.Cleanup(func() { siteName = saved })
 	without := newSite(t, siteconfig.Site{Port: 1})
-	if err, want := nodeRefusal(without.application, "node"), "Unknown command: node\n\n"+siteHelpText(); err == nil || err.Error() != want {
+	if err, want := nodeRefusal(without.launch(), "node"), "Unknown command: node\n\n"+siteHelpText("fixture-site"); err == nil || err.Error() != want {
 		t.Errorf("a site without Node: %v", err)
 	}
 	with := newSite(t, siteconfig.Site{Port: 1, Node: siteconfig.NodeLTS})
 	for _, word := range []string{"node", "npm", "npx"} {
 		want := word + ": this musl build of demo carries no Node. Run the glibc build, the file without -musl in its name."
-		if err := nodeRefusal(with.application, word); err == nil || err.Error() != want {
+		if err := nodeRefusal(Launch{Application: with.application, Name: "demo"}, word); err == nil || err.Error() != want {
 			t.Errorf("%s on a musl build: %v, want %q", word, err, want)
 		}
 	}
 }
 
 func TestTLSDirMakesACallersRelativeFolderAbsolute(t *testing.T) {
-	t.Setenv("DRUPACK_TLS_DIR", filepath.Join("relative", "tls"))
-	got, err := tlsDir()
+	got, err := tlsDir(Launch{Parent: []string{"DRUPACK_TLS_DIR=" + filepath.Join("relative", "tls")}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,8 +49,7 @@ func TestTLSDirMakesACallersRelativeFolderAbsolute(t *testing.T) {
 }
 
 func TestTLSDirKeepsAnEmptyValueEmpty(t *testing.T) {
-	t.Setenv("DRUPACK_TLS_DIR", "")
-	if got, err := tlsDir(); err != nil || got != "" {
+	if got, err := tlsDir(Launch{Parent: []string{"DRUPACK_TLS_DIR="}}); err != nil || got != "" {
 		t.Errorf("tlsDir() = %q, %v, want empty", got, err)
 	}
 }

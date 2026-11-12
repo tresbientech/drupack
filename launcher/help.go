@@ -110,17 +110,13 @@ Commands:
 
 docs/cli.md explains every command.`
 
-func siteHelpText() string {
-	return fmt.Sprintf(siteHelp, siteName)
+func siteHelpText(name string) string {
+	return fmt.Sprintf(siteHelp, name)
 }
 
-func engineUsageText() string {
-	return fmt.Sprintf(engineUsage, siteName, defaultListen)
-}
-
-func helpText() string {
-	if engine {
-		return engineUsageText()
+func helpText(l Launch) string {
+	if l.Engine {
+		return fmt.Sprintf(engineUsage, l.Name, defaultListen)
 	}
-	return siteHelpText()
+	return siteHelpText(l.Name)
 }

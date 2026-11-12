@@ -29,7 +29,7 @@ def variable(name):
 PATTERNS = {
     ".go": (
         [rf'os\.Setenv\("{NAME}"', rf'"{NAME}=[^"]*"'],
-        [rf'os\.Getenv\("{NAME}"\)'],
+        [rf'os\.Getenv\("{NAME}"\)', rf'\.lookup\("{NAME}"\)'],
     ),
     ".php": (
         [rf"putenv\(.*?{NAME}", rf"['\"]{NAME}['\"]\s*=>", rf"\[['\"]{NAME}['\"]\]\s*=(?!=)"],

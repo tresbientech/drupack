@@ -107,7 +107,7 @@ func namesURI(words []string) bool {
 // requireTomeStatic refuses an export from a Drupal without tome_static. A Drush
 // that cannot bootstrap prints no answer, and the export's own run then reports
 // the reason.
-func (x exportCall) requireTomeStatic() error {
+func (x exportCall) requireTomeStatic(name string) error {
 	var answer bytes.Buffer
 	probe := &exec.Cmd{Path: x.probe.Path, Args: x.probe.Args, Env: x.probe.Env, Stdout: &answer}
 	if err := probe.Run(); err != nil {
@@ -116,7 +116,7 @@ func (x exportCall) requireTomeStatic() error {
 		}
 	}
 	if strings.TrimSpace(answer.String()) == "0" {
-		return fmt.Errorf("export runs tome:static, and this Drupal has no tome_static module enabled. Enable it: %s drush pm:install tome_static", siteName)
+		return fmt.Errorf("export runs tome:static, and this Drupal has no tome_static module enabled. Enable it: %s drush pm:install tome_static", name)
 	}
 	return nil
 }

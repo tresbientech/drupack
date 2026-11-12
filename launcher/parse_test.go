@@ -13,6 +13,7 @@ import (
 func TestParse(t *testing.T) {
 	packedAs(t, "fixture-site", "dev", false)
 	unset := map[string]string{}
+	some := func(value string) *string { return &value }
 	for _, row := range []struct {
 		name   string
 		args   []string
@@ -21,46 +22,46 @@ func TestParse(t *testing.T) {
 		want   command
 		err    string
 	}{
-		{"a bare line is a start on the default Site data", []string{"SITE"}, false, unset, command{word: "start", options: map[string]string{"data-dir": "./data"}}, ""},
-		{"a start reads its options", []string{"SITE", "start", "--data-dir", "x"}, false, unset, command{word: "start", options: map[string]string{"data-dir": "x"}}, ""},
-		{"a line opening with an option is a start", []string{"SITE", "--listen", "127.0.0.1:9000", "--foreground"}, false, unset, command{word: "start", options: map[string]string{"data-dir": "./data", "listen": "127.0.0.1:9000", "foreground": "1"}}, ""},
+		{"a bare line is a start on the default Site data", []string{"SITE"}, false, unset, command{word: "start", options: options{DataDir: "./data"}}, ""},
+		{"a start reads its options", []string{"SITE", "start", "--data-dir", "x"}, false, unset, command{word: "start", options: options{DataDir: "x"}}, ""},
+		{"a line opening with an option is a start", []string{"SITE", "--listen", "127.0.0.1:9000", "--foreground"}, false, unset, command{word: "start", options: options{DataDir: "./data", Listen: "127.0.0.1:9000", Foreground: true}}, ""},
 		{"stop after an option is a start's unknown argument", []string{"SITE", "--data-dir", "x", "stop"}, false, unset, command{}, "Unknown argument: stop"},
 		{"a start refuses an unknown option", []string{"SITE", "start", "--frobnicate"}, false, unset, command{}, "Unknown argument: --frobnicate"},
-		{"a start refuses a stray word", []string{"SITE", "extra"}, false, unset, command{}, "Unknown command: extra\n\n" + siteHelpText()},
+		{"a start refuses a stray word", []string{"SITE", "extra"}, false, unset, command{}, "Unknown command: extra\n\n" + siteHelpText("fixture-site")},
 		{"a start refuses an option with no value", []string{"SITE", "--listen"}, false, unset, command{}, "Missing value for --listen"},
 		{"a start reads -v as an option", []string{"SITE", "-v", "x"}, false, unset, command{}, "Unknown argument: -v"},
 		{"a start answers --help after its options", []string{"SITE", "--data-dir", "x", "--help"}, false, unset, command{word: "help"}, ""},
 		{"a start answers --help after start", []string{"SITE", "start", "--help"}, false, unset, command{word: "help"}, ""},
 		{"a start answers -h as the first word", []string{"SITE", "-h", "--bogus"}, false, unset, command{word: "help"}, ""},
-		{"export hands --help to Drush", []string{"SITE", "export", "--help"}, false, unset, command{word: "export", options: map[string]string{"data-dir": "./data"}, words: []string{"--help"}}, ""},
-		{"export reads the start's options", []string{"SITE", "export", "--data-dir", "d", "--path-count=2"}, false, unset, command{word: "export", options: map[string]string{"data-dir": "d"}, words: []string{"--path-count=2"}}, ""},
+		{"export hands --help to Drush", []string{"SITE", "export", "--help"}, false, unset, command{word: "export", options: options{DataDir: "./data"}, words: []string{"--help"}}, ""},
+		{"export reads the start's options", []string{"SITE", "export", "--data-dir", "d", "--path-count=2"}, false, unset, command{word: "export", options: options{DataDir: "d"}, words: []string{"--path-count=2"}}, ""},
 		{"export refuses an option with no value", []string{"SITE", "export", "--data-dir"}, false, unset, command{}, "Missing value for --data-dir"},
 		{"php goes to the runtime", []string{"SITE", "php", "-r", "1;"}, false, unset, command{}, ""},
 		{"php-cli goes to the runtime", []string{"SITE", "php-cli", "x.php"}, false, unset, command{}, ""},
 		{"the version flags go to the runtime", []string{"SITE", "--version"}, false, unset, command{}, ""},
 		{"a Node word is a Node word", []string{"SITE", "npm", "ci"}, false, unset, command{word: "node"}, ""},
-		{"the engine starts with no word", []string{"drupack"}, true, unset, command{word: "start", options: map[string]string{}}, ""},
+		{"the engine starts with no word", []string{"drupack"}, true, unset, command{word: "start", options: options{Listen: defaultListen}}, ""},
 		{"the engine starts a folder", []string{"drupack", "project"}, true, unset,
-			command{word: "start", target: "project", options: map[string]string{}}, ""},
+			command{word: "start", target: "project", options: options{Listen: defaultListen}}, ""},
 		{"the engine reads start and its options", []string{"drupack", "start", "--listen", "[::1]:9", "--static-listen=127.0.0.1:10", "--foreground", "project"}, true, unset,
-			command{word: "start", target: "project", options: map[string]string{"listen": "[::1]:9", "static-listen": "127.0.0.1:10", "foreground": "1"}}, ""},
+			command{word: "start", target: "project", options: options{Listen: "[::1]:9", StaticListen: "127.0.0.1:10", Foreground: true}}, ""},
 		{"the engine takes a listener option's next word whatever it holds", []string{"drupack", "--listen", "--foreground"}, true, unset,
-			command{word: "start", options: map[string]string{"listen": "--foreground"}}, ""},
+			command{word: "start", options: options{Listen: "--foreground"}}, ""},
 		{"the engine refuses a listener with no word", []string{"drupack", "--static-listen"}, true, unset, command{}, "--static-listen takes IP:PORT"},
-		{"a start reads a bare --access-log", []string{"SITE", "--access-log", "--foreground"}, false, unset, command{word: "start", options: map[string]string{"data-dir": "./data", "access-log": "", "foreground": "1"}}, ""},
-		{"a start reads the file of --access-log", []string{"SITE", "--access-log=a.log"}, false, unset, command{word: "start", options: map[string]string{"data-dir": "./data", "access-log": "a.log"}}, ""},
+		{"a start reads a bare --access-log", []string{"SITE", "--access-log", "--foreground"}, false, unset, command{word: "start", options: options{DataDir: "./data", AccessLog: some(""), Foreground: true}}, ""},
+		{"a start reads the file of --access-log", []string{"SITE", "--access-log=a.log"}, false, unset, command{word: "start", options: options{DataDir: "./data", AccessLog: some("a.log")}}, ""},
 		{"a start refuses a file after --access-log", []string{"SITE", "--access-log", "a.log"}, false, unset, command{}, "--access-log takes its value as --access-log=FILE"},
 		{"a start refuses an empty --access-log=", []string{"SITE", "--access-log="}, false, unset, command{}, "Missing value for --access-log"},
-		{"drush keeps the word after --access-log", []string{"SITE", "drush", "--access-log", "status"}, false, unset, command{word: "drush", options: map[string]string{"data-dir": "./data", "access-log": ""}, words: []string{"status"}}, ""},
+		{"drush keeps the word after --access-log", []string{"SITE", "drush", "--access-log", "status"}, false, unset, command{word: "drush", options: options{DataDir: "./data", AccessLog: some("")}, words: []string{"status"}}, ""},
 		{"the engine reads --access-log after its folder", []string{"drupack", "project", "--access-log"}, true, unset,
-			command{word: "start", target: "project", options: map[string]string{"access-log": ""}}, ""},
+			command{word: "start", target: "project", options: options{Listen: defaultListen, AccessLog: some("")}}, ""},
 		{"the engine reads the file of --access-log", []string{"drupack", "--access-log=a.log", "project"}, true, unset,
-			command{word: "start", target: "project", options: map[string]string{"access-log": "a.log"}}, ""},
+			command{word: "start", target: "project", options: options{Listen: defaultListen, AccessLog: some("a.log")}}, ""},
 		{"the engine reads both log options", []string{"drupack", "--error-log=e.log", "--access-log"}, true, unset,
-			command{word: "start", options: map[string]string{"access-log": "", "error-log": "e.log"}}, ""},
+			command{word: "start", options: options{Listen: defaultListen, AccessLog: some(""), ErrorLog: some("e.log")}}, ""},
 		{"a start refuses a file after --error-log", []string{"SITE", "--error-log", "e.log"}, false, unset, command{}, "--error-log takes its value as --error-log=FILE"},
 		{"the engine reads --trusted-proxies", []string{"drupack", "--trusted-proxies", "10.0.0.1,10.0.0.0/8", "project"}, true, unset,
-			command{word: "start", target: "project", options: map[string]string{"trusted-proxies": "10.0.0.1,10.0.0.0/8"}}, ""},
+			command{word: "start", target: "project", options: options{Listen: defaultListen, TrustedProxies: "10.0.0.1,10.0.0.0/8"}}, ""},
 		{"the engine refuses a word after --access-log", []string{"drupack", "--access-log", "a.log"}, true, unset, command{}, "--access-log takes its value as --access-log=FILE"},
 		{"the engine refuses a second folder", []string{"drupack", "a", "b"}, true, unset, command{}, "Unknown argument b. Run fixture-site --help."},
 		{"the engine refuses an option", []string{"drupack", "start", "--help"}, true, unset, command{}, "Unknown argument --help. Run fixture-site --help."},
@@ -68,9 +69,13 @@ func TestParse(t *testing.T) {
 		{"the engine answers -h first", []string{"drupack", "-h"}, true, unset, command{word: "help"}, ""},
 		{"the engine's export", []string{"drupack", "export", "--uri", "u"}, true, unset, command{word: "export", words: []string{"--uri", "u"}}, ""},
 		{"the engine's dr", []string{"drupack", "dr", "x"}, true, unset, command{word: "dr", words: []string{"x"}}, ""},
+		{"trust keeps its words", []string{"SITE", "trust", "--uninstall"}, false, unset, command{word: "trust", words: []string{"--uninstall"}}, ""},
+		{"the engine's trust is no folder", []string{"drupack", "trust"}, true, unset, command{word: "trust", words: []string{}}, ""},
+		{"self-update keeps its words", []string{"drupack", "self-update", "--check"}, true, unset, command{word: "self-update", words: []string{"--check"}}, ""},
+		{"clean keeps its words", []string{"SITE", "clean", "--dry-run"}, false, unset, command{word: "clean", words: []string{"--dry-run"}}, ""},
 		{"the engine's php goes to the runtime", []string{"drupack", "php", "-r", "1;"}, true, unset, command{}, ""},
 		{"the engine reads php-cli as a folder", []string{"drupack", "php-cli"}, true, unset,
-			command{word: "start", target: "php-cli", options: map[string]string{}}, ""},
+			command{word: "start", target: "php-cli", options: options{Listen: defaultListen}}, ""},
 		{"stop takes ./data by default", []string{"SITE", "stop"}, false, unset, command{word: "stop", target: "./data"}, ""},
 		{"DRUPACK_DATA_DIR names the Site data", []string{"SITE", "stop"}, false, map[string]string{"DRUPACK_DATA_DIR": "env"}, command{word: "stop", target: "env"}, ""},
 		{"an empty DRUPACK_DATA_DIR reads as unset", []string{"SITE", "stop"}, false, map[string]string{"DRUPACK_DATA_DIR": ""}, command{word: "stop", target: "./data"}, ""},
@@ -89,25 +94,28 @@ func TestParse(t *testing.T) {
 		{"the engine refuses two folders", []string{"drupack", "stop", "a", "b"}, true, unset, command{}, "stop takes a folder alone. Run fixture-site --help."},
 		{"the engine refuses an option", []string{"drupack", "stop", "--help"}, true, unset, command{}, "stop takes a folder alone. Run fixture-site --help."},
 		{"drush goes to the launcher", []string{"SITE", "drush", "status"}, false, unset,
-			command{word: "drush", options: map[string]string{"data-dir": "./data"}, words: []string{"status"}}, ""},
+			command{word: "drush", options: options{DataDir: "./data"}, words: []string{"status"}}, ""},
 		{"drush takes no words", []string{"SITE", "drush"}, false, unset,
-			command{word: "drush", options: map[string]string{"data-dir": "./data"}, words: []string{}}, ""},
+			command{word: "drush", options: options{DataDir: "./data"}, words: []string{}}, ""},
 		{"drush reads the start's options first", []string{"SITE", "drush", "--data-dir=d", "--listen", "[::1]:9", "--no-browser", "user:login", "--no-browser"}, false, unset,
-			command{word: "drush", options: map[string]string{"data-dir": "d", "listen": "[::1]:9", "no-browser": "1"}, words: []string{"user:login", "--no-browser"}}, ""},
+			command{word: "drush", options: options{DataDir: "d", Listen: "[::1]:9", NoBrowser: true}, words: []string{"user:login", "--no-browser"}}, ""},
 		{"drush options after the first word stay Drush's", []string{"SITE", "drush", "status", "--data-dir", "x"}, false, unset,
-			command{word: "drush", options: map[string]string{"data-dir": "./data"}, words: []string{"status", "--data-dir", "x"}}, ""},
+			command{word: "drush", options: options{DataDir: "./data"}, words: []string{"status", "--data-dir", "x"}}, ""},
 		{"drush hands --help to Drush", []string{"SITE", "drush", "--data-dir", "d", "--help"}, false, unset,
-			command{word: "drush", options: map[string]string{"data-dir": "d"}, words: []string{"--help"}}, ""},
+			command{word: "drush", options: options{DataDir: "d"}, words: []string{"--help"}}, ""},
 		{"drush reads DRUPACK_DATA_DIR", []string{"SITE", "drush", "status"}, false, map[string]string{"DRUPACK_DATA_DIR": "env"},
-			command{word: "drush", options: map[string]string{"data-dir": "env"}, words: []string{"status"}}, ""},
+			command{word: "drush", options: options{DataDir: "env"}, words: []string{"status"}}, ""},
 		{"drush refuses an option with no value", []string{"SITE", "drush", "--host"}, false, unset, command{}, "Missing value for --host"},
 		{"drush reads an option as no value", []string{"SITE", "drush", "--files-dir", "--listen", "x"}, false, unset, command{}, "Missing value for --files-dir"},
 		{"the engine passes every word to Drush", []string{"drupack", "drush", "--data-dir", "x", "status"}, true, unset,
 			command{word: "drush", words: []string{"--data-dir", "x", "status"}}, ""},
 		{"the engine takes no Site data", []string{"drupack", "stop", "--data-dir", "x"}, true, unset, command{}, "stop takes a folder alone. Run fixture-site --help."},
 	} {
-		lookup := func(name string) (string, bool) { value, set := row.env[name]; return value, set }
-		got, err := parse(row.args, row.engine, lookup)
+		var parent []string
+		for name, value := range row.env {
+			parent = append(parent, name+"="+value)
+		}
+		got, err := parse(Launch{Args: row.args, Parent: parent, Engine: row.engine, Name: "fixture-site"})
 		message := ""
 		if err != nil {
 			message = err.Error()

@@ -73,14 +73,14 @@ func planStart(bind string, port int, staticListen string, hasStatic bool, noun,
 // drupalDocroot returns the project's docroot. The Caddyfile's guards and front
 // controller are Drupal's, so a docroot without Drupal core, such as a
 // WordPress site's, is refused. "." names the project itself.
-func drupalDocroot(project, relative string) (string, error) {
+func drupalDocroot(name, project, relative string) (string, error) {
 	docroot := project + "/" + relative
 	if relative == "." {
 		docroot = project
 	}
 	for _, file := range []string{"index.php", "core/lib/Drupal.php"} {
 		if info, err := os.Stat(docroot + "/" + file); err != nil || !info.Mode().IsRegular() {
-			return "", fmt.Errorf("%s is not a Drupal project: %s/%s does not exist. %s serves Drupal alone.", project, docroot, file, siteName)
+			return "", fmt.Errorf("%s is not a Drupal project: %s/%s does not exist. %s serves Drupal alone.", project, docroot, file, name)
 		}
 	}
 	return docroot, nil
@@ -120,8 +120,8 @@ func operate(l Launch, env []string, record any, stream bool, arguments ...strin
 // Without --foreground, and with no console of its own, it first detaches into
 // a child that does all of it.
 func startEngine(l Launch, c command) error {
-	if c.options["foreground"] == "" && !l.ConsoleOwned {
-		project, err := projectFolder(cmp.Or(c.target, defaultFolder))
+	if !c.options.Foreground && !l.ConsoleOwned {
+		project, err := projectFolder(l.Name, cmp.Or(c.target, defaultFolder))
 		if err != nil {
 			return err
 		}
@@ -137,15 +137,11 @@ func startEngine(l Launch, c command) error {
 		return detachStart(l, log, stopCommand(l.Args[0], cwd, target, goruntime.GOOS == "windows"))
 	}
 	engine := engineTarget()
-	listen, set := c.options["listen"]
-	if !set {
-		listen = engine.DefaultListen
-	}
-	bind, port, err := engine.Listen(listen)
+	bind, port, err := engine.Listen(c.options.Listen)
 	if err != nil {
 		return err
 	}
-	project, err := projectFolder(cmp.Or(c.target, defaultFolder))
+	project, err := projectFolder(l.Name, cmp.Or(c.target, defaultFolder))
 	if err != nil {
 		return err
 	}
@@ -156,7 +152,7 @@ func startEngine(l Launch, c command) error {
 	if err := siteconfig.CheckStatic(project, composer); err != nil {
 		return err
 	}
-	docroot, err := drupalDocroot(project, composer.Docroot)
+	docroot, err := drupalDocroot(l.Name, project, composer.Docroot)
 	if err != nil {
 		return err
 	}
@@ -180,7 +176,7 @@ func startEngine(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
-	plan, err := planStart(bind, port, c.options["static-listen"], composer.Static != nil, "project", choice.Host, choice.Scheme())
+	plan, err := planStart(bind, port, c.options.StaticListen, composer.Static != nil, "project", choice.Host, choice.Scheme())
 	if err != nil {
 		return err
 	}
@@ -200,7 +196,7 @@ func startEngine(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
-	proxies, err := trustedProxies(c.options[trustedProxiesOption.name])
+	proxies, err := trustedProxies(c.options.TrustedProxies)
 	if err != nil {
 		return err
 	}
@@ -212,9 +208,9 @@ func startEngine(l Launch, c command) error {
 		return err
 	}
 	if lease == nil {
-		return fmt.Errorf("%s already serves %s", siteName, project)
+		return fmt.Errorf("%s already serves %s", l.Name, project)
 	}
-	if err := takeLog(); err != nil {
+	if err := takeLog(l.Child); err != nil {
 		return err
 	}
 	if err := entry.ClearStopRecord(); err != nil {
@@ -247,7 +243,7 @@ func startEngine(l Launch, c command) error {
 	}
 	// A background server outlives its terminal, so its Caddy log goes to a file that rolls.
 	caddyLog := ""
-	if child != nil {
+	if l.Child != nil {
 		caddyLog = entryPath + "/caddy.log"
 		fmt.Fprintf(os.Stdout, "  Log:     %s\n", caddyLog)
 	}
@@ -360,7 +356,7 @@ func entrance(l Launch, env []string, project string, installed *bool, url strin
 	// The link is a credential: a start nobody watches prints the command for
 	// one, so no log holds a link.
 	if !personPresent(l) {
-		return "run " + loginCommand(url), "", nil
+		return "run " + loginCommand(l.Name, url), "", nil
 	}
 	fmt.Fprintln(os.Stdout, "Creating a one-time login link.")
 	link, failure, err := mint(l, env, url, drush, project)
@@ -370,14 +366,14 @@ func entrance(l Launch, env []string, project string, installed *bool, url strin
 	if link == "" {
 		// The folder's own settings may block uid 1 or name no reachable database yet;
 		// the server still starts, and Drupal's own error page says which.
-		fmt.Fprintf(os.Stderr, "Cannot mint a one-time login link: %s\nGet one once the site answers with: %s\n", failure, loginCommand(url))
+		fmt.Fprintf(os.Stderr, "Cannot mint a one-time login link: %s\nGet one once the site answers with: %s\n", failure, loginCommand(l.Name, url))
 	}
 	return link, "", nil
 }
 
 // loginCommand is the command that mints a login link for the project served at url.
-func loginCommand(url string) string {
-	return fmt.Sprintf("%s drush user:login --uri=%s", siteName, url)
+func loginCommand(name, url string) string {
+	return fmt.Sprintf("%s drush user:login --uri=%s", name, url)
 }
 
 // storeBundle writes an HTTPS start's CA bundle into the folder's entry and
@@ -415,5 +411,5 @@ func trustHint(l Launch, choice tls.Choice) string {
 	if choice.Source != "none" || !choice.Eligible || l.TLSDir == "" {
 		return ""
 	}
-	return fmt.Sprintf("HTTPS: run \"%s trust\" once to serve this site over HTTPS.\n", siteName)
+	return fmt.Sprintf("HTTPS: run \"%s trust\" once to serve this site over HTTPS.\n", l.Name)
 }

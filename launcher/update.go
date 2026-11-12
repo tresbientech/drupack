@@ -52,18 +52,18 @@ type asset struct {
 
 var version = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$`)
 
-func selfUpdate(arguments []string, url, executable string, out io.Writer) error {
+func selfUpdate(l Launch, arguments []string, url, executable string, out io.Writer) error {
 	if len(arguments) > 1 || len(arguments) == 1 && arguments[0] != "--check" {
 		return fmt.Errorf("self-update takes --check alone")
 	}
-	if !engine {
-		return fmt.Errorf("self-update covers the Drupack engine alone. The new release of %s comes from its publisher.", siteName)
+	if !l.Engine {
+		return fmt.Errorf("self-update covers the Drupack engine alone. The new release of %s comes from its publisher.", l.Name)
 	}
 	if composerCopy(executable) {
-		return fmt.Errorf("Composer installed this %s. Run composer update drupal/drupack, then vendor/bin/drupack-install.", siteName)
+		return fmt.Errorf("Composer installed this %s. Run composer update drupal/drupack, then vendor/bin/drupack-install.", l.Name)
 	}
-	if !version.MatchString(siteVersion) {
-		return fmt.Errorf("%s %s is a local build. self-update replaces a release alone.", siteName, siteVersion)
+	if !version.MatchString(l.Version) {
+		return fmt.Errorf("%s %s is a local build. self-update replaces a release alone.", l.Name, l.Version)
 	}
 	check := len(arguments) == 1
 	// The replacement is staged beside the executable, so a directory the reader
@@ -74,16 +74,16 @@ func selfUpdate(arguments []string, url, executable string, out io.Writer) error
 		staged, err = os.CreateTemp(filepath.Dir(executable), filepath.Base(executable)+".update-*")
 		if err != nil {
 			return fmt.Errorf("cannot write %s, which holds this %s. Run self-update as the user who can: %w",
-				filepath.Dir(executable), siteName, err)
+				filepath.Dir(executable), l.Name, err)
 		}
 		defer os.Remove(staged.Name())
 		defer staged.Close()
 	}
-	root, err := runtime.Root(siteName, os.Stderr)
+	root, err := runtime.Root(l.Name, os.Stderr)
 	if err != nil {
 		return err
 	}
-	client, err := httpClient()
+	client, err := httpClient(l)
 	if err != nil {
 		return err
 	}
@@ -91,20 +91,20 @@ func selfUpdate(arguments []string, url, executable string, out io.Writer) error
 	if err != nil {
 		return err
 	}
-	later, err := newer(latest.Version, siteVersion)
+	later, err := newer(latest.Version, l.Version)
 	if err != nil {
 		return err
 	}
 	// A release lacking this file's build is recorded as none, so no run names it.
 	var chosen asset
 	if later {
-		takeMusl := musl
-		if !musl && goruntime.GOOS == "linux" {
+		takeMusl := l.Musl
+		if !l.Musl && goruntime.GOOS == "linux" {
 			// A host without getconf answers nothing, which counts as below the floor.
 			answer, _ := exec.Command("getconf", "GNU_LIBC_VERSION").Output()
 			takeMusl = glibcBelowFloor(string(answer))
 		}
-		if chosen, err = pick(latest, target(goruntime.GOOS, goruntime.GOARCH, takeMusl)); err != nil {
+		if chosen, err = pick(l.Name, latest, target(goruntime.GOOS, goruntime.GOARCH, takeMusl)); err != nil {
 			return err
 		}
 	}
@@ -112,11 +112,11 @@ func selfUpdate(arguments []string, url, executable string, out io.Writer) error
 		return err
 	}
 	if !later {
-		fmt.Fprintf(out, "%s %s is the newest release.\n", siteName, siteVersion)
+		fmt.Fprintf(out, "%s %s is the newest release.\n", l.Name, l.Version)
 		return nil
 	}
 	if check {
-		fmt.Fprintln(out, availableLine(latest.Version))
+		fmt.Fprintln(out, availableLine(l, latest.Version))
 		return nil
 	}
 	if err := download(client, chosen, staged); err != nil {
@@ -125,7 +125,7 @@ func selfUpdate(arguments []string, url, executable string, out io.Writer) error
 	if err := replaceExecutable(executable, staged.Name()); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "Updated %s %s to %s.\n", siteName, siteVersion, latest.Version)
+	fmt.Fprintf(out, "Updated %s %s to %s.\n", l.Name, l.Version, latest.Version)
 	return nil
 }
 
@@ -194,14 +194,14 @@ func composerCopy(executable string) bool {
 	return err == nil
 }
 
-func availableLine(newest string) string {
-	return fmt.Sprintf("%s %s is available, this is %s. Run: %s self-update", siteName, newest, siteVersion, siteName)
+func availableLine(l Launch, newest string) string {
+	return fmt.Sprintf("%s %s is available, this is %s. Run: %s self-update", l.Name, newest, l.Version, l.Name)
 }
 
 // httpClient trusts the system roots plus the bundle DRUPACK_CA_FILE names, as
 // PHP does for a re-signing proxy.
-func httpClient() (*http.Client, error) {
-	file := os.Getenv("DRUPACK_CA_FILE")
+func httpClient(l Launch) (*http.Client, error) {
+	file, _ := l.lookup("DRUPACK_CA_FILE")
 	if file == "" {
 		return &http.Client{}, nil
 	}
@@ -273,10 +273,10 @@ func target(goos, goarch string, musl bool) string {
 	return runtime.Target(goos+"-"+goarch, libc)
 }
 
-func pick(latest release, target string) (asset, error) {
+func pick(name string, latest release, target string) (asset, error) {
 	var targets []string
 	for _, candidate := range latest.Assets {
-		if candidate.Name != siteName {
+		if candidate.Name != name {
 			continue
 		}
 		if candidate.Target == target {
@@ -284,7 +284,7 @@ func pick(latest release, target string) (asset, error) {
 		}
 		targets = append(targets, candidate.Target)
 	}
-	return asset{}, fmt.Errorf("%s %s has no %s build. It has: %s", siteName, latest.Version, target, strings.Join(targets, ", "))
+	return asset{}, fmt.Errorf("%s %s has no %s build. It has: %s", name, latest.Version, target, strings.Join(targets, ", "))
 }
 
 // newer reports whether candidate is a later release than current. A release
@@ -344,20 +344,22 @@ func compareDigits(a, b string) int {
 	return strings.Compare(a, b)
 }
 
-// updateNotice prints the newer release the last check under root saw, and calls
+// updateNotice prints the newer release the last check under l.Root saw, and calls
 // check once the last check is a day old. It stays silent in CI, with
 // DRUPACK_NO_UPDATE_CHECK=1, without a terminal, on a local build, and on a
 // Composer copy, which self-update refuses.
-func updateNotice(root, executable string, notice io.Writer, terminal bool, now time.Time, check func() error) {
-	if os.Getenv("CI") != "" || os.Getenv("DRUPACK_NO_UPDATE_CHECK") == "1" || !terminal ||
-		!version.MatchString(siteVersion) || composerCopy(executable) {
+func updateNotice(l Launch, executable string, notice io.Writer, terminal bool, now time.Time, check func() error) {
+	ci, _ := l.lookup("CI")
+	off, _ := l.lookup("DRUPACK_NO_UPDATE_CHECK")
+	if ci != "" || off == "1" || !terminal ||
+		!version.MatchString(l.Version) || composerCopy(executable) {
 		return
 	}
-	path := filepath.Join(root, updateCheckName)
+	path := filepath.Join(l.Root, updateCheckName)
 	// A file a check has not filled yet holds no version, which names no release.
 	if newest, err := os.ReadFile(path); err == nil {
-		if later, err := newer(string(newest), siteVersion); err == nil && later {
-			fmt.Fprintln(notice, availableLine(string(newest)))
+		if later, err := newer(string(newest), l.Version); err == nil && later {
+			fmt.Fprintln(notice, availableLine(l, string(newest)))
 		}
 	}
 	info, err := os.Stat(path)

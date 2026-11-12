@@ -38,7 +38,7 @@ func fixCommand(e *runtime.ExposedError) string {
 }
 
 // consoleOwned is false: a Unix terminal belongs to the shell that started it.
-func consoleOwned() bool {
+func consoleOwned(bool) bool {
 	return false
 }
 
@@ -63,7 +63,7 @@ func writeTo(file *os.File) error {
 
 // holdConsole does nothing: a terminal stays open on its own once the shell
 // that launched it regains control.
-func holdConsole() {}
+func holdConsole(bool) {}
 
 // replaceExecutable renames staged over path. A process running the old file
 // keeps its open copy.

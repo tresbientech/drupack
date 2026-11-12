@@ -18,13 +18,11 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
 
-func packedAs(t *testing.T, name, release string, isEngine bool) {
+func packedAs(t *testing.T, name, release string, isEngine bool) Launch {
 	t.Helper()
-	savedName, savedVersion, savedEngine := siteName, siteVersion, engine
-	siteName, siteVersion, engine = name, release, isEngine
-	t.Cleanup(func() { siteName, siteVersion, engine = savedName, savedVersion, savedEngine })
 	// Root creates a missing directory owner-only, as it requires.
 	t.Setenv("DRUPACK_CACHE_DIR", filepath.Join(t.TempDir(), "cache"))
+	return Launch{Name: name, Version: release, Engine: isEngine}
 }
 
 func publish(t *testing.T, latest release, body ...byte) *httptest.Server {
@@ -82,14 +80,14 @@ func leftovers(t *testing.T, executable string) []string {
 
 func hostRelease(newest string) release {
 	return release{Version: newest, Assets: []asset{
-		{Name: "drupack", Target: target(goruntime.GOOS, goruntime.GOARCH, musl)},
-		{Name: "drupacked-demo", Target: target(goruntime.GOOS, goruntime.GOARCH, musl)},
+		{Name: "drupack", Target: target(goruntime.GOOS, goruntime.GOARCH, false)},
+		{Name: "drupacked-demo", Target: target(goruntime.GOOS, goruntime.GOARCH, false)},
 	}}
 }
 
-func updateCheck(t *testing.T) string {
+func updateCheck(t *testing.T, name string) string {
 	t.Helper()
-	root, err := runtime.Root(siteName, &bytes.Buffer{})
+	root, err := runtime.Root(name, &bytes.Buffer{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,12 +165,12 @@ func TestGlibcBelowFloor(t *testing.T) {
 }
 
 func TestPickNamesTheTargetsAReleaseLacksItsOwn(t *testing.T) {
-	packedAs(t, "drupack", "1.0.0", true)
+	l := packedAs(t, "drupack", "1.0.0", true)
 	latest := release{Version: "1.0.1", Assets: []asset{
 		{Name: "drupack", Target: "linux-amd64"}, {Name: "drupack", Target: "macos-arm64"},
 		{Name: "drupacked-demo", Target: "linux-arm64"},
 	}}
-	_, err := pick(latest, "linux-arm64")
+	_, err := pick(l.Name, latest, "linux-arm64")
 	if err == nil || !strings.HasSuffix(err.Error(), "has no linux-arm64 build. It has: linux-amd64, macos-arm64") {
 		t.Fatalf("pick = %v", err)
 	}
@@ -200,11 +198,11 @@ func TestSelfUpdateRefusesBeforeAnyRequest(t *testing.T) {
 			"self-update takes --check alone"},
 	} {
 		t.Run(c.case_, func(t *testing.T) {
-			packedAs(t, c.name, c.release, c.isEngine)
+			l := packedAs(t, c.name, c.release, c.isEngine)
 			requested := false
 			server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requested = true }))
 			defer server.Close()
-			err := selfUpdate(c.arguments, server.URL+"/release.json", c.executable, &bytes.Buffer{})
+			err := selfUpdate(l, c.arguments, server.URL+"/release.json", c.executable, &bytes.Buffer{})
 			if err == nil || err.Error() != c.want {
 				t.Fatalf("selfUpdate = %v; want %q", err, c.want)
 			}
@@ -216,17 +214,17 @@ func TestSelfUpdateRefusesBeforeAnyRequest(t *testing.T) {
 }
 
 func TestCheckNamesANewerReleaseAndRecordsIt(t *testing.T) {
-	packedAs(t, "drupack", "1.0.0-alpha3", true)
+	l := packedAs(t, "drupack", "1.0.0-alpha3", true)
 	server := publish(t, hostRelease("1.0.0-alpha10"))
 	executable := installed(t, "old")
 	var out bytes.Buffer
-	if err := selfUpdate([]string{"--check"}, server.URL+"/release.json", executable, &out); err != nil {
+	if err := selfUpdate(l, []string{"--check"}, server.URL+"/release.json", executable, &out); err != nil {
 		t.Fatal(err)
 	}
 	if want := "drupack 1.0.0-alpha10 is available, this is 1.0.0-alpha3. Run: drupack self-update\n"; out.String() != want {
 		t.Fatalf("out = %q; want %q", out.String(), want)
 	}
-	if got := updateCheck(t); got != "1.0.0-alpha10" {
+	if got := updateCheck(t, l.Name); got != "1.0.0-alpha10" {
 		t.Fatalf("update-check = %q", got)
 	}
 	if content, _ := os.ReadFile(executable); string(content) != "old" {
@@ -235,36 +233,36 @@ func TestCheckNamesANewerReleaseAndRecordsIt(t *testing.T) {
 }
 
 func TestCheckOnTheNewestReleaseSaysSo(t *testing.T) {
-	packedAs(t, "drupack", "1.0.0", true)
+	l := packedAs(t, "drupack", "1.0.0", true)
 	server := publish(t, hostRelease("1.0.0-alpha3"))
 	var out bytes.Buffer
-	if err := selfUpdate([]string{"--check"}, server.URL+"/release.json", filepath.Join(t.TempDir(), "drupack"), &out); err != nil {
+	if err := selfUpdate(l, []string{"--check"}, server.URL+"/release.json", filepath.Join(t.TempDir(), "drupack"), &out); err != nil {
 		t.Fatal(err)
 	}
 	if want := "drupack 1.0.0 is the newest release.\n"; out.String() != want {
 		t.Fatalf("out = %q; want %q", out.String(), want)
 	}
-	if got := updateCheck(t); got != "1.0.0-alpha3" {
+	if got := updateCheck(t, l.Name); got != "1.0.0-alpha3" {
 		t.Fatalf("update-check = %q", got)
 	}
 }
 
 func TestCheckNamesAReleaseThatAnswersNoRelease(t *testing.T) {
-	packedAs(t, "drupack", "1.0.0", true)
+	l := packedAs(t, "drupack", "1.0.0", true)
 	server := httptest.NewServer(http.NotFoundHandler())
 	defer server.Close()
-	err := selfUpdate([]string{"--check"}, server.URL+"/release.json", filepath.Join(t.TempDir(), "drupack"), &bytes.Buffer{})
+	err := selfUpdate(l, []string{"--check"}, server.URL+"/release.json", filepath.Join(t.TempDir(), "drupack"), &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "answered 404 Not Found") {
 		t.Fatalf("selfUpdate = %v", err)
 	}
 }
 
 func TestSelfUpdateReplacesTheExecutableWithTheNewerRelease(t *testing.T) {
-	packedAs(t, "drupack", "1.0.0-alpha3", true)
+	l := packedAs(t, "drupack", "1.0.0-alpha3", true)
 	server := publish(t, built("1.0.0-alpha4", []byte("new")), []byte("new")...)
 	executable := installed(t, "old")
 	var out bytes.Buffer
-	if err := selfUpdate(nil, server.URL+"/release.json", executable, &out); err != nil {
+	if err := selfUpdate(l, nil, server.URL+"/release.json", executable, &out); err != nil {
 		t.Fatal(err)
 	}
 	if want := "Updated drupack 1.0.0-alpha3 to 1.0.0-alpha4.\n"; out.String() != want {
@@ -288,10 +286,10 @@ func TestSelfUpdateReplacesTheExecutableWithTheNewerRelease(t *testing.T) {
 }
 
 func TestSelfUpdateKeepsTheExecutableWhenTheDownloadFailsItsChecksum(t *testing.T) {
-	packedAs(t, "drupack", "1.0.0-alpha3", true)
+	l := packedAs(t, "drupack", "1.0.0-alpha3", true)
 	server := publish(t, built("1.0.0-alpha4", []byte("new")), []byte("tampered")...)
 	executable := installed(t, "old")
-	err := selfUpdate(nil, server.URL+"/release.json", executable, &bytes.Buffer{})
+	err := selfUpdate(l, nil, server.URL+"/release.json", executable, &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "does not match the size and SHA-256 release.json lists") {
 		t.Fatalf("selfUpdate = %v", err)
 	}
@@ -322,7 +320,7 @@ func stalled(t *testing.T, latest release, asset http.HandlerFunc) *httptest.Ser
 }
 
 func TestSelfUpdateGivesUpOnADownloadThatSendsNothing(t *testing.T) {
-	packedAs(t, "drupack", "1.0.0-alpha3", true)
+	l := packedAs(t, "drupack", "1.0.0-alpha3", true)
 	saved := downloadStall
 	downloadStall = 200 * time.Millisecond
 	t.Cleanup(func() { downloadStall = saved })
@@ -337,7 +335,7 @@ func TestSelfUpdateGivesUpOnADownloadThatSendsNothing(t *testing.T) {
 		}
 	})
 	executable := installed(t, "old")
-	err := selfUpdate(nil, server.URL+"/release.json", executable, &bytes.Buffer{})
+	err := selfUpdate(l, nil, server.URL+"/release.json", executable, &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "it sent nothing for 200ms") {
 		t.Fatalf("selfUpdate = %v", err)
 	}
@@ -347,7 +345,7 @@ func TestSelfUpdateGivesUpOnADownloadThatSendsNothing(t *testing.T) {
 }
 
 func TestSelfUpdateStopsReadingPastTheListedSize(t *testing.T) {
-	packedAs(t, "drupack", "1.0.0-alpha3", true)
+	l := packedAs(t, "drupack", "1.0.0-alpha3", true)
 	sent := make(chan int, 1)
 	server := stalled(t, built("1.0.0-alpha4", []byte("new")), func(w http.ResponseWriter, r *http.Request) {
 		// An endless body: only a reader that stops ends this handler.
@@ -362,7 +360,7 @@ func TestSelfUpdateStopsReadingPastTheListedSize(t *testing.T) {
 		sent <- total
 	})
 	executable := installed(t, "old")
-	err := selfUpdate(nil, server.URL+"/release.json", executable, &bytes.Buffer{})
+	err := selfUpdate(l, nil, server.URL+"/release.json", executable, &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "does not match the size and SHA-256 release.json lists") {
 		t.Fatalf("selfUpdate = %v", err)
 	}
@@ -380,7 +378,7 @@ func TestSelfUpdateRefusesADirectoryItCannotWriteBeforeAnyRequest(t *testing.T) 
 	if goruntime.GOOS == "windows" || os.Geteuid() == 0 {
 		t.Skip("a directory mode stops no write here")
 	}
-	packedAs(t, "drupack", "1.0.0-alpha3", true)
+	l := packedAs(t, "drupack", "1.0.0-alpha3", true)
 	requested := false
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requested = true }))
 	defer server.Close()
@@ -389,7 +387,7 @@ func TestSelfUpdateRefusesADirectoryItCannotWriteBeforeAnyRequest(t *testing.T) 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.Chmod(filepath.Dir(executable), 0o755) })
-	err := selfUpdate(nil, server.URL+"/release.json", executable, &bytes.Buffer{})
+	err := selfUpdate(l, nil, server.URL+"/release.json", executable, &bytes.Buffer{})
 	if err == nil || !strings.HasPrefix(err.Error(), "cannot write "+filepath.Dir(executable)+", which holds this drupack.") {
 		t.Fatalf("selfUpdate = %v", err)
 	}
@@ -431,13 +429,11 @@ func TestUpdateNoticeNamesANewerReleaseAndChecksOnceADay(t *testing.T) {
 		{"no file", "absent", time.Time{}, false, true},
 	} {
 		t.Run(c.case_, func(t *testing.T) {
-			packedAs(t, "drupack", "1.0.0-alpha3", true)
-			t.Setenv("CI", "")
-			t.Setenv("DRUPACK_NO_UPDATE_CHECK", "")
-			root := noticeRoot(t, c.newest, c.checked)
+			l := packedAs(t, "drupack", "1.0.0-alpha3", true)
+			l.Root = noticeRoot(t, c.newest, c.checked)
 			var notice bytes.Buffer
 			checked := false
-			updateNotice(root, installed(t, "current"), &notice, true, now, func() error { checked = true; return nil })
+			updateNotice(l, installed(t, "current"), &notice, true, now, func() error { checked = true; return nil })
 			line := "drupack " + c.newest + " is available, this is 1.0.0-alpha3. Run: drupack self-update\n"
 			if got := notice.String() == line; got != c.line {
 				t.Errorf("notice = %q; want the line: %t", notice.String(), c.line)
@@ -445,7 +441,7 @@ func TestUpdateNoticeNamesANewerReleaseAndChecksOnceADay(t *testing.T) {
 			if checked != c.check {
 				t.Errorf("checked = %t; want %t", checked, c.check)
 			}
-			info, err := os.Stat(filepath.Join(root, updateCheckName))
+			info, err := os.Stat(filepath.Join(l.Root, updateCheckName))
 			if c.check && (err != nil || !info.ModTime().Equal(now)) {
 				t.Errorf("the check did not touch update-check first: %v, %v", info, err)
 			}
@@ -471,17 +467,16 @@ func TestUpdateNoticeStaysOffInCIScriptsLocalBuildsAndOnRequest(t *testing.T) {
 		{"a Composer copy", "", "", "1.0.0-alpha3", true, filepath.Join(composer, "drupack")},
 	} {
 		t.Run(c.case_, func(t *testing.T) {
-			packedAs(t, "drupack", c.release, true)
-			t.Setenv("CI", c.ci)
-			t.Setenv("DRUPACK_NO_UPDATE_CHECK", c.off)
-			root := noticeRoot(t, "1.0.0-alpha4", now.Add(-48*time.Hour))
+			l := packedAs(t, "drupack", c.release, true)
+			l.Parent = []string{"CI=" + c.ci, "DRUPACK_NO_UPDATE_CHECK=" + c.off}
+			l.Root = noticeRoot(t, "1.0.0-alpha4", now.Add(-48*time.Hour))
 			executable := c.executable
 			if executable == "" {
 				executable = installed(t, "current")
 			}
 			var notice bytes.Buffer
 			checked := false
-			updateNotice(root, executable, &notice, c.terminal, now, func() error { checked = true; return nil })
+			updateNotice(l, executable, &notice, c.terminal, now, func() error { checked = true; return nil })
 			if notice.Len() != 0 || checked {
 				t.Fatalf("notice = %q, checked = %t; want neither", notice.String(), checked)
 			}
@@ -490,13 +485,13 @@ func TestUpdateNoticeStaysOffInCIScriptsLocalBuildsAndOnRequest(t *testing.T) {
 }
 
 func TestCheckRecordsNoReleaseThatLacksThisBuild(t *testing.T) {
-	packedAs(t, "drupack", "1.0.0-alpha3", true)
+	l := packedAs(t, "drupack", "1.0.0-alpha3", true)
 	server := publish(t, release{Version: "1.0.0-alpha4", Assets: []asset{{Name: "drupack", Target: "plan9-amd64"}}})
-	err := selfUpdate([]string{"--check"}, server.URL+"/release.json", installed(t, "old"), &bytes.Buffer{})
+	err := selfUpdate(l, []string{"--check"}, server.URL+"/release.json", installed(t, "old"), &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "It has: plan9-amd64") {
 		t.Fatalf("selfUpdate = %v", err)
 	}
-	root, err := runtime.Root(siteName, &bytes.Buffer{})
+	root, err := runtime.Root(l.Name, &bytes.Buffer{})
 	if err != nil {
 		t.Fatal(err)
 	}

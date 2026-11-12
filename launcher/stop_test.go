@@ -74,7 +74,7 @@ func TestStop(t *testing.T) {
 			dir := t.TempDir()
 			wait := row.arrange(t, dir)
 			var out bytes.Buffer
-			err := stop(state.At(dir), "folder", "NAMED", wait, &out)
+			err := stop("fixture-site", state.At(dir), "folder", "NAMED", wait, &out)
 			message := ""
 			if err != nil {
 				message = err.Error()
@@ -90,7 +90,7 @@ func TestStopOnMissingSiteDataCreatesNothing(t *testing.T) {
 	packedAs(t, "fixture-site", "dev", false)
 	missing := filepath.Join(t.TempDir(), "never-made")
 	var out bytes.Buffer
-	if err := runStop(command{word: "stop", target: missing}, t.TempDir(), &out); err != nil || out.String() != "fixture-site is not running.\n" {
+	if err := runStop(Launch{Name: "fixture-site", Root: t.TempDir()}, command{word: "stop", target: missing}, &out); err != nil || out.String() != "fixture-site is not running.\n" {
 		t.Errorf("runStop() = %q, %v", out.String(), err)
 	}
 	if _, err := os.Stat(missing); !os.IsNotExist(err) {
@@ -118,12 +118,12 @@ func TestProjectFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	// realpath resolves the link before it reads `..`, so `link/..` names the link target's parent.
-	if got, err := projectFolder(link + string(filepath.Separator) + ".."); err != nil || got != runtime.Canonical(resolved) {
+	if got, err := projectFolder("fixture-site", link+string(filepath.Separator)+".."); err != nil || got != runtime.Canonical(resolved) {
 		t.Errorf("projectFolder(link/..) = %q, %v, want %q", got, err, runtime.Canonical(resolved))
 	}
 	for _, written := range []string{filepath.Join(root, "missing"), file} {
 		want := "No such directory: " + written + ". Run fixture-site --help."
-		if _, err := projectFolder(written); err == nil || err.Error() != want {
+		if _, err := projectFolder("fixture-site", written); err == nil || err.Error() != want {
 			t.Errorf("projectFolder(%q) = %v, want %q", written, err, want)
 		}
 	}

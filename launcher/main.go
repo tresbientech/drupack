@@ -28,15 +28,15 @@ func takeConsole(args []string) ([]string, bool) {
 
 func main() {
 	args, named := takeConsole(os.Args)
-	os.Args = takeChild(args)
-	if err := run(named); err != nil {
+	args, child := takeChild(args)
+	if err := run(args, child, named); err != nil {
 		code := 1
-		if child, ok := errors.AsType[exitError](err); ok {
-			code = int(child)
+		if exit, ok := errors.AsType[exitError](err); ok {
+			code = int(exit)
 		} else if !errors.Is(err, errReported) {
 			fmt.Fprintln(os.Stderr, err)
 		}
-		holdConsole()
+		holdConsole(child != nil)
 		os.Exit(code)
 	}
 }
@@ -49,14 +49,33 @@ func (c exitError) Error() string {
 	return fmt.Sprintf("exit status %d", int(c))
 }
 
-func run(consoleNamed bool) error {
-	tlsFolder, err := tlsDir()
-	if err != nil {
+// run answers args, the reader's line without the console and child words. It
+// builds the one Launch every other function reads: the packed variables and
+// the process's own state first, the unpacked release once a word needs it.
+func run(args []string, child *detachedChild, consoleNamed bool) error {
+	l := Launch{
+		// args, not the resolved executable path, keeps argv[0] the path the reader invoked.
+		Args:         args,
+		Parent:       os.Environ(),
+		AppChecksum:  string(appChecksum),
+		Name:         siteName,
+		Version:      siteVersion,
+		Components:   siteComponents,
+		Engine:       engine,
+		Musl:         musl,
+		Child:        child,
+		ConsoleOwned: consoleOwned(child != nil) || consoleNamed,
+		FoldCase:     foldCase,
+	}
+	var err error
+	if l.TLSDir, err = tlsDir(l); err != nil {
 		return err
 	}
+	// A refused line is answered below, after the update notice.
+	c, refusal := parse(l)
 	// trust may ask for a password.
-	if len(os.Args) > 1 && os.Args[1] == "trust" {
-		return tls.Trust(os.Stdout, tlsFolder, os.Args[2:])
+	if c.word == "trust" {
+		return tls.Trust(os.Stdout, l.TLSDir, c.words)
 	}
 	launcher, err := os.Executable()
 	if err != nil {
@@ -65,37 +84,35 @@ func run(consoleNamed bool) error {
 	// A self-update renames the file a symlink on PATH names, so the old file it
 	// moves aside sits beside that one.
 	executable := launcher
-	if engine {
+	if l.Engine {
 		if executable, err = filepath.EvalSymlinks(launcher); err != nil {
 			return err
 		}
 		removeReplaced(executable)
 	}
-	if len(os.Args) > 1 && os.Args[1] == "self-update" {
-		return selfUpdate(os.Args[2:], releaseURL, executable, os.Stdout)
+	if c.word == "self-update" {
+		return selfUpdate(l, c.words, releaseURL, executable, os.Stdout)
 	}
-	root, err := runtime.Root(siteName, os.Stderr)
-	if err != nil {
+	if l.Root, err = runtime.Root(l.Name, os.Stderr); err != nil {
 		return err
 	}
-	cache := runtime.NewCache(root, runtime.HoldUsage)
-	if len(os.Args) > 1 && os.Args[1] == "clean" {
-		dry, err := cleanArguments(os.Args[2:])
+	cache := runtime.NewCache(l.Root, runtime.HoldUsage)
+	if c.word == "clean" {
+		dry, err := cleanArguments(c.words)
 		if err != nil {
 			return err
 		}
-		return cache.Clean(siteName, dry, os.Stdout)
+		return cache.Clean(l.Name, dry, os.Stdout)
 	}
-	if engine {
-		updateNotice(root, executable, os.Stderr, runtime.Terminal(os.Stderr), time.Now(), func() error { return startCheck(launcher) })
+	if l.Engine {
+		updateNotice(l, executable, os.Stderr, runtime.Terminal(os.Stderr), time.Now(), func() error { return startCheck(launcher) })
 	}
-	c, err := parse(os.Args, engine, os.LookupEnv)
-	if err != nil {
-		return err
+	if refusal != nil {
+		return refusal
 	}
 	// A stop unpacks nothing.
 	if c.word == "stop" {
-		return runStop(c, root, os.Stdout)
+		return runStop(l, c, os.Stdout)
 	}
 	m, err := runtime.ParseManifest(runtimeManifest)
 	if err != nil {
@@ -104,44 +121,27 @@ func run(consoleNamed bool) error {
 	directory, application, err := cache.PrepareRelease(runtime.Release{
 		Payload:     runtimePayload,
 		Manifest:    m,
-		AppChecksum: string(appChecksum),
+		AppChecksum: l.AppChecksum,
 		AppPayload:  appPayload,
 	}, os.Stderr)
 	if err != nil {
 		return err
 	}
-	nodeBin, err := prepareNode(cache)
-	if err != nil {
+	l.Entry, l.Application = filepath.Join(directory, m.Entry), application
+	if l.NodeBin, err = prepareNode(cache); err != nil {
 		return err
-	}
-	l := Launch{
-		// os.Args, not the resolved executable path, keeps argv[0] the path the reader invoked.
-		Args:         os.Args,
-		Parent:       os.Environ(),
-		Entry:        filepath.Join(directory, m.Entry),
-		Application:  application,
-		AppChecksum:  string(appChecksum),
-		Root:         root,
-		NodeBin:      nodeBin,
-		TLSDir:       tlsFolder,
-		Name:         siteName,
-		Version:      siteVersion,
-		Components:   siteComponents,
-		Engine:       engine,
-		ConsoleOwned: consoleOwned() || consoleNamed,
-		FoldCase:     foldCase,
 	}
 	switch {
 	case c.word == "help":
-		fmt.Println(helpText())
+		fmt.Println(helpText(l))
 		return nil
-	case c.word == "node" && nodeBin == "":
-		return nodeRefusal(application, os.Args[1])
-	case c.word == "start" && engine:
+	case c.word == "node" && l.NodeBin == "":
+		return nodeRefusal(l, args[1])
+	case c.word == "start" && l.Engine:
 		return startEngine(l, c)
 	case c.word == "start":
 		return startSite(l, c)
-	case c.word == "drush", c.word == "export", engine && c.word == "dr":
+	case c.word == "drush", c.word == "export", l.Engine && c.word == "dr":
 		return runInFolder(l, c)
 	}
 	return launch(Plan(l))
@@ -170,7 +170,7 @@ func runInFolder(l Launch, c command) error {
 		}
 		export, err = plan(f, c, cwd)
 		if err == nil {
-			err = export.requireTomeStatic()
+			err = export.requireTomeStatic(l.Name)
 		}
 		call = export.run
 	}
@@ -182,15 +182,15 @@ func runInFolder(l Launch, c command) error {
 
 // nodeRefusal answers a Node word on a file that carries no Node. A site whose
 // contract names Node was packed without it for this libc.
-func nodeRefusal(application, word string) error {
-	site, err := siteconfig.Load(application)
+func nodeRefusal(l Launch, word string) error {
+	site, err := siteconfig.Load(l.Application)
 	if err != nil {
 		return err
 	}
 	if site.Node == "" {
-		return fmt.Errorf("Unknown command: %s\n\n%s", word, siteHelpText())
+		return fmt.Errorf("Unknown command: %s\n\n%s", word, siteHelpText(l.Name))
 	}
-	return fmt.Errorf("%s: this musl build of %s carries no Node. Run the glibc build, the file without -musl in its name.", word, siteName)
+	return fmt.Errorf("%s: this musl build of %s carries no Node. Run the glibc build, the file without -musl in its name.", word, l.Name)
 }
 
 // prepareNode returns "" for a file that carries no Node.
@@ -213,8 +213,8 @@ func prepareNode(cache runtime.Cache) (string, error) {
 // else the system's. The runtime runs from the application directory, so a
 // relative value is made absolute against the reader's directory here. A caller
 // who sets it empty names no folder.
-func tlsDir() (string, error) {
-	if dir, set := os.LookupEnv("DRUPACK_TLS_DIR"); set {
+func tlsDir(l Launch) (string, error) {
+	if dir, set := l.lookup("DRUPACK_TLS_DIR"); set {
 		if dir == "" {
 			return "", nil
 		}

@@ -23,7 +23,7 @@ const caFileName = "cacert.pem"
 
 // Launch holds everything one start hands the runtime. Paths are native.
 type Launch struct {
-	Args        []string // os.Args
+	Args        []string // os.Args, without the console and child words
 	Parent      []string // os.Environ()
 	Entry       string
 	Application string
@@ -38,10 +38,20 @@ type Launch struct {
 	Version    string
 	Components string
 	Engine     bool
+	// Musl marks a file packed over a musl runtime.
+	Musl bool
+	// Child is nil for a start the reader ran, and holds what a detaching parent passed its child.
+	Child *detachedChild
 	// ConsoleOwned is true on Windows when a file manager created the console.
 	ConsoleOwned bool
 	// FoldCase matches variable names whatever their case, as Windows does.
 	FoldCase bool
+}
+
+// lookup reads name in the environment this process started with.
+func (l Launch) lookup(name string) (string, bool) {
+	e := environ{entries: l.Parent, fold: l.FoldCase}
+	return e.get(name)
 }
 
 // Command is the process a start replaces itself with, or runs as a child on Windows.
