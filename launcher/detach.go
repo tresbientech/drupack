@@ -111,7 +111,9 @@ func detachStart(l Launch, log, stop string) error {
 		if before, marked := strings.CutSuffix(line, logMarker); marked {
 			os.Stdout.WriteString(before)
 			colour := runtime.Terminal(os.Stdout) && os.Getenv("NO_COLOR") == ""
-			code = relay(log, exited, os.Stdout, stop, colour, relayPoll)
+			if code, err = relay(log, exited, os.Stdout, stop, colour, relayPoll); err != nil {
+				return err
+			}
 			break
 		}
 		os.Stdout.WriteString(line)
@@ -146,14 +148,20 @@ func takeLog() error {
 
 // relay copies the log to out line by line and returns the start's exit code: 0 at the ready
 // line (not copied), and the server's code if it exits first (after the rest of the log).
-func relay(log string, exited <-chan int, out io.Writer, stop string, colour bool, poll time.Duration) int {
+// A log it cannot read is the error, which carries the stop command since the
+// start goes on in the background.
+func relay(log string, exited <-chan int, out io.Writer, stop string, colour bool, poll time.Duration) (int, error) {
+	unread := func(err error) (int, error) {
+		return 0, fmt.Errorf("%w. %s still starts in the background. Stop it with:\n\n    %s\n", err, siteName, stop)
+	}
 	file, err := os.Open(log)
 	if err != nil {
-		panic(err)
+		return unread(err)
 	}
 	defer file.Close()
+	shown := stop
 	if colour {
-		stop = "\x1b[1;32m" + stop + "\x1b[0m"
+		shown = "\x1b[1;32m" + stop + "\x1b[0m"
 	}
 	var pending string
 	blank := false
@@ -168,7 +176,7 @@ func relay(log string, exited <-chan int, out io.Writer, stop string, colour boo
 		}
 		content, err := io.ReadAll(file)
 		if err != nil {
-			panic(err)
+			return unread(err)
 		}
 		pending += string(content)
 		for {
@@ -182,15 +190,15 @@ func relay(log string, exited <-chan int, out io.Writer, stop string, colour boo
 				if !blank {
 					fmt.Fprintln(out)
 				}
-				fmt.Fprintf(out, "%s runs in the background. Its log: %s\n\nStop it with:\n\n    %s\n\n", siteName, log, stop)
-				return 0
+				fmt.Fprintf(out, "%s runs in the background. Its log: %s\n\nStop it with:\n\n    %s\n\n", siteName, log, shown)
+				return 0, nil
 			}
 			fmt.Fprint(out, line)
 			blank = line == "\n"
 		}
 		if gone {
 			fmt.Fprint(out, pending)
-			return code
+			return code, nil
 		}
 		time.Sleep(poll)
 	}

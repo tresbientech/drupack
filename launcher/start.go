@@ -88,7 +88,8 @@ func drupalDocroot(project, relative string) (string, error) {
 
 // operate runs one operation of operate.php through the runtime's php-cli and
 // decodes the record it printed into record. A refusal is the error, or with
-// stream the child has printed it already and the error is errReported. With
+// stream the child has printed it already and the error is errReported. A
+// child that printed no refusal, or never ran, gives the run's own error. With
 // stream the step lines reach the reader as they run; without, they follow the
 // operation.
 func operate(l Launch, env []string, record any, stream bool, arguments ...string) error {
@@ -101,13 +102,14 @@ func operate(l Launch, env []string, record any, stream bool, arguments ...strin
 	}
 	if err := command.Run(); err != nil {
 		var exit *exec.ExitError
+		refusal := strings.TrimSpace(stderr.String())
 		switch {
-		case !stream:
-			return errors.New(strings.TrimSpace(stderr.String()))
-		case errors.As(err, &exit):
+		case stream && errors.As(err, &exit):
 			return errReported
+		case refusal != "":
+			return errors.New(refusal)
 		}
-		return err
+		return fmt.Errorf("operate.php %s: %w", arguments[0], err)
 	}
 	os.Stderr.Write(stderr.Bytes())
 	return json.Unmarshal(out.Bytes(), record)

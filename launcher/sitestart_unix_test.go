@@ -35,6 +35,30 @@ func TestMint(t *testing.T) {
 	}
 }
 
+// A buffered operation that fails always gives the reader a line: the child's
+// refusal, or the run's error when the child printed none or never ran.
+func TestOperateNamesTheCauseOfASilentFailure(t *testing.T) {
+	folder := t.TempDir()
+	for _, row := range []struct {
+		name, script, want string
+	}{
+		{"refusal", "#!/bin/sh\necho 'No Drupal here.' >&2\nexit 1\n", "No Drupal here."},
+		{"silent", "#!/bin/sh\nexit 3\n", "operate.php check: exit status 3"},
+		{"absent", "", "operate.php check: fork/exec " + filepath.Join(folder, "absent") + ": no such file or directory"},
+	} {
+		stub := filepath.Join(folder, row.name)
+		if row.script != "" {
+			if err := os.WriteFile(stub, []byte(row.script), 0o700); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var record struct{}
+		if err := operate(Launch{Entry: stub}, nil, &record, false, "check", "site"); err == nil || err.Error() != row.want {
+			t.Errorf("%s: operate = %v, want %q", row.name, err, row.want)
+		}
+	}
+}
+
 // The stub answers the check operation, so the site start reaches its brace
 // refusals. Each Site data or files path holds a brace typed or behind a link.
 func TestSiteStartRefusesBraces(t *testing.T) {

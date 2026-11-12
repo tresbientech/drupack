@@ -21,7 +21,13 @@ func served(t *testing.T, log string, exited chan int, colour bool) (string, int
 	}
 	var out bytes.Buffer
 	code := make(chan int, 1)
-	go func() { code <- relay(path, exited, &out, "./demo stop", colour, time.Millisecond) }()
+	go func() {
+		got, err := relay(path, exited, &out, "./demo stop", colour, time.Millisecond)
+		if err != nil {
+			t.Error(err)
+		}
+		code <- got
+	}()
 	select {
 	case got := <-code:
 		return out.String(), got
@@ -79,7 +85,10 @@ func TestRelayWaitsForTheLogToGrow(t *testing.T) {
 	}
 	var out bytes.Buffer
 	code := make(chan int, 1)
-	go func() { code <- relay(path, make(chan int), &out, "./demo stop", false, time.Millisecond) }()
+	go func() {
+		got, _ := relay(path, make(chan int), &out, "./demo stop", false, time.Millisecond)
+		code <- got
+	}()
 	time.Sleep(50 * time.Millisecond)
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
@@ -94,6 +103,22 @@ func TestRelayWaitsForTheLogToGrow(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("the relay did not see the appended lines")
+	}
+}
+
+// An absent log fails the open and a folder fails the read.
+func TestRelayNamesAnUnreadableLogAndTheStopCommand(t *testing.T) {
+	siteName = "demo"
+	folder := t.TempDir()
+	for _, log := range []string{filepath.Join(folder, "absent.log"), folder} {
+		var out bytes.Buffer
+		_, err := relay(log, make(chan int), &out, "./demo stop", true, time.Millisecond)
+		if err == nil || !strings.Contains(err.Error(), log) || !strings.HasSuffix(err.Error(), "Stop it with:\n\n    ./demo stop\n") {
+			t.Errorf("relay(%s) = %v, want the log's path and the bare stop command", log, err)
+		}
+		if out.Len() != 0 {
+			t.Errorf("relay(%s) printed %q", log, out.String())
+		}
 	}
 }
 
