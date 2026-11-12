@@ -40,4 +40,5 @@ fix: #3636009 Refuse the options drush cannot use
 
 - The canonical repository is `project/drupack` on drupal.org. GitHub holds a copy that builds and publishes, and takes no pull requests.
 - A merge request on the issue's fork runs the unit tests. A maintainer squash-merges it on drupal.org.
+- `.gitlab/CODEOWNERS` names the account that answers for each path.
 - `.github/workflows/upstream.yml` pushes every version tag.

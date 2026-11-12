@@ -1,0 +1,10 @@
+# The account that answers for each path. The last matching line wins.
+
+# Code and tests.
+* @nod_bot
+
+# Text people read, and the instructions agents follow.
+*.md @nod_ @nod_bot
+/LICENSE @nod_ @nod_bot
+/launcher/help.go @nod_ @nod_bot
+/.gitlab/CODEOWNERS @nod_ @nod_bot
