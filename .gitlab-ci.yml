@@ -5,6 +5,18 @@
 tests:
   image: golang:bookworm
   interruptible: true
+  # build/go-tests.sh compiles golangci-lint on each run. The kept caches let a
+  # later run reuse that build; a cache sits inside the checkout or not at all.
+  variables:
+    GOCACHE: $CI_PROJECT_DIR/.go/build
+    GOMODCACHE: $CI_PROJECT_DIR/.go/mod
+  cache:
+    key:
+      files:
+        - build/go-tests.sh
+        - launcher/go.sum
+    paths:
+      - .go/
   rules:
     # GitLab's changes takes no negation, so the list names every tracked path
     # outside docs/, LICENSE and the root Markdown files.
