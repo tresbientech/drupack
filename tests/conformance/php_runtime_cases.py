@@ -19,7 +19,6 @@ import harness
 
 CERTIFICATE_MARKER = "-----BEGIN CERTIFICATE-----"
 RELEASE_HISTORY_URL = "https://updates.drupal.org/release-history/drupal/current"
-LOGIN_PREFIX = "  Login:     "
 
 INI_PROBE = """<?php
 echo json_encode([
@@ -157,7 +156,7 @@ class RuntimeConfigurationServed(harness.ConformanceCase):
     def test_memory_limit_and_upload_limit_from_the_running_server(self):
         data = self.case_dir / "data"
         self.site.start(data, "--admin-user", self.ADMIN_USER, "--admin-password", self.ADMIN_PASSWORD)
-        link = harness.wait_for_line(self.site.log_path, 0, LOGIN_PREFIX, harness.WAITS["start"].seconds)
+        link = harness.login_link(self.binary, self.case_dir, data)
         opener = build_opener(HTTPCookieProcessor(CookieJar()))
         # Spends the one-time link; the cookie jar keeps the administrator session.
         with opener.open(link, timeout=harness.WAITS["http_request"].seconds):

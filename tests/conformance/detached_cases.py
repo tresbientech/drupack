@@ -52,7 +52,8 @@ class DetachedCases(harness.ConformanceCase):
     def _assert_returns_with_a_running_site(self, *words):
         result = self._start(*words)
         self.assertEqual(result.returncode, 0, f"the start exited non-zero: {result.stdout}{result.stderr}")
-        self.assertIn("Login:", result.stdout)
+        self.assertIn(harness.LOGIN_COMMAND, result.stdout)
+        self.assertNotIn(harness.LINK_PATH, result.stdout)
         log = self.data / "logs" / "server.log"
         self.assertIn(f"runs in the background. Its log: {log.as_posix()}", result.stdout)
         self.assertNotIn("Press Ctrl+C", result.stdout)

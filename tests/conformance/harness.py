@@ -505,6 +505,19 @@ def run_drush(binary, work_dir, data_dir, *command):
     )
 
 
+# A start nobody watches prints this and the command that mints a link, never a link.
+LOGIN_COMMAND = "  Login:     run "
+LINK_PATH = "/user/reset/"
+
+
+def login_link(binary, work_dir, data_dir):
+    """The one-time link the printed command mints for uid 1, landing on the dashboard."""
+    minted = run_drush(binary, work_dir, data_dir, "user:login", "--no-browser", "/admin/dashboard")
+    if minted.returncode != 0:
+        raise AssertionError(f"drush user:login failed: {minted.stderr}")
+    return minted.stdout.strip()
+
+
 class Site:
     """One product process for one case: its own port, its own log, its own stop.
 

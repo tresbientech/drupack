@@ -127,6 +127,8 @@ class BrowserOpenCases(harness.ConformanceCase):
         try:
             text = restart.log_path.read_text(errors="replace")
             self.assertNotIn(LINK_PREFIX, text, "the readiness block printed a login link despite a failed mint")
+            self.assertIn("Cannot mint a one-time login link", text, "the start does not report the failed mint")
+            self.assertIn("blocked", text, "the diagnostic does not carry the reason Drush gave")
             # The positive case's budget, so a late browser opening is still caught.
             time.sleep(harness.WAITS["browser_open"].seconds)
             self.assertFalse(recorded.exists(),
@@ -171,7 +173,7 @@ class BrowserOpenCases(harness.ConformanceCase):
             self.assertEqual(url, f"http://[::1]:{site.port}/")
             with urlopen(url + "user/login", timeout=harness.WAITS["http_request"].seconds) as response:
                 self.assertEqual(response.status, 200)
-            link = harness.wait_for_line(site.log_path, 0, LINK_PREFIX, harness.WAITS["start"].seconds)
+            link = harness.login_link(harness.BINARY, self.case_dir, self.data)
             self.assertTrue(link.startswith(url), link)
             opener = build_opener(HTTPCookieProcessor(CookieJar()))
             with opener.open(link, timeout=harness.WAITS["http_request"].seconds) as response:

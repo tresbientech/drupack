@@ -19,7 +19,6 @@ import harness
 
 PASSWORD = "Initialization.test.2026"
 SITE_NAME = "Drupack initialization check"
-LOGIN_LINE = "  Login:     http"
 # operate.php's seed operation installs the seed under this account and seedPassword().
 SEED_ADMIN = "drupack-admin"
 
@@ -72,9 +71,10 @@ def assert_readiness(case, log_path, caddy_log):
     with open(caddy_log, "a") as handle:
         handle.write(sentinel + "\n")
     case.assertNotIn(sentinel, log_path.read_text(errors="replace"), "Caddy log content appeared in CLI output")
-    case.assertIn(LOGIN_LINE, text, f"the start printed no one-time login link: inspect {log_path}")
-    case.assertIn("?destination=/admin/dashboard", text,
-                   f"the printed login link carries no dashboard destination: inspect {log_path}")
+    case.assertIn(harness.LOGIN_COMMAND, text, f"the start printed no login command: inspect {log_path}")
+    case.assertIn("user:login /admin/dashboard", text,
+                   f"the printed login command names no dashboard destination: inspect {log_path}")
+    case.assertNotIn(harness.LINK_PATH, text, f"a start nobody watches printed a login link: inspect {log_path}")
     return text
 
 
@@ -255,11 +255,9 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
         try:
             harness.wait_for_line(restart.log_path, 0, harness.ready_line(), harness.WAITS["start"].seconds)
             text = restart.log_path.read_text(errors="replace")
-            self.assertNotIn(LOGIN_LINE, text, "the readiness block printed a login link despite a failed mint")
-            self.assertIn("drush --data-dir", text, "the diagnostic does not name the recovery command")
-            self.assertIn("user:login /admin/dashboard", text,
-                           "the diagnostic does not name the recovery destination")
-            self.assertIn("blocked", text, "the diagnostic does not carry the reason Drush gave")
+            self.assertNotIn(harness.LINK_PATH, text, "the readiness block printed a login link")
+            self.assertIn("drush --data-dir", text, "the start does not name the login command")
+            self.assertIn("user:login /admin/dashboard", text, "the login command names no destination")
         finally:
             restart.stop()
 

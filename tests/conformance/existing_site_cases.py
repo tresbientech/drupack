@@ -91,7 +91,8 @@ class ExistingSiteAdoption(harness.ConformanceCase):
             site.stop()
         log = site.log_path.read_text(errors="replace")
         self.assertIn("This database already holds a site", log)
-        self.assertIn("Cannot mint a one-time login link", log)
+        self.assertIn(harness.LOGIN_COMMAND, log)
+        self.assertNotIn(harness.LINK_PATH, log)
 
         name = harness.run_drush(harness.BINARY, self.class_dir, data, "config:get", "system.site", "name",
                               "--format=string")

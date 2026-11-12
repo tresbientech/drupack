@@ -178,7 +178,9 @@ class TlsSources(harness.ConformanceCase):
         self.assertEqual(status, 200)
         log = site.log_path.read_text(errors="replace")
         self.assertIn(f"URL:       https://localhost:{site.port}/", log)
-        self.assertIn(f"Login:     https://localhost:{site.port}/user/reset/", log)
+        self.assertNotIn(harness.LINK_PATH, log)
+        link = harness.login_link(harness.BINARY, self.case_dir, self.data)
+        self.assertTrue(link.startswith(f"https://localhost:{site.port}/user/reset/"), link)
 
     def test_a_new_root_on_the_same_site_data_serves_https_from_it(self):
         # The first start leaves Caddy's intermediate for the class root in Site data.

@@ -41,7 +41,8 @@ data.
 - `drupack php` takes two forms, `SCRIPT [ARGUMENTS]` and `-r CODE`, and
   passes each to the runtime's `php-cli` unchanged. It refuses any other
   option by name, and `-r CODE` followed by an argument, before PHP starts.
-- A start prints a one-time login link, as a packaged site's does.
+- A start prints a one-time login link or the command for one, as a packaged
+  site's does.
 - The folder mode has its own PHP entry script. It shares process and path
   helpers with `launch.php`.
 

@@ -208,8 +208,15 @@ A missing one stops the start. `--db-port` defaults to 3306 for MySQL and 5432
 for PostgreSQL.
 
 `--admin-user` and `--admin-password` name the administrator account. Without
-them a first start creates `admin` with a generated password, then prints a
-one-time login link. The generated password is never shown.
+them a first start creates `admin` with a generated password, which is never
+shown.
+
+A start a person watches prints a one-time login link for that account. A person
+watches when the start has a terminal, a file manager's console, or a detaching
+parent with a terminal. Any other start, such as a systemd unit or a container,
+prints the command that mints a link, so no log holds one:
+
+    Login:     run demo drush --data-dir /var/lib/demo user:login /admin/dashboard
 
 `--site-name` names the site. A later start never renames a site.
 
@@ -485,8 +492,9 @@ and says it already serves.
   bind address otherwise.
 - The start refuses a folder whose PHP version or `composer.lock` extensions
   the bundled PHP does not meet, and names what is missing.
-- The start prints a one-time login link for uid 1, through the folder's Drush.
-  It still serves when that fails, or when the folder has no Drush.
+- A start a person watches prints a one-time login link for uid 1, through the
+  folder's Drush. It still serves when that fails, or when the folder has no
+  Drush. Any other start prints the command that mints a link.
 - A folder whose database holds no installed site prints `Install:` with
   `/core/install.php` instead, and mints no link. A probe asks the folder's
   Database API for the `key_value` table first.

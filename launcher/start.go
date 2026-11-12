@@ -343,8 +343,9 @@ func serveArguments(argv0, file string, config caddyfile.Config) []string {
 }
 
 // entrance returns the install address of a site not installed yet, or the
-// login link of an installed one. Either may be empty. installed is nil when
-// the probe cannot tell.
+// login line of an installed one: the link when a person watches the start,
+// the command that mints one otherwise. Either may be empty. installed is nil
+// when the probe cannot tell.
 func entrance(l Launch, env []string, project string, installed *bool, url string) (link, install string, err error) {
 	if installed != nil && !*installed {
 		return "", url + "/core/install.php", nil
@@ -354,6 +355,11 @@ func entrance(l Launch, env []string, project string, installed *bool, url strin
 		fmt.Fprintf(os.Stderr, "No login link: %s has no Drush. composer require drush/drush adds one.\n", project)
 		return "", "", nil
 	}
+	// The link is a credential: a start nobody watches prints the command for
+	// one, so no log holds a link.
+	if !personPresent(l) {
+		return "run " + loginCommand(url), "", nil
+	}
 	fmt.Fprintln(os.Stdout, "Creating a one-time login link.")
 	link, failure, err := mint(l, env, url, drush, project)
 	if err != nil {
@@ -362,9 +368,14 @@ func entrance(l Launch, env []string, project string, installed *bool, url strin
 	if link == "" {
 		// The folder's own settings may block uid 1 or name no reachable database yet;
 		// the server still starts, and Drupal's own error page says which.
-		fmt.Fprintf(os.Stderr, "Cannot mint a one-time login link: %s\nGet one once the site answers with: %s drush user:login --uri=%s\n", failure, siteName, url)
+		fmt.Fprintf(os.Stderr, "Cannot mint a one-time login link: %s\nGet one once the site answers with: %s\n", failure, loginCommand(url))
 	}
 	return link, "", nil
+}
+
+// loginCommand is the command that mints a login link for the project served at url.
+func loginCommand(url string) string {
+	return fmt.Sprintf("%s drush user:login --uri=%s", siteName, url)
 }
 
 // storeBundle writes an HTTPS start's CA bundle into the folder's entry and

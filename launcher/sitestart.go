@@ -252,8 +252,8 @@ func portTaken(bind string, port int) bool {
 
 // personPresent reports whether someone watches the start: a terminal, a file
 // manager's console, or the terminal a detaching parent had.
-func (s packagedStart) personPresent() bool {
-	return runtime.Terminal(os.Stdin) || s.Launch.ConsoleOwned || child != nil && child.person
+func personPresent(l Launch) bool {
+	return runtime.Terminal(os.Stdin) || l.ConsoleOwned || child != nil && child.person
 }
 
 // served answers a start whose Site data another server holds. installed is
@@ -275,7 +275,7 @@ func (s packagedStart) served(installed bool) error {
 	if a.Recorded {
 		bind, url = a.Bind, siteURL(a.Scheme, a.Host, a.Port)
 	}
-	if !s.personPresent() {
+	if !personPresent(s.Launch) {
 		return fmt.Errorf("%s already serves this Site data at %s: %s", s.Launch.Name, url, s.Data)
 	}
 	// Two FrankenPHP processes over one database and one runtime directory would
@@ -334,7 +334,12 @@ func (s packagedStart) explainMintFailure(reason string) {
 	if reason = strings.TrimRight(reason, ". "); reason != "" {
 		reason = ": " + reason
 	}
-	fmt.Fprintf(os.Stderr, "Cannot mint a one-time login link%s. Get one with: %s drush --data-dir %s user:login /admin/dashboard\n", reason, s.Launch.Name, s.Data)
+	fmt.Fprintf(os.Stderr, "Cannot mint a one-time login link%s. Get one with: %s\n", reason, s.loginCommand())
+}
+
+// loginCommand is the command that mints a login link for this Site data.
+func (s packagedStart) loginCommand() string {
+	return fmt.Sprintf("%s drush --data-dir %s user:login /admin/dashboard", s.Launch.Name, s.Data)
 }
 
 // serve prepares the Site data under the lease, prints the addresses and execs
@@ -376,19 +381,24 @@ func (s packagedStart) serve(lease *state.Lease) error {
 	if err := layTranslations(application, filepath.Join(s.Files, "translations")); err != nil {
 		return err
 	}
-	// Every start hands its reader a one-time login link for uid 1. A start that
+	// A start hands a person a one-time login link for uid 1. A start that
 	// generated the password has no other way in, so it fails when the mint fails.
 	// An adopted site keeps its own accounts and serves without the link.
-	fmt.Println("Creating a one-time login link.")
-	link, failure, err := s.login(application, plan.URL)
-	if err != nil {
-		return err
-	}
-	if link == "" {
-		if prepared.Credentials && !prepared.Adopted {
-			return errors.New("Cannot obtain a one-time login link for the administrator account")
+	// The link is a credential: a start nobody watches prints the command for
+	// one, so no log holds a link.
+	person, link := personPresent(l), ""
+	if person {
+		fmt.Println("Creating a one-time login link.")
+		var failure string
+		if link, failure, err = s.login(application, plan.URL); err != nil {
+			return err
 		}
-		s.explainMintFailure(failure)
+		if link == "" {
+			if prepared.Credentials && !prepared.Adopted {
+				return errors.New("Cannot obtain a one-time login link for the administrator account")
+			}
+			s.explainMintFailure(failure)
+		}
 	}
 	// The addresses and paths only, never a readiness claim: the server announces that itself.
 	fmt.Printf("  URL:       %s\n", plan.URL)
@@ -397,6 +407,9 @@ func (s packagedStart) serve(lease *state.Lease) error {
 	}
 	if link != "" {
 		fmt.Printf("  Login:     %s\n", link)
+	}
+	if !person {
+		fmt.Printf("  Login:     run %s\n", s.loginCommand())
 	}
 	logPath := s.Data + "/logs/caddy.log"
 	fmt.Printf("  Site data: %s\n  Log:       %s\n", s.Data, logPath)
@@ -411,7 +424,7 @@ func (s packagedStart) serve(lease *state.Lease) error {
 	}
 	fmt.Print(nameHint(choice), trustHint(l, choice))
 	// The server opens the browser once the site answers.
-	if link != "" && s.c.options["no-browser"] == "" && s.personPresent() && tls.Loopback(plan.Bind) {
+	if link != "" && s.c.options["no-browser"] == "" && tls.Loopback(plan.Bind) {
 		s.Open = link
 	}
 	fmt.Println("Starting the web server.")

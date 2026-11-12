@@ -15,7 +15,6 @@ import harness
 ADMIN_USER = "drupack-test-admin"
 ADMIN_PASSWORD = "Offline.test.administrator.2026!"
 CREDENTIALS = ("--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
-LINK_PREFIX = "  Login:     "
 
 
 def draw_image(uri, colour, writer="imagepng"):
@@ -192,12 +191,15 @@ class SeededSite(harness.ConformanceCase):
         self.assertNotIn("core/install.php", self.site.http("/"))
 
     def test_default_port_first_start_without_credentials(self):
-        # No options and no terminal: the start installs on the default port; the printed link
-        # must log a browser in as admin, on the dashboard.
+        # No options and no terminal: the start installs on the default port and prints the
+        # command for a link, never a link. That command's link must log a browser in as admin,
+        # on the dashboard.
         data = self.case_dir / "no-credentials"
         self.site.start(data, listen=False)
         origin = f"http://localhost:{self.site.port}"
-        link = harness.wait_for_line(self.site.log_path, 0, LINK_PREFIX, harness.WAITS["start"].seconds)
+        harness.wait_for_line(self.site.log_path, 0, harness.LOGIN_COMMAND, harness.WAITS["start"].seconds)
+        self.assertNotIn(harness.LINK_PATH, self.site.log_path.read_text(errors="replace"))
+        link = harness.login_link(harness.BINARY, self.case_dir, data)
         self.assertTrue(link.startswith(origin + "/user/reset/1/"), link)
         self.assertIn("?destination=/admin/dashboard", link)
         # Wait for the ready line, as a browser would, instead of racing the first cold request.
