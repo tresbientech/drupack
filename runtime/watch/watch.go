@@ -89,7 +89,11 @@ func serveStop(stopping context.Context, path string, shutdown func()) error {
 		w.WriteHeader(http.StatusNoContent)
 		w.(http.Flusher).Flush()
 		shutdown()
-	})}
+	}),
+		// A connection that never finishes its headers is dropped, so a local
+		// process cannot hold the channel's connections open.
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 	go server.Serve(listener)
 	go func() {
 		<-stopping.Done()
