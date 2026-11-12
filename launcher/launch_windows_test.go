@@ -31,11 +31,16 @@ func TestLaunchOutlivesCtrlBreakUntilTheChildExits(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Fatal(launch(Command{
+		err = launch(Command{
 			Path: self,
 			Args: []string{self, "-test.run=^" + t.Name() + "$"},
 			Env:  append(os.Environ(), roleVariable+"=child"),
-		}))
+		})
+		// main exits with the child's code, which launch returns.
+		if code, ok := errors.AsType[exitError](err); ok {
+			os.Exit(int(code))
+		}
+		t.Fatal(err)
 	case "child":
 		interrupt := make(chan os.Signal, 1)
 		signal.Notify(interrupt, os.Interrupt)
