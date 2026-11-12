@@ -178,13 +178,20 @@ Every published executable is a launcher carrying the real executable, compresse
 
 The candidate's QA jobs are the release's QA, so no local `build/qa.sh` run precedes a release. The upstream run prints the name of each red job as it ends. The candidate run goes on to its other jobs.
 
-A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.0.0-alpha1`, reaches drupal.org and GitHub in the same job, and starts the release workflow on GitHub. When the tag's candidate run succeeded, the workflow publishes that run's files. Otherwise it builds all seven targets and runs the suite on each, except the two musl files, which start a site on Alpine. It then publishes a GitHub Release. `build/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, each macOS and Windows runtime as `runtime-VERSION-TARGET.tar.zst`, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. A drupal.org release node, created by hand for the tag, publishes it to Packagist as a version of the Composer package `drupal/drupack`. Its bin script, `drupack-install`, downloads that version's engine executable into a project.
+A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.0.0-alpha1`, reaches drupal.org and GitHub in the same job, and starts the release workflow on GitHub. When the tag's candidate run succeeded, the workflow publishes that run's files. Otherwise it builds all seven targets and runs the suite on each, except the two musl files, which start a site on Alpine. It then publishes a GitHub Release. `build/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, each macOS and Windows runtime as `runtime-VERSION-TARGET.tar.zst`, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. A drupal.org release node for the tag publishes it to Packagist as a version of the Composer package `drupal/drupack`. Its bin script, `drupack-install`, downloads that version's engine executable into a project.
 
 ### Automatic releases
 
 drupal.org's pipeline schedule dispatches the same workflow daily, and it tags a release when PHP, FrankenPHP or a Windows PECL extension moves inside its line. Each candidate also moves `build/demo-pin.sh` forward to the demo's latest release, and holds a commit set by hand until a release contains it. `python3 build/upstream.py` runs its bump in your checkout and prints the summary the workflow logs. The candidate commit carries that summary, and its GitHub run shows it on the run page. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed. After the tag, the workflow waits for the release run the tag starts. A failed run gets one rerun of its failed jobs, and the workflow fails if that rerun fails too.
 
-Each tag needs its drupal.org release node, created by hand, since drupal.org has no API for it. The `notes` job of the upstream run prints the form's link, the release type and the notes to paste in its summary. `drupalorg-cli` writes those notes from the commits that name an issue. `.github/workflows/release-node.yml` runs each morning and fails while Packagist lists no `drupal/drupack` release for the highest tag.
+Each tag needs its drupal.org release node, and drupal.org has no API for it. The `node` job of the upstream run posts the release form as `nod_bot`, once the tag's release run is green. The `notes` job writes the release notes with `drupalorg-cli`, from the commits that name an issue, and prints them in its summary with the form's link. When the `node` job fails, create the release from that summary by hand.
+
+The `DRUPAL_ORG_SESSION` secret holds `nod_bot`'s session, which lasts about four weeks. `.github/workflows/release-node.yml` runs each morning. It fails when that session no longer opens the form, and while Packagist lists no `drupal/drupack` release for the highest tag. To renew the session:
+
+1. Log in on `www.drupal.org` as `nod_bot` and open the [release form](https://www.drupal.org/node/add/project-release/3624016).
+2. In the developer tools' Network tab, copy the whole `Cookie` request header of that request.
+3. Store it with `gh secret set DRUPAL_ORG_SESSION --repo tresbientech/drupack`, which asks for the value.
+4. Close the window without logging out, since a logout ends the session.
 
 ### Pushes to main
 

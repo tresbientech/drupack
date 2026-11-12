@@ -66,8 +66,10 @@ The package is `drupal/drupack`, published from the drupal.org general project
 `drupack`. drupal.org staff confirmed that a general project release with a
 valid `composer.json` reaches Packagist under the `drupal/` namespace.
 
-- Each version tag needs a drupal.org release node, created by hand. The
-  release workflow creates none.
+- Each version tag needs a drupal.org release node. The upstream run creates
+  it, as
+  [ADR 0062](0062-the-release-run-posts-the-drupal-org-release-form.md)
+  describes.
 - `drupal/drupack` starts at 1.0.0-alpha2. Versions 0.5.1 to 0.9.0 stay on
   `tresbientech/drupack` and get no drupal.org release.
 - Once 1.0.0-alpha2 reaches Packagist, the Packagist package `tresbientech/drupack`

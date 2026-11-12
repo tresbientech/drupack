@@ -38,10 +38,10 @@ PHP security release behind, and nothing had reported it.
 - A green candidate run replaces the local `qa-green` record for these tags.
 - A bump whose candidate failed is not built again unless the dispatch sets
   `force`. A failed run on its branch name records the failure.
-- The drupal.org release node stays a hand step, since drupal.org has no API
-  that creates one. The run's `notes` job prints the form's link, the release
-  type and the notes to paste. `drupalorg-cli`, pinned by version and SHA-256,
-  writes the notes from the commits that name an issue.
+- The run's `node` job creates the drupal.org release node, as
+  [ADR 0062](0062-the-release-run-posts-the-drupal-org-release-form.md)
+  describes. Its `notes` job writes the release notes with `drupalorg-cli`,
+  pinned by version and SHA-256, from the commits that name an issue.
 
 ## Considered options
 
@@ -83,7 +83,8 @@ covered Linux alone. `1.0.0-alpha4` failed its Windows job after such a tag.
   [issue 3636023](https://git.drupalcode.org/project/drupack/-/work_items/3636023)
   holds that question.
 - `.github/workflows/release-node.yml` runs each day with the upstream run. It
-  fails while Packagist lists no `drupal/drupack` release for the highest tag.
+  fails while Packagist lists no `drupal/drupack` release for the highest tag,
+  and when `nod_bot`'s session no longer opens the release form.
 - [ADR 0032](0032-drupacked-demo-own-repository.md) takes Drupacked Demo out of
   this run.
 

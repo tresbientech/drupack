@@ -4,8 +4,10 @@ Run with:
     python3 -m unittest discover -s tests/upstream
 """
 
+import contextlib
 import hashlib
 import importlib.util
+import io
 import json
 import re
 import shutil
@@ -351,8 +353,64 @@ class ReleaseNode(unittest.TestCase):
         self.assertIn(self.module.FORM, entry)
         self.assertIn("```html\n<h4>Bug</h4>", entry)
 
-    def test_notes_without_a_bug_or_a_feature_name_no_release_type(self):
-        self.assertIn("Release type: none.", self.module.form_entry("1.0.0", "<h4>Task</h4>\n"))
+    FIRST_STEP = """<form id="search-block-form"><input type="text" name="search_block_form" value=""></form>
+        <textarea name="stray">outside any form</textarea>
+        <form id="project-release-node-form" action="/node/add/project-release/3624016">
+        <select name="field_release_vcs_label[und][0][value]"><option value="" selected></option>
+        <option value="1.0.0-beta20">1.0.0-beta20</option></select>
+        <input type="hidden" name="form_build_id" value="build-1"><input type="hidden" name="form_token" value="token">
+        <input type="submit" name="op" value="Next"></form>"""
+    SECOND_STEP = """<form id="project-release-node-form" action="/node/add/project-release/3624016">
+        <input type="hidden" name="form_build_id" value="build-2"><input type="hidden" name="form_token" value="token">
+        <textarea name="body[und][0][value]"></textarea>
+        <input type="text" name="field_release_short_description[und][0][value]" value="">
+        <input type="checkbox" name="taxonomy_vocabulary_7[und][100]" value="100">
+        <input type="checkbox" name="taxonomy_vocabulary_7[und][99]" value="99">
+        <input type="checkbox" name="taxonomy_vocabulary_7[und][98]" value="98">
+        <input type="submit" name="op" value="Save"><input type="submit" name="op" value="Preview"></form>"""
+
+    def drupal_org(self, *pages):
+        """Stands in for drupal.org: answers each request with the next of PAGES and records what was sent."""
+        answers, self.requests = list(pages), []
+
+        def as_nod_bot(url, sent=None):
+            self.requests.append((url, sent))
+            return answers.pop(0)
+        self.module.as_nod_bot = as_nod_bot
+
+    def post(self, tag, notes):
+        stdin = sys.stdin
+        self.addCleanup(setattr, sys, "stdin", stdin)
+        sys.stdin = io.StringIO(notes)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.module.post(tag)
+
+    def test_a_post_picks_the_tag_then_saves_the_notes_and_the_release_types(self):
+        self.drupal_org(self.FIRST_STEP, self.SECOND_STEP, "<h1>drupack 1.0.0-beta20</h1>", "the release page")
+        self.post("1.0.0-beta20", self.module.PLACEHOLDER + "<h4>Bug</h4>\n<ul><li>fix</li></ul>\n")
+        (_, read), (_, picked), (_, saved), (proof, _) = self.requests
+        self.assertIsNone(read)
+        self.assertEqual(picked, {"field_release_vcs_label[und][0][value]": "1.0.0-beta20", "form_build_id": "build-1",
+                                  "form_token": "token", "op": "Next"})
+        self.assertEqual(saved, {"form_build_id": "build-2", "form_token": "token",
+                                 "body[und][0][value]": "<h4>Bug</h4>\n<ul><li>fix</li></ul>\n",
+                                 "field_release_short_description[und][0][value]": "",
+                                 "taxonomy_vocabulary_7[und][99]": 99, "op": "Save"})
+        self.assertEqual(proof, "https://www.drupal.org/project/drupack/releases/1.0.0-beta20")
+
+    def test_a_tag_the_form_no_longer_offers_is_read_back_and_not_posted(self):
+        self.drupal_org(self.FIRST_STEP, "the release page")
+        self.post("1.0.0-beta19", "<h4>Bug</h4>\n")
+        self.assertEqual([sent for _, sent in self.requests], [None, None])
+        self.assertEqual(self.requests[1][0], "https://www.drupal.org/project/drupack/releases/1.0.0-beta19")
+
+    def test_a_form_drupal_refuses_stops_the_run_with_its_reason(self):
+        refusal = '<div class="messages error"><h2>Error message</h2> The tag <em>1.0.0-beta20</em> is taken.</div>'
+        self.drupal_org(self.FIRST_STEP, self.SECOND_STEP, refusal + self.SECOND_STEP)
+        with self.assertRaises(SystemExit) as stopped:
+            self.post("1.0.0-beta20", "<h4>Task</h4>\n")
+        self.assertEqual(str(stopped.exception), "drupal.org refused the form: Error message The tag 1.0.0-beta20 is taken.")
+        self.assertEqual(len(self.requests), 3)
 
 
 if __name__ == "__main__":

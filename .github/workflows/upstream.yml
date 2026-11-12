@@ -205,7 +205,7 @@ jobs:
             push --atomic --quiet "$DRUPAL_ORG_REMOTE" HEAD:refs/heads/main "refs/tags/$VERSION"
           git push --atomic --quiet "$GITHUB_REMOTE" HEAD:refs/heads/main "refs/tags/$VERSION"
           printf 'version=%s\n' "$VERSION" >>"$GITHUB_OUTPUT"
-          echo "Tagged $VERSION on drupal.org. The notes job prints what its release form takes."
+          echo "Tagged $VERSION on drupal.org. The node job creates its release there."
 
       - name: Delete the candidate branch
         if: always() && steps.candidate.outputs.version
@@ -229,8 +229,8 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: bash build/wait-for-run.sh "event=push&branch=$VERSION"
 
-  # drupal.org has no API that creates a release, so a person fills its form.
-  # This job prints the form's link and the notes to paste in its summary.
+  # Writes the release notes with drupalorg-cli, a third-party tool. This job
+  # holds no secret; the node job, which holds one, takes the notes as text.
   notes:
     needs: upstream
     if: needs.upstream.outputs.version
@@ -238,6 +238,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+    outputs:
+      html: ${{ steps.notes.outputs.html }}
     env:
       DRUPALORG_CLI_VERSION: 0.15.1
       DRUPALORG_CLI_SHA256: caba0fea522e2c66cd94d0b7312d90a711fe9733a920f2f237e4222705e81063
@@ -254,10 +256,37 @@ jobs:
             "https://github.com/mglaman/drupalorg-cli/releases/download/$DRUPALORG_CLI_VERSION/drupalorg.phar"
           echo "$DRUPALORG_CLI_SHA256  $RUNNER_TEMP/drupalorg.phar" | sha256sum --check --quiet
 
-      - name: Write the release form's entry to the summary
+      - id: notes
+        name: Write the release notes
         env:
           VERSION: ${{ needs.upstream.outputs.version }}
         run: |
           # drupalorg-cli reads the project name from the origin URL.
           git remote set-url origin "$DRUPAL_ORG_REMOTE"
-          python3 build/release-node.py "$VERSION" "$RUNNER_TEMP/drupalorg.phar" >>"$GITHUB_STEP_SUMMARY"
+          python3 build/release-node.py notes "$VERSION" "$RUNNER_TEMP/drupalorg.phar" >"$RUNNER_TEMP/notes.html"
+          python3 build/release-node.py entry "$VERSION" <"$RUNNER_TEMP/notes.html" >>"$GITHUB_STEP_SUMMARY"
+          # A random delimiter, so no line of the notes can end the value early.
+          delimiter=$(openssl rand -hex 16)
+          { echo "html<<$delimiter"; cat "$RUNNER_TEMP/notes.html"; echo; echo "$delimiter"; } >>"$GITHUB_OUTPUT"
+
+  # drupal.org has no API that creates a release, so this job posts its release
+  # form as nod_bot, once the tag's release run has published the executables.
+  # It runs this repository's code alone.
+  node:
+    needs: [upstream, tag, notes]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Create the drupal.org release
+        env:
+          VERSION: ${{ needs.upstream.outputs.version }}
+          NOTES: ${{ needs.notes.outputs.html }}
+          DRUPAL_ORG_SESSION: ${{ secrets.DRUPAL_ORG_SESSION }}
+        run: printf '%s' "$NOTES" | python3 build/release-node.py post "$VERSION" >>"$GITHUB_STEP_SUMMARY"

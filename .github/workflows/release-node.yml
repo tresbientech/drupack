@@ -1,10 +1,11 @@
 name: Release node
 
-# Goes red while Packagist lists no drupal/drupack release for the highest
-# version tag: that tag still waits for its drupal.org release node, which is
-# created by hand from what the notes job of upstream.yml prints. drupal.org's
-# daily pipeline schedule dispatches this workflow with the day's upstream run,
-# so a tag that run pushes is checked the next morning.
+# Two checks on the drupal.org release node, which the node job of upstream.yml
+# creates as nod_bot. The first goes red while Packagist lists no drupal/drupack
+# release for the highest version tag. The second goes red when nod_bot's session
+# no longer opens the release form, which it does about four weeks after its login.
+# drupal.org's daily pipeline schedule dispatches this workflow with the day's
+# upstream run, so a tag that run pushes is checked the next morning.
 
 on:
   workflow_dispatch:
@@ -22,4 +23,10 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - run: python3 build/release-node.py
+      - run: python3 build/release-node.py check
+
+      - name: Open the release form as nod_bot
+        if: always()
+        env:
+          DRUPAL_ORG_SESSION: ${{ secrets.DRUPAL_ORG_SESSION }}
+        run: python3 build/release-node.py session
