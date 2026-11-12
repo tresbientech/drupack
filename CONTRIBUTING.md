@@ -36,6 +36,8 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
 
 `build/qa.sh` keeps its work directories and test results under `/tmp/drupack-qa/CHECKOUT`, or under the directory `DRUPACK_QA_WORK` names. It links `dist/work` to the site's work directory there. After a `build/qa.sh` run, a hand run with `--work dist/work` also needs `-v "$(readlink dist/work):$(readlink dist/work)"`.
 
+In a git worktree, a hand run also mounts the main checkout's `.git` at its own path: `-v "$GIT:$GIT"`, where `GIT` is the output of `git rev-parse --path-format=absolute --git-common-dir`. `build/qa.sh` adds that mount itself.
+
 The build packs one file per platform and C library. The demo's `drupack.yml` also names macOS and Windows targets, which a full build refuses, so `--platform` names the Linux one. A `--payload-only` build accepts them. `--libc glibc` or `--libc musl` packs that file alone instead of both, and `--runtime PLATFORM/LIBC=DIRECTORY` replaces one runtime with a local one. `drupack-build -help` lists every option.
 
 A release tag publishes the image as `ghcr.io/tresbientech/drupack-build:VERSION`, carrying all four Linux runtimes. The image itself runs on amd64 only.

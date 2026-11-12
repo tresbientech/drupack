@@ -27,6 +27,11 @@ engine=dist/engine/drupack-$platform
 work=${DRUPACK_QA_WORK:-/tmp/drupack-qa/$(basename -- "$PWD")}
 mkdir -p dist "$work/work" "$work/variant-work" "$work/engine-work" "$work/results"
 
+# In a git worktree, .git is a file that names a directory under the main
+# checkout's .git. The job container gets that .git at the same path.
+git_directory=$(git rev-parse --path-format=absolute --git-common-dir)
+checkout=(-v "$PWD:/src" -v "$git_directory:$git_directory")
+
 . build/demo-pin.sh
 demo=$work/demo
 git init -q "$demo"
@@ -60,7 +65,7 @@ unit_checks() {
 # Builds Drupacked Demo. The build runs the share of its suite that $1 names as
 # DRUPACK_SHARD, and the whole suite without one.
 build_demo() {
-    docker run --rm --user "$(id -u):$(id -g)" -e "DRUPACK_SHARD=${1:-}" -v "$PWD:/src" -v "$work:$work" -w /src drupack-job \
+    docker run --rm --user "$(id -u):$(id -g)" -e "DRUPACK_SHARD=${1:-}" "${checkout[@]}" -v "$work:$work" -w /src drupack-job \
         drupack-build --site "$demo" --platform "$platform" --libc glibc \
         --output dist --work "$work/work"
     discard_results work
@@ -69,7 +74,7 @@ build_demo() {
 php_unit_files() {
     # The PHP unit files read the vendor directory of their own Composer install.
     docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e DRUPACK_CA_FILE=/opt/drupack/engine/application/cacert.pem \
-        -v "$PWD:/src" -w /src drupack-job sh -c 'PHPRC=$(dirname "$DRUPACK_PHP") "$DRUPACK_PHP" php-cli "$DRUPACK_COMPOSER" \
+        "${checkout[@]}" -w /src drupack-job sh -c 'PHPRC=$(dirname "$DRUPACK_PHP") "$DRUPACK_PHP" php-cli "$DRUPACK_COMPOSER" \
             install --working-dir=application/tests --no-interaction --prefer-dist --no-plugins'
     # Every file gets the arguments a and b, which argv_test.php checks.
     for file in application/tests/*_test.php; do
@@ -82,7 +87,7 @@ variant() {
     variant_site=$(mktemp -d)
     trap 'rm -rf "$variant_site"' EXIT
     bash build/variant-fixture.sh "$demo" "$variant_site"
-    docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -v "$variant_site:/variant-site" -w /src drupack-job \
+    docker run --rm --user "$(id -u):$(id -g)" "${checkout[@]}" -v "$work:$work" -v "$variant_site:/variant-site" -w /src drupack-job \
         drupack-build --site /variant-site --platform "$platform" --libc both \
         --output dist/variant --work "$work/variant-work"
     discard_results variant-work
@@ -91,7 +96,7 @@ variant() {
 
 # Reads the demo build's executable, site.json and payload.
 host_cases() {
-    docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -w /src drupack-job \
+    docker run --rm --user "$(id -u):$(id -g)" "${checkout[@]}" -v "$work:$work" -w /src drupack-job \
         drupack-build --engine-executable --platform "$platform" --libc glibc --output dist/engine --work "$work/engine-work"
 
     # Drupacked Demo again without Node and without the static key, for the cases of a site
@@ -113,7 +118,7 @@ with open(sys.argv[2], "w") as handle:
         -C "$no_node" ./site.json
     sha256sum "$no_node/app-payload.tar" | cut -d ' ' -f 1 | tr -d '\n' >"$no_node/app_checksum.txt"
     zstd -q -19 -f --rm "$no_node/app-payload.tar" -o "$no_node/app-payload.tar.zst"
-    docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$work:$work" -w /src/launcher -e CGO_ENABLED=0 drupack-job \
+    docker run --rm --user "$(id -u):$(id -g)" "${checkout[@]}" -v "$work:$work" -w /src/launcher -e CGO_ENABLED=0 drupack-job \
         sh -c 'go run ./cmd/pack -target "$1" -runtime "/opt/drupack/runtimes/$1-glibc" -payload "$2" \
             -version "$DRUPACK_ENGINE_VERSION" -site-version dev -output "../dist/no-node/drupacked-demo-$1"' sh "$platform" "$no_node"
 
