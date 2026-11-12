@@ -342,8 +342,38 @@ func (e *engineStart) stage(plan startPlan) (staged, error) {
 	return staged{dir: e.entry, logDir: fsguard.Canonical(e.entry.Path()), answered: answered}, nil
 }
 
-func (e *engineStart) held(startPlan) error {
-	return fmt.Errorf("%s already serves %s", e.Launch.Name, e.project)
+// held hands a person the project another start serves: its address, a login
+// link or the install address, and a browser on the page.
+func (e *engineStart) held(plan startPlan) error {
+	l := e.Launch
+	if !personPresent(l) {
+		return fmt.Errorf("%s already serves %s", l.Name, e.project)
+	}
+	// The record names the address that server took, not the one this start planned.
+	bind, url := plan.Bind, plan.URL
+	a, err := Served(e.entry, l.Name, engineTarget(), state.Listener{})
+	if err != nil {
+		return err
+	}
+	if a.Recorded {
+		bind, url = a.Bind, siteURL(a.Scheme, a.Host, a.Port)
+	}
+	url = strings.TrimSuffix(url, "/")
+	link, install, err := entrance(l, e.Env(Drush), e.project, e.installed, url)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s already serves %s.\n\n  URL:     %s\n", l.Name, e.project, url)
+	if link != "" {
+		fmt.Printf("  Login:   %s\n", link)
+	}
+	if install != "" {
+		fmt.Printf("  Install: %s\n", install)
+	}
+	if page := e.c.browserPage(true, bind, link, install, url); page != "" {
+		openBrowser(page)
+	}
+	return nil
 }
 
 func (e *engineStart) prepare(plan startPlan, choice localtls.Choice, accessLog, errorLog string, proxies []string) (ready, error) {

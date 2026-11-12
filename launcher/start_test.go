@@ -11,6 +11,7 @@ import (
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/localtls"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/payload"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
@@ -213,5 +214,15 @@ func TestPortRefusal(t *testing.T) {
 		if got := fmt.Sprint(err); row.want == "" && err != nil || row.want != "" && got != row.want {
 			t.Errorf("%s: portRefusal = %v, want %q", row.name, err, row.want)
 		}
+	}
+}
+
+func TestFolderHeldRefusesWhenNobodyWatches(t *testing.T) {
+	if payload.Terminal(os.Stdin) {
+		t.Skip("a terminal on stdin makes the start hand over")
+	}
+	e := engineStart{Facts: Facts{Launch: Launch{Name: "drupack", Engine: true}}, project: "/work/site"}
+	if err, want := e.held(startPlan{}), "drupack already serves /work/site"; err == nil || err.Error() != want {
+		t.Errorf("an unwatched second start: %v, want %q", err, want)
 	}
 }

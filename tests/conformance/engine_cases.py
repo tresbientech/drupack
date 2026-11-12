@@ -439,6 +439,25 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertEqual(stop.returncode, 0, stop.stderr)
         self.assertEqual(self.snapshot(), before, "the start or stop changed the project outside its public files directory")
 
+    def test_a_watched_second_start_on_a_served_folder_hands_over(self):
+        if harness.current_platform() == harness.WINDOWS:
+            self.skipTest("the browser recorder is a shell script")
+        _, log = self.start("handover-first", str(self.project))
+        url = harness.wait_for_line(log, 0, "  URL:     ", harness.WAITS["start"].seconds)
+        script, recorded = harness.install_recorder(self.class_dir / "handover-recorder")
+        env = dict(os.environ, PATH=f"{script.parent}{os.pathsep}{os.environ.get('PATH', '')}")
+        # --console-owned stands for a person watching, without a terminal.
+        second = harness.run([str(self.engine), "--console-owned", str(self.project), "--listen", f"127.0.0.1:{harness.pick_port()}"],
+                             cwd=self.class_dir, env=env, capture_output=True, text=True,
+                             timeout=harness.WAITS["start"].seconds)
+        self.assertEqual(second.returncode, 0, f"{second.stdout}{second.stderr}")
+        self.assertIn(f"  URL:     {url}\n", second.stdout)
+        link = next(line.split(None, 1)[1] for line in second.stdout.splitlines() if line.startswith("  Login:"))
+        self.assertIn("/user/reset/1/", link)
+        opened = harness.wait_for_recorded_url(recorded, harness.WAITS["browser_open"].seconds)
+        self.assertEqual(recorded.read_text().splitlines(), [link], "the hand-over opened another page than the link")
+        self.assertEqual(opened, link)
+
     def test_a_second_start_on_a_served_folder_says_it_already_serves(self):
         _, first = self.detached_start(str(self.project))
         self.assertEqual(first.returncode, 0, f"{first.stdout}{first.stderr}")

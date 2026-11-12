@@ -87,7 +87,7 @@ _Avoid_: site name (the Drupal site's title)
 SQLite, MySQL, or PostgreSQL, selected when a Packaged site first starts. It stores the structured part of Site data.
 
 **Serving lease**:
-The exclusive claim one start holds over a Site data directory, or over a Project folder, from the moment it begins preparing until its server exits. A second start on Site data refuses or hands over, and one on a Project folder refuses, whatever address it was given.
+The exclusive claim one start holds over a Site data directory, or over a Project folder, from the moment it begins preparing until its server exits. A second start refuses or hands over, whatever address it was given.
 
 **Start plan**:
 What the launcher decides before a server starts: the listener, TLS source, host, scheme and static listener, from the reader's words, the site's settings and the Listener record. The launcher renders it into one Caddyfile in Site data, or in the folder's cache entry. No later step chooses these values again.
