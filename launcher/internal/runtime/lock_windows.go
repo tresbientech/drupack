@@ -11,14 +11,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// lockTimeout bounds how long a launch waits for another process's lock
-// before it reports that it could not lock the cache.
-const lockTimeout = 60 * time.Second
-
-// lockPollInterval paces the retry loop: Windows has no blocking wait for a
-// file handle the way flock offers on unix.
-const lockPollInterval = 100 * time.Millisecond
-
 // HoldUsage marks entry as running for the rest of this process's life, so
 // cleanup skips it. The handle stays open on purpose, and Windows closes it
 // when the process ends. launch_windows.go waits for the runtime it starts, so
@@ -58,24 +50,20 @@ func entryInUse(entry string) bool {
 	return false
 }
 
-// lockRoot serializes staging across every process sharing root. Windows has
-// no flock, so this holds an exclusive file handle instead, retrying until
-// lockTimeout. The OS releases the handle when the process dies, so a crash
-// leaves no stale lock.
-func lockRoot(root string) (func(), error) {
-	pointer, err := syscall.UTF16PtrFromString(filepath.Join(root, lockName))
+// tryLock opens path with an exclusive handle, since Windows has no flock.
+// busy reports that another handle holds it. The system closes the handle
+// when the process dies, so a crash leaves no stale lock.
+func tryLock(path string) (release func(), busy bool, err error) {
+	pointer, err := syscall.UTF16PtrFromString(path)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	deadline := time.Now().Add(lockTimeout)
-	for {
-		handle, err := syscall.CreateFile(pointer, syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, nil, syscall.OPEN_ALWAYS, syscall.FILE_ATTRIBUTE_NORMAL, 0)
-		if err == nil {
-			return func() { syscall.CloseHandle(handle) }, nil
-		}
-		if time.Now().After(deadline) {
-			return nil, err
-		}
-		time.Sleep(lockPollInterval)
+	handle, err := syscall.CreateFile(pointer, syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, nil, syscall.OPEN_ALWAYS, syscall.FILE_ATTRIBUTE_NORMAL, 0)
+	switch {
+	case err == windows.ERROR_SHARING_VIOLATION:
+		return nil, true, nil
+	case err != nil:
+		return nil, false, err
 	}
+	return func() { syscall.CloseHandle(handle) }, false, nil
 }

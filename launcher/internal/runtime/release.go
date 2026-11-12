@@ -27,7 +27,7 @@ func (c Cache) PrepareRelease(r Release, notice io.Writer) (string, string, erro
 	if err != nil {
 		return "", "", r.failure("application", err)
 	}
-	if err := c.Activate(runtimeDir); err != nil {
+	if err := c.Activate(runtimeDir, notice); err != nil {
 		return "", "", r.failure("activation", err)
 	}
 	return runtimeDir, application, nil

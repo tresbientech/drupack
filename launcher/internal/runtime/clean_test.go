@@ -3,6 +3,7 @@ package runtime
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,7 +67,7 @@ func TestCleanListsThenRemovesEachKindAndKeepsAHeldEntry(t *testing.T) {
 			cache := NewCache(root, noHold)
 
 			var listing bytes.Buffer
-			if err := cache.Clean("acme", true, &listing); err != nil {
+			if err := cache.Clean("acme", true, &listing, io.Discard); err != nil {
 				t.Fatal(err)
 			}
 			for _, want := range []string{
@@ -87,7 +88,7 @@ func TestCleanListsThenRemovesEachKindAndKeepsAHeldEntry(t *testing.T) {
 			}
 
 			var removal bytes.Buffer
-			if err := cache.Clean("acme", false, &removal); err != nil {
+			if err := cache.Clean("acme", false, &removal, io.Discard); err != nil {
 				t.Fatal(err)
 			}
 			for _, want := range []string{
@@ -120,7 +121,7 @@ func TestCleanListsThenRemovesEachKindAndKeepsAHeldEntry(t *testing.T) {
 func TestCleanSaysSoWhereNothingWasUnpacked(t *testing.T) {
 	root := t.TempDir()
 	var out bytes.Buffer
-	if err := NewCache(root, noHold).Clean("acme", false, &out); err != nil {
+	if err := NewCache(root, noHold).Clean("acme", false, &out, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if want := "Nothing to clean in " + root + ".\n"; out.String() != want {

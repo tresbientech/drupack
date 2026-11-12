@@ -112,7 +112,7 @@ func (s store) prepare(sp spec, notice io.Writer) (string, error) {
 		return entry, err
 	}
 
-	unlock, err := lockRoot(s.dir)
+	unlock, err := lockRoot(s.dir, notice)
 	if err != nil {
 		return "", fmt.Errorf("could not lock the %s cache %s: %w", s.noun, s.dir, err)
 	}
@@ -286,11 +286,11 @@ func retire(path string, inUse func(string) bool) (bool, error) {
 // Clean lists every cache entry with the space it holds, and removes each one
 // unless dry names a listing alone. An entry a running site uses is listed and
 // kept. name is the executable's name, for the line that says how to remove
-// what a dry run listed.
-func (c Cache) Clean(name string, dry bool, out io.Writer) error {
+// what a dry run listed. notice gets the line of a wait for a store's lock.
+func (c Cache) Clean(name string, dry bool, out, notice io.Writer) error {
 	var listed int
 	for _, s := range []store{c.runtimes(), c.applications(), c.nodes(), c.folders()} {
-		n, err := s.clean(dry, out)
+		n, err := s.clean(dry, out, notice)
 		if err != nil {
 			return err
 		}
@@ -305,7 +305,7 @@ func (c Cache) Clean(name string, dry bool, out io.Writer) error {
 	return nil
 }
 
-func (s store) clean(dry bool, out io.Writer) (int, error) {
+func (s store) clean(dry bool, out, notice io.Writer) (int, error) {
 	entries, err := os.ReadDir(s.dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return 0, nil
@@ -313,7 +313,7 @@ func (s store) clean(dry bool, out io.Writer) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	unlock, err := lockRoot(s.dir)
+	unlock, err := lockRoot(s.dir, notice)
 	if err != nil {
 		return 0, fmt.Errorf("could not lock the %s cache %s: %w", s.noun, s.dir, err)
 	}

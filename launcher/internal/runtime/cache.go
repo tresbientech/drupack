@@ -226,13 +226,13 @@ func releaseSpec(dir, what string, payload []byte, m Manifest, notice io.Writer)
 // Activate names entry, a directory Prepare returned, as the active runtime
 // and removes every other version's entry. An entry already active changes
 // nothing, so a warm start takes no lock.
-func (c Cache) Activate(entry string) error {
+func (c Cache) Activate(entry string, notice io.Writer) error {
 	root := c.root
 	name := filepath.Base(entry)
 	if active, err := activeKey(root); err == nil && active == name {
 		return nil
 	}
-	unlock, err := lockRoot(root)
+	unlock, err := lockRoot(root, notice)
 	if err != nil {
 		return fmt.Errorf("could not lock the runtime cache %s: %w", root, err)
 	}

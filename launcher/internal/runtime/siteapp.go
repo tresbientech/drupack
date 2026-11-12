@@ -37,7 +37,7 @@ func LaySiteApp(data, checksum string, payload []byte, writable []string, notice
 			return fmt.Errorf("writable directory is not a relative path inside the application: %q", directory)
 		}
 	}
-	unlock, err := lockRoot(filepath.Join(data, "runtime"))
+	unlock, err := lockRoot(filepath.Join(data, "runtime"), notice)
 	if err != nil {
 		return fmt.Errorf("could not lock the application in %s: %w", data, err)
 	}

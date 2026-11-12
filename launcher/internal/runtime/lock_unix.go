@@ -45,19 +45,22 @@ func entryInUse(entry string) bool {
 	return syscall.Flock(descriptor, syscall.LOCK_EX|syscall.LOCK_NB) != nil
 }
 
-// lockRoot serializes staging across every process sharing root. Blocking is
-// correct here: the kernel releases a dead holder's lock.
-func lockRoot(root string) (func(), error) {
-	file, err := os.OpenFile(filepath.Join(root, lockName), os.O_CREATE|os.O_RDWR, 0o600)
+// tryLock takes flock(2) on path without waiting. busy reports that another
+// open file holds it.
+func tryLock(path string) (release func(), busy bool, err error) {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX); err != nil {
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		file.Close()
-		return nil, err
+		if err == syscall.EWOULDBLOCK {
+			return nil, true, nil
+		}
+		return nil, false, err
 	}
 	return func() {
 		_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
 		file.Close()
-	}, nil
+	}, false, nil
 }

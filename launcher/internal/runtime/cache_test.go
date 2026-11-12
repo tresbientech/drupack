@@ -45,7 +45,7 @@ func prepareAndActivate(root string, payload []byte, m runtimepkg.Manifest, noti
 	if err != nil {
 		return "", err
 	}
-	return entry, cache.Activate(entry)
+	return entry, cache.Activate(entry, notice)
 }
 
 func TestPrepareWarmStartReturnsEntryWithoutNotice(t *testing.T) {

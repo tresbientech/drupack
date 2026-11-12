@@ -102,7 +102,7 @@ func run(args []string, child *detachedChild, consoleNamed bool) error {
 		if err != nil {
 			return err
 		}
-		return cache.Clean(l.Name, dry, os.Stdout)
+		return cache.Clean(l.Name, dry, os.Stdout, os.Stderr)
 	}
 	if l.Engine {
 		updateNotice(l, executable, os.Stderr, runtime.Terminal(os.Stderr), time.Now(), func() error { return startCheck(launcher) })
