@@ -303,6 +303,79 @@ func TestSelfUpdateKeepsTheExecutableWhenTheDownloadFailsItsChecksum(t *testing.
 	}
 }
 
+// stalled serves release.json for latest and hands every asset request to asset.
+func stalled(t *testing.T, latest release, asset http.HandlerFunc) *httptest.Server {
+	t.Helper()
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/release.json" {
+			asset(w, r)
+			return
+		}
+		for i := range latest.Assets {
+			latest.Assets[i].URL = server.URL + "/asset"
+		}
+		json.NewEncoder(w).Encode(latest)
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestSelfUpdateGivesUpOnADownloadThatSendsNothing(t *testing.T) {
+	packedAs(t, "drupack", "1.0.0-alpha3", true)
+	saved := downloadStall
+	downloadStall = 200 * time.Millisecond
+	t.Cleanup(func() { downloadStall = saved })
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	server := stalled(t, built("1.0.0-alpha4", []byte("new")), func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("n"))
+		w.(http.Flusher).Flush()
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	})
+	executable := installed(t, "old")
+	err := selfUpdate(nil, server.URL+"/release.json", executable, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "it sent nothing for 200ms") {
+		t.Fatalf("selfUpdate = %v", err)
+	}
+	if content, _ := os.ReadFile(executable); string(content) != "old" {
+		t.Fatalf("the executable holds %q", content)
+	}
+}
+
+func TestSelfUpdateStopsReadingPastTheListedSize(t *testing.T) {
+	packedAs(t, "drupack", "1.0.0-alpha3", true)
+	sent := make(chan int, 1)
+	server := stalled(t, built("1.0.0-alpha4", []byte("new")), func(w http.ResponseWriter, r *http.Request) {
+		// An endless body: only a reader that stops ends this handler.
+		block, total := bytes.Repeat([]byte("x"), 64<<10), 0
+		for r.Context().Err() == nil {
+			n, err := w.Write(block)
+			total += n
+			if err != nil {
+				break
+			}
+		}
+		sent <- total
+	})
+	executable := installed(t, "old")
+	err := selfUpdate(nil, server.URL+"/release.json", executable, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "does not match the size and SHA-256 release.json lists") {
+		t.Fatalf("selfUpdate = %v", err)
+	}
+	if content, _ := os.ReadFile(executable); string(content) != "old" {
+		t.Fatalf("the executable holds %q", content)
+	}
+	select {
+	case <-sent:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the server was still sending 10 s after the update gave up")
+	}
+}
+
 func TestSelfUpdateRefusesADirectoryItCannotWriteBeforeAnyRequest(t *testing.T) {
 	if goruntime.GOOS == "windows" || os.Geteuid() == 0 {
 		t.Skip("a directory mode stops no write here")

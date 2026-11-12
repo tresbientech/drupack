@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
@@ -127,21 +128,42 @@ func selfUpdate(arguments []string, url, executable string, out io.Writer) error
 	return nil
 }
 
+// downloadStall is how long a download may pass without a byte. A test shortens it.
+var downloadStall = 30 * time.Second
+
+// onWrite calls itself for each write it is handed.
+type onWrite func()
+
+func (f onWrite) Write(p []byte) (int, error) {
+	f()
+	return len(p), nil
+}
+
 // download writes chosen into staged, closes it executable, and fails unless
-// its size and SHA-256 match release.json.
+// its size and SHA-256 match release.json. It gives up on a server that sends
+// nothing for downloadStall, and reads one byte past the listed size at most.
 func download(client *http.Client, chosen asset, staged *os.File) error {
-	response, err := client.Get(chosen.URL)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stall := time.AfterFunc(downloadStall, cancel)
+	defer stall.Stop()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, chosen.URL, nil)
 	if err != nil {
 		return fmt.Errorf("cannot download %s: %w", chosen.URL, err)
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return downloadError(ctx, chosen, err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("cannot download %s: it answered %s", chosen.URL, response.Status)
 	}
 	digest := sha256.New()
-	written, err := io.Copy(io.MultiWriter(staged, digest), response.Body)
+	received := onWrite(func() { stall.Reset(downloadStall) })
+	written, err := io.Copy(io.MultiWriter(staged, digest, received), io.LimitReader(response.Body, chosen.Size+1))
 	if err != nil {
-		return fmt.Errorf("cannot download %s: %w", chosen.URL, err)
+		return downloadError(ctx, chosen, err)
 	}
 	if err := staged.Close(); err != nil {
 		return err
@@ -150,6 +172,14 @@ func download(client *http.Client, chosen asset, staged *os.File) error {
 		return fmt.Errorf("the download of %s does not match the size and SHA-256 release.json lists. Nothing was replaced.", chosen.Asset)
 	}
 	return os.Chmod(staged.Name(), 0o755)
+}
+
+// downloadError names a stalled download, whose own error says only that it was cancelled.
+func downloadError(ctx context.Context, chosen asset, err error) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("cannot download %s: it sent nothing for %s. Nothing was replaced.", chosen.URL, downloadStall)
+	}
+	return fmt.Errorf("cannot download %s: %w", chosen.URL, err)
 }
 
 // composerCopy reports whether composer/drupack-install laid executable, which it
