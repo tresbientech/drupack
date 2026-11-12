@@ -17,8 +17,8 @@ const lockTimeout = 60 * time.Second
 // file handle the way flock offers on unix.
 const lockPollInterval = 100 * time.Millisecond
 
-// errorSharingViolation is ERROR_SHARING_VIOLATION, which package syscall omits.
-const errorSharingViolation syscall.Errno = 32
+// errSharingViolation is ERROR_SHARING_VIOLATION, which package syscall omits.
+const errSharingViolation syscall.Errno = 32
 
 // HoldUsage marks entry as running for the rest of this process's life, so
 // cleanup skips it. The handle stays open on purpose, and Windows closes it
@@ -36,7 +36,7 @@ func HoldUsage(entry string) error {
 	// violation, so that error retries.
 	for range holdAttempts {
 		_, err = syscall.CreateFile(pointer, syscall.GENERIC_READ, syscall.FILE_SHARE_READ, nil, syscall.OPEN_ALWAYS, syscall.FILE_ATTRIBUTE_NORMAL, 0)
-		if err != errorSharingViolation {
+		if err != errSharingViolation {
 			return err
 		}
 		time.Sleep(holdRetryInterval)

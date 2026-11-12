@@ -44,32 +44,40 @@ type store struct {
 }
 
 func (c Cache) runtimes() store {
-	return store{dir: c.root, noun: "runtime", hold: c.hold, owns: ownedRuntime, inUse: entryInUse,
-		one: "unpacked runtime", many: "unpacked runtimes", active: true}
+	return store{
+		dir: c.root, noun: "runtime", hold: c.hold, owns: ownedRuntime, inUse: entryInUse,
+		one: "unpacked runtime", many: "unpacked runtimes", active: true,
+	}
 }
 
 func (c Cache) applications() store {
 	dir := AppRoot(c.root)
-	return store{dir: dir, noun: "application", hold: c.hold, retain: func(entry string) error {
-		if err := markUsed(entry); err != nil {
-			return err
-		}
-		sweepApps(dir, filepath.Base(entry), time.Now())
-		return nil
-	}, owns: anyDirectory, inUse: entryInUse,
-		one: "unpacked application", many: "unpacked applications"}
+	return store{
+		dir: dir, noun: "application", hold: c.hold, retain: func(entry string) error {
+			if err := markUsed(entry); err != nil {
+				return err
+			}
+			sweepApps(dir, filepath.Base(entry), time.Now())
+			return nil
+		}, owns: anyDirectory, inUse: entryInUse,
+		one: "unpacked application", many: "unpacked applications",
+	}
 }
 
 func (c Cache) nodes() store {
-	return store{dir: NodeRoot(c.root), noun: "Node", hold: c.hold, owns: anyDirectory, inUse: entryInUse,
-		label: nodeDirName + "/", one: "unpacked Node release", many: "unpacked Node releases"}
+	return store{
+		dir: NodeRoot(c.root), noun: "Node", hold: c.hold, owns: anyDirectory, inUse: entryInUse,
+		label: nodeDirName + "/", one: "unpacked Node release", many: "unpacked Node releases",
+	}
 }
 
 // folders holds the engine's served folders' state, one entry each. A served
 // folder's server holds the lease in its entry.
 func (c Cache) folders() store {
-	return store{dir: filepath.Join(c.root, state.FoldersName), noun: "folder", owns: anyDirectory, inUse: leaseHeld,
-		label: state.FoldersName + "/", one: "folder entry", many: "folder entries"}
+	return store{
+		dir: filepath.Join(c.root, state.FoldersName), noun: "folder", owns: anyDirectory, inUse: leaseHeld,
+		label: state.FoldersName + "/", one: "folder entry", many: "folder entries",
+	}
 }
 
 // leaseHeld reports whether a server holds the lease in entry. A lease clean
@@ -219,18 +227,18 @@ func swap(target, aside, marker string, contents []byte, fill func(staging strin
 	if err := removeTree(staging); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(staging, 0700); err != nil {
+	if err := os.MkdirAll(staging, 0o700); err != nil {
 		return err
 	}
 	err := fill(staging)
 	if err == nil {
-		err = os.WriteFile(filepath.Join(staging, marker), contents, 0600)
+		err = os.WriteFile(filepath.Join(staging, marker), contents, 0o600)
 	}
 	if err == nil {
 		err = replace(target, aside, staging)
 	}
 	if err != nil {
-		removeTree(staging)
+		_ = removeTree(staging)
 		return err
 	}
 	return removeTree(aside)
@@ -269,7 +277,7 @@ func retire(path string, inUse func(string) bool) (bool, error) {
 	if inUse(doomed) {
 		// A failed rename back leaves the entry whole under its staging name, and
 		// the next removal tests it there before it removes anything.
-		os.Rename(doomed, path)
+		_ = os.Rename(doomed, path)
 		return false, nil
 	}
 	return true, removeTree(doomed)

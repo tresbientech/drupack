@@ -16,8 +16,9 @@ ARG RUNTIME_COMPONENTS=no-runtime-components
 ARG EXTENSIONS=engine-extensions
 # The job image is a glibc host, the only kind that runs both runtimes, so a file
 # of either libc is tested where it was built.
-# docker buildx imagetools inspect golang:1.26-bookworm --format '{{.Manifest.Digest}}'
-ARG JOB_BASE=golang:1.26-bookworm@sha256:5314eb22361f736de0720087458a32c57893bf4e3b513d92ed880572b1b69e84
+# build/upstream.py sets the tag to GO_VERSION in release.yml and the digest to
+# that tag's multi-platform index.
+ARG JOB_BASE=golang:1.27.4-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea
 # act_runner starts JavaScript actions with the job container's own node.
 # docker buildx imagetools inspect node:24-bookworm-slim --format '{{.Manifest.Digest}}'
 ARG NODE_IMAGE=node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6

@@ -16,7 +16,7 @@ func trustedProxies(written string) ([]string, error) {
 		return nil, nil
 	}
 	var ranges []string
-	for _, entry := range strings.Split(written, ",") {
+	for entry := range strings.SplitSeq(written, ",") {
 		prefix, err := netip.ParsePrefix(entry)
 		if address, plain := netip.ParseAddr(entry); plain == nil {
 			prefix, err = netip.PrefixFrom(address, address.BitLen()), nil

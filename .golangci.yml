@@ -1,0 +1,85 @@
+# build/go-tests.sh runs this set in every Go module, once per GOOS of a release.
+# It follows Caddy's set.
+version: "2"
+run:
+  tests: false
+linters:
+  default: none
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - decorder
+    - dogsled
+    - dupl
+    - dupword
+    - durationcheck
+    - errcheck
+    - errname
+    - exhaustive
+    - gosec
+    - govet
+    - importas
+    - ineffassign
+    - misspell
+    - modernize
+    - prealloc
+    - promlinter
+    - sloglint
+    - sqlclosecheck
+    - staticcheck
+    - testableexamples
+    - testifylint
+    - tparallel
+    - unconvert
+    - unused
+    - wastedassign
+    - whitespace
+    - zerologlint
+  settings:
+    staticcheck:
+      # ST1005 asks for lowercase error strings with no final period. The launcher
+      # prints its errors to the user as sentences.
+      checks: ["all", "-ST1000", "-ST1003", "-ST1005", "-ST1016", "-ST1020", "-ST1021", "-ST1022", "-QF1006", "-QF1008"]
+    errcheck:
+      # A failed close or unlock of a Windows handle leaves nothing to do, as
+      # std-error-handling assumes for Close.
+      exclude-functions:
+        - syscall.CloseHandle
+        - golang.org/x/sys/windows.CloseHandle
+        - golang.org/x/sys/windows.UnlockFileEx
+  exclusions:
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # The Windows calls convert struct sizes, path lengths and process counts
+      # to uint32.
+      - linters: [gosec]
+        text: G115
+      # The launcher fetches the URLs and runs the commands its own code names.
+      - linters: [gosec]
+        text: G107
+      - linters: [gosec]
+        text: G204
+      # The builds copy watch.go into FrankenPHP's main package, whose entry point
+      # calls these functions.
+      - linters: [unused]
+        path: runtime/watch/watch\.go
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(git.tresbien.tech/tresbientech/drupack)
+      custom-order: true

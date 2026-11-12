@@ -19,8 +19,9 @@ PHP security release behind, and nothing had reported it.
   - FrankenPHP 1.x, with the commit its tag names
   - the Windows vcpkg commit, set to the `builtin-baseline` of FrankenPHP's
     `vcpkg.json`, with the vcpkg-tool release that baseline names
-  - `GO_VERSION` in `release.yml`, raised to the `go` line of FrankenPHP's
-    `caddy/go.mod` when that line is newer
+  - Go, at the newest patch of the higher of two lines: its own and the `go`
+    line of FrankenPHP's `caddy/go.mod`. `GO_VERSION` in `release.yml` holds
+    it, and the bump copies it into each `go.mod` and the Dockerfile's image
   - Node 24 LTS, which the demo now pins exactly
   - each exact Composer pin, within its major, at equal or better stability
 - A newer major is printed as `MAJOR` in the run log and never written.
@@ -30,8 +31,8 @@ PHP security release behind, and nothing had reported it.
 - The bump goes on `main` HEAD, on the candidate branch `upstream/<fingerprint>`
   that GitHub alone holds. The fingerprint is the SHA-256 of the bump's diff.
 - The job dispatches `release.yml` on every platform through the GitHub API, to
-  build and test the candidate. Its `qa` job runs `build/qa.sh`. The job finds
-  the run by the candidate's commit and polls it.
+  build and test the candidate. Its `qa` job runs `build/qa.sh` and
+  govulncheck. The job finds the run by the candidate's commit and polls it.
 - On green, one atomic push sends `main` as a fast-forward and the next version
   tag to drupal.org. A second push sends both to GitHub, where the tag run
   publishes. The job then deletes the candidate branch.

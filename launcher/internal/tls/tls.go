@@ -111,7 +111,7 @@ func newRoot(dir string) error {
 	if err := os.WriteFile(filepath.Join(dir, rootKeyName), pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o600); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, rootCertificateName), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certificate}), 0o644)
+	return os.WriteFile(filepath.Join(dir, rootCertificateName), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certificate}), 0o644) //nolint:gosec // G306: a certificate is public.
 }
 
 // mkcert comes first, once its root exists, since `mkcert -install` already made
@@ -260,7 +260,7 @@ func fixedLookup(addresses string) lookupFunc {
 			return nil, &net.DNSError{Err: "no such host", Name: name, IsNotFound: true}
 		}
 		var answer []net.IPAddr
-		for _, field := range strings.Split(addresses, ",") {
+		for field := range strings.SplitSeq(addresses, ",") {
 			answer = append(answer, net.IPAddr{IP: net.ParseIP(field)})
 		}
 		return answer, nil

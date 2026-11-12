@@ -15,7 +15,7 @@ import (
 	"unicode/utf8"
 )
 
-const rootMode = 0700
+const rootMode = 0o700
 
 // stagingPrefix starts the name of a directory being written or removed.
 // Cleanup matches on it to clear what an interrupted run left.
@@ -25,13 +25,17 @@ func asideName(path string) string {
 	return filepath.Join(filepath.Dir(path), stagingPrefix+"removing-"+filepath.Base(path))
 }
 
-const activeName = "active"
-const lockName = "lock"
+const (
+	activeName = "active"
+	lockName   = "lock"
+)
 
 // holdAttempts and holdRetryInterval bound how long HoldUsage waits out an
 // entryInUse test of the same marker, which briefly locks it exclusively.
-const holdAttempts = 50
-const holdRetryInterval = 10 * time.Millisecond
+const (
+	holdAttempts      = 50
+	holdRetryInterval = 10 * time.Millisecond
+)
 
 // usageName lives inside one entry, runtime or application, and carries the
 // lock a running start holds on the files it serves from. Cleanup tests it
@@ -121,6 +125,8 @@ func refuseExposed(dir string, readers bool) error {
 // only for a path that exists. An ASCII candidate is returned untouched, since resolve also
 // rewrites a long ASCII segment. Falling to fallback writes one line to notice. Two exhausted
 // candidates stop the start, since a site missing its extensions is worse than a refused start.
+//
+//nolint:unused // root_windows.go calls it. The shared file lets the Linux tests run it.
 func resolveASCIIRoot(root, fallback string, claim func(string) (string, error), resolve func(string) (string, error), notice io.Writer) (string, error) {
 	ascii, rootErr := asciiForm(root, claim, resolve)
 	if rootErr == nil {
@@ -141,6 +147,8 @@ func resolveASCIIRoot(root, fallback string, claim func(string) (string, error),
 
 // asciiForm claims candidate, then returns the claimed path when ASCII, or its resolved
 // short name when that is ASCII.
+//
+//nolint:unused // resolveASCIIRoot calls it.
 func asciiForm(candidate string, claim func(string) (string, error), resolve func(string) (string, error)) (string, error) {
 	candidate, err := claim(candidate)
 	if err != nil {
@@ -159,6 +167,7 @@ func asciiForm(candidate string, claim func(string) (string, error), resolve fun
 	return resolved, nil
 }
 
+//nolint:unused // resolveASCIIRoot calls it.
 func isASCII(s string) bool {
 	for i := 0; i < len(s); i++ {
 		if s[i] >= utf8.RuneSelf {
@@ -275,7 +284,7 @@ func removeOthers(root, key string) {
 		if candidate.Name() == key || !candidate.IsDir() || !ownedRuntime(path) {
 			continue
 		}
-		retire(path, entryInUse)
+		_, _ = retire(path, entryInUse)
 	}
 }
 
@@ -296,7 +305,7 @@ func ownedRuntime(path string) bool {
 // user's cache directory, a trust boundary, so its content must name a
 // single path element rather than a path Prepare would join outside root.
 func activeKey(root string) (string, error) {
-	data, err := os.ReadFile(filepath.Join(root, activeName))
+	data, err := os.ReadFile(filepath.Join(root, activeName)) //nolint:gosec // G703: the operator sets this path.
 	if err != nil {
 		return "", err
 	}
@@ -332,7 +341,7 @@ func verifyChecksums(directory string, m Manifest) error {
 
 func writeActive(root, key string) error {
 	pending := filepath.Join(root, fmt.Sprintf("%s.pending.%d", activeName, os.Getpid()))
-	if err := os.WriteFile(pending, []byte(key+"\n"), 0600); err != nil {
+	if err := os.WriteFile(pending, []byte(key+"\n"), 0o600); err != nil {
 		return err
 	}
 	return os.Rename(pending, filepath.Join(root, activeName))

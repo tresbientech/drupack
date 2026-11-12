@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Moves the PHP, FrankenPHP and Windows PECL pins to their newest version inside their line,
-raises the release workflow's Go to the one FrankenPHP needs, and prints what it did as a
-Markdown summary. It edits the working tree and never commits.
+"""Moves the PHP, FrankenPHP, Windows PECL and Go pins to their newest version inside their line,
+and prints what it did as a Markdown summary. Go's line is its own or the one FrankenPHP needs,
+whichever is newer. It edits the working tree and never commits.
 
     python3 build/upstream.py
 """
@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILDER_INPUTS = "runtime/builder-inputs.sh"
 WINDOWS_BUILD = "build/windows/build.ps1"
 RELEASE_WORKFLOW = ".github/workflows/release.yml"
+GO_MODS = ("launcher/go.mod", "runtime/watch/go.mod")
+DOCKERFILE = "Dockerfile"
 
 PHP_RELEASES = "https://www.php.net/releases/index.php?json&version="
 WINDOWS_CHECKSUMS = "https://downloads.php.net/~windows/releases/sha256sum.txt"
@@ -33,6 +35,9 @@ VCPKG_RAW = "https://raw.githubusercontent.com/microsoft/vcpkg"
 VCPKG_TOOL_RELEASES = "https://api.github.com/repos/microsoft/vcpkg-tool/releases/tags/"
 PECL_RELEASES = "https://pecl.php.net/rest/r/"
 PECL_WINDOWS = "https://downloads.php.net/~windows/pecl/releases/"
+GO_RELEASES = "https://go.dev/dl/?mode=json&include=all"
+DOCKER_TOKEN = "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/golang:pull"
+DOCKER_MANIFESTS = "https://registry-1.docker.io/v2/library/golang/manifests/"
 
 # Each pin's line in its file, its value captured.
 PHP_PIN = r"^php_version=(.+)$"
@@ -50,6 +55,9 @@ PECL_ENTRY = r"^  '{name}' = @\{{ Version = '{version}'; Sha256 = '{sha256}' \}}
 VCPKG_TOOL_SHA_PIN = r"^  'vcpkg\.exe' = @\{\n.*\n    Sha256 = '([0-9a-f]{64})'$"
 GO_PIN = r"^  GO_VERSION: '(.+)'$"
 GO_LINE = r"^go (\d+\.\d+(?:\.\d+)?)$"
+GO_IMAGE_PIN = r"^ARG JOB_BASE=golang:(.+)-bookworm@sha256:[0-9a-f]{64}$"
+GO_IMAGE_DIGEST_PIN = r"^ARG JOB_BASE=golang:.+-bookworm@sha256:([0-9a-f]{64})$"
+GO_RELEASE = re.compile(r"go\d+\.\d+\.\d+")
 STABLE_TAG = re.compile(r"v\d+\.\d+\.\d+")
 PACKAGIST_METADATA = "https://repo.packagist.org/p2/"
 
@@ -68,6 +76,13 @@ def download(url):
 
 def fetch(url):
     return download(url).decode()
+
+
+def head(url, headers):
+    """The response headers of a HEAD request to url."""
+    request = urllib.request.Request(url, method="HEAD", headers=headers)
+    with urllib.request.urlopen(request, timeout=60) as response:
+        return response.headers
 
 
 def version_key(version):
@@ -219,7 +234,6 @@ def frankenphp(summary):
     rewrite(BUILDER_INPUTS, SPC_PIN, spc_head)
     summary.row("static-php-cli", spc_current[:12], spc_head[:12], "current" if spc_head == spc_current else "bumped")
     vcpkg(summary, target["sha"])
-    go(summary, target["sha"])
 
 
 def vcpkg(summary, frankenphp_commit):
@@ -242,8 +256,9 @@ def vcpkg(summary, frankenphp_commit):
     summary.row("vcpkg", current[:12], baseline[:12], "current" if baseline == current else "bumped")
 
 
-def go(summary, frankenphp_commit):
+def go(summary):
     current = read(RELEASE_WORKFLOW, GO_PIN)
+    frankenphp_commit = read(BUILDER_INPUTS, FRANKENPHP_COMMIT_PIN)
     # The macOS and Windows builds compile FrankenPHP's caddy module with GOTOOLCHAIN=local.
     # Its go.mod is remote input.
     lines = re.findall(GO_LINE, fetch(f"{FRANKENPHP_RAW}/{frankenphp_commit}/caddy/go.mod"), re.MULTILINE)
@@ -251,11 +266,38 @@ def go(summary, frankenphp_commit):
         sys.exit(f"FrankenPHP {frankenphp_commit[:12]}'s caddy/go.mod names the go lines {lines!r}")
     # A go line without a patch names the line's first release, X.Y.0.
     floor = lines[0] if lines[0].count(".") == 2 else lines[0] + ".0"
-    if version_key(floor) <= version_key(current):
-        summary.row("Go", current, floor, "current")
+    line = max(current, floor, key=version_key).rsplit(".", 1)[0]
+    # go.dev's release list is remote input.
+    versions = [release["version"][2:] for release in json.loads(fetch(GO_RELEASES))
+                if release.get("stable") is True and GO_RELEASE.fullmatch(release.get("version", ""))]
+    newest = max((v for v in versions if v.rsplit(".", 1)[0] == line), key=version_key, default=None)
+    if newest is None or version_key(newest) < version_key(floor):
+        sys.exit(f"go.dev lists no Go {line} release at or above {floor}")
+    if version_key(newest) <= version_key(current):
+        summary.row("Go", current, newest, "current")
         return
-    rewrite(RELEASE_WORKFLOW, GO_PIN, floor)
-    summary.row("Go", current, floor, "bumped")
+    digest = golang_digest(newest)
+    rewrite(RELEASE_WORKFLOW, GO_PIN, newest)
+    for path in GO_MODS:
+        rewrite(path, GO_LINE, newest)
+    rewrite(DOCKERFILE, GO_IMAGE_PIN, newest)
+    rewrite(DOCKERFILE, GO_IMAGE_DIGEST_PIN, digest)
+    summary.row("Go", current, newest, "bumped")
+
+
+def golang_digest(version):
+    """The digest of the multi-platform index Docker Hub serves as golang:VERSION-bookworm."""
+    # Docker Hub's token and digest are remote input.
+    token = json.loads(fetch(DOCKER_TOKEN)).get("token")
+    if not isinstance(token, str) or not token:
+        sys.exit("Docker Hub gave no pull token for library/golang")
+    digest = head(f"{DOCKER_MANIFESTS}{version}-bookworm", {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json",
+    }).get("Docker-Content-Digest")
+    if not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+        sys.exit(f"Docker Hub gives golang:{version}-bookworm the digest {digest!r}")
+    return digest.removeprefix("sha256:")
 
 
 def main():
@@ -263,6 +305,7 @@ def main():
     php(summary)
     pecl(summary)
     frankenphp(summary)
+    go(summary)
     sys.stdout.write(summary.render())
 
 

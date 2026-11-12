@@ -20,26 +20,26 @@ import (
 // parent another account can write still lets that account rename dir. It
 // returns nil when there is none, and an error when it cannot tell, which a
 // caller treats as exposed.
-func Exposure(dir string, readers bool) (*Exposed, error) {
+func Exposure(dir string, readers bool) (*ExposedError, error) {
 	info, stat, err := lstat(dir)
 	if err != nil {
 		return nil, err
 	}
 	if int(stat.Uid) != os.Getuid() {
-		return &Exposed{Folder: dir, Account: userName(stat.Uid), Owns: true}, nil
+		return &ExposedError{Folder: dir, Account: userName(stat.Uid), Owns: true}, nil
 	}
 	mask := fs.FileMode(0o022)
 	if readers {
 		mask = 0o077
 	}
 	if account := modeHolder(info.Mode().Perm()&mask, stat.Gid); account != "" {
-		return &Exposed{Folder: dir, Account: account}, nil
+		return &ExposedError{Folder: dir, Account: account}, nil
 	}
 	return nil, nil
 }
 
 func lstat(dir string) (fs.FileInfo, *syscall.Stat_t, error) {
-	info, err := os.Lstat(dir)
+	info, err := os.Lstat(dir) //nolint:gosec // G703: the operator sets this path.
 	if err != nil {
 		return nil, nil, err
 	}
@@ -93,7 +93,7 @@ func trustedOwner(uid, gid uint32, me int, groups []int) bool {
 
 // Create makes dir and any missing parent, each with mode 0700 under the umask.
 func Create(dir string) error {
-	return os.MkdirAll(dir, rootMode)
+	return os.MkdirAll(dir, rootMode) //nolint:gosec // G703: the operator sets this path.
 }
 
 // asciiRoot returns root unchanged: the ANSI code page problem is Windows-only.

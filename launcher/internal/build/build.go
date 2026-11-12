@@ -110,6 +110,7 @@ func NewPlan(r Request) (Plan, error) {
 	payload := filepath.Join(r.Work, "payload")
 	php := []string{r.PHP, "php-cli"}
 	// The runtime reads php.ini beside itself only through PHPRC.
+	//nolint:prealloc // Its capacity equals its length, so each append below makes a copy.
 	phpEnv := []string{"PHPRC=" + filepath.Dir(r.PHP), "DRUPACK_CA_FILE=" + filepath.Join(r.Engine, "application", "cacert.pem")}
 	install := append(append([]string{}, php...), r.Composer, "install", "--no-dev", "--prefer-dist", "--no-interaction", "--optimize-autoloader")
 	// The build's PHP carries the engine list alone. The extension check and the
@@ -118,8 +119,10 @@ func NewPlan(r Request) (Plan, error) {
 		install = append(install, "--ignore-platform-req=ext-"+extension)
 	}
 	plan := Plan{Steps: []Step{
-		{Name: "check the PHP extensions", Command: []string{"python3", filepath.Join(r.Engine, "runtime", "check-extensions.py"),
-			r.SiteDir, "--extensions=" + strings.Join(r.Site.Extensions, ",")}},
+		{Name: "check the PHP extensions", Command: []string{
+			"python3", filepath.Join(r.Engine, "runtime", "check-extensions.py"),
+			r.SiteDir, "--extensions=" + strings.Join(r.Site.Extensions, ","),
+		}},
 		{Name: "stage the site", Func: func(log io.Writer) error {
 			if err := stageSite(log, r.SiteDir, application, r.Output, r.Work); err != nil {
 				return err
@@ -132,8 +135,10 @@ func NewPlan(r Request) (Plan, error) {
 		}},
 		{Name: "write site.json", Func: func(io.Writer) error { return siteconfig.Write(r.Site, application) }},
 		{Name: "install the Composer project", Dir: application, Env: phpEnv, Command: install},
-		{Name: "fetch translations", Env: append(phpEnv, "CURL_CA_BUNDLE="+filepath.Join(r.Engine, "application", "cacert.pem")),
-			Command: append(append([]string{}, php...), filepath.Join(r.Engine, "build", "install-translations.php"), application)},
+		{
+			Name: "fetch translations", Env: append(phpEnv, "CURL_CA_BUNDLE="+filepath.Join(r.Engine, "application", "cacert.pem")),
+			Command: append(append([]string{}, php...), filepath.Join(r.Engine, "build", "install-translations.php"), application),
+		},
 		{Name: "lay the engine over the site", Func: func(io.Writer) error { return layEngine(r.Engine, application, r.Site.Docroot) }},
 	}}
 	if r.Site.Node != "" {
@@ -146,8 +151,10 @@ func NewPlan(r Request) (Plan, error) {
 		}})
 	}
 	plan.Steps = append(plan.Steps,
-		Step{Name: "archive the application",
-			Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload, r.Site.Docroot}},
+		Step{
+			Name:    "archive the application",
+			Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload, r.Site.Docroot},
+		},
 		Step{Name: "compress the application", Func: func(io.Writer) error {
 			return errors.Join(compressPayload(payload), copyInto(payload, filepath.Join(application, siteconfig.OutputName)))
 		}})
@@ -173,7 +180,7 @@ func NewPlan(r Request) (Plan, error) {
 			if err := os.MkdirAll(destination, 0o755); err != nil {
 				return err
 			}
-			return os.WriteFile(filepath.Join(destination, NativeList), append(content, '\n'), 0o644)
+			return os.WriteFile(filepath.Join(destination, NativeList), append(content, '\n'), 0o644) //nolint:gosec // G306: the extension list holds no secret.
 		}})
 	}
 
@@ -194,8 +201,10 @@ func NewPlan(r Request) (Plan, error) {
 		}
 	}
 	if tested != "" {
-		command := []string{"python3", filepath.Join(r.Engine, "tests", "conformance"),
-			filepath.Join(r.Output, Executable(r.Site.Name, tested)), filepath.Join(r.Work, "test-results")}
+		command := []string{
+			"python3", filepath.Join(r.Engine, "tests", "conformance"),
+			filepath.Join(r.Output, Executable(r.Site.Name, tested)), filepath.Join(r.Work, "test-results"),
+		}
 		if info, err := os.Stat(filepath.Join(r.SiteDir, "tests")); err == nil && info.IsDir() {
 			command = append(command, "--site-tests", filepath.Join(r.SiteDir, "tests"))
 		}
@@ -241,15 +250,19 @@ func resolveNode(site *siteconfig.Site, targets []string, dir string) Step {
 // packSteps packs one file per platform and libc, to OUTPUT/NAME-TARGET, from the payload directory.
 // extra adds the packer's flags. Pack decides from the target and the payload which file carries Node.
 func packSteps(r Request, libcs []string, resolved map[string]string, step, name, payload string, extra ...string) []Step {
-	var steps []Step
+	steps := make([]Step, 0, len(r.Platforms)*len(libcs))
 	for _, platform := range r.Platforms {
 		for _, libc := range libcs {
 			target := runtime.Target(platform, libc)
-			command := append([]string{"go", "run", "./cmd/pack", "-target", target, "-runtime", resolved[platform+"/"+libc],
+			command := append([]string{
+				"go", "run", "./cmd/pack", "-target", target, "-runtime", resolved[platform+"/"+libc],
 				"-payload", payload, "-version", r.EngineVersion,
-				"-output", filepath.Join(r.Output, Executable(name, target))}, extra...)
-			steps = append(steps, Step{Name: step + target, Command: command,
-				Dir: filepath.Join(r.Engine, "launcher"), Env: []string{"CGO_ENABLED=0"}})
+				"-output", filepath.Join(r.Output, Executable(name, target)),
+			}, extra...)
+			steps = append(steps, Step{
+				Name: step + target, Command: command,
+				Dir: filepath.Join(r.Engine, "launcher"), Env: []string{"CGO_ENABLED=0"},
+			})
 		}
 	}
 	return steps
@@ -330,11 +343,13 @@ func installSeed(log io.Writer, r Request, application string, phpEnv []string) 
 			return err
 		}
 	}
-	err := execute(Step{Dir: application, Env: append(slices.Clone(phpEnv),
-		"DRUPACK_RUNTIME_DATA_DIR="+seed, "DRUPACK_RUNTIME_FILES_DIR="+filepath.Join(seed, "files"),
-		"DRUPACK_RUNTIME_APP_DIR="+application, "DRUPACK_RUNTIME_HOST=localhost", "DRUPACK_RUNTIME_NAME="+r.Site.Name,
-		"DRUPACK_DRUSH_SCRIPT="+runtime.Canonical(filepath.Join(application, runtime.DrushScript))),
-		Command: []string{r.PHP, "php-cli", filepath.Join(application, "operate.php"), "seed", seed}}, log)
+	err := execute(Step{
+		Dir: application, Env: append(slices.Clone(phpEnv),
+			"DRUPACK_RUNTIME_DATA_DIR="+seed, "DRUPACK_RUNTIME_FILES_DIR="+filepath.Join(seed, "files"),
+			"DRUPACK_RUNTIME_APP_DIR="+application, "DRUPACK_RUNTIME_HOST=localhost", "DRUPACK_RUNTIME_NAME="+r.Site.Name,
+			"DRUPACK_DRUSH_SCRIPT="+runtime.Canonical(filepath.Join(application, runtime.DrushScript))),
+		Command: []string{r.PHP, "php-cli", filepath.Join(application, "operate.php"), "seed", seed},
+	}, log)
 	if err != nil {
 		return err
 	}
@@ -390,7 +405,7 @@ func refuseCredentials(application string) error {
 		name := entry.Name()
 		credential := credentialName(relative, name)
 		if !credential && (strings.HasSuffix(name, ".key") || strings.HasSuffix(name, ".pem")) {
-			content, err := os.ReadFile(path)
+			content, err := os.ReadFile(path) //nolint:gosec // G122: the walk reads the operator's own site tree.
 			if err != nil {
 				return err
 			}
@@ -408,8 +423,10 @@ func refuseCredentials(application string) error {
 }
 
 // credentialFiles hold a credential wherever they sit.
-var credentialFiles = []string{"auth.json", "secrets.json", ".git-credentials", ".netrc", ".npmrc", ".pypirc",
-	".s3cfg", ".boto", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"}
+var credentialFiles = []string{
+	"auth.json", "secrets.json", ".git-credentials", ".netrc", ".npmrc", ".pypirc",
+	".s3cfg", ".boto", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519",
+}
 
 // credentialPaths hold a credential inside the folder their tool reads.
 var credentialPaths = []string{".docker/config.json", ".kube/config", ".claude/settings.local.json", ".vscode/sftp.json"}
@@ -489,7 +506,7 @@ func siteFiles(site string) ([]string, error) {
 	out, err := listing.Output()
 	if err == nil {
 		var files []string
-		for _, name := range strings.Split(strings.TrimRight(string(out), "\x00"), "\x00") {
+		for name := range strings.SplitSeq(strings.TrimRight(string(out), "\x00"), "\x00") {
 			if name == "" {
 				continue
 			}
@@ -608,5 +625,5 @@ func copyFile(source, destination string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(destination, content, info.Mode().Perm())
+	return os.WriteFile(destination, content, info.Mode().Perm()) //nolint:gosec // G703: the operator sets this path.
 }

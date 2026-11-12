@@ -47,7 +47,7 @@ func Extract(destination string, payload []byte, m Manifest, notice io.Writer) e
 		if header.Typeflag != tar.TypeReg {
 			return fmt.Errorf("payload entry is not a regular file: %s", header.Name)
 		}
-		if err := WriteFile(filepath.Join(destination, filepath.FromSlash(header.Name)), reader, 0700); err != nil {
+		if err := WriteFile(filepath.Join(destination, filepath.FromSlash(header.Name)), reader, 0o700); err != nil {
 			return err
 		}
 	}
@@ -56,7 +56,7 @@ func Extract(destination string, payload []byte, m Manifest, notice io.Writer) e
 // WriteFile streams contents to path with mode, creating the missing parent
 // directories for the owner alone.
 func WriteFile(path string, contents io.Reader, mode os.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	output, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)

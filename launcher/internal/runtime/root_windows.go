@@ -21,8 +21,8 @@ import (
 // Windows has no read bits to weigh, so readers changes nothing. It returns nil
 // when there is none, and an error when it cannot tell, which a caller treats
 // as exposed.
-func Exposure(dir string, readers bool) (*Exposed, error) {
-	info, err := os.Lstat(dir)
+func Exposure(dir string, readers bool) (*ExposedError, error) {
+	info, err := os.Lstat(dir) //nolint:gosec // G703: the operator sets this path.
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +33,7 @@ func Exposure(dir string, readers bool) (*Exposed, error) {
 	if err != nil || trusted {
 		return nil, err
 	}
-	return &Exposed{Folder: dir, Account: account, Owns: true}, nil
+	return &ExposedError{Folder: dir, Account: account, Owns: true}, nil
 }
 
 // Owner names the account that owns path, following a link, and reports whether
@@ -97,7 +97,7 @@ func accountName(sid *windows.SID) string {
 // whatever its parent would have it inherit. A parent it creates, and an
 // existing dir, keep the ACL they inherit or hold.
 func Create(dir string) error {
-	if err := os.MkdirAll(filepath.Dir(dir), rootMode); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dir), rootMode); err != nil { //nolint:gosec // G703: the operator sets this path.
 		return err
 	}
 	current, err := windows.GetCurrentProcessToken().GetTokenUser()

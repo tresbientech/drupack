@@ -32,9 +32,10 @@ permissions:
 
 env:
   # setup-go sets GOTOOLCHAIN=local from v6 on, so go fetches no newer toolchain of
-  # its own: this version must stay at or above the go line in launcher/go.mod and
-  # in FrankenPHP's caddy/go.mod. build/upstream.py raises it to the second.
-  GO_VERSION: '1.27.3'
+  # its own: this version must stay at or above the go line in FrankenPHP's
+  # caddy/go.mod. Each go.mod here and the Dockerfile's golang image carry the same
+  # version. build/upstream.py moves it to the newest patch and copies it there.
+  GO_VERSION: '1.27.4'
   # Go moves to the next entry after a "|" on any error, so a module fetch the
   # proxy drops mid-stream gets a second attempt. go.sum checks either answer.
   GOPROXY: https://proxy.golang.org|https://proxy.golang.org,direct
@@ -916,6 +917,18 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
+
+      # govulncheck reads the vulnerability database when it runs, so a candidate
+      # fails once a reported vulnerability reaches the code or the pinned Go.
+      - name: Check the Go modules for vulnerabilities
+        if: matrix.phase == 'host'
+        run: |
+          GOBIN=$RUNNER_TEMP go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          for module in $(git ls-files '*/go.mod'); do
+            for goos in linux darwin windows; do
+              (cd "$(dirname -- "$module")" && GOOS=$goos "$RUNNER_TEMP/govulncheck" ./...)
+            done
+          done
 
       # runtime/adapt-test.sh, which the demo phase runs, works in the glibc builder
       # image that the builder-push job of this run published under its digest tag.

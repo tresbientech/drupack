@@ -19,7 +19,7 @@ import (
 // so no child is needed.
 func HoldLease(t *testing.T, dir string) (release func()) {
 	t.Helper()
-	file, err := os.OpenFile(filepath.Join(dir, state.LeaseName), os.O_CREATE|os.O_RDWR, 0600)
+	file, err := os.OpenFile(filepath.Join(dir, state.LeaseName), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -16,8 +16,9 @@ import (
 	"strings"
 	"unicode"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"sigs.k8s.io/yaml"
+
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
 
 const FileName = "drupack.yml"
@@ -272,12 +273,7 @@ func fieldError(field, format string, arguments ...any) error {
 }
 
 func hasParentSegment(path string) bool {
-	for _, segment := range strings.Split(path, "/") {
-		if segment == ".." {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(strings.Split(path, "/"), "..")
 }
 
 func isControl(r rune) bool {
@@ -569,7 +565,7 @@ func Write(site Site, directory string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(directory, OutputName), append(content, '\n'), 0o644)
+	return os.WriteFile(filepath.Join(directory, OutputName), append(content, '\n'), 0o644) //nolint:gosec // G306: site.json holds no secret.
 }
 
 // Load reads the site.json Write left in directory.

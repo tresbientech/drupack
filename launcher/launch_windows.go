@@ -38,8 +38,7 @@ func launch(c Command) error {
 	if err == nil {
 		os.Exit(0)
 	}
-	var exitError *exec.ExitError
-	if errors.As(err, &exitError) {
+	if exitError, ok := errors.AsType[*exec.ExitError](err); ok {
 		holdConsole()
 		os.Exit(exitError.ExitCode())
 	}
@@ -50,7 +49,7 @@ func launch(c Command) error {
 func restrictUmask() {}
 
 // fixCommand is the advice that ends e, which on Windows names an owner alone.
-func fixCommand(e *runtime.Exposed) string {
+func fixCommand(e *runtime.ExposedError) string {
 	return "Move the Site data into a folder you own."
 }
 
@@ -89,7 +88,7 @@ func holdConsole() {
 		return
 	}
 	fmt.Fprint(os.Stderr, "Press Enter to close this window.")
-	fmt.Fscanln(os.Stdin)
+	_, _ = fmt.Fscanln(os.Stdin)
 }
 
 // replaceExecutable moves the running path aside to path.old, which Windows allows

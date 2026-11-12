@@ -30,7 +30,7 @@ func restrictUmask() {
 
 // fixCommand is the advice that ends e. Only root can give a folder back to this
 // user, so a folder another account owns gets moved instead.
-func fixCommand(e *runtime.Exposed) string {
+func fixCommand(e *runtime.ExposedError) string {
 	if e.Owns {
 		return "Move the Site data into a folder you own."
 	}

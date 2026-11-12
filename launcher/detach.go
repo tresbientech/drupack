@@ -90,12 +90,12 @@ func detachStart(l Launch, log, stop string) error {
 	}
 	copied := make(chan struct{})
 	go func() {
-		io.Copy(os.Stderr, stderr)
+		_, _ = io.Copy(os.Stderr, stderr)
 		close(copied)
 	}()
 	exited := make(chan int, 1)
 	go func() {
-		command.Wait()
+		_ = command.Wait()
 		code := command.ProcessState.ExitCode()
 		// A process a signal ended reports -1.
 		if code < 0 {
@@ -104,7 +104,7 @@ func detachStart(l Launch, log, stop string) error {
 		exited <- code
 	}()
 	lines := bufio.NewReader(stdout)
-	code := 0
+	var code int
 	for {
 		line, err := lines.ReadString('\n')
 		// A line the child left unfinished ends where the marker starts.
@@ -198,6 +198,8 @@ func relay(log string, exited <-chan int, out io.Writer, stop string, colour boo
 
 // ownsConsole reports whether a file manager created this process's console: nothing
 // but this process holds it, and a detached child's hidden console is not one.
+//
+//nolint:unused // launch_windows.go calls it. The shared file lets the Linux tests run it.
 func ownsConsole(detached bool, processes uint32) bool {
 	return !detached && processes == 1
 }

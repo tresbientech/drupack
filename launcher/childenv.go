@@ -145,6 +145,7 @@ func (f Facts) Env(k Kind) []string {
 			// settings.php trusts the drupack.site name as a request host.
 			e.put("DRUPACK_RUNTIME_ALIAS=" + f.Alias)
 		}
+	case Reader, Drush, Export:
 	}
 	return e.entries
 }

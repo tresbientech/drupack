@@ -66,7 +66,7 @@ func layStaging(staging, old string, payload []byte, writable []string, notice i
 	}
 	for _, directory := range writable {
 		native := filepath.FromSlash(directory)
-		if err := os.MkdirAll(filepath.Join(staging, native), 0700); err != nil {
+		if err := os.MkdirAll(filepath.Join(staging, native), 0o700); err != nil {
 			return err
 		}
 		if err := carryOver(filepath.Join(old, native), filepath.Join(staging, native)); err != nil {
@@ -113,15 +113,15 @@ func copyTree(source, destination string) error {
 		}
 		switch {
 		case entry.IsDir():
-			return os.MkdirAll(target, info.Mode().Perm()|0700)
+			return os.MkdirAll(target, info.Mode().Perm()|0o700)
 		case info.Mode()&fs.ModeSymlink != 0:
 			link, err := os.Readlink(path)
 			if err != nil {
 				return err
 			}
-			return os.Symlink(link, target)
+			return os.Symlink(link, target) //nolint:gosec // G122: the walk copies the operator's own site tree.
 		case info.Mode().IsRegular():
-			contents, err := os.Open(path)
+			contents, err := os.Open(path) //nolint:gosec // G122: the walk copies the operator's own site tree.
 			if err != nil {
 				return err
 			}

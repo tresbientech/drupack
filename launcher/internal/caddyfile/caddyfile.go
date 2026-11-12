@@ -159,8 +159,7 @@ func Render(c Config) ([]byte, error) {
 	var out bytes.Buffer
 	if err := templates.ExecuteTemplate(&out, "caddyfile.caddy", c); err != nil {
 		// The template's position means nothing to the reader who chose the value.
-		var refused unquotable
-		if errors.As(err, &refused) {
+		if refused, ok := errors.AsType[unquotable](err); ok {
 			return nil, refused
 		}
 		return nil, err

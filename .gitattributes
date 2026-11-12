@@ -11,3 +11,7 @@
 /docs/cli.md text eol=lf
 /launcher/internal/caddyfile/fragments/*.caddy text eol=lf
 /launcher/internal/caddyfile/testdata/*.caddyfile text eol=lf
+
+# gci reads a Go file with CRLF endings as unformatted, and build/go-tests.sh
+# lints the Windows checkout too.
+*.go text eol=lf

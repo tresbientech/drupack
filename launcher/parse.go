@@ -29,9 +29,11 @@ type option struct {
 	optional bool
 }
 
-var accessLogOption = option{name: "access-log", value: "FILE", optional: true}
-var errorLogOption = option{name: "error-log", value: "FILE", optional: true}
-var trustedProxiesOption = option{name: "trusted-proxies", value: "CIDR[,CIDR]"}
+var (
+	accessLogOption      = option{name: "access-log", value: "FILE", optional: true}
+	errorLogOption       = option{name: "error-log", value: "FILE", optional: true}
+	trustedProxiesOption = option{name: "trusted-proxies", value: "CIDR[,CIDR]"}
+)
 
 // optionalValue reads the value of an optional-value option from argument, ""
 // for the bare option. following is the argument after it, "" for none.

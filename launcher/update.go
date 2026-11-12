@@ -200,7 +200,7 @@ func httpClient() (*http.Client, error) {
 	if file == "" {
 		return &http.Client{}, nil
 	}
-	bundle, err := os.ReadFile(file)
+	bundle, err := os.ReadFile(file) //nolint:gosec // G703: the operator sets this path.
 	if err != nil {
 		return nil, fmt.Errorf("DRUPACK_CA_FILE: %w", err)
 	}
@@ -377,7 +377,7 @@ func updateNotice(root, executable string, notice io.Writer, terminal bool, now 
 		return
 	}
 	if os.Chtimes(path, now, now) == nil {
-		check()
+		_ = check()
 	}
 }
 

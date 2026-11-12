@@ -68,7 +68,7 @@ func writeTarFile(w *tar.Writer, source, name string, size int64) error {
 	header := &tar.Header{
 		Name:     name,
 		Size:     size,
-		Mode:     0700,
+		Mode:     0o700,
 		Typeflag: tar.TypeReg,
 	}
 	if err := w.WriteHeader(header); err != nil {

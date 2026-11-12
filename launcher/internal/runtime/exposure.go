@@ -2,8 +2,8 @@ package runtime
 
 import "fmt"
 
-// Exposed names a folder another account owns or can write, and that account.
-type Exposed struct {
+// ExposedError names a folder another account owns or can write, and that account.
+type ExposedError struct {
 	Folder  string
 	Account string
 	// Owns reports that Account owns Folder; otherwise Account holds access to it
@@ -11,7 +11,7 @@ type Exposed struct {
 	Owns bool
 }
 
-func (e *Exposed) Error() string {
+func (e *ExposedError) Error() string {
 	if e.Owns {
 		return fmt.Sprintf("%s is owned by %s", e.Folder, e.Account)
 	}

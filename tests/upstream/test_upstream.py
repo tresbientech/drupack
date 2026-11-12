@@ -22,11 +22,12 @@ spec = importlib.util.spec_from_file_location("upstream", ROOT / "build" / "upst
 upstream = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(upstream)
 
-PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD, upstream.RELEASE_WORKFLOW]
+PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD, upstream.RELEASE_WORKFLOW, upstream.DOCKERFILE, *upstream.GO_MODS]
 COMMIT = "c0ffee" * 6 + "c0ff"
 SPC_COMMIT = "5bc" * 13 + "5"
 BASELINE = "ba5e" * 10
 TOOL_SHA = "70" * 32
+IMAGE_DIGEST = "d1" * 32
 
 
 def checksums(*names):
@@ -44,12 +45,16 @@ class Bumper(unittest.TestCase):
         self.addCleanup(setattr, upstream, "ROOT", upstream.ROOT)
         self.addCleanup(setattr, upstream, "fetch", upstream.fetch)
         self.addCleanup(setattr, upstream, "download", upstream.download)
+        self.addCleanup(setattr, upstream, "head", upstream.head)
         upstream.ROOT = self.tree
         self.php = upstream.read(upstream.BUILDER_INPUTS, r"^php_version=(.+)$")
         self.indexes = {}
         self.archives = {}
         upstream.fetch = self.fetch
         upstream.download = self.download
+        upstream.head = self.head
+        self.digest = "sha256:" + IMAGE_DIGEST
+        self.manifests = []
 
     def fetch(self, url):
         if url not in self.indexes:
@@ -60,6 +65,12 @@ class Bumper(unittest.TestCase):
         if url not in self.archives:
             raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
         return self.archives[url]
+
+    def head(self, url, headers):
+        if headers.get("Authorization") != "Bearer pull-token":
+            raise urllib.error.HTTPError(url, 401, "Unauthorized", {}, None)
+        self.manifests.append(url.removeprefix(upstream.DOCKER_MANIFESTS))
+        return {"Docker-Content-Digest": self.digest}
 
     def pecl_pins(self):
         return dict(re.findall(upstream.pecl_pin(), self.text(upstream.WINDOWS_BUILD), re.MULTILINE))
@@ -105,6 +116,19 @@ class Bumper(unittest.TestCase):
                 self.indexes[f"{api}/git/tags/{'a' * 40}"] = json.dumps({"object": {"type": "commit", "sha": COMMIT}})
             else:
                 self.indexes[f"{api}/git/ref/tags/{tag}"] = json.dumps({"object": {"type": "commit", "sha": COMMIT}})
+
+    def serve_go(self, *versions, go_mod="go 1.1\n", stable=True):
+        """Lists `versions` on go.dev, and `go_mod` as the caddy/go.mod of the pinned FrankenPHP commit."""
+        pinned = upstream.read(upstream.BUILDER_INPUTS, upstream.FRANKENPHP_COMMIT_PIN)
+        self.indexes[f"{upstream.FRANKENPHP_RAW}/{pinned}/caddy/go.mod"] = f"module example\n\n{go_mod}"
+        self.indexes[upstream.GO_RELEASES] = json.dumps([{"version": v, "stable": stable} for v in versions])
+        self.indexes[upstream.DOCKER_TOKEN] = json.dumps({"token": "pull-token"})
+
+    def go_pins(self):
+        return {path: upstream.read(path, upstream.GO_LINE) for path in upstream.GO_MODS} | {
+            upstream.RELEASE_WORKFLOW: upstream.read(upstream.RELEASE_WORKFLOW, upstream.GO_PIN),
+            upstream.DOCKERFILE: upstream.read(upstream.DOCKERFILE, upstream.GO_IMAGE_PIN),
+        }
 
     def text(self, path):
         return (self.tree / path).read_text()
@@ -179,33 +203,72 @@ class Bumper(unittest.TestCase):
         self.assertIn("vcpkg-tool/releases/download/2099-01-02/vcpkg.exe", windows)
         self.assertIn(f"Sha256 = '{TOOL_SHA}'", windows)
         self.assertEqual(summary.rows[2][0::3], ("vcpkg", "bumped"))
-        self.assertEqual(summary.rows[3][0::3], ("Go", "current"))
 
-    def test_a_newer_go_line_in_frankenphp_raises_go_version(self):
-        self.serve_frankenphp("v1.99.0", go_mod="go 1.99.3\n")
-        summary = self.run_bumper(upstream.frankenphp)
-        self.assertEqual(upstream.read(upstream.RELEASE_WORKFLOW, upstream.GO_PIN), "1.99.3")
-        self.assertEqual(summary.rows[3][2:], ("1.99.3", "bumped"))
+    def newer_go(self):
+        current = upstream.read(upstream.RELEASE_WORKFLOW, upstream.GO_PIN)
+        line, patch = current.rsplit(".", 1)
+        return current, f"{line}.{int(patch) + 1}"
 
-    def test_a_go_line_without_a_patch_names_its_first_release(self):
-        self.serve_frankenphp("v1.99.0", go_mod="go 1.99\n")
-        self.run_bumper(upstream.frankenphp)
-        self.assertEqual(upstream.read(upstream.RELEASE_WORKFLOW, upstream.GO_PIN), "1.99.0")
+    def test_a_newer_go_patch_rewrites_every_go_pin(self):
+        current, newer = self.newer_go()
+        self.serve_go(f"go{newer}", f"go{current}")
+        summary = self.run_bumper(upstream.go)
+        self.assertEqual(set(self.go_pins().values()), {newer})
+        self.assertEqual(upstream.read(upstream.DOCKERFILE, upstream.GO_IMAGE_DIGEST_PIN), IMAGE_DIGEST)
+        self.assertEqual(self.manifests, [f"{newer}-bookworm"])
+        self.assertEqual(summary.rows, [("Go", current, newer, "bumped")])
 
-    def test_a_go_line_below_go_version_writes_nothing(self):
-        self.serve_frankenphp("v1.99.0", go_mod="go 1.1\n")
-        before = self.text(upstream.RELEASE_WORKFLOW)
-        self.run_bumper(upstream.frankenphp)
-        self.assertEqual(self.text(upstream.RELEASE_WORKFLOW), before)
+    def test_a_newer_go_line_in_frankenphp_takes_its_newest_patch(self):
+        self.serve_go("go1.99.5", "go1.99.4", go_mod="go 1.99.3\n")
+        self.run_bumper(upstream.go)
+        self.assertEqual(set(self.go_pins().values()), {"1.99.5"})
+
+    def test_a_go_line_without_a_patch_admits_its_first_release(self):
+        self.serve_go("go1.99.0", go_mod="go 1.99\n")
+        self.run_bumper(upstream.go)
+        self.assertEqual(set(self.go_pins().values()), {"1.99.0"})
+
+    def test_the_newest_listed_go_writes_nothing(self):
+        current, _ = self.newer_go()
+        self.serve_go(f"go{current}")
+        before = self.go_pins()
+        summary = self.run_bumper(upstream.go)
+        self.assertEqual(self.go_pins(), before)
+        self.assertEqual(summary.rows, [("Go", current, current, "current")])
+
+    def test_unstable_and_malformed_go_releases_are_skipped(self):
+        current, newer = self.newer_go()
+        self.serve_go(f"go{current}")
+        listed = json.loads(self.indexes[upstream.GO_RELEASES])
+        listed += [{"version": f"go{newer}", "stable": False}, {"version": f"go{newer}rc1", "stable": True},
+                   {"version": f"go{newer}.1", "stable": True}, {"stable": True}]
+        self.indexes[upstream.GO_RELEASES] = json.dumps(listed)
+        before = self.go_pins()
+        self.run_bumper(upstream.go)
+        self.assertEqual(self.go_pins(), before)
+
+    def test_no_listed_release_at_the_frankenphp_floor_stops_the_run(self):
+        self.serve_go("go1.99.2", go_mod="go 1.99.3\n")
+        before = self.go_pins()
+        with self.assertRaises(SystemExit):
+            self.run_bumper(upstream.go)
+        self.assertEqual(self.go_pins(), before)
 
     def test_a_malformed_go_line_stops_the_run(self):
         for go_mod in ("go 1.99rc1\n", "", "go 1.99.3\ngo 1.99.4\n"):
             with self.subTest(go_mod), self.assertRaises(SystemExit):
-                # The bump before the go line moves FrankenPHP, so each case starts from the real pins.
-                for path in PINNED:
-                    shutil.copy(ROOT / path, self.tree / path)
-                self.serve_frankenphp("v1.99.0", go_mod=go_mod)
-                self.run_bumper(upstream.frankenphp)
+                self.serve_go("go1.99.4", go_mod=go_mod)
+                self.run_bumper(upstream.go)
+
+    def test_a_malformed_image_digest_stops_the_run_before_any_write(self):
+        _, newer = self.newer_go()
+        self.serve_go(f"go{newer}")
+        before = self.go_pins()
+        for digest in (None, "sha256:" + "d1" * 31, "sha512:" + "d1" * 32):
+            with self.subTest(digest), self.assertRaises(SystemExit):
+                self.digest = digest
+                self.run_bumper(upstream.go)
+            self.assertEqual(self.go_pins(), before)
 
     def test_a_frankenphp_manifest_without_a_vcpkg_baseline_stops_the_run(self):
         self.serve_frankenphp("v1.99.0", manifest={"dependencies": ["brotli"]})
@@ -411,6 +474,14 @@ class ReleaseNode(unittest.TestCase):
             self.post("1.0.0-beta20", "<h4>Task</h4>\n")
         self.assertEqual(str(stopped.exception), "drupal.org refused the form: Error message The tag 1.0.0-beta20 is taken.")
         self.assertEqual(len(self.requests), 3)
+
+
+class GoPins(unittest.TestCase):
+    def test_every_go_pin_names_one_version(self):
+        pins = {path: upstream.read(path, upstream.GO_LINE) for path in upstream.GO_MODS}
+        pins[upstream.RELEASE_WORKFLOW] = upstream.read(upstream.RELEASE_WORKFLOW, upstream.GO_PIN)
+        pins[upstream.DOCKERFILE] = upstream.read(upstream.DOCKERFILE, upstream.GO_IMAGE_PIN)
+        self.assertEqual(len(set(pins.values())), 1, pins)
 
 
 if __name__ == "__main__":

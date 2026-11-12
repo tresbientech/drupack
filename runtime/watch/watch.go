@@ -77,24 +77,25 @@ func serveStop(stopping context.Context, path string, shutdown func()) error {
 		return err
 	}
 	wanted := []byte("Bearer " + token)
-	server := http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/stop" {
-			http.NotFound(w, r)
-			return
-		}
-		if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), wanted) != 1 {
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-		w.(http.Flusher).Flush()
-		shutdown()
-	}),
+	server := http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost || r.URL.Path != "/stop" {
+				http.NotFound(w, r)
+				return
+			}
+			if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), wanted) != 1 {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+			w.(http.Flusher).Flush()
+			shutdown()
+		}),
 		// A connection that never finishes its headers is dropped, so a local
 		// process cannot hold the channel's connections open.
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	go server.Serve(listener)
+	go func() { _ = server.Serve(listener) }()
 	go func() {
 		<-stopping.Done()
 		server.Close()

@@ -319,8 +319,7 @@ func mint(l Launch, env []string, url, drush, directory string, path ...string) 
 	var out, reason bytes.Buffer
 	command.Stdout, command.Stderr = &out, &reason
 	if err := command.Run(); err != nil {
-		var exit *exec.ExitError
-		if !errors.As(err, &exit) {
+		if _, ok := errors.AsType[*exec.ExitError](err); !ok {
 			return "", "", errors.New("Cannot run Drush")
 		}
 	}

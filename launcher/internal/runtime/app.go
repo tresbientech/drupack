@@ -53,7 +53,7 @@ func (c Cache) PrepareApp(checksum string, payload []byte, notice io.Writer) (st
 
 // markUsed writes the file rather than touching it, since the marker may not exist yet.
 func markUsed(entry string) error {
-	return os.WriteFile(filepath.Join(entry, usedName), nil, 0600)
+	return os.WriteFile(filepath.Join(entry, usedName), nil, 0o600)
 }
 
 // sweepApps removes application directories unused for unusedFor, and the staging
@@ -71,18 +71,18 @@ func sweepApps(appRoot, keep string, now time.Time) {
 		}
 		path := filepath.Join(appRoot, name)
 		if strings.HasPrefix(name, stagingPrefix) {
-			removeTree(path)
+			_ = removeTree(path)
 			continue
 		}
 		info, err := os.Stat(filepath.Join(path, usedName))
 		if err != nil {
-			markUsed(path)
+			_ = markUsed(path)
 			continue
 		}
 		// A server started more than unusedFor ago refreshes no timestamp, so the
 		// marker alone would date a directory a site still serves from.
 		if now.Sub(info.ModTime()) > unusedFor {
-			retire(path, entryInUse)
+			_, _ = retire(path, entryInUse)
 		}
 	}
 }
@@ -90,7 +90,7 @@ func sweepApps(appRoot, keep string, now time.Time) {
 // directorySize adds up the file sizes under path. A file that disappears during the walk counts nothing.
 func directorySize(path string) int64 {
 	var total int64
-	filepath.WalkDir(path, func(_ string, entry fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(path, func(_ string, entry fs.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
 			return nil
 		}
@@ -138,7 +138,7 @@ func extractApp(destination string, payload []byte, notice io.Writer) error {
 		path := filepath.Join(destination, name)
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(path, 0700); err != nil {
+			if err := os.MkdirAll(path, 0o700); err != nil {
 				return err
 			}
 		case tar.TypeReg:
@@ -154,16 +154,16 @@ func extractApp(destination string, payload []byte, notice io.Writer) error {
 // writeAppFile keeps the archive's mode with write added for the owner alone:
 // the site writes into its own data directory, never here.
 func writeAppFile(path string, contents io.Reader, mode os.FileMode) error {
-	return WriteFile(path, contents, mode.Perm()|0600)
+	return WriteFile(path, contents, mode.Perm()|0o600)
 }
 
 // removeTree deletes path, restoring the modes on the way down. An application
 // a site has served carries directories an installer made read-only, which the
 // plain removal cannot unlink the contents of.
 func removeTree(path string) error {
-	filepath.WalkDir(path, func(name string, entry fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(path, func(name string, entry fs.DirEntry, err error) error {
 		if err == nil && entry.IsDir() {
-			os.Chmod(name, 0700)
+			_ = os.Chmod(name, 0o700) //nolint:gosec // G122: the walk removes an entry of the launcher's own cache.
 		}
 		return nil
 	})

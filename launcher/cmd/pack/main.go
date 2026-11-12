@@ -214,17 +214,17 @@ func writeBuildCopy(directory, source string, payload []byte, manifest runtime.M
 	if err := build.CopyTree(source, directory, func(string) bool { return false }); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(directory, "runtime.tar.zst"), payload, 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(directory, "runtime.tar.zst"), payload, 0o600); err != nil {
 		return err
 	}
 	manifestData, err := json.Marshal(manifest)
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(directory, "manifest.json"), manifestData, 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(directory, "manifest.json"), manifestData, 0o600); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(directory, "payload.go"), []byte(embeddedPayloadSource(p.site)), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(directory, "payload.go"), []byte(embeddedPayloadSource(p.site)), 0o600); err != nil {
 		return err
 	}
 	if err := writeNodePayload(directory, p.nodeArchive, p.nodeVersion); err != nil {
@@ -256,10 +256,10 @@ func writeNodePayload(build, archive, version string) error {
 		}
 		fmt.Printf("Node %s payload %d bytes\n", version, len(payload))
 	}
-	if err := os.WriteFile(filepath.Join(build, "node.tar.zst"), payload, 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(build, "node.tar.zst"), payload, 0o600); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(build, "node-manifest.json"), manifestData, 0600)
+	return os.WriteFile(filepath.Join(build, "node-manifest.json"), manifestData, 0o600)
 }
 
 // writeAppPayload copies the compressed application archive into the build copy.
@@ -268,10 +268,10 @@ func writeAppPayload(build, archive, checksum string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(build, "app.tar.zst"), payload, 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(build, "app.tar.zst"), payload, 0o600); err != nil { //nolint:gosec // G703: the operator sets this path.
 		return err
 	}
-	return os.WriteFile(filepath.Join(build, "app_checksum.txt"), []byte(checksum), 0600)
+	return os.WriteFile(filepath.Join(build, "app_checksum.txt"), []byte(checksum), 0o600)
 }
 
 func buildLauncher(build, output, goarch string) error {

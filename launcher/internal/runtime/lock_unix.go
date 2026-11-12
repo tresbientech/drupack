@@ -15,7 +15,7 @@ import (
 // and the kernel drops it when the server exits or is killed. A marker that
 // cannot be held is an error: an unmarked entry can be removed under the run.
 func HoldUsage(entry string) error {
-	descriptor, err := syscall.Open(filepath.Join(entry, usageName), syscall.O_CREAT|syscall.O_RDWR, 0600)
+	descriptor, err := syscall.Open(filepath.Join(entry, usageName), syscall.O_CREAT|syscall.O_RDWR, 0o600)
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func HoldUsage(entry string) error {
 // entryInUse reports whether another process still runs from entry. A missing
 // marker means no process has held it since the directory was written.
 func entryInUse(entry string) bool {
-	descriptor, err := syscall.Open(filepath.Join(entry, usageName), syscall.O_RDWR, 0600)
+	descriptor, err := syscall.Open(filepath.Join(entry, usageName), syscall.O_RDWR, 0o600)
 	if err != nil {
 		return false
 	}
@@ -48,7 +48,7 @@ func entryInUse(entry string) bool {
 // lockRoot serializes staging across every process sharing root. Blocking is
 // correct here: the kernel releases a dead holder's lock.
 func lockRoot(root string) (func(), error) {
-	file, err := os.OpenFile(filepath.Join(root, lockName), os.O_CREATE|os.O_RDWR, 0600)
+	file, err := os.OpenFile(filepath.Join(root, lockName), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func lockRoot(root string) (func(), error) {
 		return nil, err
 	}
 	return func() {
-		syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+		_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
 		file.Close()
 	}, nil
 }

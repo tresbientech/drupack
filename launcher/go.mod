@@ -1,10 +1,10 @@
 module git.tresbien.tech/tresbientech/drupack/launcher
 
-go 1.26.0
+go 1.27.4
 
 require (
 	github.com/ProtonMail/go-crypto v1.5.2
-	github.com/klauspost/compress v1.20.1
+	github.com/klauspost/compress v1.20.2
 	github.com/smallstep/truststore v0.13.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/term v0.46.0
