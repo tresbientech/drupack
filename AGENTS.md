@@ -16,6 +16,8 @@ Rules for an LLM agent that works in this repository. `CONTRIBUTING.md` holds th
 - Its body follows the `Default` template. `## AI disclosure` comes first and reads "Generated with the help of an LLM."
 - The body states the problem and the target in under 100 words, with no first person.
 - A person reads the text before it is posted, and answers for it.
+- An agent that starts work on an issue assigns the issue to its account.
+- The `state::` label follows the work. It is `state::needsReview` once the merge request is open, and `state::fixed` once it is merged.
 
 ## Records
 
@@ -39,6 +41,9 @@ fix: #3636009 Refuse the options drush cannot use
 ## Merge path
 
 - The canonical repository is `project/drupack` on drupal.org. GitHub holds a copy that builds and publishes, and takes no pull requests.
-- A merge request on the issue's fork runs the unit tests. A maintainer squash-merges it on drupal.org.
+- A comment `/do:fork` on the issue creates its fork, `issue/drupack-<issue number>`. A personal fork is never used.
+- The branch is named `<issue number>-<slug>` and is pushed to that fork.
+- A merge request from that branch runs the unit tests. A maintainer squash-merges it on drupal.org. Its title is the commit subject.
+- The issue is closed once its commit is on `main`.
 - `.gitlab/CODEOWNERS` names the account that answers for each path.
 - `.github/workflows/upstream.yml` pushes every version tag.
