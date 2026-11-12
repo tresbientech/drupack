@@ -171,7 +171,7 @@ func Parse(content []byte) (Site, error) {
 	var keys map[string]any
 	if yaml.Unmarshal(content, &keys) == nil {
 		if _, moved := keys["mercure"]; moved {
-			return Site{}, fmt.Errorf("%s: mercure moved to composer.json extra.drupack.mercure", FileName)
+			return Site{}, fmt.Errorf("%s: mercure belongs in composer.json extra.drupack.mercure", FileName)
 		}
 		if _, misplaced := keys["subdomain"]; misplaced {
 			return Site{}, fmt.Errorf("%s: subdomain belongs in composer.json extra.drupack.subdomain", FileName)

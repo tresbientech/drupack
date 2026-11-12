@@ -387,10 +387,10 @@ func TestSiteJSONCarriesNodeInTheFormItWasGiven(t *testing.T) {
 	}
 }
 
-func TestParseRefusesMercureWithItsNewKey(t *testing.T) {
+func TestParseRefusesMercureInDrupackYml(t *testing.T) {
 	for _, field := range []string{"mercure: true\n", "mercure: false\n"} {
 		_, err := siteconfig.Parse([]byte(minimal + field))
-		if err == nil || !strings.Contains(err.Error(), "mercure moved to composer.json extra.drupack.mercure") {
+		if err == nil || !strings.Contains(err.Error(), "mercure belongs in composer.json extra.drupack.mercure") {
 			t.Errorf("%q: Parse error = %v; want one naming composer.json extra.drupack.mercure", field, err)
 		}
 	}

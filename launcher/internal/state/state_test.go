@@ -16,8 +16,8 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state/statetest"
 )
 
-// The keys the previous release's PHP gave these paths, printed by its hash and strtolower.
-func TestFolderEntryMatchesThePreviousRelease(t *testing.T) {
+// The key of each path, which a later release must keep or a folder loses its entry.
+func TestFolderEntryKeys(t *testing.T) {
 	for _, row := range []struct {
 		project string
 		fold    bool
@@ -26,7 +26,7 @@ func TestFolderEntryMatchesThePreviousRelease(t *testing.T) {
 		{"/home/reader/My Project", false, "8cfc705b73d35f97"},
 		{"/home/reader/My Project", true, "3e42cf3ff68e2b84"},
 		{"C:/Users/Reader/Projet Été", false, "1f7bc805b29ea668"},
-		// strtolower folds ASCII letters alone, so É keeps its case.
+		// fold lowers ASCII letters alone, so É keeps its case.
 		{"C:/Users/Reader/Projet Été", true, "65259303d4e51dc6"},
 	} {
 		want := state.At(filepath.Join("root", state.FoldersName, "f"+row.key))

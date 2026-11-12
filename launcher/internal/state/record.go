@@ -1,7 +1,6 @@
 package state
 
 import (
-	"cmp"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -21,7 +20,7 @@ const (
 	caddyfileName  = "Caddyfile"
 	publisherName  = "mercure_publisher_secret"
 	subscriberName = "mercure_subscriber_secret"
-	// UnrecordedScheme is the scheme of a record that names none.
+	// UnrecordedScheme is the scheme of a Site data that holds no record.
 	UnrecordedScheme = "http"
 )
 
@@ -47,7 +46,7 @@ func (e *UnreadableError) Error() string {
 }
 
 // Listener reads the record. A Site data no start has served holds none, and
-// ok is false. A record without a scheme reads as HTTP.
+// ok is false.
 func (d Dir) Listener() (record Listener, ok bool, err error) {
 	path := filepath.Join(d.path, listenerName)
 	content, err := readShared(path)
@@ -66,7 +65,9 @@ func (d Dir) Listener() (record Listener, ok bool, err error) {
 	if record.Host == "" {
 		return Listener{}, false, errors.New("Recorded listener has no host")
 	}
-	record.Scheme = cmp.Or(record.Scheme, UnrecordedScheme)
+	if record.Scheme == "" {
+		return Listener{}, false, errors.New("Recorded listener has no scheme")
+	}
 	return record, true, nil
 }
 

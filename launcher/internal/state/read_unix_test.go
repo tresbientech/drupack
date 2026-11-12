@@ -34,7 +34,7 @@ func TestListenerWaitsForAWriterHoldingTheRecord(t *testing.T) {
 		t.Fatal("Listener() returned while a writer held the record")
 	case <-time.After(300 * time.Millisecond):
 	}
-	if _, err := writer.WriteString(`{"listen":"127.0.0.1:1","host":"localhost"}`); err != nil {
+	if _, err := writer.WriteString(`{"listen":"127.0.0.1:1","host":"localhost","scheme":"http"}`); err != nil {
 		t.Fatal(err)
 	}
 	if err := syscall.Flock(int(writer.Fd()), syscall.LOCK_UN); err != nil {

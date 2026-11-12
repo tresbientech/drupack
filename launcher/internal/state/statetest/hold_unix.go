@@ -1,6 +1,6 @@
 //go:build unix
 
-// Package statetest holds the Serving lease the way the previous release's PHP does, with flock,
+// Package statetest holds the Serving lease with a lock of its own,
 // for the tests of the packages that read it.
 package statetest
 
