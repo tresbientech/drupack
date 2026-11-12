@@ -22,7 +22,7 @@ spec = importlib.util.spec_from_file_location("upstream", ROOT / "build" / "upst
 upstream = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(upstream)
 
-PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD, upstream.RELEASE_WORKFLOW, upstream.DOCKERFILE, *upstream.GO_MODS]
+PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD, upstream.RELEASE_WORKFLOW, upstream.DOCKERFILE, *upstream.GO_MODS, "build/go-tests.sh"]
 COMMIT = "c0ffee" * 6 + "c0ff"
 SPC_COMMIT = "5bc" * 13 + "5"
 BASELINE = "ba5e" * 10
@@ -269,6 +269,36 @@ class Bumper(unittest.TestCase):
                 self.digest = digest
                 self.run_bumper(upstream.go)
             self.assertEqual(self.go_pins(), before)
+
+    def serve_tools(self, **versions):
+        """Answers each Go tool's latest version: `versions` by name, its pin for any other."""
+        for name, module, path in upstream.GO_TOOLS:
+            version = versions.get(name, "v" + upstream.read(path, upstream.tool_pin(name, module)))
+            self.indexes[f"{upstream.GO_PROXY}{module}/@latest"] = json.dumps({"Version": version})
+
+    def tool_pins(self):
+        return {name: upstream.read(path, upstream.tool_pin(name, module)) for name, module, path in upstream.GO_TOOLS}
+
+    def test_a_newer_tool_release_rewrites_its_pin(self):
+        current = self.tool_pins()
+        self.serve_tools(govulncheck="v1.99.0")
+        summary = self.run_bumper(upstream.tools)
+        self.assertEqual(self.tool_pins(), current | {"govulncheck": "1.99.0"})
+        self.assertEqual(summary.rows, [
+            ("golangci-lint", current["golangci-lint"], current["golangci-lint"], "current"),
+            ("govulncheck", current["govulncheck"], "1.99.0", "bumped")])
+
+    def test_current_tool_releases_write_nothing(self):
+        before = self.tool_pins()
+        self.serve_tools()
+        self.run_bumper(upstream.tools)
+        self.assertEqual(self.tool_pins(), before)
+
+    def test_a_malformed_tool_version_stops_the_run(self):
+        for version in ("v2.99.0-rc.1", "2.99.0", None):
+            with self.subTest(version), self.assertRaises(SystemExit):
+                self.serve_tools(**{"golangci-lint": version})
+                self.run_bumper(upstream.tools)
 
     def test_a_frankenphp_manifest_without_a_vcpkg_baseline_stops_the_run(self):
         self.serve_frankenphp("v1.99.0", manifest={"dependencies": ["brotli"]})

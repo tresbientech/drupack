@@ -22,6 +22,8 @@ PHP security release behind, and nothing had reported it.
   - Go, at the newest patch of the higher of two lines: its own and the `go`
     line of FrankenPHP's `caddy/go.mod`. `GO_VERSION` in `release.yml` holds
     it, and the bump copies it into each `go.mod` and the Dockerfile's image
+  - golangci-lint and govulncheck, at the newest release of each one's major
+    on proxy.golang.org
   - Node 24 LTS, which the demo now pins exactly
   - each exact Composer pin, within its major, at equal or better stability
 - A newer major is printed as `MAJOR` in the run log and never written.

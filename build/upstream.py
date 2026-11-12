@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Moves the PHP, FrankenPHP, Windows PECL and Go pins to their newest version inside their line,
+"""Moves the PHP, FrankenPHP, Windows PECL, Go and Go tool pins to their newest version inside their line,
 and prints what it did as a Markdown summary. Go's line is its own or the one FrankenPHP needs,
 whichever is newer. It edits the working tree and never commits.
 
@@ -38,6 +38,7 @@ PECL_WINDOWS = "https://downloads.php.net/~windows/pecl/releases/"
 GO_RELEASES = "https://go.dev/dl/?mode=json&include=all"
 DOCKER_TOKEN = "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/golang:pull"
 DOCKER_MANIFESTS = "https://registry-1.docker.io/v2/library/golang/manifests/"
+GO_PROXY = "https://proxy.golang.org/"
 
 # Each pin's line in its file, its value captured.
 PHP_PIN = r"^php_version=(.+)$"
@@ -58,6 +59,12 @@ GO_LINE = r"^go (\d+\.\d+(?:\.\d+)?)$"
 GO_IMAGE_PIN = r"^ARG JOB_BASE=golang:(.+)-bookworm@sha256:[0-9a-f]{64}$"
 GO_IMAGE_DIGEST_PIN = r"^ARG JOB_BASE=golang:.+-bookworm@sha256:([0-9a-f]{64})$"
 GO_RELEASE = re.compile(r"go\d+\.\d+\.\d+")
+# Each Go tool the checks install as MODULE/cmd/NAME@vX.Y.Z: its name, its module and the
+# file pinning it. The module path names the major, so its newest release stays inside it.
+GO_TOOLS = (
+    ("golangci-lint", "github.com/golangci/golangci-lint/v2", "build/go-tests.sh"),
+    ("govulncheck", "golang.org/x/vuln", RELEASE_WORKFLOW),
+)
 STABLE_TAG = re.compile(r"v\d+\.\d+\.\d+")
 PACKAGIST_METADATA = "https://repo.packagist.org/p2/"
 
@@ -300,12 +307,33 @@ def golang_digest(version):
     return digest.removeprefix("sha256:")
 
 
+def tool_pin(name, module):
+    return rf"{re.escape(module)}/cmd/{re.escape(name)}@v(\d+\.\d+\.\d+)$"
+
+
+def tools(summary):
+    for name, module, path in GO_TOOLS:
+        pattern = tool_pin(name, module)
+        current = read(path, pattern)
+        # The module proxy's answer is remote input.
+        version = json.loads(fetch(f"{GO_PROXY}{module}/@latest")).get("Version")
+        if not isinstance(version, str) or not STABLE_TAG.fullmatch(version):
+            sys.exit(f"proxy.golang.org gives {module} the latest version {version!r}")
+        newest = version[1:]
+        if version_key(newest) <= version_key(current):
+            summary.row(name, current, newest, "current")
+            continue
+        rewrite(path, pattern, newest)
+        summary.row(name, current, newest, "bumped")
+
+
 def main():
     summary = Summary()
     php(summary)
     pecl(summary)
     frankenphp(summary)
     go(summary)
+    tools(summary)
     sys.stdout.write(summary.render())
 
 
