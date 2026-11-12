@@ -38,7 +38,16 @@ $databases['default']['default'] = [
 $settings['hash_salt'] = 'engine-executable-case';
 """
 
-USAGE = "Usage: drupack php SCRIPT [ARGUMENTS]\n       drupack php -r CODE"
+USAGE = ("Usage: drupack php [-d KEY[=VALUE]]... SCRIPT [ARGUMENTS]\n"
+         "       drupack php [-d KEY[=VALUE]]... -r CODE [ARGUMENTS]")
+# PHP code that prints memory_limit, then the memory_limit and PHP_INI_SCAN_DIR a PHP it
+# starts through the runtime reads. proc_open takes an argument list, so no shell rewrites
+# the code: Windows' escapeshellarg turns each double quote into a space.
+CHILD_SETTINGS = ("echo ini_get('memory_limit'), \"\\n\";"
+                  " $child = proc_open([getenv('DRUPACK_RUNTIME_BINARY'), 'php', '-r',"
+                  " 'echo ini_get(\"memory_limit\"), \"\\n\", var_export(getenv(\"PHP_INI_SCAN_DIR\"), true);'],"
+                  " [1 => ['pipe', 'w']], $pipes);"
+                  " echo stream_get_contents($pipes[1]); proc_close($child);")
 
 PHP_MARKER_OUTPUT = "guard-probe-executed"
 PHP_MARKER = f"<?php echo '{PHP_MARKER_OUTPUT}';"
@@ -958,7 +967,7 @@ if (isset($_GET['drupack-log-case'])) {
 
     def test_php_refuses_an_option_by_name_before_php_starts(self):
         (self.class_dir / "sentinel.php").write_text("<?php echo 'php-ran';")
-        commands = (["-d", "x=1", "sentinel.php"], ["-l", "sentinel.php"], ["-v"], ["-S", "127.0.0.1:0", "sentinel.php"],
+        commands = (["-l", "sentinel.php"], ["-v"], ["-S", "127.0.0.1:0", "sentinel.php"],
                     ["-h"], ["--help"])
         for command in commands:
             with self.subTest(route="launcher", option=command[0]):
@@ -976,12 +985,79 @@ if (isset($_GET['drupack-log-case'])) {
                 self.assertIn(USAGE, output)
                 self.assertNotIn("php-ran", output)
 
-    def test_php_refuses_an_argument_after_code(self):
-        result = self.engine_run("php", "-r", "echo 'php-ran';", "extra")
-        self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertEqual(result.stdout, "")
-        self.assertIn("extra follows it", result.stderr)
-        self.assertIn(USAGE, result.stderr)
+    def test_php_passes_the_arguments_after_code_in_argv(self):
+        result = self.engine_run("php", "-r", "echo json_encode(array_slice($argv, 1));", "a", "b c")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), ["a", "b c"])
+
+    def test_php_applies_d_settings_as_phps_own_command_line_does(self):
+        code = "echo json_encode([ini_get('memory_limit'), ini_get('include_path'), ini_get('allow_url_fopen')]);"
+        # Composer's own shape: separate and joined -d, an empty value, and a value holding ;.
+        result = self.engine_run("php", "-d", "memory_limit=321M", "-dinclude_path=/x;y", "-d", "disable_functions=",
+                                 "-d", "allow_url_fopen", "-r", code)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), ["321M", "/x;y", "1"])
+        # Double quotes read the same in sh and cmd.exe.
+        [[output, status]] = self.alias_run("php -d memory_limit=322M -r \"echo ini_get('memory_limit');\"")
+        self.assertEqual(status, 0, output)
+        self.assertEqual(output, "322M")
+
+    def test_php_applies_d_settings_from_a_temporary_directory_with_accents(self):
+        # Windows hands PHP's getenv the C runtime's copy of PHP_INI_SCAN_DIR, in the ANSI code page.
+        temporary = harness.fresh_dir(self.class_dir / "tëmp ü")
+        env = dict(os.environ, TMPDIR=str(temporary), TMP=str(temporary), TEMP=str(temporary))
+        result = self.engine_run("php", "-d", "memory_limit=323M", "-r", "echo ini_get('memory_limit');", env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "323M")
+        self.assertEqual(list(temporary.iterdir()), [])
+
+    def test_php_d_settings_stay_out_of_a_php_the_script_starts(self):
+        baseline = self.engine_run("php", "-r", "echo ini_get('memory_limit');")
+        self.assertEqual(baseline.returncode, 0, baseline.stderr)
+        self.assertNotEqual(baseline.stdout, "318M")
+        callers = harness.fresh_dir(self.class_dir / "caller-ini")
+        (callers / "caller.ini").write_text("precision=7\n")
+        for name, scan in (("unset", None), ("empty", ""), ("set", str(callers))):
+            with self.subTest(scan=name):
+                env = {key: value for key, value in os.environ.items() if key != "PHP_INI_SCAN_DIR"}
+                if scan is not None:
+                    env["PHP_INI_SCAN_DIR"] = scan
+                result = self.engine_run("php", "-d", "memory_limit=318M", "-r",
+                                         "echo ini_get('precision'), \"\\n\";" + CHILD_SETTINGS, env=env)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                precision, parent, child, child_scan = result.stdout.split("\n")
+                self.assertEqual(parent, "318M")
+                self.assertEqual(child, baseline.stdout)
+                self.assertEqual(child_scan, "false" if scan is None else repr(scan))
+                if scan:
+                    self.assertEqual(precision, "7")
+
+    def test_composer_runs_the_php_scripts_of_drupal_cms(self):
+        # Drupal CMS's own scripts, with a vendor/bin PHP script in place of dload, which downloads.
+        fixture = harness.fresh_dir(self.class_dir / "drupal-cms")
+        bin_dir = fixture / "vendor" / "bin"
+        bin_dir.mkdir(parents=True)
+        (bin_dir / "composer").write_text("#!/usr/bin/env php\n<?php")
+        (bin_dir / "dload").write_text("#!/usr/bin/env php\n<?php file_put_contents('dload.json', json_encode("
+                                       "[realpath(PHP_BINARY) === realpath(getenv('DRUPACK_RUNTIME_BINARY')), array_slice($argv, 1)]));")
+        (bin_dir / "dload").chmod(0o755)
+        # The proxy Composer writes beside a bin on Windows, which runs the php on PATH.
+        (bin_dir / "dload.bat").write_text("@ECHO OFF\r\nsetlocal DISABLEDELAYEDEXPANSION\r\n"
+                                           "SET BIN_TARGET=%~dp0/dload\r\nSET COMPOSER_RUNTIME_BIN_DIR=%~dp0\r\n"
+                                           "php \"%BIN_TARGET%\" %*\r\n")
+        (fixture / "composer.json").write_text(json.dumps({"name": "acme/drupal-cms-scripts", "scripts": {
+            "post-update-cmd": ["@php -r \"@unlink('vendor/bin/composer');\"", "dload get --quiet --path=vendor/bin"],
+            "post-install-cmd": ["@post-update-cmd"]}}))
+        # The application's composer/composer carries no bin/composer, so this runner does what it does.
+        composer = self.class_dir / "composer.php"
+        composer.write_text(f"<?php require {json.dumps(str(self.project / 'vendor' / 'autoload.php'))};"
+                            " ini_set('memory_limit', '1536M'); (new Composer\\Console\\Application())->run();")
+        env = dict(os.environ, COMPOSER_HOME=str(self.class_dir / "composer-home"), COMPOSER_NO_INTERACTION="1")
+        result = self.engine_run("php", str(composer), "run-script", "post-install-cmd", cwd=fixture, env=env)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse((bin_dir / "composer").exists())
+        # Composer runs an executable vendor/bin script itself, so its shebang finds the php on PATH.
+        self.assertEqual(json.loads((fixture / "dload.json").read_text()), [True, ["get", "--quiet", "--path=vendor/bin"]])
 
     def test_php_reads_no_settings_planted_in_the_temporary_directory(self):
         temporary = harness.fresh_dir(self.class_dir / "temporary")
@@ -997,6 +1073,9 @@ if (isset($_GET['drupack-log-case'])) {
         code = self.engine_run("php", "-r", "echo 1;", env=env)
         self.assertEqual(code.returncode, 0, code.stderr)
         self.assertEqual(code.stdout, "1")
+        settings = self.engine_run("php", "-d", "memory_limit=319M", "-r", "echo ini_get('memory_limit'); exit(4);", env=env)
+        self.assertEqual(settings.returncode, 4, settings.stderr)
+        self.assertEqual(settings.stdout, "319M")
         self.assertEqual([path.name for path in temporary.iterdir()], [planted.name])
 
     def test_php_passes_arguments_through_the_alias_unchanged(self):

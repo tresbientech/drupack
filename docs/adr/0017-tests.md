@@ -27,7 +27,7 @@ Behavior must be proven on every platform Drupack ships. A Windows defect passes
 - Go tests run under the race detector with `build/go-tests.sh`, which also lints for each system a release targets.
 - Four unit tests assert what an OS does and stay in their unit layer. They cover Ctrl+Break on a Windows process group, a lock that survives exec, PHP's argv, and the stop channel refusing a non-loopback dial.
 - The mysql and pgsql refusals in `argument_cases.py` stay live. They prove that PHP's `check` writes no Site data before a start refuses.
-- `phpArguments` in `runtime/entrypoint.go` builds only inside FrankenPHP's main package, in the builder image. Its two refusal cases stay in the suite.
+- `phpArguments` and `iniLine` in `runtime/entrypoint.go` build only inside FrankenPHP's main package, in the builder image. Their refusal and `-d` cases stay in the suite.
 
 ## Reason
 

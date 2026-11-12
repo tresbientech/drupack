@@ -4,6 +4,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -17,6 +18,11 @@ const foldCase = false
 // nodeFile is the program's own name: npm and npx are scripts Node runs.
 func nodeFile(word string) string {
 	return word
+}
+
+// phpBinary is the application's bin/php, which runs the runtime's php word.
+func phpBinary(l Launch) string {
+	return filepath.Join(binDir(l.Application), "php")
 }
 
 func launch(c Command) error {

@@ -46,6 +46,11 @@ type Facts struct {
 	StopRecord string
 }
 
+// binDir is an application's bin/, which holds the php and drush its children run.
+func binDir(application string) string {
+	return filepath.Join(application, "bin")
+}
+
 // value returns what the reader's own child reads under name, "" when it is unset.
 func (f Facts) value(name string) string {
 	e := environ{entries: f.Env(Reader), fold: f.FoldCase}
@@ -73,6 +78,9 @@ func (f Facts) Env(k Kind) []string {
 	e.put("DRUPACK_RUNTIME_NAME=" + l.Name)
 	e.put("DRUPACK_RUNTIME_SITE_VERSION=" + l.Version)
 	e.put("DRUPACK_RUNTIME_COMPONENTS=" + l.Components)
+	// Composer's @php and Symfony's PhpExecutableFinder read PHP_BINARY before PHP's own
+	// constant, which names this executable, a command line that takes no PHP option.
+	e.put("PHP_BINARY=" + fsguard.Canonical(phpBinary(l)))
 	if l.Engine {
 		// The engine serves a folder named from the reader's directory. An application
 		// directory would make the entry point change into it.
@@ -83,10 +91,12 @@ func (f Facts) Env(k Kind) []string {
 		e.put("DRUPACK_RUNTIME_APP_DIR=" + fsguard.Canonical(l.Application))
 	}
 	if l.NodeBin != "" {
-		path, _ := e.get("PATH")
-		e.put("PATH=" + l.NodeBin + string(os.PathListSeparator) + path)
+		e.prependPath(l.NodeBin)
 	}
 	if k == Reader {
+		// A script's own php, such as a vendor/bin file's #!/usr/bin/env php under Composer,
+		// reaches this runtime through bin/.
+		e.prependPath(binDir(l.Application))
 		return e.entries
 	}
 	if f.SiteApp != "" {
@@ -119,8 +129,7 @@ func (f Facts) Env(k Kind) []string {
 	if f.Bin != "" {
 		// Drush's, Tome's and a request's child processes run the php on PATH, which bin/
 		// points back at this runtime.
-		path, _ := e.get("PATH")
-		e.put("PATH=" + filepath.Join(f.Bin, "bin") + string(os.PathListSeparator) + path)
+		e.prependPath(binDir(f.Bin))
 	}
 	if f.Script != "" {
 		e.put("DRUPACK_DRUSH_SCRIPT=" + fsguard.Canonical(f.Script))
@@ -171,6 +180,12 @@ func (e *environ) get(name string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// prependPath puts directory first on PATH.
+func (e *environ) prependPath(directory string) {
+	path, _ := e.get("PATH")
+	e.put("PATH=" + directory + string(os.PathListSeparator) + path)
 }
 
 func (e *environ) drop(name string) {

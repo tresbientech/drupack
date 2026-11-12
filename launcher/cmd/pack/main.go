@@ -152,7 +152,7 @@ func parseTarget(target string) (platform, arch, libc string, err error) {
 // entryName is the runtime's entry file: the Windows runtime starts from frankenphp.exe.
 func entryName(platform string) string {
 	if strings.HasPrefix(platform, "windows-") {
-		return "frankenphp.exe"
+		return payload.WindowsEntry
 	}
 	return "drupack"
 }

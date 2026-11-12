@@ -92,42 +92,139 @@ func printVersion() error {
 	return nil
 }
 
-const phpUsage = `Usage: %[1]s php SCRIPT [ARGUMENTS]
-       %[1]s php -r CODE`
+const phpUsage = `Usage: %[1]s php [-d KEY[=VALUE]]... SCRIPT [ARGUMENTS]
+       %[1]s php [-d KEY[=VALUE]]... -r CODE [ARGUMENTS]`
 
-// phpArguments refuses a line php-cli would misread: it reads no PHP option and
-// passes -r code no $argv. The arguments come from the reader or from Drush, so
-// any other form stops here, before PHP starts.
-func phpArguments(arguments []string) error {
-	var refusal string
+// phpArguments splits a php line into its -d settings, each KEY=VALUE, and the
+// line php-cli runs. php-cli reads no PHP option, so any other option stops
+// here, before PHP starts. The arguments come from the reader, Drush or Composer.
+func phpArguments(arguments []string) (settings, line []string, err error) {
+	for len(arguments) > 0 && strings.HasPrefix(arguments[0], "-d") {
+		setting := strings.TrimPrefix(arguments[0], "-d")
+		arguments = arguments[1:]
+		if setting == "" && len(arguments) > 0 {
+			setting, arguments = arguments[0], arguments[1:]
+		}
+		key, value, valued := strings.Cut(setting, "=")
+		if key == "" {
+			return nil, nil, phpRefusal("php -d takes KEY or KEY=VALUE.")
+		}
+		if !valued {
+			value = "1"
+		}
+		settings = append(settings, key+"="+value)
+	}
 	switch {
 	case len(arguments) == 0:
-		refusal = "php takes a script or -r CODE."
+		return nil, nil, phpRefusal("php takes a script or -r CODE.")
 	case arguments[0] == "-r" && len(arguments) == 1:
-		refusal = "php -r takes CODE."
-	case arguments[0] == "-r" && len(arguments) > 2:
-		refusal = fmt.Sprintf("php -r CODE takes no argument after CODE, and %s follows it.", arguments[2])
+		return nil, nil, phpRefusal("php -r takes CODE.")
 	case arguments[0] != "-r" && strings.HasPrefix(arguments[0], "-"):
-		refusal = fmt.Sprintf("php option %s is not supported.", arguments[0])
-	default:
+		return nil, nil, phpRefusal(fmt.Sprintf("php option %s is not supported.", arguments[0]))
+	}
+	return settings, arguments, nil
+}
+
+func phpRefusal(refusal string) error {
+	return fmt.Errorf("%s\n\n%s", refusal, fmt.Sprintf(phpUsage, siteName()))
+}
+
+// iniLine writes a -d setting as PHP's own command line does: a value whose
+// first byte is no ASCII letter, digit or quote is quoted, and nothing is escaped.
+func iniLine(setting string) string {
+	key, value, _ := strings.Cut(setting, "=")
+	if value == "" {
+		return setting + "\n"
+	}
+	switch first := value[0]; {
+	case 'a' <= first && first <= 'z', 'A' <= first && first <= 'Z', '0' <= first && first <= '9', first == '"', first == '\'':
+		return setting + "\n"
+	}
+	return key + `="` + value + "\"\n"
+}
+
+// scanSettings writes settings to an ini file in a new private directory, and
+// names it in PHP_INI_SCAN_DIR after the caller's own directories. An empty
+// variable makes PHP scan nothing, and an unset one the compiled-in directory,
+// which a leading separator keeps. DRUPACK_RUNTIME_INI_SCAN_DIR holds the
+// caller's value for restoreScanDir. It returns the directory to remove.
+func scanSettings(settings []string) (string, error) {
+	directory, err := os.MkdirTemp("", "drupack-php-ini-*")
+	if err != nil {
+		return "", err
+	}
+	var ini strings.Builder
+	for _, setting := range settings {
+		ini.WriteString(iniLine(setting))
+	}
+	if err := os.WriteFile(filepath.Join(directory, "settings.ini"), []byte(ini.String()), 0o600); err != nil {
+		return directory, err
+	}
+	separator := string(os.PathListSeparator)
+	scan, kept := separator+directory, "unset"
+	if original, set := os.LookupEnv(scanDir); set {
+		scan, kept = original+separator+directory, keptSet+original
+		if original == "" {
+			scan = directory
+		}
+	}
+	return directory, errors.Join(os.Setenv("DRUPACK_RUNTIME_INI_SCAN_DIR", kept), setScanDir(scan, true))
+}
+
+// scanDir is the variable PHP reads its extra ini directories from. keptSet
+// prefixes a caller's value in DRUPACK_RUNTIME_INI_SCAN_DIR, which holds "unset"
+// for a caller without one.
+const (
+	scanDir = "PHP_INI_SCAN_DIR"
+	keptSet = "set:"
+)
+
+// setScanDir sets or removes PHP_INI_SCAN_DIR in the C runtime's table, then in
+// the process environment. The C runtime's removal skips the process environment
+// when its own table lacks the name, and its table holds no empty value.
+func setScanDir(value string, set bool) error {
+	if !set {
+		return errors.Join(setCRTEnv(scanDir, ""), os.Unsetenv(scanDir))
+	}
+	return errors.Join(setCRTEnv(scanDir, value), os.Setenv(scanDir, value))
+}
+
+// restoreScanDir puts back the PHP_INI_SCAN_DIR a php -d run replaced, so this
+// process reads none of the settings its parent was given.
+func restoreScanDir() error {
+	kept := os.Getenv("DRUPACK_RUNTIME_INI_SCAN_DIR")
+	if kept == "" {
 		return nil
 	}
-	return fmt.Errorf("%s\n\n%s", refusal, fmt.Sprintf(phpUsage, siteName()))
+	original, set := strings.CutPrefix(kept, keptSet)
+	return errors.Join(os.Unsetenv("DRUPACK_RUNTIME_INI_SCAN_DIR"), setScanDir(original, set))
 }
 
 // php runs a script or -r CODE from the reader's directory, as FrankenPHP's own
 // php-cli command does, and exits with PHP's status.
 func php(arguments []string) error {
-	if err := phpArguments(arguments); err != nil {
+	settings, line, err := phpArguments(arguments)
+	if err != nil {
 		return err
 	}
 	if err := os.Chdir(origin); err != nil {
 		return err
 	}
+	var scan string
+	if len(settings) > 0 {
+		if scan, err = scanSettings(settings); err != nil {
+			return errors.Join(err, os.RemoveAll(scan))
+		}
+	}
 	// PHP's command line reads its first argument as the program's name.
-	line := append([]string{os.Args[0]}, arguments...)
+	line = append([]string{os.Args[0]}, line...)
 	logger := slog.New(zapslog.NewHandler(caddy.Log().Core(), zapslog.WithName("frankenphp")))
-	os.Exit(frankenphp.ExecuteScriptCLI(line[0], line, frankenphp.WithLogger(logger)))
+	status := frankenphp.ExecuteScriptCLI(line[0], line, frankenphp.WithLogger(logger))
+	// os.Exit skips deferred calls, so the directory goes first.
+	if err := os.RemoveAll(scan); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
+	os.Exit(status)
 	return nil
 }
 
@@ -378,6 +475,10 @@ func register(name, usage, short string, arguments cobra.PositionalArgs, handler
 }
 
 func init() {
+	// The server and php-cli start PHP too, so the restore comes before any command runs.
+	if err := restoreScanDir(); err != nil {
+		panic(err)
+	}
 	var err error
 	if executable, err = os.Executable(); err != nil {
 		panic(err)
@@ -404,7 +505,8 @@ func init() {
 	}
 	register("drupack-serve", "CADDYFILE [PROJECT_FILE...]", "Serves the site of a Caddyfile the launcher rendered",
 		cobra.RangeArgs(1, 3), serve)
-	register("php", "SCRIPT [ARGUMENTS] | -r CODE", "Runs a script or -r CODE on the bundled PHP, with no PHP option",
+	register("php", "[-d KEY[=VALUE]]... SCRIPT [ARGUMENTS] | [-d KEY[=VALUE]]... -r CODE [ARGUMENTS]",
+		"Runs a script or -r CODE on the bundled PHP, with -d settings and no other PHP option",
 		cobra.ArbitraryArgs, php)
 	register("drupack-version", "", "Prints the release and the release of each component",
 		cobra.NoArgs, func([]string) error { return printVersion() })

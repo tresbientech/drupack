@@ -14,7 +14,11 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 - The folder's own settings own the database, the files paths and the hash salt. Drupack writes nothing into the folder.
 - The engine serves on `127.0.0.1:3787`. It runs no cron and has no Site data. A cache entry keyed by the folder's path holds its [lease and stop channel](0006-one-server-per-site-data.md).
 - `drupack drush` runs the folder's Drush on the runtime's PHP. `drupack dr` runs Drupal core's `vendor/bin/dr`. A site executable names its Drush command `drush`.
-- `drupack php` takes `SCRIPT [ARGUMENTS]` or `-r CODE`. It refuses any other option by name before PHP starts.
+- `drupack php` takes `SCRIPT [ARGUMENTS]` or `-r CODE [ARGUMENTS]`, after any `-d KEY[=VALUE]`. It refuses any other option by name before PHP starts.
+- FrankenPHP's `php-cli` reads no PHP option before PHP 8.6. The runtime writes the `-d` settings to an ini file in a new temporary directory, which `PHP_INI_SCAN_DIR` adds to the caller's value for that run.
+- Each runtime start restores the caller's `PHP_INI_SCAN_DIR` first, so a PHP that Drupack runs reads none of its parent's `-d`, as PHP's own command line behaves.
+- Every child environment names the runtime's `php` in `PHP_BINARY`, which Composer's `@php` runs. `PHP_BINARY` is `bin/php`, and on Windows `php.exe` beside the runtime, because PHP's `is_executable` refuses a batch file.
+- A reader's `php` line, `drush`, `export` and the server also lead `PATH` with `bin/`, so a `vendor/bin` script's `#!/usr/bin/env php` runs the runtime's PHP.
 - Relative paths resolve against the reader's directory.
 
 ### composer.json settings

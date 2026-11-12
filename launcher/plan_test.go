@@ -119,17 +119,17 @@ func TestEnvReader(t *testing.T) {
 			lacks: []string{"DRUPACK_RUNTIME_APP_DIR"},
 		},
 		{
-			name: "a file without Node leaves PATH alone",
+			name: "a file without Node puts the application's bin first on PATH",
 			edit: func(l *Launch) { l.Parent = []string{"PATH=/bin"} },
-			want: map[string]string{"PATH": "/bin"},
+			want: map[string]string{"PATH": filepath.FromSlash("/cache/app/bin") + path + "/bin"},
 		},
 		{
-			name: "a file carrying Node puts it first on PATH",
+			name: "a file carrying Node puts it after the application's bin",
 			edit: func(l *Launch) {
 				l.NodeBin = "/node/bin"
 				l.Parent = []string{"PATH=/bin"}
 			},
-			want: map[string]string{"PATH": "/node/bin" + path + "/bin"},
+			want: map[string]string{"PATH": filepath.FromSlash("/cache/app/bin") + path + "/node/bin" + path + "/bin"},
 		},
 		{
 			name: "Windows finds PATH under any case",
@@ -138,7 +138,7 @@ func TestEnvReader(t *testing.T) {
 				l.NodeBin = "/node/bin"
 				l.Parent = []string{"Path=/bin", "phprc=/stale", "Drupack_CA_File=/proxy/bundle.pem"}
 			},
-			want:  map[string]string{"PATH": "/node/bin" + path + "/bin", "PHPRC": filepath.FromSlash("/runtime/dir"), "Drupack_CA_File": "/proxy/bundle.pem"},
+			want:  map[string]string{"PATH": filepath.FromSlash("/cache/app/bin") + path + "/node/bin" + path + "/bin", "PHPRC": filepath.FromSlash("/runtime/dir"), "Drupack_CA_File": "/proxy/bundle.pem"},
 			lacks: []string{"Path", "phprc", "DRUPACK_CA_FILE"},
 		},
 		{

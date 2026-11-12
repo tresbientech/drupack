@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"unsafe"
 
@@ -23,6 +24,12 @@ var nodeFiles = map[string]string{"node": "node.exe", "npm": "npm.cmd", "npx": "
 
 func nodeFile(word string) string {
 	return nodeFiles[word]
+}
+
+// phpBinary is php.exe beside the runtime, which runs the runtime's php word. PHP's
+// is_executable refuses a batch file, so Composer cannot run bin/php.cmd.
+func phpBinary(l Launch) string {
+	return filepath.Join(filepath.Dir(l.Entry), "php.exe")
 }
 
 // launch starts the command as a child, since Windows cannot replace a process image.

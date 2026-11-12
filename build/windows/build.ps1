@@ -154,6 +154,7 @@ Set-Content -Path (Join-Path $frankenphp 'app.tar') -Value $null -NoNewline
 Copy-Item (Join-Path $payload 'app_checksum.txt') (Join-Path $frankenphp 'app_checksum.txt')
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\entrypoint.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack.go')
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\watch\watch.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_watch.go')
+Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\crtenv_windows.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_crtenv_windows.go')
 
 # php.net publishes x64 builds alone, so a Windows on Arm host builds the amd64
 # runtime too, with its own clang.
@@ -206,6 +207,8 @@ $launcherSource = (Resolve-Path (Join-Path $PSScriptRoot '..\..\launcher')).Path
 $env:CGO_ENABLED = '0'
 Push-Location $launcherSource
 try {
+  # Composer runs PHP_BINARY, which names php.exe beside frankenphp.exe.
+  go build -o (Join-Path $runtime 'php.exe') ./cmd/php
   go run ./cmd/pack -target windows-amd64 -runtime $runtime -payload $payload -version $Version -output $outputPath
   if ($EnginePayloadDirectory) {
     go run ./cmd/pack -engine -target windows-amd64 -runtime $runtime -payload $enginePayload -version $Version -output $engineOutputPath

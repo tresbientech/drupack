@@ -19,5 +19,6 @@ docker run --rm --ulimit nofile=8192:8192 \
         cp /src/runtime/builder-inputs.sh /src/runtime/php-extension-libs.txt /src/runtime/extensions-list.sh /src/runtime/php-extensions.txt /build/
         cp /src/runtime/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
         cp /src/runtime/watch/watch.go /go/src/app/caddy/frankenphp/drupack_watch.go
+        cp /src/runtime/crtenv_other.go /go/src/app/caddy/frankenphp/drupack_crtenv_other.go
         cp /src/runtime/adapt_test.go /go/src/app/caddy/frankenphp/drupack_adapt_test.go
         bash /src/runtime/embed.sh test Adapt'

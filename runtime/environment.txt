@@ -15,6 +15,7 @@ COMPONENTS     writers=launcher/childenv.go  readers=runtime/entrypoint.go  kind
 DATA_DIR       writers=launcher/internal/build/build.go,launcher/childenv.go  readers=application/settings.php,build/site-settings.php  kinds=server,operate,drush,export  modes=site
 FILES_DIR      writers=launcher/childenv.go,launcher/internal/build/build.go  readers=application/operate.php,application/support/PublicFilesTemplateLoader.php,application/support/SiteDataPublicStream.php  kinds=server,operate,drush,export  modes=site
 HOST           writers=launcher/childenv.go,launcher/internal/build/build.go  readers=application/settings.php  kinds=server,operate,drush,export  modes=site
+INI_SCAN_DIR   writers=runtime/entrypoint.go  readers=runtime/entrypoint.go  kinds=  modes=
 NAME           writers=launcher/childenv.go,launcher/internal/build/build.go  readers=runtime/entrypoint.go,application/operate.php  kinds=reader,server,operate,drush,export  modes=site,engine
 OPEN           writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=server  modes=site,engine
 SITE_VERSION   writers=launcher/childenv.go  readers=runtime/entrypoint.go  kinds=reader,server,operate,drush,export  modes=site,engine

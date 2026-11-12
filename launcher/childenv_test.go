@@ -3,11 +3,13 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 )
 
 func TestEnvKinds(t *testing.T) {
@@ -64,6 +66,10 @@ func TestEnvKinds(t *testing.T) {
 		want  map[string]string
 		lacks []string
 	}{
+		{"a reader's line runs the php on PATH", Facts{Launch: launch}, Reader,
+			map[string]string{"PATH": filepath.FromSlash("/cache/app/bin") + separator + "/bin"}, []string{"DRUPACK_RUNTIME_DATA_DIR"}},
+		{"the engine's reader line runs the php on PATH", Facts{Launch: engine}, Reader,
+			map[string]string{"PATH": filepath.FromSlash("/cache/app/bin") + separator + "/bin"}, []string{"DRUPACK_RUNTIME_APP_DIR"}},
 		{"a site's check reads the typed inputs and no Site data", Facts{Launch: launch, Inputs: site.Inputs}, Operate,
 			map[string]string{"DRUPACK_ADMIN_PASSWORD": "typed", "DRUPACK_DATABASE": "mysql", "PATH": "/bin", "DRUPACK_RUNTIME_STATIC_ROOT": "/stale", "DRUPACK_RUNTIME_APP_DIR": "/cache/app"},
 			[]string{"DRUPACK_RUNTIME_DATA_DIR", "DRUSH_OPTIONS_URI", "DRUPACK_DRUSH_SCRIPT"}},
@@ -100,6 +106,34 @@ func TestEnvKinds(t *testing.T) {
 		for _, name := range row.lacks {
 			if value, set := got[name]; set {
 				t.Errorf("%s: %s = %q, want it unset", row.name, name, value)
+			}
+		}
+	}
+}
+
+func TestEnvPHPBinary(t *testing.T) {
+	launch := Launch{Entry: "/runtime/dir/frankenphp", Application: "/cache/app", FoldCase: foldCase,
+		Parent: []string{"Php_Binary=/usr/bin/php", "PHP_BINARY=/usr/bin/php"}}
+	want := "/cache/app/bin/php"
+	if runtime.GOOS == "windows" {
+		want = fsguard.Canonical(filepath.Join(filepath.Dir(launch.Entry), "php.exe"))
+	}
+	for _, engine := range []bool{false, true} {
+		launch.Engine = engine
+		for _, kind := range []Kind{Reader, Server, Operate, Drush, Export} {
+			var values []string
+			for _, entry := range (Facts{Launch: launch}).Env(kind) {
+				if name, value, _ := strings.Cut(entry, "="); strings.EqualFold(name, "PHP_BINARY") {
+					values = append(values, name+"="+value)
+				}
+			}
+			// Unix names are case-sensitive, so Php_Binary is another variable there.
+			expected := []string{"Php_Binary=/usr/bin/php", "PHP_BINARY=" + want}
+			if foldCase {
+				expected = expected[1:]
+			}
+			if !slices.Equal(values, expected) {
+				t.Errorf("engine %v, kind %d: %v, want %v", engine, kind, values, expected)
 			}
 		}
 	}

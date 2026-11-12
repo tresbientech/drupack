@@ -8,8 +8,8 @@ import "fmt"
 const siteHelp = `Usage: %[1]s [start] [OPTIONS]
        %[1]s drush [OPTIONS] DRUSH_COMMAND
        %[1]s export [OPTIONS] [DRUSH_OPTIONS]
-       %[1]s php SCRIPT [ARGUMENTS]
-       %[1]s php -r CODE
+       %[1]s php [-d KEY[=VALUE]]... SCRIPT [ARGUMENTS]
+       %[1]s php [-d KEY[=VALUE]]... -r CODE [ARGUMENTS]
        %[1]s node|npm|npx [ARGUMENTS]
        %[1]s stop [--data-dir PATH]
        %[1]s trust [--uninstall]
@@ -45,8 +45,8 @@ Commands:
   drush                      Run a Drush command against the site
   export                     Export the site with Tome into the static directory,
                              for a site with a static export
-  php                        Run a script or -r CODE on the bundled PHP, with no
-                             PHP option
+  php                        Run a script or -r CODE on the bundled PHP, with -d
+                             settings and no other PHP option
   stop                       Stop the site serving the Site data, for a site
                              another terminal started
   trust                      Install the local root that lets every Drupack site on
@@ -76,8 +76,8 @@ const engineUsage = `Usage: %[1]s [start] [DIR] [--listen IP:PORT] [--static-lis
        %[1]s drush DRUSH_COMMAND
        %[1]s dr DRUPAL_COMMAND
        %[1]s export [DRUSH_OPTIONS]
-       %[1]s php SCRIPT [ARGUMENTS]
-       %[1]s php -r CODE
+       %[1]s php [-d KEY[=VALUE]]... SCRIPT [ARGUMENTS]
+       %[1]s php [-d KEY[=VALUE]]... -r CODE [ARGUMENTS]
        %[1]s clean [--dry-run]
        %[1]s self-update [--check]
        %[1]s trust [--uninstall]
@@ -101,7 +101,8 @@ Commands:
   dr       Run Drupal core's command line of that project
   export   Export that project with Tome at the static URL its last start
            served, or at the --uri given
-  php      Run a script or -r CODE on the bundled PHP, with no PHP option
+  php      Run a script or -r CODE on the bundled PHP, with -d settings and no
+           other PHP option
   clean    Remove the unpacked engine files and stopped folders' state
            from the cache
   self-update  Install the newest release over this file, or --check for one

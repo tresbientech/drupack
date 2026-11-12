@@ -11,8 +11,8 @@ SITE stop [--data-dir PATH]
 SITE trust [--uninstall]
 SITE drush [OPTIONS] DRUSH_COMMAND
 SITE export [OPTIONS] [DRUSH_OPTIONS]
-SITE php SCRIPT [ARGUMENTS]
-SITE php -r CODE
+SITE php [-d KEY[=VALUE]]... SCRIPT [ARGUMENTS]
+SITE php [-d KEY[=VALUE]]... -r CODE [ARGUMENTS]
 SITE node|npm|npx [ARGUMENTS]
 SITE clean [--dry-run]
 SITE --help
@@ -237,10 +237,23 @@ works while the site serves, and needs an installed site.
 `php` runs the bundled PHP from the working directory, in one of two forms:
 
 - `SCRIPT [ARGUMENTS]` runs the script and exits with its status.
-- `-r CODE` runs the code, which gets no `$argv`.
+- `-r CODE [ARGUMENTS]` runs the code, with the arguments in `$argv`.
 
-Any other PHP option stops with a message naming it. Drush's and a request's
-child processes reach the same PHP as the `php` on their `PATH`.
+`-d KEY=VALUE` before either form sets a PHP setting for that run, as PHP's own
+`-d` does. `-d KEY` sets it to `1`. Any other PHP option stops with a message
+naming it.
+
+A `php` line, `drush`, `export` and the server find the same PHP as the `php`
+on their `PATH`, so a script's `#!/usr/bin/env php` runs it. `PHP_BINARY`
+names it for every process Drupack starts, and Composer runs its `@php`
+scripts with it. On Windows `PHP_BINARY` names `php.exe` beside the runtime.
+
+Two limits apply to `-d`:
+
+- `max_execution_time`, `output_buffering`, `html_errors`, `implicit_flush`
+  and `max_input_time` keep the values FrankenPHP sets.
+- A PHP outside Drupack, started while the script runs, reads its `-d`
+  settings. A PHP that Drupack runs reads none of them.
 
 A site that carries Bundled Node runs it as `node`, `npm` and `npx`, in the
 working directory. The server and `drush` find that Node first on `PATH`. A
@@ -398,8 +411,8 @@ drupack stop [DIR]
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
 drupack export [DRUSH_OPTIONS]
-drupack php SCRIPT [ARGUMENTS]
-drupack php -r CODE
+drupack php [-d KEY[=VALUE]]... SCRIPT [ARGUMENTS]
+drupack php [-d KEY[=VALUE]]... -r CODE [ARGUMENTS]
 drupack clean [--dry-run]
 drupack self-update [--check]
 drupack trust [--uninstall]

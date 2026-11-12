@@ -20,6 +20,9 @@ type Libc struct {
 	Suffix  string `json:"suffix"`
 }
 
+// WindowsEntry is the Windows runtime's entry file. php.exe runs the one beside it.
+const WindowsEntry = "frankenphp.exe"
+
 // Platforms maps each platform a build packs for to its GOARCH.
 var Platforms map[string]string
 
