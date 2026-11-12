@@ -201,6 +201,8 @@ jobs:
           git tag "$VERSION"
           # GitLab reads the project access token from the password and ignores the user name.
           authorization=$(printf 'upstream:%s' "$DRUPAL_ORG_TOKEN" | base64 -w0)
+          # The runner masks the secret and not a value built from it.
+          echo "::add-mask::$authorization"
           git -c "http.extraHeader=Authorization: Basic $authorization" \
             push --atomic --quiet "$DRUPAL_ORG_REMOTE" HEAD:refs/heads/main "refs/tags/$VERSION"
           git push --atomic --quiet "$GITHUB_REMOTE" HEAD:refs/heads/main "refs/tags/$VERSION"
