@@ -340,6 +340,20 @@ class ReleaseNode(unittest.TestCase):
     def test_an_older_tag_without_a_node_names_nothing(self):
         self.assertIsNone(self.module.unlisted(["1.0.0-alpha5", "1.0.0-alpha6"], ["1.0.0-alpha6"]))
 
+    def test_the_notes_start_at_the_release_before_the_tag(self):
+        tags = ["1.0.0-beta9", "1.0.0-beta10", "1.0.0-beta11", "0.9.0"]
+        self.assertEqual(self.module.previous(tags, "1.0.0-beta10"), "1.0.0-beta9")
+        self.assertEqual(self.module.previous(tags, "1.0.0-beta11"), "1.0.0-beta10")
+
+    def test_the_form_entry_names_the_release_types_the_notes_hold(self):
+        entry = self.module.form_entry("1.0.0", "<h4>Bug</h4>\n<ul></ul>\n<h4>Task</h4>\n")
+        self.assertIn("Release type: Bug fixes.", entry)
+        self.assertIn(self.module.FORM, entry)
+        self.assertIn("```html\n<h4>Bug</h4>", entry)
+
+    def test_notes_without_a_bug_or_a_feature_name_no_release_type(self):
+        self.assertIn("Release type: none.", self.module.form_entry("1.0.0", "<h4>Task</h4>\n"))
+
 
 if __name__ == "__main__":
     unittest.main()

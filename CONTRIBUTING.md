@@ -184,7 +184,7 @@ A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.0.0-al
 
 drupal.org's pipeline schedule dispatches the same workflow daily, and it tags a release when PHP, FrankenPHP or a Windows PECL extension moves inside its line. Each candidate also moves `build/demo-pin.sh` forward to the demo's latest release, and holds a commit set by hand until a release contains it. `python3 build/upstream.py` runs its bump in your checkout and prints the summary the workflow logs. The candidate commit carries that summary, and its GitHub run shows it on the run page. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed. After the tag, the workflow waits for the release run the tag starts. A failed run gets one rerun of its failed jobs, and the workflow fails if that rerun fails too.
 
-Each tag needs its drupal.org release node, created by hand. `.github/workflows/release-node.yml` runs each morning and fails while Packagist lists no `drupal/drupack` release for the highest tag.
+Each tag needs its drupal.org release node, created by hand, since drupal.org has no API for it. The `notes` job of the upstream run prints the form's link, the release type and the notes to paste in its summary. `drupalorg-cli` writes those notes from the commits that name an issue. `.github/workflows/release-node.yml` runs each morning and fails while Packagist lists no `drupal/drupack` release for the highest tag.
 
 ### Pushes to main
 

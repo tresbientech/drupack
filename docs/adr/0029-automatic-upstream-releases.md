@@ -38,8 +38,10 @@ PHP security release behind, and nothing had reported it.
 - A green candidate run replaces the local `qa-green` record for these tags.
 - A bump whose candidate failed is not built again unless the dispatch sets
   `force`. A failed run on its branch name records the failure.
-- The drupal.org release node stays a hand step. The run log names the tag it
-  needs.
+- The drupal.org release node stays a hand step, since drupal.org has no API
+  that creates one. The run's `notes` job prints the form's link, the release
+  type and the notes to paste. `drupalorg-cli`, pinned by version and SHA-256,
+  writes the notes from the commits that name an issue.
 
 ## Considered options
 

@@ -2,9 +2,9 @@ name: Release node
 
 # Goes red while Packagist lists no drupal/drupack release for the highest
 # version tag: that tag still waits for its drupal.org release node, which is
-# created by hand. drupal.org's daily pipeline schedule dispatches this workflow
-# with the day's upstream run, so a tag that run pushes is checked the next
-# morning.
+# created by hand from what the notes job of upstream.yml prints. drupal.org's
+# daily pipeline schedule dispatches this workflow with the day's upstream run,
+# so a tag that run pushes is checked the next morning.
 
 on:
   workflow_dispatch:

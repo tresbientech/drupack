@@ -205,7 +205,7 @@ jobs:
             push --atomic --quiet "$DRUPAL_ORG_REMOTE" HEAD:refs/heads/main "refs/tags/$VERSION"
           git push --atomic --quiet "$GITHUB_REMOTE" HEAD:refs/heads/main "refs/tags/$VERSION"
           printf 'version=%s\n' "$VERSION" >>"$GITHUB_OUTPUT"
-          echo "Tagged $VERSION on drupal.org. Create its release node, so Packagist lists drupal/drupack $VERSION."
+          echo "Tagged $VERSION on drupal.org. The notes job prints what its release form takes."
 
       - name: Delete the candidate branch
         if: always() && steps.candidate.outputs.version
@@ -228,3 +228,36 @@ jobs:
           VERSION: ${{ needs.upstream.outputs.version }}
           GITHUB_TOKEN: ${{ github.token }}
         run: bash build/wait-for-run.sh "event=push&branch=$VERSION"
+
+  # drupal.org has no API that creates a release, so a person fills its form.
+  # This job prints the form's link and the notes to paste in its summary.
+  notes:
+    needs: upstream
+    if: needs.upstream.outputs.version
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      DRUPALORG_CLI_VERSION: 0.15.1
+      DRUPALORG_CLI_SHA256: caba0fea522e2c66cd94d0b7312d90a711fe9733a920f2f237e4222705e81063
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download drupalorg-cli
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/drupalorg.phar" \
+            "https://github.com/mglaman/drupalorg-cli/releases/download/$DRUPALORG_CLI_VERSION/drupalorg.phar"
+          echo "$DRUPALORG_CLI_SHA256  $RUNNER_TEMP/drupalorg.phar" | sha256sum --check --quiet
+
+      - name: Write the release form's entry to the summary
+        env:
+          VERSION: ${{ needs.upstream.outputs.version }}
+        run: |
+          # drupalorg-cli reads the project name from the origin URL.
+          git remote set-url origin "$DRUPAL_ORG_REMOTE"
+          python3 build/release-node.py "$VERSION" "$RUNNER_TEMP/drupalorg.phar" >>"$GITHUB_STEP_SUMMARY"
