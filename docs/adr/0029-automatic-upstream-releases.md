@@ -19,17 +19,14 @@ PHP security release behind, and nothing had reported it.
   - FrankenPHP 1.x, with the commit its tag names
   - the Windows vcpkg commit, set to the `builtin-baseline` of FrankenPHP's
     `vcpkg.json`, with the vcpkg-tool release that baseline names
+  - each Windows PECL extension, at its newest stable release inside its major
   - Go, at the newest patch of the higher of two lines: its own and the `go`
     line of FrankenPHP's `caddy/go.mod`. `GO_VERSION` in `release.yml` holds
     it, and the bump copies it into each `go.mod` and the Dockerfile's image
   - golangci-lint and govulncheck, at the newest release of each one's major
     on proxy.golang.org
-  - Node 24 LTS, which the demo now pins exactly
-  - each exact Composer pin, within its major, at equal or better stability
 - A newer major is printed as `MAJOR` in the run log and never written.
-- `HOLDS` in `build/upstream.py` keeps a package at its pin. Each entry names
-  the breakage a newer release causes, and every run prints it beside the
-  newest version.
+- The run stops when no pin moves.
 - The bump goes on `main` HEAD, on the candidate branch `upstream/<fingerprint>`
   that GitHub alone holds. The fingerprint is the SHA-256 of the bump's diff.
 - The job dispatches `release.yml` on every platform through the GitHub API, to
@@ -103,12 +100,11 @@ Consequences:
 [ADR 0032](0032-drupacked-demo-own-repository.md) moved Drupacked Demo to its
 own repository, with its bumper.
 
-- The daily run here bumps PHP and FrankenPHP alone. The Node, Composer and
-  `HOLDS` bumps run in the demo repository.
+- The Node, Composer and `HOLDS` bumps run in the demo repository.
 - Each candidate moves `build/demo-pin.sh` forward to the commit of the demo's
   latest release. A demo release alone tags nothing, because the run stops
-  first when PHP and FrankenPHP stay put. The fingerprint covers the demo pin
-  since the 2026-10-15 amendment of ADR 0032.
+  first when no pin moves. The fingerprint covers the demo pin since the
+  2026-10-15 amendment of ADR 0032.
 
 ## Amendment, 2026-10-15
 
