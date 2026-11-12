@@ -26,21 +26,24 @@ const noFollow = 0
 // and shares reading and writing, so these opens do the same. A reparse point
 // at the lease opens as itself, and is refused.
 func lockFile(path string, access, disposition uint32) (windows.Handle, error) {
-	refused := leaseRefusal(path)
 	pointer, err := windows.UTF16PtrFromString(path)
 	if err != nil {
-		return 0, refused
+		return 0, leaseRefusal(path, err)
 	}
 	handle, err := windows.CreateFile(pointer, access,
 		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, nil, disposition,
 		windows.FILE_ATTRIBUTE_NORMAL|windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
 	if err != nil {
-		return 0, refused
+		return 0, leaseRefusal(path, err)
 	}
 	var info windows.ByHandleFileInformation
-	if err := windows.GetFileInformationByHandle(handle, &info); err != nil || info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+	err = windows.GetFileInformationByHandle(handle, &info)
+	if err == nil && info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+		err = errors.New("a link stands at the path")
+	}
+	if err != nil {
 		windows.CloseHandle(handle)
-		return 0, refused
+		return 0, leaseRefusal(path, err)
 	}
 	if err := windows.LockFileEx(handle, windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 0xFFFFFFFF, 0xFFFFFFFF, new(windows.Overlapped)); err != nil {
 		windows.CloseHandle(handle)
@@ -66,7 +69,8 @@ func (d Dir) Lease() (bool, error) {
 	case errors.Is(err, fs.ErrNotExist):
 		return false, nil
 	case err != nil:
-		return false, leaseRefusal(d.lease())
+		// os.Stat returns a *PathError, whose cause names no path.
+		return false, leaseRefusal(d.lease(), errors.Unwrap(err))
 	case !info.Mode().IsRegular():
 		return false, nil
 	}

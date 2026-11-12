@@ -27,7 +27,7 @@ const noFollow = syscall.O_NOFOLLOW
 func lockFile(path string, flags int) (file *os.File, err error) {
 	fd, err := syscall.Open(path, flags|noFollow, 0o600)
 	if err != nil {
-		return nil, leaseRefusal(path)
+		return nil, leaseRefusal(path, err)
 	}
 	if err := syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		syscall.Close(fd)
@@ -55,7 +55,8 @@ func (d Dir) Lease() (bool, error) {
 	case errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR):
 		return false, nil
 	case err != nil:
-		return false, leaseRefusal(d.lease())
+		// os.Stat returns a *PathError, whose cause names no path.
+		return false, leaseRefusal(d.lease(), errors.Unwrap(err))
 	case !info.Mode().IsRegular():
 		return false, nil
 	}

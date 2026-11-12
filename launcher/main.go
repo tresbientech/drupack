@@ -30,12 +30,23 @@ func main() {
 	args, named := takeConsole(os.Args)
 	os.Args = takeChild(args)
 	if err := run(named); err != nil {
-		if !errors.Is(err, errReported) {
+		code := 1
+		if child, ok := errors.AsType[exitError](err); ok {
+			code = int(child)
+		} else if !errors.Is(err, errReported) {
 			fmt.Fprintln(os.Stderr, err)
 		}
 		holdConsole()
-		os.Exit(1)
+		os.Exit(code)
 	}
+}
+
+// exitError is the code of a child that printed its own failure, which this
+// process exits with.
+type exitError int
+
+func (c exitError) Error() string {
+	return fmt.Sprintf("exit status %d", int(c))
 }
 
 func run(consoleNamed bool) error {

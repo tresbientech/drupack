@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
 // releaseURL answers with the release.json of the newest release GitHub marks latest.
@@ -165,6 +166,10 @@ func download(client *http.Client, chosen asset, staged *os.File) error {
 	if err != nil {
 		return downloadError(ctx, chosen, err)
 	}
+	// The rename that follows must not outlive the bytes on a power loss.
+	if err := staged.Sync(); err != nil {
+		return err
+	}
 	if err := staged.Close(); err != nil {
 		return err
 	}
@@ -237,20 +242,7 @@ func fetchRelease(client *http.Client, url string) (release, error) {
 // recordCheck writes newest to the update-check file through a rename, so a
 // start never reads half a version.
 func recordCheck(root, newest string) error {
-	staged, err := os.CreateTemp(root, updateCheckName+"-*")
-	if err != nil {
-		return err
-	}
-	if _, err := staged.WriteString(newest); err != nil {
-		staged.Close()
-		os.Remove(staged.Name())
-		return err
-	}
-	if err := staged.Close(); err != nil {
-		os.Remove(staged.Name())
-		return err
-	}
-	return os.Rename(staged.Name(), filepath.Join(root, updateCheckName))
+	return state.WriteFile(filepath.Join(root, updateCheckName), []byte(newest))
 }
 
 var glibcVersion = regexp.MustCompile(`^glibc (\d+)\.(\d+)`)

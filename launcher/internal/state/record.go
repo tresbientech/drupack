@@ -122,22 +122,42 @@ func (d Dir) WriteBundle(content []byte) error {
 // writeWhole replaces a file whole, so a reader sees the old content or the new.
 func (d Dir) writeWhole(name string, content []byte) error {
 	path := filepath.Join(d.path, name)
-	partial, err := os.CreateTemp(d.path, name+".")
-	if err != nil {
-		return fmt.Errorf("Cannot write %s", path)
-	}
-	_, err = partial.Write(content)
-	if closeErr := partial.Close(); err == nil {
-		err = closeErr
-	}
-	if err == nil {
-		err = replaceFile(partial.Name(), path)
-	}
-	if err != nil {
-		os.Remove(partial.Name())
-		return fmt.Errorf("Cannot write %s", path)
+	if err := WriteFile(path, content); err != nil {
+		return fmt.Errorf("Cannot write %s: %w", path, err)
 	}
 	return nil
+}
+
+// WriteFile replaces path whole with content, through an owner-only file
+// staged beside it.
+func WriteFile(path string, content []byte) error {
+	staged, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".")
+	if err != nil {
+		return err
+	}
+	if _, err := staged.Write(content); err != nil {
+		staged.Close()
+		os.Remove(staged.Name())
+		return err
+	}
+	return ReplaceFile(staged, path)
+}
+
+// ReplaceFile syncs and closes staged, then renames it over path. A reader
+// sees the old file or the whole new one, after a power loss too. A failure
+// removes staged.
+func ReplaceFile(staged *os.File, path string) error {
+	err := staged.Sync()
+	if closed := staged.Close(); err == nil {
+		err = closed
+	}
+	if err == nil {
+		err = replaceFile(staged.Name(), path)
+	}
+	if err != nil {
+		os.Remove(staged.Name())
+	}
+	return err
 }
 
 // WriteCaddyfile replaces the start's rendered Caddyfile and returns its path.
@@ -172,12 +192,12 @@ func (d Dir) CreateMercureSecrets() (publisher, subscriber string, err error) {
 				err = closeErr
 			}
 			if err != nil {
-				return "", "", fmt.Errorf("Cannot write the Mercure secret: %s", path)
+				return "", "", fmt.Errorf("Cannot write the Mercure secret: %s: %w", path, err)
 			}
 		}
 		file, err = OpenFile(path, os.O_RDONLY, 0)
 		if err != nil {
-			return "", "", fmt.Errorf("Cannot create the Mercure secret: %s", path)
+			return "", "", fmt.Errorf("Cannot create the Mercure secret: %s: %w", path, err)
 		}
 		content, err := io.ReadAll(file)
 		file.Close()

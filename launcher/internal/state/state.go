@@ -73,9 +73,10 @@ func OpenFile(path string, flag int, perm os.FileMode) (*os.File, error) {
 	return os.OpenFile(path, flag|noFollow, perm)
 }
 
-// leaseRefusal is the error for a lease this process cannot open.
-func leaseRefusal(path string) error {
-	return fmt.Errorf("Cannot open the serving lease: %s", filepath.ToSlash(path))
+// leaseRefusal is the error for a lease this process cannot open. cause names
+// no path.
+func leaseRefusal(path string, cause error) error {
+	return fmt.Errorf("Cannot open the serving lease: %s: %w", filepath.ToSlash(path), cause)
 }
 
 // Channel is the stop channel a running server's stop record names.

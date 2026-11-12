@@ -20,7 +20,7 @@ func TestLeaseNobodyCanOpenIsAnError(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := state.At(dir).Lease()
-	if err == nil || err.Error() != "Cannot open the serving lease: "+lease {
+	if err == nil || err.Error() != "Cannot open the serving lease: "+lease+": permission denied" {
 		t.Errorf("Lease() = %v", err)
 	}
 }
@@ -39,7 +39,7 @@ func TestLeaseNobodyCanStatIsAnError(t *testing.T) {
 	}
 	t.Cleanup(func() { os.Chmod(dir, 0o700) })
 	_, err := state.At(dir).Lease()
-	if err == nil || err.Error() != "Cannot open the serving lease: "+filepath.Join(dir, state.LeaseName) {
+	if err == nil || err.Error() != "Cannot open the serving lease: "+filepath.Join(dir, state.LeaseName)+": permission denied" {
 		t.Errorf("Lease() = %v", err)
 	}
 }

@@ -124,7 +124,7 @@ func detachStart(l Launch, log, stop string) error {
 		}
 	}
 	if code != 0 {
-		os.Exit(code)
+		return exitError(code)
 	}
 	return nil
 }

@@ -25,6 +25,7 @@ import (
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
 // releaseKeys holds the gpg-only-active-keys keyring of
@@ -254,19 +255,17 @@ func download(url, path, want string) error {
 		return err
 	}
 	hash := sha256.New()
-	_, err = io.Copy(io.MultiWriter(file, hash), response.Body)
-	if closeErr := file.Close(); err == nil {
-		err = closeErr
-	}
-	if err != nil {
+	if _, err := io.Copy(io.MultiWriter(file, hash), response.Body); err != nil {
+		file.Close()
 		os.Remove(partial)
 		return fmt.Errorf("%s: %w", url, err)
 	}
 	if got := hex.EncodeToString(hash.Sum(nil)); got != want {
+		file.Close()
 		os.Remove(partial)
 		return fmt.Errorf("%s has SHA-256 %s, and the signed SHASUMS256.txt names %s", url, got, want)
 	}
-	return os.Rename(partial, path)
+	return state.ReplaceFile(file, path)
 }
 
 func fetch(url string) ([]byte, error) {

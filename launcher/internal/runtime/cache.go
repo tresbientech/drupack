@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
 const rootMode = 0o700
@@ -340,9 +342,5 @@ func verifyChecksums(directory string, m Manifest) error {
 }
 
 func writeActive(root, key string) error {
-	pending := filepath.Join(root, fmt.Sprintf("%s.pending.%d", activeName, os.Getpid()))
-	if err := os.WriteFile(pending, []byte(key+"\n"), 0o600); err != nil {
-		return err
-	}
-	return os.Rename(pending, filepath.Join(root, activeName))
+	return state.WriteFile(filepath.Join(root, activeName), []byte(key+"\n"))
 }

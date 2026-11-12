@@ -35,12 +35,8 @@ func launch(c Command) error {
 	// for it, so its handle holds the lease until the server exits.
 	signal.Notify(make(chan os.Signal, 1), os.Interrupt)
 	err := command.Run()
-	if err == nil {
-		os.Exit(0)
-	}
-	if exitError, ok := errors.AsType[*exec.ExitError](err); ok {
-		holdConsole()
-		os.Exit(exitError.ExitCode())
+	if child, ok := errors.AsType[*exec.ExitError](err); ok {
+		return exitError(child.ExitCode())
 	}
 	return err
 }

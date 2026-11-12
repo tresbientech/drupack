@@ -143,7 +143,7 @@ func layTranslations(application, directory string) error {
 			return err
 		}
 		if err := os.WriteFile(destination, content, 0o666); err != nil { //nolint:gosec // G306: a translation file holds no secret, and the umask sets its mode.
-			return fmt.Errorf("Cannot install translation resource: %s", runtime.Canonical(destination))
+			return fmt.Errorf("Cannot install translation resource: %s: %w", runtime.Canonical(destination), err)
 		}
 	}
 	return nil

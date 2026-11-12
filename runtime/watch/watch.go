@@ -111,6 +111,9 @@ func writeOwnerOnly(path string, content []byte) error {
 		return err
 	}
 	_, err = staging.Write(content)
+	if err == nil {
+		err = staging.Sync()
+	}
 	if closed := staging.Close(); err == nil {
 		err = closed
 	}

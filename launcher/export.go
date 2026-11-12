@@ -112,7 +112,7 @@ func (x exportCall) requireTomeStatic() error {
 	probe := &exec.Cmd{Path: x.probe.Path, Args: x.probe.Args, Env: x.probe.Env, Stdout: &answer}
 	if err := probe.Run(); err != nil {
 		if _, ok := errors.AsType[*exec.ExitError](err); !ok {
-			return errors.New("Cannot run Drush")
+			return fmt.Errorf("Cannot run Drush: %w", err)
 		}
 	}
 	if strings.TrimSpace(answer.String()) == "0" {

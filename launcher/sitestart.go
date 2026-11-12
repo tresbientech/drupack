@@ -320,7 +320,7 @@ func mint(l Launch, env []string, url, drush, directory string, path ...string) 
 	command.Stdout, command.Stderr = &out, &reason
 	if err := command.Run(); err != nil {
 		if _, ok := errors.AsType[*exec.ExitError](err); !ok {
-			return "", "", errors.New("Cannot run Drush")
+			return "", "", fmt.Errorf("Cannot run Drush: %w", err)
 		}
 	}
 	if link = strings.TrimSpace(out.String()); !strings.HasPrefix(link, strings.TrimSuffix(url, "/")+"/") {
