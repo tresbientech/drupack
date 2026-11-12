@@ -89,8 +89,8 @@ func TestSiteStartRefusesBraces(t *testing.T) {
 		{"a --files-dir link", []string{"--files-dir", "linked"}, "--files-dir must not contain { or }: " + braced},
 	} {
 		c := parseLine(t, false, append([]string{"--foreground", "--host", "localhost"}, row.words...)...)
-		if err := startSite(l, c); err == nil || err.Error() != row.want {
-			t.Errorf("%s: startSite = %v, want %q", row.name, err, row.want)
+		if err := start(l, c); err == nil || err.Error() != row.want {
+			t.Errorf("%s: start = %v, want %q", row.name, err, row.want)
 		}
 	}
 	// A refused start writes no Site data.
@@ -98,8 +98,8 @@ func TestSiteStartRefusesBraces(t *testing.T) {
 	fresh := filepath.Join(realDir(t), "data")
 	for _, words := range [][]string{{"--data-dir", absent}, {"--data-dir", fresh, "--files-dir", braced}} {
 		c := parseLine(t, false, append([]string{"--foreground", "--host", "localhost"}, words...)...)
-		if err := startSite(l, c); err == nil {
-			t.Errorf("%q: startSite accepted the brace", words)
+		if err := start(l, c); err == nil {
+			t.Errorf("%q: start accepted the brace", words)
 		}
 		if _, err := os.Stat(words[1]); !os.IsNotExist(err) {
 			t.Errorf("%q: the refused start created %s: %v", words, words[1], err)

@@ -115,84 +115,95 @@ func operate(l Launch, env []string, record any, stream bool, arguments ...strin
 	return json.Unmarshal(out.Bytes(), record)
 }
 
-// startEngine plans and runs the engine's start. It refuses what a reader's
-// command line, project or machine gets wrong before it claims the lease.
-// Without --foreground, and with no console of its own, it first detaches into
-// a child that does all of it.
-func startEngine(l Launch, c command) error {
+// startMode is what the engine's start and a Packaged site's start do
+// differently. start calls each method once, in this order.
+type startMode interface {
+	// detach returns the server log a background start writes, and the words
+	// its stop command names the target with.
+	detach() (log, stopTarget string, err error)
+	// check refuses what the reader's line, project or machine gets wrong. It
+	// creates nothing.
+	check() (checked, error)
+	// stage resolves the folders the start serves and keeps its state in.
+	stage(plan startPlan) (staged, error)
+	// held answers a start whose lease another server holds.
+	held(plan startPlan) error
+	// prepare runs under the lease, once the Listener record is written, and
+	// prints its progress.
+	prepare(plan startPlan, choice tls.Choice, accessLog, errorLog string, proxies []string) (ready, error)
+}
+
+type checked struct {
+	// listen is --listen as the refusals name it.
+	listen string
+	bind   string
+	port   int
+	// alias is the drupack.site label, and fallback the host of a name that
+	// does not resolve.
+	alias, fallback string
+	// static reports whether the project sets a static listener, and noun
+	// names the project in the static refusal.
+	static bool
+	noun   string
+}
+
+type staged struct {
+	dir state.Dir
+	// logDir holds the default access and error logs. answered are the
+	// directories a port serves.
+	logDir   string
+	answered []string
+	// recordedFiles is the files directory a start named, "" for Site data's own.
+	recordedFiles string
+}
+
+type ready struct {
+	facts  Facts
+	config caddyfile.Config
+	// summary is the addresses and paths start prints before it becomes the server.
+	summary string
+	// rules, argv0 and cwd are execServer's.
+	rules, argv0, cwd string
+}
+
+// start plans and runs a start. It refuses what a reader's command line,
+// project or machine gets wrong before it claims the lease, and a served
+// folder or a taken port before it writes the Listener record. Without
+// --foreground, and with no console of its own, it first detaches into a child
+// that does all of it.
+func start(l Launch, c command) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	var mode startMode = &packagedStart{Launch: l, Inputs: startInputs(c.options), c: c, cwd: cwd}
+	if l.Engine {
+		mode = &engineStart{Launch: l, c: c}
+	}
 	if !c.options.Foreground && !l.ConsoleOwned {
-		project, err := projectFolder(l.Name, cmp.Or(c.target, defaultFolder))
+		log, target, err := mode.detach()
 		if err != nil {
 			return err
 		}
-		cwd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		target := ""
-		if c.target != "" {
-			target = " " + shellWord(c.target, goruntime.GOOS == "windows")
-		}
-		log := runtime.Canonical(state.FolderEntry(l.Root, project, l.FoldCase).Path()) + "/server.log"
 		return detachStart(l, log, stopCommand(l.Args[0], cwd, target, goruntime.GOOS == "windows"))
 	}
-	engine := engineTarget()
-	bind, port, err := engine.Listen(c.options.Listen)
+	checked, err := mode.check()
 	if err != nil {
 		return err
 	}
-	project, err := projectFolder(l.Name, cmp.Or(c.target, defaultFolder))
+	choice, err := tls.Choose(l.TLSDir, checked.bind, checked.alias, checked.fallback, c.options.Host)
 	if err != nil {
 		return err
 	}
-	composer, err := siteconfig.ReadComposer(project, siteconfig.Folder)
+	plan, err := planStart(checked.bind, checked.port, c.options.StaticListen, checked.static, checked.noun, choice.Host, choice.Scheme())
 	if err != nil {
 		return err
 	}
-	if err := siteconfig.CheckStatic(project, composer); err != nil {
-		return err
-	}
-	docroot, err := drupalDocroot(l.Name, project, composer.Docroot)
+	staged, err := mode.stage(plan)
 	if err != nil {
 		return err
 	}
-	// The engine has no --data-dir or --files-dir, so these are the paths of its
-	// Caddyfile that a reader chooses.
-	if err := caddyfile.RefuseBraces("The project folder", project); err != nil {
-		return err
-	}
-	if err := caddyfile.RefuseBraces("The docroot", docroot); err != nil {
-		return err
-	}
-	f := Facts{Launch: l}
-	var probe struct {
-		// Installed is nil when the probe cannot tell, such as for a database it cannot reach.
-		Installed *bool `json:"installed"`
-	}
-	if err := operate(l, f.Env(Operate), &probe, false, "check", "folder", project, docroot); err != nil {
-		return err
-	}
-	choice, err := tls.Choose(l.TLSDir, bind, cmp.Or(composer.Subdomain, path.Base(project)), bind, "")
-	if err != nil {
-		return err
-	}
-	plan, err := planStart(bind, port, c.options.StaticListen, composer.Static != nil, "project", choice.Host, choice.Scheme())
-	if err != nil {
-		return err
-	}
-	entry := state.FolderEntry(l.Root, project, l.FoldCase)
-	staticRoot := ""
-	if plan.Static != nil {
-		if staticRoot, err = engineStaticRoot(l, f.Env(Operate), project, docroot, entry.Path()); err != nil {
-			return err
-		}
-	}
-	entryPath := runtime.Canonical(entry.Path())
-	served := []string{docroot}
-	if staticRoot != "" {
-		served = append(served, staticRoot)
-	}
-	accessLog, errorLog, err := logFiles(c.options, entryPath, served, l.FoldCase)
+	accessLog, errorLog, err := logFiles(c.options, staged.logDir, staged.answered, l.FoldCase)
 	if err != nil {
 		return err
 	}
@@ -200,71 +211,189 @@ func startEngine(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(entry.Path(), 0o700); err != nil {
+	if err := os.MkdirAll(staged.dir.Path(), 0o700); err != nil {
 		return err
 	}
-	lease, err := entry.Claim()
+	// The claim and both probes run before the Listener record and every install
+	// step, so a served site or a taken port reaches the reader as a sentence, not
+	// a bind error or a corrupted database.
+	lease, err := staged.dir.Claim()
 	if err != nil {
 		return err
 	}
 	if lease == nil {
-		return fmt.Errorf("%s already serves %s", l.Name, project)
+		return mode.held(plan)
+	}
+	if err := portRefusal(l.Name, checked.listen, plan, portTaken); err != nil {
+		return err
 	}
 	if err := takeLog(l.Child); err != nil {
 		return err
 	}
-	if err := entry.ClearStopRecord(); err != nil {
+	if err := staged.dir.ClearStopRecord(); err != nil {
 		return err
 	}
-	if f.CAFile, err = storeBundle(f, entry, choice); err != nil {
+	// The start's --listen chooses the ports, so drush and export read the addresses back from here.
+	listener := plan.record()
+	listener.FilesDir = staged.recordedFiles
+	if err := staged.dir.WriteListener(listener); err != nil {
 		return err
 	}
-	url := strings.TrimSuffix(plan.URL, "/")
-	link, install, err := entrance(l, f.Env(Drush), project, probe.Installed, url)
+	ready, err := mode.prepare(plan, choice, accessLog, errorLog, proxies)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stdout, "  URL:     %s\n", url)
-	if link != "" {
-		fmt.Fprintf(os.Stdout, "  Login:   %s\n", link)
+	fmt.Print(ready.summary)
+	return execServer(ready.facts, staged.dir, lease, ready.config, choice, plan, ready.rules, ready.argv0, ready.cwd)
+}
+
+// portRefusal names the listener of plan that another program holds, and the
+// line that starts on the port after it. listen is --listen as the reader
+// reads it, and taken reports whether anything holds an address.
+func portRefusal(name, listen string, plan startPlan, taken func(bind string, port int) bool) error {
+	if taken(plan.Bind, plan.Port) {
+		return fmt.Errorf("Another program is listening on %s. Stop it, or start on a free port: %s --listen %s:%d", listen, name, plan.Bind, plan.Port+1)
 	}
-	if install != "" {
-		fmt.Fprintf(os.Stdout, "  Install: %s\n", install)
+	if static := plan.Static; static != nil && taken(static.Bind, static.Port) {
+		return fmt.Errorf("Another program is listening on %s. Stop it, or move the static listener to a free port: %s --static-listen %s:%d", plan.record().StaticListen, name, urlHost(static.Bind), static.Port+1)
 	}
+	return nil
+}
+
+// engineStart is the engine's start of a project folder.
+type engineStart struct {
+	Facts
+	c                command
+	project, docroot string
+	composer         siteconfig.Composer
+	// installed is nil when the probe cannot tell, such as for a database it cannot reach.
+	installed *bool
+	entry     state.Dir
+	// staticRoot is "" for a project without a static listener.
+	staticRoot string
+}
+
+func (e *engineStart) detach() (log, stopTarget string, err error) {
+	l := e.Launch
+	project, err := projectFolder(l.Name, cmp.Or(e.c.target, defaultFolder))
+	if err != nil {
+		return "", "", err
+	}
+	if e.c.target != "" {
+		stopTarget = " " + shellWord(e.c.target, goruntime.GOOS == "windows")
+	}
+	return runtime.Canonical(state.FolderEntry(l.Root, project, l.FoldCase).Path()) + "/server.log", stopTarget, nil
+}
+
+func (e *engineStart) check() (checked, error) {
+	l := e.Launch
+	var err error
+	if e.project, err = projectFolder(l.Name, cmp.Or(e.c.target, defaultFolder)); err != nil {
+		return checked{}, err
+	}
+	if e.composer, err = siteconfig.ReadComposer(e.project, siteconfig.Folder); err != nil {
+		return checked{}, err
+	}
+	if err := siteconfig.CheckStatic(e.project, e.composer); err != nil {
+		return checked{}, err
+	}
+	if e.docroot, err = drupalDocroot(l.Name, e.project, e.composer.Docroot); err != nil {
+		return checked{}, err
+	}
+	// The engine has no --data-dir or --files-dir, so these are the paths of its
+	// Caddyfile that a reader chooses.
+	if err := caddyfile.RefuseBraces("The project folder", e.project); err != nil {
+		return checked{}, err
+	}
+	if err := caddyfile.RefuseBraces("The docroot", e.docroot); err != nil {
+		return checked{}, err
+	}
+	var probe struct {
+		Installed *bool `json:"installed"`
+	}
+	if err := operate(l, e.Env(Operate), &probe, false, "check", "folder", e.project, e.docroot); err != nil {
+		return checked{}, err
+	}
+	e.installed = probe.Installed
+	listen := e.c.options.Listen
+	bind, port, err := engineTarget().Listen(listen)
+	if err != nil {
+		return checked{}, err
+	}
+	return checked{
+		listen: listen, bind: bind, port: port,
+		alias: cmp.Or(e.composer.Subdomain, path.Base(e.project)), fallback: bind,
+		static: e.composer.Static != nil, noun: "project",
+	}, nil
+}
+
+func (e *engineStart) stage(plan startPlan) (staged, error) {
+	l := e.Launch
+	e.entry = state.FolderEntry(l.Root, e.project, l.FoldCase)
+	answered := []string{e.docroot}
 	if plan.Static != nil {
-		fmt.Fprintf(os.Stdout, "  Static:  %s\n", plan.Static.URL)
+		var err error
+		if e.staticRoot, err = engineStaticRoot(l, e.Env(Operate), e.project, e.docroot, e.entry.Path()); err != nil {
+			return staged{}, err
+		}
+		answered = append(answered, e.staticRoot)
 	}
-	fmt.Fprintf(os.Stdout, "  Project: %s\n", project)
-	if accessLog != "" {
-		fmt.Fprintf(os.Stdout, "  Access:  %s\n", accessLog)
+	return staged{dir: e.entry, logDir: runtime.Canonical(e.entry.Path()), answered: answered}, nil
+}
+
+func (e *engineStart) held(startPlan) error {
+	return fmt.Errorf("%s already serves %s", e.Launch.Name, e.project)
+}
+
+func (e *engineStart) prepare(plan startPlan, choice tls.Choice, accessLog, errorLog string, proxies []string) (ready, error) {
+	l := e.Launch
+	entryPath := runtime.Canonical(e.entry.Path())
+	var err error
+	if e.CAFile, err = storeBundle(e.Facts, e.entry, choice); err != nil {
+		return ready{}, err
 	}
-	if errorLog != "" {
-		fmt.Fprintf(os.Stdout, "  Errors:  %s\n", errorLog)
+	url := strings.TrimSuffix(plan.URL, "/")
+	link, install, err := entrance(l, e.Env(Drush), e.project, e.installed, url)
+	if err != nil {
+		return ready{}, err
+	}
+	if e.composer.Mercure {
+		if e.Hub, err = serveHub(e.entry, plan, entryPath+"/mercure.db"); err != nil {
+			return ready{}, err
+		}
 	}
 	// A background server outlives its terminal, so its Caddy log goes to a file that rolls.
 	caddyLog := ""
 	if l.Child != nil {
 		caddyLog = entryPath + "/caddy.log"
-		fmt.Fprintf(os.Stdout, "  Log:     %s\n", caddyLog)
 	}
-	fmt.Fprint(os.Stdout, nameHint(choice), trustHint(l, choice))
-	fmt.Fprintln(os.Stdout, "Starting the web server.")
-	if composer.Mercure {
-		if f.Hub, err = serveHub(entry, plan, entryPath+"/mercure.db"); err != nil {
-			return err
+	static := ""
+	if plan.Static != nil {
+		static = plan.Static.URL
+	}
+	var summary strings.Builder
+	for _, line := range [][2]string{
+		{"URL:    ", url},
+		{"Login:  ", link},
+		{"Install:", install},
+		{"Static: ", static},
+		{"Project:", e.project},
+		{"Access: ", accessLog},
+		{"Errors: ", errorLog},
+		{"Log:    ", caddyLog},
+	} {
+		if line[1] != "" {
+			fmt.Fprintf(&summary, "  %s %s\n", line[0], line[1])
 		}
 	}
-	// The start's --listen chooses the ports, so drush and export read the addresses back from here.
-	if err := entry.WriteListener(plan.record()); err != nil {
-		return err
-	}
-	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: docroot, Mercure: f.Hub, LogPath: caddyLog, AccessLog: accessLog, ErrorLog: errorLog, TrustedProxies: proxies}
+	summary.WriteString(nameHint(choice) + trustHint(l, choice) + "Starting the web server.\n")
+	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: e.docroot, Mercure: e.Hub, LogPath: caddyLog, AccessLog: accessLog, ErrorLog: errorLog, TrustedProxies: proxies}
 	if plan.Static != nil {
 		// The server creates no export directory.
-		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: staticRoot, Dynamic: composer.Static.Dynamic}
+		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: e.staticRoot, Dynamic: e.composer.Static.Dynamic}
 	}
-	f.Bin = l.Application
-	return execServer(f, entry, lease, config, choice, plan, project, l.Args[0], project)
+	e.Bin = l.Application
+	return ready{facts: e.Facts, config: config, summary: summary.String(), rules: e.project, argv0: l.Args[0], cwd: e.project}, nil
 }
 
 // engineStaticRoot returns the directory Tome exports into: the project's tome_static_directory,

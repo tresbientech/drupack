@@ -137,10 +137,8 @@ func run(args []string, child *detachedChild, consoleNamed bool) error {
 		return nil
 	case c.word == "node" && l.NodeBin == "":
 		return nodeRefusal(l, args[1])
-	case c.word == "start" && l.Engine:
-		return startEngine(l, c)
 	case c.word == "start":
-		return startSite(l, c)
+		return start(l, c)
 	case c.word == "drush", c.word == "export", l.Engine && c.word == "dr":
 		return runInFolder(l, c)
 	}

@@ -29,8 +29,8 @@ refusal.
 - `Address` is the merged record plus the parsed bind and port. `Recorded` is
   false when no start has recorded a listener.
 - `Site.Listen` parses the listen text it is given and applies no default.
-  `Site.Engine` picks the engine's parser, which takes a hostname. `Served`,
-  `startSite` and `startEngine` call it.
+  `Site.Engine` picks the engine's parser, which takes a hostname. `Served`
+  and the check of each start call it.
 - A reader that needs the static listener calls `Address.Plan`. The others never
   plan it, so a hostname listen refuses for those readers alone.
 - One constant, `unresolvedHost`, is the host of a site whose name does not resolve.
@@ -39,4 +39,4 @@ refusal.
 
 - A change to the precedence or the record's fields touches `Served` alone.
 - Every refusal keeps its text. `TestServed` and `TestSiteListen` hold the rows.
-- `Served` checks `--host` after it parses the listen address. `startSite` checks it too.
+- `Served` checks `--host` after it parses the listen address. A site's start checks it too.

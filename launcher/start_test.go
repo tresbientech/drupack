@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -189,5 +190,28 @@ func TestDrupalDocroot(t *testing.T) {
 	write("core/lib/Drupal.php")
 	if got, err := drupalDocroot("fixture-site", project, "."); err != nil || got != project {
 		t.Errorf("drupalDocroot(.) = %q, %v", got, err)
+	}
+}
+
+// The fake stands in for the connect, so no row needs a listening port.
+func TestPortRefusal(t *testing.T) {
+	static := startPlan{Bind: "0.0.0.0", Port: 8080, Static: &staticPlan{Bind: "0.0.0.0", Port: 8081}}
+	for _, row := range []struct {
+		name, listen string
+		plan         startPlan
+		taken        []int
+		want         string
+	}{
+		{"free ports", "127.0.0.1:8080", startPlan{Bind: "127.0.0.1", Port: 8080}, nil, ""},
+		{"a taken site port", "127.0.0.1:8080", startPlan{Bind: "127.0.0.1", Port: 8080}, []int{8080}, "Another program is listening on 127.0.0.1:8080. Stop it, or start on a free port: demo --listen 127.0.0.1:8081"},
+		{"the engine's hostname", "localhost:8080", startPlan{Bind: "localhost", Port: 8080}, []int{8080}, "Another program is listening on localhost:8080. Stop it, or start on a free port: demo --listen localhost:8081"},
+		{"a taken static port", "0.0.0.0:8080", static, []int{8081}, "Another program is listening on 0.0.0.0:8081. Stop it, or move the static listener to a free port: demo --static-listen 0.0.0.0:8082"},
+		{"both taken names the site port", "0.0.0.0:8080", static, []int{8080, 8081}, "Another program is listening on 0.0.0.0:8080. Stop it, or start on a free port: demo --listen 0.0.0.0:8081"},
+		{"a static port nobody probes without a static listener", "127.0.0.1:8080", startPlan{Bind: "127.0.0.1", Port: 8080}, []int{8081}, ""},
+	} {
+		err := portRefusal("demo", row.listen, row.plan, func(_ string, port int) bool { return slices.Contains(row.taken, port) })
+		if got := fmt.Sprint(err); row.want == "" && err != nil || row.want != "" && got != row.want {
+			t.Errorf("%s: portRefusal = %v, want %q", row.name, err, row.want)
+		}
 	}
 }

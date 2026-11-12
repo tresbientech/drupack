@@ -45,11 +45,13 @@ func TestServedRefusesWhenNobodyWatches(t *testing.T) {
 	}
 	f := newSite(t, siteconfig.Site{Port: 7225})
 	f.record(t, `{"listen":"127.0.0.1:9000","host":"localhost","scheme":"https"}`)
-	s := packagedStart{Facts: Facts{Launch: f.launch(), Data: f.data}, plan: startPlan{Bind: "127.0.0.1", Port: 7225, Host: "localhost"}}
-	if err, want := s.served(false), "Another fixture-site start is preparing this Site data: "+f.data; err == nil || err.Error() != want {
+	s := packagedStart{Facts: Facts{Launch: f.launch(), Data: f.data}}
+	plan := startPlan{Bind: "127.0.0.1", Port: 7225, Host: "localhost"}
+	if err, want := s.held(plan), "Another fixture-site start is preparing this Site data: "+f.data; err == nil || err.Error() != want {
 		t.Errorf("a holder still preparing: %v, want %q", err, want)
 	}
-	if err, want := s.served(true), "fixture-site already serves this Site data at https://localhost:9000/: "+f.data; err == nil || err.Error() != want {
+	s.installed = true
+	if err, want := s.held(plan), "fixture-site already serves this Site data at https://localhost:9000/: "+f.data; err == nil || err.Error() != want {
 		t.Errorf("a served site: %v, want %q", err, want)
 	}
 }
