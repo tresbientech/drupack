@@ -20,7 +20,7 @@ import (
 )
 
 type plan struct {
-	open       string   // the login link to open once ready, "" for none
+	open       string   // the page to open once ready, "" for none
 	cron       []string // one cron run's argv, empty for a server that runs no cron
 	dir        string   // the directory cron runs in
 	stopRecord string   // the file that tells SITE stop where the stop channel listens

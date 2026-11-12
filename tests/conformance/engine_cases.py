@@ -90,17 +90,22 @@ class EngineExecutable(harness.ConformanceCase):
         return harness.run([str(self.engine), *arguments], cwd=cwd or self.class_dir, env=env,
                            capture_output=True, text=True, timeout=harness.WAITS[wait].seconds)
 
-    def start(self, name, *arguments, cwd=None, env=None, port=None, umask=-1):
+    def start(self, name, *arguments, cwd=None, env=None, port=None, umask=-1, attach_pty=False):
         """Starts the engine executable on a port of its own, whose successor is free for the static site,
         waits for /user/login and the ready line, and returns the port and log. Drupal can answer before
         the server writes its stop record, which precedes the ready line. umask is the child's, -1 this
-        process's."""
+        process's. attach_pty runs the start on a pseudo-terminal, as a person's terminal would."""
         port = port or harness.pick_port()
         log = self.class_dir / f"{name}.log"
-        with open(log, "wb") as handle:
-            process = harness.popen([str(self.engine), *arguments, "--foreground", "--listen", f"127.0.0.1:{port}"],
-                                    cwd=cwd or self.class_dir, env=env, stdout=handle, stderr=subprocess.STDOUT,
-                                    start_new_session=True, umask=umask)
+        args = [str(self.engine), *arguments, "--foreground", "--listen", f"127.0.0.1:{port}"]
+        if attach_pty:
+            process, drain = harness.popen_under_pty(args, log, cwd or self.class_dir, env)
+            # Cleanups run last first: the stop below ends the process, then the copy finishes.
+            self.addCleanup(drain.join, harness.WAITS["stop"].seconds)
+        else:
+            with open(log, "wb") as handle:
+                process = harness.popen(args, cwd=cwd or self.class_dir, env=env, stdout=handle,
+                                        stderr=subprocess.STDOUT, start_new_session=True, umask=umask)
         self.addCleanup(harness.stop_process, process, harness.WAITS["stop"].seconds, f": inspect {log}")
         deadline = time.monotonic() + harness.WAITS["start"].seconds
         while time.monotonic() < deadline:
@@ -612,6 +617,29 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertIn(f"  Install: http://127.0.0.1:{port}/core/install.php\n", output)
         self.assertNotIn("  Login:", output)
         self.assertNotIn("Cannot mint", output)
+
+    def watched_start(self, name):
+        """Starts the project under a pseudo-terminal with a recorder posing as the browser
+        opener, and returns the port, the log and the one URL the recorder received."""
+        if harness.current_platform() == harness.WINDOWS:
+            self.skipTest("the browser recorder is a shell script")
+        script, recorded = harness.install_recorder(self.class_dir / f"{name}-recorder")
+        env = dict(os.environ, PATH=f"{script.parent}{os.pathsep}{os.environ.get('PATH', '')}")
+        port, log = self.start(name, str(self.project), env=env, attach_pty=True)
+        opened = harness.wait_for_recorded_url(recorded, harness.WAITS["browser_open"].seconds)
+        self.assertEqual(recorded.read_text().splitlines(), [opened], "the start opened more than one page")
+        return port, log, opened
+
+    def test_a_watched_start_of_an_uninstalled_project_opens_the_installer(self):
+        self.uninstall()
+        port, log, opened = self.watched_start("watched-uninstalled")
+        self.assertEqual(opened, f"http://127.0.0.1:{port}/core/install.php", f"inspect {log}")
+
+    def test_a_watched_start_opens_the_printed_login_link(self):
+        _, log, opened = self.watched_start("watched-installed")
+        link = harness.wait_for_line(log, 0, "  Login:   ", harness.WAITS["start"].seconds)
+        self.assertIn("/user/reset/1/", link)
+        self.assertEqual(opened, link, f"inspect {log}")
 
     def test_dr_runs_drupal_cores_command_line(self):
         result = self.engine_run("dr", "list", cwd=self.project)

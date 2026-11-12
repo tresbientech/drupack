@@ -114,8 +114,8 @@ class BrowserOpenCases(harness.ConformanceCase):
         finally:
             restart.stop()
 
-    def test_a_failed_mint_opens_no_browser_and_leaks_no_link(self):
-        # A blocked administrator leaves no link to open, whatever terminal the start runs under.
+    def test_a_failed_mint_opens_the_url_and_leaks_no_link(self):
+        # A blocked administrator leaves no link, so the browser opens the site's URL.
         env, recorded = _recorder_env(self.case_dir / "recorder")
         self._install(env, recorded)
         blocked = harness.run_drush(harness.BINARY, self.case_dir, self.data, "php:eval",
@@ -125,23 +125,23 @@ class BrowserOpenCases(harness.ConformanceCase):
         restart = harness.Site(harness.BINARY, self.case_dir / "restart")
         restart.start(self.data, attach_pty=True, env=env)
         try:
+            url = harness.wait_for_line(restart.log_path, 0, URL_PREFIX, harness.WAITS["start"].seconds)
             text = restart.log_path.read_text(errors="replace")
             self.assertNotIn(LINK_PREFIX, text, "the readiness block printed a login link despite a failed mint")
             self.assertIn("Cannot mint a one-time login link", text, "the start does not report the failed mint")
             self.assertIn("blocked", text, "the diagnostic does not carry the reason Drush gave")
-            # The positive case's budget, so a late browser opening is still caught.
-            time.sleep(harness.WAITS["browser_open"].seconds)
-            self.assertFalse(recorded.exists(),
-                              f"the recorder was called although the mint failed: inspect {recorded}")
+            opened = harness.wait_for_recorded_url(recorded, harness.WAITS["browser_open"].seconds)
+            self.assertEqual(recorded.read_text().splitlines(), [url], "the browser opened another page than the URL")
+            self.assertEqual(opened, url)
 
             # /proc/<pid>/environ exists only on Linux, though the fact it proves (a failed mint
             # leaves no login link in the serving process's environment) is not platform-specific.
             if harness.current_platform() == harness.LINUX:
                 with open(f"/proc/{restart.process.pid}/environ", "rb") as handle:
-                    server_environment = handle.read()
-                self.assertNotIn(b"DRUPACK_RUNTIME_OPEN", server_environment,
-                                  "the serving process's environment carries a login link "
-                                  "although the mint failed")
+                    server_environment = handle.read().split(b"\0")
+                self.assertIn(f"DRUPACK_RUNTIME_OPEN={url}".encode(), server_environment)
+                self.assertFalse([entry for entry in server_environment if b"/user/reset/" in entry],
+                                 "the serving process's environment carries a login link although the mint failed")
         finally:
             restart.stop()
 

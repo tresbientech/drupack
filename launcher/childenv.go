@@ -40,7 +40,7 @@ type Facts struct {
 	SiteApp string
 	// Bin is the application whose bin/ leads PATH, and Script the Drush script.
 	Bin, Script string
-	// Open is the link the server opens a browser on. Alias is the drupack.site name.
+	// Open is the page the server opens a browser on. Alias is the drupack.site name.
 	Open, Alias string
 	// StopRecord is the file the runtime's watch writes the stop channel's address to.
 	StopRecord string

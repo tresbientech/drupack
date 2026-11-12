@@ -184,7 +184,7 @@ func TestRunWithNoLinkAnnouncesReadyAndOpensNothing(t *testing.T) {
 		t.Fatalf("printed %q, want one ready line", got)
 	}
 	if len(w.opened) != 0 {
-		t.Fatalf("opened %q with no link to open", <-w.opened)
+		t.Fatalf("opened %q with no page to open", <-w.opened)
 	}
 }
 

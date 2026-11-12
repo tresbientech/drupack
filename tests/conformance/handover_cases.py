@@ -69,6 +69,32 @@ class HandoverCases(harness.ConformanceCase):
         finally:
             site.stop()
 
+    def test_a_handover_that_mints_no_link_opens_the_url(self):
+        # A blocked administrator leaves no link, so the hand-over opens the URL it prints.
+        env, recorded = _console_env(self.case_dir / "recorder")
+        site = harness.Site(harness.BINARY, self.case_dir / "serving")
+        site.start(self.data, "--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD)
+        try:
+            blocked = harness.run_drush(harness.BINARY, self.case_dir, self.data, "php:eval",
+                                      r'\Drupal\user\Entity\User::load(1)->block()->save();')
+            self.assertEqual(blocked.returncode, 0, blocked.stderr)
+            second = harness.run(
+                [str(harness.BINARY), CONSOLE_OWNED, "--data-dir", str(self.data),
+                 "--listen", f"127.0.0.1:{site.port}"],
+                cwd=self.case_dir, capture_output=True, text=True,
+                timeout=harness.WAITS["start"].seconds, env=env,
+            )
+            self.assertEqual(second.returncode, 0, f"the handover exited non-zero: {second.stderr}")
+            self.assertIn("Cannot mint a one-time login link", second.stderr)
+            self.assertNotIn("  Login:", second.stdout)
+            url = next(line.split(None, 1)[1] for line in second.stdout.splitlines() if line.startswith("  URL:"))
+
+            opened = harness.wait_for_recorded_url(recorded, harness.WAITS["browser_open"].seconds)
+            self.assertEqual(recorded.read_text().splitlines(), [url], "the handover opened another page than the URL")
+            self.assertEqual(opened, url)
+        finally:
+            site.stop()
+
     def test_a_listener_that_answers_everything_receives_no_login_link(self):
         """A 204 from the port proves nothing: any local program can answer one.
 

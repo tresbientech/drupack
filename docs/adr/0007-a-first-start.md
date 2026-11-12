@@ -30,10 +30,11 @@ A first start turns an empty Site data directory into an installed site. It must
 ### The login link
 
 - A first start creates `admin`, or the `--admin-user` name, with a password from `random_bytes` that nobody sees. `--admin-password` sets it explicitly.
-- A start a person watches asks Drush for a one-time login link for uid 1 that lands on `/admin/dashboard`. It prints the link, and the server opens a browser on it once the site answers.
+- A start a person watches asks Drush for a one-time login link for uid 1 that lands on `/admin/dashboard`, and prints it.
+- The server opens a browser once the site answers: on the login link, else on `/core/install.php` for a project folder with no installed site, else on the site URL.
 - A person watches when the start has a terminal, a file manager's console, or a detaching parent that had a terminal.
 - Any other start mints no link. It prints the command that mints one: `NAME drush --data-dir DIR user:login /admin/dashboard`.
-- `--no-browser`, or a bind address outside loopback, stops the browser from opening.
+- `--no-browser`, a bind address outside loopback, or a start nobody watches opens no browser.
 - A failed mint prints Drush's reason and the command, then serves. It fails the start when the start generated the password and adopted no site.
 - An adopted site keeps its own accounts and needs no link.
 

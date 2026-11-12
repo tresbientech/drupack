@@ -269,14 +269,12 @@ func (s *packagedStart) held(plan startPlan) error {
 		s.explainMintFailure(failure)
 	}
 	fmt.Printf("%s is already serving this Site data.\n\n  URL:    %s\n", s.Launch.Name, url)
-	if link == "" {
-		return nil
+	if link != "" {
+		fmt.Printf("  Login:  %s\n", link)
 	}
-	fmt.Printf("  Login:  %s\n", link)
-	if s.c.options.NoBrowser || !localtls.Loopback(bind) {
-		return nil
+	if page := s.c.browserPage(true, bind, link, url); page != "" {
+		openBrowser(page)
 	}
-	openBrowser(link)
 	return nil
 }
 
@@ -401,9 +399,7 @@ func (s *packagedStart) prepare(plan startPlan, choice localtls.Choice, accessLo
 	}
 	summary.WriteString(nameHint(choice) + trustHint(l, choice))
 	// The server opens the browser once the site answers.
-	if link != "" && !s.c.options.NoBrowser && localtls.Loopback(plan.Bind) {
-		s.Open = link
-	}
+	s.Open = s.c.browserPage(person, plan.Bind, link, plan.URL)
 	summary.WriteString("Starting the web server.\n")
 	config := caddyfile.Config{
 		Mode: caddyfile.Site, ID: siteToken(s.Data, l.FoldCase),

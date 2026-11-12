@@ -55,6 +55,8 @@ func TestEnvKinds(t *testing.T) {
 	}
 	folderServing := folder
 	folderServing.Script, folderServing.StopRecord = "", "/data/stop.json"
+	folderOpening := folderServing
+	folderOpening.Open = "http://127.0.0.1:3787/core/install.php"
 	for _, row := range []struct {
 		name  string
 		facts Facts
@@ -82,9 +84,12 @@ func TestEnvKinds(t *testing.T) {
 		{"the engine's export reads what its drush reads", folder, Export, folderVariables, nil},
 		{"the engine's core call leads PATH and names no Drush", Facts{Launch: engine, Bin: "/cache/app"}, Drush,
 			map[string]string{"PATH": filepath.FromSlash("/cache/app/bin") + separator + "/bin"}, []string{"DRUPACK_DRUSH_SCRIPT"}},
-		{"the engine's server opens no browser and keeps the password", folderServing, Server,
+		{"an engine server with no page drops the inherited one and keeps the password", folderServing, Server,
 			with(watch, map[string]string{"DRUPACK_ADMIN_PASSWORD": "inherited", "DRUPACK_CA_FILE": "/entry/ca.pem"}),
 			[]string{"DRUPACK_RUNTIME_OPEN", "DRUPACK_RUNTIME_ALIAS", "DRUPACK_DRUSH_SCRIPT"}},
+		{"an engine server opens its page", folderOpening, Server,
+			with(watch, map[string]string{"DRUPACK_RUNTIME_OPEN": "http://127.0.0.1:3787/core/install.php", "DRUPACK_CA_FILE": "/entry/ca.pem"}),
+			[]string{"DRUPACK_RUNTIME_ALIAS"}},
 	} {
 		got := environmentOf(Command{Env: row.facts.Env(row.kind)})
 		for name, want := range row.want {
@@ -108,10 +113,10 @@ func TestEnvDeclared(t *testing.T) {
 		t.Fatal(err)
 	}
 	hub := &caddyfile.Mercure{}
-	engine := Facts{Launch: Launch{Engine: true}, CAFile: "x", Hub: hub, Bin: "x", Script: "x", StopRecord: "x"}
+	engine := Facts{Launch: Launch{Engine: true}, CAFile: "x", Hub: hub, Bin: "x", Script: "x", StopRecord: "x", Open: "x"}
 	site := engine
 	site.Engine = false
-	site.Data, site.StaticRoot, site.SiteApp, site.Open, site.Alias = "x", "x", "x", "x", "x"
+	site.Data, site.StaticRoot, site.SiteApp, site.Alias = "x", "x", "x", "x"
 	kinds := map[string]Kind{"reader": Reader, "server": Server, "operate": Operate, "drush": Drush, "export": Export}
 	for mode, facts := range map[string]Facts{"site": site, "engine": engine} {
 		for kind, k := range kinds {

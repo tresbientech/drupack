@@ -65,10 +65,10 @@ or a systemd unit needs. A Windows start from a file manager owns its window,
 so it serves in the foreground too.
 
 One server at a time serves a Site data directory, whatever port a second start
-asks for. A second start of a site that already serves opens the browser on it
-and exits. With no terminal, or while the first start still prepares, it exits
-1 and names the URL. A start whose port another program holds exits 1 and names
-the port.
+asks for. A second start of a site that already serves opens the browser on it,
+under the rules of [A first start](#a-first-start), and exits. With no
+terminal, or while the first start still prepares, it exits 1 and names the
+URL. A start whose port another program holds exits 1 and names the port.
 
 `SITE stop` stops the server of the Site data directory. It waits 15 seconds at
 most and exits 1 past that. With no server running it says so and exits 0. It
@@ -95,9 +95,9 @@ them a first start creates `admin` with a generated password, which is never
 shown. `--site-name` names the site, and a later start never renames it.
 
 A start a person watches prints a one-time login link and opens the browser on
-it. `--no-browser` prints the link alone. A start with no terminal, such as a
-systemd unit or a container, prints the command that mints a link, so no log
-holds one:
+it. When the mint fails, it opens the site URL. `--no-browser` prints the link
+alone. A start with no terminal, such as a systemd unit or a container, prints
+the command that mints a link, so no log holds one:
 
     Login:     run demo drush --data-dir /var/lib/demo user:login /admin/dashboard
 
@@ -428,9 +428,10 @@ A first word naming no command is taken as `DIR`, so a folder named `start` or
 - The start refuses a folder whose PHP version or `composer.lock` extensions
   the bundled PHP does not meet, and names what is missing.
 - A start a person watches prints a one-time login link through the folder's
-  Drush. A folder without Drush serves with no link.
+  Drush and opens the browser on it, as a site start does. A folder without
+  Drush serves with no link and opens the URL.
 - A folder whose database holds no installed site prints `Install:` with
-  `/core/install.php` instead.
+  `/core/install.php` and opens it instead.
 - [HTTPS](#https), [Mercure hub](#mercure-hub), [Logs](#logs) and
   [Trusted proxies](#trusted-proxies) apply as they do to a site. The log files
   live in the folder's cache entry. `DIR` goes before `--access-log` or

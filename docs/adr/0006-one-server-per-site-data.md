@@ -11,7 +11,7 @@ Two FrankenPHP processes over one database and one runtime directory corrupt bot
 - A start takes an exclusive lock on `serving.lock` in its state directory: Site data, or a folder's cache entry. It holds the lock until the server exits.
 - On Unix the lock lives on an open descriptor that survives the exec into the server. The kernel releases it on a kill. On Windows the launcher waits for the runtime, so its handle holds the lock.
 - The same lease covers initialization. No separate startup lock exists.
-- A start that cannot take the lease refuses. When a person watches and the site is installed, it hands over: it prints the URL and a login link, opens a browser and exits 0.
+- A start that cannot take the lease refuses. When a person watches and the site is installed, it hands over: it prints the URL and a login link when one mints, opens a browser on the link or else the URL, and exits 0.
 - A browser the server opens holds no lease.
 - No route answers a readiness probe. A port probe asks one question: does another program hold the address.
 

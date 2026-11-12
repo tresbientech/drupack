@@ -437,11 +437,45 @@ def wait_for_recorded_url(recorded, timeout):
 
 # Any spawn of the product that inherits an interactive terminal qualifies to open a browser.
 # popen() and run() pin standard input closed, so a case run from a developer's terminal
-# cannot hand a start one by accident. Site's pseudo-terminal branch is the exception.
+# cannot hand a start one by accident. popen_under_pty() is the exception.
 def popen(args, **kwargs):
     """subprocess.Popen with standard input pinned closed unless the caller overrides it."""
     kwargs.setdefault("stdin", subprocess.DEVNULL)
     return subprocess.Popen(args, **kwargs)
+
+
+def popen_under_pty(args, log_path, cwd, env):
+    """Start args on a pseudo-terminal, as a person's terminal would run it, and copy its
+    output into log_path. Returns the process and the thread that copies, which ends once
+    the process exits."""
+    # The product checks stream_isatty(STDIN).
+    master_fd, slave_fd = pty.openpty()
+    try:
+        process = subprocess.Popen(
+            args, cwd=cwd, stdin=slave_fd, stdout=slave_fd, stderr=slave_fd,
+            start_new_session=True, env=env,
+        )
+    finally:
+        # The parent's copy must close, or a read on master_fd never sees the hang-up.
+        os.close(slave_fd)
+
+    def drain():
+        with open(log_path, "wb") as log_handle:
+            while True:
+                try:
+                    chunk = os.read(master_fd, 4096)
+                except OSError:
+                    # Every fd onto the slave closed when the child exited.
+                    break
+                if not chunk:
+                    break
+                log_handle.write(chunk)
+                log_handle.flush()
+        os.close(master_fd)
+
+    thread = threading.Thread(target=drain, daemon=True)
+    thread.start()
+    return process, thread
 
 
 def remove_container(name):
@@ -550,7 +584,7 @@ class Site:
         # A case may start several Sites, each in its own subdirectory created on first use.
         self.case_dir.mkdir(parents=True, exist_ok=True)
         if attach_pty:
-            self._start_under_pty(args, env)
+            self.process, self._pty_thread = popen_under_pty(args, self.log_path, self.case_dir, env)
         else:
             # popen() closes stdin: a headless start must not inherit a terminal.
             with open(self.log_path, "wb") as log_handle:
@@ -563,36 +597,6 @@ class Site:
         except AssertionError:
             self.stop()
             raise
-
-    def _start_under_pty(self, args, env):
-        # The product checks stream_isatty(STDIN).
-        master_fd, slave_fd = pty.openpty()
-        try:
-            self.process = subprocess.Popen(
-                args, cwd=self.case_dir, stdin=slave_fd, stdout=slave_fd, stderr=slave_fd,
-                start_new_session=True, env=env,
-            )
-        finally:
-            # The parent's copy must close, or a read on master_fd never sees the hang-up.
-            os.close(slave_fd)
-        self._pty_master = master_fd
-        self._pty_thread = threading.Thread(target=self._drain_pty, daemon=True)
-        self._pty_thread.start()
-
-    def _drain_pty(self):
-        """Copy the pseudo-terminal's output into log_path, as a headless start writes it."""
-        with open(self.log_path, "wb") as log_handle:
-            while True:
-                try:
-                    chunk = os.read(self._pty_master, 4096)
-                except OSError:
-                    # Every fd onto the slave closed when the child exited.
-                    break
-                if not chunk:
-                    break
-                log_handle.write(chunk)
-                log_handle.flush()
-        os.close(self._pty_master)
 
     # The port accepts before the runtime's first request finishes. A 200 on /user/login proves
     # it did, where a bare port-accept would let a stop race it.

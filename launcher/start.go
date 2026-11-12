@@ -388,6 +388,8 @@ func (e *engineStart) prepare(plan startPlan, choice localtls.Choice, accessLog,
 		}
 	}
 	summary.WriteString(nameHint(choice) + trustHint(l, choice) + "Starting the web server.\n")
+	// The server opens the browser once the site answers.
+	e.Open = e.c.browserPage(personPresent(l), plan.Bind, link, install, url)
 	config := caddyfile.Config{Mode: caddyfile.Engine, ID: path.Base(entryPath), Docroot: e.docroot, Mercure: e.Hub, LogPath: caddyLog, AccessLog: accessLog, ErrorLog: errorLog, TrustedProxies: proxies}
 	if plan.Static != nil {
 		// The server creates no export directory.
