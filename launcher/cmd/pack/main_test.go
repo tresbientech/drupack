@@ -12,17 +12,17 @@ import (
 	"testing"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/build"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/payload"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
-func buildRuntime(t *testing.T) ([]byte, runtime.Manifest) {
+func buildRuntime(t *testing.T) ([]byte, payload.Manifest) {
 	t.Helper()
 	directory := t.TempDir()
 	if err := os.WriteFile(filepath.Join(directory, "drupack"), []byte("entry"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	payload, manifest, err := runtime.Build(directory, "1.0.0", "drupack")
+	payload, manifest, err := payload.Build(directory, "1.0.0", "drupack")
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -94,18 +94,18 @@ func TestEntryNameIsFrankenphpExeOnWindowsOnly(t *testing.T) {
 
 func TestWriteBuildCopyCarriesTheRuntime(t *testing.T) {
 	build := t.TempDir()
-	payload, manifest := buildRuntime(t)
+	archive, manifest := buildRuntime(t)
 	packing, err := resolve(options{target: "linux-amd64", payload: payloadDir(t, acmeSite), version: "1.0.0", siteVersion: "1.4.0"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeBuildCopy(build, source(t), payload, manifest, packing); err != nil {
+	if err := writeBuildCopy(build, source(t), archive, manifest, packing); err != nil {
 		t.Fatalf("writeBuildCopy: %v", err)
 	}
-	if carried := readFile(t, filepath.Join(build, "runtime.tar.zst")); carried != string(payload) {
+	if carried := readFile(t, filepath.Join(build, "runtime.tar.zst")); carried != string(archive) {
 		t.Fatal("runtime.tar.zst differs from the packed payload")
 	}
-	var m runtime.Manifest
+	var m payload.Manifest
 	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(build, "manifest.json"))), &m); err != nil {
 		t.Fatalf("manifest.json: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestWriteNodePayloadCarriesTheReleaseOrNothing(t *testing.T) {
 	if err := writeNodePayload(build, archive, "24.21.0"); err != nil {
 		t.Fatal(err)
 	}
-	m, err := runtime.ParseManifest([]byte(readFile(t, filepath.Join(build, "node-manifest.json"))))
+	m, err := payload.ParseManifest([]byte(readFile(t, filepath.Join(build, "node-manifest.json"))))
 	if err != nil {
 		t.Fatal(err)
 	}

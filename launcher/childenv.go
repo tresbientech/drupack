@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 )
 
 // Kind names the child an environment is for. Reader is the runtime running a line the
@@ -66,7 +66,7 @@ func (f Facts) Env(k Kind) []string {
 	e.put("PHPRC=" + directory)
 	// A caller behind a TLS-inspection proxy names their own bundle.
 	if _, set := e.get("DRUPACK_CA_FILE"); !set {
-		e.put("DRUPACK_CA_FILE=" + runtime.Canonical(filepath.Join(directory, caFileName)))
+		e.put("DRUPACK_CA_FILE=" + fsguard.Canonical(filepath.Join(directory, caFileName)))
 	}
 	// The runtime and operate.php are shared by every site built on this engine, so
 	// the site's name and release reach them from here.
@@ -80,7 +80,7 @@ func (f Facts) Env(k Kind) []string {
 	} else {
 		// The entry point changes into this directory, and PHP, Caddy and the reader's
 		// terminal read it, so it takes the canonical form.
-		e.put("DRUPACK_RUNTIME_APP_DIR=" + runtime.Canonical(l.Application))
+		e.put("DRUPACK_RUNTIME_APP_DIR=" + fsguard.Canonical(l.Application))
 	}
 	if l.NodeBin != "" {
 		path, _ := e.get("PATH")
@@ -90,7 +90,7 @@ func (f Facts) Env(k Kind) []string {
 		return e.entries
 	}
 	if f.SiteApp != "" {
-		e.put("DRUPACK_RUNTIME_APP_DIR=" + runtime.Canonical(f.SiteApp))
+		e.put("DRUPACK_RUNTIME_APP_DIR=" + fsguard.Canonical(f.SiteApp))
 	}
 	if f.Data != "" {
 		e.put("DRUPACK_RUNTIME_DATA_DIR=" + f.Data)
@@ -109,7 +109,7 @@ func (f Facts) Env(k Kind) []string {
 		}
 	}
 	if f.CAFile != "" {
-		e.put("DRUPACK_CA_FILE=" + runtime.Canonical(f.CAFile))
+		e.put("DRUPACK_CA_FILE=" + fsguard.Canonical(f.CAFile))
 	}
 	if f.Hub != nil {
 		e.put("DRUPACK_MERCURE_PUBLISHER_SECRET=" + f.Hub.Publisher)
@@ -123,7 +123,7 @@ func (f Facts) Env(k Kind) []string {
 		e.put("PATH=" + filepath.Join(f.Bin, "bin") + string(os.PathListSeparator) + path)
 	}
 	if f.Script != "" {
-		e.put("DRUPACK_DRUSH_SCRIPT=" + runtime.Canonical(f.Script))
+		e.put("DRUPACK_DRUSH_SCRIPT=" + fsguard.Canonical(f.Script))
 	}
 	switch k {
 	case Operate:
@@ -137,7 +137,7 @@ func (f Facts) Env(k Kind) []string {
 		if f.Open != "" {
 			e.put("DRUPACK_RUNTIME_OPEN=" + f.Open)
 		}
-		e.put("DRUPACK_RUNTIME_STOP_RECORD=" + runtime.Canonical(f.StopRecord))
+		e.put("DRUPACK_RUNTIME_STOP_RECORD=" + fsguard.Canonical(f.StopRecord))
 		if !f.Engine {
 			// Every step that needed the administrator password has run. The server passes
 			// its environment to every process it starts, including PHP code a site runs.

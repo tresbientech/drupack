@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/payload"
 )
 
 // Unpack writes the files of a Node archive Resolve verified under
@@ -47,7 +47,7 @@ func unpackTar(archive, destination string) error {
 		if !ok {
 			continue
 		}
-		if !runtime.SafePath(name) {
+		if !payload.SafePath(name) {
 			return fmt.Errorf("%s holds an unsafe path: %s", archive, header.Name)
 		}
 		switch header.Typeflag {
@@ -77,7 +77,7 @@ func unpackZip(archive, destination string) error {
 		if !ok {
 			continue
 		}
-		if !runtime.SafePath(name) {
+		if !payload.SafePath(name) {
 			return fmt.Errorf("%s holds an unsafe path: %s", archive, entry.Name)
 		}
 		mode := entry.Mode()
@@ -113,7 +113,7 @@ func writeZipFile(destination, name string, entry *zip.File) error {
 }
 
 func writeFile(destination, name string, contents io.Reader) error {
-	return runtime.WriteFile(filepath.Join(destination, filepath.FromSlash(name)), contents, 0o755)
+	return payload.WriteFile(filepath.Join(destination, filepath.FromSlash(name)), contents, 0o755)
 }
 
 // writeLinkScript replaces a link in bin, such as npm, with a script running
@@ -122,7 +122,7 @@ func writeFile(destination, name string, contents io.Reader) error {
 // the script node runs.
 func writeLinkScript(destination, name, link string) error {
 	resolved := path.Join(path.Dir(name), link)
-	if path.Dir(name) != "bin" || !strings.HasSuffix(link, ".js") || !runtime.SafePath(resolved) {
+	if path.Dir(name) != "bin" || !strings.HasSuffix(link, ".js") || !payload.SafePath(resolved) {
 		return fmt.Errorf("the Node archive links %s to %s, and only a link in bin to a script is carried", name, link)
 	}
 	script := "#!/bin/sh\nexec \"$(dirname \"$0\")/node\" \"$(dirname \"$0\")/" + link + "\" \"$@\"\n"

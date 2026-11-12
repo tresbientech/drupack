@@ -11,6 +11,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 )
 
 const (
@@ -122,42 +124,10 @@ func (d Dir) WriteBundle(content []byte) error {
 // writeWhole replaces a file whole, so a reader sees the old content or the new.
 func (d Dir) writeWhole(name string, content []byte) error {
 	path := filepath.Join(d.path, name)
-	if err := WriteFile(path, content); err != nil {
+	if err := fsguard.WriteFile(path, content); err != nil {
 		return fmt.Errorf("Cannot write %s: %w", path, err)
 	}
 	return nil
-}
-
-// WriteFile replaces path whole with content, through an owner-only file
-// staged beside it.
-func WriteFile(path string, content []byte) error {
-	staged, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".")
-	if err != nil {
-		return err
-	}
-	if _, err := staged.Write(content); err != nil {
-		staged.Close()
-		os.Remove(staged.Name())
-		return err
-	}
-	return ReplaceFile(staged, path)
-}
-
-// ReplaceFile syncs and closes staged, then renames it over path. A reader
-// sees the old file or the whole new one, after a power loss too. A failure
-// removes staged.
-func ReplaceFile(staged *os.File, path string) error {
-	err := staged.Sync()
-	if closed := staged.Close(); err == nil {
-		err = closed
-	}
-	if err == nil {
-		err = replaceFile(staged.Name(), path)
-	}
-	if err != nil {
-		os.Remove(staged.Name())
-	}
-	return err
 }
 
 // WriteCaddyfile replaces the start's rendered Caddyfile and returns its path.

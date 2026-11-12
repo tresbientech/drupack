@@ -15,7 +15,7 @@ spec = importlib.util.spec_from_file_location("release_plan", ROOT / "build" / "
 release_plan = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release_plan)
 
-TARGETS = json.loads((ROOT / "launcher" / "internal" / "runtime" / "targets.json").read_text())
+TARGETS = json.loads((ROOT / "launcher" / "internal" / "payload" / "targets.json").read_text())
 RECORDED = ROOT / "tests" / "conformance" / "release_plan"
 RUNS = json.loads((RECORDED / "runs.json").read_text())
 ARTIFACTS = json.loads((RECORDED / "artifacts.json").read_text())

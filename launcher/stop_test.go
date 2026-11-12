@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state/statetest"
 )
@@ -118,8 +118,8 @@ func TestProjectFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	// realpath resolves the link before it reads `..`, so `link/..` names the link target's parent.
-	if got, err := projectFolder("fixture-site", link+string(filepath.Separator)+".."); err != nil || got != runtime.Canonical(resolved) {
-		t.Errorf("projectFolder(link/..) = %q, %v, want %q", got, err, runtime.Canonical(resolved))
+	if got, err := projectFolder("fixture-site", link+string(filepath.Separator)+".."); err != nil || got != fsguard.Canonical(resolved) {
+		t.Errorf("projectFolder(link/..) = %q, %v, want %q", got, err, fsguard.Canonical(resolved))
 	}
 	for _, written := range []string{filepath.Join(root, "missing"), file} {
 		want := "No such directory: " + written + ". Run fixture-site --help."

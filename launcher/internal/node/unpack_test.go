@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	goruntime "runtime"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -71,7 +71,7 @@ func TestUnpackStripsTheTopDirectoryAndTurnsBinLinksIntoScripts(t *testing.T) {
 	if content, err := os.ReadFile(filepath.Join(destination, "LICENSE")); err != nil || string(content) != "MIT" {
 		t.Fatalf("LICENSE = %q, %v", content, err)
 	}
-	if goruntime.GOOS == "windows" {
+	if runtime.GOOS == "windows" {
 		return
 	}
 	out, err := exec.Command(filepath.Join(destination, "bin", "npm"), "install", "a b").Output()

@@ -10,13 +10,14 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	goruntime "runtime"
+	"runtime"
 	"strconv"
 	"strings"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/cache"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/localtls"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
@@ -115,8 +116,8 @@ func operate(l Launch, env []string, record any, stream bool, arguments ...strin
 	return json.Unmarshal(out.Bytes(), record)
 }
 
-// startMode is what the engine's start and a Packaged site's start do
-// differently. start calls each method once, in this order.
+// startMode holds the steps the engine's start and a Packaged site's start
+// run differently. start calls each method once, in this order.
 type startMode interface {
 	// detach returns the server log a background start writes, and the words
 	// its stop command names the target with.
@@ -185,7 +186,7 @@ func start(l Launch, c command) error {
 		if err != nil {
 			return err
 		}
-		return detachStart(l, log, stopCommand(l.Args[0], cwd, target, goruntime.GOOS == "windows"))
+		return detachStart(l, log, stopCommand(l.Args[0], cwd, target, runtime.GOOS == "windows"))
 	}
 	checked, err := mode.check()
 	if err != nil {
@@ -280,9 +281,9 @@ func (e *engineStart) detach() (log, stopTarget string, err error) {
 		return "", "", err
 	}
 	if e.c.target != "" {
-		stopTarget = " " + shellWord(e.c.target, goruntime.GOOS == "windows")
+		stopTarget = " " + shellWord(e.c.target, runtime.GOOS == "windows")
 	}
-	return runtime.Canonical(state.FolderEntry(l.Root, project, l.FoldCase).Path()) + "/server.log", stopTarget, nil
+	return fsguard.Canonical(state.FolderEntry(l.Root, project, l.FoldCase).Path()) + "/server.log", stopTarget, nil
 }
 
 func (e *engineStart) check() (checked, error) {
@@ -338,7 +339,7 @@ func (e *engineStart) stage(plan startPlan) (staged, error) {
 		}
 		answered = append(answered, e.staticRoot)
 	}
-	return staged{dir: e.entry, logDir: runtime.Canonical(e.entry.Path()), answered: answered}, nil
+	return staged{dir: e.entry, logDir: fsguard.Canonical(e.entry.Path()), answered: answered}, nil
 }
 
 func (e *engineStart) held(startPlan) error {
@@ -347,7 +348,7 @@ func (e *engineStart) held(startPlan) error {
 
 func (e *engineStart) prepare(plan startPlan, choice localtls.Choice, accessLog, errorLog string, proxies []string) (ready, error) {
 	l := e.Launch
-	entryPath := runtime.Canonical(e.entry.Path())
+	entryPath := fsguard.Canonical(e.entry.Path())
 	var err error
 	if e.CAFile, err = storeBundle(e.Facts, e.entry, choice); err != nil {
 		return ready{}, err
@@ -452,14 +453,14 @@ func execServer(f Facts, dir state.Dir, lease *state.Lease, config caddyfile.Con
 	f.StopRecord = dir.StopRecordPath()
 	err = launch(Command{Path: f.Entry, Args: serveArguments(argv0, file, config), Env: f.Env(Server), Dir: cwd})
 	// A collected file would close its descriptor, and the lease with it, before the exec.
-	goruntime.KeepAlive(lease)
+	runtime.KeepAlive(lease)
 	return err
 }
 
 // serveArguments is the runtime's drupack-serve line for the Caddyfile at file.
 // The runtime names each project file when the configuration fails to adapt.
 func serveArguments(argv0, file string, config caddyfile.Config) []string {
-	arguments := []string{argv0, "drupack-serve", runtime.Canonical(file)}
+	arguments := []string{argv0, "drupack-serve", fsguard.Canonical(file)}
 	if config.ProjectRules != "" {
 		arguments = append(arguments, config.ProjectRules)
 	}
@@ -477,7 +478,7 @@ func entrance(l Launch, env []string, project string, installed *bool, url strin
 	if installed != nil && !*installed {
 		return "", url + "/core/install.php", nil
 	}
-	drush := project + "/" + filepath.ToSlash(runtime.DrushScript)
+	drush := project + "/" + filepath.ToSlash(cache.DrushScript)
 	if info, err := os.Stat(drush); err != nil || !info.Mode().IsRegular() {
 		fmt.Fprintf(os.Stderr, "No login link: %s has no Drush. composer require drush/drush adds one.\n", project)
 		return "", "", nil

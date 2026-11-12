@@ -214,8 +214,8 @@ CASE_CACHES = None
 
 def reserved_dir(path):
     """Clear path without creating it, for a case that hands path to the launcher as a cache
-    root, and return it. runtime.Root() creates a missing root itself, at the private mode 0700
-    runtime.Exposure() requires; a directory this process pre-created would carry the host umask
+    root, and return it. cache.Root() creates a missing root itself, at the private mode 0700
+    fsguard.Exposure() requires; a directory this process pre-created would carry the host umask
     instead. On Windows the root moves under CASE_CACHES, at its place below RESULTS.
     """
     if CASE_CACHES is not None:

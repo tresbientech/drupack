@@ -13,7 +13,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 )
 
 const foldCase = true
@@ -47,7 +47,7 @@ func launch(c Command) error {
 func restrictUmask() {}
 
 // fixCommand is the advice that ends e, which on Windows names an owner alone.
-func fixCommand(e *runtime.ExposedError) string {
+func fixCommand(e *fsguard.ExposedError) string {
 	return "Move the Site data into a folder you own."
 }
 

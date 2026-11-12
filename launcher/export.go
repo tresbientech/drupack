@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
@@ -55,7 +55,7 @@ func engineExport(facts Facts, c command, cwd string) (exportCall, error) {
 		return exportCall{}, err
 	}
 	if f.composer.Static == nil {
-		return exportCall{}, fmt.Errorf("%s/composer.json sets no extra.drupack.static, so there is nothing to export.", runtime.Canonical(f.project))
+		return exportCall{}, fmt.Errorf("%s/composer.json sets no extra.drupack.static, so there is nothing to export.", fsguard.Canonical(f.project))
 	}
 	uri := ""
 	if !namesURI(c.words) {
@@ -64,7 +64,7 @@ func engineExport(facts Facts, c command, cwd string) (exportCall, error) {
 			return exportCall{}, err
 		}
 		if !a.Recorded || a.StaticListen == "" {
-			return exportCall{}, fmt.Errorf("Cannot read a recorded static URL for %s. Start it once, or pass --uri URL.", runtime.Canonical(f.project))
+			return exportCall{}, fmt.Errorf("Cannot read a recorded static URL for %s. Start it once, or pass --uri URL.", fsguard.Canonical(f.project))
 		}
 		plan, err := a.Plan(true, "project")
 		if err != nil {
@@ -130,7 +130,7 @@ func engineCore(f Facts, c command, cwd string) (Command, error) {
 	}
 	script := filepath.Join(project, "vendor", "bin", "dr")
 	if info, err := os.Stat(script); err != nil || !info.Mode().IsRegular() {
-		return Command{}, fmt.Errorf("%s has no Drupal core command line: %s does not exist. Drupal 11.4 and later ship it.", runtime.Canonical(project), runtime.Canonical(script))
+		return Command{}, fmt.Errorf("%s has no Drupal core command line: %s does not exist. Drupal 11.4 and later ship it.", fsguard.Canonical(project), fsguard.Canonical(script))
 	}
 	return runtimePHPCall(f, Drush, f.Application, append([]string{script}, c.words...)), nil
 }

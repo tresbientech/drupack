@@ -96,7 +96,7 @@ jobs:
           python3 build/release-plan.py --ref-type "$GITHUB_REF_TYPE" --ref-name "$GITHUB_REF_NAME" \
             --event-name "$GITHUB_EVENT_NAME" --sha "$GITHUB_SHA" --before "$BEFORE" \
             --platform "$PLATFORM" --version "$NAMED" --repo "$GITHUB_REPOSITORY" \
-            --targets launcher/internal/runtime/targets.json --output "$GITHUB_OUTPUT"
+            --targets launcher/internal/payload/targets.json --output "$GITHUB_OUTPUT"
 
   # A builder image carries the PHP its own build compiled, so one image serves
   # one libc on one architecture. Its content follows the inputs

@@ -354,7 +354,7 @@ func serve(arguments []string) error {
 }
 
 // This file builds inside frankenphp's own module, which cannot import the
-// launcher's internal/runtime package, so the canonical form is restated here.
+// launcher's internal/fsguard package, so the canonical form is restated here.
 func canonical(path string) string {
 	return filepath.ToSlash(path)
 }

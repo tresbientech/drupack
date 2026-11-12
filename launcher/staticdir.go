@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 )
 
 // defaultStaticDirectory is Tome's default tome_static_directory, relative to the docroot.
@@ -20,7 +20,7 @@ var absolutePath = regexp.MustCompile(`^([A-Za-z]:)?/`)
 // starts from the Drupal root, the docroot. The . and .. segments are dropped by name, so a
 // root spelled with .. compares with the paths it might hold.
 func staticDirectory(docroot, setting string) string {
-	setting = runtime.Canonical(setting)
+	setting = fsguard.Canonical(setting)
 	if !absolutePath.MatchString(setting) {
 		setting = docroot + "/" + setting
 	}
@@ -51,7 +51,7 @@ func checkStaticRoot(root string, held []string, fold bool) (string, error) {
 // resolved follows the links of a path that exists. A path that does not exist stays as named.
 func resolved(p string) string {
 	if real, err := filepath.EvalSymlinks(p); err == nil {
-		return runtime.Canonical(real)
+		return fsguard.Canonical(real)
 	}
 	return p
 }

@@ -11,15 +11,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	goruntime "runtime"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/cache"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/localtls"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/payload"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
@@ -60,7 +62,7 @@ type packagedStart struct {
 	// typedData and typedFiles are --data-dir and --files-dir from the working
 	// directory, before any link resolves. typedFiles is "" without the option.
 	typedData, typedFiles string
-	// installed is what check read before the claim.
+	// installed reports whether check found an installed site before the claim.
 	installed bool
 	// listen is the IP:PORT text the refusals name.
 	listen string
@@ -80,9 +82,9 @@ func (s *packagedStart) detach() (log, stopTarget string, err error) {
 	}
 	// The stop command names the Site data the way the reader did, or not at all.
 	if written := s.c.options.DataDir; written != defaultDataDir {
-		stopTarget = " --data-dir " + shellWord(written, goruntime.GOOS == "windows")
+		stopTarget = " --data-dir " + shellWord(written, runtime.GOOS == "windows")
 	}
-	return runtime.Canonical(data) + "/logs/server.log", stopTarget, nil
+	return fsguard.Canonical(data) + "/logs/server.log", stopTarget, nil
 }
 
 func (s *packagedStart) check() (checked, error) {
@@ -98,7 +100,7 @@ func (s *packagedStart) check() (checked, error) {
 	var owed struct {
 		Installed bool `json:"installed"`
 	}
-	if err := operate(l, s.Env(Operate), &owed, false, "check", "site", runtime.Canonical(s.typedData)); err != nil {
+	if err := operate(l, s.Env(Operate), &owed, false, "check", "site", fsguard.Canonical(s.typedData)); err != nil {
 		return checked{}, err
 	}
 	s.installed = owed.Installed
@@ -112,12 +114,12 @@ func (s *packagedStart) check() (checked, error) {
 		return checked{}, errors.New("Invalid --host value")
 	}
 	// Both paths reach the Caddyfile.
-	if err := caddyfile.RefuseBraces("--data-dir", runtime.Canonical(s.typedData)); err != nil {
+	if err := caddyfile.RefuseBraces("--data-dir", fsguard.Canonical(s.typedData)); err != nil {
 		return checked{}, err
 	}
 	if o.FilesDir != "" {
 		s.typedFiles = s.fromCwd(o.FilesDir)
-		if err := caddyfile.RefuseBraces("--files-dir", runtime.Canonical(s.typedFiles)); err != nil {
+		if err := caddyfile.RefuseBraces("--files-dir", fsguard.Canonical(s.typedFiles)); err != nil {
 			return checked{}, err
 		}
 	}
@@ -132,7 +134,7 @@ func (s *packagedStart) check() (checked, error) {
 func (s *packagedStart) stage(plan startPlan) (staged, error) {
 	l := s.Launch
 	restrictUmask()
-	if err := runtime.Create(s.typedData); err != nil {
+	if err := fsguard.Create(s.typedData); err != nil {
 		return staged{}, err
 	}
 	data, err := filepath.EvalSymlinks(s.typedData)
@@ -153,19 +155,19 @@ func (s *packagedStart) stage(plan startPlan) (staged, error) {
 		warnExposed(files)
 	}
 	// The Caddyfile holds the resolved paths, and a link can lead to a brace.
-	if err := caddyfile.RefuseBraces("--data-dir", runtime.Canonical(data)); err != nil {
+	if err := caddyfile.RefuseBraces("--data-dir", fsguard.Canonical(data)); err != nil {
 		return staged{}, err
 	}
-	if err := caddyfile.RefuseBraces("--files-dir", runtime.Canonical(files)); err != nil {
+	if err := caddyfile.RefuseBraces("--files-dir", fsguard.Canonical(files)); err != nil {
 		return staged{}, err
 	}
-	s.Data, s.Files, s.Scratch = runtime.Canonical(data), runtime.Canonical(files), runtime.Canonical(scratch)
+	s.Data, s.Files, s.Scratch = fsguard.Canonical(data), fsguard.Canonical(files), fsguard.Canonical(scratch)
 	s.Host, s.URL = plan.Host, plan.URL
 	staged := staged{dir: state.At(data), logDir: s.Data + "/logs"}
 	if named {
 		staged.recordedFiles = s.Files
 	}
-	staged.answered = []string{runtime.Canonical(l.Application), runtime.Canonical(runtime.SiteApp(s.Data)), s.Files}
+	staged.answered = []string{fsguard.Canonical(l.Application), fsguard.Canonical(cache.SiteApp(s.Data)), s.Files}
 	if s.site.Static != nil {
 		s.StaticRoot = s.Data + "/static"
 		staged.answered = append(staged.answered, s.StaticRoot)
@@ -209,10 +211,10 @@ func siteDirs(data, files string, static bool) (resolved, scratch string, err er
 // can change dir, and the command that takes its access away. The command goes
 // on: a folder someone else can write still serves its own site.
 func warnExposed(dir string) {
-	exposed, err := runtime.Exposure(dir, false)
+	exposed, err := fsguard.Exposure(dir, false)
 	switch {
 	case err != nil:
-		fmt.Fprintf(os.Stderr, "Warning: cannot check who can change %s: %v\n", runtime.Canonical(dir), err)
+		fmt.Fprintf(os.Stderr, "Warning: cannot check who can change %s: %v\n", fsguard.Canonical(dir), err)
 	case exposed != nil:
 		fmt.Fprintf(os.Stderr, "Warning: %s, so another account can change this site's code and database. %s\n", exposed, fixCommand(exposed))
 	}
@@ -233,7 +235,7 @@ func portTaken(bind string, port int) bool {
 // personPresent reports whether someone watches the start: a terminal, a file
 // manager's console, or the terminal a detaching parent had.
 func personPresent(l Launch) bool {
-	return runtime.Terminal(os.Stdin) || l.ConsoleOwned || l.Child != nil && l.Child.person
+	return payload.Terminal(os.Stdin) || l.ConsoleOwned || l.Child != nil && l.Child.person
 }
 
 // held answers a start whose Site data another server holds. A holder still
@@ -282,7 +284,7 @@ func (s *packagedStart) held(plan startPlan) error {
 // login mints the one-time login link for uid 1 at url, opening the dashboard,
 // through application's Drush. failure is Drush's reason when it mints none.
 func (s *packagedStart) login(application, url string) (link, failure string, err error) {
-	s.Script = filepath.Join(application, runtime.DrushScript)
+	s.Script = filepath.Join(application, cache.DrushScript)
 	return mint(s.Launch, s.Env(Drush), url, filepath.Join(application, "drush"), application, "/admin/dashboard")
 }
 
@@ -336,14 +338,14 @@ func (s *packagedStart) prepare(plan startPlan, choice localtls.Choice, accessLo
 	}
 	application := l.Application
 	if len(site.Writable) > 0 {
-		if err := runtime.LaySiteApp(s.Data, l.AppChecksum, appPayload, site.Writable, os.Stderr); err != nil {
+		if err := cache.LaySiteApp(s.Data, l.AppChecksum, appPayload, site.Writable, os.Stderr); err != nil {
 			return ready{}, fmt.Errorf("Cannot lay the application in Site data: %s: %w", s.Data, err)
 		}
-		application = runtime.SiteApp(s.Data)
+		application = cache.SiteApp(s.Data)
 		s.SiteApp = application
 	}
-	application = runtime.Canonical(application)
-	s.Bin, s.Script = application, filepath.Join(application, runtime.DrushScript)
+	application = fsguard.Canonical(application)
+	s.Bin, s.Script = application, filepath.Join(application, cache.DrushScript)
 	var prepared struct {
 		// Adopted reports whether the database already held a site, and
 		// Credentials whether an owed step needed the administrator's.

@@ -14,13 +14,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	goruntime "runtime"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/cache"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/payload"
 )
 
 // releaseURL answers with the release.json of the newest release GitHub marks latest.
@@ -79,7 +80,7 @@ func selfUpdate(l Launch, arguments []string, url, executable string, out io.Wri
 		defer os.Remove(staged.Name())
 		defer staged.Close()
 	}
-	root, err := runtime.Root(l.Name, os.Stderr)
+	root, err := cache.Root(l.Name, os.Stderr)
 	if err != nil {
 		return err
 	}
@@ -99,12 +100,12 @@ func selfUpdate(l Launch, arguments []string, url, executable string, out io.Wri
 	var chosen asset
 	if later {
 		takeMusl := l.Musl
-		if !l.Musl && goruntime.GOOS == "linux" {
+		if !l.Musl && runtime.GOOS == "linux" {
 			// A host without getconf answers nothing, which counts as below the floor.
 			answer, _ := exec.Command("getconf", "GNU_LIBC_VERSION").Output()
 			takeMusl = glibcBelowFloor(string(answer))
 		}
-		if chosen, err = pick(l.Name, latest, target(goruntime.GOOS, goruntime.GOARCH, takeMusl)); err != nil {
+		if chosen, err = pick(l.Name, latest, target(runtime.GOOS, runtime.GOARCH, takeMusl)); err != nil {
 			return err
 		}
 	}
@@ -242,7 +243,7 @@ func fetchRelease(client *http.Client, url string) (release, error) {
 // recordCheck writes newest to the update-check file through a rename, so a
 // start never reads half a version.
 func recordCheck(root, newest string) error {
-	return state.WriteFile(filepath.Join(root, updateCheckName), []byte(newest))
+	return fsguard.WriteFile(filepath.Join(root, updateCheckName), []byte(newest))
 }
 
 var glibcVersion = regexp.MustCompile(`^glibc (\d+)\.(\d+)`)
@@ -270,7 +271,7 @@ func target(goos, goarch string, musl bool) string {
 	if musl {
 		libc = "musl"
 	}
-	return runtime.Target(goos+"-"+goarch, libc)
+	return payload.Target(goos+"-"+goarch, libc)
 }
 
 func pick(name string, latest release, target string) (asset, error) {

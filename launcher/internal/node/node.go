@@ -23,9 +23,9 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp"
 	pgperrors "github.com/ProtonMail/go-crypto/openpgp/errors"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/payload"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
 // releaseKeys holds the gpg-only-active-keys keyring of
@@ -238,7 +238,7 @@ func signedChecksums(r Request, tag string) (map[string]string, error) {
 // download writes url to path unless path already holds the file with SHA-256
 // want, and refuses a download with any other hash.
 func download(url, path, want string) error {
-	if got, err := runtime.HashFile(path); err == nil && got == want {
+	if got, err := payload.HashFile(path); err == nil && got == want {
 		return nil
 	}
 	response, err := http.Get(url)
@@ -265,7 +265,7 @@ func download(url, path, want string) error {
 		os.Remove(partial)
 		return fmt.Errorf("%s has SHA-256 %s, and the signed SHASUMS256.txt names %s", url, got, want)
 	}
-	return state.ReplaceFile(file, path)
+	return fsguard.ReplaceFile(file, path)
 }
 
 func fetch(url string) ([]byte, error) {

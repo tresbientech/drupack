@@ -17,7 +17,7 @@ fix until the form itself was named.
 - PHP resolves paths through `Symfony\Component\Filesystem\Path`, reached from
   the application's own autoloader.
 - A minted cache segment matches `^[a-z][a-z0-9.-]{0,31}$`, stated once in
-  `internal/runtime` and enforced by `cmd/pack` at build time.
+  `internal/payload` and enforced by `cmd/pack` at build time.
 - Drupal gets one service override per defect, registered from `settings.php`.
   Both overrides run on every platform, so Linux exercises the shipped path.
 

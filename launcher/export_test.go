@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
@@ -26,7 +26,7 @@ func staticProject(t *testing.T) engineFixture {
 
 func TestEngineExportReadsTheRecordedStaticAddress(t *testing.T) {
 	f := staticProject(t)
-	entry := state.FolderEntry(f.root, runtime.Canonical(f.project), false)
+	entry := state.FolderEntry(f.root, fsguard.Canonical(f.project), false)
 	if err := os.MkdirAll(entry.Path(), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestEngineExportReadsTheRecordedStaticAddress(t *testing.T) {
 	if !slices.Equal(x.run.Args, want) {
 		t.Errorf("export Args = %q, want %q", x.run.Args, want)
 	}
-	if got := environmentOf(x.run)["DRUPACK_DRUSH_SCRIPT"]; got != runtime.Canonical(filepath.Join(f.project, "vendor/drush/drush/drush.php")) {
+	if got := environmentOf(x.run)["DRUPACK_DRUSH_SCRIPT"]; got != fsguard.Canonical(filepath.Join(f.project, "vendor/drush/drush/drush.php")) {
 		t.Errorf("DRUPACK_DRUSH_SCRIPT = %q", got)
 	}
 	if want := []string{"drupack", "php-cli", filepath.FromSlash("/cache/app/drush"), "php:eval", tomeProbe}; !slices.Equal(x.probe.Args, want) {
@@ -60,17 +60,17 @@ func TestEngineExportReadsTheRecordedStaticAddress(t *testing.T) {
 func TestEngineExportRefusals(t *testing.T) {
 	none := newProject(t, `{}`)
 	_, err := engineExport(Facts{Launch: none.launch()}, parseLine(t, true, "export"), none.cwd)
-	if want := runtime.Canonical(none.project) + "/composer.json sets no extra.drupack.static, so there is nothing to export."; err == nil || err.Error() != want {
+	if want := fsguard.Canonical(none.project) + "/composer.json sets no extra.drupack.static, so there is nothing to export."; err == nil || err.Error() != want {
 		t.Errorf("no static: %v, want %q", err, want)
 	}
 	f := staticProject(t)
-	want := "Cannot read a recorded static URL for " + runtime.Canonical(f.project) + ". Start it once, or pass --uri URL."
+	want := "Cannot read a recorded static URL for " + fsguard.Canonical(f.project) + ". Start it once, or pass --uri URL."
 	_, err = engineExport(Facts{Launch: f.launch()}, parseLine(t, true, "export"), f.cwd)
 	if err == nil || err.Error() != want {
 		t.Errorf("never started: %v, want %q", err, want)
 	}
 	// A folder an earlier release served holds the old files alone, which read as never started.
-	entry := state.FolderEntry(f.root, runtime.Canonical(f.project), false)
+	entry := state.FolderEntry(f.root, fsguard.Canonical(f.project), false)
 	put(t, filepath.Join(entry.Path(), "static_url"), "http://127.0.0.1:3788/")
 	if _, err = engineExport(Facts{Launch: f.launch()}, parseLine(t, true, "export"), f.cwd); err == nil || err.Error() != want {
 		t.Errorf("old files: %v, want %q", err, want)
@@ -114,7 +114,7 @@ func TestEngineCore(t *testing.T) {
 	l.Args = []string{"drupack", "dr"}
 	_, err := engineCore(Facts{Launch: l}, parseLine(t, true, "dr", "list"), f.cwd)
 	script := filepath.Join(f.project, "vendor/bin/dr")
-	if want := runtime.Canonical(f.project) + " has no Drupal core command line: " + runtime.Canonical(script) + " does not exist. Drupal 11.4 and later ship it."; err == nil || err.Error() != want {
+	if want := fsguard.Canonical(f.project) + " has no Drupal core command line: " + fsguard.Canonical(script) + " does not exist. Drupal 11.4 and later ship it."; err == nil || err.Error() != want {
 		t.Errorf("error = %v, want %q", err, want)
 	}
 	put(t, script, "<?php")
@@ -142,7 +142,7 @@ func TestSiteExportAddressesTheRecordedStaticListener(t *testing.T) {
 	if want := []string{"SITE", "php-cli", filepath.Join(f.application, "drush"), "php:eval", tomeProbe}; !slices.Equal(x.probe.Args, want) {
 		t.Errorf("probe Args = %q, want %q", x.probe.Args, want)
 	}
-	if got := environmentOf(x.run)["DRUPACK_RUNTIME_STATIC_ROOT"]; got != runtime.Canonical(filepath.Join(f.data, "static")) {
+	if got := environmentOf(x.run)["DRUPACK_RUNTIME_STATIC_ROOT"]; got != fsguard.Canonical(filepath.Join(f.data, "static")) {
 		t.Errorf("DRUPACK_RUNTIME_STATIC_ROOT = %q", got)
 	}
 	// Each call builds its own environment, so the second keeps the reader's PATH.
@@ -178,12 +178,12 @@ func TestSiteExportRefusals(t *testing.T) {
 	}
 	os.Remove(filepath.Join(f.data, "settings.php"))
 	_, err = siteExport(Facts{Launch: f.launch()}, parseLine(t, false, "export", "--data-dir", f.data), f.cwd)
-	if want := "This Site data has no site yet: " + runtime.Canonical(f.data) + ". Start fixture-site once to create one."; err == nil || err.Error() != want {
+	if want := "This Site data has no site yet: " + fsguard.Canonical(f.data) + ". Start fixture-site once to create one."; err == nil || err.Error() != want {
 		t.Errorf("no site: %v, want %q", err, want)
 	}
 	absent := filepath.Join(f.cwd, "empty")
 	_, err = siteExport(Facts{Launch: f.launch()}, parseLine(t, false, "export", "--data-dir", absent), f.cwd)
-	if want := "This Site data has no site yet: " + runtime.Canonical(absent) + ". Start fixture-site once to create one."; err == nil || err.Error() != want {
+	if want := "This Site data has no site yet: " + fsguard.Canonical(absent) + ". Start fixture-site once to create one."; err == nil || err.Error() != want {
 		t.Errorf("no Site data: %v, want %q", err, want)
 	}
 	if _, err := os.Stat(absent); !os.IsNotExist(err) {

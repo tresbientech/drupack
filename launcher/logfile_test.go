@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 )
 
 func TestLogFile(t *testing.T) {
-	root := runtime.Canonical(resolved(t.TempDir()))
+	root := fsguard.Canonical(resolved(t.TempDir()))
 	docroot, export := root+"/project/web", root+"/project/html"
 	// A disk that folds case resolves a folder that exists to its own casing, so the casing rows name one that does not.
 	absent := root + "/absent/web"

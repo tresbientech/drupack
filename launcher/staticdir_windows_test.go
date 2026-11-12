@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 )
 
 // A drive-letter root spelled in another case names the docroot Windows holds.
 func TestCheckStaticRootFoldsCaseOnADrive(t *testing.T) {
-	project := runtime.Canonical(realDir(t))
+	project := fsguard.Canonical(realDir(t))
 	web := project + "/web"
 	if err := os.Mkdir(filepath.FromSlash(web), 0o755); err != nil {
 		t.Fatal(err)

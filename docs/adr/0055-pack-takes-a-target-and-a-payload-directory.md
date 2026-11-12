@@ -14,7 +14,7 @@ Go.
 
 - Pack takes `-target`, `-runtime`, `-payload`, `-version` and `-output`, plus
   `-site-version` and `-engine`. The launcher source is the working directory.
-- `-target` has the form `runtime.Target` returns. The architecture, the libc
+- `-target` has the form `payload.Target` returns. The architecture, the libc
   and the entry name follow from it. A name outside `targets.json` stops pack.
 - A payload directory has one layout: `build.PayloadName`,
   `build.ChecksumName`, the site's `siteconfig.OutputName` and a `node/`

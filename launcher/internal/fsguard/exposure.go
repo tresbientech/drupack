@@ -1,0 +1,22 @@
+package fsguard
+
+import "fmt"
+
+// ExposedError names a folder another account owns or can write, and that account.
+type ExposedError struct {
+	Folder  string
+	Account string
+	// Owns reports that Account owns Folder; otherwise Account holds access to it
+	// that the check refuses.
+	Owns bool
+}
+
+func (e *ExposedError) Error() string {
+	if e.Owns {
+		return fmt.Sprintf("%s is owned by %s", e.Folder, e.Account)
+	}
+	return fmt.Sprintf("%s is open to %s", e.Folder, e.Account)
+}
+
+// DirMode is the mode of a directory its owner alone enters.
+const DirMode = 0o700

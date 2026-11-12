@@ -1,6 +1,6 @@
 """An ASCII cache root on Windows. PHP startup resolves the PHPRC-derived configuration
 path through the ANSI code page, so a cache root it cannot represent breaks extension
-loading; runtime.Root() resolves such a root to its ASCII short name.
+loading; cache.Root() resolves such a root to its ASCII short name.
 
 One case per script, each pointing DRUPACK_CACHE_DIR at a fresh directory named in that
 script: a Latin-1 accent (HTTP 500, 12 of 13 DLL extensions failing), Cyrillic and CJK

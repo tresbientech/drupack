@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 )
 
 // foldCase is false: Unix variable names are case-sensitive.
@@ -30,7 +30,7 @@ func restrictUmask() {
 
 // fixCommand is the advice that ends e. Only root can give a folder back to this
 // user, so a folder another account owns gets moved instead.
-func fixCommand(e *runtime.ExposedError) string {
+func fixCommand(e *fsguard.ExposedError) string {
 	if e.Owns {
 		return "Move the Site data into a folder you own."
 	}

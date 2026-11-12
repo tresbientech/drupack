@@ -19,7 +19,7 @@ may be able to change:
 
 ### One rule, on the folder alone
 
-`runtime.Exposure` applies the rule to a resolved path. An error counts as
+`fsguard.Exposure` applies the rule to a resolved path. An error counts as
 exposed.
 
 - Unix: the current user owns the folder, and no group or other write bit is

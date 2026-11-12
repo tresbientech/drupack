@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/payload"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
@@ -63,7 +63,7 @@ func detachStart(l Launch, log, stop string) error {
 		return err
 	}
 	person := "0"
-	if runtime.Terminal(os.Stdin) {
+	if payload.Terminal(os.Stdin) {
 		person = "1"
 	}
 	stdout, childStdout, err := os.Pipe()
@@ -108,7 +108,7 @@ func detachStart(l Launch, log, stop string) error {
 		if before, marked := strings.CutSuffix(line, logMarker); marked {
 			os.Stdout.WriteString(before)
 			plain, _ := l.lookup("NO_COLOR")
-			colour := runtime.Terminal(os.Stdout) && plain == ""
+			colour := payload.Terminal(os.Stdout) && plain == ""
 			if code, err = relay(l.Name, log, exited, os.Stdout, stop, colour, relayPoll); err != nil {
 				return err
 			}

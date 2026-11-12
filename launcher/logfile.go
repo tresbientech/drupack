@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 )
 
 // logFiles returns the files of --access-log and --error-log, each "" for a
@@ -39,7 +39,7 @@ func logFile(written *string, name, fallback string, served []string, fold bool)
 		return "", err
 	}
 	// A link in the folder can lead into a served directory. The file itself may not exist yet.
-	file := resolved(runtime.Canonical(filepath.Dir(absolute))) + "/" + filepath.Base(absolute)
+	file := resolved(fsguard.Canonical(filepath.Dir(absolute))) + "/" + filepath.Base(absolute)
 	if err := caddyfile.RefuseBraces("--"+name, file); err != nil {
 		return "", err
 	}

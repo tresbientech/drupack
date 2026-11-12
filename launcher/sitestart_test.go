@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/payload"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
@@ -40,7 +40,7 @@ func TestCheckDatabase(t *testing.T) {
 }
 
 func TestServedRefusesWhenNobodyWatches(t *testing.T) {
-	if runtime.Terminal(os.Stdin) {
+	if payload.Terminal(os.Stdin) {
 		t.Skip("a terminal on stdin makes the start hand over")
 	}
 	f := newSite(t, siteconfig.Site{Port: 7225})

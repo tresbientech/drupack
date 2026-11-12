@@ -16,8 +16,10 @@ import (
 	"slices"
 	"strings"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/cache"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/node"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/payload"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
@@ -107,7 +109,7 @@ func NewPlan(r Request) (Plan, error) {
 	}
 
 	application := filepath.Join(r.Work, "app")
-	payload := filepath.Join(r.Work, "payload")
+	payloadDir := filepath.Join(r.Work, "payload")
 	php := []string{r.PHP, "php-cli"}
 	// The runtime reads php.ini beside itself only through PHPRC.
 	//nolint:prealloc // Its capacity equals its length, so each append below makes a copy.
@@ -142,7 +144,7 @@ func NewPlan(r Request) (Plan, error) {
 		{Name: "lay the engine over the site", Func: func(io.Writer) error { return layEngine(r.Engine, application, r.Site.Docroot) }},
 	}}
 	if r.Site.Node != "" {
-		plan.Steps = slices.Insert(plan.Steps, 0, resolveNode(&r.Site, nodeTargets(r, libcs, natives), filepath.Join(payload, NodeDirName)))
+		plan.Steps = slices.Insert(plan.Steps, 0, resolveNode(&r.Site, nodeTargets(r, libcs, natives), filepath.Join(payloadDir, NodeDirName)))
 	}
 	// A site without a recipe ships no seed, and serves only a database that holds it.
 	if r.Site.Recipe != "" {
@@ -153,10 +155,10 @@ func NewPlan(r Request) (Plan, error) {
 	plan.Steps = append(plan.Steps,
 		Step{
 			Name:    "archive the application",
-			Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payload, r.Site.Docroot},
+			Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payloadDir, r.Site.Docroot},
 		},
 		Step{Name: "compress the application", Func: func(io.Writer) error {
-			return errors.Join(compressPayload(payload), copyInto(payload, filepath.Join(application, siteconfig.OutputName)))
+			return errors.Join(compressPayload(payloadDir), copyInto(payloadDir, filepath.Join(application, siteconfig.OutputName)))
 		}})
 	destination := filepath.Join(r.Output, "payload")
 	if r.PayloadOnly || len(natives) > 0 {
@@ -165,7 +167,7 @@ func NewPlan(r Request) (Plan, error) {
 			exported = payloadTargets
 		}
 		plan.Steps = append(plan.Steps, Step{Name: "export the payload", Func: func(io.Writer) error {
-			return exportPayload(payload, destination, r.Site.Node != "", exported)
+			return exportPayload(payloadDir, destination, r.Site.Node != "", exported)
 		}})
 	}
 	if r.PayloadOnly {
@@ -187,12 +189,12 @@ func NewPlan(r Request) (Plan, error) {
 	plan.Steps = append(plan.Steps, Step{Name: "write site.json beside the executables", Func: func(io.Writer) error {
 		return siteconfig.Write(r.Site, r.Output)
 	}})
-	plan.Steps = append(plan.Steps, packSteps(r, libcs, resolved, "pack ", r.Site.Name, payload, "-site-version", r.SiteVersion)...)
+	plan.Steps = append(plan.Steps, packSteps(r, libcs, resolved, "pack ", r.Site.Name, payloadDir, "-site-version", r.SiteVersion)...)
 	// The suite runs on the host's first file, the glibc one when the build packs both.
 	tested := ""
 	for _, platform := range r.Platforms {
 		for _, libc := range libcs {
-			target := runtime.Target(platform, libc)
+			target := payload.Target(platform, libc)
 			if tested != "" || platform != r.Host {
 				plan.Untested = append(plan.Untested, target)
 				continue
@@ -227,7 +229,7 @@ func nodeTargets(r Request, libcs, natives []string) []string {
 	targets := slices.Clone(natives)
 	for _, platform := range r.Platforms {
 		for _, libc := range libcs {
-			targets = append(targets, runtime.Target(platform, libc))
+			targets = append(targets, payload.Target(platform, libc))
 		}
 	}
 	return targets
@@ -249,14 +251,14 @@ func resolveNode(site *siteconfig.Site, targets []string, dir string) Step {
 
 // packSteps packs one file per platform and libc, to OUTPUT/NAME-TARGET, from the payload directory.
 // extra adds the packer's flags. Pack decides from the target and the payload which file carries Node.
-func packSteps(r Request, libcs []string, resolved map[string]string, step, name, payload string, extra ...string) []Step {
+func packSteps(r Request, libcs []string, resolved map[string]string, step, name, payloadDir string, extra ...string) []Step {
 	steps := make([]Step, 0, len(r.Platforms)*len(libcs))
 	for _, platform := range r.Platforms {
 		for _, libc := range libcs {
-			target := runtime.Target(platform, libc)
+			target := payload.Target(platform, libc)
 			command := append([]string{
 				"go", "run", "./cmd/pack", "-target", target, "-runtime", resolved[platform+"/"+libc],
-				"-payload", payload, "-version", r.EngineVersion,
+				"-payload", payloadDir, "-version", r.EngineVersion,
 				"-output", filepath.Join(r.Output, Executable(name, target)),
 			}, extra...)
 			steps = append(steps, Step{
@@ -282,7 +284,7 @@ func requestLibcs(libc string) ([]string, error) {
 func resolveRuntimes(r Request, libcs []string) (map[string]string, error) {
 	resolved := map[string]string{}
 	for _, platform := range r.Platforms {
-		if _, ok := runtime.Platforms[platform]; !ok || siteconfig.Native(platform) && !r.PayloadOnly {
+		if _, ok := payload.Platforms[platform]; !ok || siteconfig.Native(platform) && !r.PayloadOnly {
 			return nil, fmt.Errorf("target %q is not built by drupack-build, which packs the Linux targets; a macOS or Windows target builds in the GitHub workflow build.yml, called at a tag or with its runtime-release input", platform)
 		}
 		if r.PayloadOnly {
@@ -347,7 +349,7 @@ func installSeed(log io.Writer, r Request, application string, phpEnv []string) 
 		Dir: application, Env: append(slices.Clone(phpEnv),
 			"DRUPACK_RUNTIME_DATA_DIR="+seed, "DRUPACK_RUNTIME_FILES_DIR="+filepath.Join(seed, "files"),
 			"DRUPACK_RUNTIME_APP_DIR="+application, "DRUPACK_RUNTIME_HOST=localhost", "DRUPACK_RUNTIME_NAME="+r.Site.Name,
-			"DRUPACK_DRUSH_SCRIPT="+runtime.Canonical(filepath.Join(application, runtime.DrushScript))),
+			"DRUPACK_DRUSH_SCRIPT="+fsguard.Canonical(filepath.Join(application, cache.DrushScript))),
 		Command: []string{r.PHP, "php-cli", filepath.Join(application, "operate.php"), "seed", seed},
 	}, log)
 	if err != nil {

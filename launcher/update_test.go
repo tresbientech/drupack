@@ -9,13 +9,13 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	goruntime "runtime"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/cache"
 )
 
 func packedAs(t *testing.T, name, release string, isEngine bool) Launch {
@@ -80,14 +80,14 @@ func leftovers(t *testing.T, executable string) []string {
 
 func hostRelease(newest string) release {
 	return release{Version: newest, Assets: []asset{
-		{Name: "drupack", Target: target(goruntime.GOOS, goruntime.GOARCH, false)},
-		{Name: "drupacked-demo", Target: target(goruntime.GOOS, goruntime.GOARCH, false)},
+		{Name: "drupack", Target: target(runtime.GOOS, runtime.GOARCH, false)},
+		{Name: "drupacked-demo", Target: target(runtime.GOOS, runtime.GOARCH, false)},
 	}}
 }
 
 func updateCheck(t *testing.T, name string) string {
 	t.Helper()
-	root, err := runtime.Root(name, &bytes.Buffer{})
+	root, err := cache.Root(name, &bytes.Buffer{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,12 +272,12 @@ func TestSelfUpdateReplacesTheExecutableWithTheNewerRelease(t *testing.T) {
 	if err != nil || string(content) != "new" {
 		t.Fatalf("the executable holds %q, %v", content, err)
 	}
-	if info, _ := os.Stat(executable); goruntime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
+	if info, _ := os.Stat(executable); runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
 		t.Fatalf("the new executable has mode %v", info.Mode())
 	}
 	// Windows moves the running file aside, and a later run removes it.
 	var want []string
-	if goruntime.GOOS == "windows" {
+	if runtime.GOOS == "windows" {
 		want = []string{"drupack.old"}
 	}
 	if names := leftovers(t, executable); !slices.Equal(names, want) {
@@ -375,7 +375,7 @@ func TestSelfUpdateStopsReadingPastTheListedSize(t *testing.T) {
 }
 
 func TestSelfUpdateRefusesADirectoryItCannotWriteBeforeAnyRequest(t *testing.T) {
-	if goruntime.GOOS == "windows" || os.Geteuid() == 0 {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
 		t.Skip("a directory mode stops no write here")
 	}
 	l := packedAs(t, "drupack", "1.0.0-alpha3", true)
@@ -491,7 +491,7 @@ func TestCheckRecordsNoReleaseThatLacksThisBuild(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "It has: plan9-amd64") {
 		t.Fatalf("selfUpdate = %v", err)
 	}
-	root, err := runtime.Root(l.Name, &bytes.Buffer{})
+	root, err := cache.Root(l.Name, &bytes.Buffer{})
 	if err != nil {
 		t.Fatal(err)
 	}

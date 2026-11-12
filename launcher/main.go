@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/cache"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/localtls"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/payload"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
@@ -93,19 +94,19 @@ func run(args []string, child *detachedChild, consoleNamed bool) error {
 	if c.word == "self-update" {
 		return selfUpdate(l, c.words, releaseURL, executable, os.Stdout)
 	}
-	if l.Root, err = runtime.Root(l.Name, os.Stderr); err != nil {
+	if l.Root, err = cache.Root(l.Name, os.Stderr); err != nil {
 		return err
 	}
-	cache := runtime.NewCache(l.Root, runtime.HoldUsage)
+	store := cache.NewCache(l.Root, cache.HoldUsage)
 	if c.word == "clean" {
 		dry, err := cleanArguments(c.words)
 		if err != nil {
 			return err
 		}
-		return cache.Clean(l.Name, dry, os.Stdout, os.Stderr)
+		return store.Clean(l.Name, dry, os.Stdout, os.Stderr)
 	}
 	if l.Engine {
-		updateNotice(l, executable, os.Stderr, runtime.Terminal(os.Stderr), time.Now(), func() error { return startCheck(launcher) })
+		updateNotice(l, executable, os.Stderr, payload.Terminal(os.Stderr), time.Now(), func() error { return startCheck(launcher) })
 	}
 	if refusal != nil {
 		return refusal
@@ -114,11 +115,11 @@ func run(args []string, child *detachedChild, consoleNamed bool) error {
 	if c.word == "stop" {
 		return runStop(l, c, os.Stdout)
 	}
-	m, err := runtime.ParseManifest(runtimeManifest)
+	m, err := payload.ParseManifest(runtimeManifest)
 	if err != nil {
 		return err
 	}
-	directory, application, err := cache.PrepareRelease(runtime.Release{
+	directory, application, err := store.PrepareRelease(cache.Release{
 		Payload:     runtimePayload,
 		Manifest:    m,
 		AppChecksum: l.AppChecksum,
@@ -128,7 +129,7 @@ func run(args []string, child *detachedChild, consoleNamed bool) error {
 		return err
 	}
 	l.Entry, l.Application = filepath.Join(directory, m.Entry), application
-	if l.NodeBin, err = prepareNode(cache); err != nil {
+	if l.NodeBin, err = prepareNode(store); err != nil {
 		return err
 	}
 	switch {
@@ -192,15 +193,15 @@ func nodeRefusal(l Launch, word string) error {
 }
 
 // prepareNode returns "" for a file that carries no Node.
-func prepareNode(cache runtime.Cache) (string, error) {
+func prepareNode(store cache.Cache) (string, error) {
 	if len(nodeManifest) == 0 {
 		return "", nil
 	}
-	m, err := runtime.ParseManifest(nodeManifest)
+	m, err := payload.ParseManifest(nodeManifest)
 	if err != nil {
 		return "", err
 	}
-	directory, err := cache.PrepareNode(nodePayload, m, os.Stderr)
+	directory, err := store.PrepareNode(nodePayload, m, os.Stderr)
 	if err != nil {
 		return "", err
 	}

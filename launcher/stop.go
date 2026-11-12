@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
@@ -36,7 +36,7 @@ func runStop(l Launch, c command, out io.Writer) error {
 	if err != nil {
 		return notRunning(l.Name, out)
 	}
-	data = runtime.Canonical(data)
+	data = fsguard.Canonical(data)
 	return stop(l.Name, state.At(data), "Site data", data, stopWait, out)
 }
 
@@ -54,7 +54,7 @@ func projectFolder(name, written string) (string, error) {
 	if info, err := os.Stat(resolved); err != nil || !info.IsDir() {
 		return "", missing
 	}
-	return runtime.Canonical(resolved), nil
+	return fsguard.Canonical(resolved), nil
 }
 
 // stop ends the server through the channel its stop record names, then waits

@@ -12,7 +12,7 @@ writes for each folder the engine serves.
 
 ## Decision
 
-- One store type in `launcher/internal/runtime` owns each cache kind. A kind
+- One store type in `launcher/internal/cache` owns each cache kind. A kind
   sets its directory, its readiness test and its retention rule.
 - A start holds an entry without the lock when it finds the entry ready. Every
   removal therefore moves the entry to a staging name and tests it again before

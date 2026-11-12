@@ -14,8 +14,9 @@ import (
 	"strings"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/build"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/cache"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/node"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/payload"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
@@ -104,19 +105,19 @@ func run() error {
 	}
 	printInputs(os.Stdout, packed)
 
-	payload, manifest, err := runtime.Build(o.runtime, o.version, packed.entry)
+	archive, manifest, err := payload.Build(o.runtime, o.version, packed.entry)
 	if err != nil {
 		return err
 	}
-	if key := runtime.Key(o.version, payload); !runtime.MintedSegment(key) {
-		return fmt.Errorf("version %q would mint the cache entry %q, breaking the rule %s", o.version, key, runtime.MintedSegmentPattern)
+	if key := cache.Key(o.version, archive); !payload.MintedSegment(key) {
+		return fmt.Errorf("version %q would mint the cache entry %q, breaking the rule %s", o.version, key, payload.MintedSegmentPattern)
 	}
 	build, err := os.MkdirTemp("", "drupack-pack-")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(build)
-	if err := writeBuildCopy(build, ".", payload, manifest, packed); err != nil {
+	if err := writeBuildCopy(build, ".", archive, manifest, packed); err != nil {
 		return err
 	}
 
@@ -131,16 +132,16 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("runtime payload %d bytes\n", len(payload))
+	fmt.Printf("runtime payload %d bytes\n", len(archive))
 	fmt.Printf("output %d bytes\n", info.Size())
 	return nil
 }
 
 // parseTarget splits target into a targets.json platform, its architecture and its libc.
 func parseTarget(target string) (platform, arch, libc string, err error) {
-	for candidate, goarch := range runtime.Platforms {
-		for _, known := range runtime.Libcs {
-			if runtime.Target(candidate, known.Name) == target {
+	for candidate, goarch := range payload.Platforms {
+		for _, known := range payload.Libcs {
+			if payload.Target(candidate, known.Name) == target {
 				return candidate, goarch, known.Name, nil
 			}
 		}
@@ -210,11 +211,11 @@ func requireFlags(flags map[string]string) error {
 }
 
 // writeBuildCopy lays the launcher source, the runtime and the payload of p into directory.
-func writeBuildCopy(directory, source string, payload []byte, manifest runtime.Manifest, p packing) error {
+func writeBuildCopy(directory, source string, archive []byte, manifest payload.Manifest, p packing) error {
 	if err := build.CopyTree(source, directory, func(string) bool { return false }); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(directory, "runtime.tar.zst"), payload, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(directory, "runtime.tar.zst"), archive, 0o600); err != nil {
 		return err
 	}
 	manifestData, err := json.Marshal(manifest)
@@ -236,7 +237,7 @@ func writeBuildCopy(directory, source string, payload []byte, manifest runtime.M
 // writeNodePayload packs the Node release in archive into the build copy, or
 // leaves both embedded files empty when archive is unset.
 func writeNodePayload(build, archive, version string) error {
-	var payload, manifestData []byte
+	var packed, manifestData []byte
 	if archive != "" {
 		tree, err := os.MkdirTemp("", "drupack-node-")
 		if err != nil {
@@ -247,16 +248,16 @@ func writeNodePayload(build, archive, version string) error {
 		if err != nil {
 			return err
 		}
-		var manifest runtime.Manifest
-		if payload, manifest, err = runtime.Build(tree, version, executable); err != nil {
+		var manifest payload.Manifest
+		if packed, manifest, err = payload.Build(tree, version, executable); err != nil {
 			return err
 		}
 		if manifestData, err = json.Marshal(manifest); err != nil {
 			return err
 		}
-		fmt.Printf("Node %s payload %d bytes\n", version, len(payload))
+		fmt.Printf("Node %s payload %d bytes\n", version, len(packed))
 	}
-	if err := os.WriteFile(filepath.Join(build, "node.tar.zst"), payload, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(build, "node.tar.zst"), packed, 0o600); err != nil {
 		return err
 	}
 	return os.WriteFile(filepath.Join(build, "node-manifest.json"), manifestData, 0o600)

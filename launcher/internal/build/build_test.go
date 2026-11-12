@@ -3,16 +3,17 @@ package build_test
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/klauspost/compress/zstd"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	goruntime "runtime"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/klauspost/compress/zstd"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/build"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
@@ -234,7 +235,7 @@ func TestTheEngineLaysTheSettingsStubInTheDocroot(t *testing.T) {
 		}
 	}
 	// NTFS stores no exec bit.
-	if goruntime.GOOS == "windows" {
+	if runtime.GOOS == "windows" {
 		return
 	}
 	if info, err := os.Stat(filepath.Join(r.Work, "app", "drush")); err != nil || info.Mode().Perm()&0o100 == 0 {
@@ -612,7 +613,7 @@ func TestStagingTheEngineCopiesItsListedApplicationFiles(t *testing.T) {
 		t.Fatalf("staged %v; want %v", got, want)
 	}
 	// NTFS keeps no mode bits, so a staged file reads back as 0666.
-	if info, err := os.Stat(filepath.Join(staged, "drush")); err != nil || (goruntime.GOOS != "windows" && info.Mode().Perm() != 0o755) {
+	if info, err := os.Stat(filepath.Join(staged, "drush")); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o755) {
 		t.Fatalf("drush staged as %v, %v; want mode 755", info, err)
 	}
 }

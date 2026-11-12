@@ -18,7 +18,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/payload"
 )
 
 const FileName = "drupack.yml"
@@ -29,12 +29,12 @@ const OutputName = "site.json"
 const DefaultLibc = "both"
 
 // Libcs lists the values libc takes, and the C library of each Linux file each
-// one packs, in the order of runtime.Libcs.
+// one packs, in the order of payload.Libcs.
 var Libcs = libcValues()
 
 func libcValues() map[string][]string {
 	values := map[string][]string{"both": nil}
-	for _, libc := range runtime.Libcs {
+	for _, libc := range payload.Libcs {
 		values["both"] = append(values["both"], libc.Name)
 		values[libc.Name] = []string{libc.Name}
 	}
@@ -42,13 +42,13 @@ func libcValues() map[string][]string {
 }
 
 func PlatformNames() []string {
-	return slices.Sorted(maps.Keys(runtime.Platforms))
+	return slices.Sorted(maps.Keys(payload.Platforms))
 }
 
 // Native reports whether platform is a macOS or Windows target, which builds on
 // a runner of its own system with a runtime Drupack's release publishes.
 func Native(platform string) bool {
-	_, listed := runtime.Platforms[platform]
+	_, listed := payload.Platforms[platform]
 	return listed && !strings.HasPrefix(platform, "linux-")
 }
 
@@ -209,8 +209,8 @@ func Parse(content []byte) (Site, error) {
 }
 
 func validate(site Site) error {
-	if !runtime.MintedSegment(site.Name) {
-		return fieldError("name", "%q must match %s", site.Name, runtime.MintedSegmentPattern)
+	if !payload.MintedSegment(site.Name) {
+		return fieldError("name", "%q must match %s", site.Name, payload.MintedSegmentPattern)
 	}
 	if site.Port < 1 || site.Port > 65535 {
 		return fieldError("port", "%d is outside 1 to 65535", site.Port)
@@ -244,7 +244,7 @@ func validate(site Site) error {
 		return fieldError("platforms", "names no target")
 	}
 	for _, platform := range site.Platforms {
-		if _, ok := runtime.Platforms[platform]; !ok {
+		if _, ok := payload.Platforms[platform]; !ok {
 			return fieldError("platforms", "%q is not one of %s", platform, strings.Join(PlatformNames(), ", "))
 		}
 	}

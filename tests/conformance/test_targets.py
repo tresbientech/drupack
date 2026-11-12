@@ -1,4 +1,4 @@
-"""The release workflow's platform choices, checked against launcher/internal/runtime/targets.json.
+"""The release workflow's platform choices, checked against launcher/internal/payload/targets.json.
 GitHub reads a workflow_dispatch input's options before any step runs, so the workflow
 spells them out. Run with:
 
@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-TARGETS = ROOT / "launcher" / "internal" / "runtime" / "targets.json"
+TARGETS = ROOT / "launcher" / "internal" / "payload" / "targets.json"
 WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 spec = importlib.util.spec_from_file_location("release_plan", ROOT / "build" / "release-plan.py")
 release_plan = importlib.util.module_from_spec(spec)

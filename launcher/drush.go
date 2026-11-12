@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"slices"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/cache"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
@@ -34,7 +35,7 @@ func siteDrush(f Facts, c command, cwd string) (Command, error) {
 	}
 	// Drush's own help and list read no site.
 	if len(c.words) > 0 && slices.Contains([]string{"--help", "-h", "list"}, c.words[0]) {
-		return drushCall(f, Drush, f.Application, filepath.Join(f.Application, runtime.DrushScript), c.words), nil
+		return drushCall(f, Drush, f.Application, filepath.Join(f.Application, cache.DrushScript), c.words), nil
 	}
 	s, err := openSite(f, site, c, cwd)
 	if err != nil {
@@ -53,7 +54,7 @@ type openedSite struct {
 }
 
 func (s openedSite) drush(k Kind, words []string) Command {
-	return drushCall(s.f, k, s.application, filepath.Join(s.application, runtime.DrushScript), words)
+	return drushCall(s.f, k, s.application, filepath.Join(s.application, cache.DrushScript), words)
 }
 
 // openSite reads the Site data c names and gives Drush and settings.php the
@@ -68,7 +69,7 @@ func openSite(f Facts, site siteconfig.Site, c command, cwd string) (openedSite,
 	}
 	data := fromCwd(c.options.DataDir)
 	if _, err := os.Stat(filepath.Join(data, "settings.php")); err != nil {
-		return openedSite{}, fmt.Errorf("This Site data has no site yet: %s. Start %s once to create one.", runtime.Canonical(data), l.Name)
+		return openedSite{}, fmt.Errorf("This Site data has no site yet: %s. Start %s once to create one.", fsguard.Canonical(data), l.Name)
 	}
 	typed := state.Listener{Listen: c.options.Listen, StaticListen: c.options.StaticListen, Host: c.options.Host}
 	if c.options.FilesDir != "" {
@@ -97,11 +98,11 @@ func openSite(f Facts, site siteconfig.Site, c command, cwd string) (openedSite,
 	if named {
 		warnExposed(files)
 	}
-	f.Data, f.Files, f.Scratch = runtime.Canonical(data), runtime.Canonical(files), runtime.Canonical(scratch)
+	f.Data, f.Files, f.Scratch = fsguard.Canonical(data), fsguard.Canonical(files), fsguard.Canonical(scratch)
 	f.Host, f.URL = plan.Host, plan.URL
 	staticURL := ""
 	if plan.Static != nil {
-		f.StaticRoot = runtime.Canonical(filepath.Join(data, "static"))
+		f.StaticRoot = fsguard.Canonical(filepath.Join(data, "static"))
 		staticURL = plan.Static.URL
 	}
 	if bundle, ok := state.At(scratch).Bundle(); ok {
@@ -114,10 +115,10 @@ func openSite(f Facts, site siteconfig.Site, c command, cwd string) (openedSite,
 	}
 	application := l.Application
 	if len(site.Writable) > 0 {
-		if !runtime.SiteAppCurrent(data, l.AppChecksum) {
-			return openedSite{}, fmt.Errorf("This Site data holds another release's application. Start %s once to lay this release's: %s", l.Name, runtime.Canonical(data))
+		if !cache.SiteAppCurrent(data, l.AppChecksum) {
+			return openedSite{}, fmt.Errorf("This Site data holds another release's application. Start %s once to lay this release's: %s", l.Name, fsguard.Canonical(data))
 		}
-		application = runtime.SiteApp(data)
+		application = cache.SiteApp(data)
 		f.SiteApp = application
 	}
 	if err := layTranslations(application, filepath.Join(files, "translations")); err != nil {
@@ -143,7 +144,7 @@ func layTranslations(application, directory string) error {
 			return err
 		}
 		if err := os.WriteFile(destination, content, 0o666); err != nil { //nolint:gosec // G306: a translation file holds no secret, and the umask sets its mode.
-			return fmt.Errorf("Cannot install translation resource: %s: %w", runtime.Canonical(destination), err)
+			return fmt.Errorf("Cannot install translation resource: %s: %w", fsguard.Canonical(destination), err)
 		}
 	}
 	return nil
@@ -181,7 +182,7 @@ func openFolder(l Launch, cwd string) (engineProject, error) {
 	if err := siteconfig.CheckStatic(project, composer); err != nil {
 		return engineProject{}, err
 	}
-	return engineProject{project, composer, state.FolderEntry(l.Root, runtime.Canonical(project), l.FoldCase)}, nil
+	return engineProject{project, composer, state.FolderEntry(l.Root, fsguard.Canonical(project), l.FoldCase)}, nil
 }
 
 // drush returns the call that runs words in the project's Drush. Drush and
@@ -201,9 +202,9 @@ func (f engineProject) drush(facts Facts, k Kind, words []string) (Command, erro
 			}
 		}
 	}
-	script := filepath.Join(f.project, runtime.DrushScript)
+	script := filepath.Join(f.project, cache.DrushScript)
 	if info, err := os.Stat(script); err != nil || !info.Mode().IsRegular() {
-		return Command{}, fmt.Errorf("%s has no Drush: %s does not exist. Run composer require drush/drush in it.", runtime.Canonical(f.project), runtime.Canonical(script))
+		return Command{}, fmt.Errorf("%s has no Drush: %s does not exist. Run composer require drush/drush in it.", fsguard.Canonical(f.project), fsguard.Canonical(script))
 	}
 	return drushCall(facts, k, facts.Application, script, words), nil
 }
@@ -237,22 +238,22 @@ func vendorRoot(cwd string) (string, error) {
 					return "", err
 				}
 				if info.Mode()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
-					return "", fmt.Errorf("Refusing the project at %s: %s is a link. Run drush from a project whose vendor/ is its own.", runtime.Canonical(dir), runtime.Canonical(path))
+					return "", fmt.Errorf("Refusing the project at %s: %s is a link. Run drush from a project whose vendor/ is its own.", fsguard.Canonical(dir), fsguard.Canonical(path))
 				}
 			}
 			for _, path := range []string{autoload, filepath.Dir(autoload), dir} {
-				account, trusted, err := runtime.Owner(path)
+				account, trusted, err := fsguard.Owner(path)
 				if err != nil {
 					return "", err
 				}
 				if !trusted {
-					return "", fmt.Errorf("Refusing the project at %s: %s is owned by %s. Run drush from a project you own.", runtime.Canonical(dir), runtime.Canonical(path), account)
+					return "", fmt.Errorf("Refusing the project at %s: %s is owned by %s. Run drush from a project you own.", fsguard.Canonical(dir), fsguard.Canonical(path), account)
 				}
 			}
 			return dir, nil
 		}
 		if filepath.Dir(dir) == dir {
-			return "", fmt.Errorf("No vendor/autoload.php in %s or any directory above it. Run composer install in the project.", runtime.Canonical(start))
+			return "", fmt.Errorf("No vendor/autoload.php in %s or any directory above it. Run composer install in the project.", fsguard.Canonical(start))
 		}
 	}
 }
