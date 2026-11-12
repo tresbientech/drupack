@@ -21,6 +21,7 @@ Rules for an LLM agent that works in this repository. `CONTRIBUTING.md` holds th
 
 - The repository holds no work state: no backlog, plan, spec, follow-up list or status file.
 - A settled decision is a numbered ADR in `docs/adr/`.
+- A document outside `docs/adr/` states a decision in its own words and cites no ADR number.
 
 ## Commits
 
@@ -33,6 +34,7 @@ fix: #3636009 Refuse the options drush cannot use
 - The type is `fix`, `feat`, `task`, `refactor`, `perf`, `test`, `docs`, `ci` or `chore`.
 - One issue gives one commit on `main`.
 - A commit that belongs to no issue keeps a plain imperative subject.
+- A commit message states a decision in its own words and cites no ADR number.
 
 ## Merge path
 

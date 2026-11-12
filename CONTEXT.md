@@ -179,4 +179,4 @@ A PHP extension that a package in the application's lock file names as a require
 
 ## Flagged ambiguities
 
-- `runtime` named four things: the PHP application files, the compiled interpreter and server, the `runtime` directory in Site data, and a Go package. Resolved: a **Runtime** is the compiled interpreter and server. [ADR 0017](docs/adr/0017-one-directory-per-artifact.md) gives the repository layout that follows.
+- `runtime` named four things: the PHP application files, the compiled interpreter and server, the `runtime` directory in Site data, and a Go package. Resolved: a **Runtime** is the compiled interpreter and server. The repository layout follows: `runtime/` holds the compile, and `application/` holds the PHP application files.

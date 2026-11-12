@@ -1,6 +1,6 @@
 # Contributing to Drupack
 
-The canonical repository is the drupal.org project [`drupack`](https://git.drupalcode.org/project/drupack). Merge requests go there, and each one runs the unit tests. GitHub holds a copy that builds, tests and publishes the executables, and takes no pull requests. [ADR 0001](docs/adr/0001-drupal-org-canonical-github-packaging.md) records why.
+The canonical repository is the drupal.org project [`drupack`](https://git.drupalcode.org/project/drupack). Merge requests go there, and each one runs the unit tests. GitHub holds a copy that builds, tests and publishes the executables, and takes no pull requests. drupal.org's runners run the unit tests and no build.
 
 Issues go to the [drupal.org issue queue](https://git.drupalcode.org/project/drupack/-/work_items). It holds the open questions, the follow-ups, the plans and the specs. An issue an LLM session files carries the `LLM` label and the template's AI disclosure. A commit for an issue uses Drupal core's subject, `fix: #3636009 Title`, and one issue gives one commit on `main`.
 
@@ -53,7 +53,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
 
 It packs the engine's PHP files, six files of `application/` that `launcher/internal/build/engine.go` lists, in place of an application, to `dist/engine/drupack-linux-amd64` and `dist/engine/drupack-linux-amd64-musl`. `--libc` picks one of them, as for a site. `--payload-only` stops at the archive, in `dist/engine/payload`, for the macOS and Windows builds.
 
-`application/` holds the PHP files both payloads carry, which the build lays over a site's Composer project to make the application root. The launcher plans and runs every start, and `application/operate.php` runs only the Drupal work of one: `prepare`, `check` and `seed`. `launcher/internal/siteconfig` validates a site's `drupack.yml` and writes it out as `site.json`. `runtime/` holds the PHP and FrankenPHP compile. `launcher/` is the Go module for the launcher, its packer and `drupack-build`. `build/` holds the scripts `drupack-build` runs, the macOS and Windows builds and the development loop. The `Dockerfile` at the root compiles the Linux runtimes and builds the `job` image. [ADR 0017](docs/adr/0017-one-directory-per-artifact.md) records the shape.
+`application/` holds the PHP files both payloads carry, which the build lays over a site's Composer project to make the application root. The launcher plans and runs every start, and `application/operate.php` runs only the Drupal work of one: `prepare`, `check` and `seed`. `launcher/internal/siteconfig` validates a site's `drupack.yml` and writes it out as `site.json`. `runtime/` holds the PHP and FrankenPHP compile. `launcher/` is the Go module for the launcher, its packer and `drupack-build`. `build/` holds the scripts `drupack-build` runs, the macOS and Windows builds and the development loop. The `Dockerfile` at the root compiles the Linux runtimes and builds the `job` image. Each directory holds one built artifact.
 
 ### macOS
 
@@ -169,7 +169,7 @@ Every published executable is a launcher carrying the real executable, compresse
 
 ## Releases
 
-`.github/workflows/upstream.yml` pushes every version tag, as [ADR 0029](docs/adr/0029-automatic-upstream-releases.md) describes. Never push one yourself. To release `main`, dispatch that workflow on GitHub with `version`, such as `1.0.0-beta1`. The run then does four things:
+`.github/workflows/upstream.yml` pushes every version tag. Never push one yourself. To release `main`, dispatch that workflow on GitHub with `version`, such as `1.0.0-beta1`. The run then does four things:
 
 - refuses a version without a tag's form, or one that does not sort above every tag
 - commits the version to the pinned lines of `docs/build-your-site.md`
@@ -178,7 +178,7 @@ Every published executable is a launcher carrying the real executable, compresse
 
 The candidate's QA jobs are the release's QA, so no local `build/qa.sh` run precedes a release. The upstream run prints the name of each red job as it ends. The candidate run goes on to its other jobs.
 
-A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.0.0-alpha1`, reaches drupal.org and GitHub in the same job, and starts the release workflow on GitHub. When the tag's candidate run succeeded, the workflow publishes that run's files. Otherwise it builds all seven targets and runs the suite on each, except the two musl files, which start a site on Alpine. It then publishes a GitHub Release. `build/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, each macOS and Windows runtime as `runtime-VERSION-TARGET.tar.zst`, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. A drupal.org release node, created by hand for the tag, publishes it to Packagist as a version of the Composer package `drupal/drupack`, which [ADR 0024](docs/adr/0024-composer-package.md) describes.
+A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.0.0-alpha1`, reaches drupal.org and GitHub in the same job, and starts the release workflow on GitHub. When the tag's candidate run succeeded, the workflow publishes that run's files. Otherwise it builds all seven targets and runs the suite on each, except the two musl files, which start a site on Alpine. It then publishes a GitHub Release. `build/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, each macOS and Windows runtime as `runtime-VERSION-TARGET.tar.zst`, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. A drupal.org release node, created by hand for the tag, publishes it to Packagist as a version of the Composer package `drupal/drupack`. Its bin script, `drupack-install`, downloads that version's engine executable into a project.
 
 ### Automatic releases
 
