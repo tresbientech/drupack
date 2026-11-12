@@ -1,6 +1,6 @@
 # Drupack
 
-Drupack distributes Drupal CMS for installation and use with persistent site data.
+Drupack runs Drupal from one executable. It serves a Project folder, or packs a site whose data persists beside it.
 
 ## Language
 
@@ -8,7 +8,6 @@ Drupack distributes Drupal CMS for installation and use with persistent site dat
 
 **Drupack**:
 The name of this project and of its Engine executable.
-_Avoid_: Portable Drupal, portable-drupal
 
 **Drupacked Demo**:
 The Packaged site that is Drupack's worked example, published from its own Site repository. Its Site template applies Drupal CMS's Mercury Demo recipe and Agent Access, and enables WordPal.
@@ -73,9 +72,6 @@ The public command that removes unpacked releases, and the state of folders no s
 
 **`DRUPACK_DATA_DIR`**:
 An environment variable that selects the default Site data directory for a Packaged site.
-
-**Version record**:
-The Drupack and Drupal versions that last served a Site data directory.
 
 **Listener record**:
 The listen address, static listener address, permitted host and scheme the last start served, and the Files directory it named, held in Site data. `Served` is its only reader.
@@ -143,8 +139,6 @@ A PHP extension that a package in the application's lock file names as a require
 
 - **Site data** keeps the name first start gave the site.
 - **Site data** survives replacement of the **Packaged site** with an updated release.
-- **Site data** holds a **Version record**, which a **Packaged site** rewrites on every start.
-- A **Packaged site** older than the **Version record** refuses to serve.
 - The **`drush` command** manages one **Packaged site** and its selected **Site data**.
 - **`DRUPACK_DATA_DIR`** selects **Site data** when no `--data-dir` option is present.
 
@@ -176,7 +170,3 @@ A PHP extension that a package in the application's lock file names as a require
 > User: "It copies the Seed site on a SQLite first start. MySQL and PostgreSQL install the Site template instead. Its site data then persists across launches."
 > Developer: "Can I name the site myself?"
 > User: "On a first start, with --site-name. After that the name belongs to the site, and Drupack never rewrites it."
-
-## Flagged ambiguities
-
-- `runtime` named four things: the PHP application files, the compiled interpreter and server, the `runtime` directory in Site data, and a Go package. Resolved: a **Runtime** is the compiled interpreter and server. The repository layout follows: `runtime/` holds the compile, and `application/` holds the PHP application files.

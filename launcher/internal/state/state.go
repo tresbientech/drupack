@@ -37,8 +37,7 @@ func At(path string) Dir {
 
 // FolderEntry is the entry of project, a canonical path, under root. Windows
 // spells one path in several casings, so fold lowercases ASCII letters first.
-// The key must match the one the previous release computed, which lowered
-// ASCII letters alone and kept every other byte.
+// The key lowers ASCII letters alone and keeps every other byte.
 func FolderEntry(root, project string, fold bool) Dir {
 	key := []byte(project)
 	if fold {

@@ -69,7 +69,7 @@ func TestEngineExportRefusals(t *testing.T) {
 	if err == nil || err.Error() != want {
 		t.Errorf("never started: %v, want %q", err, want)
 	}
-	// A folder an earlier release served holds the old files alone, which read as never started.
+	// A folder that holds a static_url file and no record reads as never started.
 	entry := state.FolderEntry(f.root, fsguard.Canonical(f.project), false)
 	put(t, filepath.Join(entry.Path(), "static_url"), "http://127.0.0.1:3788/")
 	if _, err = engineExport(Facts{Launch: f.launch()}, parseLine(t, true, "export"), f.cwd); err == nil || err.Error() != want {

@@ -47,7 +47,7 @@ func (e *UnreadableError) Error() string {
 }
 
 // Listener reads the record. A Site data no start has served holds none, and
-// ok is false. A release up to 1.0.0-beta8 recorded no scheme and served HTTP.
+// ok is false. A record without a scheme reads as HTTP.
 func (d Dir) Listener() (record Listener, ok bool, err error) {
 	path := filepath.Join(d.path, listenerName)
 	content, err := readShared(path)

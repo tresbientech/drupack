@@ -1,10 +1,7 @@
 # Drupack command line
 
-Every option a site's executable accepts, what it sets, and when it takes
-effect, then the commands of the engine executable, `drupack`. The launcher's
-parser (`launcher/parse.go`) is the contract the options record, and its usage
-text (`launcher/help.go`) the contract the engine commands record. A test in
-`launcher/parse_test.go` fails when they disagree.
+The commands, options and environment variables of a site's executable, then
+those of the engine executable, `drupack`.
 
 ## Synopsis
 
@@ -22,26 +19,24 @@ SITE --help
 SITE --version
 ```
 
-`SITE` is the site's executable, `drupacked-demo` for the Drupacked Demo.
+`SITE` is the executable of a site a build packed, named in its `drupack.yml`.
 
-An option takes `--name value` or `--name=value`. `--help` prints the option
-set. A rejected value prints its reason on standard error and exits 1.
+An option takes `--name value` or `--name=value`. A rejected value prints its
+reason on standard error and exits 1. Any word Drupack does not handle answers
+`Unknown command`.
 
 `--version` prints the release on its first line, with the C library on Linux.
-One line per component follows, each naming the component and its release:
-
-- FrankenPHP, PHP, Caddy and SQLite, from the runtime build
-- Node, when the file carries it
-- Drupal core and Drush, from the site's `composer.lock`
+One line per component follows: FrankenPHP, PHP, Caddy, SQLite, Node when the
+file carries it, Drupal core and Drush.
 
 ## Options
 
 | Option | Value | Default | Environment | Applies |
 |---|---|---|---|---|
 | `--data-dir` | PATH | `./data` | `DRUPACK_DATA_DIR` | every start, `drush` |
-| `--listen` | IP:PORT | `127.0.0.1` on the site's port, `7225` for the Drupacked Demo | none | every start, `drush` |
+| `--listen` | IP:PORT | `127.0.0.1` on the port `drupack.yml` names, `7225` by default | none | every start, `drush` |
 | `--static-listen` | IP:PORT | the site listener's address on its port plus one | none | every start, `drush` and `export` of a site with a static export |
-| `--host` | HOST | the site's drupack.site host when it resolves to 127.0.0.1, `localhost` otherwise (see [Site hosts](#site-hosts)) | none | every start, `drush` |
+| `--host` | HOST | the [Site host](#site-hosts) when it resolves to 127.0.0.1, `localhost` otherwise | none | every start, `drush` |
 | `--files-dir` | PATH | `files` in Site data | none | every start, `drush` |
 | `--database` | `sqlite`, `mysql`, `pgsql` | `sqlite` | `DRUPACK_DATABASE` | first start |
 | `--db-host` | HOST | none | `DRUPACK_DB_HOST` | first start |
@@ -51,74 +46,119 @@ One line per component follows, each naming the component and its release:
 | `--db-password` | PASSWORD | none | `DRUPACK_DB_PASSWORD` | first start |
 | `--admin-user` | NAME | `admin` | `DRUPACK_ADMIN_USER` | first start |
 | `--admin-password` | PASSWORD | generated | `DRUPACK_ADMIN_PASSWORD` | first start |
-| `--site-name` | NAME | the site's name, `Drupacked Demo` for the Drupacked Demo | `DRUPACK_SITE_NAME` | first start |
+| `--site-name` | NAME | the `site_name` in `drupack.yml` | `DRUPACK_SITE_NAME` | first start |
 | `--no-browser` | none | off | none | every start |
 | `--foreground` | none | off | none | every start |
-| `--access-log` | FILE, optional | off | none | every start (see [Access log](#access-log)) |
-| `--error-log` | FILE, optional | off | none | every start (see [Error log](#error-log)) |
-| `--trusted-proxies` | CIDR[,CIDR] | none | none | every start (see [Trusted proxies](#trusted-proxies)) |
+| `--access-log` | FILE, optional | off | none | every start |
+| `--error-log` | FILE, optional | off | none | every start |
+| `--trusted-proxies` | CIDR[,CIDR] | none | none | every start |
+
+## `start` and `stop`
+
+`SITE` and `SITE start` are one command. A start prints its progress, the
+site's address and a login link. It returns once the site answers, and the
+site keeps serving in the background. A server that exits before it answers
+makes the start exit with its code.
+
+`--foreground` serves in the terminal until Ctrl+C or a signal, as a container
+or a systemd unit needs. A Windows start from a file manager owns its window,
+so it serves in the foreground too.
+
+One server at a time serves a Site data directory, whatever port a second start
+asks for. A second start of a site that already serves opens the browser on it
+and exits. With no terminal, or while the first start still prepares, it exits
+1 and names the URL. A start whose port another program holds exits 1 and names
+the port.
+
+`SITE stop` stops the server of the Site data directory. It waits 15 seconds at
+most and exits 1 past that. With no server running it says so and exits 0. It
+takes `--data-dir` and no other option, and works on a foreground site too.
+
+## A first start
+
+A first start turns an empty Site data directory into an installed site. It
+reads the nine options marked `first start`, and no later start reads them. An
+interrupted first start resumes at the step it stopped on.
+
+`--database` selects the backend. SQLite needs nothing further. MySQL and
+PostgreSQL require `--db-host`, `--db-name`, `--db-user` and `--db-password`:
+
+```sh
+SITE --database mysql --db-host 127.0.0.1 --db-name drupal \
+  --db-user drupal --db-password 'database-password'
+```
+
+Later starts read the connection from Site data.
+
+`--admin-user` and `--admin-password` name the administrator account. Without
+them a first start creates `admin` with a generated password, which is never
+shown. `--site-name` names the site, and a later start never renames it.
+
+A start a person watches prints a one-time login link and opens the browser on
+it. `--no-browser` prints the link alone. A start with no terminal, such as a
+systemd unit or a container, prints the command that mints a link, so no log
+holds one:
+
+    Login:     run demo drush --data-dir /var/lib/demo user:login /admin/dashboard
+
+A start never installs Drupal over a database that already holds a site. It
+refuses to serve in four cases, and names the directory and the command to
+run:
+
+- an interrupted setup left the administrator account unset
+- a site exists that Drupal cannot start
+- the database holds a site that Drupack did not install
+- a setup cut off while installing into an empty database finds tables there
 
 ## Site data
 
 `--data-dir` selects the Site data directory. A relative path resolves against
-the directory you started Drupack in, never against the unpacked application.
-`DRUPACK_DATA_DIR` sets the default.
-
-A start refuses a value that contains `{` or `}`. The path reaches the
-Caddyfile, where Caddy reads a brace as a placeholder.
+the directory you started Drupack in. Site data holds the database, the
+uploads, the private files, the configuration exports, the generated settings
+and the logs. Copy the directory to back the site up, with the site stopped.
+Keep the copy private, since it holds the site's secrets.
 
 A start creates a missing Site data directory readable and writable by you
-alone. Every start, `drush` and `export` check Site data and a named
-`--files-dir` by the cache folder rule below, reading access aside. When one
-fails the rule, they print a warning and go on. The warning names the folder,
-the account and a fix:
+alone. Every start, `drush` and `export` warn when another account owns Site
+data or can write to it, and go on. The warning names the folder and a fix:
 
 - a folder open on Unix: `chmod -R go-w FOLDER`
 - a folder another account owns: move Site data into a folder you own
 
-The check reads the folder alone, and on Windows its owner alone. Keep Site data
-under parents no other account can write. On Windows, keep it out of a folder
-whose access list lets other accounts write, such as a new folder under `C:\`.
+The check reads the folder alone, and no parent. On Windows, keep Site data out
+of a folder whose access list lets other accounts write, such as a new folder
+under `C:\`.
 
-A site whose `drupack.yml` lists `writable` directories keeps its own
-application in `app` in Site data. A start lays it there once per release.
+A site whose `drupack.yml` lists `writable` directories keeps its own copy of
+the application in `app` in Site data. A start lays it there once per release.
 `drush` refuses an `app` another release laid, until a start lays this one.
-`clean` never removes it.
 
 ## Public files
 
-`--files-dir` names the directory that holds the site's public files. The site
-addresses them as `/sites/default/files`. By default they live in `files` in
-Site data.
+`--files-dir` names the directory that holds the site's public files, which the
+site addresses as `/sites/default/files`. A relative path resolves against the
+directory you started Drupack in.
 
-A relative path resolves against the directory you started Drupack in. A start
-refuses a value that contains `{` or `}`, for the same reason as `--data-dir`.
+Site data records the directory a start names. Later starts and `drush` use it
+without the option, and a new `--files-dir` replaces it.
 
-The Listener record keeps the directory a start names. Later starts and `drush`
-use it without the option, and a new `--files-dir` replaces it. A start copies
-the bundled translations into its `translations` directory, keeping any file
-already there.
+`--data-dir` and `--files-dir` refuse a path that contains `{` or `}`.
 
 ## The listener
 
-`--listen` takes IP:PORT. An IPv6 address needs brackets. The port must fall
-between 1 and 65535. The address must parse as an IP address, so a hostname is
-rejected.
+`--listen` takes IP:PORT. An IPv6 address needs brackets, and a hostname is
+rejected. Each start records its address in Site data, so `drush` and `export`
+reach the site without the option. A later start does not read it back.
 
-`--host` names the permitted request host, as a hostname or an IP address. It
-becomes an exact Drupal trusted-host pattern. A request carrying any other Host
-header gets 400. Printed URLs put an IPv6 host in brackets. Without `--host`, the
+`--host` names a request host the site accepts, as a hostname or an IP
+address, beside `localhost`, `127.0.0.1`, `[::1]` and the Site host. A request
+with any other Host header gets 400. Without `--host`, the
 start picks the host as [Site hosts](#site-hosts) describes.
 
-A browser opens only on a loopback listener, 127.0.0.0/8 or `::1`. Any other
-listener, `0.0.0.0` included, prints the login link and opens nothing.
-
-Every start writes both values into the Listener record in Site data, beside the
-files directory, the scheme it served and the static listener's address. A start
-reads only the files directory back, so `--listen` does not become sticky. `drush`
-and `export` read all five, which is how `SITE drush user:login` prints a working
-link whatever port and scheme the site runs on, and how `export` names the static
-URL.
+A listener beyond loopback, such as `--listen 0.0.0.0:7225`, serves plain HTTP.
+The login link, the password and the session cookie cross the network
+unencrypted. Put a TLS proxy in front of the site before anyone signs in from
+another computer. Such a start prints the login link and opens no browser.
 
 ## Site hosts
 
@@ -126,248 +166,153 @@ Each site has a Site host under `drupack.site`, whose public DNS answers every
 name with `127.0.0.1`. Separate names keep each site's cookies apart, which
 `localhost` cannot, since browsers ignore the port.
 
-- `extra.drupack.subdomain` in the site's or folder's `composer.json` sets
-  the label: `"subdomain": "demo"` gives `demo.drupack.site`. It must be one
-  DNS label: a build refuses another value, and so does an engine start.
+- `extra.drupack.subdomain` in `composer.json` sets the label:
+  `"subdomain": "demo"` gives `demo.drupack.site`. It must be one DNS label.
 - Without it, a Packaged site's label is the `name` in `drupack.yml`.
 - Without it, an engine start's label is the folder's name: `~/DEV/My Shop`
   gives `my-shop.drupack.site`.
-- The label is lowercased, each character outside `a-z`, `0-9` and `-` becomes
-  `-`, it is cut to 63 characters, and dashes at either end are dropped. A label
-  left empty becomes `site`.
 
-A start on `127.0.0.1` without `--host` looks the name up with the system
-resolver and waits at most one second. When the answer holds `127.0.0.1`, the
-URL, the login link, `drush` and the Listener record use the name. Otherwise
-they use `localhost`, or the bind address for the engine, and the start prints
-the answer:
+A start on `127.0.0.1` without `--host` looks the name up and waits at most one
+second. When the answer holds `127.0.0.1`, the URL and the login link use the
+name. Otherwise they use `localhost`, or the bind address for the engine, and
+the start prints the answer:
 
 ```
 Name: demo.drupack.site did not resolve to 127.0.0.1 (no answer), so the URL uses localhost.
 ```
 
-An offline machine gets no answer. A resolver that drops private answers may
-return another address, such as `0.0.0.0`.
+An offline machine gets no answer, and a DNS filter may return another address.
 
 A loopback start answers the name, `localhost`, `127.0.0.1`, `[::1]`, its bind
-address and its `--host`, over HTTP or HTTPS. A request for any other name gets
-an empty response, so a web page that points its own name at `127.0.0.1`
-reaches nothing. A name of your own in `/etc/hosts` needs `--host`. A start on
-any other address answers every name, so the network reaches it by IP or by a
-name of its own. An engine `--listen` with a host name counts as such a start.
+address and its `--host`. A request for any other name gets an empty response.
+A name of your own in `/etc/hosts` needs `--host`. A start on any other address
+answers every name.
 
 A Project folder keeps its own settings. When they set `trusted_host_patterns`,
 add `'^.+\.drupack\.site$'` so Drupal accepts the name.
 
 ## HTTPS
 
-A start serves HTTPS when its bind is loopback, its host is `localhost`,
-`127.0.0.1`, `::1` or the site's name, and the machine trusts one of two roots.
-It checks them in order:
-
-1. mkcert's, when `mkcert` is on `PATH`, `mkcert -CAROOT` holds `rootCA.pem`,
-   and `mkcert -install` made the machine trust it. The start runs mkcert to
-   write a certificate for those names and `*.drupack.site` into
-   `DRUPACK_TLS_DIR/mkcert`, and again when it nears expiry, when mkcert's root
-   changes, or when it lacks `*.drupack.site`.
-2. The Drupack root, once `SITE trust` or `drupack trust` installed it.
-
-Any other start serves HTTP. A loopback start on HTTP prints a line naming
-`trust`. The printed URL, the login link, `drush` and the Mercure hub's address
-all use the scheme the start served. PHP verifies HTTPS against
-`DRUPACK_CA_FILE`, so an HTTPS start writes that bundle plus its own root into
-`ca-bundle.pem` beside the server's state, and points the server, cron and
-`drush` at it. An HTTP start deletes that file.
-
-`trust` creates the Drupack root on first use, in `DRUPACK_TLS_DIR`, and
-installs it in the system's trust store and in Firefox's NSS databases. It
-prints one line per store:
+Run `SITE trust` or `drupack trust` once, and every Drupack site and engine
+start of your account serves HTTPS on loopback. `trust` creates a local root
+and installs it in the system's trust store and in Firefox's:
 
 - Linux asks for your password through `sudo`. Firefox gets the root only when
   `certutil` is installed.
 - macOS asks for your password and writes the System keychain.
 - Windows writes your account's root store after one confirmation dialog.
 
-`trust --uninstall` removes the root from both stores and deletes it. One root
-serves every Drupack site and engine start of your account. It can vouch only
-for TLS servers named `localhost`, `drupack.site`, their subdomains,
-`127.0.0.0/8` or `::1`, so its key cannot sign a certificate a browser accepts
-for another site. A root made before Site hosts cannot vouch for them:
-`trust --uninstall`, then `trust`, replaces it. Chromium and Firefox
-enforce that limit; Drupack has not checked Safari or Edge.
+The root can vouch only for servers named `localhost`, `drupack.site`, their
+subdomains, `127.0.0.0/8` or `::1`. Chromium and Firefox enforce that limit;
+Safari and Edge are unchecked. `trust --uninstall` removes the root and deletes
+it.
 
-## A first start
+A machine where [mkcert](https://github.com/FiloSottile/mkcert) is installed
+and trusted, as DDEV sets up, serves HTTPS with no `trust`. A start prefers
+mkcert's root over Drupack's.
 
-A first start turns an empty Site data directory into an installed site. It
-consumes the nine options marked `first start`, and no later start reads them.
-An interrupted first start resumes at the step it stopped on. On MySQL or PostgreSQL, a first start cut off after it began installing leaves the next start refusing while the database holds tables, and installing once it is empty.
+A start serves HTTPS when its bind is loopback, its host is `localhost`,
+`127.0.0.1`, `::1` or the Site host, and the machine trusts one of the two
+roots. Any other start serves HTTP, and a loopback start on HTTP prints a line
+naming `trust`. The login link, `drush` and the Mercure hub's address use the
+scheme the start served.
 
-`--database` selects the backend. SQLite needs nothing further. MySQL and
-PostgreSQL require `--db-host`, `--db-name`, `--db-user` and `--db-password`.
-A missing one stops the start. `--db-port` defaults to 3306 for MySQL and 5432
-for PostgreSQL.
+## `drush`
 
-`--admin-user` and `--admin-password` name the administrator account. Without
-them a first start creates `admin` with a generated password, which is never
-shown.
+`SITE drush` runs the bundled Drush against the site. Drupack's own options
+precede the Drush command, and everything after the command reaches Drush
+unchanged:
 
-A start a person watches prints a one-time login link for that account. A person
-watches when the start has a terminal, a file manager's console, or a detaching
-parent with a terminal. Any other start, such as a systemd unit or a container,
-prints the command that mints a link, so no log holds one:
-
-    Login:     run demo drush --data-dir /var/lib/demo user:login /admin/dashboard
-
-`--site-name` names the site. A later start never renames a site.
-
-## What `drush` accepts and ignores
-
-`drush` runs the bundled Drush command set. Drupack's own options precede the
-Drush command. The first word that is not one of them starts the command, and
-everything after it reaches Drush unchanged.
+```sh
+SITE drush status
+SITE drush --data-dir ./data user:login
+```
 
 `drush` acts on `--data-dir`, `--listen`, `--static-listen`, `--host` and
-`--files-dir`. It parses the other 14 and acts on none of them:
+`--files-dir`. It parses the other 14 options and acts on none of them. It
+works while the site serves, and needs an installed site.
 
-- `drush --admin-password x user:login` spends the secret for nothing
-- `drush --site-name Foo status` renames nothing
-- `drush --database bogus status` exits 1 over a value it never reads
+## `php`, `node`, `npm` and `npx`
 
-`drush` takes no Serving lease and initializes nothing, so it works while the site
-serves. It needs an installed site. An empty Site data directory stops it with
-the directory named.
+`php` runs the bundled PHP from the working directory, in one of two forms:
 
-## `node`, `npm` and `npx`
+- `SCRIPT [ARGUMENTS]` runs the script and exits with its status.
+- `-r CODE` runs the code, which gets no `$argv`.
 
-A site that carries Bundled Node runs its release under these three words.
-Each runs in the reader's directory with the reader's arguments. It exits with
-the program's status.
+Any other PHP option stops with a message naming it. Drush's and a request's
+child processes reach the same PHP as the `php` on their `PATH`.
 
-The first start of a release unpacks it into the cache, under `node`, once per
-version. npm keeps its own cache and registry settings in the reader's home.
-The server and `drush` find the same release first on `PATH`.
+A site that carries Bundled Node runs it as `node`, `npm` and `npx`, in the
+working directory. The server and `drush` find that Node first on `PATH`. A
+musl file carries no Node: each word exits 1 and names the glibc file. A site
+without Node answers each word as an unknown command.
 
-A musl file carries no Node. There each word exits 1 and names the glibc
-file. A site without Node answers each word as an unknown command.
+## Static site
+
+A site or project whose `composer.json` sets `extra.drupack.static` serves its
+Tome export on a second listener. That listener answers with the export's
+files and hands the paths `dynamic` lists to Drupal.
+[The build guide](build-your-site.md#a-static-site) describes the key.
+
+`--static-listen IP:PORT` names the listener. Its default is the site
+listener's address on the next port. The two ports differ, and a start refuses
+a static port another program holds. On a site without the key the option
+exits 1.
+
+- A request answers the path's file, or `index.html` under it.
+- A miss answers the export's own `404/index.html` with status 404.
+- A path `dynamic` matches reaches Drupal, even when the export holds a page
+  under it.
+- A `.php` path answers 403.
+
+`SITE export` writes the export into `static` in Site data. It runs Drush's
+`tome:static` with the static URL the start printed as `Static:`, then every
+word after `export` unchanged. A `--uri` or `-l` among those words replaces the
+URL. The exit code is Drush's. `export` takes the options `drush` takes and
+needs an installed site. Without the key it exits 1. With `tome_static` not
+enabled it exits 1 and names the `drush pm:install` command that enables it.
 
 ## Mercure hub
 
 A site or project whose `composer.json` sets `extra.drupack.mercure` to `true`
-serves a Mercure hub at `/.well-known/mercure`. A start creates
-`mercure_publisher_secret` and `mercure_subscriber_secret` when they are
-missing. The hub keeps its last 1000 updates in `mercure.db`. It also publishes
-who subscribes, which
-[the build guide](build-your-site.md#who-is-subscribed) describes.
+serves a Mercure hub at `/.well-known/mercure`. A start creates the hub's two
+secrets, and the hub keeps its last 1000 updates. Both live in Site data, or
+in the folder's cache entry for the engine, so a moved folder gets new secrets.
 
-These files live in Site data for a Packaged site. The engine executable keeps
-them in the folder's cache entry, so the project folder gains no file. Moving
-the folder gives it new secrets and an empty history.
-
-A start exports three variables to the server and the PHP it runs. `drush`
-exports them once a start has created the secrets. The engine's `drush` names
-the address the last start listened on.
+A start exports three variables to the server, to the PHP it runs and to
+`drush`:
 
 | Variable | Holds |
 |---|---|
-| `DRUPACK_MERCURE_URL` | the hub's address on the listener, for an HTTP publish, and the `iss` and `aud` of every token |
+| `DRUPACK_MERCURE_URL` | the hub's address, and the `iss` and `aud` of every token |
 | `DRUPACK_MERCURE_PUBLISHER_SECRET` | the HS256 key a publisher token is signed with |
 | `DRUPACK_MERCURE_SUBSCRIBER_SECRET` | the HS256 key a subscriber token is signed with |
 
-[The build guide](build-your-site.md#a-site-that-pushes-live-updates) describes the two ways to publish.
+[The build guide](build-your-site.md#a-site-that-pushes-live-updates) describes
+how a site publishes and subscribes.
 
-## Static site
+## Logs
 
-A site or project whose `composer.json` sets `extra.drupack.static` serves a
-static listener. It answers with the files of the site's Tome export, and hands
-the paths `dynamic` lists to Drupal.
+Site data holds two logs of every start, in `logs`:
 
-`--static-listen IP:PORT` names that listener. Its default is the site
-listener's address on the next port, `7226` for the Drupacked Demo. The two
-ports differ. A site start records the address in Site data, as it records
-`--listen`, and refuses a static port another program holds. On a site or
-project without the key the option exits 1.
+- `server.log`: what a background server prints. Each start empties it.
+- `caddy.log`: Caddy's errors and PHP's fatal errors.
 
-The export lives in `static` in Site data. The engine serves the
-`tome_static_directory` the project's `settings.php` sets, read from the
-docroot when relative. A project that sets none serves `html` beside the
-docroot, Tome's default directory. The engine creates neither. A value other
-than a directory path stops the start. So does a directory that is or holds the
-docroot or the folder's cache entry, or whose path holds a brace.
+`--access-log` logs each request of the site port and of the static port, as
+one JSON line. Its `logger` field holds `http.log.access.site` or
+`http.log.access.static`. `--error-log` logs PHP's and Caddy's warnings and
+errors. A PHP notice, a deprecation and an `error_log()` call write no line.
 
-A request answers the path's file, or `index.html` under it, with no redirect.
-A miss answers the export's own `404/index.html` with status 404. A path
-`dynamic` matches reaches Drupal through the guards of the site's port. Tome
-may have exported a page under such a path; the static port never serves it.
-Every other path meets the refusals of the site's port, and a `.php` path
-answers 403, since the static port runs no PHP.
+Both options take their file the same way:
 
-### `export`
-
-`SITE export` runs the site's Drush with `tome:static --yes --uri URL`, URL
-the static URL a start prints as `Static:`, then every word after `export`
-unchanged. A
-word naming `--uri`, `--uri=URL`, `-l URL` or `-lURL` replaces the URL, and
-Drupack adds none. The exit code is Drush's.
-
-On a site, `export` takes the options `drush` takes and needs an installed
-site. On the engine, `drupack export` reads the URL the last start recorded,
-so a project no start has served needs `--uri`. Both refuse a site or project
-without the key.
-
-The lock of a site with the key names `drupal/tome`, or the build and an
-engine start exit 1 naming it. The site enables `tome_static` itself, as
-[the build guide](build-your-site.md#a-static-site) describes. An `export`
-from a Drupal without it enabled exits 1 and names the `drush pm:install`
-command that enables it.
-
-## `start` and `stop`
-
-`SITE` and `SITE start` are one command. A start checks its words, then
-runs itself in the background with `--foreground`. That child takes the Serving
-lease once and runs the whole start. The terminal shows the child's output
-until the site answers, then prints the log file and the
-command that stops the site, and returns 0. A server that exits before it
-answers makes the start exit with its code. Its output after that goes to
-`logs/server.log` in Site data, which each start empties.
-
-On Windows the printed command names the executable as `.\NAME.exe` when the
-start ran in its folder. A path that needs quotes gets PowerShell's `& ` in
-front, which cmd does not accept.
-
-`--foreground` serves in the terminal until Ctrl+C or a signal, as a container
-or a systemd unit needs. A Windows start from a file manager owns its window,
-so it serves in the foreground too.
-
-## Access log
-
-`--access-log` makes a start log each request of the site port and of the
-static port to one file. A start without it logs no request.
-
-- `--access-log` writes `logs/access.log` in Site data.
+- `--access-log` alone writes `logs/access.log` in Site data, and `--error-log`
+  alone `logs/error.log`.
 - `--access-log=FILE` writes FILE, relative to the working directory.
 - `--access-log FILE` is refused, since the file takes the `=`.
 
-Each line is JSON. Its `logger` field holds `http.log.access.site` for the
-site port and `http.log.access.static` for the static port. The file rolls at
-100 MiB, and 10 rolled files stay. The start prints the file's path.
-
-The start refuses a FILE that holds `{` or `}`. It refuses a FILE inside a
-directory the server answers requests from: the application, the public files
-directory and the static export.
-
-## Error log
-
-`--error-log` makes a start log PHP's and Caddy's warnings and errors to one
-file. It takes its FILE as `--access-log` does, refuses the same files, and
-rolls the same way. The two options refuse one FILE for both.
-
-- `--error-log` writes `logs/error.log` in Site data.
-- A PHP fatal error and a PHP warning each write a line under the logger
-  `http.handlers.php`.
-- A PHP notice, a deprecation and an `error_log()` call write none.
-- A request writes none, whatever its status.
-
-`logs/caddy.log` and `logs/server.log` hold what they hold without the option.
+A start refuses one FILE for both options, a FILE that holds `{` or `}`, and a
+FILE inside a directory the server answers requests from. `caddy.log` and both
+optional logs roll at 100 MiB, and 10 rolled files stay.
 
 ## Trusted proxies
 
@@ -381,8 +326,7 @@ SITE --trusted-proxies 192.168.0.58,10.0.0.0/8
 
 For a request one of them sent, the server takes the client's address from
 `X-Forwarded-For`. The access log's `client_ip` then holds the client, and
-`remote_ip` still holds the proxy. A forwarded header from any other sender is
-ignored.
+`remote_ip` the proxy.
 
 - No proxy is trusted without the option.
 - The start refuses `0.0.0.0/0` and `::/0`, which would let any client name
@@ -391,56 +335,60 @@ ignored.
   the header once `settings.php` sets `reverse_proxy` and
   `reverse_proxy_addresses`.
 
-Once the site answers, the server listens on a random port of `127.0.0.1`,
-whatever `--listen` names. It writes that port, a random token and its PID to
-`stop.json` in Site data. On Unix only its owner can read the file; on Windows
-it takes the access of the Site data directory. `stop` sends the token
-there, and the server stops the way Ctrl+C stops it. `stop` then waits for the
-Serving lease to free, 15 seconds at most, and exits 1 past that. With no
-server running it says so and exits 0.
+## The cache
 
-`stop` takes `--data-dir` and no other option. It works on a foreground site
-too.
+An executable carries Drupal, PHP and Caddy compressed. The first start of a
+release unpacks them into a cache directory, which takes about a second. Later
+starts of that release use what is there.
 
-## `clean`
+- Linux: `~/.cache/NAME/runtime`
+- macOS: `~/Library/Caches/NAME/runtime`
+- Windows: `%LOCALAPPDATA%\NAME\runtime`
 
-`clean` removes the unpacked runtimes, applications and Node releases from the
-cache. An entry a running site holds is listed and kept, because the site reads
-its PHP files on every request. `--dry-run` lists every entry with its size and
-removes none. The next start unpacks what it needs again.
+`NAME` is the executable's name, such as `drupack`. One
+A start keeps the runtime it runs and removes the
+others. An application goes once no start has used it for 30 days.
 
-Without `clean`, a start keeps the runtime it runs and removes the others. An
-application goes once no start has used it for 30 days. A Node release stays
-until `clean`.
+`clean` removes the unpacked runtimes, applications and Node releases. An entry
+a running site holds is listed and kept. `--dry-run` lists every entry with its
+size and removes none.
 
-## Environment
-
-Ten options read a variable when the option is absent. The table above names
-each one.
-
-Five variables have no option:
-
-| Variable | Selects |
-|---|---|
-| `DRUPACK_CACHE_DIR` | where a release unpacks, for a disk with more room |
-| `DRUPACK_CA_FILE` | the TLS trust bundle PHP and `self-update` verify HTTPS against |
-| `DRUPACK_TLS_DIR` | the folder holding the local root, `drupack/tls` in your config folder by default |
-| `DRUPACK_DNS_ANSWER` | a fixed answer for the [Site host](#site-hosts) lookup, for tests: a comma list of addresses, or `none` |
-| `DRUPACK_NO_UPDATE_CHECK` | `1` turns off the engine executable's daily release check |
-
-A start runs the PHP and Caddy it unpacked into the cache, so it refuses a cache
-folder that fails this rule:
+`DRUPACK_CACHE_DIR` moves the cache. A start runs the PHP and Caddy it
+unpacked, so it refuses a cache folder that fails this rule:
 
 - Unix: the folder is yours, and readable and writable by you alone.
 - Windows: the folder belongs to you, to SYSTEM or to Administrators.
 
-The refusal names the folder and the account. A cache folder a start creates
-passes: it gets mode `0700`, or on Windows an access list naming you, SYSTEM
-and Administrators alone.
+A cache folder a start creates passes. The check reads no parent folder, so
+point `DRUPACK_CACHE_DIR` at a folder under your home. A home directory that
+refuses writes sends the cache to the temporary directory. So does a Windows
+cache root PHP cannot read, and the start prints why.
 
-The check reads no parent folder, and on Windows no access list. Point
-`DRUPACK_CACHE_DIR` at a folder under your home, or at one a start creates. An
-existing Windows folder outside your profile can let other accounts write.
+## Environment
+
+Ten options read a variable when the option is absent. The
+[options table](#options) names each one. Five variables have no option:
+
+| Variable | Selects |
+|---|---|
+| `DRUPACK_CACHE_DIR` | where a release unpacks |
+| `DRUPACK_CA_FILE` | the CA bundle PHP and `self-update` verify HTTPS against |
+| `DRUPACK_TLS_DIR` | the folder holding the local root, `drupack/tls` in your config folder by default |
+| `DRUPACK_DNS_ANSWER` | a fixed answer for the [Site host](#site-hosts) lookup: a comma list of addresses, or `none` |
+| `DRUPACK_NO_UPDATE_CHECK` | `1` turns off the engine executable's daily release check |
+
+Drupack carries a copy of curl's `cacert.pem`, and PHP verifies HTTPS against
+it, whatever the machine's own trust store holds. Behind a proxy that re-signs
+TLS, set `DRUPACK_CA_FILE` to a bundle holding the proxy's root certificate.
+
+## Cron and updates
+
+Drupack runs Drupal's cron in a process of its own, two minutes after the site
+answers and every three hours after that. No page request runs cron.
+
+A packaged executable cannot update its own Drupal in place. A Drupal core
+security fix reaches a site through a new release of its executable: install
+it over the old file and start it on the same Site data.
 
 ## The engine executable
 
@@ -460,122 +408,73 @@ drupack --version
 ```
 
 `drupack` serves a Drupal project folder under the folder's own settings. It
-has no Site data, and it takes none of the options above.
+has no Site data and takes none of the site options. Its state lives in the
+cache, keyed by the folder, so the folder gains no file. `drupack --version`
+names FrankenPHP, PHP, Caddy and SQLite alone.
 
-`drupack --version` names FrankenPHP, PHP, Caddy and SQLite after its release.
-It carries no Drupal, Drush or Node, so it prints no line for them.
+### Serving
 
-`drupack` with no command serves `DIR`, the working directory by default. A
-first word naming no command is taken as `DIR`. `drupack start` does the same
-as `drupack`, and `start` and `stop` are reserved: a folder with either name
-takes `./start`.
+`drupack` and `drupack start` serve `DIR`, the working directory by default, in
+the background. `--foreground` serves in the terminal. `drupack stop [DIR]`
+ends the server. A second start on a folder a server already serves exits 1.
+A first word naming no command is taken as `DIR`, so a folder named `start` or
+`stop` takes `./start`.
 
-The server runs in the background. The start prints its progress and the login
-link, returns once the site answers, and names its two log files. `server.log`
-holds the start's own output, and each start empties it. `caddy.log` holds
-Caddy's errors and PHP's fatal errors; it rolls at 100 MiB, and 10 rolled files
-stay. `--foreground`
-serves in the terminal until a signal stops it. `drupack stop [DIR]` ends the
-server of `DIR`, the working directory by default. The server's lease, stop
-record and log live in the cache, keyed by the folder, so the folder gains no
-file. A second start on a Project folder that a server already serves exits 1
-and says it already serves.
-
+- `--listen` defaults to `127.0.0.1:3787`. The URL names the folder's
+  [Site host](#site-hosts) when it resolves.
 - The docroot is the scaffold web root `composer.json` names, `web` when it
-  names none or the folder has no `composer.json`. `./` serves the folder
-  itself. The start refuses an absolute web root, one with a `..` segment, and
-  one holding a character `drupack-build` refuses.
-- The start refuses a docroot without `core/lib/Drupal.php`. The Caddyfile's
-  guards and front controller are Drupal's, and would not suit a WordPress site.
-- `--listen` defaults to `127.0.0.1:3787`.
-- The URL names the folder's [Site host](#site-hosts) when it resolves, and the
-  bind address otherwise.
+  names none.
+- The start refuses a docroot without Drupal core.
 - The start refuses a folder whose PHP version or `composer.lock` extensions
   the bundled PHP does not meet, and names what is missing.
-- A start a person watches prints a one-time login link for uid 1, through the
-  folder's Drush. It still serves when that fails, or when the folder has no
-  Drush. Any other start prints the command that mints a link.
+- A start a person watches prints a one-time login link through the folder's
+  Drush. A folder without Drush serves with no link.
 - A folder whose database holds no installed site prints `Install:` with
-  `/core/install.php` instead, and mints no link. A probe asks the folder's
-  Database API for the `key_value` table first.
-- A request's child processes, such as Package Manager's Composer, find a
-  `php` on `PATH` that runs the bundled PHP.
-- A folder whose `composer.json` sets `extra.drupack.static` serves `html`
-  beside its docroot on `--static-listen`, and `drupack export` writes it, as
-  [Static site](#static-site) describes. The start writes the static URL into
-  the folder's cache entry.
-- With `--foreground`, Caddy's errors go to standard error.
-- `--access-log` and `--error-log` log as [Access log](#access-log) and
-  [Error log](#error-log) describe. Their default files are `access.log` and
-  `error.log` in the folder's cache entry. The directories they refuse are the
-  docroot and the static export. `DIR` goes before either option written bare.
-- Without `--error-log`, standard error holds PHP's fatal errors and none of
-  its warnings.
-- `--trusted-proxies` names the proxies in front of the server, as
-  [Trusted proxies](#trusted-proxies) describes.
-- The server keeps the umask it starts with. The engine's own state stays
-  owner-only.
+  `/core/install.php` instead.
+- [HTTPS](#https), [Mercure hub](#mercure-hub), [Logs](#logs) and
+  [Trusted proxies](#trusted-proxies) apply as they do to a site. The log files
+  live in the folder's cache entry. `DIR` goes before `--access-log` or
+  `--error-log` written bare.
+- With `extra.drupack.static`, the start serves the project's
+  `tome_static_directory` on `--static-listen`, or `html` beside the docroot
+  when `settings.php` sets none.
 
-`drush` runs the Drush of the nearest directory at or above the working directory
-that holds `vendor/autoload.php`. Drush's child processes find a `php` on
-`PATH` that runs the bundled PHP.
-It refuses a project whose `vendor/autoload.php`, `vendor/` or folder another
-account owns, unless on Unix one of your groups owns it.
+For a DDEV project, point `settings.local.php` at the database's published port
+on `127.0.0.1`. The DDEV host name `db` resolves only inside DDEV.
 
-`dr` runs Drupal core's own command line, `vendor/bin/dr`, of the same
-project, the same way. Drupal 11.4 and later ship it.
+### Commands
 
-`php` runs PHP from the working directory, in one of two forms:
+`drupack drush` runs the Drush of the nearest directory at or above the working
+directory that holds `vendor/autoload.php`, on the bundled PHP. Drush's child
+processes run on that PHP too. It refuses a project another account owns.
 
-- `SCRIPT [ARGUMENTS]` runs the script with its arguments, and exits with its status.
-- `-r CODE` runs the code, which gets no `$argv`.
+`drupack dr` runs Drupal core's own command line, `vendor/bin/dr`, the same
+way. Drupal 11.4 and later ship it.
 
-Any other option stops before PHP starts, with a message naming it and the two
-forms. That covers `-d`, `-l`, `-v`, `-m`, `-i`, `--ini`, `--ri`, `-f`, `-h`
-and `-S`. An argument after `-r CODE` stops the same way. Drush's child
-processes reach the same command through the `php` on `PATH`.
+`drupack export` runs Tome at the static URL the last start served. A project
+no start has served needs `--uri`.
 
-`clean` removes the unpacked engine files from the cache, and the state of each
-folder no server runs: its stop record, log and Mercure hub data. A folder a
-server runs is listed and kept.
+`drupack php` takes the two forms [`php`](#php-node-npm-and-npx) takes on a
+site.
 
-`self-update` installs the newest release over this file. It reads the
-release's `release.json` from
-`https://github.com/tresbientech/drupack/releases/latest/download/release.json`.
-It downloads this platform's build beside the file, checks its size and SHA-256
-against that list, and renames it over the file. `--check` names the newest
-release and changes nothing.
+`drupack clean` removes the unpacked engine files, and the state of each folder
+no server runs.
 
-- A file in a directory the reader cannot write is refused before any download.
-- A copy beside `vendor/drupal/drupack` came from Composer. It names
+`drupack trust` installs the local root, as [HTTPS](#https) describes.
+
+### Updates
+
+`drupack self-update` installs the newest release over the file, after checking
+its size and SHA-256. `--check` names the newest release and changes nothing.
+On a site, `self-update` exits 1 and says the site's publisher ships its
+releases.
+
+- A file in a directory you cannot write is refused before any download.
+- A copy installed through Composer updates with
   `composer update drupal/drupack`, then `vendor/bin/drupack-install`.
-- A local build, whose version names no release, is refused.
-- A release older than this file is never installed.
-- On Windows the old file moves to `drupack.exe.old`, which a later run removes.
+- A release older than the file is never installed.
 
-`trust` installs the local root that lets every Drupack site and engine start on
-this computer serve HTTPS, and `--uninstall` removes it. [HTTPS](#https) explains
-both.
-
-Once a day, a run starts `drupack self-update --check` in the background. While
-the newest release it saw is newer than this file, each run prints one line to
-standard error naming it. The check stays off in these cases:
-
-- `CI` is set.
-- `DRUPACK_NO_UPDATE_CHECK` is `1`.
-- Standard error is no terminal.
-- The file is a local build.
-- The file is a Composer copy.
-
-## Other words
-
-On a site, `php` runs PHP from the working directory in the two forms
-[the engine's `php`](#the-engine-executable) takes, with no PHP option. Drush's,
-Tome's and a request's child processes reach it as the `php` on their `PATH`.
-
-On a site, `self-update` exits 1 and says the site's publisher ships its new
-release.
-
-On a site, `php-cli` reaches the embedded server's own command line, which
-carries no compatibility promise. Any other word Drupack does not handle answers
-`Unknown command`.
+Once a day, a run checks for a newer release in the background. While one
+exists, each run prints one line naming it. `DRUPACK_NO_UPDATE_CHECK=1` turns
+the check off. It stays off under `CI`, without a terminal, and for a Composer
+copy.

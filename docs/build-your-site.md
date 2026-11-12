@@ -15,9 +15,9 @@ The site repository can be private. The examples use a site named `acme`.
   or `docroot/`, and the build refuses a project that leaves it unset. The
   build refuses a lock without `drupal/core` and `drush/drush`, whose releases
   `--version` names.
-- `drupack.yml`, the site contract. It holds what only packing needs. A key the
-  engine's start reads too, such as the Mercure hub, sits in `composer.json`
-  under `extra.drupack`.
+- `drupack.yml`, the site contract. It holds what packing alone needs. A key
+  the engine's start reads too, such as the Mercure hub, sits in
+  `composer.json` under `extra.drupack`.
 - `drupack.caddy`, optional Caddy rules of the site's own, which
   [a later section](#a-sites-own-caddy-rules) describes.
 - `drupack.mercure.caddy`, optional directives for the site's Mercure hub,
@@ -101,8 +101,7 @@ or PostgreSQL database that already holds the site:
 
 The first start keeps that site, enables nothing and keeps its administrator
 account. A SQLite start refuses, and so does a start on a database that holds
-no site. The build's conformance suite reports each case that needs a seed as
-skipped, with the reason "the site has no recipe".
+no site.
 
 ## An existing site on DDEV
 
@@ -221,7 +220,7 @@ key, so a project serves the hub in development and once packed.
 ```
 
 Composer hashes `extra` into the lock, so run `composer update --lock` after
-the change. A `drupack.yml` that still sets `mercure` stops the build.
+the change.
 
 Each Site data, or each project folder the engine serves, gets its own
 publisher and subscriber secrets. The site's PHP
@@ -309,9 +308,7 @@ opens with `/` and holds no whitespace, control character, double quote or
 brace. An empty object serves files alone.
 
 The site requires `drupal/tome` and enables `tome_static`, through its recipe
-or its configuration. A lock without `drupal/tome` stops the build. The
-Drupacked Demo's `recipes/static_site` enables `tome_static` and core content
-search, whose `/search/node` page is its one dynamic path.
+or its configuration. A lock without `drupal/tome` stops the build.
 
 `SITE export` writes the export; [the CLI reference](cli.md#static-site) has
 the words and the listener. Tome writes the files the rendered pages
@@ -364,8 +361,7 @@ choice. The engine executable reads the same key.
 ```
 
 A value that is not one DNS label (`a-z`, `0-9` and `-`, 1 to 63 characters,
-no dash at either end) stops the build and an engine start. A `drupack.yml`
-that sets `subdomain` stops the build too.
+no dash at either end) stops the build and an engine start.
 
 ## Private Composer packages
 
@@ -413,10 +409,9 @@ packs it with the site. The conformance suite then runs on the result, with the
 site's tests. A failed native job uploads its test logs as
 `test-results-TARGET`.
 
-Windows on Arm runs the `windows-amd64` executable under emulation, since
-php.net publishes no arm64 PHP. A `windows-11-arm` runner runs the suite on that
-executable after the `windows-amd64` job. A failure there uploads
-`test-results-windows-arm64` and blocks the release.
+Windows on Arm runs the `windows-amd64` executable under emulation. A
+`windows-11-arm` runner runs the suite on that executable, and a failure there
+blocks the release.
 
 A caller pinned to a tag packs the runtimes of that tag. A caller pinned to a
 branch or a commit sets `runtime-release` to the engine release whose runtimes
@@ -429,13 +424,10 @@ it builds:
       runtime-release: 1.0.0-beta20
 ```
 
-[drupacked-demo](https://github.com/tresbientech/drupacked-demo) builds and
-releases Drupacked Demo this way, on the five targets.
-
 Inputs:
 
 - `repository` and `ref`: the site repository and the ref to build, the
-  calling run's when unset. Drupack's release run builds Drupacked Demo this way.
+  calling run's when unset.
 - `site`: the site's directory, `.` by default.
 - `platforms`: comma-separated targets, `drupack.yml`'s `platforms` when unset.
   It overrides the native targets too, so one run can build a subset.
@@ -637,8 +629,8 @@ Renovate then reads:
 The custom manager matches an exact Node version. `node: true` and a major line
 such as `node: 24` match nothing.
 
-The package rule orders Drupack's tags as Composer does, where `alpha10` follows
-`alpha9`. Semver ordering places `alpha10` before `alpha9`.
+The package rule orders Drupack's tags as Composer does, where `rc10` follows
+`rc9`. Semver ordering places `rc10` before `rc9`.
 
 Two kinds of pin need more:
 

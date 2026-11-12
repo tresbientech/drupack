@@ -42,7 +42,7 @@ The build packs one file per platform and C library. The demo's `drupack.yml` al
 
 A release tag publishes the image as `ghcr.io/tresbientech/drupack-build:VERSION`, carrying all four Linux runtimes. The image itself runs on amd64 only.
 
-The release workflow names the same image after its inputs. `runtime/builder-tag.sh` digests the FrankenPHP and static-php-cli commits, the PHP version, both extension list files, the C library, the machine type, the three scripts that compile the image and the static-php-cli patch, and the workflow pulls `ghcr.io/tresbientech/drupack-builder` under that tag. A run whose inputs are unchanged pulls the published image; a run that changes one builds the image and publishes it under the new tag. `runtime/builder-inputs.sh` holds the version pins both scripts read.
+The release workflow names the builder image after its inputs. `runtime/builder-tag.sh` digests the pins in `runtime/builder-inputs.sh`, the extension lists and the scripts that compile the image. The workflow pulls `ghcr.io/tresbientech/drupack-builder` under that tag, and builds and publishes the image when no such tag exists.
 
 The output is `dist/drupacked-demo-linux-amd64` and `dist/drupacked-demo-linux-amd64-musl` on an amd64 host, with `dist/site.json` beside them. The build tests the glibc file. The host needs no PHP, Composer or database server: the job image runs Composer, Drush and the seed install, which runs `application/operate.php`, with the musl runtime's own PHP.
 
@@ -84,8 +84,6 @@ That writes `app-payload.tar.zst`, `app_checksum.txt` and `site.json` to `dist/p
 
 `-EnginePayloadDirectory` and `-EngineOutput` are optional, as on macOS.
 
-The Windows executable is the same launcher as Linux and macOS. It carries the PHP and FrankenPHP tree compressed with zstd, and unpacks under `%LOCALAPPDATA%\<name>\runtime` on first start, `<name>` being the site's `name`. Later starts compare a stored manifest and file sizes. Windows has no `exec`, so the launcher starts a child process instead of replacing itself.
-
 ## Tests
 
 The conformance suite runs against the published executable, which is the launcher. A case asserts what only a live run shows: an HTTP answer, a served certificate, a process, a database or an OS. A choice that a pure function makes, such as a refusal message or a start plan, has a unit test instead. `build/go-tests.sh` runs the Go unit tests and the Go linter, and `build/unit-tests.sh` runs the Python tests of the build scripts.
@@ -104,7 +102,7 @@ Every Python script in `build/`, `runtime/` and `tests/` imports the standard li
 
 `tests/conformance` takes a results directory as its second argument, and empties it before any case runs. It refuses a non-empty directory that no earlier run created. It reads the site from the `site.json` beside the executable. `--site-tests DIR` adds a site's own `*_cases.py` modules to the run; Drupacked Demo's live in its repository's `tests`.
 
-`DRUPACK_SHARD=K/N` runs the Kth of N shares of the test classes. `tests/conformance/class-seconds.json` holds each class's measured seconds per platform, and the classes go longest first to the share with the fewest seconds. A class missing from the table counts as the mean. `K/N+extra` starts the last share with the table's `extra` seconds, for a job whose last share also runs other cases. A class stays whole. Unittest arguments such as `-k Node` apply on top. The release workflow's macOS and Windows test jobs each run one share, on the files their platform's build job uploaded. Each Linux job packs its files and runs one of two shares. `python3 build/class-seconds.py RUN_ID` rewrites the table from a release run's logs, and needs `gh`.
+`DRUPACK_SHARD=K/N` runs the Kth of N shares of the test classes, as the release workflow's test jobs do. `tests/conformance/class-seconds.json` holds each class's measured seconds per platform, and the classes go longest first to the share with the fewest seconds. Unittest arguments such as `-k Node` apply on top. `python3 build/class-seconds.py RUN_ID` rewrites the table from a release run's logs, and needs `gh`.
 
 On Linux the suite uses Docker for three things:
 
@@ -171,7 +169,7 @@ Every published executable is a launcher carrying the real executable, compresse
 
 ## Releases
 
-`.github/workflows/upstream.yml` pushes every version tag. Never push one yourself. To release `main`, dispatch that workflow on GitHub with `version`, such as `1.0.0-beta1`. The run then does four things:
+`.github/workflows/upstream.yml` pushes every version tag. Never push one yourself. To release `main`, dispatch that workflow on GitHub with `version`, such as `1.0.1`. The run then does four things:
 
 - refuses a version without a tag's form, or one that does not sort above every tag
 - commits the version to the pinned lines of `docs/build-your-site.md`
@@ -180,7 +178,7 @@ Every published executable is a launcher carrying the real executable, compresse
 
 The candidate's QA jobs are the release's QA, so no local `build/qa.sh` run precedes a release. The upstream run prints the name of each red job as it ends. The candidate run goes on to its other jobs.
 
-A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.0.0-alpha1`, reaches drupal.org and GitHub in the same job, and starts the release workflow on GitHub. When the tag's candidate run succeeded, the workflow publishes that run's files. Otherwise it builds all seven targets and runs the suite on each, except the two musl files, which start a site on Alpine. It then publishes a GitHub Release. `build/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, each macOS and Windows runtime as `runtime-VERSION-TARGET.tar.zst`, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. A drupal.org release node for the tag publishes it to Packagist as a version of the Composer package `drupal/drupack`. Its bin script, `drupack-install`, downloads that version's engine executable into a project.
+A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.1.0-rc1`, reaches drupal.org and GitHub in the same job, and starts the release workflow on GitHub. When the tag's candidate run succeeded, the workflow publishes that run's files. Otherwise it builds all seven targets and runs the suite on each, except the two musl files, which start a site on Alpine. It then publishes a GitHub Release. `build/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, each macOS and Windows runtime as `runtime-VERSION-TARGET.tar.zst`, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. A drupal.org release node for the tag publishes it to Packagist as a version of the Composer package `drupal/drupack`. Its bin script, `drupack-install`, downloads that version's engine executable into a project.
 
 ### Automatic releases
 
@@ -199,4 +197,11 @@ The `DRUPAL_ORG_SESSION` secret holds `nod_bot`'s session, which lasts about fou
 
 A push to drupal.org's `main` fires a webhook, and `.github/workflows/sync.yml` copies `main` and the tags to GitHub. The push builds and tests Linux amd64 when the push touched a path outside `docs/`, `LICENSE` and the root Markdown files. A documentation commit starts no build.
 
-Documents worth reading before a change: `CONTEXT.md` for the vocabulary, `README.md` for what the product promises, `docs/adr/` for the decisions behind the current shape, the [issue queue](https://git.drupalcode.org/project/drupack/-/work_items) for open questions, plans and work already scheduled. A decision lands as a short numbered ADR. A plan and its spec live whole in their issue, which closes at merge, so the tree holds no checklists.
+Read before a change:
+
+- `CONTEXT.md` for the vocabulary
+- `docs/cli.md` for what the product promises
+- `docs/adr/` for the decisions behind the current shape
+- the [issue queue](https://git.drupalcode.org/project/drupack/-/work_items) for open questions and plans
+
+A decision lands as a short numbered ADR. A plan and its spec live in their issue.

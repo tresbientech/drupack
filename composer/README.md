@@ -7,7 +7,7 @@ This package installs the `drupack` executable into a Composer project.
 ## Install
 
 ```sh
-composer require --dev 'drupal/drupack:^1.0@alpha'
+composer require --dev drupal/drupack
 vendor/bin/drupack-install
 ./drupack
 ```
@@ -27,7 +27,7 @@ The start prints a one-time login link through the project's Drush. It returns t
 - `--listen IP:PORT` picks another address.
 - `--version` names the release and the FrankenPHP, PHP, Caddy and SQLite it carries.
 
-The project's own `settings.php` names the database, the files paths and the hash salt. Drupack writes nothing into the project. For a ddev project, point `settings.local.php` at the database's published port on `127.0.0.1`.
+The project's own `settings.php` names the database, the files paths and the hash salt. Drupack writes nothing into the project. For a DDEV project, point `settings.local.php` at the database's published port on `127.0.0.1`.
 
 ## Drush and PHP
 

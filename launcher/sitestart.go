@@ -245,9 +245,8 @@ func (s *packagedStart) held(plan startPlan) error {
 		return fmt.Errorf("Another %s start is preparing this Site data: %s", s.Launch.Name, s.Data)
 	}
 	// The record names the address that server took, not the one this start
-	// planned. A Site data a release before 0.6.0 installed holds no record, and
-	// neither does one whose unreadable record the reader removed. Those fall
-	// back to this start's plan.
+	// planned. A Site data whose unreadable record the reader removed holds none,
+	// and falls back to this start's plan.
 	bind, url := plan.Bind, siteURL(state.UnrecordedScheme, plan.Host, plan.Port)
 	a, err := Served(state.At(s.Data), s.Launch.Name, siteTarget(s.site), state.Listener{})
 	if err != nil {

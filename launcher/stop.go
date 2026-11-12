@@ -41,7 +41,7 @@ func runStop(l Launch, c command, out io.Writer) error {
 }
 
 // projectFolder resolves links first, then makes the path absolute. The folder's
-// cache entry is keyed by this path, which must match the previous release's.
+// cache entry is keyed by this path.
 func projectFolder(name, written string) (string, error) {
 	missing := fmt.Errorf("No such directory: %s. Run %s --help.", written, name)
 	resolved, err := filepath.EvalSymlinks(written)
