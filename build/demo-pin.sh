@@ -7,4 +7,4 @@
 
 demo_repository=tresbientech/drupacked-demo
 demo_release=
-demo_ref=725dd2bf20d695f020cf5420c692902a1ac04f42
+demo_ref=320bc5748c74cc22825a56e36ca36392db6b104c
