@@ -392,6 +392,17 @@ func TestRootPrefersTheCacheDirOverTheDefaultRoot(t *testing.T) {
 	}
 }
 
+func TestSafePathKeepsAManifestPathUnderItsRoot(t *testing.T) {
+	for path, want := range map[string]bool{
+		"": false, ".": false, "..": false, "../a": false, "a/../..": false, "/etc/passwd": false, "a/..": false,
+		"a": true, "a/b": true, "a/../b": true,
+	} {
+		if got := runtimepkg.SafePath(path); got != want {
+			t.Errorf("SafePath(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
 func TestSafePathRefusesAWindowsVolumeName(t *testing.T) {
 	// filepath.VolumeName is a no-op on unix, so this only refuses on
 	// windows, where it parses the drive letter and the UNC share.

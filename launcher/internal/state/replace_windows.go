@@ -36,13 +36,9 @@ func replaceFile(from, to string) error {
 		FileNameLength uint32
 		FileName       [1]uint16
 	}
-	const (
-		replaceIfExists = 0x1
-		posixSemantics  = 0x2
-	)
 	buffer := make([]byte, int(unsafe.Offsetof(renameInfo{}.FileName))+len(name)*2)
 	info := (*renameInfo)(unsafe.Pointer(&buffer[0]))
-	info.Flags = replaceIfExists | posixSemantics
+	info.Flags = windows.FILE_RENAME_REPLACE_IF_EXISTS | windows.FILE_RENAME_POSIX_SEMANTICS
 	info.FileNameLength = uint32((len(name) - 1) * 2)
 	copy(unsafe.Slice(&info.FileName[0], len(name)), name)
 	return windows.SetFileInformationByHandle(handle, windows.FileRenameInfoEx, &buffer[0], uint32(len(buffer)))

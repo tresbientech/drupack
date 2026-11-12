@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 type Manifest struct {
@@ -56,18 +55,13 @@ func ParseManifest(data []byte) (Manifest, error) {
 	return m, nil
 }
 
-// SafePath reports whether path is safe to join under an extraction root.
-// filepath.IsAbs calls a path like C:evil or \\server\share relative, since
-// neither starts with a root slash; filepath.VolumeName catches both, and
-// returns "" on unix, where the check costs nothing. Windows calls a rooted
-// path like \etc\passwd relative too, so the separator prefix is refused on
-// its own: a manifest arrives with the payload and names only relative files.
+// SafePath reports whether path is safe to join under an extraction root: a
+// manifest arrives with the payload and names only relative files. IsLocal
+// refuses an empty, rooted or drive path, one that climbs out of the root, and
+// on Windows a reserved name such as NUL.
 func SafePath(path string) bool {
-	clean := filepath.Clean(filepath.FromSlash(path))
-	return path != "" && !filepath.IsAbs(clean) && clean != "." &&
-		!strings.HasPrefix(clean, ".."+string(filepath.Separator)) && clean != ".." &&
-		!strings.HasPrefix(clean, string(filepath.Separator)) &&
-		filepath.VolumeName(clean) == ""
+	native := filepath.FromSlash(path)
+	return filepath.IsLocal(native) && filepath.Clean(native) != "."
 }
 
 // SingleElement reports whether value names exactly one path element, so it

@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"golang.org/x/sys/windows"
+
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 )
 
@@ -49,14 +51,11 @@ func fixCommand(e *runtime.ExposedError) string {
 	return "Move the Site data into a folder you own."
 }
 
-// createNoWindow gives a process a console no window shows. syscall does not define it.
-const createNoWindow = 0x08000000
-
 // detachedProcess starts a background process with a hidden console, which a
 // detached start's server and its console children, cron and Drush, share
 // instead of opening windows of their own.
 func detachedProcess() *syscall.SysProcAttr {
-	return &syscall.SysProcAttr{CreationFlags: createNoWindow}
+	return &syscall.SysProcAttr{CreationFlags: windows.CREATE_NO_WINDOW}
 }
 
 // consoleOwned reports whether this process is alone on its console, which

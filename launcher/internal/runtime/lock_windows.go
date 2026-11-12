@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/windows"
 )
 
 // lockTimeout bounds how long a launch waits for another process's lock
@@ -16,9 +18,6 @@ const lockTimeout = 60 * time.Second
 // lockPollInterval paces the retry loop: Windows has no blocking wait for a
 // file handle the way flock offers on unix.
 const lockPollInterval = 100 * time.Millisecond
-
-// errSharingViolation is ERROR_SHARING_VIOLATION, which package syscall omits.
-const errSharingViolation syscall.Errno = 32
 
 // HoldUsage marks entry as running for the rest of this process's life, so
 // cleanup skips it. The handle stays open on purpose, and Windows closes it
@@ -36,7 +35,7 @@ func HoldUsage(entry string) error {
 	// violation, so that error retries.
 	for range holdAttempts {
 		_, err = syscall.CreateFile(pointer, syscall.GENERIC_READ, syscall.FILE_SHARE_READ, nil, syscall.OPEN_ALWAYS, syscall.FILE_ATTRIBUTE_NORMAL, 0)
-		if err != errSharingViolation {
+		if err != windows.ERROR_SHARING_VIOLATION {
 			return err
 		}
 		time.Sleep(holdRetryInterval)
