@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/tls"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/localtls"
 )
 
 var update = flag.Bool("update", false, "rewrite the files in testdata")
@@ -21,15 +21,15 @@ const Root = "/drupack-test"
 // paths, Mercure and a project's rules.
 func rows() map[string]Config {
 	alias := "shop.drupack.site"
-	engine := Config{Mode: Engine, ID: "f0123456789abcdef", Bind: "127.0.0.1", Port: 3787, Docroot: Root + "/project/web", TLS: tls.Choice{Source: "none", Alias: alias}}
+	engine := Config{Mode: Engine, ID: "f0123456789abcdef", Bind: "127.0.0.1", Port: 3787, Docroot: Root + "/project/web", TLS: localtls.Choice{Source: "none", Alias: alias}}
 	mkcert := engine
-	mkcert.TLS = tls.Choice{Source: "mkcert", Alias: alias, Root: Root + "/tls/root.pem", Certificate: Root + "/tls/cert.pem", Key: Root + "/tls/key.pem"}
+	mkcert.TLS = localtls.Choice{Source: "mkcert", Alias: alias, Root: Root + "/tls/root.pem", Certificate: Root + "/tls/cert.pem", Key: Root + "/tls/key.pem"}
 	mkcert.Static = &Static{Bind: "127.0.0.1", Port: 3788, Root: Root + "/project/html"}
 	mkcert.LogPath = Root + "/state/caddy.log"
 	everything := engine
 	everything.Mode, everything.ID = Site, "site-id"
 	everything.FilesDir, everything.LogPath = Root+"/data/files", Root+"/data/logs/server.log"
-	everything.TLS = tls.Choice{Source: "drupack", Alias: alias, Root: Root + "/tls/root.pem", RootKey: Root + "/tls/root.key", Authority: "Drupack local root"}
+	everything.TLS = localtls.Choice{Source: "drupack", Alias: alias, Root: Root + "/tls/root.pem", RootKey: Root + "/tls/root.key", Authority: "Drupack local root"}
 	everything.Mercure = &Mercure{URL: "http://127.0.0.1:3787/.well-known/mercure", Publisher: "p0", Subscriber: "s0", DB: Root + "/state/mercure.db", ProjectRules: Root + "/app/drupack.mercure.caddy"}
 	everything.ProjectRules = Root + "/app/drupack.caddy"
 	everything.Static = &Static{Bind: "127.0.0.1", Port: 3788, Root: Root + "/data/static", Dynamic: []string{"/api/*"}}
@@ -101,9 +101,9 @@ func TestRefuseBraces(t *testing.T) {
 }
 
 func TestAddresses(t *testing.T) {
-	plain := tls.Choice{Source: "none", Alias: "a.drupack.site", Host: "a.drupack.site"}
+	plain := localtls.Choice{Source: "none", Alias: "a.drupack.site", Host: "a.drupack.site"}
 	for name, row := range map[string]struct {
-		choice tls.Choice
+		choice localtls.Choice
 		bind   string
 		want   string
 	}{
@@ -111,13 +111,13 @@ func TestAddresses(t *testing.T) {
 			`"http://a.drupack.site:3787", "http://localhost:3787", "http://127.0.0.1:3787", "http://[::1]:3787"`},
 		"another loopback address": {plain, "127.0.0.2",
 			`"http://a.drupack.site:3787", "http://localhost:3787", "http://127.0.0.1:3787", "http://[::1]:3787", "http://127.0.0.2:3787"`},
-		"a host the reader named": {tls.Choice{Source: "none", Alias: "a.drupack.site", Host: "shop.test"}, "::1",
+		"a host the reader named": {localtls.Choice{Source: "none", Alias: "a.drupack.site", Host: "shop.test"}, "::1",
 			`"http://a.drupack.site:3787", "http://localhost:3787", "http://127.0.0.1:3787", "http://[::1]:3787", "http://shop.test:3787"`},
-		"no alias": {tls.Choice{Source: "none", Host: "localhost"}, "127.0.0.1",
+		"no alias": {localtls.Choice{Source: "none", Host: "localhost"}, "127.0.0.1",
 			`"http://localhost:3787", "http://127.0.0.1:3787", "http://[::1]:3787"`},
 		"network http":   {plain, "0.0.0.0", `"http://:3787"`},
 		"host name bind": {plain, "127.example.com", `"http://:3787"`},
-		"mkcert": {tls.Choice{Source: "mkcert", Alias: "a.drupack.site", Host: "shop.test"}, "127.0.0.1",
+		"mkcert": {localtls.Choice{Source: "mkcert", Alias: "a.drupack.site", Host: "shop.test"}, "127.0.0.1",
 			`"https://a.drupack.site:3787", "https://localhost:3787", "https://127.0.0.1:3787", "https://[::1]:3787"`},
 	} {
 		got, err := Config{TLS: row.choice}.Addresses(row.bind, 3787)

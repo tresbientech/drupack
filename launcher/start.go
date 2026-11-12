@@ -15,10 +15,10 @@ import (
 	"strings"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/localtls"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/tls"
 )
 
 // startPlan is every listener value a start serves with. Nothing after it
@@ -130,7 +130,7 @@ type startMode interface {
 	held(plan startPlan) error
 	// prepare runs under the lease, once the Listener record is written, and
 	// prints its progress.
-	prepare(plan startPlan, choice tls.Choice, accessLog, errorLog string, proxies []string) (ready, error)
+	prepare(plan startPlan, choice localtls.Choice, accessLog, errorLog string, proxies []string) (ready, error)
 }
 
 type checked struct {
@@ -191,7 +191,7 @@ func start(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
-	choice, err := tls.Choose(l.TLSDir, checked.bind, checked.alias, checked.fallback, c.options.Host)
+	choice, err := localtls.Choose(l.TLSDir, checked.bind, checked.alias, checked.fallback, c.options.Host)
 	if err != nil {
 		return err
 	}
@@ -345,7 +345,7 @@ func (e *engineStart) held(startPlan) error {
 	return fmt.Errorf("%s already serves %s", e.Launch.Name, e.project)
 }
 
-func (e *engineStart) prepare(plan startPlan, choice tls.Choice, accessLog, errorLog string, proxies []string) (ready, error) {
+func (e *engineStart) prepare(plan startPlan, choice localtls.Choice, accessLog, errorLog string, proxies []string) (ready, error) {
 	l := e.Launch
 	entryPath := runtime.Canonical(e.entry.Path())
 	var err error
@@ -432,7 +432,7 @@ func projectFile(rules, name string) string {
 // server on it, under lease. rules is the folder that may hold a drupack.caddy
 // and a drupack.mercure.caddy, argv0 the name the server's process shows and
 // cwd the folder it runs in.
-func execServer(f Facts, dir state.Dir, lease *state.Lease, config caddyfile.Config, choice tls.Choice, plan startPlan, rules, argv0, cwd string) error {
+func execServer(f Facts, dir state.Dir, lease *state.Lease, config caddyfile.Config, choice localtls.Choice, plan startPlan, rules, argv0, cwd string) error {
 	config.Bind, config.Port, config.TLS = plan.Bind, plan.Port, choice
 	config.ProjectRules = projectFile(rules, "drupack.caddy")
 	if hub := projectFile(rules, "drupack.mercure.caddy"); hub != "" {
@@ -508,7 +508,7 @@ func loginCommand(name, url string) string {
 // storeBundle writes an HTTPS start's CA bundle into the folder's entry and
 // returns its path. An HTTP start deletes it, so Drush stops trusting a root
 // the site no longer serves, and the path is "".
-func storeBundle(f Facts, entry state.Dir, choice tls.Choice) (string, error) {
+func storeBundle(f Facts, entry state.Dir, choice localtls.Choice) (string, error) {
 	if choice.Source == "none" {
 		return "", entry.RemoveBundle()
 	}
@@ -527,7 +527,7 @@ func storeBundle(f Facts, entry state.Dir, choice tls.Choice) (string, error) {
 	return bundle, nil
 }
 
-func nameHint(choice tls.Choice) string {
+func nameHint(choice localtls.Choice) string {
 	if choice.Reason == "" {
 		return ""
 	}
@@ -536,7 +536,7 @@ func nameHint(choice tls.Choice) string {
 
 // trustHint stays silent for an account with no config folder, which has
 // nowhere to keep a root.
-func trustHint(l Launch, choice tls.Choice) string {
+func trustHint(l Launch, choice localtls.Choice) string {
 	if choice.Source != "none" || !choice.Eligible || l.TLSDir == "" {
 		return ""
 	}

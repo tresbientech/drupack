@@ -18,10 +18,10 @@ import (
 	"time"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/localtls"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/tls"
 )
 
 // errReported is a failure whose message a child process already printed.
@@ -272,7 +272,7 @@ func (s *packagedStart) held(plan startPlan) error {
 		return nil
 	}
 	fmt.Printf("  Login:  %s\n", link)
-	if s.c.options.NoBrowser || !tls.Loopback(bind) {
+	if s.c.options.NoBrowser || !localtls.Loopback(bind) {
 		return nil
 	}
 	openBrowser(link)
@@ -322,7 +322,7 @@ func (s *packagedStart) loginCommand() string {
 
 // prepare lays the application, runs PHP's prepare, whose step lines and
 // refusal reach the reader as they run, and mints the login link.
-func (s *packagedStart) prepare(plan startPlan, choice tls.Choice, accessLog, errorLog string, proxies []string) (ready, error) {
+func (s *packagedStart) prepare(plan startPlan, choice localtls.Choice, accessLog, errorLog string, proxies []string) (ready, error) {
 	l, site := s.Launch, s.site
 	dir := state.At(s.Data)
 	var err error
@@ -395,12 +395,12 @@ func (s *packagedStart) prepare(plan startPlan, choice tls.Choice, accessLog, er
 	if errorLog != "" {
 		fmt.Fprintf(&summary, "  Errors:    %s\n", errorLog)
 	}
-	if link != "" && !tls.Loopback(plan.Bind) {
+	if link != "" && !localtls.Loopback(plan.Bind) {
 		fmt.Fprintf(&summary, "No browser opens: %s accepts other computers over plain HTTP. Sign in from another computer only through a TLS proxy.\n", s.listen)
 	}
 	summary.WriteString(nameHint(choice) + trustHint(l, choice))
 	// The server opens the browser once the site answers.
-	if link != "" && !s.c.options.NoBrowser && tls.Loopback(plan.Bind) {
+	if link != "" && !s.c.options.NoBrowser && localtls.Loopback(plan.Bind) {
 		s.Open = link
 	}
 	summary.WriteString("Starting the web server.\n")

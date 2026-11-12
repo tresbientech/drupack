@@ -12,7 +12,7 @@ import (
 	"strings"
 	"text/template"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/tls"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/localtls"
 )
 
 //go:embed fragments/*.caddy
@@ -32,7 +32,7 @@ type Config struct {
 	Bind    string
 	Port    int
 	Docroot string
-	TLS     tls.Choice
+	TLS     localtls.Choice
 	// ProjectRules is the project's drupack.caddy, "" for a project without one.
 	ProjectRules string
 	// Mercure is nil for a project that serves no hub.
@@ -75,7 +75,7 @@ func (c Config) Addresses(bind string, port int) (string, error) {
 	p := strconv.Itoa(port)
 	scheme, names := "https://", []string{c.TLS.Alias, "localhost", "127.0.0.1", "::1"}
 	if c.TLS.Source == "none" {
-		if !tls.Loopback(bind) {
+		if !localtls.Loopback(bind) {
 			return quote("http://:" + p)
 		}
 		scheme, names = "http://", append(names, bind, c.TLS.Host)

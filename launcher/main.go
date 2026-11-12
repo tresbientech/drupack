@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/localtls"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/runtime"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/tls"
 )
 
 // consoleWord is the leading word that stands in for a file manager's console on a
@@ -75,7 +75,7 @@ func run(args []string, child *detachedChild, consoleNamed bool) error {
 	c, refusal := parse(l)
 	// trust may ask for a password.
 	if c.word == "trust" {
-		return tls.Trust(os.Stdout, l.TLSDir, c.words)
+		return localtls.Trust(os.Stdout, l.TLSDir, c.words)
 	}
 	launcher, err := os.Executable()
 	if err != nil {
@@ -218,7 +218,7 @@ func tlsDir(l Launch) (string, error) {
 		}
 		return filepath.Abs(dir)
 	}
-	return runtime.TLSDir(), nil
+	return localtls.Dir(), nil
 }
 
 func cleanArguments(arguments []string) (bool, error) {
