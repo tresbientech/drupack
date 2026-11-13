@@ -56,9 +56,10 @@ file carries it, Drupal core and Drush.
 ## `start` and `stop`
 
 `SITE` and `SITE start` are one command. A start prints its progress, the
-site's address and a login link. It returns once the site answers, and the
-site keeps serving in the background. A server that exits before it answers
-makes the start exit with its code.
+site's address and a login link. A path it prints writes the home directory as
+`~`. It returns once the site answers, and the site keeps serving in the
+background. A server that exits before it answers makes the start exit with its
+code.
 
 `--foreground` serves in the terminal until Ctrl+C or a signal, as a container
 or a systemd unit needs. A Windows start from a file manager owns its window,
@@ -95,9 +96,11 @@ them a first start creates `admin` with a generated password, which is never
 shown. `--site-name` names the site, and a later start never renames it.
 
 A start a person watches prints a one-time login link and opens the browser on
-it. When the mint fails, it opens the site URL. `--no-browser` prints the link
-alone. A start with no terminal, such as a systemd unit or a container, prints
-the command that mints a link, so no log holds one:
+it. When the mint fails, it prints `No login link:` with Drush's reason, prints
+the command that mints a link as its `Login:` line, and opens the site URL.
+`--no-browser` prints the link alone. A start with no terminal, such as a
+systemd unit or a container, prints the command that mints a link, so no log
+holds one:
 
     Login:     run demo drush --data-dir /var/lib/demo user:login /admin/dashboard
 
@@ -306,7 +309,8 @@ how a site publishes and subscribes.
 
 ## Logs
 
-Site data holds two logs of every start, in `logs`:
+Site data holds two logs of every start, in `logs`, which a start prints as
+`Logs:`:
 
 - `server.log`: what a background server prints. Each start empties it.
 - `caddy.log`: Caddy's errors and PHP's fatal errors.
@@ -430,9 +434,10 @@ names FrankenPHP, PHP, Caddy and SQLite alone.
 `drupack` and `drupack start` serve `DIR`, the working directory by default, in
 the background. `--foreground` serves in the terminal. `drupack stop [DIR]`
 ends the server. A second start on a folder a server already serves hands over:
-it prints the served URL with the login link or the install address, opens the
-browser and exits 0. With no terminal it exits 1. A first word naming no
-command is taken as `DIR`, so a folder named `start` or `stop` takes `./start`.
+it prints the served URL with the login link, the command that mints one or the
+install address, opens the browser and exits 0. With no terminal it exits 1. A
+first word naming no command is taken as `DIR`, so a folder named `start` or
+`stop` takes `./start`.
 
 - `--listen` defaults to `127.0.0.1:3787`. The URL names the folder's
   [Site host](#site-hosts) when it resolves.
@@ -444,12 +449,13 @@ command is taken as `DIR`, so a folder named `start` or `stop` takes `./start`.
 - A start a person watches prints a one-time login link through the folder's
   Drush and opens the browser on it, as a site start does. A folder without
   Drush serves with no link and opens the URL.
-- A folder whose database holds no installed site prints `Install:` with
-  `/core/install.php` and opens it instead.
-- [HTTPS](#https), [Mercure hub](#mercure-hub), [Logs](#logs) and
-  [Trusted proxies](#trusted-proxies) apply as they do to a site. The log files
-  live in the folder's cache entry. `DIR` goes before `--access-log` or
-  `--error-log` written bare.
+- A folder whose settings name no database, or whose database holds no
+  installed site, prints `Install:` with `/core/install.php` and opens it
+  instead.
+- [HTTPS](#https), [Mercure hub](#mercure-hub), [Logs](#logs) and [Trusted
+  proxies](#trusted-proxies) apply as they do to a site. The log files live in
+  the folder's cache entry, which a background start prints as `Logs:`. `DIR`
+  goes before `--access-log` or `--error-log` written bare.
 - With `extra.drupack.static`, the start serves the project's
   `tome_static_directory` on `--static-listen`, or `html` beside the docroot
   when `settings.php` sets none.

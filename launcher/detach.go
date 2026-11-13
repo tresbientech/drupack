@@ -144,8 +144,12 @@ func takeLog(child *detachedChild) error {
 	return writeTo(file)
 }
 
-// relay copies the log to out line by line and returns the start's exit code: 0 at the ready
-// line (not copied), and the server's code if it exits first (after the rest of the log).
+// caddyRedirect marks the line Caddy writes when its log moves to a file.
+const caddyRedirect = `"msg":"redirected default logger"`
+
+// relay copies the log to out line by line, Caddy's redirect line aside, and returns the
+// start's exit code: 0 at the ready line (not copied), and the server's code if it exits
+// first (after the rest of the log).
 // A log it cannot read is the error, which carries the stop command since the
 // start goes on in the background.
 func relay(name, log string, exited <-chan int, out io.Writer, stop string, colour bool, poll time.Duration) (int, error) {
@@ -188,8 +192,11 @@ func relay(name, log string, exited <-chan int, out io.Writer, stop string, colo
 				if !blank {
 					fmt.Fprintln(out)
 				}
-				fmt.Fprintf(out, "%s runs in the background. Its log: %s\n\nStop it with:\n\n    %s\n\n", name, log, shown)
+				fmt.Fprintf(out, "%s runs in the background. Stop it with:\n\n    %s\n\n", name, shown)
 				return 0, nil
+			}
+			if strings.Contains(line, caddyRedirect) {
+				continue
 			}
 			fmt.Fprint(out, line)
 			blank = line == "\n"

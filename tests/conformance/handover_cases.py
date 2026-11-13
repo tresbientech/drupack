@@ -85,8 +85,9 @@ class HandoverCases(harness.ConformanceCase):
                 timeout=harness.WAITS["start"].seconds, env=env,
             )
             self.assertEqual(second.returncode, 0, f"the handover exited non-zero: {second.stderr}")
-            self.assertIn("Cannot mint a one-time login link", second.stderr)
-            self.assertNotIn("  Login:", second.stdout)
+            self.assertIn("No login link", second.stderr)
+            self.assertIn("  Login: run ", second.stdout)
+            self.assertNotIn(harness.LINK_PATH, second.stdout)
             url = next(line.split(None, 1)[1] for line in second.stdout.splitlines() if line.startswith("  URL:"))
 
             opened = harness.wait_for_recorded_url(recorded, harness.WAITS["browser_open"].seconds)

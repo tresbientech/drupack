@@ -64,7 +64,7 @@ def assert_readiness(case, log_path, caddy_log):
     text = log_path.read_text(errors="replace")
     case.assertIn("  URL:       http", text, f"the start printed no URL label: inspect {log_path}")
     case.assertIn("  Site data:", text, f"the start printed no site data label: inspect {log_path}")
-    case.assertIn("  Log:", text, f"the start printed no log label: inspect {log_path}")
+    case.assertIn("  Logs:", text, f"the start printed no log label: inspect {log_path}")
     case.assertIn("Press Ctrl+C to stop.", text, f"the start printed no stop instruction: inspect {log_path}")
     case.assertTrue(caddy_log.is_file(), "the Caddy log file was not created")
     sentinel = "caddy-log-sentinel"

@@ -28,7 +28,7 @@ Two FrankenPHP processes over one database and one runtime directory corrupt bot
 ### Detach and stop
 
 - `SITE` and `SITE start` are one command. It detaches; `--foreground` serves in the terminal. A double-clicked Windows start owns its console and serves in the foreground.
-- The child writes `server.log`, truncated per start. The parent relays it until the ready line, then prints the log path and the stop command.
+- The child writes `server.log`, truncated per start. The parent relays it until the ready line, then prints the stop command.
 - Once the site answers, the runtime binds `127.0.0.1` on a random port and writes `stop.json`: the port, a 32-byte token and its PID. The file is owner-only on Unix.
 - The channel serves `POST /stop` with the token as a bearer value, compared in constant time. A valid stop ends the server the way Ctrl+C does.
 - On Windows the server arms its stop guard, calls `caddy.Stop()` and exits.

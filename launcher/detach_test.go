@@ -50,13 +50,21 @@ func TestADetachedChildOwnsNoConsole(t *testing.T) {
 
 func TestRelayStopsAtTheReadyLineAndPrintsTheSummary(t *testing.T) {
 	out, code := served(t, "[1/3] Seeding\nStarting the web server.\n\ndemo is ready. Press Ctrl+C to stop.\nlater line\n", make(chan int), false)
-	head := "[1/3] Seeding\nStarting the web server.\n\ndemo runs in the background. Its log: "
-	tail := "server.log\n\nStop it with:\n\n    ./demo stop\n\n"
-	if code != 0 || !strings.HasPrefix(out, head) || !strings.HasSuffix(out, tail) {
-		t.Fatalf("code %d, printed %q, want 0 and the log, the summary and the stop command", code, out)
+	want := "[1/3] Seeding\nStarting the web server.\n\ndemo runs in the background. Stop it with:\n\n    ./demo stop\n\n"
+	if code != 0 || out != want {
+		t.Fatalf("code %d, printed %q, want 0 and %q", code, out, want)
 	}
 	if strings.Contains(out, "is ready") || strings.Contains(out, "later line") {
 		t.Fatalf("printed %q, which carries the ready line or what follows it", out)
+	}
+}
+
+func TestRelaySkipsCaddysRedirectLineAndKeepsOtherJSON(t *testing.T) {
+	redirect := `{"level":"info","ts":1.5,"msg":"redirected default logger","from":"stderr","to":"caddy.log"}` + "\n"
+	other := `{"level":"error","ts":1.6,"msg":"project rule"}` + "\n"
+	out, _ := served(t, "Starting the web server.\n"+redirect+other+"demo is ready.\n", make(chan int), false)
+	if strings.Contains(out, "redirected default logger") || !strings.Contains(out, other) {
+		t.Fatalf("printed %q, want the other JSON line and no redirect line", out)
 	}
 }
 

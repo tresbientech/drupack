@@ -359,17 +359,13 @@ func (e *engineStart) held(plan startPlan) error {
 		bind, url = a.Bind, siteURL(a.Scheme, a.Host, a.Port)
 	}
 	url = strings.TrimSuffix(url, "/")
-	link, install, err := entrance(l, e.Env(Drush), e.project, e.installed, url)
+	link, login, install, err := entrance(l, e.Env(Drush), e.project, e.installed, url)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s already serves %s.\n\n  URL:     %s\n", l.Name, e.project, url)
-	if link != "" {
-		fmt.Printf("  Login:   %s\n", link)
-	}
-	if install != "" {
-		fmt.Printf("  Install: %s\n", install)
-	}
+	var summary strings.Builder
+	writeRows(&summary, [][2]string{{"URL:    ", url}, {"Login:  ", login}, {"Install:", install}})
+	fmt.Printf("%s already serves %s.\n\n%s", l.Name, l.shown(e.project), summary.String())
 	if page := e.c.browserPage(true, bind, link, install, url); page != "" {
 		openBrowser(page)
 	}
@@ -384,7 +380,7 @@ func (e *engineStart) prepare(plan startPlan, choice localtls.Choice, accessLog,
 		return ready{}, err
 	}
 	url := strings.TrimSuffix(plan.URL, "/")
-	link, install, err := entrance(l, e.Env(Drush), e.project, e.installed, url)
+	link, login, install, err := entrance(l, e.Env(Drush), e.project, e.installed, url)
 	if err != nil {
 		return ready{}, err
 	}
@@ -393,30 +389,27 @@ func (e *engineStart) prepare(plan startPlan, choice localtls.Choice, accessLog,
 			return ready{}, err
 		}
 	}
-	// A background server outlives its terminal, so its Caddy log goes to a file that rolls.
-	caddyLog := ""
+	// A background server outlives its terminal, so its Caddy log goes to a file that rolls,
+	// next to the server log.
+	caddyLog, logs := "", ""
 	if l.Child != nil {
-		caddyLog = entryPath + "/caddy.log"
+		caddyLog, logs = entryPath+"/caddy.log", entryPath+"/"
 	}
 	static := ""
 	if plan.Static != nil {
 		static = plan.Static.URL
 	}
 	var summary strings.Builder
-	for _, line := range [][2]string{
+	writeRows(&summary, [][2]string{
 		{"URL:    ", url},
-		{"Login:  ", link},
+		{"Login:  ", login},
 		{"Install:", install},
 		{"Static: ", static},
-		{"Project:", e.project},
-		{"Access: ", accessLog},
-		{"Errors: ", errorLog},
-		{"Log:    ", caddyLog},
-	} {
-		if line[1] != "" {
-			fmt.Fprintf(&summary, "  %s %s\n", line[0], line[1])
-		}
-	}
+		{"Project:", l.shown(e.project)},
+		{"Logs:   ", l.shown(logs)},
+		{"Access: ", l.shown(accessLog)},
+		{"Errors: ", l.shown(errorLog)},
+	})
 	summary.WriteString(nameHint(choice) + trustHint(l, choice) + "Starting the web server.\n")
 	// The server opens the browser once the site answers.
 	e.Open = e.c.browserPage(personPresent(l), plan.Bind, link, install, url)
@@ -503,34 +496,35 @@ func serveArguments(argv0, file string, config caddyfile.Config) []string {
 }
 
 // entrance returns the install address of a site not installed yet, or the
-// login line of an installed one: the link when a person watches the start,
-// the command that mints one otherwise. Either may be empty. installed is nil
-// when the probe cannot tell.
-func entrance(l Launch, env []string, project string, installed *bool, url string) (link, install string, err error) {
+// login of an installed one: link is the one-time login link a browser opens,
+// login the Login line, which holds the link or the command that mints one.
+// Each may be empty. installed is nil when the probe cannot tell.
+func entrance(l Launch, env []string, project string, installed *bool, url string) (link, login, install string, err error) {
 	if installed != nil && !*installed {
-		return "", url + "/core/install.php", nil
+		return "", "", url + "/core/install.php", nil
 	}
 	drush := project + "/" + filepath.ToSlash(cache.DrushScript)
 	if info, err := os.Stat(drush); err != nil || !info.Mode().IsRegular() {
 		fmt.Fprintf(os.Stderr, "No login link: %s has no Drush. composer require drush/drush adds one.\n", project)
-		return "", "", nil
+		return "", "", "", nil
 	}
+	command := "run " + loginCommand(l.Name, url)
 	// The link is a credential: a start nobody watches prints the command for
 	// one, so no log holds a link.
 	if !personPresent(l) {
-		return "run " + loginCommand(l.Name, url), "", nil
+		return "", command, "", nil
 	}
-	fmt.Fprintln(os.Stdout, "Creating a one-time login link.")
 	link, failure, err := mint(l, env, url, drush, project)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	if link == "" {
 		// The folder's own settings may block uid 1 or name no reachable database yet;
 		// the server still starts, and Drupal's own error page says which.
-		fmt.Fprintf(os.Stderr, "Cannot mint a one-time login link: %s\nGet one once the site answers with: %s\n", failure, loginCommand(l.Name, url))
+		explainMintFailure(failure)
+		return "", command, "", nil
 	}
-	return link, "", nil
+	return link, link, "", nil
 }
 
 // loginCommand is the command that mints a login link for the project served at url.

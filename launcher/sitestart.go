@@ -260,18 +260,16 @@ func (s *packagedStart) held(plan startPlan) error {
 	}
 	// Two FrankenPHP processes over one database and one runtime directory would
 	// corrupt both, so the start hands its reader the running site instead.
-	fmt.Println("Creating a one-time login link.")
 	link, failure, err := s.login(s.Launch.Application, url)
 	if err != nil {
 		return err
 	}
 	if link == "" {
-		s.explainMintFailure(failure)
+		explainMintFailure(failure)
 	}
-	fmt.Printf("%s is already serving this Site data.\n\n  URL:    %s\n", s.Launch.Name, url)
-	if link != "" {
-		fmt.Printf("  Login:  %s\n", link)
-	}
+	var summary strings.Builder
+	writeRows(&summary, [][2]string{{"URL:  ", url}, {"Login:", s.loginLine(link)}})
+	fmt.Printf("%s is already serving this Site data.\n\n%s", s.Launch.Name, summary.String())
 	if page := s.c.browserPage(true, bind, link, url); page != "" {
 		openBrowser(page)
 	}
@@ -307,11 +305,17 @@ func mint(l Launch, env []string, url, drush, directory string, path ...string) 
 	return link, "", nil
 }
 
-func (s *packagedStart) explainMintFailure(reason string) {
+// explainMintFailure prints the reason Drush gave for minting no login link.
+func explainMintFailure(reason string) {
 	if reason = strings.TrimRight(reason, ". "); reason != "" {
 		reason = ": " + reason
 	}
-	fmt.Fprintf(os.Stderr, "Cannot mint a one-time login link%s. Get one with: %s\n", reason, s.loginCommand())
+	fmt.Fprintf(os.Stderr, "No login link%s.\n", reason)
+}
+
+// loginLine is the Login line of a summary: link, or the command that mints one.
+func (s *packagedStart) loginLine(link string) string {
+	return cmp.Or(link, "run "+s.loginCommand())
 }
 
 // loginCommand is the command that mints a login link for this Site data.
@@ -362,7 +366,6 @@ func (s *packagedStart) prepare(plan startPlan, choice localtls.Choice, accessLo
 	// one, so no log holds a link.
 	person, link := personPresent(l), ""
 	if person {
-		fmt.Println("Creating a one-time login link.")
 		var failure string
 		if link, failure, err = s.login(application, plan.URL); err != nil {
 			return ready{}, err
@@ -371,29 +374,25 @@ func (s *packagedStart) prepare(plan startPlan, choice localtls.Choice, accessLo
 			if prepared.Credentials && !prepared.Adopted {
 				return ready{}, errors.New("Cannot obtain a one-time login link for the administrator account")
 			}
-			s.explainMintFailure(failure)
+			explainMintFailure(failure)
 		}
 	}
+	static := ""
+	if plan.Static != nil {
+		static = plan.Static.URL
+	}
+	logs := s.Data + "/logs/"
 	var summary strings.Builder
 	// The addresses and paths only, never a readiness claim: the server announces that itself.
-	fmt.Fprintf(&summary, "  URL:       %s\n", plan.URL)
-	if plan.Static != nil {
-		fmt.Fprintf(&summary, "  Static:    %s\n", plan.Static.URL)
-	}
-	if link != "" {
-		fmt.Fprintf(&summary, "  Login:     %s\n", link)
-	}
-	if !person {
-		fmt.Fprintf(&summary, "  Login:     run %s\n", s.loginCommand())
-	}
-	logPath := s.Data + "/logs/caddy.log"
-	fmt.Fprintf(&summary, "  Site data: %s\n  Log:       %s\n", s.Data, logPath)
-	if accessLog != "" {
-		fmt.Fprintf(&summary, "  Access:    %s\n", accessLog)
-	}
-	if errorLog != "" {
-		fmt.Fprintf(&summary, "  Errors:    %s\n", errorLog)
-	}
+	writeRows(&summary, [][2]string{
+		{"URL:      ", plan.URL},
+		{"Login:    ", s.loginLine(link)},
+		{"Static:   ", static},
+		{"Site data:", l.shown(s.Data)},
+		{"Logs:     ", l.shown(logs)},
+		{"Access:   ", l.shown(accessLog)},
+		{"Errors:   ", l.shown(errorLog)},
+	})
 	if link != "" && !localtls.Loopback(plan.Bind) {
 		fmt.Fprintf(&summary, "No browser opens: %s accepts other computers over plain HTTP. Sign in from another computer only through a TLS proxy.\n", s.listen)
 	}
@@ -404,7 +403,7 @@ func (s *packagedStart) prepare(plan startPlan, choice localtls.Choice, accessLo
 	config := caddyfile.Config{
 		Mode: caddyfile.Site, ID: siteToken(s.Data, l.FoldCase),
 		Docroot: application + "/" + site.Docroot, Mercure: s.Hub,
-		FilesDir: s.Files, LogPath: logPath, AccessLog: accessLog, ErrorLog: errorLog, TrustedProxies: proxies,
+		FilesDir: s.Files, LogPath: logs + "caddy.log", AccessLog: accessLog, ErrorLog: errorLog, TrustedProxies: proxies,
 	}
 	if plan.Static != nil {
 		config.Static = &caddyfile.Static{Bind: plan.Static.Bind, Port: plan.Static.Port, Root: s.StaticRoot, Dynamic: site.Static.Dynamic}

@@ -55,7 +55,8 @@ class DetachedCases(harness.ConformanceCase):
         self.assertIn(harness.LOGIN_COMMAND, result.stdout)
         self.assertNotIn(harness.LINK_PATH, result.stdout)
         log = self.data / "logs" / "server.log"
-        self.assertIn(f"runs in the background. Its log: {log.as_posix()}", result.stdout)
+        self.assertIn("runs in the background. Stop it with:", result.stdout)
+        self.assertNotIn("redirected default logger", result.stdout)
         self.assertNotIn("Press Ctrl+C", result.stdout)
         self.assertIn(f"    {harness.BINARY} stop --data-dir {self.data}\n", result.stdout)
         self.assertTrue(log.is_file())

@@ -127,8 +127,9 @@ class BrowserOpenCases(harness.ConformanceCase):
         try:
             url = harness.wait_for_line(restart.log_path, 0, URL_PREFIX, harness.WAITS["start"].seconds)
             text = restart.log_path.read_text(errors="replace")
-            self.assertNotIn(LINK_PREFIX, text, "the readiness block printed a login link despite a failed mint")
-            self.assertIn("Cannot mint a one-time login link", text, "the start does not report the failed mint")
+            self.assertIn(harness.LOGIN_COMMAND, text, "the summary does not print the command that mints a link")
+            self.assertNotIn(harness.LINK_PATH, text, "the start printed a login link despite a failed mint")
+            self.assertIn("No login link", text, "the start does not report the failed mint")
             self.assertIn("blocked", text, "the diagnostic does not carry the reason Drush gave")
             opened = harness.wait_for_recorded_url(recorded, harness.WAITS["browser_open"].seconds)
             self.assertEqual(recorded.read_text().splitlines(), [url], "the browser opened another page than the URL")

@@ -410,13 +410,14 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertEqual(start.returncode, 0, f"the start exited non-zero: {start.stdout}{start.stderr}")
         self.assertIn("  Login:   run ", start.stdout)
         self.assertNotIn(harness.LINK_PATH, start.stdout)
-        self.assertIn("runs in the background. Its log: ", start.stdout)
+        self.assertIn("runs in the background. Stop it with:", start.stdout)
+        self.assertNotIn("redirected default logger", start.stdout)
         self.assertNotIn("Press Ctrl+C", start.stdout)
         self.assertEqual(self.status(port, "/"), 200)
         # Caddy's log goes to a file that rolls, and the start's own output to server.log.
-        output = Path(start.stdout.split("Its log: ")[1].splitlines()[0])
-        caddy = Path(start.stdout.split("  Log:     ")[1].splitlines()[0])
-        self.assertEqual((output.name, caddy.name, caddy.parent), ("server.log", "caddy.log", output.parent))
+        logs = Path(start.stdout.split("  Logs:    ")[1].splitlines()[0]).expanduser()
+        output, caddy = logs / "server.log", logs / "caddy.log"
+        self.assertTrue(output.is_file() and caddy.is_file(), f"no server.log and caddy.log in {logs}")
         self.assertEqual(self.status(port, "/?drupack-log-case"), 500)
         harness.wait_for_text(caddy, "drupack_fatal_case")
         self.assertNotIn("drupack_fatal_case", output.read_text(errors="replace"))
@@ -644,7 +645,18 @@ if (isset($_GET['drupack-log-case'])) {
         output = log.read_text()
         self.assertIn(f"  Install: http://127.0.0.1:{port}/core/install.php\n", output)
         self.assertNotIn("  Login:", output)
-        self.assertNotIn("Cannot mint", output)
+        self.assertNotIn("No login link", output)
+
+    def test_a_start_on_a_project_with_no_settings_file_prints_the_installer_address(self):
+        settings = self.docroot / "sites" / "default" / "settings.php"
+        original = settings.read_text()
+        self.addCleanup(settings.write_text, original)
+        settings.unlink()
+        port, log = self.start("no-settings", str(self.project))
+        output = log.read_text()
+        self.assertIn(f"  Install: http://127.0.0.1:{port}/core/install.php\n", output)
+        self.assertNotIn("  Login:", output)
+        self.assertNotIn("No login link", output)
 
     def watched_start(self, name):
         """Starts the project under a pseudo-terminal with a recorder posing as the browser
@@ -869,8 +881,8 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertEqual(self.status(port, "/?drupack-log-case"), 500)
         self.fetch(port, "/user/login", headers={"X-Forwarded-For": "203.0.113.9"})
         self.assertEqual(self.status(port + 1, "/"), 404)
-        access = Path(harness.wait_for_line(log, 0, "  Access:  ", 1))
-        errors = Path(harness.wait_for_line(log, 0, "  Errors:  ", 1))
+        access = Path(harness.wait_for_line(log, 0, "  Access:  ", 1)).expanduser()
+        errors = Path(harness.wait_for_line(log, 0, "  Errors:  ", 1)).expanduser()
         self.assertEqual((access.name, errors.name, access.parent), ("access.log", "error.log", errors.parent))
         harness.wait_for_loggers(access, {"http.log.access.site", "http.log.access.static"})
         harness.wait_for_loggers(errors, {"http.handlers.php"})
