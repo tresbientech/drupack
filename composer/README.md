@@ -7,14 +7,18 @@ This package installs the `drupack` executable into a Composer project.
 ## Install
 
 ```sh
-composer require --dev drupal/drupack
-vendor/bin/drupack-install
+composer require drupal/drupack
+composer config scripts.post-install-cmd drupack-install
+composer config scripts.post-update-cmd drupack-install
+composer install
 ./drupack
 ```
 
+The two scripts run `drupack-install` after every `composer install` and `composer update`, with or without `--no-dev`. A project that has one of these scripts already adds `drupack-install` to its list instead.
+
 `drupack-install` downloads the `drupack` release matching the package's version into the project root, and checks its SHA-256. It adds `/drupack` to the project's `.gitignore`, and creates that file in a git project without one. On Windows the executable is `drupack.exe`.
 
-Run `vendor/bin/drupack-install` again after `composer update` changes the package's version. A dev branch of the package names no release, so `drupack-install` refuses it.
+A project without the two scripts runs `vendor/bin/drupack-install` by hand after `composer update` changes the package's version. A dev branch of the package names no release, so `drupack-install` refuses it.
 
 ## Serve the project
 

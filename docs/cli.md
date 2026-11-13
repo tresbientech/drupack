@@ -144,7 +144,9 @@ releases.
 
 - A file in a directory you cannot write is refused before any download.
 - A copy installed through Composer updates with
-  `composer update drupal/drupack`, then `vendor/bin/drupack-install`.
+  `composer update drupal/drupack`. A project whose `composer.json` does not
+  run `drupack-install` as a `post-update-cmd` script runs
+  `vendor/bin/drupack-install` after it.
 - A release older than the file is never installed.
 
 Once a day, a run checks for a newer release in the background. While one

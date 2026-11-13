@@ -23,7 +23,7 @@ function releaseVersion(?string $installed): string
     }
     if (!$release) {
         throw new RuntimeException("drupal/drupack is installed at $installed, which names no release. "
-            . 'Require a tagged release: composer require --dev drupal/drupack');
+            . 'Require a tagged release: composer require drupal/drupack');
     }
     return $installed;
 }
