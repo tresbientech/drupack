@@ -42,6 +42,14 @@ fi
 # The toolchain image copies the checkout, so the build runs the pinned spc.
 bash "$directory/fetch-spc.sh" "$source/static-php-cli"
 cp "$directory/spc-craft.sh" "$source/spc-craft.sh"
+# A FrankenPHP bump that changes this line stops here instead of dropping the pin.
+dockerfile=$source/static-builder.Dockerfile
+base_line='FROM ghcr.io/static-php/packages-builder-rhel-8:latest'
+if ! grep -qxF "$base_line" "$dockerfile"; then
+    printf '%s has no line "%s"\n' "$dockerfile" "$base_line" >&2
+    exit 1
+fi
+sed -i "s#^$base_line\$#FROM $toolchain_base#" "$dockerfile"
 
 target=static-builder-$libc
 container=drupack-builder-$libc-$$

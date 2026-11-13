@@ -19,5 +19,5 @@ extension_libs=$(bash "$directory/../extensions/extensions-list.sh" "$directory/
 # namespace, so the machine type belongs in the digest.
 # The scripts that compile the image change what it holds.
 recipe=$(cat "$directory/build-builder.sh" "$directory/spc-craft.sh" "$directory/fetch-spc.sh" "$directory/spc-sqlite.patch" | sha256sum)
-printf '%s\n' "$frankenphp_commit" "$spc_commit" "$php_version" "$extensions" "$extension_libs" \
+printf '%s\n' "$frankenphp_commit" "$spc_commit" "$toolchain_base" "$php_version" "$extensions" "$extension_libs" \
     "$libc" "$(uname -m)" "$recipe" | sha256sum | cut -c 1-16
