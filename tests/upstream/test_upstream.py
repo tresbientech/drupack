@@ -519,6 +519,17 @@ class ReleaseNode(unittest.TestCase):
         self.assertEqual(self.module.previous(tags, "1.0.0-beta10"), "1.0.0-beta9")
         self.assertEqual(self.module.previous(tags, "1.0.0-beta11"), "1.0.0-beta10")
 
+    def test_the_notes_credit_nod__in_place_of_nod_bot(self):
+        notes = "<h3>Contributors (1)</h3>\n<p>BOT</p>\n<h3>Changelog</h3>\n"
+        self.assertEqual(self.module.credited(notes.replace("BOT", self.module.BOT)),
+                         notes.replace("BOT", self.module.OWNER))
+
+    def test_the_notes_credit_nod__once(self):
+        other = '<a href="https://www.drupal.org/u/someone">someone</a>'
+        names = ", ".join([self.module.BOT, other, self.module.OWNER])
+        self.assertEqual(self.module.credited(f"<h3>Contributors (3)</h3>\n<p>{names}</p>\n"),
+                         f"<h3>Contributors (2)</h3>\n<p>{self.module.OWNER}, {other}</p>\n")
+
     def test_the_form_entry_names_the_release_types_the_notes_hold(self):
         entry = self.module.form_entry("1.0.0", "<h4>Bug</h4>\n<ul></ul>\n<h4>Task</h4>\n")
         self.assertIn("Release type: Bug fixes.", entry)

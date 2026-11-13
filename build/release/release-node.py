@@ -42,6 +42,10 @@ RELEASES = f"{PROJECT}/releases/"
 RELEASE_TYPES = {"Bug": ("Bug fixes", 99), "Feature": ("New features", 98)}
 # The line drupalorg-cli leaves for a person to replace.
 PLACEHOLDER = "<p><em>Add a summary here</em></p>\n"
+# drupalorg-cli credits nod_bot, which files and comments on every issue for nod_.
+BOT = '<a href="https://www.drupal.org/u/nod_bot">nod_bot</a>'
+OWNER = '<a href="https://www.drupal.org/u/nod_">nod_</a>'
+CONTRIBUTORS = re.compile(r"<h3>Contributors \(\d+\)</h3>\n<p>(.*)</p>\n")
 TAG_FIELD = "field_release_vcs_label[und][0][value]"
 NOTES_FIELD = "body[und][0][value]"
 # drupal.org staff place the requests in their logs by this name.
@@ -171,6 +175,13 @@ def previous(tags, tag):
     return max((other for other in tags if release_key(other) < release_key(tag)), key=release_key)
 
 
+def credited(notes):
+    def owner(match):
+        names = list(dict.fromkeys(OWNER if name == BOT else name for name in match.group(1).split(", ")))
+        return f"<h3>Contributors ({len(names)})</h3>\n<p>{', '.join(names)}</p>\n"
+    return CONTRIBUTORS.sub(owner, notes, count=1)
+
+
 def release_types(notes):
     return [release_type for heading, release_type in RELEASE_TYPES.items() if f"<h4>{heading}</h4>" in notes]
 
@@ -204,8 +215,8 @@ def check():
 
 
 def notes(tag, phar):
-    print(subprocess.run(["php", phar, "mrn", previous(git_tags(), tag), tag, "--format=html"],
-                         check=True, capture_output=True, text=True).stdout, end="")
+    print(credited(subprocess.run(["php", phar, "mrn", previous(git_tags(), tag), tag, "--format=html"],
+                                  check=True, capture_output=True, text=True).stdout), end="")
 
 
 def entry(tag):
