@@ -291,7 +291,7 @@ func stopGuard() (context.Context, chan<- os.Signal) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 	return guard(signals, shutdownDeadline, func(code int) {
-		fmt.Fprintf(os.Stderr, "%s did not stop within %s. Forcing exit.\n", siteName(), shutdownDeadline)
+		fmt.Fprintf(os.Stderr, "%s did not stop within %s. The requests still running were cut short.\n", siteName(), shutdownDeadline)
 		os.Exit(code)
 	}), signals
 }

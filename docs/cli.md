@@ -68,7 +68,9 @@ reason on standard error and exits 1.
 
 `drupack` and `drupack start` serve `DIR`, the working directory by default, in
 the background. `--foreground` serves in the terminal. `drupack stop [DIR]`
-ends the server. A second start on a folder a server already serves hands over:
+ends the server. After a stop, Ctrl+C or SIGTERM, a server has 10 seconds to
+finish its running requests. Past that it ends them, says so on standard error
+and exits 0. A second start on a folder a server already serves hands over:
 it prints the served URL with the login link, the command that mints one or the
 install address, opens the browser and exits 0. With no terminal it exits 1. A
 first word naming no command is taken as `DIR`, so a folder named `start` or

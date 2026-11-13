@@ -53,8 +53,8 @@ func TestGuardStopsAtTheSignalAndExitsAfterTheDeadline(t *testing.T) {
 		if elapsed := time.Since(signalled); elapsed < deadline {
 			t.Fatalf("exit ran %s after the signal, before the %s deadline", elapsed, deadline)
 		}
-		if code != 1 {
-			t.Fatalf("exit code %d, want 1", code)
+		if code != 0 {
+			t.Fatalf("exit code %d, want 0", code)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("exit never ran after the deadline")

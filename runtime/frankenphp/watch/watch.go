@@ -151,15 +151,16 @@ func scheduleCron(stopping context.Context, p plan, errs io.Writer) {
 }
 
 // Caddy finishes an in-flight PHP request before it exits, and a request has no
-// upper bound, so exit runs with 1 once deadline passes after the first signal.
-// A healthy stop ends the process first.
+// upper bound, so exit runs once deadline passes after the first signal. Its
+// status is 0: the server stopped as asked, and a service manager reads any
+// other status as a failed stop. A healthy stop ends the process first.
 func guard(signals <-chan os.Signal, deadline time.Duration, exit func(int)) context.Context {
 	stopping, stop := context.WithCancel(context.Background())
 	go func() {
 		<-signals
 		stop()
 		time.Sleep(deadline)
-		exit(1)
+		exit(0)
 	}()
 	return stopping
 }
