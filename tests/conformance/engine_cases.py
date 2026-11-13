@@ -1078,7 +1078,7 @@ if (isset($_GET['drupack-log-case'])) {
             "repositories": [{"type": "path", "url": "packages/module", "options": {"symlink": False}}, {"packagist.org": False}],
             "extra": {"drupal-scaffold": {"locations": {"web-root": "web/"}}}}))
         env = dict(os.environ, COMPOSER_HOME=str(self.class_dir / "composer-home"), COMPOSER_NO_INTERACTION="1")
-        result = self.engine_run("composer", "install", "--no-audit", cwd=fixture, env=env)
+        result = self.engine_run("composer", "install", cwd=fixture, env=env)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue((fixture / "vendor" / "autoload.php").is_file())
         self.assertTrue((fixture / "vendor" / "acme" / "module" / "composer.json").is_file())
