@@ -2,12 +2,12 @@
 """The drupal.org release node of a version tag. Packagist takes each
 drupal/drupack version from one, and drupal.org has no API that creates it.
 
-    python3 build/release-node.py check            stops while Packagist lists no release for the highest tag
-    python3 build/release-node.py notes TAG PHAR   prints the release notes of TAG, as HTML
-    python3 build/release-node.py entry TAG        prints what the release form takes for TAG, as Markdown
-    python3 build/release-node.py session          stops when the session no longer opens the release form
-    python3 build/release-node.py form TAG         prints the fields of the form's second step for TAG
-    python3 build/release-node.py post TAG         creates the release of TAG
+    python3 build/release/release-node.py check            stops while Packagist lists no release for the highest tag
+    python3 build/release/release-node.py notes TAG PHAR   prints the release notes of TAG, as HTML
+    python3 build/release/release-node.py entry TAG        prints what the release form takes for TAG, as Markdown
+    python3 build/release/release-node.py session          stops when the session no longer opens the release form
+    python3 build/release/release-node.py form TAG         prints the fields of the form's second step for TAG
+    python3 build/release/release-node.py post TAG         creates the release of TAG
 
 entry and post read the notes from standard input. PHAR is drupalorg-cli, which writes the notes
 from the commits since the tag before.

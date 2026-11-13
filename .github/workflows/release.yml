@@ -34,7 +34,7 @@ env:
   # setup-go sets GOTOOLCHAIN=local from v6 on, so go fetches no newer toolchain of
   # its own: this version must stay at or above the go line in FrankenPHP's
   # caddy/go.mod. Each go.mod here and the Dockerfile's golang image carry the same
-  # version. build/upstream.py moves it to the newest patch and copies it there.
+  # version. build/release/upstream.py moves it to the newest patch and copies it there.
   GO_VERSION: '1.27.4'
   # Go moves to the next entry after a "|" on any error, so a module fetch the
   # proxy drops mid-stream gets a second attempt. go.sum checks either answer.
@@ -76,7 +76,7 @@ jobs:
       - id: demo
         name: Name the demo commit
         run: |
-          . build/demo-pin.sh
+          . build/release/demo-pin.sh
           printf 'repository=%s\nref=%s\n' "$demo_repository" "$demo_ref" >>"$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v7
@@ -93,14 +93,14 @@ jobs:
           PLATFORM: ${{ inputs.platform || 'all' }}
           NAMED: ${{ inputs.version }}
         run: |
-          python3 build/release-plan.py --ref-type "$GITHUB_REF_TYPE" --ref-name "$GITHUB_REF_NAME" \
+          python3 build/release/release-plan.py --ref-type "$GITHUB_REF_TYPE" --ref-name "$GITHUB_REF_NAME" \
             --event-name "$GITHUB_EVENT_NAME" --sha "$GITHUB_SHA" --before "$BEFORE" \
             --platform "$PLATFORM" --version "$NAMED" --repo "$GITHUB_REPOSITORY" \
             --targets launcher/internal/payload/targets.json --output "$GITHUB_OUTPUT"
 
   # A builder image carries the PHP its own build compiled, so one image serves
   # one libc on one architecture. Its content follows the inputs
-  # runtime/builder-tag.sh digests, and the registry holds it under that digest.
+  # runtime/builder/builder-tag.sh digests, and the registry holds it under that digest.
   linux-runtime:
     name: Linux ${{ matrix.arch }} ${{ matrix.libc }} runtime
     needs: gate
@@ -132,7 +132,7 @@ jobs:
         env:
           BUILDER: ${{ matrix.builder }}
         run: |
-          tag=$(bash runtime/builder-tag.sh "$BUILDER")
+          tag=$(bash runtime/builder/builder-tag.sh "$BUILDER")
           printf 'image=ghcr.io/%s-builder:%s\n' "$GITHUB_REPOSITORY" "$tag" >>"$GITHUB_OUTPUT"
 
       - name: Log in to the registry
@@ -153,7 +153,7 @@ jobs:
           if docker pull -q "$IMAGE"; then
             exit 0
           fi
-          bash runtime/build-builder.sh "$BUILDER" "$IMAGE" "$RUNNER_TEMP/builder"
+          bash runtime/builder/build-builder.sh "$BUILDER" "$IMAGE" "$RUNNER_TEMP/builder"
           echo 'built=true' >>"$GITHUB_OUTPUT"
 
       # The build below finds the image on the runner under the same name. A
@@ -203,7 +203,7 @@ jobs:
           TARGET: linux-${{ matrix.arch }}${{ matrix.suffix }}
         run: |
           mkdir runtime-components
-          python3 build/sbom.py runtime --target "$TARGET" "runtime-$LIBC/out/drupack" >"runtime-components/$TARGET.json"
+          python3 build/release/sbom.py runtime --target "$TARGET" "runtime-$LIBC/out/drupack" >"runtime-components/$TARGET.json"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -243,7 +243,7 @@ jobs:
         run: |
           count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$NAME" --jq '.total_count')
           if [ "$count" != 0 ]; then
-            printf 'image=ghcr.io/%s-builder:%s\n' "$GITHUB_REPOSITORY" "$(bash runtime/builder-tag.sh "$BUILDER")" >>"$GITHUB_OUTPUT"
+            printf 'image=ghcr.io/%s-builder:%s\n' "$GITHUB_REPOSITORY" "$(bash runtime/builder/builder-tag.sh "$BUILDER")" >>"$GITHUB_OUTPUT"
           fi
 
       - if: steps.artifact.outputs.image != ''
@@ -335,7 +335,7 @@ jobs:
       # holds each of their targets' Node archives.
       - name: Export the variant fixture payload
         run: |
-          bash build/variant-fixture.sh demo "$RUNNER_TEMP/variant-site"
+          bash build/test/variant-fixture.sh demo "$RUNNER_TEMP/variant-site"
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$RUNNER_TEMP/variant-site:/variant-site" -w /src drupack-job \
             drupack-build --site /variant-site --payload-only --output dist/variant
 
@@ -418,7 +418,7 @@ jobs:
       - name: Run the Go unit tests
         if: matrix.first
         shell: bash
-        run: bash build/go-tests.sh
+        run: bash build/test/go-tests.sh
 
       - uses: actions/download-artifact@v8
         with:
@@ -464,7 +464,7 @@ jobs:
 
       - name: Run the Python unit tests
         if: matrix.first
-        run: bash build/unit-tests.sh
+        run: bash build/test/unit-tests.sh
 
       - name: Run the test scripts
         env:
@@ -550,7 +550,7 @@ jobs:
 
       - name: Run the Go unit tests
         shell: bash
-        run: bash build/go-tests.sh
+        run: bash build/test/go-tests.sh
 
       - uses: actions/download-artifact@v8
         with:
@@ -599,7 +599,7 @@ jobs:
       - name: Report the runtime's components
         run: |
           New-Item -ItemType Directory -Path runtime-components | Out-Null
-          python build/sbom.py runtime --target windows-amd64 "$env:RUNNER_TEMP\drupack\runtime\frankenphp.exe" >runtime-components\windows-amd64.json
+          python build/release/sbom.py runtime --target windows-amd64 "$env:RUNNER_TEMP\drupack\runtime\frankenphp.exe" >runtime-components\windows-amd64.json
 
       - uses: actions/upload-artifact@v7
         with:
@@ -724,7 +724,7 @@ jobs:
 
       - name: Run the Go unit tests
         shell: bash
-        run: bash build/go-tests.sh
+        run: bash build/test/go-tests.sh
 
       # static-php-cli runs on PHP and Composer, which the arm64 runner image lacks.
       - name: Install PHP and Composer
@@ -754,7 +754,7 @@ jobs:
             ${{ runner.temp }}/drupack/downloads
             ${{ runner.temp }}/drupack/buildroot
             ${{ runner.temp }}/drupack/pkgroot
-          key: macos-${{ matrix.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder-inputs.sh', 'runtime/php-extensions.txt', 'runtime/php-extension-libs.txt') }}
+          key: macos-${{ matrix.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
 
       - name: Build the executables
         env:
@@ -772,7 +772,7 @@ jobs:
             ${{ runner.temp }}/drupack/downloads
             ${{ runner.temp }}/drupack/buildroot
             ${{ runner.temp }}/drupack/pkgroot
-          key: macos-${{ matrix.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder-inputs.sh', 'runtime/php-extensions.txt', 'runtime/php-extension-libs.txt') }}
+          key: macos-${{ matrix.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
 
       - uses: actions/upload-artifact@v7
         with:
@@ -785,7 +785,7 @@ jobs:
           TARGET: macos-${{ matrix.arch }}
         run: |
           mkdir runtime-components
-          python3 build/sbom.py runtime --target "$TARGET" "$RUNNER_TEMP/drupack/runtime/drupack" >"runtime-components/$TARGET.json"
+          python3 build/release/sbom.py runtime --target "$TARGET" "$RUNNER_TEMP/drupack/runtime/drupack" >"runtime-components/$TARGET.json"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -890,7 +890,7 @@ jobs:
             test-results/**/run.out
             test-results/**/run.err
 
-  # An all-platform dispatch also runs build/qa.sh, one phase per job. upstream.yml
+  # An all-platform dispatch also runs build/test/qa.sh, one phase per job. upstream.yml
   # dispatches one for each release candidate.
   qa:
     name: QA ${{ matrix.phase }}
@@ -930,7 +930,7 @@ jobs:
             done
           done
 
-      # runtime/adapt-test.sh, which the demo phase runs, works in the glibc builder
+      # runtime/frankenphp/adapt-test.sh, which the demo phase runs, works in the glibc builder
       # image that the builder-push job of this run published under its digest tag.
       - name: Pull the glibc builder image
         if: matrix.phase == 'demo'
@@ -938,7 +938,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          image=ghcr.io/$GITHUB_REPOSITORY-builder:$(bash runtime/builder-tag.sh gnu)
+          image=ghcr.io/$GITHUB_REPOSITORY-builder:$(bash runtime/builder/builder-tag.sh gnu)
           docker pull -q "$image"
           docker tag "$image" drupack-builder-gnu:local
 
@@ -949,7 +949,7 @@ jobs:
 
       # The job image takes the runtime jobs' files. A build from the builder images
       # took 4 minutes after a 5 minute pull.
-      - name: Run build/qa.sh
+      - name: Run build/test/qa.sh
         env:
           PHASE: ${{ matrix.phase }}
           DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
@@ -961,7 +961,7 @@ jobs:
             mv "$RUNNER_TEMP/runtime-artifacts/runtime-linux-amd64-$libc/out" "$DRUPACK_QA_RUNTIMES/linux-amd64-$libc"
           done
           chmod +x "$DRUPACK_QA_RUNTIMES"/*/drupack
-          bash build/qa.sh "$PHASE" 2>&1 | tee "$RUNNER_TEMP/qa.log"
+          bash build/test/qa.sh "$PHASE" 2>&1 | tee "$RUNNER_TEMP/qa.log"
 
       - name: Summarize the QA
         if: always()
@@ -969,14 +969,14 @@ jobs:
           PHASE: ${{ matrix.phase }}
         run: |
           {
-            printf '### build/qa.sh %s\n\n```\n' "$PHASE"
+            printf '### build/test/qa.sh %s\n\n```\n' "$PHASE"
             grep -E '^(Ran |OK|FAILED|ok |FAIL)' "$RUNNER_TEMP/qa.log" || true
             printf '```\n'
           } >>"$GITHUB_STEP_SUMMARY"
           # A phase keeps its builds' test results, so its log shows the room left.
           df -h /
 
-      # build/qa.sh works under /tmp/drupack-qa, one folder per checkout name.
+      # build/test/qa.sh works under /tmp/drupack-qa, one folder per checkout name.
       - name: Upload test results
         if: failure()
         uses: actions/upload-artifact@v7
@@ -1115,7 +1115,7 @@ jobs:
           for runtime in runtimes/*; do
             runtimes+=(--runtime "$runtime")
           done
-          python3 build/release-files.py --output release --version "$VERSION" \
+          python3 build/release/release-files.py --output release --version "$VERSION" \
             --base-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$VERSION" \
             --commit "$GITHUB_SHA" "${runtimes[@]}" built/*
 
@@ -1128,7 +1128,7 @@ jobs:
       # build reads the macOS and Windows reports from runtime-components.json.
       - name: Write the SBOM
         run: |
-          python3 build/sbom.py merge --name drupack --version "$VERSION" \
+          python3 build/release/sbom.py merge --name drupack --version "$VERSION" \
             --runtime-components runtime-components/*.json --output release/drupack.cdx.json \
             "$RUNNER_TEMP/scans/executables.cdx.json" "$RUNNER_TEMP/scans/runtimes.cdx.json"
           jq -s add runtime-components/*.json >release/runtime-components.json

@@ -1,4 +1,4 @@
-# A hand build clones Drupacked Demo into demo/, at the ref build/demo-pin.sh
+# A hand build clones Drupacked Demo into demo/, at the ref build/release/demo-pin.sh
 # names. The PHP unit files read the Composer install in application/tests/vendor.
 /demo/
 /application/tests/vendor

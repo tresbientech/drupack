@@ -23,7 +23,7 @@ replace() {
     cp "$1" "$2"
 }
 # Lays what drupack-build's layEngine lays over the site: the engine's application
-# tree without its unit files, then the site files build/ holds for sites/default.
+# tree without its unit files, then the site files build/pack/ holds for sites/default.
 # find lists no file under the vendor link a developer's checkout may hold.
 lay() {
     (
@@ -32,8 +32,8 @@ lay() {
             replace "$name" "$1/$name"
         done
     )
-    replace /dev-build/site-settings.php "$1/$docroot/sites/default/settings.php"
-    replace /dev-build/site-templates.php "$1/$docroot/sites/default/site-templates.php"
+    replace /dev-build/pack/site-settings.php "$1/$docroot/sites/default/settings.php"
+    replace /dev-build/pack/site-templates.php "$1/$docroot/sites/default/site-templates.php"
 }
 docroot=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["docroot"])' "$unpacked/site.json")
 lay "$unpacked"

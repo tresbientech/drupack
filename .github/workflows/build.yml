@@ -259,7 +259,7 @@ jobs:
           name=$(jq -r .name payload/site.json)
           extension=
           if [ "$RUNNER_OS" = Windows ]; then extension=.exe; fi
-          bash drupack-engine/build/native-pack.sh \
+          bash drupack-engine/build/pack/native-pack.sh \
             --base-url "$GITHUB_SERVER_URL/$ENGINE_REPOSITORY/releases/download/$RUNTIME_RELEASE" \
             --target "$TARGET" --payload payload --output "dist/$name-$TARGET$extension" \
             --site-version "$SITE_VERSION"
@@ -446,7 +446,7 @@ jobs:
             esac
             reports+=("$report")
           done
-          python3 drupack-engine/build/sbom.py merge --name "$name" --version "$VERSION" \
+          python3 drupack-engine/build/release/sbom.py merge --name "$name" --version "$VERSION" \
             --runtime-components "${reports[@]}" --site executables/site.json \
             --output "$RUNNER_TEMP/sbom.cdx.json" "$RUNNER_TEMP/site.cdx.json" "$RUNNER_TEMP/executables.cdx.json"
 
@@ -454,7 +454,7 @@ jobs:
       - name: Write the release files
         run: |
           rm executables/site.json
-          python3 drupack-engine/build/release-files.py --output release --version "$VERSION" \
+          python3 drupack-engine/build/release/release-files.py --output release --version "$VERSION" \
             --base-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$VERSION" \
             --commit "$GITHUB_SHA" executables/*
           mv "$RUNNER_TEMP/sbom.cdx.json" release/

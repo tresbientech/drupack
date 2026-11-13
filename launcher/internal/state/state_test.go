@@ -72,7 +72,7 @@ func TestLease(t *testing.T) {
 
 // The runtime's watch writes the record the fixture holds.
 func TestStopChannelReadsTheRuntimesRecord(t *testing.T) {
-	record, err := os.ReadFile(filepath.Join("..", "..", "..", "runtime", "watch", "testdata", "stop.json"))
+	record, err := os.ReadFile(filepath.Join("..", "..", "..", "runtime", "frankenphp", "watch", "testdata", "stop.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

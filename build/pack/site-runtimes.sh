@@ -7,12 +7,12 @@ set -euo pipefail
 # host's architecture. A builder image is tagged by builder-tag.sh over the
 # merged extension list, so a rerun with the same list reuses it.
 #
-# Usage: build/site-runtimes.sh SITE OUTPUT
+# Usage: build/pack/site-runtimes.sh SITE OUTPUT
 
-usage='Usage: build/site-runtimes.sh SITE OUTPUT'
+usage='Usage: build/pack/site-runtimes.sh SITE OUTPUT'
 site=$(realpath -- "${1:?$usage}")
 output=${2:?$usage}
-engine=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+engine=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 
 described=$(cd "$engine/launcher" && go run ./cmd/drupack-build --site "$site" --describe)
 # Prints one site.json field, a list one item per line.
@@ -45,15 +45,15 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir "$work/extensions"
 export EXTENSIONS_FILE=$work/extensions/php-extensions.txt
-{ cat "$engine/runtime/php-extensions.txt"; field extensions; } > "$EXTENSIONS_FILE"
+{ cat "$engine/runtime/extensions/php-extensions.txt"; field extensions; } > "$EXTENSIONS_FILE"
 
 mkdir -p "$output"
 for builder in "${builders[@]}"; do
-    image=drupack-builder-$builder:$(bash "$engine/runtime/builder-tag.sh" "$builder")
+    image=drupack-builder-$builder:$(bash "$engine/runtime/builder/builder-tag.sh" "$builder")
     if docker image inspect "$image" > /dev/null 2>&1; then
         printf 'Reusing %s\n' "$image"
     else
-        bash "$engine/runtime/build-builder.sh" "$builder" "$image" "$work/builder"
+        bash "$engine/runtime/builder/build-builder.sh" "$builder" "$image" "$work/builder"
     fi
     directory=$output/linux-$arch-${builder/gnu/glibc}
     docker build --target "runtime-$builder-files" \

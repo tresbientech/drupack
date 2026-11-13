@@ -5,7 +5,7 @@
 tests:
   image: golang:bookworm
   interruptible: true
-  # build/go-tests.sh compiles golangci-lint on each run. The kept caches let a
+  # build/test/go-tests.sh compiles golangci-lint on each run. The kept caches let a
   # later run reuse that build; a cache sits inside the checkout or not at all.
   variables:
     GOCACHE: $CI_PROJECT_DIR/.go/build
@@ -13,7 +13,7 @@ tests:
   cache:
     key:
       files:
-        - build/go-tests.sh
+        - build/test/go-tests.sh
         - launcher/go.sum
     paths:
       - .go/
@@ -34,13 +34,13 @@ tests:
         - runtime/**/*
         - tests/**/*
   script:
-    # build/release-files.py packs with zstd.
+    # build/release/release-files.py packs with zstd.
     - apt-get update --quiet --quiet && apt-get install --yes --quiet --quiet --no-install-recommends python3 zstd
     # go downloads the toolchain release.yml pins.
     - |
       export GOTOOLCHAIN="go$(sed -n "s/^  GO_VERSION: '\(.*\)'$/\1/p" .github/workflows/release.yml)"
-    - bash build/go-tests.sh
-    - bash build/unit-tests.sh
+    - bash build/test/go-tests.sh
+    - bash build/test/unit-tests.sh
 
 # GitHub's cron starts late under load, so drupal.org's pipeline schedule is the
 # clock. GITHUB_DISPATCH_TOKEN is a masked, protected CI/CD variable.

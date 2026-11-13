@@ -3,20 +3,20 @@ set -euo pipefail
 
 # The full QA, which release.yml's qa jobs run on a release candidate, one phase per job.
 # Every phase builds the job image (both runtimes) and builds its sites inside it.
-#   demo     the checks that need no built file, Drupacked Demo at the build/demo-pin.sh
+#   demo     the checks that need no built file, Drupacked Demo at the build/release/demo-pin.sh
 #            commit with the first half of its build's suite, and the PHP unit files
 #   variant  a copy with a Mercure hub, and its musl file's cases
 #   host     Drupacked Demo with the second half of its build's suite, a copy without
 #            Node, the engine executable, the cases that need a daemon on this host, and
 #            the engine executable's cases against the demo
 # No phase runs all three on one build of each site, whose build runs its whole suite.
-# Usage: build/qa.sh [demo|variant|host]
+# Usage: build/test/qa.sh [demo|variant|host]
 phase=${1:-}
 case $phase in
     '' | demo | variant | host) ;;
-    *) echo 'Usage: build/qa.sh [demo|variant|host]' >&2; exit 2 ;;
+    *) echo 'Usage: build/test/qa.sh [demo|variant|host]' >&2; exit 2 ;;
 esac
-cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 platform=linux-$(go env GOARCH)
 executable=dist/drupacked-demo-$platform
 engine=dist/engine/drupack-$platform
@@ -32,7 +32,7 @@ mkdir -p dist "$work/work" "$work/variant-work" "$work/engine-work" "$work/resul
 git_directory=$(git rev-parse --path-format=absolute --git-common-dir)
 checkout=(-v "$PWD:/src" -v "$git_directory:$git_directory")
 
-. build/demo-pin.sh
+. build/release/demo-pin.sh
 demo=$work/demo
 git init -q "$demo"
 git -C "$demo" fetch -q --depth 1 "https://github.com/$demo_repository" "$demo_ref"
@@ -57,9 +57,9 @@ discard_results() {
 }
 
 unit_checks() {
-    bash build/go-tests.sh
-    bash runtime/adapt-test.sh gnu
-    bash build/unit-tests.sh
+    bash build/test/go-tests.sh
+    bash runtime/frankenphp/adapt-test.sh gnu
+    bash build/test/unit-tests.sh
 }
 
 # Builds Drupacked Demo. The build runs the share of its suite that $1 names as
@@ -73,7 +73,7 @@ build_demo() {
 
 php_unit_files() {
     # The PHP unit files read the vendor directory of their own Composer install.
-    docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e DRUPACK_CA_FILE=/opt/drupack/engine/application/cacert.pem \
+    docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e DRUPACK_CA_FILE=/opt/drupack/engine/runtime/cacert.pem \
         "${checkout[@]}" -w /src drupack-job sh -c 'PHPRC=$(dirname "$DRUPACK_PHP") "$DRUPACK_PHP" php-cli "$DRUPACK_COMPOSER" \
             install --working-dir=application/tests --no-interaction --prefer-dist --no-plugins'
     # Every file gets the arguments a and b, which argv_test.php checks.
@@ -86,7 +86,7 @@ php_unit_files() {
 variant() {
     variant_site=$(mktemp -d)
     trap 'rm -rf "$variant_site"' EXIT
-    bash build/variant-fixture.sh "$demo" "$variant_site"
+    bash build/test/variant-fixture.sh "$demo" "$variant_site"
     docker run --rm --user "$(id -u):$(id -g)" "${checkout[@]}" -v "$work:$work" -v "$variant_site:/variant-site" -w /src drupack-job \
         drupack-build --site /variant-site --platform "$platform" --libc both \
         --output dist/variant --work "$work/variant-work"

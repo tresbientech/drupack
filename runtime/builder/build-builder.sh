@@ -5,16 +5,16 @@ set -euo pipefail
 # image cannot carry a narrowed PHP.
 #
 # Usage: build-builder.sh musl|gnu TAG [WORK_DIRECTORY]
-# EXTENSIONS_FILE names the extension list, runtime/php-extensions.txt by default.
+# EXTENSIONS_FILE names the extension list, runtime/extensions/php-extensions.txt by default.
 
 usage='Usage: build-builder.sh musl|gnu TAG [WORK_DIRECTORY]'
 libc=${1:?$usage}
 tag=${2:?$usage}
 work=${3:-$(mktemp -d)}
-repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+directory=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
-. "$repository/runtime/builder-inputs.sh"
-extension_libs=$(bash "$repository/runtime/extensions-list.sh" "$repository/runtime/php-extension-libs.txt")
+. "$directory/builder-inputs.sh"
+extension_libs=$(bash "$directory/../extensions/extensions-list.sh" "$directory/../extensions/php-extension-libs.txt")
 
 case "$libc" in
     musl|gnu) ;;
@@ -26,7 +26,7 @@ case "$(uname -m)" in
     *) printf 'Unsupported architecture: %s\n' "$(uname -m)" >&2; exit 1 ;;
 esac
 
-extensions=$(bash "$repository/runtime/extensions-list.sh" "$extensions_file")
+extensions=$(bash "$directory/../extensions/extensions-list.sh" "$extensions_file")
 
 source=$work/frankenphp
 rm -rf "$source"
@@ -40,8 +40,8 @@ if [ "$head" != "$frankenphp_commit" ]; then
 fi
 
 # The toolchain image copies the checkout, so the build runs the pinned spc.
-bash "$repository/runtime/fetch-spc.sh" "$source/static-php-cli"
-cp "$repository/runtime/spc-craft.sh" "$source/spc-craft.sh"
+bash "$directory/fetch-spc.sh" "$source/static-php-cli"
+cp "$directory/spc-craft.sh" "$source/spc-craft.sh"
 
 target=static-builder-$libc
 container=drupack-builder-$libc-$$

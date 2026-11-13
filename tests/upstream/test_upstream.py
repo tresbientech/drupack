@@ -1,4 +1,4 @@
-"""build/upstream.py against copies of the real pin files and recorded indexes.
+"""build/release/upstream.py against copies of the real pin files and recorded indexes.
 Run with:
 
     python3 -m unittest discover -s tests/upstream
@@ -18,11 +18,11 @@ import urllib.error
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location("upstream", ROOT / "build" / "upstream.py")
+spec = importlib.util.spec_from_file_location("upstream", ROOT / "build" / "release" / "upstream.py")
 upstream = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(upstream)
 
-PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD, upstream.RELEASE_WORKFLOW, upstream.DOCKERFILE, *upstream.GO_MODS, "build/go-tests.sh"]
+PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD, upstream.RELEASE_WORKFLOW, upstream.DOCKERFILE, *upstream.GO_MODS, "build/test/go-tests.sh"]
 COMMIT = "c0ffee" * 6 + "c0ff"
 SPC_COMMIT = "5bc" * 13 + "5"
 BASELINE = "ba5e" * 10
@@ -367,10 +367,10 @@ class Bumper(unittest.TestCase):
 
 
 def build_script(case, name):
-    """build/NAME.py as a module. Its own imports find build/ on sys.path."""
-    sys.path.insert(0, str(ROOT / "build"))
-    case.addCleanup(sys.path.remove, str(ROOT / "build"))
-    spec = importlib.util.spec_from_file_location(name.replace("-", "_"), ROOT / "build" / f"{name}.py")
+    """build/release/NAME.py as a module. Its own imports find build/release/ on sys.path."""
+    sys.path.insert(0, str(ROOT / "build" / "release"))
+    case.addCleanup(sys.path.remove, str(ROOT / "build" / "release"))
+    spec = importlib.util.spec_from_file_location(name.replace("-", "_"), ROOT / "build" / "release" / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

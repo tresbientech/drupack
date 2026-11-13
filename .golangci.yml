@@ -1,4 +1,4 @@
-# build/go-tests.sh runs this set in every Go module, once per GOOS of a release.
+# build/test/go-tests.sh runs this set in every Go module, once per GOOS of a release.
 # It follows Caddy's set.
 version: "2"
 run:
@@ -69,7 +69,7 @@ linters:
       # The builds copy watch.go into FrankenPHP's main package, whose entry point
       # calls these functions.
       - linters: [unused]
-        path: runtime/watch/watch\.go
+        path: runtime/frankenphp/watch/watch\.go
 formatters:
   enable:
     - gci

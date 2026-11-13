@@ -1,5 +1,5 @@
 // The work that runs beside the server for its whole life. The builds copy this file
-// into FrankenPHP's main package next to runtime/entrypoint.go, so it imports the
+// into FrankenPHP's main package next to runtime/frankenphp/entrypoint.go, so it imports the
 // standard library alone and names nothing from FrankenPHP.
 package main
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Fails when a site's composer.lock declares a PHP extension that neither
-runtime/php-extensions.txt nor the site's drupack.yml extensions name.
+runtime/extensions/php-extensions.txt nor the site's drupack.yml extensions name.
 
 static-php-cli reads the lock and reports the extensions its packages require.
 This compares that set against the merged list and names the packages behind
@@ -15,8 +15,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-ALLOWLIST = ROOT / "runtime" / "php-extensions.txt"
+ROOT = Path(__file__).resolve().parent.parent.parent
+ALLOWLIST = ROOT / "runtime" / "extensions" / "php-extensions.txt"
 
 
 def allowlist() -> set[str]:

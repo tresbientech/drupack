@@ -1,4 +1,4 @@
-"""build/sbom.py, run against a stub runtime and a scan shaped like syft's. Run with:
+"""build/release/sbom.py, run against a stub runtime and a scan shaped like syft's. Run with:
 
     python3 -m unittest discover -s tests/conformance -p test_sbom.py
 """
@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parents[2] / "build" / "sbom.py"
+SCRIPT = Path(__file__).resolve().parents[2] / "build" / "release" / "sbom.py"
 # The stub answers drupack-version as the runtime does, and php-cli with the lines the
 # report script prints. An empty library line names an extension it does not load.
 RUNTIME = """#!/bin/sh

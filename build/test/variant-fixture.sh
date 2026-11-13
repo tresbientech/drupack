@@ -5,10 +5,10 @@ set -euo pipefail
 # DEMO, named variant-demo, with no translations. It adds a Mercure hub, a drupack.caddy and
 # a drupack.mercure.caddy.
 # Staging copies what git lists, and git ignores dist, so DIRECTORY lies outside this checkout.
-# Usage: build/variant-fixture.sh DEMO DIRECTORY
+# Usage: build/test/variant-fixture.sh DEMO DIRECTORY
 
-demo=${1:?Usage: build/variant-fixture.sh DEMO DIRECTORY}
-mkdir -p -- "${2:?Usage: build/variant-fixture.sh DEMO DIRECTORY}"
+demo=${1:?Usage: build/test/variant-fixture.sh DEMO DIRECTORY}
+mkdir -p -- "${2:?Usage: build/test/variant-fixture.sh DEMO DIRECTORY}"
 destination=$(cd -- "$2" && pwd)
 cd -- "$demo"
 git ls-files -z | xargs -0 cp --parents -t "$destination"

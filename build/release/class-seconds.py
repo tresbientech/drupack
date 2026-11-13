@@ -1,6 +1,6 @@
 """Writes tests/conformance/class-seconds.json from the test jobs of one release run.
 
-Usage: python3 build/class-seconds.py RUN_ID [--repo OWNER/NAME]
+Usage: python3 build/release/class-seconds.py RUN_ID [--repo OWNER/NAME]
 
 `gh` reads the run's jobs and their logs. Each result line of the suite carries the time its
 test ended, so a class's seconds are the gaps before its lines. A platform's table keeps the
@@ -55,7 +55,7 @@ def main():
         return subprocess.run(["gh", "api", "--paginate", path], check=True, stdout=subprocess.PIPE, text=True).stdout
 
     jobs = json.loads(gh(f"repos/{args.repo}/actions/runs/{args.run}/jobs?per_page=100"))["jobs"]
-    path = Path(__file__).parent.parent / "tests" / "conformance" / "class-seconds.json"
+    path = Path(__file__).resolve().parents[2] / "tests" / "conformance" / "class-seconds.json"
     table = json.loads(path.read_text())
     for platform, pattern in JOBS.items():
         architectures = {}

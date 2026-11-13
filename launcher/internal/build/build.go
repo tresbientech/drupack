@@ -113,7 +113,7 @@ func NewPlan(r Request) (Plan, error) {
 	php := []string{r.PHP, "php-cli"}
 	// The runtime reads php.ini beside itself only through PHPRC.
 	//nolint:prealloc // Its capacity equals its length, so each append below makes a copy.
-	phpEnv := []string{"PHPRC=" + filepath.Dir(r.PHP), "DRUPACK_CA_FILE=" + filepath.Join(r.Engine, "application", "cacert.pem")}
+	phpEnv := []string{"PHPRC=" + filepath.Dir(r.PHP), "DRUPACK_CA_FILE=" + filepath.Join(r.Engine, "runtime", "cacert.pem")}
 	install := append(append([]string{}, php...), r.Composer, "install", "--no-dev", "--prefer-dist", "--no-interaction", "--optimize-autoloader")
 	// The build's PHP carries the engine list alone. The extension check and the
 	// runtimes the site's executables carry answer for the site's additions.
@@ -122,7 +122,7 @@ func NewPlan(r Request) (Plan, error) {
 	}
 	plan := Plan{Steps: []Step{
 		{Name: "check the PHP extensions", Command: []string{
-			"python3", filepath.Join(r.Engine, "runtime", "check-extensions.py"),
+			"python3", filepath.Join(r.Engine, "runtime", "extensions", "check-extensions.py"),
 			r.SiteDir, "--extensions=" + strings.Join(r.Site.Extensions, ","),
 		}},
 		{Name: "stage the site", Func: func(log io.Writer) error {
@@ -138,8 +138,8 @@ func NewPlan(r Request) (Plan, error) {
 		{Name: "write site.json", Func: func(io.Writer) error { return siteconfig.Write(r.Site, application) }},
 		{Name: "install the Composer project", Dir: application, Env: phpEnv, Command: install},
 		{
-			Name: "fetch translations", Env: append(phpEnv, "CURL_CA_BUNDLE="+filepath.Join(r.Engine, "application", "cacert.pem")),
-			Command: append(append([]string{}, php...), filepath.Join(r.Engine, "build", "install-translations.php"), application),
+			Name: "fetch translations", Env: append(phpEnv, "CURL_CA_BUNDLE="+filepath.Join(r.Engine, "runtime", "cacert.pem")),
+			Command: append(append([]string{}, php...), filepath.Join(r.Engine, "build", "pack", "install-translations.php"), application),
 		},
 		{Name: "lay the engine over the site", Func: func(io.Writer) error { return layEngine(r.Engine, application, r.Site.Docroot) }},
 	}}
@@ -155,7 +155,7 @@ func NewPlan(r Request) (Plan, error) {
 	plan.Steps = append(plan.Steps,
 		Step{
 			Name:    "archive the application",
-			Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), application, payloadDir, r.Site.Docroot},
+			Command: []string{"bash", filepath.Join(r.Engine, "build", "pack", "app-payload.sh"), application, payloadDir, r.Site.Docroot},
 		},
 		Step{Name: "compress the application", Func: func(io.Writer) error {
 			return errors.Join(compressPayload(payloadDir), copyInto(payloadDir, filepath.Join(application, siteconfig.OutputName)))
@@ -567,7 +567,7 @@ func layEngine(engine, application, docroot string) error {
 		"site-settings.php":  "settings.php",
 		"site-templates.php": "site-templates.php",
 	} {
-		if err := copyFile(filepath.Join(engine, "build", source), filepath.Join(sites, destination)); err != nil {
+		if err := copyFile(filepath.Join(engine, "build", "pack", source), filepath.Join(sites, destination)); err != nil {
 			return err
 		}
 	}

@@ -135,7 +135,7 @@ starts need only `--data-dir`.
 
 ## PHP extensions a site adds
 
-`runtime/php-extensions.txt` names the extensions every runtime carries. A site
+`runtime/extensions/php-extensions.txt` names the extensions every runtime carries. A site
 that needs another one lists it in `extensions`. The build stops when the lock
 declares an extension that neither list names, and names the packages behind
 it.
@@ -145,7 +145,7 @@ builds Linux targets only, and compiles its own runtimes on a Docker host from
 an engine checkout:
 
 ```sh
-bash build/site-runtimes.sh ../acme runtimes
+bash build/pack/site-runtimes.sh ../acme runtimes
 ```
 
 The script compiles the targets `drupack.yml` names, for this host's

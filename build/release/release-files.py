@@ -23,8 +23,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
-TEMPLATES = Path(__file__).resolve().parent
-TARGETS = json.loads((TEMPLATES.parent / "launcher" / "internal" / "payload" / "targets.json").read_text())
+ROOT = Path(__file__).resolve().parents[2]
+TEMPLATES = ROOT / "build" / "install"
+TARGETS = json.loads((ROOT / "launcher" / "internal" / "payload" / "targets.json").read_text())
 NATIVE = [platform for platform in TARGETS["platforms"] if not platform.startswith("linux-")]
 # A Linux target ends with the suffix of the libc its build ran against.
 LINUX = [platform + libc["suffix"] for platform in TARGETS["platforms"] if platform.startswith("linux-")

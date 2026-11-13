@@ -1,5 +1,5 @@
 """A packaged site serves the drupack.caddy and the drupack.mercure.caddy its build packed.
-build/variant-fixture.sh writes both; a build's own run skips the class on a site without a
+build/test/variant-fixture.sh writes both; a build's own run skips the class on a site without a
 drupack.caddy, and the hub case on a site whose hub file leaves the debugger off."""
 
 import unittest

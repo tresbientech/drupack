@@ -34,7 +34,7 @@ class OfflineRun(harness.ConformanceCase):
             "--mount", f"type=bind,src={TESTS_DIR},dst=/tests,readonly",
             # The harness finds the allowlist three directories up, which lands here when the
             # suite runs from /tests.
-            "--mount", f"type=bind,src={harness.ALLOWLIST},dst=/runtime/php-extensions.txt,readonly",
+            "--mount", f"type=bind,src={harness.ALLOWLIST},dst=/runtime/extensions/php-extensions.txt,readonly",
             "--mount", f"type=bind,src={self.class_dir},dst=/results",
             "--mount", f"type=bind,src={os.environ['DRUPACK_CACHE_DIR']},dst=/cache",
             "--entrypoint", "/usr/local/bin/python3",

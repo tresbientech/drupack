@@ -19,7 +19,7 @@ if ! docker image inspect "$image" >/dev/null 2>&1; then
     exit 1
 fi
 if [ ! -x "$executable" ]; then
-    printf '%s is missing. Build it with: bash build/qa.sh\n' "$executable" >&2
+    printf '%s is missing. Build it with: bash build/test/qa.sh\n' "$executable" >&2
     exit 1
 fi
 

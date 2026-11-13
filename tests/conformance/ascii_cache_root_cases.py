@@ -10,7 +10,7 @@ account does. Windows only: %LocalAppData% carries the account name only there.
 
 Cyrillic and CJK print no load-failure warning when broken, so every case also checks that
 a php-cli probe against the same cache root loads every extension in
-runtime/php-extensions.txt.
+runtime/extensions/php-extensions.txt.
 """
 
 import json

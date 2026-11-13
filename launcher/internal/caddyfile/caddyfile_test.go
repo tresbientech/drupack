@@ -13,7 +13,7 @@ import (
 var update = flag.Bool("update", false, "rewrite the files in testdata")
 
 // Root is the directory every path of a golden file starts with. The adapter
-// test in runtime/adapt_test.go swaps it for a directory it makes.
+// test in runtime/frankenphp/adapt_test.go swaps it for a directory it makes.
 const Root = "/drupack-test"
 
 // Rows are the rendered files the adapter test reads. Together they render

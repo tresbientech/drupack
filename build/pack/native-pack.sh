@@ -38,7 +38,7 @@ else
     sha256() { shasum -a 256 "$1" | cut -d ' ' -f 1; }
 fi
 
-engine=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+engine=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 payload=$(cd -- "$payload" && pwd)
 mkdir -p -- "$(dirname -- "$output")"
 output=$(cd -- "$(dirname -- "$output")" && pwd)/$(basename -- "$output")

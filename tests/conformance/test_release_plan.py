@@ -1,4 +1,4 @@
-"""build/release-plan.py against responses recorded from the GitHub REST API.
+"""build/release/release-plan.py against responses recorded from the GitHub REST API.
 Run with:
 
     python3 -m unittest discover -s tests/conformance -p test_release_plan.py
@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location("release_plan", ROOT / "build" / "release-plan.py")
+spec = importlib.util.spec_from_file_location("release_plan", ROOT / "build" / "release" / "release-plan.py")
 release_plan = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release_plan)
 
@@ -138,7 +138,7 @@ class Push(Row):
             "documentation alone": (COMPARE, False),
             "a nested readme": (changed("docs/a.md", "launcher/README.md"), True),
             "a license and a top-level markdown file": (changed("LICENSE", "README.md", "docs/x/y.png"), False),
-            "a code file": (changed("README.md", "build/qa.sh"), True),
+            "a code file": (changed("README.md", "build/test/qa.sh"), True),
             "an empty compare": (changed(), False),
         }
         for label, (files, builds) in rows.items():

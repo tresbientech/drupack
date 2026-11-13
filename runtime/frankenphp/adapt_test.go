@@ -1,7 +1,7 @@
 package main
 
 // This file builds beside entrypoint.go in FrankenPHP's own main package, where
-// Caddy and its modules are linked. runtime/adapt-test.sh runs it in the builder
+// Caddy and its modules are linked. runtime/frankenphp/adapt-test.sh runs it in the builder
 // image. It adapts and serves each Caddyfile the launcher's tests render.
 
 import (

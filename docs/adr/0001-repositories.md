@@ -33,7 +33,7 @@ Drupack's code needs one place where merge requests land. Its executables need r
 - The demo's daily run bumps its Composer pins, its Node pin and the Drupack tag it names. Any move tags the demo.
 - The daily run in this repository moves the runtime's pins and no site package. A Drupack tag comes from one of those moves or from a `version` dispatch.
 - A Drupack release publishes no demo file. It publishes its macOS and Windows runtimes, which `build.yml` packs in native jobs.
-- `build/demo-pin.sh` pins the demo commit, `demo_ref`, and its release, `demo_release`. `release.yml` and `build/qa.sh` build that commit and run its site tests.
+- `build/release/demo-pin.sh` pins the demo commit, `demo_ref`, and its release, `demo_release`. `release.yml` and `build/test/qa.sh` build that commit and run its site tests.
 - A candidate moves the pin to the demo's latest release only when that release descends from the pinned commit. A commit set by hand stays until a release contains it.
 - `drupack.tresbien.tech/demo.sh` and `/demo.ps1` redirect to the install scripts of the demo's latest release.
 

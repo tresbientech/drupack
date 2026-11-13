@@ -17,8 +17,8 @@ A site that already exists differs from one built from a recipe. It has its own 
 
 ### Added extensions
 
-- `extensions` lists PHP extensions beyond `runtime/php-extensions.txt`. The engine list stays the base, so a site cannot drop a database driver.
-- `build/site-runtimes.sh SITE OUTPUT` merges both lists and compiles the Linux runtimes on a Docker host. `drupack-build --runtimes OUTPUT` packs the site against them.
+- `extensions` lists PHP extensions beyond `runtime/extensions/php-extensions.txt`. The engine list stays the base, so a site cannot drop a database driver.
+- `build/pack/site-runtimes.sh SITE OUTPUT` merges both lists and compiles the Linux runtimes on a Docker host. `drupack-build --runtimes OUTPUT` packs the site against them.
 - The script compiles for the host's architecture only. It refuses a target of another one.
 - A site that adds extensions cannot name a macOS or Windows target. The published runtimes there carry the engine list alone.
 - `check-extensions.py` checks the lock against the merged list.

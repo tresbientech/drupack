@@ -1,22 +1,22 @@
 # A Linux release publishes a file per runtime: the glibc one serves a rendered
 # page several times faster, and the musl one runs on any host.
 # PHP_EXTENSIONS takes effect while a builder image is built, so
-# runtime/build-builder.sh builds one image per libc before this file runs.
+# runtime/builder/build-builder.sh builds one image per libc before this file runs.
 ARG MUSL_BUILDER=drupack-builder-musl:local
 ARG GNU_BUILDER=drupack-builder-gnu:local
 # The runtimes the job image carries. A COPY --from names a stage before a build
 # context, so the release sets this to a name no stage has and passes that name
 # as --build-context NAME=DIRECTORY.
 ARG RUNTIMES=local-runtimes
-# The build/sbom.py runtime reports of those runtimes, one TARGET.json each, which
+# The build/release/sbom.py runtime reports of those runtimes, one TARGET.json each, which
 # the release passes the same way. A local image carries none.
 ARG RUNTIME_COMPONENTS=no-runtime-components
-# The extension list a runtime links. build/site-runtimes.sh sets this to a build
+# The extension list a runtime links. build/pack/site-runtimes.sh sets this to a build
 # context holding the engine list merged with a site's additions, as RUNTIMES does.
 ARG EXTENSIONS=engine-extensions
 # The job image is a glibc host, the only kind that runs both runtimes, so a file
 # of either libc is tested where it was built.
-# build/upstream.py sets the tag to GO_VERSION in release.yml and the digest to
+# build/release/upstream.py sets the tag to GO_VERSION in release.yml and the digest to
 # that tag's multi-platform index.
 ARG JOB_BASE=golang:1.27.4-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea
 # act_runner starts JavaScript actions with the job container's own node.
@@ -25,36 +25,36 @@ ARG NODE_IMAGE=node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419
 
 # php.ini and the trust bundle sit beside the executable, where the launcher's
 # environment function finds them.
-# application/cacert.pem comes from https://curl.se/ca/cacert.pem, sha256
+# runtime/cacert.pem comes from https://curl.se/ca/cacert.pem, sha256
 # f66dff1bdf8f96060b8177976f8b7d9254bc89bc4db933d769f7384d28480bc9, 121
 # certificates. A refresh replaces the file and that checksum in one commit;
 # no build fetches it.
 FROM scratch AS engine-extensions
-COPY runtime/php-extensions.txt /php-extensions.txt
+COPY runtime/extensions/php-extensions.txt /php-extensions.txt
 
 FROM ${EXTENSIONS} AS extensions
 
 FROM ${MUSL_BUILDER} AS runtime-musl
 ARG DRUPACK_VERSION
-COPY runtime/embed.sh /usr/local/bin/embed.sh
-COPY runtime/builder-inputs.sh runtime/php-extension-libs.txt runtime/extensions-list.sh /build/
+COPY runtime/builder/embed.sh /usr/local/bin/embed.sh
+COPY runtime/builder/builder-inputs.sh runtime/extensions/php-extension-libs.txt runtime/extensions/extensions-list.sh /build/
 COPY --from=extensions /php-extensions.txt /build/php-extensions.txt
-COPY runtime/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
-COPY runtime/watch/watch.go /go/src/app/caddy/frankenphp/drupack_watch.go
-COPY runtime/crtenv_other.go /go/src/app/caddy/frankenphp/drupack_crtenv_other.go
+COPY runtime/frankenphp/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
+COPY runtime/frankenphp/watch/watch.go /go/src/app/caddy/frankenphp/drupack_watch.go
+COPY runtime/frankenphp/crtenv_other.go /go/src/app/caddy/frankenphp/drupack_crtenv_other.go
 RUN bash /usr/local/bin/embed.sh
-COPY application/php.ini application/cacert.pem /out/
+COPY runtime/php.ini runtime/cacert.pem /out/
 
 FROM ${GNU_BUILDER} AS runtime-gnu
 ARG DRUPACK_VERSION
-COPY runtime/embed.sh /usr/local/bin/embed.sh
-COPY runtime/builder-inputs.sh runtime/php-extension-libs.txt runtime/extensions-list.sh /build/
+COPY runtime/builder/embed.sh /usr/local/bin/embed.sh
+COPY runtime/builder/builder-inputs.sh runtime/extensions/php-extension-libs.txt runtime/extensions/extensions-list.sh /build/
 COPY --from=extensions /php-extensions.txt /build/php-extensions.txt
-COPY runtime/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
-COPY runtime/watch/watch.go /go/src/app/caddy/frankenphp/drupack_watch.go
-COPY runtime/crtenv_other.go /go/src/app/caddy/frankenphp/drupack_crtenv_other.go
+COPY runtime/frankenphp/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
+COPY runtime/frankenphp/watch/watch.go /go/src/app/caddy/frankenphp/drupack_watch.go
+COPY runtime/frankenphp/crtenv_other.go /go/src/app/caddy/frankenphp/drupack_crtenv_other.go
 RUN bash /usr/local/bin/embed.sh
-COPY application/php.ini application/cacert.pem /out/
+COPY runtime/php.ini runtime/cacert.pem /out/
 
 FROM scratch AS uncompressed
 COPY --from=runtime-musl /out/drupack /drupack
@@ -105,14 +105,16 @@ COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY application /opt/drupack/engine/application
 COPY build /opt/drupack/engine/build
 COPY launcher /opt/drupack/engine/launcher
-COPY runtime/php-extensions.txt runtime/check-extensions.py runtime/builder-inputs.sh runtime/fetch-spc.sh runtime/spc-sqlite.patch /opt/drupack/engine/runtime/
+COPY runtime/cacert.pem /opt/drupack/engine/runtime/
+COPY runtime/extensions/php-extensions.txt runtime/extensions/check-extensions.py /opt/drupack/engine/runtime/extensions/
+COPY runtime/builder/builder-inputs.sh runtime/builder/fetch-spc.sh runtime/builder/spc-sqlite.patch /opt/drupack/engine/runtime/builder/
 COPY tests /opt/drupack/engine/tests
 ENV DRUPACK_PHP=/opt/drupack/runtimes/linux-${TARGETARCH}-musl/drupack \
     DRUPACK_SPC=/opt/drupack/static-php-cli \
     DRUPACK_COMPOSER=/opt/composer.phar
 # check-extensions.py runs this checkout on the musl runtime.
-RUN bash /opt/drupack/engine/runtime/fetch-spc.sh "$DRUPACK_SPC" \
-    && PHPRC=$(dirname "$DRUPACK_PHP") DRUPACK_CA_FILE=/opt/drupack/engine/application/cacert.pem \
+RUN bash /opt/drupack/engine/runtime/builder/fetch-spc.sh "$DRUPACK_SPC" \
+    && PHPRC=$(dirname "$DRUPACK_PHP") DRUPACK_CA_FILE=/opt/drupack/engine/runtime/cacert.pem \
         "$DRUPACK_PHP" php-cli "$DRUPACK_COMPOSER" install \
         --working-dir="$DRUPACK_SPC" --no-dev --no-interaction --prefer-dist \
     && chmod -R a+rX "$DRUPACK_SPC"

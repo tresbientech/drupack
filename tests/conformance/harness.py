@@ -56,11 +56,11 @@ def current_platform():
 
 ENTRY = "frankenphp.exe" if current_platform() == WINDOWS else "drupack"
 
-# runtime/php-extensions.txt names what every builder compiles, under
+# runtime/extensions/php-extensions.txt names what every builder compiles, under
 # static-php-cli's names. Some never answer to get_loaded_extensions():
 # password-argon2 is a build input for argon2 support inside the standard
 # extension, and Windows PHP has no pcntl or posix at all.
-ALLOWLIST = Path(__file__).resolve().parent.parent.parent / "runtime" / "php-extensions.txt"
+ALLOWLIST = Path(__file__).resolve().parent.parent.parent / "runtime" / "extensions" / "php-extensions.txt"
 _UNLOADABLE = {LINUX: {"password-argon2"}, MACOS: {"password-argon2"},
                WINDOWS: {"password-argon2", "pcntl", "posix"}}
 _REPORTED_AS = {"opcache": "zend opcache"}
@@ -404,7 +404,7 @@ def wait_for_loggers(log_path, names):
 
 
 def opener_name():
-    """The name runtime/entrypoint.go's openBrowser looks up on PATH for this platform."""
+    """The name runtime/frankenphp/entrypoint.go's openBrowser looks up on PATH for this platform."""
     return "open" if current_platform() == MACOS else "xdg-open"
 
 

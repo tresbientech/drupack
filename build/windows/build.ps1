@@ -61,7 +61,7 @@ foreach ($name in $peclExtensions.Keys) {
     Sha256 = $peclExtensions[$name].Sha256
   }
 }
-$extensions = Get-Content (Join-Path $PSScriptRoot '..\..\runtime\php-extensions.txt') |
+$extensions = Get-Content (Join-Path $PSScriptRoot '..\..\runtime\extensions\php-extensions.txt') |
   ForEach-Object { ($_ -split '#')[0].Trim() } |
   Where-Object { $_ }
 
@@ -152,9 +152,9 @@ $vcpkgRoot = Join-Path $vcpkgInstalled 'x64-windows'
 # needs both files to exist.
 Set-Content -Path (Join-Path $frankenphp 'app.tar') -Value $null -NoNewline
 Copy-Item (Join-Path $payload 'app_checksum.txt') (Join-Path $frankenphp 'app_checksum.txt')
-Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\entrypoint.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack.go')
-Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\watch\watch.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_watch.go')
-Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\crtenv_windows.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_crtenv_windows.go')
+Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\frankenphp\entrypoint.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack.go')
+Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\frankenphp\watch\watch.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_watch.go')
+Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\frankenphp\crtenv_windows.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_crtenv_windows.go')
 
 # php.net publishes x64 builds alone, so a Windows on Arm host builds the amd64
 # runtime too, with its own clang.
@@ -189,13 +189,13 @@ foreach ($library in 'brotlienc.dll', 'brotlidec.dll', 'brotlicommon.dll', 'pthr
 # The repository's php.ini is the only source of PHP settings; this build only adds
 # what only it can supply: where this PHP puts its extensions, and which to load. The
 # launcher sets PHPRC to the extracted runtime directory.
-Copy-Item (Join-Path $PSScriptRoot '..\..\application\php.ini') (Join-Path $runtime 'php.ini')
+Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\php.ini') (Join-Path $runtime 'php.ini')
 # A listed extension the zip carries as a DLL gets a php.ini line. The rest are
 # compiled into php8ts.dll or absent on Windows. The conformance suite checks the
 # loaded set against the allowlist on the packed executable.
 $dllExtensions = $extensions | Where-Object { Test-Path (Join-Path $php "ext\php_$_.dll") }
 Add-Content -Path (Join-Path $runtime 'php.ini') -Value (@('extension_dir = "${PHPRC}\ext"') + ($dllExtensions | ForEach-Object { "extension=$_" }))
-Copy-Item (Join-Path $PSScriptRoot '..\..\application\cacert.pem') $runtime
+Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\cacert.pem') $runtime
 
 # The packer resolves a relative -output against its own working directory,
 # which Push-Location is about to change, so $Output must resolve here.

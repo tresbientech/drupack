@@ -204,8 +204,8 @@ func TestASiteWithoutARecipeHasNoSeedStep(t *testing.T) {
 func TestTheEngineLaysTheSettingsStubInTheDocroot(t *testing.T) {
 	engine := t.TempDir()
 	for name, content := range map[string]string{
-		"application/operate.php": "<?php", "build/site-settings.php": "<?php // stub",
-		"build/site-templates.php": "<?php // templates",
+		"application/operate.php": "<?php", "build/pack/site-settings.php": "<?php // stub",
+		"build/pack/site-templates.php": "<?php // templates",
 	} {
 		path := filepath.Join(engine, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

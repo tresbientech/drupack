@@ -8,20 +8,20 @@ Issues go to the [drupal.org issue queue](https://git.drupalcode.org/project/dru
 
 Build on Linux `amd64` or `arm64` with Docker and BuildKit. The executable matches the build host's architecture.
 
-A runtime carries the PHP extensions `runtime/php-extensions.txt` names. `build-builder.sh` compiles that set in a container of FrankenPHP's toolchain image and commits the container as the builder image. Build one image per C library first. Each run compiles PHP from source and takes well over an hour; the images survive between builds, so a later `docker build` reuses them.
+A runtime carries the PHP extensions `runtime/extensions/php-extensions.txt` names. `build-builder.sh` compiles that set in a container of FrankenPHP's toolchain image and commits the container as the builder image. Build one image per C library first. Each run compiles PHP from source and takes well over an hour; the images survive between builds, so a later `docker build` reuses them.
 
 ```sh
-bash runtime/build-builder.sh musl drupack-builder-musl:local
-bash runtime/build-builder.sh gnu drupack-builder-gnu:local
-bash build/qa.sh
+bash runtime/builder/build-builder.sh musl drupack-builder-musl:local
+bash runtime/builder/build-builder.sh gnu drupack-builder-gnu:local
+bash build/test/qa.sh
 ```
 
-`build/qa.sh` builds the `job` image, runs `drupack-build` inside it, then runs the tests. `build/qa.sh demo`, `variant` or `host` runs one phase of that chain, as the release candidate's three QA jobs do. The image carries this architecture's two runtimes under `/opt/drupack/runtimes`, one `PLATFORM-LIBC` directory each, so the build names none. On the host, `build/qa.sh` also needs Go, `python3` and `zstd`, which compresses the payload of the copy without Node.
+`build/test/qa.sh` builds the `job` image, runs `drupack-build` inside it, then runs the tests. `build/test/qa.sh demo`, `variant` or `host` runs one phase of that chain, as the release candidate's three QA jobs do. The image carries this architecture's two runtimes under `/opt/drupack/runtimes`, one `PLATFORM-LIBC` directory each, so the build names none. On the host, `build/test/qa.sh` also needs Go, `python3` and `zstd`, which compresses the payload of the copy without Node.
 
-The site every build packs is Drupacked Demo, from its own repository. `build/demo-pin.sh` names the commit. `build/qa.sh` fetches it on each run. A hand build needs a clone in `demo/`, which git ignores:
+The site every build packs is Drupacked Demo, from its own repository. `build/release/demo-pin.sh` names the commit. `build/test/qa.sh` fetches it on each run. A hand build needs a clone in `demo/`, which git ignores:
 
 ```sh
-. build/demo-pin.sh
+. build/release/demo-pin.sh
 git clone --quiet "https://github.com/$demo_repository" demo
 git -C demo checkout --quiet "$demo_ref"
 ```
@@ -34,15 +34,15 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
     --output dist --work dist/work
 ```
 
-`build/qa.sh` keeps its work directories and test results under `/tmp/drupack-qa/CHECKOUT`, or under the directory `DRUPACK_QA_WORK` names. It links `dist/work` to the site's work directory there. After a `build/qa.sh` run, a hand run with `--work dist/work` also needs `-v "$(readlink dist/work):$(readlink dist/work)"`.
+`build/test/qa.sh` keeps its work directories and test results under `/tmp/drupack-qa/CHECKOUT`, or under the directory `DRUPACK_QA_WORK` names. It links `dist/work` to the site's work directory there. After a `build/test/qa.sh` run, a hand run with `--work dist/work` also needs `-v "$(readlink dist/work):$(readlink dist/work)"`.
 
-In a git worktree, a hand run also mounts the main checkout's `.git` at its own path: `-v "$GIT:$GIT"`, where `GIT` is the output of `git rev-parse --path-format=absolute --git-common-dir`. `build/qa.sh` adds that mount itself.
+In a git worktree, a hand run also mounts the main checkout's `.git` at its own path: `-v "$GIT:$GIT"`, where `GIT` is the output of `git rev-parse --path-format=absolute --git-common-dir`. `build/test/qa.sh` adds that mount itself.
 
 The build packs one file per platform and C library. The demo's `drupack.yml` also names macOS and Windows targets, which a full build refuses, so `--platform` names the Linux one. A `--payload-only` build accepts them. `--libc glibc` or `--libc musl` packs that file alone instead of both, and `--runtime PLATFORM/LIBC=DIRECTORY` replaces one runtime with a local one. `drupack-build -help` lists every option.
 
 A release tag publishes the image as `ghcr.io/tresbientech/drupack-build:VERSION`, carrying all four Linux runtimes. The image itself runs on amd64 only.
 
-The release workflow names the builder image after its inputs. `runtime/builder-tag.sh` digests the pins in `runtime/builder-inputs.sh`, the extension lists and the scripts that compile the image. The workflow pulls `ghcr.io/tresbientech/drupack-builder` under that tag, and builds and publishes the image when no such tag exists.
+The release workflow names the builder image after its inputs. `runtime/builder/builder-tag.sh` digests the pins in `runtime/builder/builder-inputs.sh`, the extension lists and the scripts that compile the image. The workflow pulls `ghcr.io/tresbientech/drupack-builder` under that tag, and builds and publishes the image when no such tag exists.
 
 The output is `dist/drupacked-demo-linux-amd64` and `dist/drupacked-demo-linux-amd64-musl` on an amd64 host, with `dist/site.json` beside them. The build tests the glibc file. The host needs no PHP, Composer or database server: the job image runs Composer, Drush and the seed install, which runs `application/operate.php`, with the musl runtime's own PHP.
 
@@ -55,7 +55,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
 
 It packs the engine's PHP files, six files of `application/` that `launcher/internal/build/engine.go` lists, in place of an application, to `dist/engine/drupack-linux-amd64` and `dist/engine/drupack-linux-amd64-musl`. `--libc` picks one of them, as for a site. `--payload-only` stops at the archive, in `dist/engine/payload`, for the macOS and Windows builds.
 
-`application/` holds the PHP files both payloads carry, which the build lays over a site's Composer project to make the application root. The launcher plans and runs every start, and `application/operate.php` runs only the Drupal work of one: `prepare`, `check` and `seed`. `launcher/internal/siteconfig` validates a site's `drupack.yml` and writes it out as `site.json`. `runtime/` holds the PHP and FrankenPHP compile. `launcher/` is the Go module for the launcher, its packer and `drupack-build`. `build/` holds the scripts `drupack-build` runs, the macOS and Windows builds and the development loop. The `Dockerfile` at the root compiles the Linux runtimes and builds the `job` image. Each directory holds one built artifact.
+`application/` holds the PHP files both payloads carry, which the build lays over a site's Composer project to make the application root. The launcher plans and runs every start, and `application/operate.php` runs only the Drupal work of one: `prepare`, `check` and `seed`. `launcher/internal/siteconfig` validates a site's `drupack.yml` and writes it out as `site.json`. `runtime/` holds the PHP and FrankenPHP compile. Its `builder/` makes the builder image, `extensions/` lists the PHP extensions a runtime links, and `frankenphp/` holds the Go sources linked into FrankenPHP. The `php.ini` and trust bundle at its root ship beside the runtime executable. `launcher/` is the Go module for the launcher, its packer and `drupack-build`. `build/` holds the scripts around the builds. Its `pack/` holds what `drupack-build` runs or lays over a site, `install/` the install script templates, `release/` the release run's tools and `test/` the test runners. `macos/`, `windows/` and `dev/` hold the macOS and Windows builds and the development loop. The `Dockerfile` at the root compiles the Linux runtimes and builds the `job` image. Each directory holds one built artifact.
 
 ### macOS
 
@@ -86,7 +86,7 @@ That writes `app-payload.tar.zst`, `app_checksum.txt` and `site.json` to `dist/p
 
 ## Tests
 
-The conformance suite runs against the published executable, which is the launcher. A case asserts what only a live run shows: an HTTP answer, a served certificate, a process, a database or an OS. A choice that a pure function makes, such as a refusal message or a start plan, has a unit test instead. `build/go-tests.sh` runs the Go unit tests and the Go linter, and `build/unit-tests.sh` runs the Python tests of the build scripts.
+The conformance suite runs against the published executable, which is the launcher. A case asserts what only a live run shows: an HTTP answer, a served certificate, a process, a database or an OS. A choice that a pure function makes, such as a refusal message or a start plan, has a unit test instead. `build/test/go-tests.sh` runs the Go unit tests and the Go linter, and `build/test/unit-tests.sh` runs the Python tests of the build scripts.
 
 ```sh
 DRUPACK_TEST_ENGINE=dist/engine/drupack-linux-amd64 python3 tests/conformance dist/drupacked-demo-linux-amd64 test-results/conformance --site-tests demo/tests
@@ -98,11 +98,11 @@ Every Python script in `build/`, `runtime/` and `tests/` imports the standard li
 
 `DRUPACK_TEST_PREVIOUS` names the executable of the site's previous release. Its case installs a site with it, then starts that Site data with the executable under test. It skips when the variable is unset.
 
-`drupack-build` runs the same suite as its last step, inside the job image. `build/qa.sh` then runs the cases that need a Docker daemon on the host.
+`drupack-build` runs the same suite as its last step, inside the job image. `build/test/qa.sh` then runs the cases that need a Docker daemon on the host.
 
 `tests/conformance` takes a results directory as its second argument, and empties it before any case runs. It refuses a non-empty directory that no earlier run created. It reads the site from the `site.json` beside the executable. `--site-tests DIR` adds a site's own `*_cases.py` modules to the run; Drupacked Demo's live in its repository's `tests`.
 
-`DRUPACK_SHARD=K/N` runs the Kth of N shares of the test classes, as the release workflow's test jobs do. `tests/conformance/class-seconds.json` holds each class's measured seconds per platform, and the classes go longest first to the share with the fewest seconds. Unittest arguments such as `-k Node` apply on top. `python3 build/class-seconds.py RUN_ID` rewrites the table from a release run's logs, and needs `gh`.
+`DRUPACK_SHARD=K/N` runs the Kth of N shares of the test classes, as the release workflow's test jobs do. `tests/conformance/class-seconds.json` holds each class's measured seconds per platform, and the classes go longest first to the share with the fewest seconds. Unittest arguments such as `-k Node` apply on top. `python3 build/release/class-seconds.py RUN_ID` rewrites the table from a release run's logs, and needs `gh`.
 
 On Linux the suite uses Docker for three things:
 
@@ -116,11 +116,11 @@ One conformance run happens at a time on a machine. A second run waits for the f
 
 The PHP unit files run through the bundled runtime, because the lock targets a
 PHP the host may not have. They read `application/tests/vendor`, which
-`application/tests/composer.lock` pins and `build/qa.sh` installs:
+`application/tests/composer.lock` pins and `build/test/qa.sh` installs:
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
-    -e DRUPACK_CA_FILE=/opt/drupack/engine/application/cacert.pem -v "$PWD:/src" -w /src drupack-job sh -c \
+    -e DRUPACK_CA_FILE=/opt/drupack/engine/runtime/cacert.pem -v "$PWD:/src" -w /src drupack-job sh -c \
     'PHPRC=$(dirname "$DRUPACK_PHP") "$DRUPACK_PHP" php-cli "$DRUPACK_COMPOSER" \
     install --working-dir=application/tests --no-interaction --prefer-dist --no-plugins'
 ```
@@ -141,7 +141,7 @@ target resolving outside Site data.
 The Go checks need Go and a C compiler, which the race detector uses. The script runs each module's unit tests under the race detector, then golangci-lint for Linux, macOS and Windows:
 
 ```sh
-bash build/go-tests.sh
+bash build/test/go-tests.sh
 ```
 
 On Windows, `python` runs the suite in place of `python3`, which Windows does not provide:
@@ -152,10 +152,10 @@ python tests/conformance dist\drupacked-demo.exe test-results\conformance --site
 
 ## Development loop
 
-A change to `application/` reaches the executable only through a build, which takes minutes. `build/dev/dev-server.sh` starts the demo executable in `dist` instead, from the job image. It lays `application/` and the two site files in `build/` over the executable's unpacked application on each start, so a change to a PHP file applies in about a second. The executable's launcher starts the site, as a release does.
+A change to `application/` reaches the executable only through a build, which takes minutes. `build/dev/dev-server.sh` starts the demo executable in `dist` instead, from the job image. It lays `application/` and the two site files in `build/pack/` over the executable's unpacked application on each start, so a change to a PHP file applies in about a second. The executable's launcher starts the site, as a release does.
 
 ```sh
-bash build/qa.sh
+bash build/test/qa.sh
 bash build/dev/dev-server.sh ./dev-data 7225
 ```
 
@@ -165,7 +165,7 @@ The unpacked application lives in `dev-data/dev-cache`. A change under `launcher
 
 Every published executable is a launcher carrying the real executable, compressed with `github.com/klauspost/compress/zstd`. The first run of a version unpacks it under the user's cache directory, then replaces its own process with it on Linux and macOS, or starts it as a child on Windows, which has no `exec`. Later runs compare a stored manifest and file sizes, then start. `DRUPACK_CACHE_DIR` moves that cache.
 
-`launcher/` holds the launcher and its packer, at the path its `go.mod` declares. A Linux release publishes a file per C library, each carrying one runtime built from that library's builder image. `drupack-build` runs the packer once per file, over the runtime directory it is given. `docker build --target uncompressed` gives you the musl runtime executable on its own, and `--target uncompressed-gnu` the glibc one. `launcher/internal/payload/targets.json` lists the platforms and C libraries, with each library's builder image and file-name suffix. The launcher, `build/release-plan.py` and `build/release-files.py` read it. A new target starts there, and `tests/conformance/test_targets.py` names the workflow line to add with it.
+`launcher/` holds the launcher and its packer, at the path its `go.mod` declares. A Linux release publishes a file per C library, each carrying one runtime built from that library's builder image. `drupack-build` runs the packer once per file, over the runtime directory it is given. `docker build --target uncompressed` gives you the musl runtime executable on its own, and `--target uncompressed-gnu` the glibc one. `launcher/internal/payload/targets.json` lists the platforms and C libraries, with each library's builder image and file-name suffix. The launcher, `build/release/release-plan.py` and `build/release/release-files.py` read it. A new target starts there, and `tests/conformance/test_targets.py` names the workflow line to add with it.
 
 ## Releases
 
@@ -173,16 +173,16 @@ Every published executable is a launcher carrying the real executable, compresse
 
 - refuses a version without a tag's form, or one that does not sort above every tag
 - commits the version to the pinned lines of `docs/build-your-site.md`
-- builds and tests that commit on every platform, `build/qa.sh` included
+- builds and tests that commit on every platform, `build/test/qa.sh` included
 - pushes `main` and the tag once the run is green
 
-The candidate's QA jobs are the release's QA, so no local `build/qa.sh` run precedes a release. The upstream run prints the name of each red job as it ends. The candidate run goes on to its other jobs.
+The candidate's QA jobs are the release's QA, so no local `build/test/qa.sh` run precedes a release. The upstream run prints the name of each red job as it ends. The candidate run goes on to its other jobs.
 
-A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.1.0-rc1`, reaches drupal.org and GitHub in the same job, and starts the release workflow on GitHub. When the tag's candidate run succeeded, the workflow publishes that run's files. Otherwise it builds all seven targets and runs the suite on each, except the two musl files, which start a site on Alpine. It then publishes a GitHub Release. `build/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, each macOS and Windows runtime as `runtime-VERSION-TARGET.tar.zst`, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. A drupal.org release node for the tag publishes it to Packagist as a version of the Composer package `drupal/drupack`. Its bin script, `drupack-install`, downloads that version's engine executable into a project.
+A version tag without a `v` prefix, such as `1.0.0` or the pre-release `1.1.0-rc1`, reaches drupal.org and GitHub in the same job, and starts the release workflow on GitHub. When the tag's candidate run succeeded, the workflow publishes that run's files. Otherwise it builds all seven targets and runs the suite on each, except the two musl files, which start a site on Alpine. It then publishes a GitHub Release. `build/release/release-files.py` writes its files: each executable as `NAME-VERSION-TARGET`, `install-NAME.sh` and `install-NAME.ps1` for each executable, each macOS and Windows runtime as `runtime-VERSION-TARGET.tar.zst`, `checksums.txt` and `release.json`. A CycloneDX SBOM and provenance attestations join them. A drupal.org release node for the tag publishes it to Packagist as a version of the Composer package `drupal/drupack`. Its bin script, `drupack-install`, downloads that version's engine executable into a project.
 
 ### Automatic releases
 
-drupal.org's pipeline schedule dispatches the same workflow daily, and it tags a release when PHP, FrankenPHP or a Windows PECL extension moves inside its line. Each candidate also moves `build/demo-pin.sh` forward to the demo's latest release, and holds a commit set by hand until a release contains it. `python3 build/upstream.py` runs its bump in your checkout and prints the summary the workflow logs. The candidate commit carries that summary, and its GitHub run shows it on the run page. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed. After the tag, the workflow waits for the release run the tag starts. A failed run gets one rerun of its failed jobs, and the workflow fails if that rerun fails too.
+drupal.org's pipeline schedule dispatches the same workflow daily, and it tags a release when PHP, FrankenPHP or a Windows PECL extension moves inside its line. Each candidate also moves `build/release/demo-pin.sh` forward to the demo's latest release, and holds a commit set by hand until a release contains it. `python3 build/release/upstream.py` runs its bump in your checkout and prints the summary the workflow logs. The candidate commit carries that summary, and its GitHub run shows it on the run page. A dispatch with `dry_run` shows the diff and pushes nothing. A dispatch with `force` builds a bump whose candidate failed. After the tag, the workflow waits for the release run the tag starts. A failed run gets one rerun of its failed jobs, and the workflow fails if that rerun fails too.
 
 Each tag needs its drupal.org release node, and drupal.org has no API for it. The `node` job of the upstream run posts the release form as `nod_bot`, once the tag's release run is green. The `notes` job writes the release notes with `drupalorg-cli`, from the commits that name an issue, and prints them in its summary with the form's link. When the `node` job fails, create the release from that summary by hand.
 

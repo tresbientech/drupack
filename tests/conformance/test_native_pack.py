@@ -1,4 +1,4 @@
-"""build/native-pack.sh, run against a release a local HTTP server serves. The runtime is a
+"""build/pack/native-pack.sh, run against a release a local HTTP server serves. The runtime is a
 stub script, so no case needs a compiled PHP. Run with:
 
     python3 -m unittest discover -s tests/conformance -p test_native_pack.py
@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 ENGINE = Path(__file__).resolve().parents[2]
-SCRIPT = ENGINE / "build" / "native-pack.sh"
+SCRIPT = ENGINE / "build" / "pack" / "native-pack.sh"
 VERSION = "1.2.3"
 TARGET = "linux-amd64"
 FILE = f"runtime-{VERSION}-{TARGET}.tar.zst"

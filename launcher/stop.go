@@ -13,7 +13,7 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
-// stopWait bounds the wait for the lease to free. runtime/entrypoint.go forces
+// stopWait bounds the wait for the lease to free. runtime/frankenphp/entrypoint.go forces
 // the server's own exit at 10 seconds.
 const stopWait = 15 * time.Second
 

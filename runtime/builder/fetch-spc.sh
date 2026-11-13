@@ -8,8 +8,8 @@ set -euo pipefail
 
 usage='Usage: fetch-spc.sh DIRECTORY'
 directory=${1:?$usage}
-runtime=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-. "$runtime/builder-inputs.sh"
+builder=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+. "$builder/builder-inputs.sh"
 
 rm -rf "$directory"
 git init --quiet "$directory"
@@ -22,4 +22,4 @@ if [ "$head" != "$spc_commit" ]; then
 fi
 # static-php-cli pins SQLite 3.45.2, and its recipe passes configure flags newer
 # SQLite releases reject. The patch names the SQLite release every runtime links.
-git -C "$directory" apply "$runtime/spc-sqlite.patch"
+git -C "$directory" apply "$builder/spc-sqlite.patch"

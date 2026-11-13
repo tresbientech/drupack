@@ -127,15 +127,15 @@ func TestRelayNamesAnUnreadableLogAndTheStopCommand(t *testing.T) {
 	}
 }
 
-// The relay matches text runtime/watch/watch.go prints. The two cannot share a constant,
+// The relay matches text runtime/frankenphp/watch/watch.go prints. The two cannot share a constant,
 // since the runtime build copies that file alone, so this reads it.
 func TestTheRelayMarkerIsStillWhatTheWatcherPrints(t *testing.T) {
-	source, err := os.ReadFile(filepath.Join("..", "runtime", "watch", "watch.go"))
+	source, err := os.ReadFile(filepath.Join("..", "runtime", "frankenphp", "watch", "watch.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(source), readyMarker) {
-		t.Fatalf("runtime/watch/watch.go no longer prints %q", readyMarker)
+		t.Fatalf("runtime/frankenphp/watch/watch.go no longer prints %q", readyMarker)
 	}
 }
 

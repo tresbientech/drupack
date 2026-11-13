@@ -35,7 +35,7 @@ const checkInterval = 24 * time.Hour
 
 const fetchTimeout = 5 * time.Second
 
-// release is the part of release.json that build/release-files.py writes and an
+// release is the part of release.json that build/release/release-files.py writes and an
 // update reads.
 type release struct {
 	Version string  `json:"version"`
@@ -250,7 +250,7 @@ var glibcVersion = regexp.MustCompile(`^glibc (\d+)\.(\d+)`)
 
 // glibcBelowFloor reports whether getconf's GNU_LIBC_VERSION answer, such as
 // "glibc 2.28", names a glibc older than 2.28, the glibc of the RHEL 8 image the
-// glibc runtime links in. build/install.sh holds the same floor. getconf's answer
+// glibc runtime links in. build/install/install.sh holds the same floor. getconf's answer
 // comes from the host, and one naming no version counts as older, since the musl
 // runtime runs on any Linux host.
 func glibcBelowFloor(answer string) bool {

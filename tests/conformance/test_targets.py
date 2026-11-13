@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 TARGETS = ROOT / "launcher" / "internal" / "payload" / "targets.json"
 WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
-spec = importlib.util.spec_from_file_location("release_plan", ROOT / "build" / "release-plan.py")
+spec = importlib.util.spec_from_file_location("release_plan", ROOT / "build" / "release" / "release-plan.py")
 release_plan = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release_plan)
 

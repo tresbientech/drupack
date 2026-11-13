@@ -17,7 +17,7 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
-// What the relay matches in the server's log. runtime/watch/watch.go prints it, and
+// What the relay matches in the server's log. runtime/frankenphp/watch/watch.go prints it, and
 // detach_test.go reads that file to check the text is still there.
 const readyMarker = " is ready."
 

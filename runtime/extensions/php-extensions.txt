@@ -2,7 +2,7 @@
 # the list to PHP_EXTENSIONS. Windows maps each name to a DLL in the PHP zip or a
 # PECL zip build.ps1 pins, or to an extension php8ts.dll already carries.
 # tests/conformance/harness.py names the ones a platform never loads.
-# runtime/check-extensions.py fails when a site's composer.lock declares an
+# runtime/extensions/check-extensions.py fails when a site's composer.lock declares an
 # extension this file omits.
 #
 # Not shipped. bcmath, ftp, mbregex, readline and xz reach only guarded

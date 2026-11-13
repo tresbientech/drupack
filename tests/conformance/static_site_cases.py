@@ -138,7 +138,7 @@ class StaticSite(harness.ConformanceCase):
 
 
 class StaticSiteOff(harness.ConformanceCase):
-    """A site whose contract has no static export, the no-node build of build/qa.sh."""
+    """A site whose contract has no static export, the no-node build of build/test/qa.sh."""
 
     PLATFORMS = (harness.LINUX, harness.MACOS, harness.WINDOWS)
 

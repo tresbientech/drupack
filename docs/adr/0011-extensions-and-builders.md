@@ -8,7 +8,7 @@ Three builders compile PHP: Linux, macOS and Windows. Each must ship the extensi
 
 ### The allowlist
 
-- `runtime/php-extensions.txt` lists every shipped extension, one per line, with a trailing comment naming what needs it.
+- `runtime/extensions/php-extensions.txt` lists every shipped extension, one per line, with a trailing comment naming what needs it.
 - The three builders, `check-extensions.py` and the conformance suite read that file. None repeats a literal list.
 - `check-extensions.py` runs `spc dump-extensions` on a site's lock and fails the build when the lock declares a name the file omits.
 - The conformance suite asserts that a binary loads exactly the names the file lists, plus the extensions PHP always compiles.
@@ -19,17 +19,17 @@ Three builders compile PHP: Linux, macOS and Windows. Each must ship the extensi
 
 ### The Linux and macOS builders
 
-- `runtime/builder-inputs.sh` pins the FrankenPHP commit, the PHP version and a static-php-cli v3 commit as `spc_commit`. `build/upstream.py` moves all three.
-- `runtime/fetch-spc.sh` checks out that commit, verifies its hash and applies `runtime/spc-sqlite.patch`. The patch names a current SQLite release, because the pinned recipe passes flags SQLite's configure rejects.
-- `runtime/build-builder.sh` builds FrankenPHP's toolchain image, runs `build-static.sh` on the checkout in a container, and commits that container as the builder image. PHP compiles when the container runs.
+- `runtime/builder/builder-inputs.sh` pins the FrankenPHP commit, the PHP version and a static-php-cli v3 commit as `spc_commit`. `build/release/upstream.py` moves all three.
+- `runtime/builder/fetch-spc.sh` checks out that commit, verifies its hash and applies `runtime/builder/spc-sqlite.patch`. The patch names a current SQLite release, because the pinned recipe passes flags SQLite's configure rejects.
+- `runtime/builder/build-builder.sh` builds FrankenPHP's toolchain image, runs `build-static.sh` on the checkout in a container, and commits that container as the builder image. PHP compiles when the container runs.
 - The musl build targets `ARCH-linux-musl`, the architecture's baseline CPU, so the runtime starts on an older CPU.
 - `builder-tag.sh` digests the pins, both extension lists, the recipe scripts and the patch. A recipe change builds a new image.
-- The glibc build links against glibc 2.28, the glibc of the RHEL 8 toolchain image. `build/install.sh` and self-update take the glibc file on glibc 2.28 or later, and the musl file below it.
+- The glibc build links against glibc 2.28, the glibc of the RHEL 8 toolchain image. `build/install/install.sh` and self-update take the glibc file on glibc 2.28 or later, and the musl file below it.
 
 ### Trust store and php.ini
 
-- `application/cacert.pem` ships beside the runtime. It is curl's published bundle, and the Dockerfile records its checksum. No build fetches it.
-- `application/php.ini` names it through `curl.cainfo` and `openssl.cafile`, both read from `${DRUPACK_CA_FILE}`.
+- `runtime/cacert.pem` ships beside the runtime. It is curl's published bundle, and the Dockerfile records its checksum. No build fetches it.
+- `runtime/php.ini` names it through `curl.cainfo` and `openssl.cafile`, both read from `${DRUPACK_CA_FILE}`.
 - The launcher exports `PHPRC` and `DRUPACK_CA_FILE` from one function that every child's environment uses. `PHPRC` always takes the runtime's directory. `DRUPACK_CA_FILE` yields to a caller who set it, so a reader behind a TLS-inspection proxy points at their own bundle.
 
 ## Reason

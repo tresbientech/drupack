@@ -7,7 +7,7 @@ import (
 )
 
 // targets.json is the one table of build targets. The launcher,
-// build/release-plan.py and build/release-files.py read the same file.
+// build/release/release-plan.py and build/release/release-files.py read the same file.
 //
 //go:embed targets.json
 var targetsJSON []byte

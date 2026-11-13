@@ -1,5 +1,5 @@
 // The builds copy watch.go into FrankenPHP's own main package beside the entry point
 // and never read this file. It lets `go test` build the watcher without FrankenPHP.
-module git.tresbien.tech/tresbientech/drupack/runtime/watch
+module git.tresbien.tech/tresbientech/drupack/runtime/frankenphp/watch
 
 go 1.27.4

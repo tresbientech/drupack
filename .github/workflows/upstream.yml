@@ -2,7 +2,7 @@ name: Upstream
 
 # Releases Drupack when an upstream it pins has a newer version inside its line,
 # or when a dispatch names a version. The candidate is built and tested on every
-# platform, with build/qa.sh, by release.yml before drupal.org receives main and
+# platform, with build/test/qa.sh, by release.yml before drupal.org receives main and
 # the tag; the tag run of release.yml then publishes it.
 #
 # drupal.org's daily pipeline schedule dispatches this workflow, from the
@@ -66,11 +66,11 @@ jobs:
           NAMED: ${{ inputs.version }}
         run: |
           if [ -n "$NAMED" ]; then
-            version=$(python3 build/next-version.py "$NAMED")
+            version=$(python3 build/release/next-version.py "$NAMED")
             branch=candidate/$version
             : >"$RUNNER_TEMP/summary.md"
           else
-            python3 build/upstream.py | tee "$RUNNER_TEMP/summary.md"
+            python3 build/release/upstream.py | tee "$RUNNER_TEMP/summary.md"
             if [ -z "$(git status --porcelain)" ]; then
               echo 'No pin moved.'
               exit 0
@@ -78,7 +78,7 @@ jobs:
           fi
           # Each candidate builds the demo's latest release, when that release
           # descends from the pinned commit.
-          . build/demo-pin.sh
+          . build/release/demo-pin.sh
           demo_api=https://api.github.com/repos/$demo_repository
           get() { curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" "$demo_api/$1"; }
           # The tag and its commit are remote input, written into a file the build sources.
@@ -90,7 +90,7 @@ jobs:
           case $status in
             # A commit set by hand gets its release name once a release holds it.
             identical | ahead)
-              sed -i "s/^demo_release=.*/demo_release=$release/; s/^demo_ref=.*/demo_ref=$commit/" build/demo-pin.sh
+              sed -i "s/^demo_release=.*/demo_release=$release/; s/^demo_ref=.*/demo_ref=$commit/" build/release/demo-pin.sh
               if [ "$status" = ahead ]; then
                 printf '\nDrupacked Demo: %s to %s\n' "${demo_release:-${demo_ref:0:12}}" "$release" >>"$RUNNER_TEMP/summary.md"
               fi
@@ -102,9 +102,9 @@ jobs:
             # candidate. The demo pin is in the diff, and the guide's pin joins it
             # after the digest is taken.
             branch=upstream/$(git diff | sha256sum | cut -c 1-16)
-            version=$(python3 build/next-version.py)
+            version=$(python3 build/release/next-version.py)
           fi
-          python3 build/pin-docs.py "$version"
+          python3 build/release/pin-docs.py "$version"
           printf 'branch=%s\nversion=%s\n' "$branch" "$version" >>"$GITHUB_OUTPUT"
 
       - id: decide
@@ -186,7 +186,7 @@ jobs:
               -X POST "$GITHUB_API/actions/workflows/release.yml/dispatches" -d @-
           # An earlier candidate of the same bump ran on the same branch name, so the
           # run is found by its commit. A failed run gets one rerun of its failed jobs.
-          bash build/wait-for-run.sh "event=workflow_dispatch&head_sha=$SHA"
+          bash build/release/wait-for-run.sh "event=workflow_dispatch&head_sha=$SHA"
 
       # A main that moved on drupal.org since the checkout refuses the fast-forward,
       # and with it the tag. GitHub then receives the same two refs, and its tag push
@@ -229,7 +229,7 @@ jobs:
         env:
           VERSION: ${{ needs.upstream.outputs.version }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: bash build/wait-for-run.sh "event=push&branch=$VERSION"
+        run: bash build/release/wait-for-run.sh "event=push&branch=$VERSION"
 
   # Writes the release notes with drupalorg-cli, a third-party tool. This job
   # holds no secret; the node job, which holds one, takes the notes as text.
@@ -265,8 +265,8 @@ jobs:
         run: |
           # drupalorg-cli reads the project name from the origin URL.
           git remote set-url origin "$DRUPAL_ORG_REMOTE"
-          python3 build/release-node.py notes "$VERSION" "$RUNNER_TEMP/drupalorg.phar" >"$RUNNER_TEMP/notes.html"
-          python3 build/release-node.py entry "$VERSION" <"$RUNNER_TEMP/notes.html" >>"$GITHUB_STEP_SUMMARY"
+          python3 build/release/release-node.py notes "$VERSION" "$RUNNER_TEMP/drupalorg.phar" >"$RUNNER_TEMP/notes.html"
+          python3 build/release/release-node.py entry "$VERSION" <"$RUNNER_TEMP/notes.html" >>"$GITHUB_STEP_SUMMARY"
           # A random delimiter, so no line of the notes can end the value early.
           delimiter=$(openssl rand -hex 16)
           { echo "html<<$delimiter"; cat "$RUNNER_TEMP/notes.html"; echo; echo "$delimiter"; } >>"$GITHUB_OUTPUT"
@@ -291,4 +291,4 @@ jobs:
           VERSION: ${{ needs.upstream.outputs.version }}
           NOTES: ${{ needs.notes.outputs.html }}
           DRUPAL_ORG_SESSION: ${{ secrets.DRUPAL_ORG_SESSION }}
-        run: printf '%s' "$NOTES" | python3 build/release-node.py post "$VERSION" >>"$GITHUB_STEP_SUMMARY"
+        run: printf '%s' "$NOTES" | python3 build/release/release-node.py post "$VERSION" >>"$GITHUB_STEP_SUMMARY"

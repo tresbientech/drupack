@@ -1,4 +1,4 @@
-"""The Release files build/release-files.py writes, checked on small builds and a small runtime directory.
+"""The Release files build/release/release-files.py writes, checked on small builds and a small runtime directory.
 Run with:
 
     python3 -m unittest discover -s tests/conformance -p test_release_files.py
@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-RELEASE_FILES = Path(__file__).resolve().parents[2] / "build" / "release-files.py"
+RELEASE_FILES = Path(__file__).resolve().parents[2] / "build" / "release" / "release-files.py"
 BASE_URL = "https://example.test/1.2.3"
 
 

@@ -23,10 +23,10 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - run: python3 build/release-node.py check
+      - run: python3 build/release/release-node.py check
 
       - name: Open the release form as nod_bot
         if: always()
         env:
           DRUPAL_ORG_SESSION: ${{ secrets.DRUPAL_ORG_SESSION }}
-        run: python3 build/release-node.py session
+        run: python3 build/release/release-node.py session

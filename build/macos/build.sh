@@ -17,11 +17,11 @@ fi
 repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 
 # The FrankenPHP and PHP pins every Linux builder image compiles.
-. "$repository/runtime/builder-inputs.sh"
+. "$repository/runtime/builder/builder-inputs.sh"
 drupack_version=${DRUPACK_VERSION:-dev}
 # The allowlist every builder compiles. spc resolves the libraries each name needs.
-extensions=$(bash "$repository/runtime/extensions-list.sh" "$repository/runtime/php-extensions.txt")
-extension_libs=$(bash "$repository/runtime/extensions-list.sh" "$repository/runtime/php-extension-libs.txt")
+extensions=$(bash "$repository/runtime/extensions/extensions-list.sh" "$repository/runtime/extensions/php-extensions.txt")
+extension_libs=$(bash "$repository/runtime/extensions/extensions-list.sh" "$repository/runtime/extensions/php-extension-libs.txt")
 
 case "$(uname -m)" in
     arm64) target=macos-arm64 ;;
@@ -35,7 +35,7 @@ cd "$work"
 # The script changes directory again below, so the caller's path resolves here.
 work=$(pwd)
 # static-php-cli runs from the pinned checkout, on the runner's PHP and Composer.
-bash "$repository/runtime/fetch-spc.sh" "$work/static-php-cli"
+bash "$repository/runtime/builder/fetch-spc.sh" "$work/static-php-cli"
 composer install --working-dir="$work/static-php-cli" --no-dev --no-interaction --prefer-dist
 spc=(php "$work/static-php-cli/bin/spc")
 
@@ -72,9 +72,9 @@ fi
 # which leaves frankenphp's own extraction unused.
 : > frankenphp/app.tar
 cp "$payload/app_checksum.txt" frankenphp/
-cp "$repository/runtime/entrypoint.go" frankenphp/caddy/frankenphp/drupack.go
-cp "$repository/runtime/watch/watch.go" frankenphp/caddy/frankenphp/drupack_watch.go
-cp "$repository/runtime/crtenv_other.go" frankenphp/caddy/frankenphp/drupack_crtenv_other.go
+cp "$repository/runtime/frankenphp/entrypoint.go" frankenphp/caddy/frankenphp/drupack.go
+cp "$repository/runtime/frankenphp/watch/watch.go" frankenphp/caddy/frankenphp/drupack_watch.go
+cp "$repository/runtime/frankenphp/crtenv_other.go" frankenphp/caddy/frankenphp/drupack_crtenv_other.go
 
 runtime="$work/runtime"
 entry=drupack
@@ -92,7 +92,7 @@ CGO_ENABLED=1 CGO_CFLAGS="$php_includes -DFRANKENPHP_VERSION=$frankenphp_version
 
 # php.ini and the trust bundle ride beside the entry executable, where PHPRC
 # names them at every hop.
-cp "$repository/application/php.ini" "$repository/application/cacert.pem" "$runtime/"
+cp "$repository/runtime/php.ini" "$repository/runtime/cacert.pem" "$runtime/"
 
 # The subshell keeps the packer's build inside the launcher module, off this FrankenPHP checkout.
 (cd "$repository/launcher" \

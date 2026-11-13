@@ -1,4 +1,4 @@
-"""The application archive build/app-payload.sh writes, checked on a small application.
+"""The application archive build/pack/app-payload.sh writes, checked on a small application.
 Run with:
 
     python3 -m unittest discover -s tests/conformance -p test_app_payload.py
@@ -25,7 +25,7 @@ class AppPayload(unittest.TestCase):
         (self.module / "example.info.yml").write_text("name: Example\n")
 
     def pack(self, *docroot):
-        subprocess.run(["bash", ROOT / "build" / "app-payload.sh", self.application, self.output, *docroot],
+        subprocess.run(["bash", ROOT / "build" / "pack" / "app-payload.sh", self.application, self.output, *docroot],
                        check=True)
         return (self.output / "app_checksum.txt").read_text()
 

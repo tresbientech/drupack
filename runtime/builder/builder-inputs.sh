@@ -9,4 +9,4 @@ php_version=8.5.12
 # static-php-cli v3 has no tagged release, so a commit of its v3 branch is the pin.
 spc_commit=5e913373a08c7c6cf23e45e0b3c2e2caac23af6d
 # A caller may merge a site's additions into another file.
-extensions_file=${EXTENSIONS_FILE:-$(dirname -- "${BASH_SOURCE[0]}")/php-extensions.txt}
+extensions_file=${EXTENSIONS_FILE:-$(dirname -- "${BASH_SOURCE[0]}")/../extensions/php-extensions.txt}

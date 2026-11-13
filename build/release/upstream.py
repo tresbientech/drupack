@@ -3,7 +3,7 @@
 and prints what it did as a Markdown summary. Go's line is its own or the one FrankenPHP needs,
 whichever is newer. It edits the working tree and never commits.
 
-    python3 build/upstream.py
+    python3 build/release/upstream.py
 """
 
 import hashlib
@@ -15,11 +15,11 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-BUILDER_INPUTS = "runtime/builder-inputs.sh"
+ROOT = Path(__file__).resolve().parents[2]
+BUILDER_INPUTS = "runtime/builder/builder-inputs.sh"
 WINDOWS_BUILD = "build/windows/build.ps1"
 RELEASE_WORKFLOW = ".github/workflows/release.yml"
-GO_MODS = ("launcher/go.mod", "runtime/watch/go.mod")
+GO_MODS = ("launcher/go.mod", "runtime/frankenphp/watch/go.mod")
 DOCKERFILE = "Dockerfile"
 
 PHP_RELEASES = "https://www.php.net/releases/index.php?json&version="
@@ -62,7 +62,7 @@ GO_RELEASE = re.compile(r"go\d+\.\d+\.\d+")
 # Each Go tool the checks install as MODULE/cmd/NAME@vX.Y.Z: its name, its module and the
 # file pinning it. The module path names the major, so its newest release stays inside it.
 GO_TOOLS = (
-    ("golangci-lint", "github.com/golangci/golangci-lint/v2", "build/go-tests.sh"),
+    ("golangci-lint", "github.com/golangci/golangci-lint/v2", "build/test/go-tests.sh"),
     ("govulncheck", "golang.org/x/vuln", RELEASE_WORKFLOW),
 )
 STABLE_TAG = re.compile(r"v\d+\.\d+\.\d+")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Rewrites the Drupack version the site-building guide names to the one given.
 
-    python3 build/pin-docs.py 1.0.0-beta1
+    python3 build/release/pin-docs.py 1.0.0-beta1
 """
 
 import re

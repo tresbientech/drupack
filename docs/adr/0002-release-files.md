@@ -26,7 +26,7 @@ A reader downloads one file and runs it, with no installer and no antivirus warn
 - `runtime/` holds the PHP and FrankenPHP compile and the extension lists.
 - `launcher/` is the Go module, and `build/` holds the build scripts and helpers.
 - `tests/conformance` holds the conformance suite. `Dockerfile` stays at the root beside its `.dockerignore`.
-- `application/tests/` never ships. `build/app-payload.sh` excludes every path component named `tests`.
+- `application/tests/` never ships. `build/pack/app-payload.sh` excludes every path component named `tests`.
 
 ### Release files and install scripts
 
@@ -34,7 +34,7 @@ A reader downloads one file and runs it, with no installer and no antivirus warn
 - A release also carries `install-NAME.sh` for each executable, and `install-NAME.ps1` when NAME has a Windows build.
 - Only `checksums.txt`, `release.json`, the SBOM and the install scripts carry no version in their name.
 - A release publishes the macOS and Windows runtimes as `runtime-VERSION-TARGET.tar.zst`. No install script names them.
-- `build/release-files.py` names the files, writes the checksums and the scripts, and stamps in the version, the download URL and each build's SHA-256. `release.yml` and `build.yml` run it.
+- `build/release/release-files.py` names the files, writes the checksums and the scripts, and stamps in the version, the download URL and each build's SHA-256. `release.yml` and `build.yml` run it.
 - A script finds the host's target, downloads that build into the current directory and checks its SHA-256. It then prints the command that moves the file onto PATH.
 - On Linux the script installs the glibc file when the host has the glibc program interpreter of its architecture at glibc 2.28 or later. Otherwise it installs the musl file.
 - `DRUPACK_LIBC=glibc` or `musl` overrides that test. Another value stops the script.

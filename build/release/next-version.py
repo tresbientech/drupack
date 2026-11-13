@@ -3,8 +3,8 @@
 with its last number raised by one, 1.0.0-alpha2 to 1.0.0-alpha3, 1.0.0 to 1.0.1.
 With one, that version, once it has a tag's form and sorts above every tag.
 
-    python3 build/next-version.py
-    python3 build/next-version.py 1.0.0-beta1
+    python3 build/release/next-version.py
+    python3 build/release/next-version.py 1.0.0-beta1
 """
 
 import re

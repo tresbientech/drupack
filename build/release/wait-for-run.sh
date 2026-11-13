@@ -6,10 +6,10 @@ set -euo pipefail
 # goes on to its other jobs. A failed run gets one rerun of its failed jobs,
 # which GitHub allows once the run has completed. Reads GITHUB_API and
 # GITHUB_TOKEN.
-# Usage: build/wait-for-run.sh QUERY
+# Usage: build/release/wait-for-run.sh QUERY
 # QUERY is a runs query string, such as event=push&branch=1.0.0.
 
-query=${1:?Usage: build/wait-for-run.sh QUERY}
+query=${1:?Usage: build/release/wait-for-run.sh QUERY}
 api() { curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" "$@"; }
 
 # A dispatch or a push answers before its run exists.

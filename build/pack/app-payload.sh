@@ -4,7 +4,7 @@ set -euo pipefail
 # Packs the application the launcher carries into OUTPUT: app-payload.tar and
 # app_checksum.txt. Nothing in it depends on the runtime's libc, so one payload serves
 # every runtime.
-usage='Usage: build/app-payload.sh APPLICATION OUTPUT [DOCROOT]'
+usage='Usage: build/pack/app-payload.sh APPLICATION OUTPUT [DOCROOT]'
 application=${1:?$usage}
 output=${2:?$usage}
 # Only a site has a docroot, and only a site's payload leaves out the Drupal modules' sources.
@@ -33,11 +33,8 @@ archive_options=(--mtime=@0 --owner=0 --group=0 --numeric-owner --mode=u+rw,go+r
 # Drupal's cached absolute paths use the full application input identity.
 tar "${archive_options[@]}" -cf - -C "$application" . \
     | sha256sum | cut -d ' ' -f 1 | tr -d '\n' > app_checksum.txt
-# php.ini and cacert.pem ride beside the entry executable in the runtime directory, which
-# PHPRC names; nothing reads them from the application directory.
 tar "${archive_options[@]}" \
     --exclude='tests' --exclude='Tests' \
-    --exclude='./php.ini' --exclude='./cacert.pem' \
     --exclude='*.js.map' --exclude='*.css.map' --exclude='*.pcss.css' \
     --exclude='package-lock.json' --exclude='yarn.lock' \
     --exclude='pnpm-lock.yaml' --exclude='npm-shrinkwrap.json' \

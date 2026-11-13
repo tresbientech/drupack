@@ -1,6 +1,6 @@
 """A release's install script puts the host's build into the working directory.
 
-build/release-files.py writes a release from the executable under test. A local
+build/release/release-files.py writes a release from the executable under test. A local
 HTTP server serves it, and the case runs the documented one-liner against it:
 curl piped to sh on Linux and macOS, irm piped to iex in PowerShell on Windows.
 """
@@ -18,7 +18,7 @@ from pathlib import Path
 
 import harness
 
-RELEASE_FILES = Path(__file__).resolve().parents[2] / "build" / "release-files.py"
+RELEASE_FILES = Path(__file__).resolve().parents[2] / "build" / "release" / "release-files.py"
 ARCHITECTURES = {"x86_64": "amd64", "amd64": "amd64", "aarch64": "arm64", "arm64": "arm64"}
 VERSION = "0.0.0-install-case"
 

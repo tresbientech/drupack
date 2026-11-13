@@ -33,7 +33,7 @@ func NewEnginePlan(r Request) (Plan, error) {
 	payload := filepath.Join(r.Work, "engine-payload")
 	plan := Plan{Steps: []Step{
 		{Name: "stage the engine files", Func: func(io.Writer) error { return stageEngine(r.Engine, files) }},
-		{Name: "archive the engine files", Command: []string{"bash", filepath.Join(r.Engine, "build", "app-payload.sh"), files, payload}},
+		{Name: "archive the engine files", Command: []string{"bash", filepath.Join(r.Engine, "build", "pack", "app-payload.sh"), files, payload}},
 		{Name: "compress the engine files", Func: func(io.Writer) error { return compressPayload(payload) }},
 	}}
 	if r.PayloadOnly {
