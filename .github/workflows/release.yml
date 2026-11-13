@@ -220,7 +220,8 @@ jobs:
     # A leg that built its image pushes it when another leg failed. The artifact
     # lookup below skips a leg that built nothing.
     if: ${{ !cancelled() && needs.gate.result == 'success' && needs.gate.outputs.linux_runtime != '[]' && github.event.repository.fork == false }}
-    runs-on: ubuntu-24.04
+    # builder-tag.sh digests the machine type, so the leg runs on its image's architecture.
+    runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 30
     permissions:
       actions: read
