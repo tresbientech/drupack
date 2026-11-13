@@ -420,8 +420,8 @@ type Composer struct {
 	// Subdomain is the Site host's label. Empty means the label comes from the
 	// site's or the folder's name.
 	Subdomain string `json:"subdomain,omitempty"`
-	// NamesDrupal is derived, not a setting: require names one of drupalPackages, or
-	// extra.drupal-scaffold is set, and type names no Drupal package.
+	// NamesDrupal is true when type names no Drupal package, and require names one
+	// of drupalPackages or extra.drupal-scaffold is set.
 	NamesDrupal bool `json:"namesDrupal,omitempty"`
 }
 
@@ -492,15 +492,15 @@ func ReadComposer(project string, mode Mode) (Composer, error) {
 	}
 	// require is read to name Drupal alone, so a value Composer would refuse names none.
 	require, _ := composer["require"].(map[string]any)
-	settings := Composer{NamesDrupal: extra["drupal-scaffold"] != nil}
-	for _, name := range drupalPackages {
-		_, required := require[name]
-		settings.NamesDrupal = settings.NamesDrupal || required
-	}
+	settings := Composer{}
 	// drupal/core and each module, theme, profile or recipe carry a composer.json of
 	// their own type, which requires the scaffold too.
-	if kind, _ := composer["type"].(string); strings.HasPrefix(kind, "drupal-") {
-		settings.NamesDrupal = false
+	if kind, _ := composer["type"].(string); !strings.HasPrefix(kind, "drupal-") {
+		settings.NamesDrupal = extra["drupal-scaffold"] != nil
+		for _, name := range drupalPackages {
+			_, required := require[name]
+			settings.NamesDrupal = settings.NamesDrupal || required
+		}
 	}
 	if settings.Docroot, err = docroot(file, locations["web-root"], mode); err != nil {
 		return Composer{}, err
