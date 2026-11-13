@@ -36,7 +36,7 @@ pdo_mysql        # MySQL database backend
 pdo_pgsql        # PostgreSQL database backend
 pdo_sqlite       # SQLite database backend and the Seed site
 pgsql            # pdo_pgsql needs it
-phar             # composer.phar runs under this PHP during the build
+phar             # composer.phar runs under this PHP in the build and drupack composer
 posix            # WordPal checks a private directory's owner outside Windows
 session          # Drupal core
 simplexml        # Drupal core, project_browser
@@ -46,5 +46,5 @@ tokenizer        # Drupal core, nikic/php-parser, psysh
 xml              # Drupal core
 xmlwriter        # simple_sitemap, which Drupal CMS site templates require
 yaml             # core InfoParserDynamic parses .info.yml with it, Symfony otherwise
-zip              # core Archiver; composer --prefer-dist during the build
+zip              # core Archiver; Composer unpacks dist archives in the build and drupack composer
 zlib             # Drupal core
