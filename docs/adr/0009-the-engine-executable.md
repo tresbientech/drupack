@@ -21,6 +21,7 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 - Every child environment names the runtime's `php` in `PHP_BINARY`, which Composer's `@php` runs. `PHP_BINARY` is `bin/php`, and on Windows `php.exe` beside the runtime, because PHP's `is_executable` refuses a batch file.
 - A reader's `php` line, `drush`, `export` and the server also lead `PATH` with `bin/`, so a `vendor/bin` script's `#!/usr/bin/env php` runs the runtime's PHP.
 - Relative paths resolve against the reader's directory.
+- [A 1.x release keeps](0019-the-stable-surface.md) these commands, their options and the `extra.drupack` keys.
 
 ### The composer command
 

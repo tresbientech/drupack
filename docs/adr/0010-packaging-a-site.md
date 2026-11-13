@@ -6,6 +6,8 @@ A site that already exists differs from one built from a recipe. It has its own 
 
 ## Decision
 
+Packaged sites are [experimental within 1.x](0019-the-stable-surface.md).
+
 ### Existing site
 
 - The docroot comes from `extra.drupal-scaffold.locations.web-root` in `composer.json`. The build writes it to `site.json`. A build refuses a project without it.

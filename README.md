@@ -5,6 +5,8 @@ Drupack runs Drupal from a single executable that carries PHP, FrankenPHP and Ca
 - `drupack` serves a Drupal project you already have, with the project's own settings, database and Drush.
 - A build packs your Composer project into an executable of its own, which installs and serves the site with nothing else on the machine. [Build your own site](docs/build-your-site.md) covers it.
 
+From 1.0.0, a 1.x release keeps the commands, options and settings of `drupack`. [Stability](docs/cli.md#stability) lists them. Packaged sites are experimental: a minor release may change the build, `drupack.yml` and Site data.
+
 ## Serve a Drupal project you already have
 
 Install `drupack` in the project's root on Linux or macOS, then start it there:
@@ -68,6 +70,7 @@ A site repository holds a Composer project and a `drupack.yml`. A build on GitHu
 [The command line reference](docs/cli.md) covers:
 
 - every option, command and environment variable of `drupack` and of a built site
+- [what a 1.x release keeps](docs/cli.md#stability)
 - [HTTPS](docs/cli.md#https) and [serving other computers](docs/cli.md#the-listener)
 - [the static export](docs/cli.md#static-site) and [the Mercure hub](docs/cli.md#mercure-hub)
 - [the cache](docs/cli.md#the-cache) a release unpacks into

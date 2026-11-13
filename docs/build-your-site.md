@@ -6,6 +6,10 @@ job image, `ghcr.io/tresbientech/drupack-build:VERSION`. The image carries the
 engine, PHP, Composer, Go, Python and all four Linux runtimes, and needs no
 Docker daemon.
 
+Packaged sites are experimental. A minor release may change the build,
+`drupack.yml`, the reusable workflow, a site's commands and Site data, and its
+release notes name each change. A patch release changes none of them.
+
 The site repository can be private. The examples use a site named `acme`.
 
 ## What the site repository holds
