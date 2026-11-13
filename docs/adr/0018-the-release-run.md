@@ -2,7 +2,7 @@
 
 ## Context
 
-Drupack pins PHP, FrankenPHP, Go and Windows extensions. A new upstream version must reach readers without the owner noticing it. A release builds five platforms and runs the whole suite, so the graph must build each thing once. drupal.org has no API that creates a release node, and Packagist takes each `drupal/drupack` version from one.
+Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstream version must reach readers without the owner noticing it. A release builds five platforms and runs the whole suite, so the graph must build each thing once. drupal.org has no API that creates a release node, and Packagist takes each `drupal/drupack` version from one.
 
 ## Decision
 
@@ -24,7 +24,8 @@ Drupack pins PHP, FrankenPHP, Go and Windows extensions. A new upstream version 
 ### The upstream run
 
 - `.github/workflows/upstream.yml` runs on GitHub, and drupal.org's pipeline schedule dispatches it daily. A dispatch with `version` releases `main` under that version with no bump.
-- `build/release/upstream.py` moves each pin to its newest version inside its line. The pins are PHP, FrankenPHP and its commit, the static-php-cli v3 head, the Windows vcpkg commit, each Windows PECL extension with its zip checksum, Go, and the Go tools. PHP waits until php.net lists both Windows zips.
+- `build/release/upstream.py` moves each pin to its newest version inside its line. The pins are PHP, FrankenPHP and its commit, the static-php-cli v3 head, the Windows vcpkg commit, each Windows PECL extension with its zip checksum, Composer with its SHA-256, Go, and the Go tools. PHP waits until php.net lists both Windows zips.
+- Composer's pin is the `Dockerfile` download. A newer release is written only after its `composer.phar.sig` verifies against `build/release/composer-releases.pub`, Composer's Tags Public Key.
 - A newer major prints as `MAJOR` and is never written.
 - The run stops when no pin moves.
 - The candidate is the bump on `main` HEAD, on the GitHub-only branch `upstream/<fingerprint>`. The fingerprint is the SHA-256 of the bump's diff. A hand version uses `candidate/<version>`.
@@ -54,6 +55,8 @@ Drupack pins PHP, FrankenPHP, Go and Windows extensions. A new upstream version 
 A builder image tagged by its inputs answers the objection that one image cannot serve several extension sets: another list is another tag. Testing in shares keeps the wall clock near the longest share.
 
 A script plans the run so a unit test checks the plan. A plan written in workflow expressions shows its mistakes in a finished run alone. A failed lookup that read as no candidate would rebuild what it could have published.
+
+The engine ships the pinned `composer.phar`. Its bump checks the SHA-384 signature `composer self-update` checks, against a key kept in the repository, so a tampered download server cannot pass.
 
 The upstream run lives on GitHub, where the builds run. Testing the candidate before the tag moves means a red platform never ships, and the tag run publishes the candidate's files.
 

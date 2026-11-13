@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/cache"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
@@ -32,7 +33,7 @@ func NewEnginePlan(r Request) (Plan, error) {
 	files := filepath.Join(r.Work, "engine")
 	payload := filepath.Join(r.Work, "engine-payload")
 	plan := Plan{Steps: []Step{
-		{Name: "stage the engine files", Func: func(io.Writer) error { return stageEngine(r.Engine, files) }},
+		{Name: "stage the engine files", Func: func(io.Writer) error { return stageEngine(r.Engine, r.Composer, files) }},
 		{Name: "archive the engine files", Command: []string{"bash", filepath.Join(r.Engine, "build", "pack", "app-payload.sh"), files, payload}},
 		{Name: "compress the engine files", Func: func(io.Writer) error { return compressPayload(payload) }},
 	}}
@@ -50,8 +51,9 @@ func NewEnginePlan(r Request) (Plan, error) {
 // engineFiles are the files of application/ the engine executable carries, relative to it.
 var engineFiles = []string{"operate.php", "installed.php", "drush", "drush.cmd", "bin/php", "bin/php.cmd"}
 
-// stageEngine copies engineFiles from the engine's application/ into files.
-func stageEngine(engine, files string) error {
+// stageEngine copies engineFiles from the engine's application/ into files, and the
+// composer phar beside them.
+func stageEngine(engine, composer, files string) error {
 	if err := os.RemoveAll(files); err != nil {
 		return err
 	}
@@ -60,5 +62,5 @@ func stageEngine(engine, files string) error {
 			return err
 		}
 	}
-	return nil
+	return copyFile(composer, filepath.Join(files, cache.ComposerPhar))
 }

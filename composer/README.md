@@ -33,6 +33,7 @@ The project's own `settings.php` names the database, the files paths and the has
 
 - `./drupack drush COMMAND` runs the project's own Drush on the bundled PHP, from any directory inside the project.
 - `./drupack dr COMMAND` runs Drupal core's command line the same way, on Drupal 11.4 and later.
+- `./drupack composer COMMAND` runs the Composer `drupack` carries, on the bundled PHP, in the project root.
 - `./drupack php SCRIPT [ARGUMENTS]` and `./drupack php -r CODE` run the bundled PHP.
 
 A project whose `composer.lock` needs a PHP extension the bundled PHP lacks is refused. The message names the extension and the packages that need it.

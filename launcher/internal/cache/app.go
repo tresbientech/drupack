@@ -17,6 +17,9 @@ const appDirName = "app"
 // DrushScript is where Drush lives under an application or a project.
 var DrushScript = filepath.Join("vendor", "drush", "drush", "drush.php")
 
+// ComposerPhar is the engine's Composer, in its application directory.
+const ComposerPhar = "composer.phar"
+
 // completeName is the last file created, so a directory without it was interrupted.
 const completeName = ".complete"
 

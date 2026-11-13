@@ -34,6 +34,7 @@ vendor/bin/drupack-install
 
 `drupack` serves the project in the working directory on `http://127.0.0.1:3787` and prints a one-time login link. It keeps serving in the background, and `drupack stop` ends it. The project's `settings.php` names the database and the files paths, and Drupack writes nothing into the project.
 
+- `drupack composer install` installs a fresh clone with the Composer `drupack` carries.
 - `drupack drush COMMAND` runs the project's own Drush on the bundled PHP.
 - `drupack php SCRIPT` runs the bundled PHP.
 - `drupack self-update` installs the newest release.

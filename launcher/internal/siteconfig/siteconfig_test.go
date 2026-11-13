@@ -457,3 +457,36 @@ func TestWriteMatchesThePHPReferenceFile(t *testing.T) {
 		t.Fatalf("%s differs from what Write produces. Replace it with:\n%s", reference, got)
 	}
 }
+
+func TestCheckDrupalReadsTheLockOrTheComposerJSON(t *testing.T) {
+	cases := []struct {
+		name, composer, lock, refuses string
+	}{
+		{name: "no composer.json", refuses: "holds no composer.json. Run composer in the project's root."},
+		{name: "a lock naming core", composer: `{}`, lock: locked},
+		{name: "a lock without core", composer: scaffold("web"), lock: `{"packages": [{"name": "acme/app", "version": "1.0.0"}]}`,
+			refuses: "composer.lock: packages names no drupal/core release"},
+		{name: "a malformed lock", composer: scaffold("web"), lock: `{"packages":`, refuses: "composer.lock: unexpected end of JSON input"},
+		{name: "no lock, core-recommended", composer: `{"require": {"drupal/core-recommended": "^11"}}`},
+		{name: "no lock, the scaffold", composer: scaffold("web")},
+		{name: "no lock, no Drupal", composer: `{"require": {"laravel/framework": "^12"}}`,
+			refuses: "requires none of drupal/core, drupal/core-recommended, drupal/core-composer-scaffold and sets no extra.drupal-scaffold"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			project := t.TempDir()
+			for name, content := range map[string]string{"composer.json": c.composer, "composer.lock": c.lock} {
+				if content == "" {
+					continue
+				}
+				if err := os.WriteFile(filepath.Join(project, name), []byte(content), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			err := siteconfig.CheckDrupal(project)
+			if c.refuses == "" && err != nil || c.refuses != "" && (err == nil || !strings.Contains(err.Error(), c.refuses)) {
+				t.Fatalf("CheckDrupal = %v; want %q", err, c.refuses)
+			}
+		})
+	}
+}

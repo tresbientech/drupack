@@ -332,14 +332,48 @@ func lockedPackages(directory string) (map[string]string, error) {
 	return packages, nil
 }
 
+const corePackage = "drupal/core"
+
+// drupalPackages are the requirements that make a composer.json a Drupal project's
+// before its lock exists.
+var drupalPackages = []string{corePackage, "drupal/core-recommended", "drupal/core-composer-scaffold"}
+
 // coreReleases returns the drupal/core and drush/drush releases, which --version names.
 func coreReleases(packages map[string]string) (drupal, drush string, err error) {
-	for _, name := range []string{"drupal/core", "drush/drush"} {
+	for _, name := range []string{corePackage, "drush/drush"} {
 		if packages[name] == "" {
 			return "", "", fmt.Errorf("composer.lock: packages names no %s release", name)
 		}
 	}
-	return packages["drupal/core"], packages["drush/drush"], nil
+	return packages[corePackage], packages["drush/drush"], nil
+}
+
+// CheckDrupal refuses a project that holds no Drupal, before the engine's composer
+// command runs in it. Its composer.lock must name a drupal/core release. Without a
+// lock, its composer.json must require one of drupalPackages or set
+// extra.drupal-scaffold.
+func CheckDrupal(project string) error {
+	file := ComposerFile(project)
+	if _, err := os.Stat(file); err != nil {
+		return fmt.Errorf("%s holds no composer.json. Run composer in the project's root.", project)
+	}
+	packages, err := lockedPackages(project)
+	switch {
+	case err == nil && packages[corePackage] == "":
+		return fmt.Errorf("%s/composer.lock: packages names no %s release, so %s holds no Drupal project", project, corePackage, project)
+	case err == nil:
+		return nil
+	case !errors.Is(err, fs.ErrNotExist):
+		return err
+	}
+	composer, err := ReadComposer(project, Folder)
+	if err != nil {
+		return err
+	}
+	if !composer.NamesDrupal {
+		return fmt.Errorf("%s requires none of %s and sets no extra.drupal-scaffold, so it holds no Drupal project", file, strings.Join(drupalPackages, ", "))
+	}
+	return nil
 }
 
 const tomePackage = "drupal/tome"
@@ -386,6 +420,9 @@ type Composer struct {
 	// Subdomain is the Site host's label. Empty means the label comes from the
 	// site's or the folder's name.
 	Subdomain string `json:"subdomain,omitempty"`
+	// NamesDrupal is derived, not a setting: require names one of drupalPackages, or
+	// extra.drupal-scaffold is set, and type names no Drupal package.
+	NamesDrupal bool `json:"namesDrupal,omitempty"`
 }
 
 // Static holds extra.drupack.static. Dynamic lists the Caddy path matcher patterns
@@ -408,6 +445,11 @@ const (
 	objectRule     = "be a JSON object"
 )
 
+// ComposerFile is the path of project's composer.json.
+func ComposerFile(project string) string {
+	return project + "/composer.json"
+}
+
 // ReadComposer reads the web root, the Mercure flag, the subdomain and the static
 // settings from the composer.json in project. The project's author writes that file, so each
 // setting is checked, and a refusal names the file and the field.
@@ -416,7 +458,7 @@ const (
 // project itself. Packed refuses all three, since a packed site's settings.php
 // loads the engine's support files from the docroot's parent.
 func ReadComposer(project string, mode Mode) (Composer, error) {
-	file := project + "/composer.json"
+	file := ComposerFile(project)
 	content, err := os.ReadFile(file)
 	if errors.Is(err, fs.ErrNotExist) && mode == Folder {
 		return Composer{Docroot: folderWebRoot}, nil
@@ -448,7 +490,18 @@ func ReadComposer(project string, mode Mode) (Composer, error) {
 	if err != nil {
 		return Composer{}, err
 	}
-	var settings Composer
+	// require is read to name Drupal alone, so a value Composer would refuse names none.
+	require, _ := composer["require"].(map[string]any)
+	settings := Composer{NamesDrupal: extra["drupal-scaffold"] != nil}
+	for _, name := range drupalPackages {
+		_, required := require[name]
+		settings.NamesDrupal = settings.NamesDrupal || required
+	}
+	// drupal/core and each module, theme, profile or recipe carry a composer.json of
+	// their own type, which requires the scaffold too.
+	if kind, _ := composer["type"].(string); strings.HasPrefix(kind, "drupal-") {
+		settings.NamesDrupal = false
+	}
 	if settings.Docroot, err = docroot(file, locations["web-root"], mode); err != nil {
 		return Composer{}, err
 	}

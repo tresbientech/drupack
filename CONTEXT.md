@@ -37,7 +37,7 @@ The hub a Packaged site or a Project folder serves at `/.well-known/mercure` whe
 ### Engine executable
 
 **Engine executable**:
-The `drupack` executable: the Runtime and Drupack's own files, with no application. It serves a Project folder.
+The `drupack` executable: the Runtime, Drupack's own files and the Composer it carries, with no application. It serves a Project folder.
 
 **Project folder**:
 A Drupal Composer project on disk, with its dependencies installed. An Engine executable serves it unchanged, under its own settings.
@@ -66,6 +66,10 @@ The start that turns an empty Site data directory into an installed site.
 **`drush` command**:
 The public command-line interface that exposes the Drush command set for a Packaged site and its Site data. Global options precede the command. It uses `./data` unless the user selects another Site data directory.
 _Avoid_: `dr`, the name of Drupal core's own command line.
+
+**`composer` command**:
+The Engine executable's public command that runs the Composer it carries, on the bundled PHP, in the Drupal project in the working directory. A Packaged site has no such command.
+_Avoid_: the host's Composer, global Composer.
 
 **`clean` command**:
 The public command that removes unpacked releases, and the state of folders no server runs, from the cache.
@@ -156,6 +160,7 @@ A PHP extension that a package in the application's lock file names as a require
 - An **Engine executable** has no **Site data**. A **Project folder**'s own settings name its database and files.
 - An **Engine executable** refuses a **Project folder** with a **Declared extension** its **Runtime** lacks.
 - An **Engine executable** runs a **Project folder**'s own Drush with `drush`, and Drupal core's command line with `dr`.
+- An **Engine executable** runs the Composer it carries in a **Project folder** with `composer`.
 - A Linux release holds an **Engine executable** per C library, as it does for a **Packaged site**.
 
 ### Extensions

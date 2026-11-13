@@ -52,7 +52,7 @@ func run() error {
 	engine := flag.String("engine", os.Getenv("DRUPACK_ENGINE"), "the Drupack engine directory")
 	engineVersion := flag.String("engine-version", os.Getenv("DRUPACK_ENGINE_VERSION"), "the engine's release")
 	php := flag.String("php", os.Getenv("DRUPACK_PHP"), "the runtime executable the build runs PHP with")
-	composer := flag.String("composer", os.Getenv("DRUPACK_COMPOSER"), "the composer.phar the build installs with")
+	composer := flag.String("composer", os.Getenv("DRUPACK_COMPOSER"), "the composer.phar the build installs with, which the engine carries")
 	runtimeRoot := flag.String("runtimes", os.Getenv("DRUPACK_RUNTIMES"), "a directory of PLATFORM-LIBC runtime directories, used for each target --runtime leaves out")
 	flag.Parse()
 	var described siteconfig.Site
@@ -68,11 +68,10 @@ func run() error {
 			return json.NewEncoder(os.Stdout).Encode(described)
 		}
 	}
-	required := map[string]string{"engine": *engine, "engine-version": *engineVersion}
-	// The engine executable installs no Composer project.
+	required := map[string]string{"engine": *engine, "engine-version": *engineVersion, "composer": *composer}
+	// The engine executable installs no Composer project, and carries the phar.
 	if !*engineExecutable {
 		required["php"] = *php
-		required["composer"] = *composer
 	}
 	for name, value := range required {
 		if value == "" {

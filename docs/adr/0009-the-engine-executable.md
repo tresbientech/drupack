@@ -11,6 +11,7 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 - Each release publishes a generic `drupack` executable per platform. It carries the runtimes and the engine's files, and no application.
 - `drupack [DIR]` serves the project folder DIR, the working directory by default. The docroot comes from `composer.json`'s scaffold web root, or `web` when unset.
 - A start refuses a docroot without Drupal core, and a `composer.lock` that requires an extension the runtime lacks. The refusal names the missing extensions.
+- A start that finds no Drupal core in a folder with a `composer.json` and no `vendor/` names `drupack composer install`. It checks the docroot before the lock.
 - The folder's own settings own the database, the files paths and the hash salt. Drupack writes nothing into the folder.
 - The engine serves on `127.0.0.1:3787`. It runs no cron and has no Site data. A cache entry keyed by the folder's path holds its [lease and stop channel](0006-one-server-per-site-data.md).
 - `drupack drush` runs the folder's Drush on the runtime's PHP. `drupack dr` runs Drupal core's `vendor/bin/dr`. A site executable names its Drush command `drush`.
@@ -20,6 +21,16 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 - Every child environment names the runtime's `php` in `PHP_BINARY`, which Composer's `@php` runs. `PHP_BINARY` is `bin/php`, and on Windows `php.exe` beside the runtime, because PHP's `is_executable` refuses a batch file.
 - A reader's `php` line, `drush`, `export` and the server also lead `PATH` with `bin/`, so a `vendor/bin` script's `#!/usr/bin/env php` runs the runtime's PHP.
 - Relative paths resolve against the reader's directory.
+
+### The composer command
+
+- `drupack composer ARGS` runs the engine's `composer.phar` on the runtime's `php-cli`, with the environment `drupack php` gets. A site executable has no such command.
+- The engine build copies the phar the job image pins, the one site builds install with, beside the engine's application files. `build/release/upstream.py` moves that pin.
+- The working directory holds a Drupal project. Its `composer.lock` names a `drupal/core` release. With no lock, its `composer.json` requires `drupal/core`, `drupal/core-recommended` or `drupal/core-composer-scaffold`, or sets `extra.drupal-scaffold`. A `type` starting with `drupal-` names a Drupal package, such as core's own `composer.json`, and no project.
+- The command refuses `-d`, `--working-dir` and a non-blank `COMPOSER`, before the options end at `--`. Each points Composer at another project than the one checked.
+- It refuses `global`, `create-project`, `self-update` and `selfupdate`, under any prefix in any case, since Composer runs a command from a unique abbreviation.
+- `create-project` writes a new directory, and the engine stays one per project, inside it. A template starts as a clone or a download, then `composer install`.
+- The project's scripts and plugins run as the reader's own code. The check names the project, and limits nothing they run.
 
 ### composer.json settings
 
@@ -55,5 +66,7 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 A per-site build would still need a build. Writing an include line into the folder's `settings.php` changes a folder the reader asked to serve unchanged.
 
 Two readers of `composer.json`, one in Go and one in PHP, drift apart. An absolute web root, a subdomain with a newline and invalid JSON are the inputs they disagree on. One reader with a mode removes the drift. The placement rule rests on three facts: the engine never reads `drupack.yml`, a plain Composer project has none, and a site behaves the same served or packed.
+
+A fresh clone has no `vendor/`, and its host often has no PHP. The engine carries the PHP Composer needs, so it carries Composer too. A `composer.phar` beside the engine would age apart from it, and self-update moves the engine with its phar. A check on the project keeps the engine a Drupal tool.
 
 A package cannot carry five 90 MB builds, so the install script downloads one. `release.json` is host-neutral, and its checksum and asset come from one origin over TLS.

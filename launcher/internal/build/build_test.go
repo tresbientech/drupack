@@ -589,7 +589,10 @@ func TestStagingTheEngineCopiesItsListedApplicationFiles(t *testing.T) {
 		}
 	}
 	r := request([]string{"linux-amd64"}, "")
-	r.Engine, r.Work = engine, t.TempDir()
+	r.Engine, r.Work, r.Composer = engine, t.TempDir(), filepath.Join(engine, "composer.phar")
+	if err := os.WriteFile(r.Composer, []byte("phar"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	plan, err := build.NewEnginePlan(r)
 	if err != nil {
 		t.Fatal(err)
@@ -609,8 +612,11 @@ func TestStagingTheEngineCopiesItsListedApplicationFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"bin/php", "bin/php.cmd", "drush", "drush.cmd", "installed.php", "operate.php"}; !reflect.DeepEqual(got, want) {
+	if want := []string{"bin/php", "bin/php.cmd", "composer.phar", "drush", "drush.cmd", "installed.php", "operate.php"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("staged %v; want %v", got, want)
+	}
+	if phar, err := os.ReadFile(filepath.Join(staged, "composer.phar")); err != nil || string(phar) != "phar" {
+		t.Fatalf("staged composer.phar holds %q, %v; want the --composer file", phar, err)
 	}
 	// NTFS keeps no mode bits, so a staged file reads back as 0666.
 	if info, err := os.Stat(filepath.Join(staged, "drush")); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o755) {

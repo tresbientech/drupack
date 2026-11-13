@@ -226,3 +226,19 @@ func TestFolderHeldRefusesWhenNobodyWatches(t *testing.T) {
 		t.Errorf("an unwatched second start: %v, want %q", err, want)
 	}
 }
+
+func TestAnEngineStartNamesComposerInstallForAFreshClone(t *testing.T) {
+	project := t.TempDir()
+	// extra.drupack.static makes the lock's check refuse a folder with no lock.
+	put(t, filepath.Join(project, "composer.json"), `{"extra": {"drupack": {"static": {}}}}`)
+	e := engineStart{Facts: Facts{Launch: Launch{Name: "drupack", Engine: true}}, c: command{target: project}}
+	if _, err := e.check(); err == nil || !strings.HasSuffix(err.Error(), " has no vendor/. Run drupack composer install in it first.") {
+		t.Errorf("a fresh clone: error = %v, want the composer install hint", err)
+	}
+	// An installed docroot serves with its vendor/ elsewhere, as config.vendor-dir allows.
+	put(t, filepath.Join(project, "web", "index.php"), "<?php")
+	put(t, filepath.Join(project, "web", "core", "lib", "Drupal.php"), "<?php")
+	if _, err := e.check(); err == nil || !strings.Contains(err.Error(), "composer.lock") {
+		t.Errorf("an installed docroot: error = %v, want the lock's refusal", err)
+	}
+}

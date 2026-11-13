@@ -9,8 +9,8 @@ import (
 // command is a reader's line as the launcher answers it.
 type command struct {
 	// word is "stop", "drush", "export", "help", "start", "trust", "self-update",
-	// "clean", "dr" for the engine's, "node" for a site's Node word, or "" for a
-	// line the runtime reads.
+	// "clean", "dr" and "composer" for the engine's, "node" for a site's Node word,
+	// or "" for a line the runtime reads.
 	word string
 	// target is stop's Site data or folder, or the engine start's folder, as
 	// the reader wrote it. An engine start without one holds "".
@@ -146,7 +146,7 @@ func parse(l Launch) (command, error) {
 		return command{word: "drush", words: rest}, nil
 	case word == "php" || versionLine(args):
 		return command{}, nil
-	case engine && (word == "export" || word == "dr"):
+	case engine && (word == "export" || word == "dr" || word == "composer"):
 		return command{word: word, words: rest}, nil
 	case engine && (word == "--help" || word == "-h"):
 		return command{word: "help"}, nil

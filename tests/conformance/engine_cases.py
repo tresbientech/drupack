@@ -1059,17 +1059,29 @@ if (isset($_GET['drupack-log-case'])) {
                                            "php \"%BIN_TARGET%\" %*\r\n")
         (fixture / "composer.json").write_text(json.dumps({"name": "acme/drupal-cms-scripts", "scripts": {
             "post-update-cmd": ["@php -r \"@unlink('vendor/bin/composer');\"", "dload get --quiet --path=vendor/bin"],
-            "post-install-cmd": ["@post-update-cmd"]}}))
-        # The application's composer/composer carries no bin/composer, so this runner does what it does.
-        composer = self.class_dir / "composer.php"
-        composer.write_text(f"<?php require {json.dumps(str(self.project / 'vendor' / 'autoload.php'))};"
-                            " ini_set('memory_limit', '1536M'); (new Composer\\Console\\Application())->run();")
+            "post-install-cmd": ["@post-update-cmd"]}, "require": {"drupal/core-recommended": "^11"}}))
         env = dict(os.environ, COMPOSER_HOME=str(self.class_dir / "composer-home"), COMPOSER_NO_INTERACTION="1")
-        result = self.engine_run("php", str(composer), "run-script", "post-install-cmd", cwd=fixture, env=env)
+        result = self.engine_run("composer", "run-script", "post-install-cmd", cwd=fixture, env=env)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertFalse((bin_dir / "composer").exists())
         # Composer runs an executable vendor/bin script itself, so its shebang finds the php on PATH.
         self.assertEqual(json.loads((fixture / "dload.json").read_text()), [True, ["get", "--quiet", "--path=vendor/bin"]])
+
+    def test_composer_installs_a_fresh_drupal_clone_offline(self):
+        # A path repository with Packagist off, so the install reads no network.
+        fixture = harness.fresh_dir(self.class_dir / "fresh-clone")
+        module = fixture / "packages" / "module"
+        module.mkdir(parents=True)
+        (module / "composer.json").write_text(json.dumps({"name": "acme/module", "version": "1.0.0"}))
+        (fixture / "composer.json").write_text(json.dumps({
+            "name": "acme/fresh-clone", "require": {"acme/module": "1.0.0"},
+            "repositories": [{"type": "path", "url": "packages/module", "options": {"symlink": False}}, {"packagist.org": False}],
+            "extra": {"drupal-scaffold": {"locations": {"web-root": "web/"}}}}))
+        env = dict(os.environ, COMPOSER_HOME=str(self.class_dir / "composer-home"), COMPOSER_NO_INTERACTION="1")
+        result = self.engine_run("composer", "install", "--no-audit", cwd=fixture, env=env)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((fixture / "vendor" / "autoload.php").is_file())
+        self.assertTrue((fixture / "vendor" / "acme" / "module" / "composer.json").is_file())
 
     def test_php_reads_no_settings_planted_in_the_temporary_directory(self):
         temporary = harness.fresh_dir(self.class_dir / "temporary")

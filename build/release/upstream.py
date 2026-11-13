@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-"""Moves the PHP, FrankenPHP, Windows PECL, Go and Go tool pins to their newest version inside their line,
+"""Moves the PHP, FrankenPHP, Windows PECL, Composer, Go and Go tool pins to their newest version inside their line,
 and prints what it did as a Markdown summary. Go's line is its own or the one FrankenPHP needs,
 whichever is newer. It edits the working tree and never commits.
 
     python3 build/release/upstream.py
 """
 
+import base64
 import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -39,6 +42,10 @@ GO_RELEASES = "https://go.dev/dl/?mode=json&include=all"
 DOCKER_TOKEN = "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/golang:pull"
 DOCKER_MANIFESTS = "https://registry-1.docker.io/v2/library/golang/manifests/"
 GO_PROXY = "https://proxy.golang.org/"
+COMPOSER_VERSIONS = "https://getcomposer.org/versions"
+COMPOSER_DOWNLOAD = "https://getcomposer.org/download/"
+# Composer's Tags Public Key, from https://composer.github.io/pubkeys.html.
+COMPOSER_KEY = "build/release/composer-releases.pub"
 
 # Each pin's line in its file, its value captured.
 PHP_PIN = r"^php_version=(.+)$"
@@ -58,6 +65,8 @@ GO_PIN = r"^  GO_VERSION: '(.+)'$"
 GO_LINE = r"^go (\d+\.\d+(?:\.\d+)?)$"
 GO_IMAGE_PIN = r"^ARG JOB_BASE=golang:(.+)-bookworm@sha256:[0-9a-f]{64}$"
 GO_IMAGE_DIGEST_PIN = r"^ARG JOB_BASE=golang:.+-bookworm@sha256:([0-9a-f]{64})$"
+COMPOSER_PIN = r"^RUN wget -q -O /opt/composer\.phar https://getcomposer\.org/download/(.+)/composer\.phar \\$"
+COMPOSER_SHA_PIN = r"^    && echo '([0-9a-f]{64})  /opt/composer\.phar' \| sha256sum -c -$"
 GO_RELEASE = re.compile(r"go\d+\.\d+\.\d+")
 # Each Go tool the checks install as MODULE/cmd/NAME@vX.Y.Z: its name, its module and the
 # file pinning it. The module path names the major, so its newest release stays inside it.
@@ -209,6 +218,43 @@ def pecl(summary):
         summary.row(f"php_{name}", current, newest, "bumped")
 
 
+def composer(summary):
+    current = read(DOCKERFILE, COMPOSER_PIN)
+    line = current.split(".")[0]
+    # getcomposer.org's version list is remote input.
+    stable = [entry.get("version") for entry in json.loads(fetch(COMPOSER_VERSIONS)).get("stable", [])]
+    if not stable or not all(isinstance(v, str) and re.fullmatch(r"\d+\.\d+\.\d+", v) for v in stable):
+        sys.exit(f"getcomposer.org lists the stable Composer releases {stable!r}")
+    newest = max((v for v in stable if v.split(".")[0] == line), key=version_key, default=current)
+    above = max(stable, key=version_key)
+    if above.split(".")[0] != line:
+        summary.notes.append(f"MAJOR Composer {above} is out, outside the {line} line")
+    if version_key(newest) <= version_key(current):
+        summary.row("Composer", current, newest, "current")
+        return
+    phar = download(f"{COMPOSER_DOWNLOAD}{newest}/composer.phar")
+    verify_composer(newest, phar, fetch(f"{COMPOSER_DOWNLOAD}{newest}/composer.phar.sig"))
+    rewrite(DOCKERFILE, COMPOSER_PIN, newest)
+    rewrite(DOCKERFILE, COMPOSER_SHA_PIN, hashlib.sha256(phar).hexdigest())
+    summary.row("Composer", current, newest, "bumped")
+
+
+def verify_composer(version, phar, sig):
+    """Stops the run unless sig, a composer.phar.sig, signs phar under COMPOSER_KEY. composer
+    self-update runs the same SHA-384 check."""
+    try:
+        signature = base64.b64decode(json.loads(sig)["sha384"], validate=True)
+    except (ValueError, KeyError, TypeError) as error:
+        sys.exit(f"Composer {version}'s composer.phar.sig holds no SHA-384 signature: {error!r}")
+    with tempfile.NamedTemporaryFile() as file:
+        file.write(signature)
+        file.flush()
+        result = subprocess.run(["openssl", "dgst", "-sha384", "-verify", str(ROOT / COMPOSER_KEY), "-signature", file.name],
+                                input=phar, capture_output=True, check=False)
+    if result.returncode != 0:
+        sys.exit(f"Composer {version}'s composer.phar.sig fails against {COMPOSER_KEY}: {result.stderr.decode().strip()}")
+
+
 def frankenphp(summary):
     current = read(BUILDER_INPUTS, FRANKENPHP_PIN)
     line = current.split(".")[0]
@@ -331,6 +377,7 @@ def main():
     summary = Summary()
     php(summary)
     pecl(summary)
+    composer(summary)
     frankenphp(summary)
     go(summary)
     tools(summary)

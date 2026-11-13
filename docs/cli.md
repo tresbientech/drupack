@@ -414,6 +414,7 @@ drupack [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground
 drupack stop [DIR]
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
+drupack composer COMPOSER_COMMAND
 drupack export [DRUSH_OPTIONS]
 drupack php [-d KEY[=VALUE]]... SCRIPT [ARGUMENTS]
 drupack php [-d KEY[=VALUE]]... -r CODE [ARGUMENTS]
@@ -444,6 +445,8 @@ first word naming no command is taken as `DIR`, so a folder named `start` or
 - The docroot is the scaffold web root `composer.json` names, `web` when it
   names none.
 - The start refuses a docroot without Drupal core.
+- A folder with no Drupal core, a `composer.json` and no `vendor/` is refused
+  with `drupack composer install`, before the `composer.lock` checks.
 - The start refuses a folder whose PHP version or `composer.lock` extensions
   the bundled PHP does not meet, and names what is missing.
 - A start a person watches prints a one-time login link through the folder's
@@ -471,6 +474,21 @@ processes run on that PHP too. It refuses a project another account owns.
 
 `drupack dr` runs Drupal core's own command line, `vendor/bin/dr`, the same
 way. Drupal 11.4 and later ship it.
+
+`drupack composer` runs the Composer the engine carries, on the bundled PHP, in
+the working directory. The working directory holds a Drupal project:
+
+- its `composer.lock` names a `drupal/core` release
+- with no lock, its `composer.json` requires `drupal/core`,
+  `drupal/core-recommended` or `drupal/core-composer-scaffold`, or sets
+  `extra.drupal-scaffold`, and its `type` names no Drupal package, as
+  `drupal-core` or `drupal-module` do
+
+It refuses `-d`, `--working-dir` and a non-blank `COMPOSER`, which point
+Composer at another project. It refuses `global`, `create-project` and
+`self-update`, under any prefix, in any case. A template or a distribution starts as a
+clone or a download, then `drupack composer install`. A Drupack release moves
+the Composer it carries.
 
 `drupack export` runs Tome at the static URL the last start served. A project
 no start has served needs `--uri`.

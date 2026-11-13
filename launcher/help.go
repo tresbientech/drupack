@@ -75,6 +75,7 @@ const engineUsage = `Usage: %[1]s [start] [DIR] [--listen IP:PORT] [--static-lis
        %[1]s stop [DIR]
        %[1]s drush DRUSH_COMMAND
        %[1]s dr DRUPAL_COMMAND
+       %[1]s composer COMPOSER_COMMAND
        %[1]s export [DRUSH_OPTIONS]
        %[1]s php [-d KEY[=VALUE]]... SCRIPT [ARGUMENTS]
        %[1]s php [-d KEY[=VALUE]]... -r CODE [ARGUMENTS]
@@ -99,6 +100,8 @@ Commands:
   stop     Stop the server of the project in DIR
   drush    Run the Drush of the project holding the working directory
   dr       Run Drupal core's command line of that project
+  composer Run the bundled Composer in the Drupal project in the working
+           directory
   export   Export that project with Tome at the static URL its last start
            served, or at the --uri given
   php      Run a script or -r CODE on the bundled PHP, with -d settings and no

@@ -73,7 +73,9 @@ func planStart(bind string, port int, staticListen string, hasStatic bool, noun,
 
 // drupalDocroot returns the project's docroot. The Caddyfile's guards and front
 // controller are Drupal's, so a docroot without Drupal core, such as a
-// WordPress site's, is refused. "." names the project itself.
+// WordPress site's, is refused. "." names the project itself. A Composer project
+// with no vendor/, such as a fresh clone, is refused with the command that
+// installs it.
 func drupalDocroot(name, project, relative string) (string, error) {
 	docroot := project + "/" + relative
 	if relative == "." {
@@ -81,10 +83,18 @@ func drupalDocroot(name, project, relative string) (string, error) {
 	}
 	for _, file := range []string{"index.php", "core/lib/Drupal.php"} {
 		if info, err := os.Stat(docroot + "/" + file); err != nil || !info.Mode().IsRegular() {
-			return "", fmt.Errorf("%s is not a Drupal project: %s/%s does not exist. %s serves Drupal alone.", project, docroot, file, name)
+			return "", docrootRefusal(name, project, docroot+"/"+file)
 		}
 	}
 	return docroot, nil
+}
+
+func docrootRefusal(name, project, missing string) error {
+	_, composerErr := os.Stat(siteconfig.ComposerFile(project))
+	if _, vendorErr := os.Stat(filepath.Join(project, "vendor")); composerErr == nil && errors.Is(vendorErr, os.ErrNotExist) {
+		return fmt.Errorf("%s has no vendor/. Run %s composer install in it first.", project, name)
+	}
+	return fmt.Errorf("%s is not a Drupal project: %s does not exist. %s serves Drupal alone.", project, missing, name)
 }
 
 // operate runs one operation of operate.php through the runtime's php-cli and
@@ -295,10 +305,11 @@ func (e *engineStart) check() (checked, error) {
 	if e.composer, err = siteconfig.ReadComposer(e.project, siteconfig.Folder); err != nil {
 		return checked{}, err
 	}
-	if err := siteconfig.CheckStatic(e.project, e.composer); err != nil {
+	// A fresh clone holds no lock, so the docroot's install hint comes before the lock's check.
+	if e.docroot, err = drupalDocroot(l.Name, e.project, e.composer.Docroot); err != nil {
 		return checked{}, err
 	}
-	if e.docroot, err = drupalDocroot(l.Name, e.project, e.composer.Docroot); err != nil {
+	if err := siteconfig.CheckStatic(e.project, e.composer); err != nil {
 		return checked{}, err
 	}
 	// The engine has no --data-dir or --files-dir, so these are the paths of its

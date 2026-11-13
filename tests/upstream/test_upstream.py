@@ -4,6 +4,7 @@ Run with:
     python3 -m unittest discover -s tests/upstream
 """
 
+import base64
 import contextlib
 import hashlib
 import importlib.util
@@ -11,6 +12,7 @@ import io
 import json
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -34,7 +36,23 @@ def checksums(*names):
     return "".join(f"{'ab' * 32} *{name}\n" for name in names)
 
 
+def rsa_key(directory, name):
+    """An RSA private key at directory/name.pem and its public half at directory/name.pub."""
+    private, public = directory / f"{name}.pem", directory / f"{name}.pub"
+    subprocess.run(["openssl", "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:2048", "-out", private],
+                   check=True, capture_output=True)
+    subprocess.run(["openssl", "pkey", "-in", private, "-pubout", "-out", public], check=True, capture_output=True)
+    return private, public
+
+
 class Bumper(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        keys = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(keys.cleanup)
+        cls.signer, cls.composer_key = rsa_key(Path(keys.name), "composer")
+        cls.stranger, _ = rsa_key(Path(keys.name), "stranger")
+
     def setUp(self):
         scratch = tempfile.TemporaryDirectory()
         self.addCleanup(scratch.cleanup)
@@ -42,6 +60,8 @@ class Bumper(unittest.TestCase):
         for path in PINNED:
             (self.tree / path).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(ROOT / path, self.tree / path)
+        (self.tree / upstream.COMPOSER_KEY).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(self.composer_key, self.tree / upstream.COMPOSER_KEY)
         self.addCleanup(setattr, upstream, "ROOT", upstream.ROOT)
         self.addCleanup(setattr, upstream, "fetch", upstream.fetch)
         self.addCleanup(setattr, upstream, "download", upstream.download)
@@ -364,6 +384,65 @@ class Bumper(unittest.TestCase):
         self.serve_pecl("yaml", "2.9.0;id")
         with self.assertRaises(SystemExit):
             self.run_bumper(upstream.pecl)
+
+    def serve_composer(self, *versions, signer=None, sig=None):
+        """Lists `versions` as Composer's stable releases, each with a phar signed by `signer`,
+        the kept key's own by default, or with `sig` as its composer.phar.sig."""
+        self.indexes[upstream.COMPOSER_VERSIONS] = json.dumps({"stable": [{"version": v} for v in versions]})
+        for version in versions:
+            phar = f"phar {version}".encode()
+            self.archives[f"{upstream.COMPOSER_DOWNLOAD}{version}/composer.phar"] = phar
+            signature = subprocess.run(["openssl", "dgst", "-sha384", "-sign", signer or self.signer],
+                                       input=phar, capture_output=True, check=True).stdout
+            self.indexes[f"{upstream.COMPOSER_DOWNLOAD}{version}/composer.phar.sig"] = (
+                sig if sig is not None else json.dumps({"sha384": base64.b64encode(signature).decode()}))
+
+    def composer_pin(self):
+        return upstream.read(upstream.DOCKERFILE, upstream.COMPOSER_PIN)
+
+    def test_a_newer_signed_composer_rewrites_its_version_and_checksum(self):
+        current = self.composer_pin()
+        self.serve_composer("2.99.0", "2.2.32")
+        summary = self.run_bumper(upstream.composer)
+        self.assertEqual(summary.rows, [("Composer", current, "2.99.0", "bumped")])
+        self.assertEqual(self.composer_pin(), "2.99.0")
+        self.assertEqual(upstream.read(upstream.DOCKERFILE, upstream.COMPOSER_SHA_PIN), hashlib.sha256(b"phar 2.99.0").hexdigest())
+
+    def test_a_composer_signed_by_another_key_stops_the_run_before_its_pins(self):
+        self.serve_composer("2.99.0", signer=self.stranger)
+        before = self.text(upstream.DOCKERFILE)
+        with self.assertRaises(SystemExit):
+            self.run_bumper(upstream.composer)
+        self.assertEqual(self.text(upstream.DOCKERFILE), before)
+
+    def test_a_malformed_composer_signature_stops_the_run_before_its_pins(self):
+        for sig in ('{"sha384": "not base64!"}', "{}", "not json"):
+            with self.subTest(sig=sig):
+                self.serve_composer("2.99.0", sig=sig)
+                before = self.text(upstream.DOCKERFILE)
+                with self.assertRaises(SystemExit):
+                    self.run_bumper(upstream.composer)
+                self.assertEqual(self.text(upstream.DOCKERFILE), before)
+
+    def test_the_current_composer_writes_nothing(self):
+        current = self.composer_pin()
+        self.serve_composer(current, "2.2.32")
+        before = self.text(upstream.DOCKERFILE)
+        summary = self.run_bumper(upstream.composer)
+        self.assertEqual(summary.rows, [("Composer", current, current, "current")])
+        self.assertEqual(self.text(upstream.DOCKERFILE), before)
+
+    def test_a_malformed_composer_version_stops_the_run(self):
+        self.serve_composer("2.99.0;id")
+        with self.assertRaises(SystemExit):
+            self.run_bumper(upstream.composer)
+
+    def test_composer_3_is_reported_and_not_taken(self):
+        current = self.composer_pin()
+        self.serve_composer("3.0.0", current)
+        summary = self.run_bumper(upstream.composer)
+        self.assertEqual(summary.rows, [("Composer", current, current, "current")])
+        self.assertEqual(summary.notes, ["MAJOR Composer 3.0.0 is out, outside the 2 line"])
 
 
 def build_script(case, name):

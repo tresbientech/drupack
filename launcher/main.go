@@ -140,13 +140,13 @@ func run(args []string, child *detachedChild, consoleNamed bool) error {
 		return nodeRefusal(l, args[1])
 	case c.word == "start":
 		return start(l, c)
-	case c.word == "drush", c.word == "export", l.Engine && c.word == "dr":
+	case c.word == "drush", c.word == "export", l.Engine && (c.word == "dr" || c.word == "composer"):
 		return runInFolder(l, c)
 	}
 	return launch(Plan(l))
 }
 
-// runInFolder runs drush, export, or the engine's dr, from the reader's directory.
+// runInFolder runs drush, export, or the engine's dr or composer, from the reader's directory.
 func runInFolder(l Launch, c command) error {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -161,6 +161,8 @@ func runInFolder(l Launch, c command) error {
 		call, err = siteDrush(f, c, cwd)
 	case c.word == "dr":
 		call, err = engineCore(f, c, cwd)
+	case c.word == "composer":
+		call, err = engineComposer(f, c, cwd)
 	default:
 		var export exportCall
 		plan := siteExport

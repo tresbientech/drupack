@@ -30,3 +30,13 @@ func TestRefusedRequestLeavesNoWorkDirectory(t *testing.T) {
 		t.Fatalf("the refused build left %v in TMPDIR", entries[0].Name())
 	}
 }
+
+func TestTheEngineBuildNeedsComposer(t *testing.T) {
+	t.Setenv("DRUPACK_COMPOSER", "")
+	flag.CommandLine = flag.NewFlagSet("drupack-build", flag.ContinueOnError)
+	os.Args = []string{"drupack-build", "--engine-executable", "--engine", "/engine", "--engine-version", "1.0.0"}
+
+	if err := run(); err == nil || err.Error() != "--composer is required" {
+		t.Fatalf("run gave %v; want --composer is required", err)
+	}
+}
