@@ -7,22 +7,23 @@ Drupack runs Drupal from a single executable that carries PHP, FrankenPHP and Ca
 
 ## Serve a Drupal project you already have
 
-Install `drupack` on Linux or macOS, then start it in the project:
+Install `drupack` in the project's root on Linux or macOS, then start it there:
 
 ```sh
-curl -fsSL https://drupack.tresbien.tech/install.sh | sh
-mkdir -p ~/.local/bin && mv drupack ~/.local/bin/
 cd path/to/your/project
-drupack
+curl -fsSL https://drupack.tresbien.tech/install.sh | sh
+./drupack
 ```
 
 On Windows, in PowerShell:
 
 ```powershell
+cd path\to\your\project
 irm https://drupack.tresbien.tech/install.ps1 | iex
+.\drupack.exe
 ```
 
-The script downloads the build for your system into the current directory and checks its SHA-256. It then prints the command that moves the file onto your `PATH`.
+The script downloads the build for your system into the current directory and checks its SHA-256. Each project keeps its own `drupack`, so each one stays on the version it installed.
 
 A Composer project can pin `drupack` instead:
 

@@ -35,7 +35,7 @@ A reader downloads one file and runs it, with no installer and no antivirus warn
 - Only `checksums.txt`, `release.json`, the SBOM and the install scripts carry no version in their name.
 - A release publishes the macOS and Windows runtimes as `runtime-VERSION-TARGET.tar.zst`. No install script names them.
 - `build/release/release-files.py` names the files, writes the checksums and the scripts, and stamps in the version, the download URL and each build's SHA-256. `release.yml` and `build.yml` run it.
-- A script finds the host's target, downloads that build into the current directory and checks its SHA-256. It then prints the command that moves the file onto PATH.
+- A script finds the host's target, downloads that build into the current directory and checks its SHA-256. It then prints the command that starts it there, `./NAME`.
 - On Linux the script installs the glibc file when the host has the glibc program interpreter of its architecture at glibc 2.28 or later. Otherwise it installs the musl file.
 - `DRUPACK_LIBC=glibc` or `musl` overrides that test. Another value stops the script.
 - `releases/latest/download/` serves the latest scripts, and `releases/download/VERSION/` pins one.
@@ -49,6 +49,8 @@ A reader downloads one file and runs it, with no installer and no antivirus warn
 - Pack prints one line per resolved input before it builds.
 
 ## Reason
+
+An executable stays where its script installed it. The engine is one file per project, in its root, so each project keeps the version it installed. A site executable defaults its Site data to `./data` in the working directory, so a copy on `PATH` would set up a site in every folder it starts from.
 
 UPX packing trips antivirus products and macOS, and a compressed image still needs a writable place before PHP can run. An unpacked cache avoids both.
 

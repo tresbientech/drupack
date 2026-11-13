@@ -49,14 +49,9 @@
         Remove-Item -Force -ErrorAction SilentlyContinue $download
     }
 
-    $bin = Join-Path $env:LOCALAPPDATA "Programs\$name"
     Write-Host "Installed $name $version in $file."
     Write-Host ''
     Write-Host 'Start it with:'
     Write-Host ''
     Write-Host "    .\$name.exe" -ForegroundColor Green
-    Write-Host ''
-    Write-Host 'To run it from any directory, move it onto your PATH:'
-    Write-Host "  New-Item -ItemType Directory -Force '$bin'; Move-Item -Force '$file' '$bin'"
-    Write-Host "  [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';$bin', 'User')"
 }

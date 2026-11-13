@@ -97,10 +97,3 @@ if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
 else
     printf '    ./%s\n' "$name"
 fi
-echo
-echo "To run it from any directory, move it onto your PATH:"
-echo "  mkdir -p ~/.local/bin && mv $name ~/.local/bin/"
-case ":$PATH:" in
-    *":$HOME/.local/bin:"*) ;;
-    *) echo "  and add ~/.local/bin to PATH in your shell profile: export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
-esac

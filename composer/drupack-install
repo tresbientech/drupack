@@ -48,8 +48,8 @@ function installCommand(bool $windows, string $script): array
 }
 
 // Runs the fetched script in $root and returns its exit status. The script inherits this
-// process's environment, so a libc override reaches it. Its output explains moving the
-// executable onto PATH, which a project keeps in its root, so only errors reach the terminal.
+// process's environment, so a libc override reaches it. drupack-install prints its own result,
+// so only the script's errors reach the terminal.
 function runScript(bool $windows, string $script, string $root): int
 {
     $pipes = [];
