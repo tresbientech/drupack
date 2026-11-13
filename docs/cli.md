@@ -94,7 +94,8 @@ first word naming no command is taken as `DIR`, so a folder named `start` or
 - [HTTPS](#https), [Mercure hub](#mercure-hub), [Logs](#logs) and [Trusted
   proxies](#trusted-proxies) each have a section below. `DIR` goes before
   `--access-log` or `--error-log` written bare.
-- The engine runs no Drupal cron.
+- The engine runs no Drupal cron. [Run the engine as a service](run-as-a-service.md)
+  schedules it, with a systemd unit, an OpenRC service and a proxy in front.
 - With `extra.drupack.static`, the start serves the project's
   `tome_static_directory` on `--static-listen`, or `html` beside the docroot
   when `settings.php` sets none.
@@ -289,9 +290,9 @@ how a site publishes and subscribes.
 
 ## Logs
 
-Every start keeps two logs in a `logs` folder, which it prints as `Logs:`. The
-folder is in the cache entry of an engine's folder, and in Site data for a
-packaged site.
+A background start keeps two logs in a folder it prints as `Logs:`. For the
+engine, the folder is the cache entry of the project folder. For a packaged
+site, it is `logs` in Site data.
 
 - `server.log`: what a background server prints. Each start empties it.
 - `caddy.log`: Caddy's errors and PHP's fatal errors.

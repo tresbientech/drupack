@@ -71,6 +71,8 @@ A site repository holds a Composer project and a `drupack.yml`. A build on GitHu
 
 ## Read more
 
+[Run the engine as a service](docs/run-as-a-service.md) covers a server: a systemd unit, an OpenRC service for Alpine, Drupal's cron and a proxy for HTTPS.
+
 [The command line reference](docs/cli.md) covers:
 
 - every option, command and environment variable of `drupack` and of a built site
