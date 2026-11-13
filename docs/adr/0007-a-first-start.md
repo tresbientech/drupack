@@ -14,6 +14,13 @@ A first start turns an empty Site data directory into an installed site. It must
 - `requireNeeds()` in `application/operate.php` holds the refusals, because they name command-line options. The administrator's credentials are generated instead of requested.
 - `SiteData::steps()` refuses a progress file that names an unknown step, before any step runs.
 
+### The recorded connection
+
+- `settings.php` in Site data records the connection. A later start takes each `--db-*` option it names in place of the recorded value.
+- `prepare` connects to a MySQL or PostgreSQL server before it rewrites `settings.php`. A refused connection fails the start before the ready line and records nothing.
+- A later start refuses a `--database` other than the recorded backend.
+- A SQLite database is a file in Site data, and no start opens it before it serves.
+
 ### The Site contract
 
 - `SiteContract` in `application/support` holds the `site.json` fields PHP reads, with their types: the recipe, the settings file and the site name. A missing or mistyped key fails at read time and names the constructor parameter.
@@ -43,5 +50,7 @@ A first start turns an empty Site data directory into an installed site. It must
 A prompt for a name and password, twice and hidden, fails without a terminal. A generated password nobody sees keeps the account from being passwordless. The link signs the reader in on the dashboard, where they set their own password.
 
 The link is a working credential for uid 1. A start under systemd or in a container writes its output to a log. It prints the command instead, and an operator mints the link on the host.
+
+A database server's address, port and password change under a running site, and a start that kept the recorded values served 500 to every request after its ready line. Taking the named value once the server accepts it lets the start that a reader corrects fix the record.
 
 With bare step names, each function derives its own precondition, and a progress file from another release fails after earlier steps have run. Typed steps put each rule in one case. A reference `site.json` ties the PHP reader to the Go writer, so a change to the file fails a test on both sides.

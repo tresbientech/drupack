@@ -120,6 +120,36 @@ test('a first start on a database server needs every connection detail', functio
     }
 });
 
+// Site data whose settings.php records a PostgreSQL connection.
+function recordedSite(): SiteData
+{
+    $site = new SiteData(scratch());
+    $database = ['driver' => 'pgsql', 'host' => 'db', 'port' => 5432, 'database' => 'site', 'username' => 'u', 'password' => 'p'];
+    file_put_contents($site->settings(), '<?php $databases["default"]["default"] = ' . var_export($database, true) . ';');
+    return $site;
+}
+
+test('a later start takes the connection details it names and keeps the recorded rest', function (): void {
+    $options = recordedOptions(parse(['DRUPACK_DB_PORT' => '15432', 'DRUPACK_DB_PASSWORD' => 'rotated']), recordedSite());
+    same(['pgsql', 'db', '15432', 'site', 'u', 'rotated'], [$options['database'], $options['db-host'],
+        $options['db-port'], $options['db-name'], $options['db-user'], $options['db-password']]);
+});
+
+test('a later start that names no backend keeps the recorded one', function (): void {
+    same('pgsql', recordedOptions(parse(), recordedSite())['database']);
+});
+
+test('a later start refuses a backend other than the recorded one', function (): void {
+    throws('holds a pgsql site', fn() => recordedOptions(parse(['DRUPACK_DATABASE' => 'mysql']), recordedSite()));
+});
+
+test('a later start refuses a database server that does not answer', function (): void {
+    $site = recordedSite();
+    // Port 1 on loopback has no listener, so the connection is refused at once.
+    throws('Cannot open the pgsql database of ' . $site->directory,
+        fn() => requireDatabase(recordedOptions(parse(['DRUPACK_DB_HOST' => '127.0.0.1', 'DRUPACK_DB_PORT' => '1']), $site), $site));
+});
+
 // A runtime whose Drush prints one answer per command name, and nothing for any other.
 // drushField runs it as RUNTIME php-cli DRUSH COMMAND, from the application directory.
 function fakeDrush(array $answers): string

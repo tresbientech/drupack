@@ -200,18 +200,39 @@ function writeSettings(string $path, string $template, array $database, string $
     }
 }
 
+// The recorded connection, with each detail the start names in place of the recorded one. The
+// backend stays the recorded one: startOptions() fills an unnamed --database with sqlite.
 function recordedOptions(array $options, SiteData $site): array
 {
     $recorded = $site->connection();
+    $named = environment('DRUPACK_DATABASE');
+    if ($named !== null && $named !== $recorded['driver']) {
+        throw new RuntimeException("This Site data holds a {$recorded['driver']} site: $site->directory. Start "
+            . executableName() . " without --database, or with --database {$recorded['driver']}.");
+    }
     $options['database'] = $recorded['driver'];
     if ($recorded['driver'] !== 'sqlite') {
-        $options['db-host'] = $recorded['host'];
-        $options['db-port'] = (string) $recorded['port'];
-        $options['db-name'] = $recorded['database'];
-        $options['db-user'] = $recorded['username'];
-        $options['db-password'] = $recorded['password'];
+        $options['db-host'] ??= $recorded['host'];
+        $options['db-port'] ??= (string) $recorded['port'];
+        $options['db-name'] ??= $recorded['database'];
+        $options['db-user'] ??= $recorded['username'];
+        $options['db-password'] ??= $recorded['password'];
     }
     return $options;
+}
+
+// A server that refuses the connection would answer every request with an error page once the
+// start prints its ready line. A SQLite database is a file in Site data.
+function requireDatabase(array $options, SiteData $site): void
+{
+    if ($options['database'] === 'sqlite') {
+        return;
+    }
+    try {
+        serverConnection($options);
+    } catch (PDOException $error) {
+        throw new RuntimeException("Cannot open the {$options['database']} database of $site->directory: {$error->getMessage()}");
+    }
 }
 
 // Drush prints its reason first and its backtrace after, so the head is the useful end.
@@ -257,14 +278,19 @@ function drushField(string $binary, array $command): string
     return capture(array_merge([$binary, 'php-cli', drushPath()], $command), application(), 'Cannot run Drush')[0];
 }
 
-function databaseHoldsTables(array $options): bool
+function serverConnection(array $options): PDO
 {
-    $connection = new PDO(
+    return new PDO(
         sprintf('%s:host=%s;port=%s;dbname=%s', $options['database'], $options['db-host'], databasePort($options), $options['db-name']),
         $options['db-user'],
         $options['db-password'],
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
     );
+}
+
+function databaseHoldsTables(array $options): bool
+{
+    $connection = serverConnection($options);
     // PostgreSQL resolves its own schemas from the search path, which need not name public first.
     $schema = $options['database'] === 'mysql' ? '= DATABASE()' : '= ANY(current_schemas(false))';
     $statement = $connection->query("SELECT count(*) FROM information_schema.tables WHERE table_schema $schema");
@@ -532,10 +558,11 @@ function prepare(string $binary, string $data, SiteContract $contract): array
     putenv("DRUPACK_ADMIN_USER={$options['admin-user']}");
     putenv("DRUPACK_ADMIN_PASSWORD={$options['admin-password']}");
     // A start refreshes the recorded settings from this release's template. A pending settings
-    // step writes the file itself, so its contents are read once they are final. A resumed step
-    // then names the recorded database, never one the command line names.
+    // step writes the file itself, so its contents are read once they are final. The database
+    // answers before the file records a detail the command line named.
     if (file_exists($site->settings()) && !in_array(Step::Settings, $steps, true)) {
         $options = recordedOptions($options, $site);
+        requireDatabase($options, $site);
         writeSettings($site->settings(), application() . '/settings.php', databaseConfiguration($options, $site), $contract->settings);
     }
     // The remaining steps reach the disk before the first one changes anything, and the

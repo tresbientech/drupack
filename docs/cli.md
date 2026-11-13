@@ -38,12 +38,12 @@ file carries it, Drupal core and Drush.
 | `--static-listen` | IP:PORT | the site listener's address on its port plus one | none | every start, `drush` and `export` of a site with a static export |
 | `--host` | HOST | the [Site host](#site-hosts) when it resolves to 127.0.0.1, `localhost` otherwise | none | every start, `drush` |
 | `--files-dir` | PATH | `files` in Site data | none | every start, `drush` |
-| `--database` | `sqlite`, `mysql`, `pgsql` | `sqlite` | `DRUPACK_DATABASE` | first start |
-| `--db-host` | HOST | none | `DRUPACK_DB_HOST` | first start |
-| `--db-port` | PORT | `3306` or `5432` | `DRUPACK_DB_PORT` | first start |
-| `--db-name` | NAME | none | `DRUPACK_DB_NAME` | first start |
-| `--db-user` | NAME | none | `DRUPACK_DB_USER` | first start |
-| `--db-password` | PASSWORD | none | `DRUPACK_DB_PASSWORD` | first start |
+| `--database` | `sqlite`, `mysql`, `pgsql` | `sqlite` | `DRUPACK_DATABASE` | every start |
+| `--db-host` | HOST | none | `DRUPACK_DB_HOST` | every start |
+| `--db-port` | PORT | `3306` or `5432` | `DRUPACK_DB_PORT` | every start |
+| `--db-name` | NAME | none | `DRUPACK_DB_NAME` | every start |
+| `--db-user` | NAME | none | `DRUPACK_DB_USER` | every start |
+| `--db-password` | PASSWORD | none | `DRUPACK_DB_PASSWORD` | every start |
 | `--admin-user` | NAME | `admin` | `DRUPACK_ADMIN_USER` | first start |
 | `--admin-password` | PASSWORD | generated | `DRUPACK_ADMIN_PASSWORD` | first start |
 | `--site-name` | NAME | the `site_name` in `drupack.yml` | `DRUPACK_SITE_NAME` | first start |
@@ -78,7 +78,7 @@ takes `--data-dir` and no other option, and works on a foreground site too.
 ## A first start
 
 A first start turns an empty Site data directory into an installed site. It
-reads the nine options marked `first start`, and no later start reads them. An
+reads the three options marked `first start`, and no later start reads them. An
 interrupted first start resumes at the step it stopped on.
 
 `--database` selects the backend. SQLite needs nothing further. MySQL and
@@ -89,7 +89,11 @@ SITE --database mysql --db-host 127.0.0.1 --db-name drupal \
   --db-user drupal --db-password 'database-password'
 ```
 
-Later starts read the connection from Site data.
+Site data records the connection. A later start takes each `--db-*` option it
+names in place of the recorded value, and records it once the server accepts
+the connection. It refuses a `--database` other than the recorded one. A start
+whose MySQL or PostgreSQL server refuses the connection exits 1 with the
+server's reason, before it serves.
 
 `--admin-user` and `--admin-password` name the administrator account. Without
 them a first start creates `admin` with a generated password, which is never

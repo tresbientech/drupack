@@ -198,16 +198,19 @@ class RecordedBackendAndAdoption(harness.ConformanceCase):
                                   "config:set", "system.site", "name", SITE_NAME, "--yes")
         self.assertEqual(renamed.returncode, 0, renamed.stderr)
 
-    def test_a_completed_site_keeps_its_recorded_backend(self):
+    def test_a_completed_site_refuses_another_backend(self):
         data = self.case_dir / "data"
         self._install_and_rename(data)
+        settings = (data / "settings.php").read_bytes()
+
+        harness.refuse(self, self.case_dir, "another-backend", "--data-dir", str(data),
+                       "--database", "mysql", "--db-host", "127.0.0.1", "--db-port", "3306",
+                       "--db-name", "absent", "--db-user", "absent", "--db-password", "absent")
+        self.assertEqual((data / "settings.php").read_bytes(), settings, "the refused start rewrote settings.php")
 
         site = harness.Site(harness.BINARY, self.case_dir / "recorded-backend")
-        site.start(data, "--database", "mysql", "--db-host", "127.0.0.1", "--db-port", "3306",
-                   "--db-name", "absent", "--db-user", "absent", "--db-password", "absent")
+        site.start(data)
         try:
-            driver = harness.run_drush(harness.BINARY, self.case_dir, data, "status", "--field=db-driver")
-            self.assertEqual(driver.stdout.strip(), "sqlite", "the start replaced the recorded backend")
             self.assertEqual(current_site_name(self.case_dir, data).stdout.strip(), SITE_NAME)
             assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
         finally:
@@ -522,6 +525,32 @@ class PostgresqlLifecycle(harness.ConformanceCase):
         account = current_administrator(self.case_dir, data)
         self.assertEqual(account.stdout.strip(), "init-admin", "the start replaced the existing administrator")
         site.stop()
+
+    def test_a_later_start_takes_a_rotated_password_once_the_server_accepts_it(self):
+        first, second = "Rotating.first.2026", "Rotating.second.2026"
+        self.server.execute("drupal", f"CREATE ROLE rotating LOGIN PASSWORD '{first}'")
+        self.server.execute("drupal", "CREATE DATABASE rotation OWNER rotating")
+        data = self.case_dir / "data"
+        site = harness.Site(harness.BINARY, self.case_dir / "first")
+        site.start(data, "--database", "pgsql", "--db-host", self.server.host, "--db-port", str(self.server.port),
+                   "--db-name", "rotation", "--db-user", "rotating", "--db-password", first,
+                   "--admin-user", "init-admin", "--admin-password", PASSWORD)
+        site.stop()
+        self.server.execute("drupal", f"ALTER ROLE rotating PASSWORD '{second}'")
+
+        text = harness.refuse(self, self.case_dir, "stale-password", "--data-dir", str(data))
+        self.assertIn("Cannot open the pgsql database", text, "the start served a database that refused it")
+        settings = (data / "settings.php").read_bytes()
+        harness.refuse(self, self.case_dir, "wrong-password", "--data-dir", str(data), "--db-password", "wrong")
+        self.assertEqual((data / "settings.php").read_bytes(), settings, "the refused start recorded its password")
+
+        site = harness.Site(harness.BINARY, self.case_dir / "rotated")
+        site.start(data, "--db-password", second)
+        try:
+            assert_readiness(self, site.log_path, data / "logs" / "caddy.log")
+            self.assertIn(second, (data / "settings.php").read_text(), "the start did not record the new password")
+        finally:
+            site.stop()
 
     def test_first_start_refuses_a_database_that_holds_other_tables(self):
         self._create_database("occupied")
