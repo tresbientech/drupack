@@ -45,7 +45,7 @@ PLACEHOLDER = "<p><em>Add a summary here</em></p>\n"
 # drupalorg-cli credits nod_bot, which files and comments on every issue for nod_.
 BOT = '<a href="https://www.drupal.org/u/nod_bot">nod_bot</a>'
 OWNER = '<a href="https://www.drupal.org/u/nod_">nod_</a>'
-CONTRIBUTORS = re.compile(r"<h3>Contributors \(\d+\)</h3>\n<p>(.*)</p>\n")
+CONTRIBUTORS = re.compile(r"<h3>Contributors \(\d+\)</h3>\n<p>(.+)</p>\n")
 TAG_FIELD = "field_release_vcs_label[und][0][value]"
 NOTES_FIELD = "body[und][0][value]"
 # drupal.org staff place the requests in their logs by this name.

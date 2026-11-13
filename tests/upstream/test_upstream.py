@@ -530,6 +530,10 @@ class ReleaseNode(unittest.TestCase):
         self.assertEqual(self.module.credited(f"<h3>Contributors (3)</h3>\n<p>{names}</p>\n"),
                          f"<h3>Contributors (2)</h3>\n<p>{self.module.OWNER}, {other}</p>\n")
 
+    def test_the_notes_keep_an_empty_contributor_list(self):
+        notes = "<h3>Contributors (0)</h3>\n<p></p>\n<h3>Changelog</h3>\n"
+        self.assertEqual(self.module.credited(notes), notes)
+
     def test_the_form_entry_names_the_release_types_the_notes_hold(self):
         entry = self.module.form_entry("1.0.0", "<h4>Bug</h4>\n<ul></ul>\n<h4>Task</h4>\n")
         self.assertIn("Release type: Bug fixes.", entry)
