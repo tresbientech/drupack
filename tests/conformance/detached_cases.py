@@ -27,7 +27,8 @@ class DetachedCases(harness.ConformanceCase):
         try:
             return harness.run(
                 [str(binary or harness.BINARY), *words, "--data-dir", str(self.data), "--listen", f"127.0.0.1:{self.port}"],
-                cwd=cwd or self.case_dir, capture_output=True, text=True, timeout=harness.WAITS["start"].seconds, env=env,
+                # The launcher prints UTF-8 whatever the Windows code page.
+                cwd=cwd or self.case_dir, capture_output=True, encoding="utf-8", timeout=harness.WAITS["start"].seconds, env=env,
             )
         except subprocess.TimeoutExpired as timeout:
             self.fail(f"the start did not return within {timeout.timeout}s, after printing {timeout.output!r}: "
@@ -91,7 +92,15 @@ class DetachedCases(harness.ConformanceCase):
         binary = self.case_dir / "with space" / harness.BINARY.name
         binary.parent.mkdir()
         shutil.copy2(harness.BINARY, binary)
-        self._assert_powershell_runs_the_printed_stop(binary, self.case_dir, f'& "{binary}"')
+        self._assert_powershell_runs_the_printed_stop(binary, self.case_dir, f"& '{binary}'")
+
+    def test_powershell_runs_the_stop_command_of_an_executable_under_quotes_and_a_dollar(self):
+        binary = self.case_dir / "it's $HOME \u2019q" / harness.BINARY.name
+        binary.parent.mkdir()
+        shutil.copy2(harness.BINARY, binary)
+        # PowerShell reads both quotes as a single quote, so the line doubles each.
+        quoted = str(binary).replace("'", "''").replace("\u2019", "\u2019\u2019")
+        self._assert_powershell_runs_the_printed_stop(binary, self.case_dir, f"& '{quoted}'")
 
     def test_a_start_without_a_data_dir_keeps_its_site_data_where_it_started(self):
         result = harness.run(

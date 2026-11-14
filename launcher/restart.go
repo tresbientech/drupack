@@ -58,6 +58,8 @@ func replay(l Launch, record state.Start, named string) (Launch, command, error)
 		}
 		argv0 = absolute
 	}
+	// named is canonical, with forward slashes, and the printed stop names it in the platform's form.
+	named = filepath.FromSlash(named)
 	words := slices.Clone(record.Words)
 	if !l.Engine {
 		words = append(withoutOptions(words, stopOptions, func(option) bool { return true }), "--data-dir="+named)

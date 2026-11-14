@@ -78,12 +78,17 @@ func TestReplay(t *testing.T) {
 		if c.options.AccessLog != nil {
 			access = *c.options.AccessLog
 		}
+		// The rows write paths with forward slashes, and replay prints them in the platform's form.
+		args := slices.Clone(row.args)
+		for i := range args {
+			args[i] = filepath.FromSlash(args[i])
+		}
 		wantData := ""
 		if !row.l.Engine {
-			wantData = row.named
+			wantData = filepath.FromSlash(row.named)
 		}
-		if !slices.Equal(l.Args, row.args) || l.ConsoleOwned || c.word != "start" || c.target != row.target || c.options.DataDir != wantData || access != row.access {
-			t.Errorf("%s: replay() = %q, %+v, want %q", row.name, l.Args, c, row.args)
+		if !slices.Equal(l.Args, args) || l.ConsoleOwned || c.word != "start" || c.target != filepath.FromSlash(row.target) || c.options.DataDir != wantData || access != row.access {
+			t.Errorf("%s: replay() = %q, %+v, want %q", row.name, l.Args, c, args)
 		}
 	}
 }
