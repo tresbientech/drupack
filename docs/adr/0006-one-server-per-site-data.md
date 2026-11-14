@@ -35,11 +35,22 @@ Two FrankenPHP processes over one database and one runtime directory corrupt bot
 - `SITE stop` tests the lease before it reads the record, so a record a killed server left behind never counts. It waits 15 seconds at most for the lease.
 - A container or a systemd unit passes `--foreground`.
 
+### Status and restart
+
+- A start that claims the lease writes `start.json`: its working directory, its words, and whether it detached. The words leave out the `--foreground` a detaching parent appends, `--db-password` and `--admin-password`.
+- `status` exits 0 while a server answers, 3 with none and 4 while a start prepares, as an LSB status does. A held lease with no `stop.json` is a start that prepares.
+- A server that answers also gets the project's `drush status`, 10 seconds at most. Its failure prints one line and keeps the exit code.
+- `restart` replays the record of a detached start. It enters the recorded directory, stops the server and starts again in the background, so a relative path names the file the first start named.
+- `restart` refuses with no record, and on a foreground start, which its terminal or its service manager restarts.
+- The engine refuses `logs` as `DIR`, so a later release can add the command without changing what an existing line does.
+
 ## Reason
 
 An HTTP ownership probe trusts any local program that answers it, and a second start on another port finds that port free. A lock on a file in Site data rests on filesystem permissions, and the kernel releases it on a kill.
 
 A command that gets no `--uri` prints `http://default/...` links. Recording the address once lets every command, with the site stopped, build a working URL.
+
+A restart needs the start's whole line again. The Listener record holds addresses that `drush`, `export` and the handover read on every call, so the line gets a record of its own.
 
 Caddy's admin API on TCP has no authentication. On a Unix socket it grants full admin, and a socket path is capped at 104 to 108 bytes. A bearer token on a loopback port limits a client to `/stop`.
 

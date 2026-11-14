@@ -6,7 +6,17 @@ import (
 	"strings"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
+
+// logsDir is the folder that holds server.log and caddy.log of dir's background
+// server: the folder's cache entry itself, or logs in Site data.
+func logsDir(engine bool, dir state.Dir) string {
+	if engine {
+		return fsguard.Canonical(dir.Path()) + "/"
+	}
+	return fsguard.Canonical(dir.Path()) + "/logs/"
+}
 
 // writeRows writes each row whose value is not "" as an indented line. Each label
 // carries the padding that aligns the values of its summary.

@@ -140,6 +140,10 @@ func run(args []string, child *detachedChild, consoleNamed bool) error {
 		return nodeRefusal(l, args[1])
 	case c.word == "start":
 		return start(l, c)
+	case c.word == "status":
+		return runStatus(l, c, os.Stdout)
+	case c.word == "restart":
+		return restart(l, c)
 	case c.word == "drush", c.word == "export", l.Engine && (c.word == "dr" || c.word == "composer"):
 		return runInFolder(l, c)
 	}

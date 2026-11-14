@@ -8,11 +8,11 @@ import (
 
 // command is a reader's line as the launcher answers it.
 type command struct {
-	// word is "stop", "drush", "export", "help", "start", "trust", "self-update",
+	// word is "stop", "status", "restart", "drush", "export", "help", "start", "trust", "self-update",
 	// "clean", "dr" and "composer" for the engine's, "node" for a site's Node word,
 	// or "" for a line the runtime reads.
 	word string
-	// target is stop's Site data or folder, or the engine start's folder, as
+	// target is stop's, status's or restart's Site data or folder, or the engine start's folder, as
 	// the reader wrote it. An engine start without one holds "".
 	target string
 	// options holds the options a reader wrote. A site's start, drush and export
@@ -39,6 +39,8 @@ type option struct {
 	name, value string
 	// optional marks a value the reader may leave out, and writes as --name=VALUE alone.
 	optional bool
+	// secret marks a value start.json never records.
+	secret bool
 	// set writes the value the reader gave into its field. A flag gets "".
 	set func(o *options, value string)
 }
@@ -85,9 +87,9 @@ var siteOptions = []option{
 	{name: "db-port", value: "PORT", set: func(o *options, v string) { o.DBPort = v }},
 	{name: "db-name", value: "NAME", set: func(o *options, v string) { o.DBName = v }},
 	{name: "db-user", value: "NAME", set: func(o *options, v string) { o.DBUser = v }},
-	{name: "db-password", value: "PASSWORD", set: func(o *options, v string) { o.DBPassword = v }},
+	{name: "db-password", value: "PASSWORD", secret: true, set: func(o *options, v string) { o.DBPassword = v }},
 	{name: "admin-user", value: "NAME", set: func(o *options, v string) { o.AdminUser = v }},
-	{name: "admin-password", value: "PASSWORD", set: func(o *options, v string) { o.AdminPassword = v }},
+	{name: "admin-password", value: "PASSWORD", secret: true, set: func(o *options, v string) { o.AdminPassword = v }},
 	{name: "site-name", value: "NAME", set: func(o *options, v string) { o.SiteName = v }},
 	{name: "no-browser", set: func(o *options, _ string) { o.NoBrowser = true }},
 	foregroundOption,
@@ -133,9 +135,9 @@ func parse(l Launch) (command, error) {
 	switch {
 	case word == "trust" || word == "self-update" || word == "clean":
 		return command{word: word, words: rest}, nil
-	case word == "stop" && engine:
-		return parseFolderStop(l.Name, rest)
-	case word == "stop":
+	case (word == "stop" || word == "status" || word == "restart") && engine:
+		return parseFolderWord(l.Name, word, rest)
+	case word == "stop" || word == "status" || word == "restart":
 		read, _, help, err := scanOptions(rest, stopOptions, lookup, true)
 		switch {
 		case err != nil:
@@ -143,7 +145,7 @@ func parse(l Launch) (command, error) {
 		case help:
 			return command{word: "help"}, nil
 		}
-		return command{word: "stop", target: read.DataDir}, nil
+		return command{word: word, target: read.DataDir}, nil
 	case word == "drush" && engine:
 		return command{word: "drush", words: rest}, nil
 	case word == "php" || versionLine(args):
@@ -154,6 +156,8 @@ func parse(l Launch) (command, error) {
 		return command{word: "help"}, nil
 	case engine && word == "start":
 		return parseEngineStart(l.Name, rest)
+	case engine && slices.Contains(reservedWords, word):
+		return command{}, fmt.Errorf("%[1]s is not a command. A folder named %[1]s takes ./%[1]s.", word)
 	case engine:
 		return parseEngineStart(l.Name, args[1:])
 	case word == "php-cli":
@@ -187,16 +191,37 @@ func siteStart(arguments []string, lookup func(string) (string, bool)) (command,
 	return command{word: "start", options: read}, nil
 }
 
-// `start` and `stop` are reserved, so a folder with either name takes ./start or ./stop.
-func parseFolderStop(name string, arguments []string) (command, error) {
+// reservedWords are engine words with no command yet. A folder with one of
+// these names takes ./NAME, as one named after a command does.
+var reservedWords = []string{"logs"}
+
+// parseFolderWord reads stop's, status's or restart's one folder.
+func parseFolderWord(name, word string, arguments []string) (command, error) {
 	if len(arguments) > 1 || len(arguments) == 1 && strings.HasPrefix(arguments[0], "-") {
-		return command{}, fmt.Errorf("stop takes a folder alone. Run %s --help.", name)
+		return command{}, fmt.Errorf("%s takes a folder alone. Run %s --help.", word, name)
 	}
 	target := defaultFolder
 	if len(arguments) == 1 {
 		target = arguments[0]
 	}
-	return command{word: "stop", target: target}, nil
+	return command{word: word, target: target}, nil
+}
+
+// withoutOptions are a start's words without the options of table that drop
+// picks, and their values.
+func withoutOptions(words []string, table []option, drop func(option) bool) []string {
+	var kept []string
+	for i := 0; i < len(words); i++ {
+		name, _, inline := strings.Cut(words[i], "=")
+		dropped := slices.ContainsFunc(table, func(o option) bool { return drop(o) && "--"+o.name == name })
+		switch {
+		case !dropped:
+			kept = append(kept, words[i])
+		case !inline:
+			i++
+		}
+	}
+	return kept
 }
 
 // scanOptions reads a site's options from table in order. A strict scan, the

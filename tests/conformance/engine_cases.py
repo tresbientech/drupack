@@ -429,6 +429,56 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertIn("is not running", again.stdout)
 
+    def test_status_reads_a_detached_start_until_its_stop(self):
+        before = self.engine_run("status", str(self.project))
+        self.assertEqual(before.returncode, 3, f"{before.stdout}{before.stderr}")
+        self.assertIn("is not running", before.stdout)
+        port, start = self.detached_start(str(self.project))
+        self.assertEqual(start.returncode, 0, f"the start exited non-zero: {start.stdout}{start.stderr}")
+        status = self.engine_run("status", str(self.project))
+        self.assertEqual(status.returncode, 0, f"{status.stdout}{status.stderr}")
+        self.assertIn("in the background.", status.stdout)
+        self.assertIn("  URL:    http://", status.stdout)
+        self.assertIn(f":{port}\n", status.stdout)
+        logs = start.stdout.split("  Logs:    ")[1].splitlines()[0]
+        self.assertIn(f"  Logs:   {logs}\n", status.stdout)
+        self.assertIn(f" {self.project} --listen 127.0.0.1:{port}\n", status.stdout)
+        self.assertIn("\nDrush status:\n", status.stdout)
+        self.assertRegex(status.stdout, r"\n  +Drupal version +: \d+\.")
+        stop = self.engine_run("stop", str(self.project))
+        self.assertEqual(stop.returncode, 0, stop.stderr)
+        after = self.engine_run("status", str(self.project))
+        self.assertEqual(after.returncode, 3, f"{after.stdout}{after.stderr}")
+
+    def test_restart_replays_a_detached_start_from_another_directory(self):
+        first, second = self.class_dir / "restart-first", self.class_dir / "restart-second"
+        for directory in (first, second):
+            directory.mkdir(exist_ok=True)
+            (directory / "a.log").unlink(missing_ok=True)
+        port, start = self.detached_start(str(self.project), "--access-log=a.log", cwd=first)
+        self.assertEqual(start.returncode, 0, f"{start.stdout}{start.stderr}")
+        self.assertEqual(self.status(port, "/user/login"), 200)
+        served = (first / "a.log").stat().st_size
+        restart = self.engine_run("restart", str(self.project), cwd=second, wait="start")
+        self.assertEqual(restart.returncode, 0, f"{restart.stdout}{restart.stderr}")
+        self.assertIn("stopped.", restart.stdout)
+        self.assertEqual(self.status(port, "/user/login"), 200)
+        self.assertGreater((first / "a.log").stat().st_size, served, "the restart logged elsewhere than the start's path")
+        self.assertFalse((second / "a.log").exists(), "the restart resolved --access-log from its own directory")
+        command = f"    {self.engine} stop {self.project}\n"
+        self.assertIn(f"Stop it with:\n\n{command}", restart.stdout)
+        stop = harness.run(shlex.split(command, posix=os.name != "nt"), cwd=second,
+                           capture_output=True, text=True, timeout=harness.WAITS["stop"].seconds + 30)
+        self.assertEqual(stop.returncode, 0, stop.stderr)
+        self.assertIsNone(self.status(port, "/"), "the printed command left the server running")
+
+    def test_restart_refuses_a_foreground_start(self):
+        port, _ = self.start("restart-foreground", str(self.project))
+        refused = self.engine_run("restart", str(self.project))
+        self.assertEqual(refused.returncode, 1, f"{refused.stdout}{refused.stderr}")
+        self.assertIn("in the foreground", refused.stderr)
+        self.assertEqual(self.status(port, "/user/login"), 200, "the refused restart stopped the server")
+
     def test_the_printed_stop_command_names_a_folder_started_from_another_directory(self):
         port, start = self.detached_start(str(self.project))
         self.assertEqual(start.returncode, 0, f"{start.stdout}{start.stderr}")

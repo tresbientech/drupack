@@ -13,6 +13,8 @@ executable:
   [Mercure hub](#mercure-hub) start exports
 - the `extra.drupack` keys an engine start reads from `composer.json`
 - exit 0 for a success and another code for a failure
+- `status`'s exit codes: 0 while a server answers, 3 with none, 4 while a
+  start prepares
 - the default listener, `127.0.0.1:3787`
 - refusals on standard error
 - the `drupal/drupack` package and `vendor/bin/drupack-install`
@@ -43,6 +45,8 @@ from [A packaged site](#a-packaged-site) on describe them.
 ```
 drupack [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--host HOST] [--foreground] [--access-log[=FILE]] [--error-log[=FILE]] [--trusted-proxies CIDR[,CIDR]]
 drupack stop [DIR]
+drupack status [DIR]
+drupack restart [DIR]
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
 drupack composer COMPOSER_COMMAND
@@ -74,7 +78,24 @@ and exits 0. A second start on a folder a server already serves hands over:
 it prints the served URL with the login link, the command that mints one or the
 install address, opens the browser and exits 0. With no terminal it exits 1. A
 first word naming no command is taken as `DIR`, so a folder named `start` or
-`stop` takes `./start`.
+`stop` takes `./start`. `logs` names no command and is refused as `DIR`, so a
+folder named `logs` takes `./logs`.
+
+`drupack status [DIR]` prints whether a server serves `DIR`, with its URL and
+static URL. For a server this release started, it adds whether it runs in the
+background or the foreground, its Logs folder, and the working directory and
+words of its start. A server that answers also gets the project's `drush
+status`, or one line saying why Drush gave none. Drush has 10 seconds. The exit
+code is 0 while a server answers, 3 with no server, and 4 while a start still
+prepares, whatever Drush answers.
+
+`drupack restart [DIR]` stops the background server of `DIR` and starts it
+again in the background, with the words its start recorded. The words resolve
+from the directory that start ran in, so a relative path names the same file.
+The `DRUPACK_` variables come from the environment `restart` runs in. With no
+server running, `restart` starts from the record. It exits 1 when no start of
+this release is recorded, and on a `--foreground` start, which its terminal or
+service manager restarts.
 
 - `--listen` defaults to `127.0.0.1:3787`. It takes IP:PORT, with IPv6 in
   brackets, and refuses a hostname, as a site's does. The URL names the
@@ -405,6 +426,8 @@ This part of Drupack is experimental, as [Stability](#stability) states.
 ```
 SITE [start] [OPTIONS]
 SITE stop [--data-dir PATH]
+SITE status [--data-dir PATH]
+SITE restart [--data-dir PATH]
 SITE trust [--uninstall]
 SITE drush [OPTIONS] DRUSH_COMMAND
 SITE export [OPTIONS] [DRUSH_OPTIONS]
@@ -448,7 +471,7 @@ file carries it, Drupal core and Drush.
 | `--error-log` | FILE, optional | off | none | every start |
 | `--trusted-proxies` | CIDR[,CIDR] | none | none | every start |
 
-## `start` and `stop`
+## `start`, `stop`, `status` and `restart`
 
 `SITE` and `SITE start` are one command. A start prints its progress, the
 site's address and a login link. A path it prints writes the home directory as
@@ -469,6 +492,15 @@ URL. A start whose port another program holds exits 1 and names the port.
 `SITE stop` stops the server of the Site data directory. It waits 15 seconds at
 most and exits 1 past that. With no server running it says so and exits 0. It
 takes `--data-dir` and no other option, and works on a foreground site too.
+
+`SITE status` prints what `drupack status` prints, for the server of the Site
+data directory, with the same exit codes. It takes `--data-dir` and no other
+option. The words it prints leave out `--db-password` and `--admin-password`.
+
+`SITE restart` restarts the server of the Site data directory as `drupack
+restart` does. It takes `--data-dir` and no other option. The record keeps no
+password, so a MySQL or PostgreSQL site started with `--db-password` restarts
+with `DRUPACK_DB_PASSWORD` set.
 
 ## A first start
 

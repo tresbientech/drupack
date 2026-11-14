@@ -16,6 +16,7 @@ import (
 
 const (
 	listenerName   = "listener"
+	startName      = "start.json"
 	bundleName     = "ca-bundle.pem"
 	caddyfileName  = "Caddyfile"
 	publisherName  = "mercure_publisher_secret"
@@ -34,6 +35,38 @@ type Listener struct {
 	Scheme   string `json:"scheme"`
 	// StaticListen is "" for a site without a static listener.
 	StaticListen string `json:"static-listen"`
+}
+
+// Start is the line of the last start that claimed the lease, as `start.json` keeps it.
+type Start struct {
+	// Cwd is the working directory the words resolve from.
+	Cwd   string   `json:"cwd"`
+	Words []string `json:"words"`
+	// Background is true for a detached server, false for one in a terminal or a service.
+	Background bool `json:"background"`
+}
+
+// WriteStart replaces the start record whole.
+func (d Dir) WriteStart(record Start) error {
+	content, _ := json.Marshal(record)
+	return d.writeWhole(startName, content)
+}
+
+// Start reads the start record. A server an earlier release started left none,
+// and ok is false.
+func (d Dir) Start() (record Start, ok bool, err error) {
+	path := filepath.Join(d.path, startName)
+	content, err := readShared(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return Start{}, false, nil
+	}
+	if err != nil {
+		return Start{}, false, err
+	}
+	if err := json.Unmarshal(content, &record); err != nil {
+		return Start{}, false, fmt.Errorf("Cannot read the recorded start: %s", path)
+	}
+	return record, true, nil
 }
 
 // UnreadableError is a record that holds no JSON object.

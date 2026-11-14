@@ -18,15 +18,29 @@ import (
 const stopWait = 15 * time.Second
 
 // runStop stops the server of c's target: the engine's folder, whose state
-// lives in the cache under l.Root, or a site's Site data. A Site data path that
-// does not resolve holds no site, and the stop creates nothing there.
+// lives in the cache under l.Root, or a site's Site data. The stop creates
+// nothing in a Site data path that does not resolve.
 func runStop(l Launch, c command, out io.Writer) error {
+	dir, what, named, found, err := serverDir(l, c)
+	switch {
+	case err != nil:
+		return err
+	case !found:
+		return notRunning(l.Name, out)
+	}
+	return stop(l.Name, dir, what, named, stopWait, out)
+}
+
+// serverDir is the state directory of c's target, with what and named
+// describing the target in messages. found is false for a Site data path that
+// does not resolve, which holds no site, and named is then the path as written.
+func serverDir(l Launch, c command) (dir state.Dir, what, named string, found bool, err error) {
 	if l.Engine {
 		project, err := projectFolder(l.Name, c.target)
 		if err != nil {
-			return err
+			return state.Dir{}, "", "", false, err
 		}
-		return stop(l.Name, state.FolderEntry(l.Root, project, l.FoldCase), "folder", project, stopWait, out)
+		return state.FolderEntry(l.Root, project, l.FoldCase), "folder", project, true, nil
 	}
 	// The path is made absolute before links resolve, so `link/..` names the link's parent.
 	data, err := filepath.Abs(c.target)
@@ -34,10 +48,10 @@ func runStop(l Launch, c command, out io.Writer) error {
 		data, err = filepath.EvalSymlinks(data)
 	}
 	if err != nil {
-		return notRunning(l.Name, out)
+		return state.Dir{}, "Site data", c.target, false, nil
 	}
 	data = fsguard.Canonical(data)
-	return stop(l.Name, state.At(data), "Site data", data, stopWait, out)
+	return state.At(data), "Site data", data, true, nil
 }
 
 // projectFolder resolves links first, then makes the path absolute. The folder's

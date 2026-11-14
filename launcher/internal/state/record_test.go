@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
@@ -54,5 +55,24 @@ func TestListener(t *testing.T) {
 		if got != row.want || ok != row.ok || message != row.err {
 			t.Errorf("%s: Listener() = %+v, %v, %q; want %+v, %v, %q", row.name, got, ok, message, row.want, row.ok, row.err)
 		}
+	}
+}
+
+func TestStartRecord(t *testing.T) {
+	dir := state.At(t.TempDir())
+	if _, ok, err := dir.Start(); ok || err != nil {
+		t.Fatalf("Start() on an empty directory = %v, %v, want no record", ok, err)
+	}
+	want := state.Start{Cwd: "/srv", Words: []string{"--listen", "127.0.0.1:9000", "site"}, Background: true}
+	if err := dir.WriteStart(want); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := dir.Start()
+	if !ok || err != nil || got.Cwd != want.Cwd || got.Background != want.Background || !slices.Equal(got.Words, want.Words) {
+		t.Errorf("Start() = %+v, %v, %v, want %+v", got, ok, err, want)
+	}
+	write(t, dir.Path(), "start.json", "words")
+	if _, _, err := dir.Start(); err == nil || err.Error() != "Cannot read the recorded start: "+filepath.Join(dir.Path(), "start.json") {
+		t.Errorf("Start() on a damaged record = %v", err)
 	}
 }

@@ -12,6 +12,8 @@ const siteHelp = `Usage: %[1]s [start] [OPTIONS]
        %[1]s php [-d KEY[=VALUE]]... -r CODE [ARGUMENTS]
        %[1]s node|npm|npx [ARGUMENTS]
        %[1]s stop [--data-dir PATH]
+       %[1]s status [--data-dir PATH]
+       %[1]s restart [--data-dir PATH]
        %[1]s trust [--uninstall]
        %[1]s clean [--dry-run]
 
@@ -49,6 +51,10 @@ Commands:
                              settings and no other PHP option
   stop                       Stop the site serving the Site data, for a site
                              another terminal started
+  status                     Print whether the site serves the Site data, its
+                             address and the line it started with
+  restart                    Stop the site's background server and start it
+                             again with the line it started with
   trust                      Install the local root that lets every Drupack site on
                              this computer serve HTTPS. It may ask for a password.
                              --uninstall removes it.
@@ -73,6 +79,8 @@ docs/cli.md explains every option.`
 // name and %[2]s the default listener.
 const engineUsage = `Usage: %[1]s [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--host HOST] [--foreground] [--access-log[=FILE]] [--error-log[=FILE]] [--trusted-proxies CIDR[,CIDR]]
        %[1]s stop [DIR]
+       %[1]s status [DIR]
+       %[1]s restart [DIR]
        %[1]s drush DRUSH_COMMAND
        %[1]s dr DRUPAL_COMMAND
        %[1]s composer COMPOSER_COMMAND
@@ -100,6 +108,10 @@ gives the client's address.
 Commands:
   start    Serve the project, which a bare command does too
   stop     Stop the server of the project in DIR
+  status   Print whether a server serves the project in DIR, its address and
+           the line it started with
+  restart  Stop the background server of the project in DIR and start it
+           again with the line it started with
   drush    Run the Drush of the project holding the working directory
   dr       Run Drupal core's command line of that project
   composer Run the bundled Composer in the Drupal project in the working

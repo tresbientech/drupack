@@ -238,13 +238,15 @@ func start(l Launch, c command) error {
 	if lease == nil {
 		return mode.held(plan)
 	}
+	// The previous server's stop record outlives it. status reads a held lease
+	// with no record as a start still preparing.
+	if err := staged.dir.ClearStopRecord(); err != nil {
+		return err
+	}
 	if err := portRefusal(l.Name, checked.listen, plan, portTaken); err != nil {
 		return err
 	}
 	if err := takeLog(l.Child); err != nil {
-		return err
-	}
-	if err := staged.dir.ClearStopRecord(); err != nil {
 		return err
 	}
 	// The start's --listen chooses the ports, so drush and export read the addresses back from here.
@@ -253,12 +255,28 @@ func start(l Launch, c command) error {
 	if err := staged.dir.WriteListener(listener); err != nil {
 		return err
 	}
+	if err := staged.dir.WriteStart(startRecord(l, cwd)); err != nil {
+		return err
+	}
 	ready, err := mode.prepare(plan, choice, accessLog, errorLog, proxies)
 	if err != nil {
 		return err
 	}
 	fmt.Print(ready.summary)
 	return execServer(ready.facts, staged.dir, lease, ready.config, choice, plan, ready.rules, ready.argv0, ready.cwd)
+}
+
+// startRecord is the line restart replays: the reader's words without the
+// --foreground a detaching parent appends, and without a secret.
+func startRecord(l Launch, cwd string) state.Start {
+	words, table := l.Args[1:], siteOptions
+	if l.Child != nil {
+		words = words[:len(words)-1]
+	}
+	if l.Engine {
+		table = engineOptions
+	}
+	return state.Start{Cwd: cwd, Words: withoutOptions(words, table, func(o option) bool { return o.secret }), Background: l.Child != nil}
 }
 
 // portRefusal names the listener of plan that another program holds, and the
@@ -296,7 +314,7 @@ func (e *engineStart) detach() (log, stopTarget string, err error) {
 	if e.c.target != "" {
 		stopTarget = " " + shellWord(e.c.target, runtime.GOOS == "windows")
 	}
-	return fsguard.Canonical(state.FolderEntry(l.Root, project, l.FoldCase).Path()) + "/server.log", stopTarget, nil
+	return logsDir(true, state.FolderEntry(l.Root, project, l.FoldCase)) + "server.log", stopTarget, nil
 }
 
 func (e *engineStart) check() (checked, error) {
@@ -407,7 +425,8 @@ func (e *engineStart) prepare(plan startPlan, choice localtls.Choice, accessLog,
 	// next to the server log.
 	caddyLog, logs := "", ""
 	if l.Child != nil {
-		caddyLog, logs = entryPath+"/caddy.log", entryPath+"/"
+		logs = logsDir(true, e.entry)
+		caddyLog = logs + "caddy.log"
 	}
 	static := ""
 	if plan.Static != nil {

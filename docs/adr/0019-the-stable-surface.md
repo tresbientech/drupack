@@ -24,6 +24,7 @@ Names:
 Behaviour a script depends on:
 
 - exit 0 for a success and another code for a failure
+- `status`'s exit codes: 0 while a server answers, 3 with none, 4 while a start prepares
 - the default listener, `127.0.0.1:3787`
 - refusals on standard error
 - the fields of `release.json`

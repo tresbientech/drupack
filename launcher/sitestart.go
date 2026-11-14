@@ -84,7 +84,7 @@ func (s *packagedStart) detach() (log, stopTarget string, err error) {
 	if written := s.c.options.DataDir; written != defaultDataDir {
 		stopTarget = " --data-dir " + shellWord(written, runtime.GOOS == "windows")
 	}
-	return fsguard.Canonical(data) + "/logs/server.log", stopTarget, nil
+	return logsDir(false, state.At(data)) + "server.log", stopTarget, nil
 }
 
 func (s *packagedStart) check() (checked, error) {
@@ -378,7 +378,7 @@ func (s *packagedStart) prepare(plan startPlan, choice localtls.Choice, accessLo
 	if plan.Static != nil {
 		static = plan.Static.URL
 	}
-	logs := s.Data + "/logs/"
+	logs := logsDir(false, state.At(s.Data))
 	var summary strings.Builder
 	// The addresses and paths only, never a readiness claim: the server announces that itself.
 	writeRows(&summary, [][2]string{

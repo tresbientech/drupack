@@ -112,6 +112,24 @@ func TestParse(t *testing.T) {
 		{"the engine passes every word to Drush", []string{"drupack", "drush", "--data-dir", "x", "status"}, true, unset,
 			command{word: "drush", words: []string{"--data-dir", "x", "status"}}, ""},
 		{"the engine takes no Site data", []string{"drupack", "stop", "--data-dir", "x"}, true, unset, command{}, "stop takes a folder alone. Run fixture-site --help."},
+		{"status takes ./data by default", []string{"SITE", "status"}, false, unset, command{word: "status", target: "./data"}, ""},
+		{"status reads --data-dir", []string{"SITE", "status", "--data-dir=site"}, false, unset, command{word: "status", target: "site"}, ""},
+		{"status refuses a start option", []string{"SITE", "status", "--listen", "127.0.0.1:1"}, false, unset, command{}, "Unknown argument: --listen"},
+		{"status --help prints the help", []string{"SITE", "status", "--help"}, false, unset, command{word: "help"}, ""},
+		{"the engine's status reads the working directory by default", []string{"drupack", "status"}, true, unset, command{word: "status", target: "."}, ""},
+		{"the engine's status reads the folder named", []string{"drupack", "status", "project"}, true, unset, command{word: "status", target: "project"}, ""},
+		{"the engine's status refuses two folders", []string{"drupack", "status", "a", "b"}, true, unset, command{}, "status takes a folder alone. Run fixture-site --help."},
+		{"a folder named status takes ./status", []string{"drupack", "./status"}, true, unset, command{word: "start", target: "./status", options: options{Listen: defaultListen}}, ""},
+		{"logs is reserved", []string{"drupack", "logs"}, true, unset, command{}, "logs is not a command. A folder named logs takes ./logs."},
+		{"restart takes ./data by default", []string{"SITE", "restart"}, false, unset, command{word: "restart", target: "./data"}, ""},
+		{"restart reads --data-dir", []string{"SITE", "restart", "--data-dir", "site"}, false, unset, command{word: "restart", target: "site"}, ""},
+		{"restart refuses a start option", []string{"SITE", "restart", "--no-browser"}, false, unset, command{}, "Unknown argument: --no-browser"},
+		{"the engine's restart reads the working directory by default", []string{"drupack", "restart"}, true, unset, command{word: "restart", target: "."}, ""},
+		{"the engine's restart reads the folder named", []string{"drupack", "restart", "project"}, true, unset, command{word: "restart", target: "project"}, ""},
+		{"the engine's restart refuses an option", []string{"drupack", "restart", "--listen"}, true, unset, command{}, "restart takes a folder alone. Run fixture-site --help."},
+		{"a folder named restart takes ./restart", []string{"drupack", "./restart"}, true, unset, command{word: "start", target: "./restart", options: options{Listen: defaultListen}}, ""},
+		{"a folder named logs takes ./logs", []string{"drupack", "./logs"}, true, unset, command{word: "start", target: "./logs", options: options{Listen: defaultListen}}, ""},
+		{"a site has no logs word", []string{"SITE", "logs"}, false, unset, command{}, "Unknown command: logs\n\n" + siteHelpText("fixture-site")},
 	} {
 		var parent []string
 		for name, value := range row.env {
@@ -191,6 +209,14 @@ func TestHelpMatchesTheParserAndTheReference(t *testing.T) {
 		{"docs/cli.md", reference, "SITE " + siteStopUsage() + "\n"},
 		{"the engine usage", engineUsage, "%[1]s stop [DIR]\n"},
 		{"docs/cli.md", reference, "drupack stop [DIR]\n"},
+		{"the site help", siteHelp, "%[1]s status [--data-dir PATH]\n"},
+		{"docs/cli.md", reference, "SITE status [--data-dir PATH]\n"},
+		{"the engine usage", engineUsage, "%[1]s status [DIR]\n"},
+		{"docs/cli.md", reference, "drupack status [DIR]\n"},
+		{"the site help", siteHelp, "%[1]s restart [--data-dir PATH]\n"},
+		{"docs/cli.md", reference, "SITE restart [--data-dir PATH]\n"},
+		{"the engine usage", engineUsage, "%[1]s restart [DIR]\n"},
+		{"docs/cli.md", reference, "drupack restart [DIR]\n"},
 	} {
 		if !strings.Contains(row.text, row.usage) {
 			t.Errorf("%s does not hold %q", row.file, row.usage)
@@ -223,7 +249,7 @@ func TestEngineUsageMatchesTheParserAndTheReference(t *testing.T) {
 			t.Errorf("docs/cli.md's engine section omits %s", command[1])
 		}
 	}
-	if want := []string{"start", "stop", "drush", "dr", "export", "php", "clean", "self-update", "trust"}; !slices.Equal(names, want) {
+	if want := []string{"start", "stop", "status", "restart", "drush", "dr", "export", "php", "clean", "self-update", "trust"}; !slices.Equal(names, want) {
 		t.Errorf("the engine usage lists %v, want %v", names, want)
 	}
 	for _, name := range parserOptions(engineOptions) {
@@ -240,4 +266,20 @@ func read(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(content)
+}
+
+func TestWithoutOptionsDropsTheSecrets(t *testing.T) {
+	for _, row := range []struct {
+		name        string
+		words, want []string
+	}{
+		{"a line with no secret stays whole", []string{"start", "--listen", "127.0.0.1:9000", "--access-log=a.log"}, []string{"start", "--listen", "127.0.0.1:9000", "--access-log=a.log"}},
+		{"a secret and its next word go", []string{"--db-user", "u", "--db-password", "p", "--no-browser"}, []string{"--db-user", "u", "--no-browser"}},
+		{"a secret with = goes whole", []string{"--admin-password=a=b", "--site-name", "S"}, []string{"--site-name", "S"}},
+		{"every repeat goes", []string{"--db-password", "p", "--db-password=q", "--admin-password", "r"}, nil},
+	} {
+		if got := withoutOptions(row.words, siteOptions, func(o option) bool { return o.secret }); !slices.Equal(got, row.want) {
+			t.Errorf("%s: withoutOptions(%q) = %q, want %q", row.name, row.words, got, row.want)
+		}
+	}
 }
