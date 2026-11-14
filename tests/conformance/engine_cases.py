@@ -1003,13 +1003,14 @@ if (isset($_GET['drupack-log-case'])) {
 
     def test_the_static_port_meets_the_site_ports_refusals_and_refuses_any_php(self):
         html = self.export_directory()
-        for path in (".env", "index.php", "composer.json", "sites/default/settings.php", "page/index.html"):
+        for path in (".env", "index.php", "composer.json", "sites/default/settings.php", "page/index.html",
+                     "drupack.mercure.caddy"):
             (html / path).parent.mkdir(parents=True, exist_ok=True)
             (html / path).write_text("kept out")
         port = harness.pick_port()
         self.start("refusals", str(self.project), port=port)
         expected = {"/.env": 403, "/index.php": 403, "/composer.json": 403,
-                    "/sites/default/settings.php": 403, "/page/": 200}
+                    "/sites/default/settings.php": 403, "/drupack.mercure.caddy": 403, "/page/": 200}
         for path, status in expected.items():
             with self.subTest(path):
                 self.assertEqual(self.status(port + 1, path), status)

@@ -12,7 +12,7 @@ import subprocess
 import sys
 import time
 from http.cookiejar import CookieJar
-from urllib.error import HTTPError, URLError
+from urllib.error import URLError
 from urllib.request import HTTPCookieProcessor, build_opener, urlopen
 
 import harness
@@ -362,8 +362,11 @@ class InterruptedStartAndRace(harness.ConformanceCase):
             code = loser.wait(timeout=harness.WAITS["stop"].seconds)
             self.assertNotEqual(code, 0, "a simultaneous start exited without a failure")
             loser_log = (race_dir / f"{loser_label}.log").read_text(errors="replace")
-            self.assertIn(f"Another {harness.SITE['name']} start", loser_log, "the losing start names no other start")
-            self.assertIn(str(data), loser_log, "the losing start does not name the Site data directory")
+            loser_path = race_dir / f"{loser_label}.log"
+            self.assertIn(f"Another {harness.SITE['name']} start", loser_log,
+                          f"the losing start names no other start: inspect {loser_path}")
+            self.assertIn(str(data), loser_log,
+                          f"the losing start does not name the Site data directory: inspect {loser_path}")
 
             ready_deadline = time.monotonic() + harness.WAITS["start"].seconds
             ready = False
@@ -375,7 +378,7 @@ class InterruptedStartAndRace(harness.ConformanceCase):
                                timeout=harness.WAITS["http_request"].seconds).status == 200:
                         ready = True
                         break
-                except (URLError, HTTPError, ConnectionError, TimeoutError):
+                except (URLError, ConnectionError, TimeoutError):
                     pass
                 time.sleep(0.25)
             self.assertTrue(ready, "the winning start did not serve /user/login")

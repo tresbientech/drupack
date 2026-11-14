@@ -40,8 +40,8 @@ PATTERNS = {
         [rf"\$\{{?{NAME}"],
     ),
     ".ini": ([], [rf"\$\{{{NAME}\}}"]),
-    "Caddyfile": ([], [rf"\{{\$" + NAME + r"\}"]),
-    ".caddy": ([], [rf"\{{\$" + NAME + r"\}"]),
+    "Caddyfile": ([], [r"\{\$" + NAME + r"\}"]),
+    ".caddy": ([], [r"\{\$" + NAME + r"\}"]),
 }
 # application/drush is PHP under a name without a suffix.
 PATTERNS["drush"] = PATTERNS[".php"]

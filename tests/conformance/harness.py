@@ -21,7 +21,7 @@ import time
 import unittest
 from collections import namedtuple
 from pathlib import Path
-from urllib.error import HTTPError, URLError
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 try:
@@ -169,7 +169,10 @@ WAIT_TABLE = [
     Wait("database_start", 600, None, "a start serving /user/login against a MySQL or PostgreSQL server"),
     Wait("database_install", 600, None, "Drush installing a site into a MySQL or PostgreSQL server"),
     Wait("network_container", 300, None, "starting a network case's site container, including a debian image pull"),
-    # Worst case: a 60s front-page fetch plus four 10s private-path probes, plus the container start.
+    Wait("client_connect", 3, None, "a client container's connection attempt that the site must refuse"),
+    Wait("client_private", 10, None, "a client container's request for a private path"),
+    Wait("client_login", 30, None, "a client container's request for the login page"),
+    # Worst case: a http_request front-page fetch plus four client_private probes, plus the container start.
     Wait("network_client", 150, None, "a client container's requests against a network case's site container"),
     Wait("docker_admin", 30, None, "a short docker command: container port, exec, rm, logs; network create, rm"),
     Wait("lock_ack", 10, None, "a helper process to confirm it holds serving.lock before a blocked start runs"),
@@ -318,10 +321,12 @@ def stop_process(process, timeout, context=""):
     if process.poll() is not None:
         return
     if current_platform() == WINDOWS:
+        # One budget covers the taskkill and the wait for the exit.
+        deadline = time.monotonic() + timeout
         try:
             subprocess.run(["taskkill", "/T", "/F", "/PID", str(process.pid)],
                             capture_output=True, timeout=timeout)
-            process.wait(timeout=timeout)
+            process.wait(timeout=max(deadline - time.monotonic(), 0))
         except subprocess.TimeoutExpired:
             raise AssertionError(f"process {process.pid} outlived taskkill /T /F{context}")
         return
@@ -566,6 +571,7 @@ class Site:
         self.scheme = "http" if root is None else "https"
         self._context = None if root is None else ssl.create_default_context(cafile=str(root))
         self.log_path = case_dir / "run.log"
+        self._starts = 0
         self.process = None
         self.port = None
         self._pty_thread = None
@@ -583,6 +589,10 @@ class Site:
         args += list(options)
         # A case may start several Sites, each in its own subdirectory created on first use.
         self.case_dir.mkdir(parents=True, exist_ok=True)
+        # A later start on this Site logs to its own file, so the first start's output stays.
+        self._starts += 1
+        if self._starts > 1:
+            self.log_path = self.case_dir / f"run-{self._starts}.log"
         if attach_pty:
             self.process, self._pty_thread = popen_under_pty(args, self.log_path, self.case_dir, env)
         else:
@@ -605,14 +615,17 @@ class Site:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self.process.poll() is not None:
+                taken = "Another program is listening on" in self.log_path.read_text(errors="replace")
                 raise AssertionError(
-                    f"port {self.port} runtime exited before answering: inspect {self.log_path}"
+                    f"port {self.port} "
+                    f"{'is held by another program, so the start refused it' if taken else 'runtime exited before answering'}"
+                    f": inspect {self.log_path}"
                 )
             try:
                 status, _, _ = self.fetch("/user/login")
                 if status == 200:
                     return
-            except (URLError, HTTPError, ConnectionError, TimeoutError):
+            except (URLError, ConnectionError, TimeoutError):
                 # A cold first request can outlast one 30s poll, as in the product's own client.
                 pass
             time.sleep(0.25)
@@ -651,16 +664,18 @@ def refuse(case, case_dir, name, *args):
     """
     log = case_dir / f"{name}.log"
     with open(log, "wb") as handle:
+        process = popen(
+            [str(BINARY), *args, "--foreground", "--listen", f"127.0.0.1:{pick_port()}"],
+            cwd=case_dir, stdout=handle, stderr=subprocess.STDOUT, start_new_session=True,
+        )
         try:
-            result = run(
-                [str(BINARY), *args, "--foreground", "--listen", f"127.0.0.1:{pick_port()}"],
-                cwd=case_dir, stdout=handle, stderr=subprocess.STDOUT,
-                timeout=WAITS["bootstrap_refusal"].seconds,
-            )
+            returncode = process.wait(timeout=WAITS["bootstrap_refusal"].seconds)
         except subprocess.TimeoutExpired:
+            # The whole group goes, so a child the start spawned never outlives the case.
+            stop_process(process, WAITS["stop"].seconds, context=f": inspect {log}")
             case.fail(f"{name}: the start kept running instead of refusing within "
                       f"{WAITS['bootstrap_refusal'].seconds}s: inspect {log}")
-    case.assertNotEqual(result.returncode, 0, f"{name}: the start succeeded instead of refusing: inspect {log}")
+    case.assertNotEqual(returncode, 0, f"{name}: the start succeeded instead of refusing: inspect {log}")
     return log.read_text(errors="replace")
 
 

@@ -5,6 +5,11 @@ set -euo pipefail
 # then golangci-lint for each system a release targets. build/test/qa.sh and each
 # platform job in release.yml run this script.
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
+# The linter builds with the toolchain the launcher module names, which a host Go may predate.
+if [ -z "${GOTOOLCHAIN:-}" ]; then
+    GOTOOLCHAIN=$(awk '$1 == "toolchain" { print $2; found = 1 } $1 == "go" { version = "go" $2 } END { if (!found) print version }' launcher/go.mod)
+    export GOTOOLCHAIN
+fi
 # The linter runs on this host for every GOOS, so it is built once for the host.
 tools=$(mktemp -d)
 trap 'rm -rf -- "$tools"' EXIT

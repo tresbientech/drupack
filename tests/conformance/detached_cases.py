@@ -178,13 +178,13 @@ class DetachedRaceCases(harness.ConformanceCase):
         self.assertIn("runs in the background", served.stdout, printed)
         self.assertIn("this Site data", refused.stderr, printed)
         log = data / "logs" / "server.log"
-        self.assertIn("is ready.", log.read_text(errors="replace"))
+        self.assertIn("is ready.", log.read_text(errors="replace"), f"inspect {log}")
         # No person is present, so a later start refuses as well, and leaves the log alone.
         later = harness.run(command, cwd=self.case_dir, capture_output=True, text=True,
                             timeout=harness.WAITS["start"].seconds)
         self.assertEqual(later.returncode, 1, f"{later.stdout}{later.stderr}")
         self.assertIn("already serves this Site data", later.stderr)
-        self.assertIn("is ready.", log.read_text(errors="replace"))
+        self.assertIn("is ready.", log.read_text(errors="replace"), f"inspect {log}")
         stop = harness.run([str(harness.BINARY), "stop", "--data-dir", str(data)], cwd=self.case_dir,
                            capture_output=True, text=True, timeout=harness.WAITS["stop"].seconds + 30)
         self.assertIn("stopped", stop.stdout)

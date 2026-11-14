@@ -26,7 +26,7 @@ LOOPBACK_PROBE = """
 import socket, sys
 
 try:
-    connection = socket.create_connection(("site", int(sys.argv[1])), timeout=3)
+    connection = socket.create_connection(("site", int(sys.argv[1])), timeout=int(sys.argv[2]))
 except OSError:
     print("PASS: default listener rejects access from another container")
 else:
@@ -36,17 +36,18 @@ else:
 
 LISTENER_PROBE = """
 from http.cookiejar import CookieJar
+import sys
 import urllib.error
 import urllib.request
 
 opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(CookieJar()))
 request = urllib.request.Request("http://site:8080/", headers={"User-Agent": "DrupackNetworkTest"})
-with opener.open(request, timeout=60) as response:
+with opener.open(request, timeout=int(sys.argv[1])) as response:
     assert response.status == 200
     assert "/core/install.php" not in response.url
 for path in ["/sites/default/settings.php", "/site.sqlite", "/private/secret.txt", "/sites/default/files/php/test.php"]:
     try:
-        opener.open("http://site:8080" + path, timeout=10)
+        opener.open("http://site:8080" + path, timeout=int(sys.argv[2]))
     except urllib.error.HTTPError as error:
         assert error.code in (403, 404), (path, error.code)
     else:
@@ -55,9 +56,10 @@ print("PASS: explicit listener serves Drupal to another container and protects p
 """
 
 SPACE_PROBE = """
+import sys
 import urllib.request
 
-with urllib.request.urlopen("http://space:8080/user/login", timeout=30) as response:
+with urllib.request.urlopen("http://space:8080/user/login", timeout=int(sys.argv[1])) as response:
     assert response.status == 200
 print("PASS: a Site data path with a space serves the login page")
 """
@@ -141,7 +143,8 @@ class NetworkListener(harness.ConformanceCase):
         args = ["--admin-user", ADMIN_USER, "--admin-password", ADMIN_PASSWORD]
         try:
             _start_site_container(name, self.network, "site", data, "/site/data", args, log_path)
-            code = _run_client(self.network, LOOPBACK_PROBE, self.case_dir / "client.log", str(harness.SITE["port"]))
+            code = _run_client(self.network, LOOPBACK_PROBE, self.case_dir / "client.log", str(harness.SITE["port"]),
+                               str(harness.WAITS["client_connect"].seconds))
             self.assertEqual(code, 0, f"inspect {self.case_dir / 'client.log'}")
         finally:
             _remove_site_container(name, log_path)
@@ -157,7 +160,8 @@ class NetworkListener(harness.ConformanceCase):
             (data / "files" / "php").mkdir(parents=True, exist_ok=True)
             (data / "private" / "secret.txt").write_text("private-network-sentinel")
             (data / "files" / "php" / "test.php").write_text('<?php echo "php-network-sentinel";')
-            code = _run_client(self.network, LISTENER_PROBE, self.case_dir / "client.log")
+            code = _run_client(self.network, LISTENER_PROBE, self.case_dir / "client.log",
+                               str(harness.WAITS["http_request"].seconds), str(harness.WAITS["client_private"].seconds))
             self.assertEqual(code, 0, f"inspect {self.case_dir / 'client.log'}")
         finally:
             _remove_site_container(name, log_path)
@@ -170,7 +174,8 @@ class NetworkListener(harness.ConformanceCase):
                 "--data-dir", "/site/data with space", "--listen", "0.0.0.0:8080", "--host", "space"]
         try:
             _start_site_container(name, self.network, "space", space_root, "/site", args, log_path)
-            code = _run_client(self.network, SPACE_PROBE, self.case_dir / "client.log")
+            code = _run_client(self.network, SPACE_PROBE, self.case_dir / "client.log",
+                               str(harness.WAITS["client_login"].seconds))
             self.assertEqual(code, 0, f"inspect {self.case_dir / 'client.log'}")
             caddy_log = space_root / "data with space" / "logs" / "caddy.log"
             self.assertTrue(
