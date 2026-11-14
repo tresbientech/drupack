@@ -174,7 +174,6 @@ func TestTheHelpLinksTheReferenceOfItsRelease(t *testing.T) {
 // The help texts, the parser's tables and docs/cli.md name the same options and
 // commands.
 func TestHelpMatchesTheParserAndTheReference(t *testing.T) {
-	packedAs(t, "fixture-site", "dev", false)
 	reference := read(t, filepath.Join("..", "docs", "cli.md"))
 	// applies holds each documented option's Applies cell, cut before " and ".
 	applies := map[string]string{}
@@ -194,6 +193,20 @@ func TestHelpMatchesTheParserAndTheReference(t *testing.T) {
 		for _, o := range g.options {
 			if applies[o.name] != groupApplies[g.title] {
 				t.Errorf("--%s sits under %q, and docs/cli.md applies it to %q", o.name, g.title, applies[o.name])
+			}
+			database := o.name == "database" || strings.HasPrefix(o.name, "db-")
+			if inGroup := g.title == "Database options, for every start:"; database != inGroup {
+				t.Errorf("--%s sits under %q", o.name, g.title)
+			}
+		}
+	}
+	// The engine serves where a site lives: its first group holds the engine
+	// options of the site's first group.
+	for _, g := range engineGroups {
+		for _, o := range g.options {
+			lives := slices.ContainsFunc(siteGroups[0].options, func(s option) bool { return s.name == o.name })
+			if served := g.title == engineGroups[0].title; lives != served {
+				t.Errorf("the engine's --%s sits under %q", o.name, g.title)
 			}
 		}
 	}
@@ -227,7 +240,9 @@ func helpCommands(help string) []string {
 }
 
 func TestTheHelpFitsEightyColumns(t *testing.T) {
-	for _, l := range []Launch{{Name: "fixture-site"}, {Name: "drupack", Engine: true}} {
+	// The longest name payload.MintedSegmentPattern admits.
+	longest := "a" + strings.Repeat("0", 31)
+	for _, l := range []Launch{{Name: longest}, {Name: "drupack", Engine: true}} {
 		for _, line := range strings.Split(helpText(l, "1.0.0-beta23"), "\n") {
 			if len(line) > 80 {
 				t.Errorf("the %s help line is %d columns: %q", l.Name, len(line), line)

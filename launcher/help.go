@@ -34,7 +34,7 @@ This computer:
 Examples:
   %[1]s
   %[1]s --data-dir ./site --listen 127.0.0.1:9000
-  %[1]s --admin-user admin --admin-password 'choose-a-password'
+  %[1]s --admin-password 'choose-a-password'
   %[1]s drush --data-dir ./site user:login
   %[1]s clean --dry-run
 
