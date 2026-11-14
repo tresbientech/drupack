@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
@@ -36,7 +35,7 @@ func TestRestartRefuses(t *testing.T) {
 				target = row.target
 			}
 			err := restart(Launch{Name: "fixture-site", Root: t.TempDir()}, command{word: "restart", target: target})
-			want := strings.ReplaceAll(row.want, "DIR", fsguard.Canonical(dir))
+			want := strings.ReplaceAll(row.want, "DIR", resolvedDir(t, dir))
 			if err == nil || err.Error() != want {
 				t.Errorf("restart() = %v, want %q", err, want)
 			}

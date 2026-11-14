@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -45,34 +46,47 @@ func TestStatus(t *testing.T) {
 		}, "fixture-site is not running.\n", 3},
 		{"a held lease with no stop record", func(t *testing.T, dir string) { statetest.HoldLease(t, dir) },
 			"A fixture-site start is still preparing this Site data: DIR\n", 4},
-		{"a server an earlier release started", answering(nil), "fixture-site serves DIR." + rows, 0},
+		{"a server an earlier release started", answering(nil), "fixture-site serves SHOWN." + rows, 0},
 		{"a background server", answering(&state.Start{Cwd: "/srv", Words: []string{"--data-dir", "a dir", "--access-log"}, Background: true}),
-			"fixture-site serves DIR in the background." + rows + "  Logs:   DIR/logs/\n  From:   /srv\n  Words:  fixture-site --data-dir 'a dir' --access-log\n", 0},
+			"fixture-site serves SHOWN in the background." + rows + "  Logs:   SHOWN/logs/\n  From:   /srv\n  Words:  fixture-site --data-dir " + shellWord("a dir", runtime.GOOS == "windows") + " --access-log\n", 0},
 		{"a foreground server", answering(&state.Start{Cwd: "/srv", Words: []string{"--foreground"}}),
-			"fixture-site serves DIR in the foreground." + rows + "  From:   /srv\n  Words:  fixture-site --foreground\n", 0},
+			"fixture-site serves SHOWN in the foreground." + rows + "  From:   /srv\n  Words:  fixture-site --foreground\n", 0},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			dir := t.TempDir()
 			row.arrange(t, dir)
 			var out bytes.Buffer
-			err := runStatus(Launch{Name: "fixture-site", Root: t.TempDir()}, command{word: "status", target: dir}, &out)
+			l := Launch{Name: "fixture-site", Root: t.TempDir()}
+			err := runStatus(l, command{word: "status", target: dir}, &out)
 			code := 0
 			if exit, ok := err.(exitError); ok {
 				code = int(exit)
 			} else if err != nil {
 				t.Fatal(err)
 			}
-			want := bytes.ReplaceAll([]byte(row.out), []byte("DIR"), []byte(fsguard.Canonical(dir)))
+			resolved := resolvedDir(t, dir)
+			want := strings.NewReplacer("SHOWN", l.shown(resolved), "DIR", resolved).Replace(row.out)
 			// This Launch names no release, so a server's status ends on Drush's refusal.
 			got, refused := out.String(), false
 			if row.code == 0 {
 				got, _, refused = strings.Cut(got, "\nDrush status unavailable: ")
 			}
-			if got != string(want) || code != row.code || refused != (row.code == 0) {
+			if got != want || code != row.code || refused != (row.code == 0) {
 				t.Errorf("runStatus() printed %q and exited %d, want %q and %d", out.String(), code, want, row.code)
 			}
 		})
 	}
+}
+
+// resolvedDir is dir as serverDir names it: links resolved, such as a Windows
+// temp dir's 8.3 form, then canonical.
+func resolvedDir(t *testing.T, dir string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fsguard.Canonical(resolved)
 }
 
 func TestStatusOnMissingSiteDataIsNotRunning(t *testing.T) {
