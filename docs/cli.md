@@ -72,7 +72,9 @@ reason on standard error and exits 1.
 
 `drupack` and `drupack start` serve `DIR`, the working directory by default, in
 the background. `--foreground` serves in the terminal. `drupack stop [DIR]`
-ends the server. After a stop, Ctrl+C or SIGTERM, a server has 10 seconds to
+ends the server. A background start prints the line that stops it, quoted for
+`sh` on Unix and for PowerShell on Windows, and `status` quotes its words the
+same way. After a stop, Ctrl+C or SIGTERM, a server has 10 seconds to
 finish its running requests. Past that it ends them, says so on standard error
 and exits 0. A second start on a folder a server already serves hands over:
 it prints the served URL with the login link, the command that mints one or the

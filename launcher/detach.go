@@ -217,9 +217,10 @@ func ownsConsole(detached bool, processes uint32) bool {
 	return !detached && processes == 1
 }
 
-// shellWord quotes value for the reader's shell. cmd and PowerShell read a
-// backslash as itself, and PowerShell reads a quoted first word as a string to
-// print, so a Windows path stays bare when nothing else needs quotes.
+// shellWord quotes value for the reader's shell: sh on Unix, PowerShell on
+// Windows. PowerShell reads a backslash as itself, so a Windows path stays bare
+// when nothing else needs quotes. Its single quotes expand nothing, and it
+// reads the typographic quotes as single quotes too, so each is doubled.
 func shellWord(value string, windows bool) string {
 	bare := strings.Trim(value, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_./:=@%+-") == ""
 	if windows {
@@ -229,7 +230,7 @@ func shellWord(value string, windows bool) string {
 	case bare && value != "":
 		return value
 	case windows:
-		return `"` + value + `"`
+		return "'" + powershellQuotes.Replace(value) + "'"
 	}
 	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }
@@ -238,23 +239,26 @@ func shellWord(value string, windows bool) string {
 // shell. target is the words after stop, with their leading space, "" when
 // stop's default finds the server. invoked is the path the reader ran.
 func stopCommand(invoked, cwd, target string, windows bool) string {
-	word := shellWord(invoked, windows)
-	// PowerShell hands a program its full path, where cmd hands over the typed
-	// word, and runs a quoted first word only after `&`. Both shells run `.\NAME`.
+	// PowerShell hands a program its full path, so one in the reader's directory
+	// prints as `.\NAME`.
 	if windows && windowsAbsolute.MatchString(invoked) {
 		folder := func(path string) string {
 			return strings.TrimRight(strings.ReplaceAll(path, "/", `\`), `\`)
 		}
-		split := strings.LastIndexAny(invoked, `\/`)
-		switch {
-		case strings.EqualFold(folder(invoked[:split]), folder(cwd)):
-			word = `.\` + invoked[split+1:]
-		case word[0] == '"':
-			word = "& " + word
+		if split := strings.LastIndexAny(invoked, `\/`); strings.EqualFold(folder(invoked[:split]), folder(cwd)) {
+			invoked = `.\` + invoked[split+1:]
 		}
+	}
+	word := shellWord(invoked, windows)
+	// PowerShell runs a quoted first word only after `&`.
+	if windows && word[0] == '\'' {
+		word = "& " + word
 	}
 	return word + " stop" + target
 }
+
+// powershellQuotes doubles each character PowerShell reads as a single quote.
+var powershellQuotes = strings.NewReplacer("'", "''", "\u2018", "\u2018\u2018", "\u2019", "\u2019\u2019", "\u201a", "\u201a\u201a", "\u201b", "\u201b\u201b")
 
 // windowsAbsolute matches a path that starts at a drive or a root.
 var windowsAbsolute = regexp.MustCompile(`^([A-Za-z]:)?[\\/]`)

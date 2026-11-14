@@ -150,8 +150,12 @@ func TestTheStopCommandIsTypedForTheReadersShell(t *testing.T) {
 		{"a quote in a Unix path", "/opt/it's/demo", "/home/reader", "", false, `'/opt/it'\''s/demo' stop`},
 		{"a backslash stays bare on Windows", `C:\Tools\demo.exe`, `C:\Users\reader`, "", true, `C:\Tools\demo.exe stop`},
 		{"PowerShell runs the executable's folder as .\\", `C:\Users\reader\demo.exe`, `c:/users/reader/`, "", true, `.\demo.exe stop`},
-		{"PowerShell runs a quoted path after &", `C:\With Space\demo.exe`, `C:\Users\reader`, "", true, `& "C:\With Space\demo.exe" stop`},
-		{"cmd's typed word stays", "demo", `C:\Users\reader`, " " + shellWord(`C:\My Site`, true), true, `demo stop "C:\My Site"`},
+		{"PowerShell runs a quoted path after &", `C:\With Space\demo.exe`, `C:\Users\reader`, "", true, `& 'C:\With Space\demo.exe' stop`},
+		{"a name with a space in the reader's directory", `C:\Users\reader\My Site.exe`, `C:\Users\reader`, "", true, `& '.\My Site.exe' stop`},
+		{"a bare word on PATH stays", "demo", `C:\Users\reader`, " " + shellWord(`C:\My Site`, true), true, `demo stop 'C:\My Site'`},
+		{"$ and backticks stay literal", `C:\$env\demo.exe`, `C:\Users\reader`, " --data-dir " + shellWord("C:\\a`b\\$x", true), true, "& 'C:\\$env\\demo.exe' stop --data-dir 'C:\\a`b\\$x'"},
+		{"% stays bare, which PowerShell does not expand", `C:\100%\demo.exe`, `C:\Users\reader`, "", true, `C:\100%\demo.exe stop`},
+		{"a quote doubles", `C:\it's\demo.exe`, `C:\Users\reader`, " " + shellWord("C:\\it\u2019s", true), true, "& 'C:\\it''s\\demo.exe' stop 'C:\\it\u2019\u2019s'"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			if got := stopCommand(c.invoked, c.cwd, c.target, c.windows); got != c.want {
