@@ -35,7 +35,7 @@ func TestDrushStatus(t *testing.T) {
 	}{
 		{"Drush answers from the project", `echo "$PWD $*"`, true, 3 * time.Second, "PROJECT php-cli /cache/app/drush status --no-ansi\n", ""},
 		{"Drush fails", "echo 'first line' >&2; echo 'second line' >&2; exit 2", true, 3 * time.Second, "", "exit 2: first line"},
-		{"Drush gives no answer in time", "sleep 30", true, 2 * time.Second, "", "no answer within 2 seconds"},
+		{"Drush gives no answer in time", "exec /bin/sleep 30", true, 2 * time.Second, "", "no answer within 2 seconds"},
 		{"the project has no Drush", "exit 0", false, 3 * time.Second, "", "PROJECT has no Drush: PROJECT/vendor/drush/drush/drush.php does not exist. Run composer require drush/drush in it."},
 	} {
 		t.Run(row.name, func(t *testing.T) {
