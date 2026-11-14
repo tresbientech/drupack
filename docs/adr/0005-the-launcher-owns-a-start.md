@@ -10,7 +10,7 @@ A start decides a listener, a TLS source, a host, a scheme, a static listener an
 
 - The launcher plans and runs every start, `drush`, `export`, `stop` and `trust`, on both executables. PHP runs only through `runtime php-cli`, called by the launcher.
 - One parser, `launcher/parse.go`, reads every word and option for both executables. `launcher/help.go` holds the help texts.
-- `docs/cli.md` is the CLI reference. A Go test compares it and the help texts against the parser's tables.
+- `docs/cli.md` is the CLI reference. The help texts render their options from the parser's tables, and a Go test compares the reference against those tables.
 - `planStart` turns the parsed words, the site settings, the TLS answer and the recorded listener into the start plan. No later step chooses a listener, a scheme or a static value again.
 - A site and the engine are two modes of one start. They differ in the state directory, the settings source (`site.json` or `composer.json`), the first checks and the route of the files directory.
 - Node's words (`node`, `npm`, `npx`) run Node from its own release directory. On Unix the launcher replaces itself with Node. On Windows it waits for Node.

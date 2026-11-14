@@ -41,19 +41,75 @@ type option struct {
 	optional bool
 	// secret marks a value start.json never records.
 	secret bool
+	// help is the option's text in the help. A newline starts a line under it.
+	help string
 	// set writes the value the reader gave into its field. A flag gets "".
 	set func(o *options, value string)
 }
 
 var (
-	accessLogOption      = option{name: "access-log", value: "FILE", optional: true, set: func(o *options, v string) { o.AccessLog = &v }}
-	errorLogOption       = option{name: "error-log", value: "FILE", optional: true, set: func(o *options, v string) { o.ErrorLog = &v }}
-	trustedProxiesOption = option{name: "trusted-proxies", value: "CIDR[,CIDR]", set: func(o *options, v string) { o.TrustedProxies = v }}
-	listenOption         = option{name: "listen", value: "IP:PORT", set: func(o *options, v string) { o.Listen = v }}
-	staticListenOption   = option{name: "static-listen", value: "IP:PORT", set: func(o *options, v string) { o.StaticListen = v }}
-	hostOption           = option{name: "host", value: "HOST", set: func(o *options, v string) { o.Host = v }}
-	foregroundOption     = option{name: "foreground", set: func(o *options, _ string) { o.Foreground = true }}
+	accessLogOption = option{
+		name: "access-log", value: "FILE", optional: true,
+		help: "Log each request to FILE, or bare to access.log\nin the logs folder",
+		set:  func(o *options, v string) { o.AccessLog = &v },
+	}
+	errorLogOption = option{
+		name: "error-log", value: "FILE", optional: true,
+		help: "Log PHP's and Caddy's warnings and errors to\nFILE, or bare to error.log in the logs folder",
+		set:  func(o *options, v string) { o.ErrorLog = &v },
+	}
+	trustedProxiesOption = option{
+		name: "trusted-proxies", value: "CIDR[,CIDR]",
+		help: "Proxies whose forwarded header names the\nclient, none by default",
+		set:  func(o *options, v string) { o.TrustedProxies = v },
+	}
+	listenOption = option{
+		name: "listen", value: "IP:PORT",
+		help: "Listener, " + loopbackIP + " on the port drupack.yml\nnames by default",
+		set:  func(o *options, v string) { o.Listen = v },
+	}
+	staticListenOption = option{
+		name: "static-listen", value: "IP:PORT",
+		help: "Static listener of a static export, which\nexport also reads, on the listener's next port\nby default",
+		set:  func(o *options, v string) { o.StaticListen = v },
+	}
+	hostOption = option{
+		name: "host", value: "HOST",
+		help: "Request host, the Site host when it resolves to\n" + loopbackIP + ", localhost otherwise",
+		set:  func(o *options, v string) { o.Host = v },
+	}
+	foregroundOption = option{
+		name: "foreground",
+		help: "Serve in this terminal until a signal stops it",
+		set:  func(o *options, _ string) { o.Foreground = true },
+	}
 )
+
+// label is the option as the help writes it.
+func (o option) label() string {
+	switch {
+	case o.value == "":
+		return "--" + o.name
+	case o.optional:
+		return "--" + o.name + "[=" + o.value + "]"
+	}
+	return "--" + o.name + " " + o.value
+}
+
+// optionGroup is one titled block of the options a help lists.
+type optionGroup struct {
+	title   string
+	options []option
+}
+
+// optionsOf lists the options of groups, in order.
+func optionsOf(groups []optionGroup) []option {
+	var all []option
+	for _, g := range groups {
+		all = append(all, g.options...)
+	}
+	return all
+}
 
 // optionalValue reads the value of an optional-value option from argument, ""
 // for the bare option. following is the argument after it, "" for none.
@@ -68,46 +124,76 @@ func optionalValue(o option, argument, following string) (string, error) {
 	return value, nil
 }
 
-var dataDirOption = option{name: "data-dir", value: "PATH", set: func(o *options, v string) { o.DataDir = v }}
-
-// stopOptions are the options a site's stop takes. parse_test.go asserts them
-// against the help text and docs/cli.md.
-var stopOptions = []option{dataDirOption}
-
-// siteOptions are the options a site's start takes, and its drush accepts. A
-// flag has no value.
-var siteOptions = []option{
-	dataDirOption,
-	listenOption,
-	staticListenOption,
-	hostOption,
-	{name: "files-dir", value: "PATH", set: func(o *options, v string) { o.FilesDir = v }},
-	{name: "database", value: "sqlite|mysql|pgsql", set: func(o *options, v string) { o.Database = v }},
-	{name: "db-host", value: "HOST", set: func(o *options, v string) { o.DBHost = v }},
-	{name: "db-port", value: "PORT", set: func(o *options, v string) { o.DBPort = v }},
-	{name: "db-name", value: "NAME", set: func(o *options, v string) { o.DBName = v }},
-	{name: "db-user", value: "NAME", set: func(o *options, v string) { o.DBUser = v }},
-	{name: "db-password", value: "PASSWORD", secret: true, set: func(o *options, v string) { o.DBPassword = v }},
-	{name: "admin-user", value: "NAME", set: func(o *options, v string) { o.AdminUser = v }},
-	{name: "admin-password", value: "PASSWORD", secret: true, set: func(o *options, v string) { o.AdminPassword = v }},
-	{name: "site-name", value: "NAME", set: func(o *options, v string) { o.SiteName = v }},
-	{name: "no-browser", set: func(o *options, _ string) { o.NoBrowser = true }},
-	foregroundOption,
-	accessLogOption,
-	errorLogOption,
-	trustedProxiesOption,
+var dataDirOption = option{
+	name: "data-dir", value: "PATH",
+	help: "Site data directory, " + defaultDataDir + " by default",
+	set:  func(o *options, v string) { o.DataDir = v },
 }
 
-// engineOptions are the options the engine's start takes. parse_test.go asserts
-// them against the usage text and docs/cli.md.
-var engineOptions = []option{
-	listenOption,
-	staticListenOption,
-	hostOption,
-	foregroundOption,
-	accessLogOption,
-	errorLogOption,
-	trustedProxiesOption,
+// stopOptions are the options a site's stop takes. parse_test.go asserts them
+// against docs/cli.md.
+var stopOptions = []option{dataDirOption}
+
+// siteGroups are the options a site's start takes, and its drush accepts, as
+// the help groups them. parse_test.go asserts each title against the Applies
+// column of docs/cli.md. A flag has no value.
+var siteGroups = []optionGroup{
+	{"Where the site lives, for start and drush:", []option{
+		dataDirOption,
+		listenOption,
+		staticListenOption,
+		hostOption,
+		{name: "files-dir", value: "PATH", help: "Public files, files in Site data by default", set: func(o *options, v string) { o.FilesDir = v }},
+	}},
+	{"Start options:", []option{
+		foregroundOption,
+		{name: "no-browser", help: "Do not open a browser", set: func(o *options, _ string) { o.NoBrowser = true }},
+		accessLogOption,
+		errorLogOption,
+		trustedProxiesOption,
+	}},
+	{"Database options, for every start:", []option{
+		{name: "database", value: "sqlite|mysql|pgsql", help: "Database backend, sqlite by default", set: func(o *options, v string) { o.Database = v }},
+		{name: "db-host", value: "HOST", help: "Database server, for mysql and pgsql", set: func(o *options, v string) { o.DBHost = v }},
+		{name: "db-port", value: "PORT", help: "Database port, 3306 for mysql, 5432 for pgsql", set: func(o *options, v string) { o.DBPort = v }},
+		{name: "db-name", value: "NAME", help: "Database name, for mysql and pgsql", set: func(o *options, v string) { o.DBName = v }},
+		{name: "db-user", value: "NAME", help: "Database user, for mysql and pgsql", set: func(o *options, v string) { o.DBUser = v }},
+		{name: "db-password", value: "PASSWORD", secret: true, help: "Database password, for mysql and pgsql", set: func(o *options, v string) { o.DBPassword = v }},
+	}},
+	{"First start options:", []option{
+		{name: "admin-user", value: "NAME", help: "Administrator account, admin by default", set: func(o *options, v string) { o.AdminUser = v }},
+		{name: "admin-password", value: "PASSWORD", secret: true, help: "Administrator password, generated by default", set: func(o *options, v string) { o.AdminPassword = v }},
+		{name: "site-name", value: "NAME", help: "Site name, the packaged site's name by default", set: func(o *options, v string) { o.SiteName = v }},
+	}},
+}
+
+// siteOptions are the options of siteGroups, which the parser reads.
+var siteOptions = optionsOf(siteGroups)
+
+// engineGroups are the options the engine's start takes, as the help groups
+// them. The engine's --listen, --static-listen and --host read otherwise than a
+// site's.
+var engineGroups = []optionGroup{
+	{"Where the project is served:", []option{
+		withHelp(listenOption, "Listener, "+defaultListen+" by default"),
+		withHelp(staticListenOption, "Static listener, for a project that sets\nextra.drupack.static, the next port by default"),
+		withHelp(hostOption, "One more host a loopback listener accepts, such\nas the name a proxy on this machine forwards"),
+	}},
+	{"Start options:", []option{
+		foregroundOption,
+		accessLogOption,
+		errorLogOption,
+		trustedProxiesOption,
+	}},
+}
+
+// engineOptions are the options of engineGroups, which the parser reads.
+var engineOptions = optionsOf(engineGroups)
+
+// withHelp is o with help as its help line.
+func withHelp(o option, help string) option {
+	o.help = help
+	return o
 }
 
 // defaultDataDir is the Site data of a reader who names none.
@@ -177,7 +263,7 @@ func parse(l Launch) (command, error) {
 	case strings.HasPrefix(word, "-"):
 		return siteStart(args[1:], lookup)
 	}
-	return command{}, fmt.Errorf("Unknown command: %s\n\n%s", word, siteHelpText(l.Name))
+	return command{}, unknownCommand(word, l.Name)
 }
 
 func siteStart(arguments []string, lookup func(string) (string, bool)) (command, error) {

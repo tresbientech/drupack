@@ -1,6 +1,7 @@
 package main
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -27,7 +28,7 @@ func TestParse(t *testing.T) {
 		{"a line opening with an option is a start", []string{"SITE", "--listen", "127.0.0.1:9000", "--foreground"}, false, unset, command{word: "start", options: options{DataDir: "./data", Listen: "127.0.0.1:9000", Foreground: true}}, ""},
 		{"stop after an option is a start's unknown argument", []string{"SITE", "--data-dir", "x", "stop"}, false, unset, command{}, "Unknown argument: stop"},
 		{"a start refuses an unknown option", []string{"SITE", "start", "--frobnicate"}, false, unset, command{}, "Unknown argument: --frobnicate"},
-		{"a start refuses a stray word", []string{"SITE", "extra"}, false, unset, command{}, "Unknown command: extra\n\n" + siteHelpText("fixture-site")},
+		{"a start refuses a stray word", []string{"SITE", "extra"}, false, unset, command{}, "Unknown command: extra. Run fixture-site --help."},
 		{"a start refuses an option with no value", []string{"SITE", "--listen"}, false, unset, command{}, "Missing value for --listen"},
 		{"a start reads -v as an option", []string{"SITE", "-v", "x"}, false, unset, command{}, "Unknown argument: -v"},
 		{"a start answers --help after its options", []string{"SITE", "--data-dir", "x", "--help"}, false, unset, command{word: "help"}, ""},
@@ -129,7 +130,7 @@ func TestParse(t *testing.T) {
 		{"the engine's restart refuses an option", []string{"drupack", "restart", "--listen"}, true, unset, command{}, "restart takes a folder alone. Run fixture-site --help."},
 		{"a folder named restart takes ./restart", []string{"drupack", "./restart"}, true, unset, command{word: "start", target: "./restart", options: options{Listen: defaultListen}}, ""},
 		{"a folder named logs takes ./logs", []string{"drupack", "./logs"}, true, unset, command{word: "start", target: "./logs", options: options{Listen: defaultListen}}, ""},
-		{"a site has no logs word", []string{"SITE", "logs"}, false, unset, command{}, "Unknown command: logs\n\n" + siteHelpText("fixture-site")},
+		{"a site has no logs word", []string{"SITE", "logs"}, false, unset, command{}, "Unknown command: logs. Run fixture-site --help."},
 	} {
 		var parent []string
 		for name, value := range row.env {
@@ -146,28 +147,6 @@ func TestParse(t *testing.T) {
 	}
 }
 
-// usage renders the stop usage line from the options the parser reads.
-func siteStopUsage() string {
-	usage := "stop"
-	for _, o := range stopOptions {
-		usage += " [--" + o.name + " " + o.value + "]"
-	}
-	return usage
-}
-
-// optionNames lists the options text names, sorted and without repeats. help and
-// version stand beside the options and set no key.
-func optionNames(text string) []string {
-	var names []string
-	for _, match := range regexp.MustCompile(`--([a-z][a-z-]*)`).FindAllStringSubmatch(text, -1) {
-		if name := match[1]; name != "help" && name != "version" {
-			names = append(names, name)
-		}
-	}
-	slices.Sort(names)
-	return slices.Compact(names)
-}
-
 func parserOptions(tables ...[]option) []string {
 	var names []string
 	for _, table := range tables {
@@ -179,78 +158,95 @@ func parserOptions(tables ...[]option) []string {
 	return slices.Compact(names)
 }
 
+func TestTheHelpLinksTheReferenceOfItsRelease(t *testing.T) {
+	for release, want := range map[string]string{
+		"1.0.0-beta23": "https://git.drupalcode.org/project/drupack/-/blob/1.0.0-beta23/docs/cli.md",
+		"dev":          "https://git.drupalcode.org/project/drupack/-/blob/main/docs/cli.md",
+	} {
+		for _, engine := range []bool{false, true} {
+			if got := helpText(Launch{Name: "fixture-site", Engine: engine}, release); !strings.HasSuffix(got, "\n"+want) {
+				t.Errorf("release %s, engine %t: the help ends %q, want %q", release, engine, got[strings.LastIndex(got, "\n")+1:], want)
+			}
+		}
+	}
+}
+
 // The help texts, the parser's tables and docs/cli.md name the same options and
 // commands.
 func TestHelpMatchesTheParserAndTheReference(t *testing.T) {
 	packedAs(t, "fixture-site", "dev", false)
 	reference := read(t, filepath.Join("..", "docs", "cli.md"))
-	options := regexp.MustCompile("(?m)^\\| `(--[a-z-]+)` \\|").FindAllStringSubmatch(reference, -1)
-	var table strings.Builder
-	for _, row := range options {
-		table.WriteString(row[1] + " ")
+	// applies holds each documented option's Applies cell, cut before " and ".
+	applies := map[string]string{}
+	for _, row := range regexp.MustCompile("(?m)^\\| `--([a-z-]+)` \\|.*\\| ([^|]+) \\|$").FindAllStringSubmatch(reference, -1) {
+		applies[row[1]], _, _ = strings.Cut(row[2], " and ")
 	}
-	block := regexp.MustCompile(`(?s)\nOptions:\n(.*?)\nCommands:\n`).FindStringSubmatch(siteHelp)
-	if block == nil {
-		t.Fatal("the site help has no Options: block ending at Commands:")
-	}
-	want := parserOptions(siteOptions)
-	if got := optionNames(block[1]); !slices.Equal(got, want) {
-		t.Errorf("the site help names %v, the parser reads %v", got, want)
-	}
-	if got := optionNames(table.String()); !slices.Equal(got, want) {
+	if got, want := slices.Sorted(maps.Keys(applies)), parserOptions(siteOptions); !slices.Equal(got, want) {
 		t.Errorf("docs/cli.md names %v, the parser reads %v", got, want)
 	}
-	site := "stop " + "[--data-dir PATH]"
-	if siteStopUsage() != site {
-		t.Errorf("stop reads %q, the test expects %q", siteStopUsage(), site)
+	groupApplies := map[string]string{
+		"Where the site lives, for start and drush:": "every start, `drush`",
+		"Start options:":                     "every start",
+		"Database options, for every start:": "every start",
+		"First start options:":               "first start",
 	}
-	for _, row := range []struct{ file, text, usage string }{
-		{"the site help", siteHelp, "%[1]s " + siteStopUsage() + "\n"},
-		{"docs/cli.md", reference, "SITE " + siteStopUsage() + "\n"},
-		{"the engine usage", engineUsage, "%[1]s stop [DIR]\n"},
-		{"docs/cli.md", reference, "drupack stop [DIR]\n"},
-		{"the site help", siteHelp, "%[1]s status [--data-dir PATH]\n"},
-		{"docs/cli.md", reference, "SITE status [--data-dir PATH]\n"},
-		{"the engine usage", engineUsage, "%[1]s status [DIR]\n"},
-		{"docs/cli.md", reference, "drupack status [DIR]\n"},
-		{"the site help", siteHelp, "%[1]s restart [--data-dir PATH]\n"},
-		{"docs/cli.md", reference, "SITE restart [--data-dir PATH]\n"},
-		{"the engine usage", engineUsage, "%[1]s restart [DIR]\n"},
-		{"docs/cli.md", reference, "drupack restart [DIR]\n"},
-	} {
-		if !strings.Contains(row.text, row.usage) {
-			t.Errorf("%s does not hold %q", row.file, row.usage)
+	for _, g := range siteGroups {
+		for _, o := range g.options {
+			if applies[o.name] != groupApplies[g.title] {
+				t.Errorf("--%s sits under %q, and docs/cli.md applies it to %q", o.name, g.title, applies[o.name])
+			}
+		}
+	}
+	want := []string{"start", "stop", "status", "restart", "drush", "php", "node", "npm", "npx", "export", "trust", "clean"}
+	if got := helpCommands(helpText(Launch{Name: "fixture-site"}, "dev")); !slices.Equal(got, want) {
+		t.Errorf("the site help lists %v, want %v", got, want)
+	}
+	for _, word := range []string{"stop", "status", "restart"} {
+		usage := "SITE " + word
+		for _, o := range stopOptions {
+			usage += " [" + o.label() + "]"
+		}
+		for _, row := range []struct{ file, text, usage string }{
+			{"docs/cli.md", reference, usage + "\n"},
+			{"docs/cli.md", reference, "drupack " + word + " [DIR]\n"},
+		} {
+			if !strings.Contains(row.text, row.usage) {
+				t.Errorf("%s does not hold %q", row.file, row.usage)
+			}
 		}
 	}
 }
 
-func TestEngineUsageMatchesTheParserAndTheReference(t *testing.T) {
+// helpCommands lists the command words a help text describes, in order.
+func helpCommands(help string) []string {
+	var words []string
+	for _, match := range regexp.MustCompile(`(?m)^  ([a-z][a-z, -]*?) {2,}`).FindAllStringSubmatch(help, -1) {
+		words = append(words, strings.Split(match[1], ", ")...)
+	}
+	return words
+}
+
+func TestTheHelpFitsEightyColumns(t *testing.T) {
+	for _, l := range []Launch{{Name: "fixture-site"}, {Name: "drupack", Engine: true}} {
+		for _, line := range strings.Split(helpText(l, "1.0.0-beta23"), "\n") {
+			if len(line) > 80 {
+				t.Errorf("the %s help line is %d columns: %q", l.Name, len(line), line)
+			}
+		}
+	}
+}
+
+func TestEngineHelpMatchesTheParserAndTheReference(t *testing.T) {
 	reference := read(t, filepath.Join("..", "docs", "cli.md"))
-	line := "Usage: %[1]s [start] [DIR]"
-	for _, o := range engineOptions {
-		line += " [--" + o.name
-		switch {
-		case o.optional:
-			line += "[=" + o.value + "]"
-		case o.value != "":
-			line += " " + o.value
-		}
-		line += "]"
-	}
-	if !strings.Contains(engineUsage, line+"\n") {
-		t.Errorf("the engine usage does not open with %q", line)
-	}
 	section := reference[strings.Index(reference, "## The engine executable"):]
-	commands := regexp.MustCompile(`(?m)^  ([a-z-]+) {2,}`).FindAllStringSubmatch(engineUsage, -1)
-	var names []string
-	for _, command := range commands {
-		names = append(names, command[1])
-		if !strings.Contains(section, "drupack "+command[1]) {
-			t.Errorf("docs/cli.md's engine section omits %s", command[1])
+	names := helpCommands(helpText(Launch{Name: "drupack", Engine: true}, "dev"))
+	for _, name := range names {
+		if !strings.Contains(section, "drupack "+name) {
+			t.Errorf("docs/cli.md's engine section omits %s", name)
 		}
 	}
-	if want := []string{"start", "stop", "status", "restart", "drush", "dr", "export", "php", "clean", "self-update", "trust"}; !slices.Equal(names, want) {
-		t.Errorf("the engine usage lists %v, want %v", names, want)
+	if want := []string{"start", "stop", "status", "restart", "drush", "dr", "composer", "php", "export", "trust", "clean", "self-update"}; !slices.Equal(names, want) {
+		t.Errorf("the engine help lists %v, want %v", names, want)
 	}
 	for _, name := range parserOptions(engineOptions) {
 		if !strings.Contains(section, "--"+name) {

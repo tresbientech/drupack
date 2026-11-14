@@ -134,7 +134,7 @@ func run(args []string, child *detachedChild, consoleNamed bool) error {
 	}
 	switch {
 	case c.word == "help":
-		fmt.Println(helpText(l))
+		fmt.Println(helpText(l, m.Version))
 		return nil
 	case c.word == "node" && l.NodeBin == "":
 		return nodeRefusal(l, args[1])
@@ -193,7 +193,7 @@ func nodeRefusal(l Launch, word string) error {
 		return err
 	}
 	if site.Node == "" {
-		return fmt.Errorf("Unknown command: %s\n\n%s", word, siteHelpText(l.Name))
+		return unknownCommand(word, l.Name)
 	}
 	return fmt.Errorf("%s: this musl build of %s carries no Node. Run the glibc build, the file without -musl in its name.", word, l.Name)
 }

@@ -22,7 +22,7 @@ func TestTakeConsoleStripsTheLeadingWordAlone(t *testing.T) {
 
 func TestNodeRefusal(t *testing.T) {
 	without := newSite(t, siteconfig.Site{Port: 1})
-	if err, want := nodeRefusal(without.launch(), "node"), "Unknown command: node\n\n"+siteHelpText("fixture-site"); err == nil || err.Error() != want {
+	if err, want := nodeRefusal(without.launch(), "node"), "Unknown command: node. Run fixture-site --help."; err == nil || err.Error() != want {
 		t.Errorf("a site without Node: %v", err)
 	}
 	with := newSite(t, siteconfig.Site{Port: 1, Node: siteconfig.NodeLTS})
