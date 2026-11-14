@@ -134,6 +134,11 @@ the Composer it carries.
 `drupack export` runs Tome at the static URL the last start served. A project
 no start has served needs `--uri`.
 
+On Windows, Drupal core keeps a component's directory absolute, so the export
+copies that component's assets under a `C:/` folder.
+[Drupal core issue 3638151](https://www.drupal.org/project/drupal/issues/3638151)
+tracks the fix. A packaged site corrects the path itself.
+
 `drupack php` runs the bundled PHP, as [`php`](#php-node-npm-and-npx)
 describes.
 
