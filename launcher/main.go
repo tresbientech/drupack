@@ -111,13 +111,17 @@ func run(args []string, child *detachedChild, consoleNamed bool) error {
 	if refusal != nil {
 		return refusal
 	}
-	// A stop unpacks nothing.
-	if c.word == "stop" {
-		return runStop(l, c, os.Stdout)
-	}
 	m, err := payload.ParseManifest(runtimeManifest)
 	if err != nil {
 		return err
+	}
+	// The help and a stop unpack nothing.
+	switch c.word {
+	case "help":
+		fmt.Println(helpText(l, m.Version))
+		return nil
+	case "stop":
+		return runStop(l, c, os.Stdout)
 	}
 	directory, application, err := store.PrepareRelease(cache.Release{
 		Payload:     runtimePayload,
@@ -133,9 +137,6 @@ func run(args []string, child *detachedChild, consoleNamed bool) error {
 		return err
 	}
 	switch {
-	case c.word == "help":
-		fmt.Println(helpText(l, m.Version))
-		return nil
 	case c.word == "node" && l.NodeBin == "":
 		return nodeRefusal(l, args[1])
 	case c.word == "start":

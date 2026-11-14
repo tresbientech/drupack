@@ -809,7 +809,7 @@ jobs:
           cp dist/drupacked-demo "$RUNNER_TEMP/quarantined"
           xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" "$RUNNER_TEMP/quarantined"
           xattr -d com.apple.quarantine "$RUNNER_TEMP/quarantined"
-          "$RUNNER_TEMP/quarantined" --help
+          "$RUNNER_TEMP/quarantined" --version
 
       # The files the macos-test jobs run. The name stays outside the patterns the
       # sbom and publish jobs download. The retention stays the default: the gate

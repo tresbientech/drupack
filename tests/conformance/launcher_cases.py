@@ -70,7 +70,7 @@ class ColdWarmStart(harness.ConformanceCase):
         self.env = dict(os.environ, DRUPACK_CACHE_DIR=str(self.cache))
 
     def test_cold_start_then_warm_start(self):
-        code, out, err = run(self.case_dir, harness.BINARY, "cold", "--help", env=self.env)
+        code, out, err = run(self.case_dir, harness.BINARY, "cold", "--version", env=self.env)
         self.assertEqual(code, 0, f"a cold start exited non-zero: inspect {err}")
         cold_err = err.read_text(errors="replace")
         self.assertEqual(
@@ -92,7 +92,7 @@ class ColdWarmStart(harness.ConformanceCase):
             (self.cache / "active").read_text().strip(), key, "a cold start did not activate the runtime"
         )
 
-        code, out, err = run(self.case_dir, harness.BINARY, "warm", "--help", env=self.env)
+        code, out, err = run(self.case_dir, harness.BINARY, "warm", "--version", env=self.env)
         self.assertEqual(code, 0, f"a warm start exited non-zero: inspect {err}")
         self.assertEqual(
             len(UNPACKING_PATTERN.findall(err.read_text(errors="replace"))), 0,
@@ -104,8 +104,18 @@ class ColdWarmStart(harness.ConformanceCase):
             (self.cache / "active").read_text().strip(), key, "a warm start changed the active entry"
         )
 
+    def test_a_cold_help_unpacks_nothing(self):
+        code, out, err = run(self.case_dir, harness.BINARY, "help", "--help", env=self.env)
+        self.assertEqual(code, 0, f"a cold --help exited non-zero: inspect {err}")
+        self.assertIn("Usage:", out.read_text(errors="replace"), "a cold --help printed no usage")
+        self.assertEqual(
+            len(UNPACKING_PATTERN.findall(err.read_text(errors="replace"))), 0,
+            "a cold --help printed an unpacking line",
+        )
+        self.assertEqual(entry_count(self.cache), 0, "a cold --help left a cache entry")
+
     def test_cold_start_reports_unpacking_progress(self):
-        code, out, err = run(self.case_dir, harness.BINARY, "cold", "--help", env=self.env)
+        code, out, err = run(self.case_dir, harness.BINARY, "cold", "--version", env=self.env)
         self.assertEqual(code, 0, f"a cold start exited non-zero: inspect {err}")
         cold_err = err.read_text(errors="replace")
         self.assertEqual(
@@ -137,7 +147,7 @@ class ColdWarmStart(harness.ConformanceCase):
                 read, total, f"the closing {name} report does not name the whole payload"
             )
 
-        code, out, err = run(self.case_dir, harness.BINARY, "warm", "--help", env=self.env)
+        code, out, err = run(self.case_dir, harness.BINARY, "warm", "--version", env=self.env)
         self.assertEqual(code, 0, f"a warm start exited non-zero: inspect {err}")
         self.assertEqual(
             len(PROGRESS_PATTERN.findall(err.read_text(errors="replace"))), 0,
@@ -413,7 +423,7 @@ class WindowsLauncherCases(harness.ConformanceCase):
         cache = harness.reserved_dir(self.case_dir / "cache")
         env = dict(os.environ, DRUPACK_CACHE_DIR=str(cache))
         good = harness.pack_fixture("test-v6", self.case_dir / "fixture-good")
-        code, _, err = run(self.case_dir, good, "install", "--help", env=env)
+        code, _, err = run(self.case_dir, good, "install", "--version", env=env)
         self.assertEqual(code, 0, f"installing the good version exited non-zero: inspect {err}")
         good_key = (cache / "active").read_text().strip()
 
@@ -447,7 +457,7 @@ class CacheRootFull(harness.ConformanceCase):
             "--workdir", "/site",
             "--mount", f"type=bind,src={harness.BINARY},dst=/artifact/drupack,readonly",
             "--mount", f"type=bind,src={data},dst=/site",
-            DEBIAN_IMAGE, "/artifact/drupack", "--help",
+            DEBIAN_IMAGE, "/artifact/drupack", "--version",
         ]
         with open(out_path, "wb") as out_handle, open(err_path, "wb") as err_handle:
             try:
