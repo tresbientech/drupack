@@ -12,7 +12,7 @@ import (
 
 type Site struct {
 	DefaultListen string
-	// Engine takes a hostname listen and gives an unreadable record no restart advice.
+	// Engine gives an unreadable record no restart advice.
 	Engine bool
 }
 
@@ -26,13 +26,6 @@ func engineTarget() Site {
 
 // unresolvedHost is the host of a site whose drupack.site name does not resolve.
 const unresolvedHost = "localhost"
-
-func (s Site) Listen(listen string) (bind string, port int, err error) {
-	if s.Engine {
-		return engineListen(listen)
-	}
-	return parseListen(listen, "--listen")
-}
 
 // Address is where the last start served. The record holds each typed value,
 // else the recorded one, else the default. Recorded is false without a record.
@@ -66,7 +59,7 @@ func Served(dir state.Dir, name string, s Site, typed state.Listener) (Address, 
 	record.StaticListen = cmp.Or(typed.StaticListen, record.StaticListen)
 	record.FilesDir = cmp.Or(typed.FilesDir, record.FilesDir)
 	record.Scheme = cmp.Or(record.Scheme, state.UnrecordedScheme)
-	bind, port, err := s.Listen(record.Listen)
+	bind, port, err := parseListen(record.Listen, "--listen")
 	if err != nil {
 		return Address{}, err
 	}

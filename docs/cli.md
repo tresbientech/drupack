@@ -76,8 +76,9 @@ install address, opens the browser and exits 0. With no terminal it exits 1. A
 first word naming no command is taken as `DIR`, so a folder named `start` or
 `stop` takes `./start`.
 
-- `--listen` defaults to `127.0.0.1:3787`. The URL names the folder's
-  [Site host](#site-hosts) when it resolves.
+- `--listen` defaults to `127.0.0.1:3787`. It takes IP:PORT, with IPv6 in
+  brackets, and refuses a hostname, as a site's does. The URL names the
+  folder's [Site host](#site-hosts) when it resolves.
 - `--host` names one more request host a loopback listener accepts, such as
   the public name a proxy on the same machine forwards. The URL names that
   host. [HTTPS](#https) states which hosts serve HTTPS.

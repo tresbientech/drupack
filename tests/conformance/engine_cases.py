@@ -538,6 +538,13 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertIn("<form", body)
         self.assert_refuses_the_name(port, f"evil.example:{port}")
 
+    def test_a_start_refuses_a_hostname_listener(self):
+        port = harness.pick_port()
+        refused = self.engine_run(str(self.project), "--foreground", "--listen", f"localhost:{port}")
+        self.assertEqual(refused.returncode, 1, refused.stdout)
+        self.assertIn("--listen requires IP:PORT, with IPv6 enclosed in brackets", refused.stderr)
+        self.assertIsNone(self.status(port, "/"))
+
     def test_a_start_refuses_a_host_that_is_no_name(self):
         refused = self.engine_run(str(self.project), "--foreground", "--host", "a b")
         self.assertEqual(refused.returncode, 1, refused.stdout)

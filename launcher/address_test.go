@@ -51,16 +51,14 @@ func TestServed(t *testing.T) {
 			want: with(func(a *Address) { a.Host = "blog.drupack.site" })},
 		{name: "typed files directory over record", site: plain, record: &record, typed: state.Listener{FilesDir: "/typed/files"},
 			want: with(func(a *Address) { a.FilesDir = "/typed/files" })},
-		{name: "a hostname record read with any host", site: engine, record: &state.Listener{Listen: "localhost:8080", Host: "localhost", Scheme: "http"},
-			want: Address{state.Listener{Listen: "localhost:8080", Host: "localhost", Scheme: "http"}, "localhost", 8080, true}},
 		{name: "a record with a static listener", site: plain, record: &withStatic, noun: "site", hasStatic: true,
 			want: with(func(a *Address) { a.StaticListen = "127.0.0.1:8081" }),
 			plan: mustPlan(t, "127.0.0.1", 8080, "127.0.0.1:8081", true, "shop.drupack.site", "https")},
 		{name: "a record with no static listener", site: plain, record: &record, noun: "site", hasStatic: true, want: shop,
 			plan: mustPlan(t, "127.0.0.1", 8080, "", true, "shop.drupack.site", "https")},
-		{name: "a hostname record with no static listener", site: engine, record: &state.Listener{Listen: "localhost:8080", Host: "localhost", Scheme: "http"},
-			noun: "project", hasStatic: true,
-			err: "--static-listen requires IP:PORT, with IPv6 enclosed in brackets"},
+		// An earlier engine recorded any host its --listen took.
+		{name: "a hostname record an earlier engine wrote", site: engine, record: &state.Listener{Listen: "localhost:8080", Host: "localhost", Scheme: "http"},
+			err: "--listen requires IP:PORT, with IPv6 enclosed in brackets"},
 
 		{name: "an unreadable record", site: plain, raw: "not json",
 			err: "Cannot read the recorded listener: {record}. Remove that file, then start fixture-site again to record it."},
@@ -125,24 +123,4 @@ func mustPlan(t *testing.T, bind string, port int, staticListen string, hasStati
 		t.Fatal(err)
 	}
 	return plan
-}
-
-func TestSiteListen(t *testing.T) {
-	for _, row := range []struct {
-		name  string
-		site  Site
-		typed string
-		bind  string
-		port  int
-	}{
-		{name: "a site's value", site: siteTarget(siteconfig.Site{Port: 7}), typed: "[::1]:9", bind: "::1", port: 9},
-		{name: "the engine's value", site: engineTarget(), typed: "localhost:9", bind: "localhost", port: 9},
-	} {
-		t.Run(row.name, func(t *testing.T) {
-			bind, port, err := row.site.Listen(row.typed)
-			if err != nil || bind != row.bind || port != row.port {
-				t.Errorf("Listen = %q, %d, %v, want %q, %d", bind, port, err, row.bind, row.port)
-			}
-		})
-	}
 }

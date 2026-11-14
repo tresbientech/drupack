@@ -120,8 +120,7 @@ func TestAddresses(t *testing.T) {
 			`"http://a.drupack.site:3787", "http://localhost:3787", "http://127.0.0.1:3787", "http://[::1]:3787", "http://shop.test:3787"`},
 		"no alias": {localtls.Choice{Source: "none", Host: "localhost"}, "127.0.0.1",
 			`"http://localhost:3787", "http://127.0.0.1:3787", "http://[::1]:3787"`},
-		"network http":   {plain, "0.0.0.0", `"http://:3787"`},
-		"host name bind": {plain, "127.example.com", `"http://:3787"`},
+		"network http": {plain, "0.0.0.0", `"http://:3787"`},
 		"mkcert": {localtls.Choice{Source: "mkcert", Alias: "a.drupack.site", Host: "shop.test"}, "127.0.0.1",
 			`"https://a.drupack.site:3787", "https://localhost:3787", "https://127.0.0.1:3787", "https://[::1]:3787"`},
 	} {

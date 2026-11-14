@@ -106,7 +106,7 @@ func (s *packagedStart) check() (checked, error) {
 	s.installed = owed.Installed
 	target := siteTarget(s.site)
 	s.listen = cmp.Or(o.Listen, target.DefaultListen)
-	bind, port, err := target.Listen(s.listen)
+	bind, port, err := parseListen(s.listen, "--listen")
 	if err != nil {
 		return checked{}, err
 	}

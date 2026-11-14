@@ -41,17 +41,6 @@ func parseListen(listen, option string) (bind string, port int, err error) {
 	return bind, port, nil
 }
 
-// engineListen splits the engine's --listen, which takes any host before a
-// port of up to five digits, and the Listener record the engine wrote from it.
-func engineListen(listen string) (bind string, port int, err error) {
-	host, digits, ok := splitListen(listen)
-	port, _ = strconv.Atoi(digits)
-	if !ok || len(digits) > 5 || port > 65535 {
-		return "", 0, fmt.Errorf("--listen takes IP:PORT, got %s", listen)
-	}
-	return strings.Trim(host, "[]"), port, nil
-}
-
 // staticListener resolves --static-listen: option, or the site listener's
 // address on the port after port.
 func staticListener(option, bind string, port int) (staticBind string, staticPort int, err error) {

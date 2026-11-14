@@ -28,7 +28,7 @@ A start decides a listener, a TLS source, a host, a scheme, a static listener an
 
 - `Served` is the one reader of the Listener record. A typed value wins over the recorded one, and the recorded one over the default.
 - `Address` holds the merged record, the parsed bind address and the port. `Recorded` is false when no start has recorded a listener.
-- `Site.Engine` picks the engine's listen parser, which takes a hostname. The static listener goes through `Address.Plan`, which refuses a hostname, so only readers that need it see that refusal.
+- Both executables read `--listen` and the recorded listener with one parser, which takes IP:PORT and refuses a hostname. A record an earlier engine wrote with a hostname fails until the next start rewrites it.
 
 ### A child's environment
 

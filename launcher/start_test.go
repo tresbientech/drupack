@@ -15,33 +15,6 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
 
-func TestEngineListen(t *testing.T) {
-	for _, row := range []struct {
-		listen string
-		bind   string
-		port   int
-		err    string
-	}{
-		{"127.0.0.1:3787", "127.0.0.1", 3787, ""},
-		{"[::1]:80", "::1", 80, ""},
-		{"0.0.0.0:65535", "0.0.0.0", 65535, ""},
-		{"localhost:9", "localhost", 9, ""},
-		{"127.0.0.1:65536", "", 0, "--listen takes IP:PORT, got 127.0.0.1:65536"},
-		{"127.0.0.1:123456", "", 0, "--listen takes IP:PORT, got 127.0.0.1:123456"},
-		{"127.0.0.1", "", 0, "--listen takes IP:PORT, got 127.0.0.1"},
-		{"", "", 0, "--listen takes IP:PORT, got "},
-	} {
-		bind, port, err := engineListen(row.listen)
-		message := ""
-		if err != nil {
-			message = err.Error()
-		}
-		if bind != row.bind || port != row.port || message != row.err {
-			t.Errorf("engineListen(%q) = %q, %d, %q, want %q, %d, %q", row.listen, bind, port, message, row.bind, row.port, row.err)
-		}
-	}
-}
-
 func TestPlanStart(t *testing.T) {
 	for _, row := range []struct {
 		name         string
@@ -205,7 +178,6 @@ func TestPortRefusal(t *testing.T) {
 	}{
 		{"free ports", "127.0.0.1:8080", startPlan{Bind: "127.0.0.1", Port: 8080}, nil, ""},
 		{"a taken site port", "127.0.0.1:8080", startPlan{Bind: "127.0.0.1", Port: 8080}, []int{8080}, "Another program is listening on 127.0.0.1:8080. Stop it, or start on a free port: demo --listen 127.0.0.1:8081"},
-		{"the engine's hostname", "localhost:8080", startPlan{Bind: "localhost", Port: 8080}, []int{8080}, "Another program is listening on localhost:8080. Stop it, or start on a free port: demo --listen localhost:8081"},
 		{"a taken static port", "0.0.0.0:8080", static, []int{8081}, "Another program is listening on 0.0.0.0:8081. Stop it, or move the static listener to a free port: demo --static-listen 0.0.0.0:8082"},
 		{"both taken names the site port", "0.0.0.0:8080", static, []int{8080, 8081}, "Another program is listening on 0.0.0.0:8080. Stop it, or start on a free port: demo --listen 0.0.0.0:8081"},
 		{"a static port nobody probes without a static listener", "127.0.0.1:8080", startPlan{Bind: "127.0.0.1", Port: 8080}, []int{8081}, ""},

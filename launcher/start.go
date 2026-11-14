@@ -331,7 +331,7 @@ func (e *engineStart) check() (checked, error) {
 	}
 	e.installed = probe.Installed
 	listen := e.c.options.Listen
-	bind, port, err := engineTarget().Listen(listen)
+	bind, port, err := parseListen(listen, "--listen")
 	if err != nil {
 		return checked{}, err
 	}
