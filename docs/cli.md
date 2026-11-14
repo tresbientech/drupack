@@ -216,6 +216,8 @@ An offline machine gets no answer, and a DNS filter may return another address.
 A loopback start answers the name, `localhost`, `127.0.0.1`, `[::1]`, its bind
 address and its `--host`. Over plain HTTP, a request for any other name gets
 status 421 and one sentence that names `--host`, and nothing of the site.
+That stops DNS rebinding, where a web page points its own name at your
+computer and reads the site.
 A name of your own in `/etc/hosts` needs `--host`. A start on any other address
 answers every name.
 

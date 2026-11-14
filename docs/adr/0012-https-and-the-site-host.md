@@ -43,6 +43,10 @@ A certificate helps only when the browser already trusts its root, and each syst
 
 The name constraint limits the root to loopback names, so a leaked root key vouches for nothing else. On-demand issuance for other hosts would let any page make Caddy sign certificates into Site data, so `--host` with another name serves HTTP.
 
-An empty answer left a proxy that forwards an unknown name with a blank page and no error. A fixed sentence says why, and gives a page that points its own name at this computer nothing of the site.
+A loopback listener answers only its own names against DNS rebinding. A web page the reader opens can point its own name at `127.0.0.1`. Its script then reaches the site under that name, as the same origin, and reads every reply. Caddy serves public files, the static export and the Mercure hub without Drupal, so Drupal's trusted host check covers none of them.
+
+The rule covers plain HTTP on loopback alone. Over HTTPS the certificate names loopback hosts only, so the browser refuses a rebound name before any request. A bind beyond loopback serves the network, where a proxy in front sets the name.
+
+An empty answer left a proxy that forwards an unknown name with a blank page and no error. A 421 with one fixed sentence says why, and holds nothing of the site.
 
 The name resolves only against `127.0.0.1`, because the record answers that address alone. A start bound elsewhere keeps its own host. Sites on one machine keep separate cookies whenever the name resolves.
