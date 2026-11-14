@@ -68,14 +68,12 @@ print("PASS: a Site data path with a space serves the login page")
 def _run_client(network, script, log_path, *args):
     """Run script with args inside the client image on network; return its exit code, log its output."""
     command = [
-        "docker", "run", "--rm", "-i", "--network", network,
+        "run", "--rm", "-i", "--network", network,
         "--entrypoint", "/usr/local/bin/python3", CLIENT_IMAGE, "-", *args,
     ]
     with open(log_path, "w") as handle:
-        result = subprocess.run(
-            command, input=script, stdout=handle, stderr=subprocess.STDOUT, text=True,
-            timeout=harness.WAITS["network_client"].seconds,
-        )
+        result = harness.docker("network_client", *command, input=script, stdout=handle,
+                                stderr=subprocess.STDOUT, text=True)
     return result.returncode
 
 
@@ -83,22 +81,20 @@ def _start_site_container(name, network, alias, data_src, data_dst, args, log_pa
     """docker run -d the site under name on network, aliased as alias; wait for its ready line
     in its log, since it is cut off from the host network.
     """
-    subprocess.run(
-        ["docker", "run", "-d", "--name", name, "--network", network, "--network-alias", alias,
-         "--user", f"{os.getuid()}:{os.getgid()}", "--workdir", "/site",
-         "-e", "DRUPACK_CACHE_DIR=/cache",
-         "--mount", f"type=bind,src={harness.BINARY},dst=/artifact/drupack,readonly",
-         "--mount", f"type=bind,src={data_src},dst={data_dst}",
-         "--mount", f"type=bind,src={os.environ['DRUPACK_CACHE_DIR']},dst=/cache",
-         DEBIAN_IMAGE, "/artifact/drupack", "--foreground", *args],
-        check=True, capture_output=True, text=True, timeout=harness.WAITS["network_container"].seconds,
+    harness.docker(
+        "network_container", "run", "-d", "--name", name, "--network", network, "--network-alias", alias,
+        "--user", f"{os.getuid()}:{os.getgid()}", "--workdir", "/site",
+        "-e", "DRUPACK_CACHE_DIR=/cache",
+        "--mount", f"type=bind,src={harness.BINARY},dst=/artifact/drupack,readonly",
+        "--mount", f"type=bind,src={data_src},dst={data_dst}",
+        "--mount", f"type=bind,src={os.environ['DRUPACK_CACHE_DIR']},dst=/cache",
+        DEBIAN_IMAGE, "/artifact/drupack", "--foreground", *args,
+        check=True, capture_output=True, text=True,
     )
     deadline = time.monotonic() + harness.WAITS["start"].seconds
     while time.monotonic() < deadline:
-        logs = subprocess.run(
-            ["docker", "logs", name], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, timeout=harness.WAITS["docker_admin"].seconds,
-        ).stdout
+        logs = harness.docker("docker_admin", "logs", name, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True).stdout
         log_path.write_text(logs)
         if harness.ready_line() in logs:
             return
@@ -112,8 +108,7 @@ def _remove_site_container(name, log_path):
     """Capture the container's final log, then remove it; neither is checked, since the
     container may never have been created."""
     with open(log_path, "w") as handle:
-        subprocess.run(["docker", "logs", name], stdout=handle, stderr=subprocess.STDOUT,
-                        timeout=harness.WAITS["docker_admin"].seconds)
+        harness.docker("docker_admin", "logs", name, stdout=handle, stderr=subprocess.STDOUT)
     harness.remove_container(name)
 
 
@@ -128,13 +123,12 @@ class NetworkListener(harness.ConformanceCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.network = f"drupack-network-{os.getpid()}"
-        subprocess.run(["docker", "network", "create", "--internal", cls.network],
-                        check=True, capture_output=True, timeout=harness.WAITS["docker_admin"].seconds)
+        harness.docker("docker_admin", "network", "create", "--internal", cls.network,
+                       check=True, capture_output=True)
 
     @classmethod
     def tearDownClass(cls):
-        subprocess.run(["docker", "network", "rm", cls.network], capture_output=True,
-                        timeout=harness.WAITS["docker_admin"].seconds)
+        harness.docker("docker_admin", "network", "rm", cls.network, capture_output=True)
 
     def test_default_listener_refuses_another_container(self):
         data = harness.fresh_dir(self.case_dir / "data")

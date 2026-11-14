@@ -159,6 +159,9 @@ WAIT_TABLE = [
     Wait("fixture_pack", 180, None, "packing a fixture launcher with go run ./cmd/pack"),
     Wait("cache_full", 120, None, "a start with no room in its cache root, including the image pull"),
     Wait("cache_full_kill", 30, None, "removing a hung cache-full container after its budget expires"),
+    # watch.go forces the server's exit 10s after the first stop signal; a request this long
+    # holds the drain open past a second start's refusal.
+    Wait("drain_request", 6, 10, "a request that holds a stopping server's drain open, below its 10s shutdown guard"),
     Wait("probe", 10, None, "a local process-table lookup (ps, pgrep) against a running start"),
     Wait("port_closed", 2, None, "confirming a stopped server's port refuses a connection"),
     Wait("http_request", 60, None, "an HTTP request against a running site or a login link"),
@@ -483,11 +486,16 @@ def popen_under_pty(args, log_path, cwd, env):
     return process, thread
 
 
+def docker(wait, *args, **kwargs):
+    """Runs `docker args` for the WAITS row named wait; the keywords go to subprocess.run."""
+    return subprocess.run(["docker", *args], timeout=WAITS[wait].seconds, **kwargs)
+
+
 def remove_container(name):
     """Removes a container and the anonymous volume its image declares. The cases it served
     have their results by then, so a removal that outlasts its wait is reported and left."""
     try:
-        subprocess.run(["docker", "rm", "-f", "-v", name], capture_output=True, timeout=WAITS["docker_admin"].seconds)
+        docker("docker_admin", "rm", "-f", "-v", name, capture_output=True)
     except subprocess.TimeoutExpired:
         print(f"docker rm of {name} outlasted {WAITS['docker_admin'].seconds}s. The container may remain.",
               file=sys.stderr, flush=True)

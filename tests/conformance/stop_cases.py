@@ -5,6 +5,7 @@ release started.
 
 import os
 import socket
+import time
 import unittest
 from pathlib import Path
 
@@ -19,6 +20,19 @@ def _stop(data, *options, cwd):
         [str(harness.BINARY), "stop", "--data-dir", str(data), *options],
         cwd=cwd, capture_output=True, text=True, timeout=harness.WAITS["stop"].seconds + 30,
     )
+
+
+# Takes the lease as the previous release's PHP does, signals argv[2] once it holds it, and
+# releases it by exiting once argv[3] exists or argv[4] seconds pass.
+_FLOCK_HOLDER = """<?php
+$handle = fopen($argv[1], 'c+');
+flock($handle, LOCK_EX);
+file_put_contents($argv[2], '');
+$deadline = microtime(true) + (float) $argv[4];
+while (microtime(true) < $deadline && !file_exists($argv[3])) {
+    usleep(250000);
+}
+"""
 
 
 def _refuses(host, port):
@@ -62,6 +76,32 @@ class StopCases(harness.ConformanceCase):
         self.assertEqual(result.returncode, 0, f"stop exited non-zero: {result.stderr}")
         self.assertIn("is not running", result.stdout)
         self.assertEqual(sorted(path.name for path in cache.iterdir()), [], "stop unpacked into the cache")
+
+
+class WindowsStopCases(harness.ConformanceCase):
+    PLATFORMS = (harness.WINDOWS,)
+
+    def test_stop_reports_a_server_when_php_flock_holds_the_lease(self):
+        data = self.case_dir / "data"
+        data.mkdir()
+        script = self.case_dir / "holder.php"
+        script.write_text(_FLOCK_HOLDER)
+        ack = self.case_dir / "lock-acquired"
+        release = self.case_dir / "release-lock"
+        holder = harness.popen([str(harness.BINARY), "php-cli", str(script), str(data / "serving.lock"),
+                                str(ack), str(release), str(harness.WAITS["lock_hold"].seconds)],
+                               cwd=self.case_dir)
+        self.addCleanup(holder.wait, harness.WAITS["stop"].seconds)
+        self.addCleanup(release.touch)
+        deadline = time.monotonic() + harness.WAITS["lock_ack"].seconds
+        while time.monotonic() < deadline and not ack.exists():
+            time.sleep(0.05)
+        self.assertTrue(ack.exists(), "the PHP holder did not take serving.lock")
+        # No stop record exists, so the stop reports a start still preparing.
+        result = _stop(data, cwd=self.case_dir)
+        self.assertNotIn("is not running", result.stdout, "the lease probe read a PHP flock holder as no server")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("start is still preparing this Site data", result.stderr)
 
 
 class PreviousReleaseStop(harness.ConformanceCase):

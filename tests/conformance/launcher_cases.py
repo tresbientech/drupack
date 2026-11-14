@@ -451,7 +451,7 @@ class CacheRootFull(harness.ConformanceCase):
         err_path = self.class_dir / "run.err"
         container_name = f"drupack-cache-full-{os.getpid()}"
         command = [
-            "docker", "run", "--rm", "--tmpfs", "/cache:size=4m",
+            "run", "--rm", "--tmpfs", "/cache:size=4m",
             "--name", container_name,
             "-e", "DRUPACK_CACHE_DIR=/cache",
             "--workdir", "/site",
@@ -461,18 +461,12 @@ class CacheRootFull(harness.ConformanceCase):
         ]
         with open(out_path, "wb") as out_handle, open(err_path, "wb") as err_handle:
             try:
-                result = subprocess.run(
-                    command, stdout=out_handle, stderr=err_handle,
-                    timeout=harness.WAITS["cache_full"].seconds,
-                )
+                result = harness.docker("cache_full", *command, stdout=out_handle, stderr=err_handle)
             except subprocess.TimeoutExpired:
                 # SIGKILL lands on the docker client, not the daemon: the container keeps
                 # running unless removed by name.
                 try:
-                    subprocess.run(
-                        ["docker", "rm", "-f", container_name],
-                        capture_output=True, timeout=harness.WAITS["cache_full_kill"].seconds,
-                    )
+                    harness.docker("cache_full_kill", "rm", "-f", container_name, capture_output=True)
                 except subprocess.TimeoutExpired:
                     pass
                 self.fail(

@@ -24,7 +24,7 @@ class OfflineRun(harness.ConformanceCase):
         log_path = self.class_dir / "run.log"
         container_name = f"drupack-offline-{os.getpid()}"
         command = [
-            "docker", "run", "--rm", "--network", "none",
+            "run", "--rm", "--network", "none",
             "--name", container_name,
             "--user", f"{os.getuid()}:{os.getgid()}",
             "-e", f"{harness.OFFLINE_ENV}=1",
@@ -46,18 +46,12 @@ class OfflineRun(harness.ConformanceCase):
         ]
         with open(log_path, "w") as log_handle:
             try:
-                result = subprocess.run(
-                    command, stdout=log_handle, stderr=subprocess.STDOUT,
-                    timeout=harness.WAITS["offline"].seconds,
-                )
+                result = harness.docker("offline", *command, stdout=log_handle, stderr=subprocess.STDOUT)
             except subprocess.TimeoutExpired:
                 # SIGKILL lands on the docker client, not the daemon: the container keeps
                 # running unless removed by name.
                 try:
-                    subprocess.run(
-                        ["docker", "rm", "-f", container_name],
-                        capture_output=True, timeout=harness.WAITS["offline_kill"].seconds,
-                    )
+                    harness.docker("offline_kill", "rm", "-f", container_name, capture_output=True)
                 except subprocess.TimeoutExpired:
                     pass
                 self.fail(

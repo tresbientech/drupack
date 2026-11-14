@@ -6,6 +6,7 @@ folder lands in its public files directory. `export` alone adds `html` beside th
 docroot, which its case removes.
 """
 
+import concurrent.futures
 import gzip
 import hashlib
 import http.client
@@ -13,6 +14,7 @@ import json
 import os
 import shlex
 import shutil
+import signal
 import ssl
 import stat
 import subprocess
@@ -99,7 +101,7 @@ class EngineExecutable(harness.ConformanceCase):
         return harness.run([str(self.engine), *arguments], cwd=cwd or self.class_dir, env=env,
                            capture_output=True, text=True, timeout=harness.WAITS[wait].seconds)
 
-    def start(self, name, *arguments, cwd=None, env=None, port=None, umask=-1, attach_pty=False):
+    def start(self, name, *arguments, cwd=None, env=None, port=None, umask=-1, attach_pty=False, creationflags=0):
         """Starts the engine executable on a port of its own, whose successor is free for the static site,
         waits for /user/login and the ready line, and returns the port and log. Drupal can answer before
         the server writes its stop record, which precedes the ready line. umask is the child's, -1 this
@@ -114,7 +116,9 @@ class EngineExecutable(harness.ConformanceCase):
         else:
             with open(log, "wb") as handle:
                 process = harness.popen(args, cwd=cwd or self.class_dir, env=env, stdout=handle,
-                                        stderr=subprocess.STDOUT, start_new_session=True, umask=umask)
+                                        stderr=subprocess.STDOUT, start_new_session=True, umask=umask,
+                                        creationflags=creationflags)
+        self.process = process
         self.addCleanup(harness.stop_process, process, harness.WAITS["stop"].seconds, f": inspect {log}")
         deadline = time.monotonic() + harness.WAITS["start"].seconds
         while time.monotonic() < deadline:
@@ -524,6 +528,28 @@ if (isset($_GET['drupack-log-case'])) {
         second = self.engine_run(str(self.project), "--listen", f"127.0.0.1:{harness.pick_port()}")
         self.assertEqual(second.returncode, 1, second.stdout)
         self.assertIn(f"drupack already serves {self.project.as_posix()}", second.stderr)
+
+    def test_a_start_inside_the_drain_after_ctrl_break_says_it_already_serves(self):
+        if harness.current_platform() != harness.WINDOWS:
+            self.skipTest("the launcher outlives Ctrl+Break only on Windows")
+        # A new process group takes Ctrl+Break and ignores Ctrl+C, as a console's foreground start does.
+        port, _ = self.start("drain", str(self.project), creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+        entered = self.class_dir / "drain-entered"
+        entered.unlink(missing_ok=True)
+        # Caddy finishes an in-flight PHP request before it stops, so the request holds the lease past the refusal.
+        self.marker("drain.php", f"<?php touch({entered.as_posix()!r}); sleep({harness.WAITS['drain_request'].seconds});")
+        with concurrent.futures.ThreadPoolExecutor(1) as pool:
+            slow = pool.submit(self.status, port, "/drain.php")
+            deadline = time.monotonic() + harness.WAITS["http_request"].seconds
+            while not entered.exists() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertTrue(entered.exists(), "the slow request never reached PHP")
+            os.kill(self.process.pid, signal.CTRL_BREAK_EVENT)
+            second = self.engine_run(str(self.project), "--listen", f"127.0.0.1:{harness.pick_port()}")
+            self.assertEqual(second.returncode, 1, second.stdout)
+            self.assertIn(f"drupack already serves {self.project.as_posix()}", second.stderr)
+            self.assertEqual(slow.result(), 200, "the drain cut the request short")
+        self.process.wait(timeout=harness.WAITS["stop"].seconds)
 
     def test_a_start_in_the_foreground_is_stopped_by_stop(self):
         port, _ = self.start("start-stopped", str(self.project))
