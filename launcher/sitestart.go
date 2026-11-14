@@ -110,9 +110,6 @@ func (s *packagedStart) check() (checked, error) {
 	if err != nil {
 		return checked{}, err
 	}
-	if o.Host != "" && !validHost(o.Host) {
-		return checked{}, errors.New("Invalid --host value")
-	}
 	// Both paths reach the Caddyfile.
 	if err := caddyfile.RefuseBraces("--data-dir", fsguard.Canonical(s.typedData)); err != nil {
 		return checked{}, err

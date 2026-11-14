@@ -71,7 +71,7 @@ docs/cli.md explains every option.`
 
 // engineUsage is the text the engine's --help prints. %[1]s is the executable's
 // name and %[2]s the default listener.
-const engineUsage = `Usage: %[1]s [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground] [--access-log[=FILE]] [--error-log[=FILE]] [--trusted-proxies CIDR[,CIDR]]
+const engineUsage = `Usage: %[1]s [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--host HOST] [--foreground] [--access-log[=FILE]] [--error-log[=FILE]] [--trusted-proxies CIDR[,CIDR]]
        %[1]s stop [DIR]
        %[1]s drush DRUSH_COMMAND
        %[1]s dr DRUPAL_COMMAND
@@ -85,10 +85,12 @@ const engineUsage = `Usage: %[1]s [start] [DIR] [--listen IP:PORT] [--static-lis
 
 Serves the Drupal project in DIR, the working directory by default, with its
 own settings, in the background. --foreground serves in this terminal until a
-signal stops it. --listen defaults to %[2]s. A project whose composer.json sets
-extra.drupack.static serves its Tome export on --static-listen, the
-listener's address on the next port by default. The export is the
-tome_static_directory its settings.php sets, or html beside the docroot.
+signal stops it. --listen defaults to %[2]s. --host names a request host a
+loopback listener accepts, such as the name a proxy on this machine forwards.
+A project whose composer.json sets extra.drupack.static serves its Tome export
+on --static-listen, the listener's address on the next port by default. The
+export is the tome_static_directory its settings.php sets, or html beside the
+docroot.
 --access-log logs each request of both listeners to FILE, access.log in the
 folder's cache entry by default. --error-log logs PHP's and Caddy's warnings
 and errors to FILE, error.log there by default. DIR goes before either

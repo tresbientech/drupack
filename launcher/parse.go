@@ -49,6 +49,7 @@ var (
 	trustedProxiesOption = option{name: "trusted-proxies", value: "CIDR[,CIDR]", set: func(o *options, v string) { o.TrustedProxies = v }}
 	listenOption         = option{name: "listen", value: "IP:PORT", set: func(o *options, v string) { o.Listen = v }}
 	staticListenOption   = option{name: "static-listen", value: "IP:PORT", set: func(o *options, v string) { o.StaticListen = v }}
+	hostOption           = option{name: "host", value: "HOST", set: func(o *options, v string) { o.Host = v }}
 	foregroundOption     = option{name: "foreground", set: func(o *options, _ string) { o.Foreground = true }}
 )
 
@@ -77,7 +78,7 @@ var siteOptions = []option{
 	dataDirOption,
 	listenOption,
 	staticListenOption,
-	{name: "host", value: "HOST", set: func(o *options, v string) { o.Host = v }},
+	hostOption,
 	{name: "files-dir", value: "PATH", set: func(o *options, v string) { o.FilesDir = v }},
 	{name: "database", value: "sqlite|mysql|pgsql", set: func(o *options, v string) { o.Database = v }},
 	{name: "db-host", value: "HOST", set: func(o *options, v string) { o.DBHost = v }},
@@ -100,6 +101,7 @@ var siteOptions = []option{
 var engineOptions = []option{
 	listenOption,
 	staticListenOption,
+	hostOption,
 	foregroundOption,
 	accessLogOption,
 	errorLogOption,

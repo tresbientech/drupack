@@ -166,3 +166,11 @@
 		}
 	}
 }
+
+# Every name the listener above does not answer. The answer holds a reason and nothing of
+# the site, so a page that points its own name at this computer reads no more than a
+# proxy that forwards an unknown name.
+http://:3787 {
+	bind "127.0.0.1"
+	respond "This server does not answer this host name; start it with --host NAME, or have the proxy send the listener's address as Host." 421
+}

@@ -35,7 +35,12 @@ func rows() map[string]Config {
 	everything.Static = &Static{Bind: "127.0.0.1", Port: 3788, Root: Root + "/data/static", Dynamic: []string{"/api/*"}}
 	everything.AccessLog, everything.ErrorLog = Root+"/data/logs/access.log", Root+"/data/logs/error.log"
 	everything.TrustedProxies = []string{"192.168.0.58/32", "fd00::/8"}
-	return map[string]Config{"engine-none": engine, "engine-static-mkcert": mkcert, "site-everything": everything}
+	// The site port answers every name, and the loopback static port its own.
+	open := engine
+	open.Bind = "0.0.0.0"
+	open.Static = &Static{Bind: "127.0.0.1", Port: 3788, Root: Root + "/project/html"}
+	open.AccessLog = Root + "/state/access.log"
+	return map[string]Config{"engine-none": engine, "engine-static-mkcert": mkcert, "engine-static-open": open, "site-everything": everything}
 }
 
 func TestRender(t *testing.T) {

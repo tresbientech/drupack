@@ -521,8 +521,27 @@ if (isset($_GET['drupack-log-case'])) {
     def test_a_loopback_start_answers_no_name_of_another_site(self):
         # A page that points its own name at 127.0.0.1 sends that name as its Host.
         port, _ = self.start("start-foreign-host", str(self.project))
-        self.assertEqual(self.fetch(port, "/user/login", {"Host": f"evil.example:{port}"})[::2], (200, ""))
+        self.assert_refuses_the_name(port, f"evil.example:{port}")
         self.assertEqual(self.status(port, "/user/login"), 200)
+
+    def assert_refuses_the_name(self, port, host):
+        status, _, body = self.fetch(port, "/user/login", {"Host": host})
+        self.assertEqual(status, 421)
+        self.assertTrue(body.startswith("This server does not answer this host name; start it with --host NAME"), body)
+
+    def test_a_loopback_start_answers_the_host_it_names(self):
+        # A proxy on the same machine forwards the public name with no port.
+        port, log = self.start("start-host", str(self.project), "--host", "www.example.org")
+        self.assertIn(f"URL:     http://www.example.org:{port}\n", log.read_text(errors="replace"))
+        status, _, body = self.fetch(port, "/user/login", {"Host": "www.example.org"})
+        self.assertEqual(status, 200)
+        self.assertIn("<form", body)
+        self.assert_refuses_the_name(port, f"evil.example:{port}")
+
+    def test_a_start_refuses_a_host_that_is_no_name(self):
+        refused = self.engine_run(str(self.project), "--foreground", "--host", "a b")
+        self.assertEqual(refused.returncode, 1, refused.stdout)
+        self.assertIn("Invalid --host value", refused.stderr)
 
     def with_subdomain(self, value, project=None):
         """Sets extra.drupack.subdomain in a project's composer.json until the case ends, or removes it
@@ -880,14 +899,18 @@ if (isset($_GET['drupack-log-case'])) {
                             "--trusted-proxies", "127.0.0.1,::1", port=port)
         self.assertEqual(self.status(port, "/?drupack-log-case"), 500)
         self.fetch(port, "/user/login", headers={"X-Forwarded-For": "203.0.113.9"})
+        self.assert_refuses_the_name(port, "evil.example")
         self.assertEqual(self.status(port + 1, "/"), 404)
         access = Path(harness.wait_for_line(log, 0, "  Access:  ", 1)).expanduser()
         errors = Path(harness.wait_for_line(log, 0, "  Errors:  ", 1)).expanduser()
         self.assertEqual((access.name, errors.name, access.parent), ("access.log", "error.log", errors.parent))
         harness.wait_for_loggers(access, {"http.log.access.site", "http.log.access.static"})
         harness.wait_for_loggers(errors, {"http.handlers.php"})
-        clients = {json.loads(line)["request"]["client_ip"] for line in access.read_text().splitlines()}
-        self.assertEqual(clients, {"127.0.0.1", "203.0.113.9"}, "a trusted proxy's forwarded header names the client")
+        requests = [json.loads(line) for line in access.read_text().splitlines()]
+        self.assertEqual({line["request"]["client_ip"] for line in requests}, {"127.0.0.1", "203.0.113.9"},
+                         "a trusted proxy's forwarded header names the client")
+        self.assertIn(("http.log.access.site", "evil.example", 421),
+                      {(line["logger"], line["request"]["host"], line["status"]) for line in requests})
         lines = [json.loads(line) for line in errors.read_text().splitlines()]
         messages = " ".join(line["msg"] for line in lines)
         self.assertIn("drupack warning case", messages)

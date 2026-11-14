@@ -62,6 +62,8 @@ func TestParse(t *testing.T) {
 		{"a start refuses a file after --error-log", []string{"SITE", "--error-log", "e.log"}, false, unset, command{}, "--error-log takes its value as --error-log=FILE"},
 		{"the engine reads --trusted-proxies", []string{"drupack", "--trusted-proxies", "10.0.0.1,10.0.0.0/8", "project"}, true, unset,
 			command{word: "start", target: "project", options: options{Listen: defaultListen, TrustedProxies: "10.0.0.1,10.0.0.0/8"}}, ""},
+		{"the engine reads --host", []string{"drupack", "--host", "www.example.org", "project"}, true, unset,
+			command{word: "start", target: "project", options: options{Listen: defaultListen, Host: "www.example.org"}}, ""},
 		{"the engine refuses a word after --access-log", []string{"drupack", "--access-log", "a.log"}, true, unset, command{}, "--access-log takes its value as --access-log=FILE"},
 		{"the engine refuses a second folder", []string{"drupack", "a", "b"}, true, unset, command{}, "Unknown argument b. Run fixture-site --help."},
 		{"the engine refuses an option", []string{"drupack", "start", "--help"}, true, unset, command{}, "Unknown argument --help. Run fixture-site --help."},

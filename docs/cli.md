@@ -41,7 +41,7 @@ from [A packaged site](#a-packaged-site) on describe them.
 ## The engine executable
 
 ```
-drupack [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--foreground] [--access-log[=FILE]] [--error-log[=FILE]] [--trusted-proxies CIDR[,CIDR]]
+drupack [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--host HOST] [--foreground] [--access-log[=FILE]] [--error-log[=FILE]] [--trusted-proxies CIDR[,CIDR]]
 drupack stop [DIR]
 drupack drush DRUSH_COMMAND
 drupack dr DRUPAL_COMMAND
@@ -78,6 +78,9 @@ first word naming no command is taken as `DIR`, so a folder named `start` or
 
 - `--listen` defaults to `127.0.0.1:3787`. The URL names the folder's
   [Site host](#site-hosts) when it resolves.
+- `--host` names one more request host a loopback listener accepts, such as
+  the public name a proxy on the same machine forwards. The URL names that
+  host. [HTTPS](#https) states which hosts serve HTTPS.
 - The docroot is the scaffold web root `composer.json` names, `web` when it
   names none.
 - The start refuses a docroot without Drupal core.
@@ -210,7 +213,8 @@ Name: demo.drupack.site did not resolve to 127.0.0.1 (no answer), so the URL use
 An offline machine gets no answer, and a DNS filter may return another address.
 
 A loopback start answers the name, `localhost`, `127.0.0.1`, `[::1]`, its bind
-address and its `--host`. A request for any other name gets an empty response.
+address and its `--host`. Over plain HTTP, a request for any other name gets
+status 421 and one sentence that names `--host`, and nothing of the site.
 A name of your own in `/etc/hosts` needs `--host`. A start on any other address
 answers every name.
 
@@ -542,7 +546,8 @@ reach the site without the option. A later start does not read it back.
 
 `--host` names a request host the site accepts, as a hostname or an IP
 address, beside `localhost`, `127.0.0.1`, `[::1]` and the Site host. A request
-with any other Host header gets 400. Without `--host`, the
+with any other Host header gets the 421 that [Site hosts](#site-hosts)
+describes. Without `--host`, the
 start picks the host as [Site hosts](#site-hosts) describes.
 
 A listener beyond loopback, such as `--listen 0.0.0.0:7225`, serves plain HTTP.

@@ -32,6 +32,8 @@ Some local agents refuse an MCP address that is not HTTPS, and browsers drop `__
   2. The Site host, when the bind is `127.0.0.1` and the system resolver answers it with `127.0.0.1` within one second.
   3. Otherwise `localhost` for a Packaged site and the bind address for the engine. The start prints one line with the resolver's answer.
 - Caddy serves the name beside `localhost`, `127.0.0.1` and `[::1]`, and `settings.php` trusts it.
+- A Packaged site and the engine both take `--host`, one name.
+- A loopback listener on plain HTTP answers every other name with status 421 and one fixed sentence that names `--host`. The answer holds nothing of the site and repeats nothing of the request.
 - `--host` with any other name keeps HTTP.
 - `DRUPACK_DNS_ANSWER` overrides the lookup with a fixed answer. The conformance harness sets it to `none`.
 
@@ -40,5 +42,7 @@ Some local agents refuse an MCP address that is not HTTPS, and browsers drop `__
 A certificate helps only when the browser already trusts its root, and each system keeps roots in its own store. Taking an existing mkcert root or an explicit `trust` keeps every start free of privilege prompts.
 
 The name constraint limits the root to loopback names, so a leaked root key vouches for nothing else. On-demand issuance for other hosts would let any page make Caddy sign certificates into Site data, so `--host` with another name serves HTTP.
+
+An empty answer left a proxy that forwards an unknown name with a blank page and no error. A fixed sentence says why, and gives a page that points its own name at this computer nothing of the site.
 
 The name resolves only against `127.0.0.1`, because the record answers that address alone. A start bound elsewhere keeps its own host. Sites on one machine keep separate cookies whenever the name resolves.

@@ -62,6 +62,10 @@
 		}
 	}
 }
+{{- with .OtherNames .Bind .Port "site"}}
+
+{{include "other-names.caddy" .}}
+{{- end}}
 {{- if .Static}}
 
 {{.Addresses .Static.Bind .Static.Port}} {
@@ -70,4 +74,8 @@
 {{- end}}
 {{include "static-site.caddy" . | indent 1}}
 }
+{{- with .OtherNames .Static.Bind .Static.Port "static"}}
+
+{{include "other-names.caddy" .}}
+{{- end}}
 {{- end}}

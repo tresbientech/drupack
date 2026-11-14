@@ -74,11 +74,11 @@ type Static struct {
 func (c Config) Addresses(bind string, port int) (string, error) {
 	p := strconv.Itoa(port)
 	scheme, names := "https://", []string{c.TLS.Alias, "localhost", "127.0.0.1", "::1"}
-	if c.TLS.Source == "none" {
-		if !localtls.Loopback(bind) {
-			return quote("http://:" + p)
-		}
+	switch {
+	case c.namesHosts(bind):
 		scheme, names = "http://", append(names, bind, c.TLS.Host)
+	case c.TLS.Source == "none":
+		return quote("http://:" + p)
 	}
 	var addresses []string
 	for _, name := range names {
@@ -97,6 +97,28 @@ func (c Config) Addresses(bind string, port int) (string, error) {
 		}
 	}
 	return strings.Join(addresses, ", "), nil
+}
+
+// namesHosts reports whether a listener on bind answers its own names alone over plain HTTP.
+func (c Config) namesHosts(bind string) bool {
+	return c.TLS.Source == "none" && localtls.Loopback(bind)
+}
+
+// OtherNames is the block of a listener that answers every name Addresses leaves out.
+type OtherNames struct {
+	Bind string
+	Port int
+	// Logger and AccessLog are the listener's own, so the access log holds these answers too.
+	Logger, AccessLog string
+}
+
+// OtherNames returns nil for a listener that has no such block: one that answers
+// every name already, and one that serves HTTPS.
+func (c Config) OtherNames(bind string, port int, logger string) *OtherNames {
+	if !c.namesHosts(bind) {
+		return nil
+	}
+	return &OtherNames{Bind: bind, Port: port, Logger: logger, AccessLog: c.AccessLog}
 }
 
 // unquotable is a value no Caddyfile token can hold.

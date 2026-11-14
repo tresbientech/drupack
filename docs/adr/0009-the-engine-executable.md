@@ -40,7 +40,7 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 - `Folder` is for the engine. It takes a missing file or web root as `web`, and `.` as the project itself.
 - Every other rule holds in both modes. A refusal names the file, the field, its rule and the value.
 - `extra.drupack` holds what an engine start reads: `mercure`, `subdomain` and `static`. `drupack.yml` holds what only packing needs, and the build copies what a packaged start needs into `site.json`.
-- A choice made for one start is an option of that start, in neither file. `--listen`, `--static-listen`, `--access-log`, `--error-log` and `--trusted-proxies` are such options.
+- A choice made for one start is an option of that start, in neither file. `--listen`, `--static-listen`, `--host`, `--access-log`, `--error-log` and `--trusted-proxies` are such options.
 - `drupack.yml` refuses a key that belongs in `composer.json` and names its place there.
 - Composer hashes `extra` into the lock, so a change to an `extra.drupack` key needs `composer update --lock`.
 

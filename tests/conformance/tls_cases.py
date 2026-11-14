@@ -10,6 +10,7 @@ import shutil
 import socket
 import ssl
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import harness
@@ -150,6 +151,14 @@ class TlsSources(harness.ConformanceCase):
         request = Request(f"http://127.0.0.1:{site.port}/user/login", headers={"Host": f"{alias}:{site.port}"})
         with urlopen(request, timeout=harness.WAITS["http_request"].seconds) as response:
             self.assertEqual(response.status, 200)
+
+    def test_a_plain_http_site_answers_another_name_with_its_reason(self):
+        site = self.start(root=False, trusted=False)
+        request = Request(f"http://127.0.0.1:{site.port}/user/login", headers={"Host": "evil.example"})
+        with self.assertRaises(HTTPError) as refused:
+            urlopen(request, timeout=harness.WAITS["http_request"].seconds)
+        self.assertEqual(refused.exception.code, 421)
+        self.assertIn(b"--host NAME", refused.exception.read())
 
     def test_a_trusted_root_serves_https_on_the_name(self):
         alias = site_host()

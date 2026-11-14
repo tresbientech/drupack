@@ -145,17 +145,28 @@ A proxy in front holds the certificate and forwards plain HTTP to `drupack`.
 
 `drupack` listens on `127.0.0.1:3787`, as in the examples above. A loopback
 listener answers `localhost`, its own address and the Site host, and gives any
-other name an empty response. The proxy therefore sends the listener's address
-as `Host`, and the public name as `X-Forwarded-Host`. Caddy does it with one
-`header_up` line:
+other name status 421 with the reason. `--host` adds the public name, which the
+proxy forwards as `Host`:
+
+```
+/srv/site/drupack --foreground --listen 127.0.0.1:3787 --host www.example.org --trusted-proxies 127.0.0.1
+```
+
+Caddy then needs one line:
 
 ```
 www.example.org {
-	reverse_proxy 127.0.0.1:3787 {
-		header_up Host {upstream_hostport}
-	}
+	reverse_proxy 127.0.0.1:3787
 }
 ```
+
+`--host` takes one name. A site with several public names leaves it out, and
+its proxy sends the listener's address as `Host`. In Caddy that is `header_up
+Host {upstream_hostport}` inside the `reverse_proxy` block.
+
+The start prints its URL with that name and the listener's port, over HTTP.
+`drupack export` uses the same address, so an export for the public site takes
+`--uri https://www.example.org`.
 
 ### A proxy on another machine
 

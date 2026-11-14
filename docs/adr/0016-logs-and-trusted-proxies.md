@@ -8,7 +8,7 @@ Caddy's global `log` block configures the process log, and an access log needs a
 
 ### Logs
 
-- `--access-log[=FILE]` logs each request of the site port and of the static port to one JSON file. The named loggers `http.log.access.site` and `http.log.access.static` tag its lines.
+- `--access-log[=FILE]` logs each request of the site port and of the static port to one JSON file. The named loggers `http.log.access.site` and `http.log.access.static` tag its lines. The 421 a listener gives an unknown name is logged under its port's logger.
 - `--error-log[=FILE]` logs PHP and Caddy messages at `WARN` and up to one JSON file. The access loggers stay out of it.
 - Both options are off by default. The bare option writes a default file, and `--option=FILE` names another. `--option FILE` is refused, because the next word of an engine start can be its folder.
 - A Packaged site's default files are `logs/access.log` and `logs/error.log` in Site data. The engine's are `access.log` and `error.log` in the folder's cache entry.

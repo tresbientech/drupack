@@ -202,6 +202,9 @@ func start(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
+	if host := c.options.Host; host != "" && !validHost(host) {
+		return errors.New("Invalid --host value")
+	}
 	choice, err := localtls.Choose(l.TLSDir, checked.bind, checked.alias, checked.fallback, c.options.Host)
 	if err != nil {
 		return err
