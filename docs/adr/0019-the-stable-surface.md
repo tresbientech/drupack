@@ -17,7 +17,7 @@ Names:
 - `DRUPACK_LIBC`, which the install script reads
 - the three `DRUPACK_MERCURE_` variables a Mercure hub start exports
 - the `extra.drupack` keys of `composer.json`: `mercure`, `subdomain` and `static`
-- the `drupal/drupack` package and its bin script, `vendor/bin/drupack-install`
+- the `drupal/drupack` Composer plugin, which `allow-plugins` names, and its bin script, `vendor/bin/drupack-install`
 - the release file names, `drupack-VERSION-TARGET`, with `checksums.txt`, `release.json`, `install-drupack.sh` and `install-drupack.ps1`
 - the install addresses, `https://drupack.tresbien.tech/install.sh` and `install.ps1`
 

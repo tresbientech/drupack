@@ -61,7 +61,7 @@ func selfUpdate(l Launch, arguments []string, url, executable string, out io.Wri
 		return fmt.Errorf("self-update covers the Drupack engine alone. The new release of %s comes from its publisher.", l.Name)
 	}
 	if composerCopy(executable) {
-		return fmt.Errorf("Composer installed this %s. Run composer update drupal/drupack, then vendor/bin/drupack-install.", l.Name)
+		return fmt.Errorf("Composer installed this %s. Run composer update drupal/drupack.", l.Name)
 	}
 	if !version.MatchString(l.Version) {
 		return fmt.Errorf("%s %s is a local build. self-update replaces a release alone.", l.Name, l.Version)

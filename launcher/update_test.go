@@ -191,7 +191,7 @@ func TestSelfUpdateRefusesBeforeAnyRequest(t *testing.T) {
 		{"a site", "acme", "1.0.0", false, nil, filepath.Join(t.TempDir(), "acme"),
 			"self-update covers the Drupack engine alone. The new release of acme comes from its publisher."},
 		{"a Composer copy", "drupack", "1.0.0", true, []string{"--check"}, filepath.Join(composer, "drupack"),
-			"Composer installed this drupack. Run composer update drupal/drupack, then vendor/bin/drupack-install."},
+			"Composer installed this drupack. Run composer update drupal/drupack."},
 		{"a local build", "drupack", "dev", true, nil, filepath.Join(t.TempDir(), "drupack"),
 			"drupack dev is a local build. self-update replaces a release alone."},
 		{"an unknown option", "drupack", "1.0.0", true, []string{"--force"}, filepath.Join(t.TempDir(), "drupack"),

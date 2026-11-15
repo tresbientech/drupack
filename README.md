@@ -31,13 +31,10 @@ A Composer project can pin `drupack` instead:
 
 ```sh
 composer require drupal/drupack
-composer config scripts.post-install-cmd drupack-install
-composer config scripts.post-update-cmd drupack-install
-composer install
 ./drupack
 ```
 
-The two scripts make `composer install` and `composer update` download the release that matches the package's version, on a server too. A project that has one of these scripts already adds `drupack-install` to its list instead.
+The package is a Composer plugin, which Composer asks you to trust once. A `y` writes `allow-plugins.drupal/drupack` into `composer.json`. From then on, `composer install` and `composer update` download the release that matches the package's version, on a server too. A deploy without a terminal needs that entry committed first. A project that runs `drupack-install` from its own scripts removes them.
 
 `drupack` serves the project in the working directory on `http://127.0.0.1:3787` and prints a one-time login link. It keeps serving in the background, and `drupack stop` ends it. The project's `settings.php` names the database and the files paths, and Drupack writes nothing into the project.
 

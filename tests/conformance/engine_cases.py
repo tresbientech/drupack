@@ -1190,6 +1190,45 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertTrue((fixture / "vendor" / "autoload.php").is_file())
         self.assertTrue((fixture / "vendor" / "acme" / "module" / "composer.json").is_file())
 
+    def test_the_drupack_package_runs_its_installer_after_composer(self):
+        # Path repositories with Packagist off, so Composer reads no network. composer/semver
+        # comes from the engine's composer.phar, and drupack-install refuses dev-main before
+        # any download.
+        fixture = harness.fresh_dir(self.class_dir / "drupack-plugin")
+        env = dict(os.environ, COMPOSER_HOME=str(self.class_dir / "composer-home"), COMPOSER_NO_INTERACTION="1")
+        # drupack composer runs in a Drupal project alone: the stage's scaffold location marks
+        # one, and the project's lock holds a drupal/core release.
+        stage = fixture / "stage"
+        stage.mkdir()
+        (stage / "composer.json").write_text(json.dumps({"extra": {"drupal-scaffold": {}}, "scripts": {
+            "extract": "@php -r \"(new Phar(getenv('COMPOSER_BINARY')))->extractTo('phar');\""}}))
+        staged = self.engine_run("composer", "run-script", "extract", cwd=stage, env=env)
+        self.assertEqual(staged.returncode, 0, staged.stdout + staged.stderr)
+        semver = fixture / "packages" / "semver"
+        shutil.copytree(stage / "phar" / "vendor" / "composer" / "semver", semver)
+        (semver / "composer.json").write_text(json.dumps({
+            "name": "composer/semver", "version": "3.4.4", "autoload": {"psr-4": {"Composer\\Semver\\": "src/"}}}))
+        core = fixture / "packages" / "core"
+        core.mkdir()
+        (core / "composer.json").write_text(json.dumps({"name": "drupal/core", "version": "11.4.0"}))
+        repository = harness.LAUNCHER_SRC.parent
+        package = fixture / "packages" / "drupack"
+        shutil.copytree(repository / "composer", package / "composer")
+        manifest = json.loads((repository / "composer.json").read_text())
+        (package / "composer.json").write_text(json.dumps(dict(manifest, version="dev-main")))
+        (fixture / "composer.json").write_text(json.dumps({
+            "name": "acme/drupack-plugin", "require": {"drupal/core": "11.4.0", "drupal/drupack": "dev-main"},
+            "repositories": [{"type": "path", "url": f"packages/{name}", "options": {"symlink": False}}
+                             for name in ("core", "drupack", "semver")] + [{"packagist.org": False}],
+            "config": {"allow-plugins": {"drupal/drupack": True}}}))
+        # update fires post-update-cmd and writes the lock, whose install fires post-install-cmd.
+        for arguments in (["update"], ["install", "--no-dev"]):
+            result = self.engine_run("composer", *arguments, cwd=fixture, env=env)
+            output = result.stdout + result.stderr
+            self.assertNotEqual(result.returncode, 0, output)
+            self.assertIn("names no release", output)
+            self.assertIn("drupack-install exited with status 1.", output)
+
     def test_php_reads_no_settings_planted_in_the_temporary_directory(self):
         temporary = harness.fresh_dir(self.class_dir / "temporary")
         planted = temporary / "drupack-php-e3b0c44298fc1c14"

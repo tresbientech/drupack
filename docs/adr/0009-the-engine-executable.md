@@ -45,7 +45,9 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 
 ### The Composer package
 
-- `drupal/drupack` comes from the drupal.org project `drupack`. Its root `composer.json` has one bin script, `vendor/bin/drupack-install`. `.gitattributes` keeps every other file out of the package.
+- `drupal/drupack` comes from the drupal.org project `drupack`. It is a Composer plugin with one bin script, `vendor/bin/drupack-install`. `.gitattributes` keeps every other file out of the package.
+- The plugin runs `drupack-install` after each `composer install` and `composer update`, in a PHP process of its own, which loads the project's autoloader. A failed run fails the Composer command.
+- Composer runs a plugin only once `allow-plugins` names it, so a project trusts `drupal/drupack` once. Composer's own root scripts would take two `composer config` lines per project.
 - `drupack-install` reads the package's installed version and fetches that release's `install-drupack.sh`, or the `.ps1` on Windows. It runs the script from a temporary file with the project root as the working directory.
 - It adds `/drupack` to the project's `.gitignore` when the project root or a parent holds `.git`.
 - A `./drupack` whose SHA-256 the release's `checksums.txt` lists is left alone. `drupack-install` never runs that file.

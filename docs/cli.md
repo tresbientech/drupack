@@ -17,7 +17,7 @@ executable:
   start prepares
 - the default listener, `127.0.0.1:3787`
 - refusals on standard error
-- the `drupal/drupack` package and `vendor/bin/drupack-install`
+- the `drupal/drupack` Composer plugin and `vendor/bin/drupack-install`
 - the release file names and the fields of `release.json`
 - the install addresses, `https://drupack.tresbien.tech/install.sh` and
   `install.ps1`
@@ -179,8 +179,8 @@ releases.
 
 - A file in a directory you cannot write is refused before any download.
 - A copy installed through Composer updates with
-  `composer update drupal/drupack`. A project whose `composer.json` does not
-  run `drupack-install` as a `post-update-cmd` script runs
+  `composer update drupal/drupack`, whose plugin installs the new release.
+  With Composer's plugins or scripts turned off, run
   `vendor/bin/drupack-install` after it.
 - A release older than the file is never installed.
 
