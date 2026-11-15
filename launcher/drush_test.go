@@ -68,6 +68,7 @@ func (f siteFixture) launch() Launch {
 		Entry:       "/runtime/frankenphp",
 		Application: f.application,
 		Name:        "fixture-site",
+		Invoked:     "./fixture-site",
 		AppChecksum: "release-1",
 	}
 }
@@ -79,7 +80,7 @@ func (f siteFixture) record(t *testing.T, json string) {
 
 func parseLine(t *testing.T, engine bool, words ...string) command {
 	t.Helper()
-	c, err := parse(Launch{Args: append([]string{"SITE"}, words...), Engine: engine, Name: "fixture-site"})
+	c, err := parse(Launch{Args: append([]string{"SITE"}, words...), Engine: engine, Name: "fixture-site", Invoked: "./fixture-site"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -360,6 +361,7 @@ func (f engineFixture) launch() Launch {
 		Application: "/cache/app",
 		Root:        f.root,
 		Name:        "drupack",
+		Invoked:     "./drupack",
 		Engine:      true,
 	}
 }

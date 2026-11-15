@@ -22,13 +22,13 @@ func TestTakeConsoleStripsTheLeadingWordAlone(t *testing.T) {
 
 func TestNodeRefusal(t *testing.T) {
 	without := newSite(t, siteconfig.Site{Port: 1})
-	if err, want := nodeRefusal(without.launch(), "node"), "Unknown command: node. Run fixture-site --help."; err == nil || err.Error() != want {
+	if err, want := nodeRefusal(without.launch(), "node"), "Unknown command: node. Run ./fixture-site --help."; err == nil || err.Error() != want {
 		t.Errorf("a site without Node: %v", err)
 	}
 	with := newSite(t, siteconfig.Site{Port: 1, Node: siteconfig.NodeLTS})
 	for _, word := range []string{"node", "npm", "npx"} {
 		want := word + ": this musl build of demo carries no Node. Run the glibc build, the file without -musl in its name."
-		if err := nodeRefusal(Launch{Application: with.application, Name: "demo"}, word); err == nil || err.Error() != want {
+		if err := nodeRefusal(Launch{Application: with.application, Name: "demo", Invoked: "./demo"}, word); err == nil || err.Error() != want {
 			t.Errorf("%s on a musl build: %v, want %q", word, err, want)
 		}
 	}

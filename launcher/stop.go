@@ -36,7 +36,7 @@ func runStop(l Launch, c command, out io.Writer) error {
 // does not resolve, which holds no site, and named is then the path as written.
 func serverDir(l Launch, c command) (dir state.Dir, what, named string, found bool, err error) {
 	if l.Engine {
-		project, err := projectFolder(l.Name, c.target)
+		project, err := projectFolder(l.Invoked, c.target)
 		if err != nil {
 			return state.Dir{}, "", "", false, err
 		}
@@ -56,8 +56,8 @@ func serverDir(l Launch, c command) (dir state.Dir, what, named string, found bo
 
 // projectFolder resolves links first, then makes the path absolute. The folder's
 // cache entry is keyed by this path.
-func projectFolder(name, written string) (string, error) {
-	missing := fmt.Errorf("No such directory: %s. Run %s --help.", written, name)
+func projectFolder(invoked, written string) (string, error) {
+	missing := fmt.Errorf("No such directory: %s. Run %s --help.", written, invoked)
 	resolved, err := filepath.EvalSymlinks(written)
 	if err != nil {
 		return "", missing

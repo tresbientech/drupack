@@ -215,7 +215,7 @@ const defaultListen = loopbackIP + ":3787"
 func parse(l Launch) (command, error) {
 	args, engine, lookup := l.Args, l.Engine, l.lookup
 	if len(args) < 2 && engine {
-		return parseEngineStart(l.Name, nil)
+		return parseEngineStart(l.Invoked, nil)
 	}
 	if len(args) < 2 {
 		return siteStart(nil, lookup)
@@ -225,7 +225,7 @@ func parse(l Launch) (command, error) {
 	case word == "trust" || word == "self-update" || word == "clean":
 		return command{word: word, words: rest}, nil
 	case (word == "stop" || word == "status" || word == "restart") && engine:
-		return parseFolderWord(l.Name, word, rest)
+		return parseFolderWord(l.Invoked, word, rest)
 	case word == "stop" || word == "status" || word == "restart":
 		read, _, help, err := scanOptions(rest, stopOptions, lookup, true)
 		switch {
@@ -244,11 +244,11 @@ func parse(l Launch) (command, error) {
 	case engine && (word == "--help" || word == "-h"):
 		return command{word: "help"}, nil
 	case engine && word == "start":
-		return parseEngineStart(l.Name, rest)
+		return parseEngineStart(l.Invoked, rest)
 	case engine && slices.Contains(reservedWords, word):
 		return command{}, fmt.Errorf("%[1]s is not a command. A folder named %[1]s takes ./%[1]s.", word)
 	case engine:
-		return parseEngineStart(l.Name, args[1:])
+		return parseEngineStart(l.Invoked, args[1:])
 	case word == "php-cli":
 		return command{}, nil
 	case word == "--help" || word == "-h":
@@ -274,7 +274,7 @@ func parse(l Launch) (command, error) {
 	case strings.HasPrefix(word, "-"):
 		return siteStart(args[1:], lookup)
 	}
-	return command{}, unknownCommand(word, l.Name)
+	return command{}, unknownCommand(word, l.Invoked)
 }
 
 func siteStart(arguments []string, lookup func(string) (string, bool)) (command, error) {
@@ -293,9 +293,9 @@ func siteStart(arguments []string, lookup func(string) (string, bool)) (command,
 var reservedWords = []string{"logs"}
 
 // parseFolderWord reads stop's, status's or restart's one folder.
-func parseFolderWord(name, word string, arguments []string) (command, error) {
+func parseFolderWord(invoked, word string, arguments []string) (command, error) {
 	if len(arguments) > 1 || len(arguments) == 1 && strings.HasPrefix(arguments[0], "-") {
-		return command{}, fmt.Errorf("%s takes a folder alone. Run %s --help.", word, name)
+		return command{}, fmt.Errorf("%s takes a folder alone. Run %s --help.", word, invoked)
 	}
 	target := defaultFolder
 	if len(arguments) == 1 {
@@ -377,7 +377,7 @@ func scanOptions(arguments []string, table []option, lookup func(string) (string
 // parseEngineStart reads the engine's start: options in any order and one
 // folder. A listener option takes the next argument whatever it holds, and
 // its value is checked once the start plans it.
-func parseEngineStart(name string, arguments []string) (command, error) {
+func parseEngineStart(invoked string, arguments []string) (command, error) {
 	c := command{word: "start", options: options{Listen: defaultListen}}
 	named := false
 	for len(arguments) > 0 {
@@ -412,7 +412,7 @@ func parseEngineStart(name string, arguments []string) (command, error) {
 		case !named && !strings.HasPrefix(argument, "-"):
 			c.target, named = argument, true
 		default:
-			return command{}, fmt.Errorf("Unknown argument %s. Run %s --help.", argument, name)
+			return command{}, fmt.Errorf("Unknown argument %s. Run %s --help.", argument, invoked)
 		}
 	}
 	return c, nil

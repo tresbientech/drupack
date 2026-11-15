@@ -76,25 +76,25 @@ func planStart(bind string, port int, staticListen string, hasStatic bool, noun,
 // WordPress site's, is refused. "." names the project itself. A Composer project
 // with no vendor/, such as a fresh clone, is refused with the command that
 // installs it.
-func drupalDocroot(name, project, relative string) (string, error) {
+func drupalDocroot(l Launch, project, relative string) (string, error) {
 	docroot := project + "/" + relative
 	if relative == "." {
 		docroot = project
 	}
 	for _, file := range []string{"index.php", "core/lib/Drupal.php"} {
 		if info, err := os.Stat(docroot + "/" + file); err != nil || !info.Mode().IsRegular() {
-			return "", docrootRefusal(name, project, docroot+"/"+file)
+			return "", docrootRefusal(l, project, docroot+"/"+file)
 		}
 	}
 	return docroot, nil
 }
 
-func docrootRefusal(name, project, missing string) error {
+func docrootRefusal(l Launch, project, missing string) error {
 	_, composerErr := os.Stat(siteconfig.ComposerFile(project))
 	if _, vendorErr := os.Stat(filepath.Join(project, "vendor")); composerErr == nil && errors.Is(vendorErr, os.ErrNotExist) {
-		return fmt.Errorf("%s has no vendor/. Run %s composer install in it first.", project, name)
+		return fmt.Errorf("%s has no vendor/. Run %s composer install in it first.", project, l.Invoked)
 	}
-	return fmt.Errorf("%s is not a Drupal project: %s does not exist. %s serves Drupal alone.", project, missing, name)
+	return fmt.Errorf("%s is not a Drupal project: %s does not exist. %s serves Drupal alone.", project, missing, l.Name)
 }
 
 // operate runs one operation of operate.php through the runtime's php-cli and
@@ -187,7 +187,6 @@ func start(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
-	l.Invoked = invokedWord(l.Args[0], cwd, runtime.GOOS == "windows")
 	var mode startMode = &packagedStart{Launch: l, Inputs: startInputs(c.options), c: c, cwd: cwd}
 	if l.Engine {
 		mode = &engineStart{Launch: l, c: c}
@@ -244,7 +243,7 @@ func start(l Launch, c command) error {
 	if err := staged.dir.ClearStopRecord(); err != nil {
 		return err
 	}
-	if err := portRefusal(l.Name, checked.listen, plan, portTaken); err != nil {
+	if err := portRefusal(l.Invoked, checked.listen, plan, portTaken); err != nil {
 		return err
 	}
 	if err := takeLog(l.Child); err != nil {
@@ -283,12 +282,12 @@ func startRecord(l Launch, cwd string) state.Start {
 // portRefusal names the listener of plan that another program holds, and the
 // line that starts on the port after it. listen is --listen as the reader
 // reads it, and taken reports whether anything holds an address.
-func portRefusal(name, listen string, plan startPlan, taken func(bind string, port int) bool) error {
+func portRefusal(invoked, listen string, plan startPlan, taken func(bind string, port int) bool) error {
 	if taken(plan.Bind, plan.Port) {
-		return fmt.Errorf("Another program is listening on %s. Stop it, or start on a free port: %s --listen %s:%d", listen, name, plan.Bind, plan.Port+1)
+		return fmt.Errorf("Another program is listening on %s. Stop it, or start on a free port: %s --listen %s:%d", listen, invoked, plan.Bind, plan.Port+1)
 	}
 	if static := plan.Static; static != nil && taken(static.Bind, static.Port) {
-		return fmt.Errorf("Another program is listening on %s. Stop it, or move the static listener to a free port: %s --static-listen %s:%d", plan.record().StaticListen, name, urlHost(static.Bind), static.Port+1)
+		return fmt.Errorf("Another program is listening on %s. Stop it, or move the static listener to a free port: %s --static-listen %s:%d", plan.record().StaticListen, invoked, urlHost(static.Bind), static.Port+1)
 	}
 	return nil
 }
@@ -308,7 +307,7 @@ type engineStart struct {
 
 func (e *engineStart) detach() (log, stopTarget string, err error) {
 	l := e.Launch
-	project, err := projectFolder(l.Name, cmp.Or(e.c.target, defaultFolder))
+	project, err := projectFolder(l.Invoked, cmp.Or(e.c.target, defaultFolder))
 	if err != nil {
 		return "", "", err
 	}
@@ -321,14 +320,14 @@ func (e *engineStart) detach() (log, stopTarget string, err error) {
 func (e *engineStart) check() (checked, error) {
 	l := e.Launch
 	var err error
-	if e.project, err = projectFolder(l.Name, cmp.Or(e.c.target, defaultFolder)); err != nil {
+	if e.project, err = projectFolder(l.Invoked, cmp.Or(e.c.target, defaultFolder)); err != nil {
 		return checked{}, err
 	}
 	if e.composer, err = siteconfig.ReadComposer(e.project, siteconfig.Folder); err != nil {
 		return checked{}, err
 	}
 	// A fresh clone holds no lock, so the docroot's install hint comes before the lock's check.
-	if e.docroot, err = drupalDocroot(l.Name, e.project, e.composer.Docroot); err != nil {
+	if e.docroot, err = drupalDocroot(l, e.project, e.composer.Docroot); err != nil {
 		return checked{}, err
 	}
 	if err := siteconfig.CheckStatic(e.project, e.composer); err != nil {
@@ -602,5 +601,5 @@ func trustHint(l Launch, choice localtls.Choice) string {
 	if choice.Source != "none" || !choice.Eligible || l.TLSDir == "" {
 		return ""
 	}
-	return fmt.Sprintf("HTTPS: run \"%s trust\" once to serve this site over HTTPS.\n", l.Name)
+	return fmt.Sprintf("HTTPS: run \"%s trust\" once to serve this site over HTTPS.\n", l.Invoked)
 }

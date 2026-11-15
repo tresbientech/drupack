@@ -28,7 +28,7 @@ func TestParse(t *testing.T) {
 		{"a line opening with an option is a start", []string{"SITE", "--listen", "127.0.0.1:9000", "--foreground"}, false, unset, command{word: "start", options: options{DataDir: "./data", Listen: "127.0.0.1:9000", Foreground: true}}, ""},
 		{"stop after an option is a start's unknown argument", []string{"SITE", "--data-dir", "x", "stop"}, false, unset, command{}, "Unknown argument: stop"},
 		{"a start refuses an unknown option", []string{"SITE", "start", "--frobnicate"}, false, unset, command{}, "Unknown argument: --frobnicate"},
-		{"a start refuses a stray word", []string{"SITE", "extra"}, false, unset, command{}, "Unknown command: extra. Run fixture-site --help."},
+		{"a start refuses a stray word", []string{"SITE", "extra"}, false, unset, command{}, "Unknown command: extra. Run ./fixture-site --help."},
 		{"a start refuses an option with no value", []string{"SITE", "--listen"}, false, unset, command{}, "Missing value for --listen"},
 		{"a start reads -v as an option", []string{"SITE", "-v", "x"}, false, unset, command{}, "Unknown argument: -v"},
 		{"a start answers --help after its options", []string{"SITE", "--data-dir", "x", "--help"}, false, unset, command{word: "help"}, ""},
@@ -71,8 +71,8 @@ func TestParse(t *testing.T) {
 		{"the engine reads --host", []string{"drupack", "--host", "www.example.org", "project"}, true, unset,
 			command{word: "start", target: "project", options: options{Listen: defaultListen, Host: "www.example.org"}}, ""},
 		{"the engine refuses a word after --access-log", []string{"drupack", "--access-log", "a.log"}, true, unset, command{}, "--access-log takes its value as --access-log=FILE"},
-		{"the engine refuses a second folder", []string{"drupack", "a", "b"}, true, unset, command{}, "Unknown argument b. Run fixture-site --help."},
-		{"the engine refuses an option", []string{"drupack", "start", "--help"}, true, unset, command{}, "Unknown argument --help. Run fixture-site --help."},
+		{"the engine refuses a second folder", []string{"drupack", "a", "b"}, true, unset, command{}, "Unknown argument b. Run ./fixture-site --help."},
+		{"the engine refuses an option", []string{"drupack", "start", "--help"}, true, unset, command{}, "Unknown argument --help. Run ./fixture-site --help."},
 		{"the engine answers --help first", []string{"drupack", "--help"}, true, unset, command{word: "help"}, ""},
 		{"the engine answers -h first", []string{"drupack", "-h"}, true, unset, command{word: "help"}, ""},
 		{"the engine's export", []string{"drupack", "export", "--uri", "u"}, true, unset, command{word: "export", words: []string{"--uri", "u"}}, ""},
@@ -99,8 +99,8 @@ func TestParse(t *testing.T) {
 		{"--help after a refused argument is not reached", []string{"SITE", "stop", "--bogus", "--help"}, false, unset, command{}, "Unknown argument: --bogus"},
 		{"the engine stops the working directory by default", []string{"drupack", "stop"}, true, unset, command{word: "stop", target: "."}, ""},
 		{"the engine stops the folder named", []string{"drupack", "stop", "project"}, true, unset, command{word: "stop", target: "project"}, ""},
-		{"the engine refuses two folders", []string{"drupack", "stop", "a", "b"}, true, unset, command{}, "stop takes a folder alone. Run fixture-site --help."},
-		{"the engine refuses an option", []string{"drupack", "stop", "--help"}, true, unset, command{}, "stop takes a folder alone. Run fixture-site --help."},
+		{"the engine refuses two folders", []string{"drupack", "stop", "a", "b"}, true, unset, command{}, "stop takes a folder alone. Run ./fixture-site --help."},
+		{"the engine refuses an option", []string{"drupack", "stop", "--help"}, true, unset, command{}, "stop takes a folder alone. Run ./fixture-site --help."},
 		{"drush goes to the launcher", []string{"SITE", "drush", "status"}, false, unset,
 			command{word: "drush", options: options{DataDir: "./data"}, words: []string{"status"}}, ""},
 		{"drush takes no words", []string{"SITE", "drush"}, false, unset,
@@ -117,14 +117,14 @@ func TestParse(t *testing.T) {
 		{"drush reads an option as no value", []string{"SITE", "drush", "--files-dir", "--listen", "x"}, false, unset, command{}, "Missing value for --files-dir"},
 		{"the engine passes every word to Drush", []string{"drupack", "drush", "--data-dir", "x", "status"}, true, unset,
 			command{word: "drush", words: []string{"--data-dir", "x", "status"}}, ""},
-		{"the engine takes no Site data", []string{"drupack", "stop", "--data-dir", "x"}, true, unset, command{}, "stop takes a folder alone. Run fixture-site --help."},
+		{"the engine takes no Site data", []string{"drupack", "stop", "--data-dir", "x"}, true, unset, command{}, "stop takes a folder alone. Run ./fixture-site --help."},
 		{"status takes ./data by default", []string{"SITE", "status"}, false, unset, command{word: "status", target: "./data"}, ""},
 		{"status reads --data-dir", []string{"SITE", "status", "--data-dir=site"}, false, unset, command{word: "status", target: "site"}, ""},
 		{"status refuses a start option", []string{"SITE", "status", "--listen", "127.0.0.1:1"}, false, unset, command{}, "Unknown argument: --listen"},
 		{"status --help prints the help", []string{"SITE", "status", "--help"}, false, unset, command{word: "help"}, ""},
 		{"the engine's status reads the working directory by default", []string{"drupack", "status"}, true, unset, command{word: "status", target: "."}, ""},
 		{"the engine's status reads the folder named", []string{"drupack", "status", "project"}, true, unset, command{word: "status", target: "project"}, ""},
-		{"the engine's status refuses two folders", []string{"drupack", "status", "a", "b"}, true, unset, command{}, "status takes a folder alone. Run fixture-site --help."},
+		{"the engine's status refuses two folders", []string{"drupack", "status", "a", "b"}, true, unset, command{}, "status takes a folder alone. Run ./fixture-site --help."},
 		{"a folder named status takes ./status", []string{"drupack", "./status"}, true, unset, command{word: "start", target: "./status", options: options{Listen: defaultListen}}, ""},
 		{"logs is reserved", []string{"drupack", "logs"}, true, unset, command{}, "logs is not a command. A folder named logs takes ./logs."},
 		{"restart takes ./data by default", []string{"SITE", "restart"}, false, unset, command{word: "restart", target: "./data"}, ""},
@@ -132,16 +132,16 @@ func TestParse(t *testing.T) {
 		{"restart refuses a start option", []string{"SITE", "restart", "--no-browser"}, false, unset, command{}, "Unknown argument: --no-browser"},
 		{"the engine's restart reads the working directory by default", []string{"drupack", "restart"}, true, unset, command{word: "restart", target: "."}, ""},
 		{"the engine's restart reads the folder named", []string{"drupack", "restart", "project"}, true, unset, command{word: "restart", target: "project"}, ""},
-		{"the engine's restart refuses an option", []string{"drupack", "restart", "--listen"}, true, unset, command{}, "restart takes a folder alone. Run fixture-site --help."},
+		{"the engine's restart refuses an option", []string{"drupack", "restart", "--listen"}, true, unset, command{}, "restart takes a folder alone. Run ./fixture-site --help."},
 		{"a folder named restart takes ./restart", []string{"drupack", "./restart"}, true, unset, command{word: "start", target: "./restart", options: options{Listen: defaultListen}}, ""},
 		{"a folder named logs takes ./logs", []string{"drupack", "./logs"}, true, unset, command{word: "start", target: "./logs", options: options{Listen: defaultListen}}, ""},
-		{"a site has no logs word", []string{"SITE", "logs"}, false, unset, command{}, "Unknown command: logs. Run fixture-site --help."},
+		{"a site has no logs word", []string{"SITE", "logs"}, false, unset, command{}, "Unknown command: logs. Run ./fixture-site --help."},
 	} {
 		var parent []string
 		for name, value := range row.env {
 			parent = append(parent, name+"="+value)
 		}
-		got, err := parse(Launch{Args: row.args, Parent: parent, Engine: row.engine, Name: "fixture-site"})
+		got, err := parse(Launch{Args: row.args, Parent: parent, Engine: row.engine, Name: "fixture-site", Invoked: "./fixture-site"})
 		message := ""
 		if err != nil {
 			message = err.Error()
@@ -244,10 +244,21 @@ func helpCommands(help string) []string {
 	return words
 }
 
+// The help names the executable in its first sentence, and starts each command
+// line with the word that runs it.
+func TestTheHelpStartsItsCommandsWithTheInvokedWord(t *testing.T) {
+	for _, engine := range []bool{false, true} {
+		help := helpText(Launch{Name: "fixture-site", Invoked: "./fixture-site", Engine: engine}, "dev")
+		if !strings.HasPrefix(help, "fixture-site serves ") || !strings.Contains(help, "\nUsage: ./fixture-site [COMMAND]") || !strings.Contains(help, "\n  ./fixture-site drush ") {
+			t.Errorf("engine %t: help = %q", engine, help)
+		}
+	}
+}
+
 func TestTheHelpFitsEightyColumns(t *testing.T) {
 	// The longest name payload.MintedSegmentPattern admits.
 	longest := "a" + strings.Repeat("0", 31)
-	for _, l := range []Launch{{Name: longest}, {Name: "drupack", Engine: true}} {
+	for _, l := range []Launch{{Name: longest, Invoked: longest}, {Name: "drupack", Invoked: "./drupack", Engine: true}} {
 		for _, line := range strings.Split(helpText(l, "1.0.0-beta23"), "\n") {
 			if len(line) > 80 {
 				t.Errorf("the %s help line is %d columns: %q", l.Name, len(line), line)

@@ -10,14 +10,14 @@ import (
 )
 
 // refusedComposerCommands are the Composer commands the engine refuses, with the
-// refusal they give. %[1]s is the executable's name.
+// refusal they give. %[1]s is the word that runs the executable, %[2]s its name.
 var refusedComposerCommands = []struct {
 	names   []string
 	refusal string
 }{
 	{[]string{"global"}, "%[1]s composer refuses global, which runs Composer outside this project."},
-	{[]string{"create-project"}, "%[1]s composer refuses create-project, whose new directory would not hold %[1]s. Clone or download the project, then run %[1]s composer install in it."},
-	{[]string{"self-update", "selfupdate"}, "%[1]s carries its own Composer. Run %[1]s self-update for a newer one."},
+	{[]string{"create-project"}, "%[1]s composer refuses create-project, whose new directory would not hold %[2]s. Clone or download the project, then run %[1]s composer install in it."},
+	{[]string{"self-update", "selfupdate"}, "%[2]s carries its own Composer. Run %[1]s self-update for a newer one."},
 }
 
 // engineComposer plans the engine's composer command: the engine's phar on the
@@ -38,7 +38,7 @@ func engineComposer(f Facts, c command, cwd string) (Command, error) {
 func composerRefusal(l Launch, words []string) error {
 	// Composer reads composer.json when COMPOSER is empty or blank.
 	if file, _ := l.lookup("COMPOSER"); strings.TrimSpace(file) != "" {
-		return fmt.Errorf("%s composer refuses a set COMPOSER, which names another file than the project's composer.json. Unset it.", l.Name)
+		return fmt.Errorf("%s composer refuses a set COMPOSER, which names another file than the project's composer.json. Unset it.", l.Invoked)
 	}
 	command := ""
 	for _, word := range words {
@@ -50,7 +50,7 @@ func composerRefusal(l Launch, words []string) error {
 			// A short option word holding d names the working directory: -d, -dDIR, or a
 			// cluster such as -nd.
 			!strings.HasPrefix(word, "--") && strings.HasPrefix(word, "-") && strings.Contains(word, "d"):
-			return fmt.Errorf("%s composer runs in the working directory, and refuses %s. Run it from the project's root.", l.Name, word)
+			return fmt.Errorf("%s composer runs in the working directory, and refuses %s. Run it from the project's root.", l.Invoked, word)
 		case command == "" && !strings.HasPrefix(word, "-"):
 			command = strings.ToLower(word)
 		}
@@ -58,7 +58,7 @@ func composerRefusal(l Launch, words []string) error {
 	for _, refused := range refusedComposerCommands {
 		for _, name := range refused.names {
 			if command != "" && strings.HasPrefix(name, command) {
-				return fmt.Errorf(refused.refusal, l.Name)
+				return fmt.Errorf(refused.refusal, l.Invoked, l.Name)
 			}
 		}
 	}

@@ -348,7 +348,7 @@ func installSeed(log io.Writer, r Request, application string, phpEnv []string) 
 	err := execute(Step{
 		Dir: application, Env: append(slices.Clone(phpEnv),
 			"DRUPACK_RUNTIME_DATA_DIR="+seed, "DRUPACK_RUNTIME_FILES_DIR="+filepath.Join(seed, "files"),
-			"DRUPACK_RUNTIME_APP_DIR="+application, "DRUPACK_RUNTIME_HOST=localhost", "DRUPACK_RUNTIME_NAME="+r.Site.Name,
+			"DRUPACK_RUNTIME_APP_DIR="+application, "DRUPACK_RUNTIME_HOST=localhost", "DRUPACK_RUNTIME_NAME="+r.Site.Name, "DRUPACK_RUNTIME_INVOKED="+r.Site.Name,
 			"DRUPACK_DRUSH_SCRIPT="+fsguard.Canonical(filepath.Join(application, cache.DrushScript))),
 		Command: []string{r.PHP, "php-cli", filepath.Join(application, "operate.php"), "seed", seed},
 	}, log)

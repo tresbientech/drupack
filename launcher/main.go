@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/cache"
@@ -68,6 +69,10 @@ func run(args []string, child *detachedChild, consoleNamed bool) error {
 		ConsoleOwned: consoleOwned(child != nil) || consoleNamed,
 		FoldCase:     foldCase,
 	}
+	// The directory only shortens a Windows path inside it to .\NAME, so a
+	// deleted one leaves the full path, which still runs.
+	cwd, _ := os.Getwd()
+	l.Invoked = invokedWord(args[0], cwd, runtime.GOOS == "windows")
 	var err error
 	if l.TLSDir, err = tlsDir(l); err != nil {
 		return err
@@ -103,7 +108,7 @@ func run(args []string, child *detachedChild, consoleNamed bool) error {
 		if err != nil {
 			return err
 		}
-		return store.Clean(l.Name, dry, os.Stdout, os.Stderr)
+		return store.Clean(l.Invoked, dry, os.Stdout, os.Stderr)
 	}
 	if l.Engine {
 		updateNotice(l, executable, os.Stderr, payload.Terminal(os.Stderr), time.Now(), func() error { return startCheck(launcher) })
@@ -176,7 +181,7 @@ func runInFolder(l Launch, c command) error {
 		}
 		export, err = plan(f, c, cwd)
 		if err == nil {
-			err = export.requireTomeStatic(l.Name)
+			err = export.requireTomeStatic(l.Invoked)
 		}
 		call = export.run
 	}
@@ -194,7 +199,7 @@ func nodeRefusal(l Launch, word string) error {
 		return err
 	}
 	if site.Node == "" {
-		return unknownCommand(word, l.Name)
+		return unknownCommand(word, l.Invoked)
 	}
 	return fmt.Errorf("%s: this musl build of %s carries no Node. Run the glibc build, the file without -musl in its name.", word, l.Name)
 }

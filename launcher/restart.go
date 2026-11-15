@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
@@ -26,7 +27,7 @@ func restart(l Launch, c command) error {
 	}
 	switch {
 	case !recorded:
-		return fmt.Errorf("No start of this %s is recorded: %s. Start it with %s start.", what, named, l.Name)
+		return fmt.Errorf("No start of this %s is recorded: %s. Start it with %s start.", what, named, l.Invoked)
 	case !record.Background:
 		return fmt.Errorf("%s started this %s in the foreground: %s. Restart it where it runs, in its terminal or its service manager.", l.Name, what, named)
 	}
@@ -65,6 +66,8 @@ func replay(l Launch, record state.Start, named string) (Launch, command, error)
 		words = append(withoutOptions(words, stopOptions, func(option) bool { return true }), "--data-dir="+named)
 	}
 	l.Args = append([]string{argv0}, words...)
+	// No directory keeps an absolute argv0 whole, so the word runs from any directory.
+	l.Invoked = invokedWord(argv0, "", runtime.GOOS == "windows")
 	// A console-owned start serves in the foreground.
 	l.ConsoleOwned = false
 	c, err := parse(l)

@@ -74,8 +74,9 @@ func (f Facts) Env(k Kind) []string {
 		e.put("DRUPACK_CA_FILE=" + fsguard.Canonical(filepath.Join(directory, caFileName)))
 	}
 	// The runtime and operate.php are shared by every site built on this engine, so
-	// the site's name and release reach them from here.
+	// the site's name and release, and the word that runs it, reach them from here.
 	e.put("DRUPACK_RUNTIME_NAME=" + l.Name)
+	e.put("DRUPACK_RUNTIME_INVOKED=" + l.Invoked)
 	e.put("DRUPACK_RUNTIME_SITE_VERSION=" + l.Version)
 	e.put("DRUPACK_RUNTIME_COMPONENTS=" + l.Components)
 	// Composer's @php and Symfony's PhpExecutableFinder read PHP_BINARY before PHP's own

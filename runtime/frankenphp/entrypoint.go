@@ -44,6 +44,12 @@ func siteName() string {
 	return os.Getenv("DRUPACK_RUNTIME_NAME")
 }
 
+// invoked is the word that runs the executable in the reader's shell, which the
+// launcher exports for the commands the runtime prints.
+func invoked() string {
+	return os.Getenv("DRUPACK_RUNTIME_INVOKED")
+}
+
 func release() string {
 	site := siteName() + " " + os.Getenv("DRUPACK_RUNTIME_SITE_VERSION")
 	if libc == "" {
@@ -126,7 +132,7 @@ func phpArguments(arguments []string) (settings, line []string, err error) {
 }
 
 func phpRefusal(refusal string) error {
-	return fmt.Errorf("%s\n\n%s", refusal, fmt.Sprintf(phpUsage, siteName()))
+	return fmt.Errorf("%s\n\n%s", refusal, fmt.Sprintf(phpUsage, invoked()))
 }
 
 // iniLine writes a -d setting as PHP's own command line does: a value whose

@@ -40,8 +40,8 @@ $databases['default']['default'] = [
 $settings['hash_salt'] = 'engine-executable-case';
 """
 
-USAGE = ("Usage: drupack php [-d KEY[=VALUE]]... SCRIPT [ARGUMENTS]\n"
-         "       drupack php [-d KEY[=VALUE]]... -r CODE [ARGUMENTS]")
+USAGE = ("Usage: {engine} php [-d KEY[=VALUE]]... SCRIPT [ARGUMENTS]\n"
+         "       {engine} php [-d KEY[=VALUE]]... -r CODE [ARGUMENTS]")
 # PHP code that prints memory_limit, then the memory_limit and PHP_INI_SCAN_DIR a PHP it
 # starts through the runtime reads. proc_open takes an argument list, so no shell rewrites
 # the code: Windows' escapeshellarg turns each double quote into a space.
@@ -1054,7 +1054,7 @@ if (isset($_GET['drupack-log-case'])) {
         self.addCleanup(self.engine_run, "drush", "pm:install", "tome_static", "--yes", cwd=self.project)
         export = self.engine_run("export", "--uri", "http://127.0.0.1:1/", cwd=self.project)
         self.assertEqual(export.returncode, 1, export.stdout)
-        self.assertIn("no tome_static module enabled. Enable it: drupack drush pm:install tome_static",
+        self.assertIn(f"no tome_static module enabled. Enable it: {self.engine} drush pm:install tome_static",
                       export.stderr)
 
     def alias_run(self, *commands):
@@ -1094,14 +1094,14 @@ if (isset($_GET['drupack-log-case'])) {
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertEqual(result.stdout, "")
                 self.assertIn(f"php option {command[0]} is not supported.", result.stderr)
-                self.assertIn(USAGE, result.stderr)
+                self.assertIn(USAGE.format(engine=self.engine), result.stderr)
                 self.assertNotIn("php-ran", result.stderr)
         results = self.alias_run(*(" ".join(["php", *command]) for command in commands))
         for command, (output, status) in zip(commands, results):
             with self.subTest(route="alias", option=command[0]):
                 self.assertEqual(status, 1, output)
                 self.assertIn(f"php option {command[0]} is not supported.", output)
-                self.assertIn(USAGE, output)
+                self.assertIn(USAGE.format(engine=self.engine), output)
                 self.assertNotIn("php-ran", output)
 
     def test_php_passes_the_arguments_after_code_in_argv(self):

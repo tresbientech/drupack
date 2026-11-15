@@ -6,11 +6,11 @@ import (
 )
 
 // siteHelp is the text a site's --help prints. %[1]s is the executable's name,
-// %[2]s the option groups and %[3]s the reference URL.
+// %[2]s the word that runs it, %[3]s the option groups and %[4]s the reference URL.
 const siteHelp = `%[1]s serves a Drupal site from this one file.
 
-Usage: %[1]s [COMMAND] [OPTIONS]
-       %[1]s --help | --version
+Usage: %[2]s [COMMAND] [OPTIONS]
+       %[2]s --help | --version
 
 Serve:
   start           Start the site in the background, as a bare command does
@@ -30,22 +30,22 @@ This computer:
                   HTTPS. It may ask for a password. --uninstall removes it.
   clean           Remove the unpacked runtimes, applications and Node releases
                   from the cache. --dry-run lists them and removes nothing.
-%[2]s
+%[3]s
 Examples:
-  %[1]s
-  %[1]s --data-dir ./site --listen 127.0.0.1:9000
-  %[1]s --admin-password 'choose-a-password'
-  %[1]s drush --data-dir ./site user:login
-  %[1]s clean --dry-run
+  %[2]s
+  %[2]s --data-dir ./site --listen 127.0.0.1:9000
+  %[2]s --admin-password 'choose-a-password'
+  %[2]s drush --data-dir ./site user:login
+  %[2]s clean --dry-run
 
-%[3]s`
+%[4]s`
 
 // engineHelp is the text the engine's --help prints. %[1]s is the executable's
-// name, %[2]s the option groups and %[3]s the reference URL.
+// name, %[2]s the word that runs it, %[3]s the option groups and %[4]s the reference URL.
 const engineHelp = `%[1]s serves the Drupal project in a folder, with its own settings.
 
-Usage: %[1]s [COMMAND] [DIR] [OPTIONS]
-       %[1]s --help | --version
+Usage: %[2]s [COMMAND] [DIR] [OPTIONS]
+       %[2]s --help | --version
 
 Serve:
   start        Serve the project in DIR, the working directory by default, in
@@ -71,17 +71,17 @@ This computer:
   clean        Remove the unpacked engine files and stopped folders' state
                from the cache. --dry-run lists them and removes nothing.
   self-update  Install the newest release over this file, or --check for one
-%[2]s
+%[3]s
 DIR goes before an --access-log or --error-log written bare.
 
 Examples:
-  %[1]s
-  %[1]s ./site --listen 127.0.0.1:9000
-  %[1]s stop ./site
-  %[1]s drush status
-  %[1]s self-update --check
+  %[2]s
+  %[2]s ./site --listen 127.0.0.1:9000
+  %[2]s stop ./site
+  %[2]s drush status
+  %[2]s self-update --check
 
-%[3]s`
+%[4]s`
 
 // referenceURL is docs/cli.md at release, or at main for a build the self-update
 // version pattern refuses, such as dev.
@@ -96,9 +96,9 @@ func referenceURL(release string) string {
 // runtime manifest names; l.Version is a site's own release.
 func helpText(l Launch, release string) string {
 	if l.Engine {
-		return fmt.Sprintf(engineHelp, l.Name, renderOptions(engineGroups), referenceURL(release))
+		return fmt.Sprintf(engineHelp, l.Name, l.Invoked, renderOptions(engineGroups), referenceURL(release))
 	}
-	return fmt.Sprintf(siteHelp, l.Name, renderOptions(siteGroups), referenceURL(release))
+	return fmt.Sprintf(siteHelp, l.Name, l.Invoked, renderOptions(siteGroups), referenceURL(release))
 }
 
 // renderOptions writes each group's title, then one line per option, its help
@@ -121,6 +121,6 @@ func renderOptions(groups []optionGroup) string {
 	return b.String()
 }
 
-func unknownCommand(word, name string) error {
-	return fmt.Errorf("Unknown command: %s. Run %s --help.", word, name)
+func unknownCommand(word, invoked string) error {
+	return fmt.Errorf("Unknown command: %s. Run %s --help.", word, invoked)
 }

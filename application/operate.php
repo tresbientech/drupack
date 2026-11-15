@@ -51,6 +51,12 @@ function executableName(): string
     return getenv('DRUPACK_RUNTIME_NAME');
 }
 
+// The word that runs the executable in the reader's shell, which a printed command starts with.
+function invokedWord(): string
+{
+    return getenv('DRUPACK_RUNTIME_INVOKED');
+}
+
 function directory(string $path): void
 {
     // Another start can create the same directory between the check and the call.
@@ -369,13 +375,13 @@ function seedPassword(): string
 function adoptSite(string $data, string $binary): void
 {
     if (drushField($binary, ['status', '--field=bootstrap']) !== 'Successful') {
-        throw new RuntimeException("This Site data holds settings but no installed site: $data. Inspect it with: " . executableName() . " drush --data-dir $data status");
+        throw new RuntimeException("This Site data holds settings but no installed site: $data. Inspect it with: " . invokedWord() . " drush --data-dir $data status");
     }
     $expression = '$account = \\Drupal\\user\\Entity\\User::load(1); print \\Drupal::service("password")->check('
         . var_export(seedPassword(), true) . ', $account->getPassword()) ? "yes" : "no";';
     if (drushField($binary, ['php:eval', $expression]) === 'yes') {
         throw new RuntimeException("This Site data holds a site whose administrator still accepts the packaged seed password: $data. "
-            . "Set a new password, then start " . executableName() . " again: " . executableName() . " drush --data-dir $data php:eval "
+            . "Set a new password, then start " . executableName() . " again: " . invokedWord() . " drush --data-dir $data php:eval "
             . '\'$account = \\Drupal\\user\\Entity\\User::load(1); $account->setPassword("new-password"); $account->save();\'');
     }
 }

@@ -196,7 +196,7 @@ func composerCopy(executable string) bool {
 }
 
 func availableLine(l Launch, newest string) string {
-	return fmt.Sprintf("%s %s is available, this is %s. Run: %s self-update", l.Name, newest, l.Version, l.Name)
+	return fmt.Sprintf("%s %s is available, this is %s. Run: %s self-update", l.Name, newest, l.Version, l.Invoked)
 }
 
 // httpClient trusts the system roots plus the bundle DRUPACK_CA_FILE names, as

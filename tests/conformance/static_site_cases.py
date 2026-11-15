@@ -256,7 +256,7 @@ class StaticSiteExport(harness.ConformanceCase):
         self.addCleanup(harness.run_drush, harness.BINARY, self.class_dir, self.data, "pm:install", "tome_static", "--yes")
         result = self.export(self.data)
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn("no tome_static module enabled. Enable it: " + harness.SITE["name"] + " drush pm:install tome_static",
+        self.assertIn(f"no tome_static module enabled. Enable it: {harness.BINARY} drush pm:install tome_static",
                       result.stdout + result.stderr)
 
     def test_a_drush_child_runs_php_from_the_runtime_with_no_php_on_path(self):

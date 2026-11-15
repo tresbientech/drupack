@@ -287,9 +287,9 @@ func retire(path string, inUse func(string) bool) (bool, error) {
 
 // Clean lists every cache entry with the space it holds, and removes each one
 // unless dry names a listing alone. An entry a running site uses is listed and
-// kept. name is the executable's name, for the line that says how to remove
-// what a dry run listed. notice gets the line of a wait for a store's lock.
-func (c Cache) Clean(name string, dry bool, out, notice io.Writer) error {
+// kept. invoked is the word that runs the executable, for the line that says
+// how to remove what a dry run listed. notice gets the line of a wait for a store's lock.
+func (c Cache) Clean(invoked string, dry bool, out, notice io.Writer) error {
 	var listed int
 	for _, s := range []store{c.runtimes(), c.applications(), c.nodes(), c.folders()} {
 		n, err := s.clean(dry, out, notice)
@@ -302,7 +302,7 @@ func (c Cache) Clean(name string, dry bool, out, notice io.Writer) error {
 	case listed == 0:
 		fmt.Fprintf(out, "Nothing to clean in %s.\n", c.root)
 	case dry:
-		fmt.Fprintf(out, "Run %s clean to remove them.\n", name)
+		fmt.Fprintf(out, "Run %s clean to remove them.\n", invoked)
 	}
 	return nil
 }

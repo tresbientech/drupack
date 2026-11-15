@@ -24,7 +24,7 @@ const caFileName = "cacert.pem"
 // Launch holds everything one start hands the runtime. Paths are native.
 type Launch struct {
 	Args []string // os.Args, without the console and child words
-	// Invoked is the word that runs this executable in the reader's shell, set by a start.
+	// Invoked is the word that runs this executable in the reader's shell.
 	Invoked     string
 	Parent      []string // os.Environ()
 	Entry       string

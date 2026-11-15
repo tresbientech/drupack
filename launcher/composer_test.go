@@ -42,8 +42,8 @@ func TestEngineComposerRefusesAnotherProjectAndItsOwnUpdate(t *testing.T) {
 		{[]string{"-n", "glob", "show"}, "refuses global"},
 		{[]string{"create-project", "drupal/cms", "site"}, "refuses create-project"},
 		{[]string{"Create-P", "drupal/cms", "site"}, "refuses create-project"},
-		{[]string{"self-update"}, "carries its own Composer. Run drupack self-update"},
-		{[]string{"selfupdate", "--rollback"}, "carries its own Composer. Run drupack self-update"},
+		{[]string{"self-update"}, "carries its own Composer. Run ./drupack self-update"},
+		{[]string{"selfupdate", "--rollback"}, "carries its own Composer. Run ./drupack self-update"},
 		{[]string{"-d", "/elsewhere", "install"}, "and refuses -d."},
 		{[]string{"install", "-d/elsewhere"}, "and refuses -d/elsewhere."},
 		{[]string{"-nd", "/elsewhere", "install"}, "and refuses -nd."},
@@ -93,7 +93,7 @@ func TestEngineComposerRefusesAProjectWithoutDrupal(t *testing.T) {
 }
 
 func TestASiteExecutableHasNoComposerCommand(t *testing.T) {
-	_, err := parse(Launch{Args: []string{"SITE", "composer", "install"}, Name: "fixture-site"})
+	_, err := parse(Launch{Args: []string{"SITE", "composer", "install"}, Name: "fixture-site", Invoked: "./fixture-site"})
 	if err == nil || !strings.HasPrefix(err.Error(), "Unknown command: composer") {
 		t.Errorf("error = %v, want Unknown command: composer", err)
 	}

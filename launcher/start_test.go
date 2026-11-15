@@ -117,7 +117,7 @@ func TestServeArgumentsNameTheCommandTheFileAndEachProjectFile(t *testing.T) {
 }
 
 func TestTrustHint(t *testing.T) {
-	hint := "HTTPS: run \"demo trust\" once to serve this site over HTTPS.\n"
+	hint := "HTTPS: run \"./demo trust\" once to serve this site over HTTPS.\n"
 	for _, row := range []struct {
 		name   string
 		dir    string
@@ -129,7 +129,7 @@ func TestTrustHint(t *testing.T) {
 		{"a start another computer reaches", "/tls", localtls.Choice{Source: "none"}, ""},
 		{"an account with no config folder", "", localtls.Choice{Source: "none", Eligible: true}, ""},
 	} {
-		if got := trustHint(Launch{TLSDir: row.dir, Name: "demo"}, row.choice); got != row.want {
+		if got := trustHint(Launch{TLSDir: row.dir, Name: "demo", Invoked: "./demo"}, row.choice); got != row.want {
 			t.Errorf("%s: trustHint = %q, want %q", row.name, got, row.want)
 		}
 	}
@@ -148,21 +148,22 @@ func TestDrupalDocroot(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := drupalDocroot("fixture-site", project, "web"); err == nil ||
+	fixture := Launch{Name: "fixture-site", Invoked: "./fixture-site"}
+	if _, err := drupalDocroot(fixture, project, "web"); err == nil ||
 		err.Error() != project+" is not a Drupal project: "+project+"/web/index.php does not exist. fixture-site serves Drupal alone." {
 		t.Errorf("an empty project: %v", err)
 	}
 	write("web/index.php")
-	if _, err := drupalDocroot("fixture-site", project, "web"); err == nil || !strings.HasSuffix(err.Error(), "web/core/lib/Drupal.php does not exist. fixture-site serves Drupal alone.") {
+	if _, err := drupalDocroot(fixture, project, "web"); err == nil || !strings.HasSuffix(err.Error(), "web/core/lib/Drupal.php does not exist. fixture-site serves Drupal alone.") {
 		t.Errorf("a docroot without core: %v", err)
 	}
 	write("web/core/lib/Drupal.php")
-	if got, err := drupalDocroot("fixture-site", project, "web"); err != nil || got != project+"/web" {
+	if got, err := drupalDocroot(fixture, project, "web"); err != nil || got != project+"/web" {
 		t.Errorf("drupalDocroot(web) = %q, %v", got, err)
 	}
 	write("index.php")
 	write("core/lib/Drupal.php")
-	if got, err := drupalDocroot("fixture-site", project, "."); err != nil || got != project {
+	if got, err := drupalDocroot(fixture, project, "."); err != nil || got != project {
 		t.Errorf("drupalDocroot(.) = %q, %v", got, err)
 	}
 }
@@ -203,8 +204,8 @@ func TestAnEngineStartNamesComposerInstallForAFreshClone(t *testing.T) {
 	project := t.TempDir()
 	// extra.drupack.static makes the lock's check refuse a folder with no lock.
 	put(t, filepath.Join(project, "composer.json"), `{"extra": {"drupack": {"static": {}}}}`)
-	e := engineStart{Facts: Facts{Launch: Launch{Name: "drupack", Engine: true}}, c: command{target: project}}
-	if _, err := e.check(); err == nil || !strings.HasSuffix(err.Error(), " has no vendor/. Run drupack composer install in it first.") {
+	e := engineStart{Facts: Facts{Launch: Launch{Name: "drupack", Invoked: "./drupack", Engine: true}}, c: command{target: project}}
+	if _, err := e.check(); err == nil || !strings.HasSuffix(err.Error(), " has no vendor/. Run ./drupack composer install in it first.") {
 		t.Errorf("a fresh clone: error = %v, want the composer install hint", err)
 	}
 	// An installed docroot serves with its vendor/ elsewhere, as config.vendor-dir allows.

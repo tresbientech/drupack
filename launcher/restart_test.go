@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -18,8 +19,8 @@ func TestRestartRefuses(t *testing.T) {
 		target string
 		want   string
 	}{
-		{"a Site data with no record", nil, "", "No start of this Site data is recorded: DIR. Start it with fixture-site start."},
-		{"a Site data that does not exist", nil, missing, "No start of this Site data is recorded: " + missing + ". Start it with fixture-site start."},
+		{"a Site data with no record", nil, "", "No start of this Site data is recorded: DIR. Start it with ./fixture-site start."},
+		{"a Site data that does not exist", nil, missing, "No start of this Site data is recorded: " + missing + ". Start it with ./fixture-site start."},
 		{"a foreground record", &state.Start{Cwd: "/srv", Words: []string{"--foreground"}},
 			"", "fixture-site started this Site data in the foreground: DIR. Restart it where it runs, in its terminal or its service manager."},
 	} {
@@ -34,7 +35,7 @@ func TestRestartRefuses(t *testing.T) {
 			if row.target != "" {
 				target = row.target
 			}
-			err := restart(Launch{Name: "fixture-site", Root: t.TempDir()}, command{word: "restart", target: target})
+			err := restart(Launch{Name: "fixture-site", Invoked: "./fixture-site", Root: t.TempDir()}, command{word: "restart", target: target})
 			want := strings.ReplaceAll(row.want, "DIR", resolvedDir(t, dir))
 			if err == nil || err.Error() != want {
 				t.Errorf("restart() = %v, want %q", err, want)
@@ -58,7 +59,7 @@ func TestReplay(t *testing.T) {
 		access string
 	}{
 		{"a site's relative argv0 and --data-dir give way, and its log stays relative",
-			Launch{Args: []string{"./bin/SITE", "restart"}, ConsoleOwned: true}, []string{"start", "--access-log=a.log", "--data-dir", "old"}, "/srv/data",
+			Launch{Args: []string{"./bin/SITE", "restart"}, Invoked: "./bin/SITE", ConsoleOwned: true}, []string{"start", "--access-log=a.log", "--data-dir", "old"}, "/srv/data",
 			[]string{filepath.Join(cwd, "bin/SITE"), "start", "--access-log=a.log", "--data-dir=/srv/data"}, "", "a.log"},
 		{"a site's Site data beats DRUPACK_DATA_DIR",
 			Launch{Args: []string{"SITE", "restart"}, Parent: []string{"DRUPACK_DATA_DIR=env"}}, []string{"--no-browser"}, "/srv/data",
@@ -86,6 +87,10 @@ func TestReplay(t *testing.T) {
 		wantData := ""
 		if !row.l.Engine {
 			wantData = filepath.FromSlash(row.named)
+		}
+		// The printed stop command runs from any directory, so the word keeps argv0 absolute.
+		if invoked := invokedWord(args[0], "", runtime.GOOS == "windows"); l.Invoked != invoked {
+			t.Errorf("%s: replay() Invoked = %q, want %q", row.name, l.Invoked, invoked)
 		}
 		if !slices.Equal(l.Args, args) || l.ConsoleOwned || c.word != "start" || c.target != filepath.FromSlash(row.target) || c.options.DataDir != wantData || access != row.access {
 			t.Errorf("%s: replay() = %q, %+v, want %q", row.name, l.Args, c, args)

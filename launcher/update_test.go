@@ -22,7 +22,7 @@ func packedAs(t *testing.T, name, release string, isEngine bool) Launch {
 	t.Helper()
 	// Root creates a missing directory owner-only, as it requires.
 	t.Setenv("DRUPACK_CACHE_DIR", filepath.Join(t.TempDir(), "cache"))
-	return Launch{Name: name, Version: release, Engine: isEngine}
+	return Launch{Name: name, Invoked: "./" + name, Version: release, Engine: isEngine}
 }
 
 func publish(t *testing.T, latest release, body ...byte) *httptest.Server {
@@ -221,7 +221,7 @@ func TestCheckNamesANewerReleaseAndRecordsIt(t *testing.T) {
 	if err := selfUpdate(l, []string{"--check"}, server.URL+"/release.json", executable, &out); err != nil {
 		t.Fatal(err)
 	}
-	if want := "drupack 1.0.0-alpha10 is available, this is 1.0.0-alpha3. Run: drupack self-update\n"; out.String() != want {
+	if want := "drupack 1.0.0-alpha10 is available, this is 1.0.0-alpha3. Run: ./drupack self-update\n"; out.String() != want {
 		t.Fatalf("out = %q; want %q", out.String(), want)
 	}
 	if got := updateCheck(t, l.Name); got != "1.0.0-alpha10" {
@@ -434,7 +434,7 @@ func TestUpdateNoticeNamesANewerReleaseAndChecksOnceADay(t *testing.T) {
 			var notice bytes.Buffer
 			checked := false
 			updateNotice(l, installed(t, "current"), &notice, true, now, func() error { checked = true; return nil })
-			line := "drupack " + c.newest + " is available, this is 1.0.0-alpha3. Run: drupack self-update\n"
+			line := "drupack " + c.newest + " is available, this is 1.0.0-alpha3. Run: ./drupack self-update\n"
 			if got := notice.String() == line; got != c.line {
 				t.Errorf("notice = %q; want the line: %t", notice.String(), c.line)
 			}

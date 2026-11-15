@@ -35,9 +35,10 @@ function contract(mixed ...$fields): SiteContract
 {
     return new SiteContract(...$fields + get_object_vars(SiteContract::read(__DIR__ . '/site.json')));
 }
-// The launcher exports the executable's name to every hop; this file runs outside one.
+// The launcher exports the executable's name and the word that runs it to every hop; this file runs outside one.
 const FIXTURE_NAME = 'fixture-site';
 putenv('DRUPACK_RUNTIME_NAME=' . FIXTURE_NAME);
+putenv('DRUPACK_RUNTIME_INVOKED=./' . FIXTURE_NAME);
 
 $scratches = [];
 
@@ -203,11 +204,12 @@ test('a site without a recipe refuses a database that holds no site', function (
 });
 
 test('adoption refuses Site data whose database holds no site', function (): void {
-    throws('holds settings but no installed site', fn() => adoptSite(scratch(), fakeDrush([])));
+    throws('holds settings but no installed site: ', fn() => adoptSite(scratch(), fakeDrush([])));
+    throws('. Inspect it with: ./fixture-site drush --data-dir ', fn() => adoptSite(scratch(), fakeDrush([])));
 });
 
 test('adoption refuses a site whose administrator accepts the seed password', function (): void {
-    throws('still accepts the packaged seed password',
+    throws('then start fixture-site again: ./fixture-site drush --data-dir ',
         fn() => adoptSite(scratch(), fakeDrush(['status' => 'Successful', 'php:eval' => 'yes'])));
 });
 

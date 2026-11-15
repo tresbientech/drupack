@@ -100,6 +100,7 @@ func TestEnvReader(t *testing.T) {
 			name: "a site names itself and its release",
 			want: map[string]string{
 				"DRUPACK_RUNTIME_NAME":         "demo",
+				"DRUPACK_RUNTIME_INVOKED":      "./demo",
 				"DRUPACK_RUNTIME_SITE_VERSION": "1.2.3",
 				"DRUPACK_RUNTIME_COMPONENTS":   "Drupal 11.2.0",
 				"DRUPACK_RUNTIME_APP_DIR":      "/cache/app",
@@ -154,6 +155,7 @@ func TestEnvReader(t *testing.T) {
 				Application: "/cache/app",
 				Root:        "/cache",
 				Name:        "demo",
+				Invoked:     "./demo",
 				Version:     "1.2.3",
 				Components:  "Drupal 11.2.0",
 			}
