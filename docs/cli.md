@@ -518,6 +518,11 @@ SITE --database mysql --db-host 127.0.0.1 --db-name drupal \
   --db-user drupal --db-password 'database-password'
 ```
 
+SQLite takes one write at a time. On one 32-thread machine, logged-in pages
+of Drupacked Demo topped out near 130 per second on SQLite. MariaDB served 357
+at 16 concurrent users and 443 at 64. A site with several editors at once
+passes `--database mysql` or `pgsql`.
+
 Site data records the connection. A later start takes each `--db-*` option it
 names in place of the recorded value, and records it once the server accepts
 the connection. It refuses a `--database` other than the recorded one. A start
