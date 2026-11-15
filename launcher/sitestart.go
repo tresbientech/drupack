@@ -265,7 +265,7 @@ func (s *packagedStart) held(plan startPlan) error {
 		explainMintFailure(failure)
 	}
 	var summary strings.Builder
-	writeRows(&summary, [][2]string{{"URL:  ", url}, {"Login:", s.loginLine(link)}})
+	writeRows(&summary, [][2]string{{"URL:  ", url}, {"Login:", s.loginLine(link, failure)}})
 	fmt.Printf("%s is already serving this Site data.\n\n%s", s.Launch.Name, summary.String())
 	if page := s.c.browserPage(true, bind, link, url); page != "" {
 		openBrowser(page)
@@ -302,22 +302,37 @@ func mint(l Launch, env []string, url, drush, directory string, path ...string) 
 	return link, "", nil
 }
 
-// explainMintFailure prints the reason Drush gave for minting no login link.
+// explainMintFailure prints the reason Drush gave for minting no login link. A
+// blocked uid 1 gets no line: the start names no account state.
 func explainMintFailure(reason string) {
+	if adminBlocked(reason) {
+		return
+	}
 	if reason = strings.TrimRight(reason, ". "); reason != "" {
 		reason = ": " + reason
 	}
 	fmt.Fprintf(os.Stderr, "No login link%s.\n", reason)
 }
 
-// loginLine is the Login line of a summary: link, or the command that mints one.
-func (s *packagedStart) loginLine(link string) string {
-	return cmp.Or(link, "run "+s.loginCommand())
+// adminBlocked reports whether Drush refused to mint because uid 1 is blocked.
+// The text is Drush's user:login refusal for a blocked account.
+func adminBlocked(failure string) bool {
+	return strings.Contains(failure, "is blocked and thus cannot login")
 }
 
-// loginCommand is the command that mints a login link for this Site data.
-func (s *packagedStart) loginCommand() string {
-	return fmt.Sprintf("%s drush --data-dir %s user:login /admin/dashboard", s.Launch.Name, s.Data)
+// nameOption is the user:login option the login command adds after a failed
+// mint: a blocked uid 1 leaves the reader to name the account.
+func nameOption(failure string) string {
+	if adminBlocked(failure) {
+		return " --name=NAME"
+	}
+	return ""
+}
+
+// loginLine is the Login line of a summary: link, or the command that mints
+// one after a mint that failed with failure.
+func (s *packagedStart) loginLine(link, failure string) string {
+	return cmp.Or(link, fmt.Sprintf("run %s drush --data-dir %s user:login%s /admin/dashboard", s.Invoked, s.Data, nameOption(failure)))
 }
 
 // prepare lays the application, runs PHP's prepare, whose step lines and
@@ -361,9 +376,8 @@ func (s *packagedStart) prepare(plan startPlan, choice localtls.Choice, accessLo
 	// An adopted site keeps its own accounts and serves without the link.
 	// The link is a credential: a start nobody watches prints the command for
 	// one, so no log holds a link.
-	person, link := personPresent(l), ""
+	person, link, failure := personPresent(l), "", ""
 	if person {
-		var failure string
 		if link, failure, err = s.login(application, plan.URL); err != nil {
 			return ready{}, err
 		}
@@ -383,7 +397,7 @@ func (s *packagedStart) prepare(plan startPlan, choice localtls.Choice, accessLo
 	// The addresses and paths only, never a readiness claim: the server announces that itself.
 	writeRows(&summary, [][2]string{
 		{"URL:      ", plan.URL},
-		{"Login:    ", s.loginLine(link)},
+		{"Login:    ", s.loginLine(link, failure)},
 		{"Static:   ", static},
 		{"Site data:", l.shown(s.Data)},
 		{"Logs:     ", l.shown(logs)},

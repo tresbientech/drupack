@@ -536,6 +536,8 @@ shown. `--site-name` names the site, and a later start never renames it.
 A start a person watches prints a one-time login link and opens the browser on
 it. When the mint fails, it prints `No login link:` with Drush's reason, prints
 the command that mints a link as its `Login:` line, and opens the site URL.
+When Drush refuses uid 1 as blocked, the start prints no reason, and the command
+carries `--name=NAME`: replace `NAME` with an active account.
 `--no-browser` prints the link alone. A start with no terminal, such as a
 systemd unit or a container, prints the command that mints a link, so no log
 holds one:

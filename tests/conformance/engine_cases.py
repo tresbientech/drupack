@@ -386,7 +386,7 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertEqual(self.status(port, "/sites/default/settings.php"), 403)
         command = harness.wait_for_line(log, 0, "  Login:   run ", harness.WAITS["start"].seconds)
         self.assertNotIn(harness.LINK_PATH, log.read_text())
-        self.assertEqual(command, f"drupack drush user:login --uri=http://127.0.0.1:{port}")
+        self.assertEqual(command, f"{self.engine} drush user:login --uri=http://127.0.0.1:{port}")
         minted = self.engine_run("drush", "user:login", "--no-browser", f"--uri=http://127.0.0.1:{port}", cwd=self.project)
         self.assertEqual(minted.returncode, 0, minted.stderr)
         link = urlsplit(minted.stdout.strip())

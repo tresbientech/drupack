@@ -3,10 +3,12 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/cache"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 )
 
@@ -31,6 +33,57 @@ func TestMint(t *testing.T) {
 		link, failure, err := mint(Launch{Entry: stub}, nil, "http://localhost:3787", "drush.php", t.TempDir())
 		if link != row.link || failure != row.failure || err != nil {
 			t.Errorf("%s: mint = %q, %q, %v", row.name, link, failure, err)
+		}
+	}
+}
+
+// The stub refuses user:login with Drush's text. A blocked uid 1 gives each
+// start's Login line a --name placeholder and prints no reason. Any other
+// refusal prints its reason and gives no placeholder.
+func TestLoginLineAfterAFailedMint(t *testing.T) {
+	project := t.TempDir()
+	drush := filepath.Join(project, cache.DrushScript)
+	if err := os.MkdirAll(filepath.Dir(drush), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(drush, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	site := &packagedStart{Facts: Facts{Launch: Launch{Invoked: "./demo"}, Data: "/var/lib/demo"}}
+	for _, row := range []struct {
+		name, refusal, folder, site, reason string
+	}{
+		{"blocked", "Account admin is blocked and thus cannot login. The user:unblock command may be helpful.",
+			"run ./drupack drush user:login --name=NAME --uri=http://localhost:3787",
+			"run ./demo drush --data-dir /var/lib/demo user:login --name=NAME /admin/dashboard", ""},
+		{"no database", "Unable to bootstrap Drupal.",
+			"run ./drupack drush user:login --uri=http://localhost:3787",
+			"run ./demo drush --data-dir /var/lib/demo user:login /admin/dashboard", "No login link: Unable to bootstrap Drupal.\n"},
+	} {
+		stub := filepath.Join(t.TempDir(), "runtime")
+		if err := os.WriteFile(stub, []byte("#!/bin/sh\nprintf '%s' '"+row.refusal+"' >&2\nexit 1\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		l := Launch{Invoked: "./drupack", Entry: stub, ConsoleOwned: true}
+		read, write, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		stderr := os.Stderr
+		os.Stderr = write
+		_, login, _, err := entrance(l, nil, project, nil, "http://localhost:3787")
+		os.Stderr = stderr
+		write.Close()
+		printed, _ := io.ReadAll(read)
+		if login != row.folder || err != nil {
+			t.Errorf("%s: folder Login = %q, %v, want %q", row.name, login, err, row.folder)
+		}
+		if string(printed) != row.reason {
+			t.Errorf("%s: printed %q, want %q", row.name, printed, row.reason)
+		}
+		_, failure, err := mint(l, nil, "http://localhost:3787", drush, project)
+		if login := site.loginLine("", failure); login != row.site || err != nil {
+			t.Errorf("%s: site Login = %q, %v, want %q", row.name, login, err, row.site)
 		}
 	}
 }

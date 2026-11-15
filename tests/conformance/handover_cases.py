@@ -85,8 +85,10 @@ class HandoverCases(harness.ConformanceCase):
                 timeout=harness.WAITS["start"].seconds, env=env,
             )
             self.assertEqual(second.returncode, 0, f"the handover exited non-zero: {second.stderr}")
-            self.assertIn("No login link", second.stderr)
+            self.assertNotIn("No login link", second.stderr)
+            self.assertNotIn("blocked", second.stderr)
             self.assertIn("  Login: run ", second.stdout)
+            self.assertIn(" user:login --name=NAME ", second.stdout)
             self.assertNotIn(harness.LINK_PATH, second.stdout)
             url = next(line.split(None, 1)[1] for line in second.stdout.splitlines() if line.startswith("  URL:"))
 

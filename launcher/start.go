@@ -187,6 +187,7 @@ func start(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
+	l.Invoked = invokedWord(l.Args[0], cwd, runtime.GOOS == "windows")
 	var mode startMode = &packagedStart{Launch: l, Inputs: startInputs(c.options), c: c, cwd: cwd}
 	if l.Engine {
 		mode = &engineStart{Launch: l, c: c}
@@ -196,7 +197,7 @@ func start(l Launch, c command) error {
 		if err != nil {
 			return err
 		}
-		return detachStart(l, log, stopCommand(l.Args[0], cwd, target, runtime.GOOS == "windows"))
+		return detachStart(l, log, l.Invoked+" stop"+target)
 	}
 	checked, err := mode.check()
 	if err != nil {
@@ -541,11 +542,10 @@ func entrance(l Launch, env []string, project string, installed *bool, url strin
 		fmt.Fprintf(os.Stderr, "No login link: %s has no Drush. composer require drush/drush adds one.\n", project)
 		return "", "", "", nil
 	}
-	command := "run " + loginCommand(l.Name, url)
 	// The link is a credential: a start nobody watches prints the command for
 	// one, so no log holds a link.
 	if !personPresent(l) {
-		return "", command, "", nil
+		return "", folderLoginLine(l.Invoked, url, ""), "", nil
 	}
 	link, failure, err := mint(l, env, url, drush, project)
 	if err != nil {
@@ -555,14 +555,16 @@ func entrance(l Launch, env []string, project string, installed *bool, url strin
 		// The folder's own settings may block uid 1 or name no reachable database yet;
 		// the server still starts, and Drupal's own error page says which.
 		explainMintFailure(failure)
-		return "", command, "", nil
+		return "", folderLoginLine(l.Invoked, url, failure), "", nil
 	}
 	return link, link, "", nil
 }
 
-// loginCommand is the command that mints a login link for the project served at url.
-func loginCommand(name, url string) string {
-	return fmt.Sprintf("%s drush user:login --uri=%s", name, url)
+// folderLoginLine is the Login line that names the command minting a login link
+// for the project served at url, after a mint that failed with failure. invoked
+// is the word that runs this executable.
+func folderLoginLine(invoked, url, failure string) string {
+	return fmt.Sprintf("run %s drush user:login%s --uri=%s", invoked, nameOption(failure), url)
 }
 
 // storeBundle writes an HTTPS start's CA bundle into the folder's entry and

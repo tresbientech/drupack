@@ -235,10 +235,9 @@ func shellWord(value string, windows bool) string {
 	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }
 
-// stopCommand is the line that stops this start's server in the reader's
-// shell. target is the words after stop, with their leading space, "" when
-// stop's default finds the server. invoked is the path the reader ran.
-func stopCommand(invoked, cwd, target string, windows bool) string {
+// invokedWord is the word that runs this executable in the reader's shell.
+// invoked is the path the reader ran.
+func invokedWord(invoked, cwd string, windows bool) string {
 	// PowerShell hands a program its full path, so one in the reader's directory
 	// prints as `.\NAME`.
 	if windows && windowsAbsolute.MatchString(invoked) {
@@ -254,7 +253,7 @@ func stopCommand(invoked, cwd, target string, windows bool) string {
 	if windows && word[0] == '\'' {
 		word = "& " + word
 	}
-	return word + " stop" + target
+	return word
 }
 
 // powershellQuotes doubles each character PowerShell reads as a single quote.

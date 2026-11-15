@@ -38,9 +38,10 @@ A first start turns an empty Site data directory into an installed site. It must
 - A start a person watches asks Drush for a one-time login link for uid 1, and prints it. A site's link lands on `/admin/dashboard`. A project folder's link comes from the folder's own Drush, with no destination.
 - The server opens a browser once the site answers: on the login link, else on `/core/install.php` for a project folder with no installed site, else on the site URL.
 - A person watches when the start has a terminal, a file manager's console, or a detaching parent that had a terminal.
-- Any other start mints no link. It prints the command that mints one: `NAME drush --data-dir DIR user:login /admin/dashboard` for a site, `NAME drush user:login --uri=URL` for a project folder.
+- Any other start mints no link. It prints the command that mints one: `NAME drush --data-dir DIR user:login /admin/dashboard` for a site, `NAME drush user:login --uri=URL` for a project folder. `NAME` is the path the reader ran, such as `./drupack`.
 - `--no-browser`, a bind address outside loopback, or a start nobody watches opens no browser.
 - A failed mint prints Drush's reason and the command, then serves. It fails the start when the start generated the password and adopted no site.
+- When Drush refuses uid 1 as blocked, the start prints no reason, and the command carries `--name=NAME`. The reader names the account; Drupack picks none.
 - An adopted site keeps its own accounts and needs no link.
 
 ## Reason

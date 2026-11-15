@@ -158,8 +158,8 @@ func TestTheStopCommandIsTypedForTheReadersShell(t *testing.T) {
 		{"a quote doubles", `C:\it's\demo.exe`, `C:\Users\reader`, " " + shellWord("C:\\it\u2019s", true), true, "& 'C:\\it''s\\demo.exe' stop 'C:\\it\u2019\u2019s'"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			if got := stopCommand(c.invoked, c.cwd, c.target, c.windows); got != c.want {
-				t.Fatalf("stopCommand = %q, want %q", got, c.want)
+			if got := invokedWord(c.invoked, c.cwd, c.windows) + " stop" + c.target; got != c.want {
+				t.Fatalf("stop line = %q, want %q", got, c.want)
 			}
 		})
 	}
