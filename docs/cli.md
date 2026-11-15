@@ -614,8 +614,8 @@ SITE drush --data-dir ./data user:login
 ```
 
 `drush` acts on `--data-dir`, `--listen`, `--static-listen`, `--host` and
-`--files-dir`. It parses the other 14 options and acts on none of them. It
-works while the site serves, and needs an installed site.
+`--files-dir`, and refuses the other 14 before the Drush command. It works
+while the site serves, and needs an installed site.
 
 ## Cron and updates
 

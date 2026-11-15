@@ -134,9 +134,9 @@ var dataDirOption = option{
 // against docs/cli.md.
 var stopOptions = []option{dataDirOption}
 
-// siteGroups are the options a site's start takes, and its drush accepts, as
-// the help groups them. parse_test.go asserts each title against the Applies
-// column of docs/cli.md. A flag has no value.
+// siteGroups are the options a site's start takes, as the help groups them.
+// drush and export take the first group. parse_test.go asserts each title
+// against the Applies column of docs/cli.md. A flag has no value.
 var siteGroups = []optionGroup{
 	{"Where the site lives, for start and drush:", []option{
 		dataDirOption,
@@ -169,6 +169,9 @@ var siteGroups = []optionGroup{
 
 // siteOptions are the options of siteGroups, which the parser reads.
 var siteOptions = optionsOf(siteGroups)
+
+// drushOptions are the options drush and export act on: the first group of siteGroups.
+var drushOptions = siteGroups[0].options
 
 // engineGroups are the options the engine's start takes, as the help groups
 // them. The engine's --listen, --static-listen and --host read otherwise than a
@@ -253,9 +256,17 @@ func parse(l Launch) (command, error) {
 	case slices.Contains(nodeWords, word):
 		return command{word: "node"}, nil
 	case word == "drush" || word == "export":
-		read, words, _, err := scanOptions(rest, siteOptions, lookup, false)
+		read, words, _, err := scanOptions(rest, drushOptions, lookup, false)
 		if err != nil {
 			return command{}, err
+		}
+		// The scan stops at a start's option, which Drush would otherwise receive. Its
+		// name alone is printed, since a secret's value can follow the =.
+		if len(words) > 0 {
+			name, _, _ := strings.Cut(words[0], "=")
+			if slices.ContainsFunc(siteOptions, func(o option) bool { return "--"+o.name == name }) {
+				return command{}, fmt.Errorf("Unknown argument: %s", name)
+			}
 		}
 		return command{word: word, options: read, words: words}, nil
 	case word == "start":

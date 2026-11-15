@@ -171,11 +171,6 @@ func TestSiteExportRefusals(t *testing.T) {
 		t.Errorf("no static: %v, want %q", err, want)
 	}
 	f := newSite(t, siteconfig.Site{Port: 1, Static: &siteconfig.Static{}})
-	_, err = siteExport(Facts{Launch: f.launch()}, parseLine(t, false, "export", "--data-dir", f.data, "--database", "oracle"), f.cwd)
-	// The recorded settings.php names the database, so an export reads no --database.
-	if err != nil {
-		t.Errorf("database: %v, want none", err)
-	}
 	os.Remove(filepath.Join(f.data, "settings.php"))
 	_, err = siteExport(Facts{Launch: f.launch()}, parseLine(t, false, "export", "--data-dir", f.data), f.cwd)
 	if want := "This Site data has no site yet: " + fsguard.Canonical(f.data) + ". Start fixture-site once to create one."; err == nil || err.Error() != want {
