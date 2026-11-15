@@ -424,8 +424,8 @@ function configureSeedSiteName(string $binary, string $name): void
     runDrush($binary, [drushPath(), 'config:set', 'system.site', 'name', $name, '--yes'], 'Cannot set the site name');
 }
 
-// Drupal CMS recipes enable these during site:install. automatic_updates 4.1.0 stalls a cron
-// request, and package_manager cannot write into the read-only application. A resumed modules step can run after an earlier one
+// Drupal CMS recipes enable these during site:install. package_manager cannot write into the
+// read-only application, and automatic_updates requires it. A resumed modules step can run after an earlier one
 // already removed them, and Drush refuses to uninstall a module that is not enabled.
 function removeRecipeModules(string $binary): void
 {
