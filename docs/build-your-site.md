@@ -404,18 +404,9 @@ jobs:
 The workflow reads the engine commit from the ref after `@`, so an engine
 upgrade changes that one line. It needs `id-token: write` to read that ref.
 
-A job in the Linux container builds the site once and builds the Linux targets.
-Each macOS or Windows target in `platforms` then gets a job on a runner of that
-system: `macos-15` for `macos-arm64`, `macos-15-intel` for `macos-amd64` and
-`windows-2025` for `windows-amd64`. The job downloads the runtime file of the
-engine release, checks its SHA-256 against that release's `checksums.txt`, and
-packs it with the site. The conformance suite then runs on the result, with the
-site's tests. A failed native job uploads its test logs as
-`test-results-TARGET`.
-
-Windows on Arm runs the `windows-amd64` executable under emulation. A
-`windows-11-arm` runner runs the suite on that executable, and a failure there
-blocks the release.
+Each target in `platforms` builds and runs the conformance suite, with the
+site's tests, in a job of its own. Windows on Arm runs the `windows-amd64`
+executable under emulation, and a failure there blocks the release too.
 
 A caller pinned to a tag packs the runtimes of that tag. A caller pinned to a
 branch or a commit sets `runtime-release` to the engine release whose runtimes
@@ -621,14 +612,6 @@ the Mend Renovate app runs it. A Gitea site
   ]
 }
 ```
-
-Renovate then reads:
-
-- the engine version, from the tag after `build.yml@` in a GitHub workflow and
-  from the job image's tag in a Gitea workflow
-- the Composer packages, from `composer.json` and `composer.lock`, with
-  `packages.drupal.org` taken from the `repositories` entry
-- the Node release, from the `node:` line of `drupack.yml`
 
 The custom manager matches an exact Node version. `node: true` and a major line
 such as `node: 24` match nothing.

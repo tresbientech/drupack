@@ -10,14 +10,12 @@ Windows produces backslashes in rendered URLs, drive letters in icon paths and c
 
 - The canonical form is absolute, with forward slashes, no trailing separator and no `.` or `..` segment.
 - Every path Drupack computes, exports or prints takes that form.
-- Go keeps the native form inside the launcher. `fsguard.Canonical` converts at the variables exported to PHP, Caddy and the terminal.
-- PHP resolves paths through `Symfony\Component\Filesystem\Path`, reached from the application's autoloader.
-- A minted cache segment matches `^[a-z][a-z0-9.-]{0,31}$`. `internal/payload` states the pattern once, and `cmd/pack` enforces it at build time.
-- `WindowsPathServiceProvider` registers the Drupal service overrides that keep rendered addresses canonical. They run on every platform, so Linux exercises the shipped path.
+- Go keeps the native form inside the launcher and converts at the variables exported to PHP, Caddy and the terminal.
+- The Drupal service overrides that keep rendered addresses canonical run on every platform, so Linux exercises the shipped path.
 
 ### One rule for a folder
 
-`fsguard.Exposure` applies the rule to a resolved path. An error counts as exposed.
+The rule applies to a resolved path. An error counts as exposed.
 
 - Unix: the current user owns the folder, and no group or other write bit is set. A check with readers also refuses group and other read bits.
 - Windows: the current user, SYSTEM or Administrators owns the folder. The check reads no ACL.
@@ -37,8 +35,8 @@ Windows produces backslashes in rendered URLs, drive letters in icon paths and c
 
 ### What a start creates
 
-- A new cache root and new Site data get mode `0700` on Unix. On Windows they get a protected ACL granting the current user, SYSTEM and Administrators.
-- A site start sets the umask to `077`. The engine start keeps the caller's umask and gives its own state explicit `0700` or `0600` modes.
+- A new cache root and new Site data get an owner-only mode on Unix. On Windows they get a protected ACL granting the current user, SYSTEM and Administrators.
+- A site start restricts the umask to the owner. The engine start keeps the caller's umask and gives its own state explicit owner-only modes.
 - `server.log`, the Serving lease and the Mercure secrets refuse a link and any file that is not regular.
 
 ## Reason

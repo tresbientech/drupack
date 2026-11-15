@@ -8,10 +8,8 @@ A first start turns an empty Site data directory into an installed site. It must
 
 ### Steps
 
-- `Step` is a string-backed enum in `application/support`. Its values are the names the progress file records.
 - A SQLite first start owes `seed`, `settings` and `administrator`. A MySQL or PostgreSQL one owes `settings`, `install` and `modules`. A Site data that already holds `settings.php` owes `adopt`.
-- `Step::needs()` names what a step needs: `Need::Recipe`, `Need::Connection` or `Need::Credentials`. `Step::owed()` merges the needs of a list.
-- `requireNeeds()` in `application/operate.php` holds the refusals, because they name command-line options. The administrator's credentials are generated instead of requested.
+- The refusals for a missing recipe, connection or credentials name command-line options. The administrator's credentials are generated instead of requested.
 - `SiteData::steps()` refuses a progress file that names an unknown step, before any step runs.
 
 ### The recorded connection
@@ -23,7 +21,7 @@ A first start turns an empty Site data directory into an installed site. It must
 
 ### The Site contract
 
-- `SiteContract` in `application/support` holds the `site.json` fields PHP reads, with their types: the recipe, the settings file and the site name. A missing or mistyped key fails at read time and names the constructor parameter.
+- A typed contract holds the `site.json` fields PHP reads: the recipe, the settings file and the site name. A missing or mistyped key fails at read time.
 - `application/tests/site.json` is a reference file. A Go test compares it with what `siteconfig.Write` produces for a fixed site, and the PHP tests build their contract from it.
 
 ### The Site template

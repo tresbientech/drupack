@@ -17,14 +17,13 @@ Behavior must be proven on every platform Drupack ships. A Windows defect passes
 - Every wait in the wait table exceeds the product deadline below it.
 ### Test shares
 
-- `DRUPACK_SHARD=K/N` runs the Kth of N shares of the test classes. `class-seconds.json` holds each class's measured seconds per platform. The classes go longest first to the share with the fewest seconds. A class missing from the table counts as the mean. `+extra` starts the last share with the seconds of the other work its job runs.
+- `DRUPACK_SHARD=K/N` runs the Kth of N shares of the test classes, split by measured class time.
 
 ### Unit tests
 
 - A choice that a pure Go or PHP function makes is tested by that function's unit test alone. Such choices include a refusal message, a parsed option, a start plan, a TLS source and an environment entry.
 - A case that asserts both keeps its live part. Its pure part goes to the unit test.
 - A test of a build script that needs no built executable runs as a `test_*.py` unittest file, through `build/test/unit-tests.sh`.
-- Go tests run under the race detector with `build/test/go-tests.sh`, which also lints for each system a release targets.
 - Four unit tests assert what an OS does and stay in their unit layer. They cover Ctrl+Break on a Windows process group, a lock that survives exec, PHP's argv, and the stop channel refusing a non-loopback dial.
 - The mysql and pgsql refusals in `argument_cases.py` stay live. They prove that PHP's `check` writes no Site data before a start refuses.
 - `phpArguments` and `iniLine` in `runtime/frankenphp/entrypoint.go` build only inside FrankenPHP's main package, in the builder image. Their refusal and `-d` cases stay in the suite.

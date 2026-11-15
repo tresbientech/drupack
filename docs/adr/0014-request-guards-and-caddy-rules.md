@@ -19,14 +19,12 @@ Drupal's hardening lives in Apache files that Caddy never reads. They are the ro
 - A raw path that opens with `//` or `/\`, or holds a control character or a backslash anywhere, answers 403 on both ports. Windows reads `\` as a separator after the guards matched.
 ### Headers and functional rules
 
-- Every response carries `X-Content-Type-Options: nosniff`, set after the handler. The `Proxy` request header is removed.
 - PHP under public storage answers 404. `settings.php` and `services*` under any suffix answer 403.
-- `/install.php` and `/rebuild.php` redirect 301 into `core/` with their query. `/core/install.php` gets `rewrite=ok`.
 - A directory with `index.html` or `index.htm` and no `index.php` serves that file after a 301 to its slash form.
 - A `css_*.css` or `js_*.js` aggregate beside a `.br` or `.gz` copy serves the copy.
 ### Caching and tests
 
-- Every file that is not a script caches for a year. Release-named files under `core/`, `modules/`, `themes/` and `libraries/` add `immutable`. A missing file or a directory reaches Drupal with Drupal's header alone.
+- A missing file or a directory reaches Drupal with Drupal's header alone.
 - A conformance test hashes core's scaffold copy of `.htaccess`, `vendor/.htaccess` and `FileSecurity.php`. A core release that moves a rule fails QA with the file named.
 
 ### Deviations from Apache

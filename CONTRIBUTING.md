@@ -1,14 +1,22 @@
 # Contributing to Drupack
 
-The canonical repository is the drupal.org project [`drupack`](https://git.drupalcode.org/project/drupack). Merge requests go there. GitHub holds a copy that builds and publishes the executables, and takes no pull requests.
-
-Issues go to the [drupal.org issue queue](https://git.drupalcode.org/project/drupack/-/work_items). An issue an LLM session files carries the `LLM` label and the template's AI disclosure. A commit for an issue uses Drupal core's subject, `fix: #3636009 Title`, and one issue gives one commit on `main`.
+The canonical repository is the drupal.org project [`drupack`](https://git.drupalcode.org/project/drupack). GitHub holds a copy that builds and publishes the executables, and takes no pull requests.
 
 Read before a change:
 
 - `CONTEXT.md` for the vocabulary
 - `docs/cli.md` for what the product promises
 - `docs/adr/` for the decisions behind the current shape
+
+## Issues and merge requests
+
+- A subject of work starts with an issue in the [drupal.org issue queue](https://git.drupalcode.org/project/drupack/-/work_items). Search the queue before a new one.
+- A comment `/do:fork` on the issue creates its fork, `issue/drupack-<issue number>`. A personal fork is never used.
+- The branch is named `<issue number>-<slug>`, is pushed to that fork, and holds one commit.
+- That commit's subject uses Drupal core's format, `fix: #3636009 Refuse the options drush cannot use`. The type is `fix`, `feat`, `task`, `refactor`, `perf`, `test`, `docs`, `ci` or `chore`.
+- The merge request's title is the commit subject. A maintainer merges it on drupal.org by fast-forward, and closes the issue.
+- A commit that belongs to no issue keeps a plain imperative subject.
+- A commit message, or a document outside `docs/adr/`, states a decision in its own words and cites no ADR number.
 
 ## Build
 

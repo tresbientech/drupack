@@ -9,12 +9,11 @@ A start decides a listener, a TLS source, a host, a scheme, a static listener an
 ### The owner
 
 - The launcher plans and runs every start, `drush`, `export`, `stop` and `trust`, on both executables. PHP runs only through `runtime php-cli`, called by the launcher.
-- One parser, `launcher/parse.go`, reads every word and option for both executables. `launcher/help.go` holds the help texts.
+- One parser reads every word and option for both executables.
 - `docs/cli.md` is the CLI reference. The help texts render their options from the parser's tables, and a Go test compares the reference against those tables.
-- `planStart` turns the parsed words, the site settings, the TLS answer and the recorded listener into the start plan. No later step chooses a listener, a scheme or a static value again.
+- A pure plan turns the parsed words, the site settings, the TLS answer and the recorded listener into the start plan. No later step chooses a listener, a scheme or a static value again.
 - A site and the engine are two modes of one start. They differ in the state directory, the settings source (`site.json` or `composer.json`), the first checks and the route of the files directory.
 - Node's words (`node`, `npm`, `npx`) run Node from its own release directory. On Unix the launcher replaces itself with Node. On Windows it waits for Node.
-- Two hidden leading arguments mark a start from a Windows file manager (`--console-owned`) and the child of a detached start (`--detached-child`).
 
 ### The detached start
 
@@ -32,27 +31,24 @@ A start decides a listener, a TLS source, a host, a scheme, a static listener an
 
 ### A child's environment
 
-- `Facts` holds what a start knows. `Facts.Env(Kind)` is pure and is the one writer of a child's environment. Its kinds are `Reader`, `Server`, `Operate`, `Drush` and `Export`.
-- `runtime/environment.txt` declares every `DRUPACK_*` and `DRUSH_*` name `Env` sets, with the kinds and modes that receive it. `TestEnvDeclared` and `TestEnvKinds` hold `Env` to that file.
+- `Facts` holds what a start knows. `Facts.Env` is pure and is the one writer of a child's environment.
+- `runtime/environment.txt` declares every `DRUPACK_*` and `DRUSH_*` name it sets. Tests hold the code to that file.
 - A variable the launcher owns overrides an inherited one. Windows matches names in any case.
 - Environment variables carry only values that `settings.php`, Drush, Tome's children, Caddy or the runtime's watch read. The launcher passes its own choices as arguments.
 
 ### The server config
 
-- The HTTP rules are Caddy fragments in `launcher/internal/caddyfile/fragments`: a main template, one fragment per mode and TLS source, and one each for guards, logs, static serving and the Mercure hub.
+- The HTTP rules are Caddy fragments: a main template, one fragment per mode and TLS source, and one each for guards, logs, static serving and the Mercure hub.
 - Each start renders the fragments for its plan into one owner-only Caddyfile in the state directory. A feature that is off leaves its fragment out.
 - One function quotes every value. The file holds no `{$...}` reference. A start refuses a path holding `{` or `}`, which Caddy reads as a placeholder.
 - The Caddyfile imports the project's `drupack.caddy` by absolute path, after the guards and before the hub and `php_server`.
 
 ### The runtime's commands
 
-- The runtime registers `drupack-serve`, `php` and `drupack-version` with `caddycmd.RegisterCommand`. Its `init()` reads no argument.
-- `drupack-serve CADDYFILE [PROJECT_FILE...]` adapts the Caddyfile once and passes the JSON to `caddy.Load` in memory.
-- Ready means the load returned and Caddy holds a certificate for every name its internal issuer signs, for 5 seconds at most.
+- The runtime registers its commands through Caddy's command registry. Its `init()` reads no argument.
+- A start is ready once the load returns and Caddy holds a certificate for every name its internal issuer signs.
 - The stop channel opens before the ready line. A channel that cannot open stops Caddy and fails the start.
 - A command returns its failure, and Caddy's command line prints it as one `Error:` message with exit code 1.
-- The launcher turns `--version` and `-v` into `drupack-version`, because Cobra owns `--version`.
-- `application/operate.php` runs one named operation per call: `check`, `prepare`, `seed` or `static-directory`. Step lines go to stderr and one JSON record to stdout. Credentials reach it through the environment, never argv.
 
 ## Reason
 

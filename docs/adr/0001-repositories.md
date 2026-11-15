@@ -10,21 +10,18 @@ Drupack's code needs one place where merge requests land. Its executables need r
 
 - `project/drupack` on drupal.org is canonical. `main` and the version tags live there, and `main` refuses a force push.
 - A maintainer squash-merges a merge request on drupal.org.
-- `.gitlab-ci.yml` gives drupal.org's runners two jobs and no build. `tests` runs the Go and Python unit tests on a merge request pipeline.
-- `dispatch` runs on a daily pipeline schedule. It starts `upstream.yml` and `release-node.yml` on GitHub through `GITHUB_DISPATCH_TOKEN`.
-- GitLab's `changes` takes no negation, so the `tests` rule lists the code paths by name. A new top-level directory joins that list.
+- drupal.org's runners run the Go and Python unit tests on a merge request pipeline. A daily pipeline schedule starts `upstream.yml` and `release-node.yml` on GitHub. They build nothing.
 - The issue queue holds open questions, follow-ups, plans and specs. A decided question lands as an ADR.
 
 ### GitHub
 
 - `tresbientech/drupack` is a copy that builds, tests and publishes the release files. It takes no issues and no pull requests.
 - A drupal.org webhook on push and tag events calls `repository_dispatch`. `sync.yml` clones drupal.org and pushes `main` and the tags to GitHub. It never forces and never prunes.
-- `sync.yml` skips the tags `0.1.1`, `0.1.2` and `0.1.5`, which stay on drupal.org.
-- Every push to GitHub uses an SSH deploy key, stored base64-encoded as `MIRROR_DEPLOY_KEY_BASE64`. A push made with a job's own token starts no workflow.
-- `upstream.yml` pushes `main` and the tag to drupal.org with a project access token, `DRUPAL_ORG_TOKEN`, then to GitHub.
+- Every push to GitHub uses an SSH deploy key. A push made with a job's own token starts no workflow.
+- `upstream.yml` pushes `main` and the tag to drupal.org with a project access token, then to GitHub.
 - A version tag starts `release.yml`, which tests the release files and publishes them as a GitHub Release.
 - A manual dispatch builds every platform. A push to `main` builds Linux amd64 alone, when it touched a path an executable carries.
-- The `gate` job of `release.yml` makes that comparison. GitHub documents no path filter for a tag push, and a tag whose build was filtered away would publish nothing.
+- GitHub documents no path filter for a tag push, and a tag whose build was filtered away would publish nothing.
 
 ### Drupacked Demo
 
@@ -33,7 +30,7 @@ Drupack's code needs one place where merge requests land. Its executables need r
 - The demo's daily run bumps its Composer pins, its Node pin and the Drupack tag it names. Any move tags the demo.
 - The daily run in this repository moves the runtime's pins and no site package. A Drupack tag comes from one of those moves or from a `version` dispatch.
 - A Drupack release publishes no demo file. It publishes its macOS and Windows runtimes, which `build.yml` packs in native jobs.
-- `build/release/demo-pin.sh` pins the demo commit, `demo_ref`, and its release, `demo_release`. `release.yml` and `build/test/qa.sh` build that commit and run its site tests.
+- `build/release/demo-pin.sh` pins the demo commit and its release. `release.yml` and `build/test/qa.sh` build that commit and run its site tests.
 - A candidate moves the pin to the demo's latest release only when that release descends from the pinned commit. A commit set by hand stays until a release contains it.
 - `drupack.tresbien.tech/demo.sh` and `/demo.ps1` redirect to the install scripts of the demo's latest release.
 

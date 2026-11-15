@@ -16,7 +16,7 @@ Caddy's global `log` block configures the process log, and an access log needs a
 - Both options add a file and change no other output. The engine's process log goes to standard error at `ERROR`, or to `caddy.log` in the cache entry for a detached start. A Packaged site writes `logs/caddy.log` and `logs/server.log`.
 ### Log files
 
-- Each file rolls at 100 MiB and keeps 10 rolled files. Caddy creates them with mode 0600.
+- Caddy creates each file with mode 0600.
 - A FILE resolves against the working directory. The start refuses a FILE that holds a brace, one inside a directory the server answers requests from, and one file named by both options.
 - On Windows, `build/windows/build.ps1` rewrites FrankenPHP's `go_log` level numbers, so a Windows log holds the levels the other platforms hold.
 

@@ -19,7 +19,7 @@ A distributable Drupal application. One built from a Site template carries a See
 The Drupal CMS recipe that gives a new site its starting configuration and content. A Packaged site carries at most one, named in its Site contract. Drupacked Demo carries its own.
 
 **Site contract**:
-The `drupack.yml` beside a site's `composer.json`, naming its executable, port, Site template, default site name, translations, settings file, build targets, added PHP extensions, Writable directories, and whether it carries Bundled Node. A build writes it out as `site.json`, with the docroot, the Mercure hub key, the static settings and the subdomain `composer.json` names, and every other reader takes that file.
+The `drupack.yml` beside a site's `composer.json`, which names how the site builds and starts. A build writes it out as `site.json`, with the values `composer.json` adds, and every other reader takes that file.
 
 **Site repository**:
 A repository holding one site's Composer project and Site contract. Its releases publish that Packaged site.
@@ -78,10 +78,10 @@ The public command that removes unpacked releases, and the state of folders no s
 An environment variable that selects the default Site data directory for a Packaged site.
 
 **Listener record**:
-The listen address, static listener address, permitted host and scheme the last start served, and the Files directory it named, held in Site data. `Served` is its only reader.
+The listen address, static listener address, permitted host and scheme the last start served, and the Files directory it named, held in Site data.
 
 **Served address**:
-What the last start served, read from the Listener record with the reader's typed values first, then the record, then the default. It holds the bind address and port, and `Plan` gives the static listener.
+What the last start served: the reader's typed values first, then the Listener record, then the default.
 
 **Site host**:
 A site's own host name, `<label>.drupack.site`, whose public DNS answers `127.0.0.1`. The label comes from `composer.json` `extra.drupack.subdomain`, otherwise from the Site contract's name or the Project folder's name. A start's URL names it when the resolver answers it with `127.0.0.1`.
@@ -94,7 +94,7 @@ SQLite, MySQL, or PostgreSQL, selected when a Packaged site first starts. It sto
 The exclusive claim one start holds over a Site data directory, or over a Project folder, from the moment it begins preparing until its server exits. A second start refuses or hands over, whatever address it was given.
 
 **Start plan**:
-What the launcher decides before a server starts: the listener, TLS source, host, scheme and static listener, from the reader's words, the site's settings and the Listener record. The launcher renders it into one Caddyfile in Site data, or in the folder's cache entry. No later step chooses these values again.
+What the launcher decides before a server starts: the listener, TLS source, host, scheme and static listener, from the reader's words, the site's settings and the Listener record. No later step chooses these values again.
 
 ### Paths
 
@@ -102,7 +102,7 @@ What the launcher decides before a server starts: the listener, TLS source, host
 The written form Drupack uses for every path it computes, exports or prints: absolute, forward slashes, no trailing separator, no `.` or `..` segment.
 
 **Minted segment**:
-A path element Drupack names itself rather than inherits, matching `^[a-z][a-z0-9.-]{0,31}$`, which the build refuses to break.
+A path element Drupack names itself rather than inherits: lowercase ASCII, 32 characters at most. The build refuses one that breaks that rule.
 
 ### Runtime
 

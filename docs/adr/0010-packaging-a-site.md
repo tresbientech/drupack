@@ -15,7 +15,7 @@ Packaged sites are [experimental within 1.x](0019-the-stable-surface.md).
 - A first start of such a site needs `--database mysql` or `--database pgsql`. A SQLite start refuses and names both. A database that holds no site refuses too.
 - `settings` names a PHP file in the site. The generated `settings.php` requires it last. The build refuses a file the site lacks.
 - `--files-dir` moves the public files out of Site data. The settings keep `file_public_path` at `sites/default/files`. The Listener record keeps the directory.
-- `platforms` and `libc` give the site's default targets, with the values of `--platform` and `--libc`. The defaults are `linux-amd64` and `both`. The flags and the CI inputs override the file.
+- `platforms` and `libc` give the site's default targets, with the values of `--platform` and `--libc`. The flags and the CI inputs override the file.
 
 ### Added extensions
 
@@ -33,7 +33,7 @@ Packaged sites are [experimental within 1.x](0019-the-stable-surface.md).
 ### Node verification and delivery
 
 - The build verifies the OpenPGP signature on the release's `SHASUMS256.txt` against `launcher/internal/node/release-keys.asc`. It then checks each archive's SHA-256 against that file. Any failure stops the build.
-- The keyring is an armored export of the `gpg-only-active-keys` keyring of nodejs/release-keys. A signature by an unknown releaser stops the build with a message naming that file. A fresh export overwrites it.
+- A signature by an unknown releaser stops the build with a message naming the keyring file. A fresh export overwrites it.
 - A glibc Linux, macOS or Windows amd64 file carries the release beside its runtime. A musl file carries none, because Node publishes no official musl build for arm64.
 - The launcher unpacks the release into the cache once per version and puts its directory first on `PATH` for the server and Drush. `clean` removes it.
 - `node`, `npm` and `npx` are commands of a site that carries Node. On a musl file they exit 1 and name the glibc file.

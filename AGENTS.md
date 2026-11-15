@@ -1,17 +1,9 @@
 # Agents
 
-Rules for an LLM agent that works in this repository. `CONTRIBUTING.md` holds the build, the tests and the release, and applies to agents and people alike.
-
-## Read first
-
-- `CONTEXT.md` for the vocabulary
-- `CONTRIBUTING.md` for the build and the tests
-- `docs/adr/` for the decisions behind the current shape
+Rules for an LLM agent that works in this repository. `CONTRIBUTING.md` applies to agents and people alike, and comes first.
 
 ## Issues
 
-- The [drupal.org issue queue](https://git.drupalcode.org/project/drupack/-/work_items) holds the open questions, the follow-ups, the plans and the specs.
-- A subject of work starts with an issue. Search the queue before a new one.
 - An issue an agent writes carries the `LLM` label, one `category::` label, one `state::` label and one `priority::` label.
 - Its body follows the `Default` template. `## AI disclosure` comes first and reads "Generated with the help of an LLM."
 - The body states the problem and the target in under 100 words, with no first person.
@@ -23,27 +15,3 @@ Rules for an LLM agent that works in this repository. `CONTRIBUTING.md` holds th
 
 - The repository holds no work state: no backlog, plan, spec, follow-up list or status file.
 - A settled decision is a numbered ADR in `docs/adr/`.
-- A document outside `docs/adr/` states a decision in its own words and cites no ADR number.
-
-## Commits
-
-A commit for an issue uses Drupal core's subject:
-
-```
-fix: #3636009 Refuse the options drush cannot use
-```
-
-- The type is `fix`, `feat`, `task`, `refactor`, `perf`, `test`, `docs`, `ci` or `chore`.
-- One issue gives one commit on `main`.
-- A commit that belongs to no issue keeps a plain imperative subject.
-- A commit message states a decision in its own words and cites no ADR number.
-
-## Merge path
-
-- The canonical repository is `project/drupack` on drupal.org. GitHub holds a copy that builds and publishes, and takes no pull requests.
-- A comment `/do:fork` on the issue creates its fork, `issue/drupack-<issue number>`. A personal fork is never used.
-- The branch is named `<issue number>-<slug>` and is pushed to that fork.
-- A merge request from that branch runs the unit tests. A maintainer squash-merges it on drupal.org. Its title is the commit subject.
-- The issue is closed once its commit is on `main`.
-- `.gitlab/CODEOWNERS` names the account that answers for each path.
-- `.github/workflows/upstream.yml` pushes every version tag.

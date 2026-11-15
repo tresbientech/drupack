@@ -8,8 +8,8 @@ A release carries its runtime and application files compressed. Extracting them 
 
 ### Layout
 
-- The cache root is `DRUPACK_CACHE_DIR` when set. Otherwise it is `<user cache>/<name>/runtime`. On Unix a second candidate is `<tmp>/<name>-<uid>/runtime`.
-- A runtime entry is named from the version and 12 hex digits of the payload digest. Two builds with one version string keep separate entries.
+- The cache root is `DRUPACK_CACHE_DIR` when set. Otherwise it is a per-user cache folder, with a temporary-directory candidate on Unix.
+- A runtime entry is named from the version and a digest of the payload. Two builds with one version string keep separate entries.
 - The root also holds `app/` (applications), `node/` (Node releases) and `folders/` (the engine's per-folder state).
 - FrankenPHP is built without its embedded `app.tar`, so it extracts nothing. The launcher extracts the application once per release into `app/`, and every Site data of that release serves from it.
 - The application directory is read-only. Nothing writes into it, and a site's public files live in Site data under the root-relative address `sites/default/files`.
@@ -26,7 +26,7 @@ A release carries its runtime and application files compressed. Extracting them 
 ### Retention
 
 - A runtime stays while it is the active one. Activation removes the other versions' runtimes that no running site holds.
-- An application stays for 30 days after the last start that ran it. Each start writes `.used` in the entry and sweeps the others.
+- An application stays for 30 days after the last start that ran it. Each start marks its entry and sweeps the others.
 - A Node release and a folder entry stay until `clean`.
 - `drupack clean` removes every runtime, application, Node release and folder entry. `--dry-run` lists them instead.
 - `clean` keeps an entry a running site uses: the usage marker for the first three kinds, the Serving lease for a folder entry.

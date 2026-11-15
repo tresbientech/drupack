@@ -17,11 +17,9 @@ FrankenPHP links the Mercure hub into every runtime. A site that wants live upda
 
 - Site data holds `mercure_publisher_secret` and `mercure_subscriber_secret`. The engine keeps them in the folder's cache entry. A start creates each missing one. `drush` creates none.
 - A start and `drush` export `DRUPACK_MERCURE_URL` and both secrets. A site's `settings.php` maps them to the modules it uses.
-- The hub speaks Mercure protocol 1.0. Subscribers and HTTP publishers sign HS256 tokens whose `iss` and `aud` are the hub's address. A request publishes with `mercure_publish()` and no token. Drush and cron publish over HTTP.
-- The cookie is named `mercure_access_token`, because an HTTP site cannot keep the default `__Secure-` name.
-- The hub keeps its last 1000 updates in `mercure.db`, in Site data or the folder's cache entry. A reconnect with `Last-Event-ID` replays what it missed.
+- Subscribers and HTTP publishers sign HS256 tokens whose `iss` and `aud` are the hub's address. A request publishes with `mercure_publish()` and no token. Drush and cron publish over HTTP.
+- The hub keeps its update history in `mercure.db`, in Site data or the folder's cache entry.
 - Every hub turns on `subscriptions`. Subscription events and the subscription API are private. A token reads them through a grant the site signs. Drupack mints no token.
-- Subscription events share the 1000-update history.
 
 ### The project's hub file
 

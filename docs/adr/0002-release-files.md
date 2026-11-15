@@ -16,17 +16,7 @@ A reader downloads one file and runs it, with no installer and no antivirus warn
 - Each Linux target publishes two files. `NAME-VERSION-linux-ARCH` carries the glibc runtime, and `NAME-VERSION-linux-ARCH-musl` carries the musl runtime.
 - An executable carries one runtime and runs it. `DRUPACK_LIBC` has no effect on a running executable.
 - `libc` in `drupack.yml` takes `both`, `glibc` or `musl`, with `both` as the default. It names the Linux files a build publishes.
-- The glibc runtime links with `-z now`.
-- The launcher drops `LD_PRELOAD`, `LD_LIBRARY_PATH`, `LD_AUDIT` and `GLIBC_TUNABLES` from every child's environment, because a glibc file loads host libraries.
-- `launcher/internal/payload/targets.json` is the one table of platforms and libcs.
-
-### One directory per artifact
-
-- `application/` holds the Application root: the Composer project, the files laid over it, `support/` and the PHP unit tests.
-- `runtime/` holds the PHP and FrankenPHP compile and the extension lists.
-- `launcher/` is the Go module, and `build/` holds the build scripts and helpers.
-- `tests/conformance` holds the conformance suite. `Dockerfile` stays at the root beside its `.dockerignore`.
-- `application/tests/` never ships. `build/pack/app-payload.sh` excludes every path component named `tests`.
+- The launcher drops the dynamic loader's environment variables from every child's environment, because a glibc file loads host libraries.
 
 ### Release files and install scripts
 
@@ -34,19 +24,14 @@ A reader downloads one file and runs it, with no installer and no antivirus warn
 - A release also carries `install-NAME.sh` for each executable, and `install-NAME.ps1` when NAME has a Windows build.
 - Only `checksums.txt`, `release.json`, the SBOM and the install scripts carry no version in their name.
 - A release publishes the macOS and Windows runtimes as `runtime-VERSION-TARGET.tar.zst`. No install script names them.
-- `build/release/release-files.py` names the files, writes the checksums and the scripts, and stamps in the version, the download URL and each build's SHA-256. `release.yml` and `build.yml` run it.
 - A script finds the host's target, downloads that build into the current directory and checks its SHA-256. It then prints the command that starts it there, `./NAME`.
-- On Linux the script installs the glibc file when the host has the glibc program interpreter of its architecture at glibc 2.28 or later. Otherwise it installs the musl file.
-- `DRUPACK_LIBC=glibc` or `musl` overrides that test. Another value stops the script.
+- On Linux the script installs the glibc file when the host runs glibc 2.28 or later. Otherwise it installs the musl file.
 - `releases/latest/download/` serves the latest scripts, and `releases/download/VERSION/` pins one.
 
 ### Pack
 
-- `launcher/cmd/pack` takes `-target`, `-runtime`, `-payload`, `-version` and `-output`, plus `-site-version` and `-engine`.
 - `-target` is a `targets.json` platform with its libc suffix. The architecture, the libc and the entry name follow from it. A target outside the table stops pack.
-- A payload directory has one layout: the application archive, its checksum, the site's `site.json` and a `node/` directory of archives named by `node.Archive`. An engine payload holds the first two.
 - A site whose `site.json` names `node` carries the archive of its target. A missing archive stops pack. A target Node does not build for carries none.
-- Pack prints one line per resolved input before it builds.
 
 ## Reason
 

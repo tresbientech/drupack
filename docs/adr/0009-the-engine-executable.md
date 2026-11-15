@@ -16,9 +16,8 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 - The engine serves on `127.0.0.1:3787`. It runs no cron and has no Site data. A cache entry keyed by the folder's path holds its [lease and stop channel](0006-one-server-per-site-data.md).
 - `drupack drush` runs the folder's Drush on the runtime's PHP. `drupack dr` runs Drupal core's `vendor/bin/dr`. A site executable names its Drush command `drush`.
 - `drupack php` takes `SCRIPT [ARGUMENTS]` or `-r CODE [ARGUMENTS]`, after any `-d KEY[=VALUE]`. It refuses any other option by name before PHP starts.
-- FrankenPHP's `php-cli` reads no PHP option before PHP 8.6. The runtime writes the `-d` settings to an ini file in a new temporary directory, which `PHP_INI_SCAN_DIR` adds to the caller's value for that run.
-- Each runtime start restores the caller's `PHP_INI_SCAN_DIR` first, so a PHP that Drupack runs reads none of its parent's `-d`, as PHP's own command line behaves.
-- Every child environment names the runtime's `php` in `PHP_BINARY`, which Composer's `@php` runs. `PHP_BINARY` is `bin/php`, and on Windows `php.exe` beside the runtime, because PHP's `is_executable` refuses a batch file.
+- FrankenPHP's `php-cli` reads no PHP option before PHP 8.6. The runtime writes the `-d` settings to an ini file in a temporary directory for that run.
+- Every child environment names the runtime's `php` as the PHP binary, which Composer's `@php` runs. On Windows it is a `php.exe`, because PHP refuses a batch file.
 - A reader's `php` line, `drush`, `export` and the server also lead `PATH` with `bin/`, so a `vendor/bin` script's `#!/usr/bin/env php` runs the runtime's PHP.
 - Relative paths resolve against the reader's directory. `restart` resolves them against the directory of the start it replays.
 - [A 1.x release keeps](0019-the-stable-surface.md) these commands, their options and the `extra.drupack` keys.
@@ -26,7 +25,7 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 ### The composer command
 
 - `drupack composer ARGS` runs the engine's `composer.phar` on the runtime's `php-cli`, with the environment `drupack php` gets. A site executable has no such command.
-- The engine build copies the phar the job image pins, the one site builds install with, beside the engine's application files. `build/release/upstream.py` moves that pin.
+- The engine build copies the phar the job image pins, the one site builds install with, beside the engine's application files.
 - The working directory holds a Drupal project. Its `composer.lock` names a `drupal/core` release. With no lock, its `composer.json` requires `drupal/core`, `drupal/core-recommended` or `drupal/core-composer-scaffold`, or sets `extra.drupal-scaffold`. A `type` starting with `drupal-` names a Drupal package, such as core's own `composer.json`, and no project.
 - The command refuses `-d`, `--working-dir` and a non-blank `COMPOSER`, before the options end at `--`. Each points Composer at another project than the one checked.
 - It refuses `global`, `create-project`, `self-update` and `selfupdate`, under any prefix in any case, since Composer runs a command from a unique abbreviation.
@@ -35,9 +34,9 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 
 ### composer.json settings
 
-- `siteconfig.ReadComposer` is the one reader of a project's `composer.json`. It takes a mode.
-- `Packed` is for a build. It refuses a missing file, a missing web root and a web root of `.`. A packed site's `settings.php` loads the engine's support files from the docroot's parent.
-- `Folder` is for the engine. It takes a missing file or web root as `web`, and `.` as the project itself.
+- One reader of a project's `composer.json` takes a mode, packed for a build and folder for the engine.
+- A packed build refuses a missing file, a missing web root and a web root of `.`. A packed site's `settings.php` loads the engine's support files from the docroot's parent.
+- The engine takes a missing file or web root as `web`, and `.` as the project itself.
 - Every other rule holds in both modes. A refusal names the file, the field, its rule and the value.
 - `extra.drupack` holds what an engine start reads: `mercure`, `subdomain` and `static`. `drupack.yml` holds what only packing needs, and the build copies what a packaged start needs into `site.json`.
 - A choice made for one start is an option of that start, in neither file. `--listen`, `--static-listen`, `--host`, `--access-log`, `--error-log` and `--trusted-proxies` are such options.

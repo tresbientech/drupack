@@ -8,7 +8,7 @@ Two FrankenPHP processes over one database and one runtime directory corrupt bot
 
 ### The Serving lease
 
-- A start takes an exclusive lock on `serving.lock` in its state directory: Site data, or a folder's cache entry. It holds the lock until the server exits.
+- A start takes an exclusive lock in its state directory: Site data, or a folder's cache entry. It holds the lock until the server exits.
 - On Unix the lock lives on an open descriptor that survives the exec into the server. The kernel releases it on a kill. On Windows the launcher waits for the runtime, so its handle holds the lock.
 - The same lease covers initialization. No separate startup lock exists.
 - A start that cannot take the lease refuses. When a person watches and the site is installed, it hands over: it prints the URL and a login link when one mints, opens a browser on the link or else the URL, and exits 0. A project folder hands over the same way, with `/core/install.php` in place of the link when it holds no installed site.
@@ -17,13 +17,13 @@ Two FrankenPHP processes over one database and one runtime directory corrupt bot
 
 ### The Listener record
 
-- Every start writes `listener` in its state directory: the listen address, the static listen address, the permitted host, the scheme and the files directory.
+- Every start writes `listener` in its state directory: the addresses, the permitted host, the scheme and the files directory.
 - `drush` and `export` read the record as their default. `--listen` and `--host` typed on the command line win.
 - A handover reads the record alone and ignores a typed `--listen` and `--host`. With no record it uses its own plan.
 - A site start reads only the files directory from the record, so `--listen` does not stick.
+- A site serves on `127.0.0.1:7225` by default, or the `port` its contract names. The engine serves on `127.0.0.1:3787`.
 - The server exports `DRUSH_OPTIONS_URI`, so every Drush child builds URLs from the address a reader types.
 - A record that is not a JSON object fails the start, naming the file.
-- A site serves on `127.0.0.1:7225` by default, or the `port` its contract names. The engine serves on `127.0.0.1:3787`.
 
 ### Detach and stop
 
@@ -32,14 +32,14 @@ Two FrankenPHP processes over one database and one runtime directory corrupt bot
 - Once the site answers, the runtime binds `127.0.0.1` on a random port and writes `stop.json`: the port, a 32-byte token and its PID. The file is owner-only on Unix.
 - The channel serves `POST /stop` with the token as a bearer value, compared in constant time. A valid stop ends the server the way Ctrl+C does.
 - On Windows the server arms its stop guard, calls `caddy.Stop()` and exits.
-- `SITE stop` tests the lease before it reads the record, so a record a killed server left behind never counts. It waits 15 seconds at most for the lease.
+- `SITE stop` tests the lease before it reads the record, so a record a killed server left behind never counts.
 - A container or a systemd unit passes `--foreground`.
 
 ### Status and restart
 
-- A start that claims the lease writes `start.json`: its working directory, its words, and whether it detached. The words leave out the `--foreground` a detaching parent appends, `--db-password` and `--admin-password`.
+- A start that claims the lease writes `start.json`: its working directory, its words, and whether it detached. The words leave out the `--foreground` a detaching parent appends and the passwords.
 - `status` exits 0 while a server answers, 3 with none and 4 while a start prepares, as an LSB status does. A held lease with no `stop.json` is a start that prepares.
-- A server that answers also gets the project's `drush status`, 10 seconds at most. Its failure prints one line and keeps the exit code.
+- A server that answers also gets the project's `drush status`. Its failure prints one line and keeps the exit code.
 - `restart` replays the record of a detached start. It enters the recorded directory, stops the server and starts again in the background, so a relative path names the file the first start named.
 - `restart` refuses with no record, and on a foreground start, which its terminal or its service manager restarts.
 - The engine refuses `logs` as `DIR`, so a later release can add the command without changing what an existing line does.

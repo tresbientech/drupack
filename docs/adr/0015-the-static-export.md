@@ -15,7 +15,7 @@ One executable can create a site, export it to HTML and run only to edit it. Tom
 
 ### The static listener
 
-- The listener binds the address of `--listen` on the site's port plus one: 7226 for a site on 7225, 3788 for the engine on 3787. `--static-listen IP:PORT` overrides it and must name another port than the site's.
+- The listener binds the address of `--listen` on the site's port plus one. `--static-listen IP:PORT` overrides it and must name another port than the site's.
 - The Listener record keeps the address for `export`.
 - It takes the site's TLS source on its own port.
 - A `dynamic` path reaches `php_server` on the Drupal docroot, any method, inside the same Caddy process, after the request guards of [0014](0014-request-guards-and-caddy-rules.md). Every other path is a file from the export, else the export's 404 page.
