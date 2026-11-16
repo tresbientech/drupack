@@ -17,6 +17,7 @@ Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstrea
 - A builder image takes a tag that digests its inputs. A runtime job pulls that tag, and a miss builds the image in the job. A fork builds and skips the push.
 - The `payload` job builds the application once. Every platform packs its output.
 - macOS and Windows build and pack in one job, then upload the files as a `suite-*` artifact. The test jobs download it and run one `DRUPACK_SHARD` share each.
+- macOS arm64 runs the whole suite. macOS amd64 runs three start cases in its build job: the engine start, a seeded site with Drush, and the shipped PHP extensions.
 - `publish` needs the test jobs.
 
 ### The upstream run
@@ -50,6 +51,8 @@ Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstrea
 ## Reason
 
 A builder image tagged by its inputs answers the objection that one image cannot serve several extension sets: another list is another tag. Testing in shares keeps the wall clock near the longest share.
+
+The macOS amd64 suite took 50 of a full run's 154 macOS minutes, on the same OS arm64 tests, and no fix in the history was specific to Intel. Intel Macs are the least used target, and GitHub retires its last Intel runner image in 2027.
 
 A script plans the run so a unit test checks the plan. A plan written in workflow expressions shows its mistakes in a finished run alone. A failed lookup that read as no candidate would rebuild what it could have published.
 

@@ -174,10 +174,9 @@ class LinuxTests(Row):
 
 
 class MacosTests(Row):
-    def test_an_architecture_takes_a_row_per_share_and_the_last_runs_the_variant(self):
-        amd64 = [{"arch": "amd64", "shard": f"{i}/3", "results": f"macos-amd64-{i}", "variant": i == 3} for i in (1, 2, 3)]
+    def test_arm64_takes_a_row_per_share_and_the_last_runs_the_variant(self):
         arm64 = [{"arch": "arm64", "shard": f"{i}/2", "results": f"macos-arm64-{i}", "variant": i == 2} for i in (1, 2)]
-        for platform, expected in {"macos-amd64": amd64, "macos-arm64": arm64, "all": amd64 + arm64}.items():
+        for platform, expected in {"macos-amd64": [], "macos-arm64": arm64, "all": arm64}.items():
             with self.subTest(platform):
                 self.assertEqual(expected, self.run_plan(dispatch(platform=platform))["macos_tests"])
 

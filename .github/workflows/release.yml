@@ -704,7 +704,7 @@ jobs:
             test-results/**/run.err
 
   # Builds each architecture's executables once. The macos-test jobs run the suite
-  # on those files.
+  # on those files, and an architecture with no test row runs the start cases here.
   macos:
     name: macOS ${{ matrix.arch }} build
     needs: [gate, payload]
@@ -811,6 +811,25 @@ jobs:
           xattr -d com.apple.quarantine "$RUNNER_TEMP/quarantined"
           "$RUNNER_TEMP/quarantined" --version
 
+      - name: Run the start cases
+        if: ${{ !contains(fromJSON(needs.gate.outputs.macos_tests).*.arch, matrix.arch) }}
+        env:
+          DRUPACK_TEST_ENGINE: dist/engine/drupack
+        run: |
+          python3 tests/conformance dist/drupacked-demo test-results/conformance \
+            -k test_a_start_serves_the_folder_and_writes_only_its_files \
+            -k test_seeded_sqlite_site_and_drush -k SeededSite.test_extensions
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-macos-${{ matrix.arch }}-build
+          path: |
+            test-results/**/*.log
+            test-results/**/run.out
+            test-results/**/run.err
+
       # The files the macos-test jobs run. The name stays outside the patterns the
       # sbom and publish jobs download. The retention stays the default: the gate
       # rebuilds a candidate when any of its artifacts expired.
@@ -836,7 +855,7 @@ jobs:
     name: macOS ${{ matrix.arch }} tests (${{ matrix.shard }})
     needs: [gate, macos]
     if: needs.gate.outputs.macos_tests != '[]'
-    runs-on: ${{ matrix.arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
+    runs-on: macos-15
     timeout-minutes: 90
     strategy:
       fail-fast: false
