@@ -217,16 +217,23 @@ func warnExposed(dir string) {
 	}
 }
 
-// portTaken reports whether anything holds bind:port. A connect answers this on
-// every platform, where a trial bind would report a taken port as free under
-// Windows SO_REUSEADDR.
-func portTaken(bind string, port int) bool {
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort(probeHost(bind), strconv.Itoa(port)), time.Second)
-	if err != nil {
-		return false
+// errListening is portHeld's answer for a port a server answers on.
+var errListening = errors.New("a server listens")
+
+// portHeld returns why bind:port cannot take a listener, or nil. A connect finds a
+// server, which a trial bind misses under Windows SO_REUSEADDR. A trial bind finds a
+// port with no server that still refuses one: an outgoing connection's source port,
+// a range Windows reserves, or an address this host does not have.
+func portHeld(bind string, port int) error {
+	if conn, err := net.DialTimeout("tcp", net.JoinHostPort(probeHost(bind), strconv.Itoa(port)), time.Second); err == nil {
+		conn.Close()
+		return errListening
 	}
-	conn.Close()
-	return true
+	listener, err := net.Listen("tcp", net.JoinHostPort(bind, strconv.Itoa(port)))
+	if err != nil {
+		return err
+	}
+	return listener.Close()
 }
 
 // personPresent reports whether someone watches the start: a terminal, a file

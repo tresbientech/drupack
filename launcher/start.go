@@ -243,7 +243,7 @@ func start(l Launch, c command) error {
 	if err := staged.dir.ClearStopRecord(); err != nil {
 		return err
 	}
-	if err := portRefusal(l.Invoked, checked.listen, plan, portTaken); err != nil {
+	if err := portRefusal(l.Invoked, checked.listen, plan, portHeld); err != nil {
 		return err
 	}
 	if err := takeLog(l.Child); err != nil {
@@ -281,15 +281,33 @@ func startRecord(l Launch, cwd string) state.Start {
 
 // portRefusal names the listener of plan that another program holds, and the
 // line that starts on the port after it. listen is --listen as the reader
-// reads it, and taken reports whether anything holds an address.
-func portRefusal(invoked, listen string, plan startPlan, taken func(bind string, port int) bool) error {
-	if taken(plan.Bind, plan.Port) {
-		return fmt.Errorf("Another program is listening on %s. Stop it, or start on a free port: %s --listen %s:%d", listen, invoked, plan.Bind, plan.Port+1)
+// reads it, and held returns why an address cannot take a listener.
+func portRefusal(invoked, listen string, plan startPlan, held func(bind string, port int) error) error {
+	if err := held(plan.Bind, plan.Port); err != nil {
+		return portError(err, listen, "start on a free port", fmt.Sprintf("%s --listen %s:%d", invoked, urlHost(plan.Bind), otherPort(plan.Port)))
 	}
-	if static := plan.Static; static != nil && taken(static.Bind, static.Port) {
-		return fmt.Errorf("Another program is listening on %s. Stop it, or move the static listener to a free port: %s --static-listen %s:%d", plan.record().StaticListen, invoked, urlHost(static.Bind), static.Port+1)
+	if static := plan.Static; static != nil {
+		if err := held(static.Bind, static.Port); err != nil {
+			return portError(err, plan.record().StaticListen, "move the static listener to a free port", fmt.Sprintf("%s --static-listen %s:%d", invoked, urlHost(static.Bind), otherPort(static.Port)))
+		}
 	}
 	return nil
+}
+
+// portError words held's answer for listen, with the remedy and the command that applies it.
+func portError(err error, listen, remedy, command string) error {
+	if errors.Is(err, errListening) {
+		return fmt.Errorf("Another program is listening on %s. Stop it, or %s: %s", listen, remedy, command)
+	}
+	return fmt.Errorf("Cannot listen on %s: %v. Check the address, or try another port: %s", listen, err, command)
+}
+
+// otherPort is the port a refusal suggests: the next one, or the one below the highest.
+func otherPort(port int) int {
+	if port == 65535 {
+		return port - 1
+	}
+	return port + 1
 }
 
 // engineStart is the engine's start of a project folder.

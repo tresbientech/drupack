@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net"
 	"os"
 	"testing"
@@ -67,19 +68,26 @@ func TestSiteToken(t *testing.T) {
 	}
 }
 
-func TestPortTakenProbesAWildcardOnItsOwnLoopback(t *testing.T) {
+func TestPortHeldProbesAWildcardOnItsOwnLoopback(t *testing.T) {
 	for _, row := range []struct{ listen, wildcard string }{{"127.0.0.1:0", "0.0.0.0"}, {"[::1]:0", "::"}} {
 		listener, err := net.Listen("tcp", row.listen)
 		if err != nil {
 			t.Skipf("%s: %v", row.listen, err)
 		}
 		port := listener.Addr().(*net.TCPAddr).Port
-		if !portTaken(row.wildcard, port) {
-			t.Errorf("%s:%d reads as free", row.wildcard, port)
+		if err := portHeld(row.wildcard, port); !errors.Is(err, errListening) {
+			t.Errorf("%s:%d: %v, want a listening server", row.wildcard, port, err)
 		}
 		listener.Close()
-		if portTaken(row.wildcard, port) {
-			t.Errorf("%s:%d reads as taken once closed", row.wildcard, port)
+		if err := portHeld(row.wildcard, port); err != nil {
+			t.Errorf("%s:%d once closed: %v", row.wildcard, port, err)
 		}
+	}
+}
+
+// 192.0.2.1 is TEST-NET-1, which no host carries, so the connect fails and the bind refuses.
+func TestPortHeldReturnsARefusedBind(t *testing.T) {
+	if err := portHeld("192.0.2.1", 8080); err == nil || errors.Is(err, errListening) {
+		t.Errorf("portHeld = %v, want the bind's error", err)
 	}
 }

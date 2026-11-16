@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -182,11 +183,26 @@ func TestPortRefusal(t *testing.T) {
 		{"a taken static port", "0.0.0.0:8080", static, []int{8081}, "Another program is listening on 0.0.0.0:8081. Stop it, or move the static listener to a free port: demo --static-listen 0.0.0.0:8082"},
 		{"both taken names the site port", "0.0.0.0:8080", static, []int{8080, 8081}, "Another program is listening on 0.0.0.0:8080. Stop it, or start on a free port: demo --listen 0.0.0.0:8081"},
 		{"a static port nobody probes without a static listener", "127.0.0.1:8080", startPlan{Bind: "127.0.0.1", Port: 8080}, []int{8081}, ""},
+		{"an IPv6 site port", "[::1]:8080", startPlan{Bind: "::1", Port: 8080}, []int{8080}, "Another program is listening on [::1]:8080. Stop it, or start on a free port: demo --listen [::1]:8081"},
+		{"the highest port", "127.0.0.1:65535", startPlan{Bind: "127.0.0.1", Port: 65535}, []int{65535}, "Another program is listening on 127.0.0.1:65535. Stop it, or start on a free port: demo --listen 127.0.0.1:65534"},
 	} {
-		err := portRefusal("demo", row.listen, row.plan, func(_ string, port int) bool { return slices.Contains(row.taken, port) })
+		err := portRefusal("demo", row.listen, row.plan, func(_ string, port int) error {
+			if slices.Contains(row.taken, port) {
+				return errListening
+			}
+			return nil
+		})
 		if got := fmt.Sprint(err); row.want == "" && err != nil || row.want != "" && got != row.want {
 			t.Errorf("%s: portRefusal = %v, want %q", row.name, err, row.want)
 		}
+	}
+}
+
+func TestPortRefusalQuotesARefusedBind(t *testing.T) {
+	refused := errors.New("bind: address already in use")
+	err := portRefusal("demo", "127.0.0.1:8080", startPlan{Bind: "127.0.0.1", Port: 8080}, func(string, int) error { return refused })
+	if want := "Cannot listen on 127.0.0.1:8080: bind: address already in use. Check the address, or try another port: demo --listen 127.0.0.1:8081"; fmt.Sprint(err) != want {
+		t.Errorf("portRefusal = %v, want %q", err, want)
 	}
 }
 
