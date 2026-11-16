@@ -25,6 +25,8 @@ def draw_image(uri, colour, writer="imagepng"):
 
 # The only methods that run on Windows.
 WINDOWS_METHODS = frozenset({
+    "test_extensions",
+    "test_public_storage_blocks_php_execution",
     "test_protected_files",
     "test_startup_ignores_working_directory_script",
     "test_seeded_sqlite_site_and_drush",
@@ -48,9 +50,10 @@ class SeededSite(harness.ConformanceCase):
     def setUp(self):
         super().setUp()
         # A setUp skip reports each method on its own line, where a setUpClass skip reports
-        # the class once. With no daemon the offline case cannot run, so these run on the host.
+        # the class once. With no daemon the offline case cannot run, and a smoke run holds no
+        # offline case, so these run on the host.
         if (harness.current_platform() == harness.LINUX and not harness.running_offline()
-                and harness.docker_answers()):
+                and not harness.smoke_run() and harness.docker_answers()):
             self.skipTest("Linux runs these cases through the offline case; see -k offline")
         if (harness.current_platform() == harness.WINDOWS
                 and self._testMethodName not in WINDOWS_METHODS):
@@ -108,11 +111,10 @@ class SeededSite(harness.ConformanceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         extensions, drivers = json.loads(result.stdout)
         loaded = {extension.lower() for extension in extensions}
-        # These builds compile the allowlist's extensions and nothing else: an absence and a
-        # surplus both fail.
-        self.assertEqual(
-            sorted(harness.expected_extensions() | harness.ALWAYS_COMPILED), sorted(loaded),
-        )
+        # A build loads the allowlist's extensions and nothing else: an absence and a surplus
+        # both fail.
+        built_in = harness.ALWAYS_COMPILED | harness.BUILT_IN[harness.current_platform()]
+        self.assertEqual(sorted(harness.expected_extensions() | built_in), sorted(loaded))
         self.assertTrue({"mysql", "pgsql", "sqlite"} <= set(drivers), drivers)
 
     def test_image_styles_read_the_formats_readers_upload(self):

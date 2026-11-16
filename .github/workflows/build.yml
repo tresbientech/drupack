@@ -32,12 +32,18 @@ on:
         description: On a tag run, release the executables in the calling repository.
         type: boolean
         default: false
+      suite:
+        description: "The conformance cases each executable runs: full, every case; smoke, the start cases alone."
+        type: string
+        default: full
     secrets:
       COMPOSER_AUTH:
         description: Composer's auth.json content, for private packages the site requires.
         required: false
 
 env:
+  # The suite reads it in the build job, the native jobs and the Windows arm64 job.
+  DRUPACK_SUITE: ${{ inputs.suite }}
   # Go moves to the next entry after a "|" on any error, so a module fetch the
   # proxy drops mid-stream gets a second attempt. go.sum checks either answer.
   GOPROXY: https://proxy.golang.org|https://proxy.golang.org,direct

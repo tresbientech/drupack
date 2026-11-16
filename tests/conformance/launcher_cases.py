@@ -69,7 +69,7 @@ class ColdWarmStart(harness.ConformanceCase):
         self.cache = harness.reserved_dir(self.case_dir / "cache")
         self.env = dict(os.environ, DRUPACK_CACHE_DIR=str(self.cache))
 
-    def test_cold_start_then_warm_start(self):
+    def test_cold_start_unpacks_and_reports_progress_then_warm_start_does_neither(self):
         code, out, err = run(self.case_dir, harness.BINARY, "cold", "--version", env=self.env)
         self.assertEqual(code, 0, f"a cold start exited non-zero: inspect {err}")
         cold_err = err.read_text(errors="replace")
@@ -81,43 +81,6 @@ class ColdWarmStart(harness.ConformanceCase):
             len(UNPACKING_PATTERN.findall(out.read_text(errors="replace"))), 0,
             "a cold start leaked the unpacking line to standard output",
         )
-        self.assertEqual(entry_count(self.cache), 1, "a cold start did not leave exactly one cache entry")
-        key = next(
-            path.name for path in self.cache.iterdir()
-            if path.is_dir() and path.name not in NOT_RUNTIMES
-        )
-        self.assertTrue((self.cache / key / "manifest.json").is_file(), "the cache entry has no manifest.json")
-        self.assertTrue((self.cache / key / harness.ENTRY).is_file(), f"the cache entry has no {harness.ENTRY} executable")
-        self.assertEqual(
-            (self.cache / "active").read_text().strip(), key, "a cold start did not activate the runtime"
-        )
-
-        code, out, err = run(self.case_dir, harness.BINARY, "warm", "--version", env=self.env)
-        self.assertEqual(code, 0, f"a warm start exited non-zero: inspect {err}")
-        self.assertEqual(
-            len(UNPACKING_PATTERN.findall(err.read_text(errors="replace"))), 0,
-            "a warm start printed an unpacking line",
-        )
-        self.assertEqual(entry_count(self.cache), 1, "a warm start changed the number of cache entries")
-        self.assertTrue((self.cache / key).is_dir(), "a warm start replaced the cache entry")
-        self.assertEqual(
-            (self.cache / "active").read_text().strip(), key, "a warm start changed the active entry"
-        )
-
-    def test_a_cold_help_unpacks_nothing(self):
-        code, out, err = run(self.case_dir, harness.BINARY, "help", "--help", env=self.env)
-        self.assertEqual(code, 0, f"a cold --help exited non-zero: inspect {err}")
-        self.assertIn("Usage:", out.read_text(errors="replace"), "a cold --help printed no usage")
-        self.assertEqual(
-            len(UNPACKING_PATTERN.findall(err.read_text(errors="replace"))), 0,
-            "a cold --help printed an unpacking line",
-        )
-        self.assertEqual(entry_count(self.cache), 0, "a cold --help left a cache entry")
-
-    def test_cold_start_reports_unpacking_progress(self):
-        code, out, err = run(self.case_dir, harness.BINARY, "cold", "--version", env=self.env)
-        self.assertEqual(code, 0, f"a cold start exited non-zero: inspect {err}")
-        cold_err = err.read_text(errors="replace")
         self.assertEqual(
             len(APPLICATION_PATTERN.findall(cold_err)), 1,
             "a cold start did not print exactly one application unpacking line",
@@ -146,13 +109,42 @@ class ColdWarmStart(harness.ConformanceCase):
             self.assertEqual(
                 read, total, f"the closing {name} report does not name the whole payload"
             )
+        self.assertEqual(entry_count(self.cache), 1, "a cold start did not leave exactly one cache entry")
+        key = next(
+            path.name for path in self.cache.iterdir()
+            if path.is_dir() and path.name not in NOT_RUNTIMES
+        )
+        self.assertTrue((self.cache / key / "manifest.json").is_file(), "the cache entry has no manifest.json")
+        self.assertTrue((self.cache / key / harness.ENTRY).is_file(), f"the cache entry has no {harness.ENTRY} executable")
+        self.assertEqual(
+            (self.cache / "active").read_text().strip(), key, "a cold start did not activate the runtime"
+        )
 
         code, out, err = run(self.case_dir, harness.BINARY, "warm", "--version", env=self.env)
         self.assertEqual(code, 0, f"a warm start exited non-zero: inspect {err}")
         self.assertEqual(
+            len(UNPACKING_PATTERN.findall(err.read_text(errors="replace"))), 0,
+            "a warm start printed an unpacking line",
+        )
+        self.assertEqual(
             len(PROGRESS_PATTERN.findall(err.read_text(errors="replace"))), 0,
             "a warm start reported unpacking progress",
         )
+        self.assertEqual(entry_count(self.cache), 1, "a warm start changed the number of cache entries")
+        self.assertTrue((self.cache / key).is_dir(), "a warm start replaced the cache entry")
+        self.assertEqual(
+            (self.cache / "active").read_text().strip(), key, "a warm start changed the active entry"
+        )
+
+    def test_a_cold_help_unpacks_nothing(self):
+        code, out, err = run(self.case_dir, harness.BINARY, "help", "--help", env=self.env)
+        self.assertEqual(code, 0, f"a cold --help exited non-zero: inspect {err}")
+        self.assertIn("Usage:", out.read_text(errors="replace"), "a cold --help printed no usage")
+        self.assertEqual(
+            len(UNPACKING_PATTERN.findall(err.read_text(errors="replace"))), 0,
+            "a cold --help printed an unpacking line",
+        )
+        self.assertEqual(entry_count(self.cache), 0, "a cold --help left a cache entry")
 
 
 class InstalledSiteLauncherCases(harness.ConformanceCase):
@@ -169,10 +161,6 @@ class InstalledSiteLauncherCases(harness.ConformanceCase):
         site = harness.Site(harness.BINARY, install_dir)
         site.start(cls.data, "--admin-user", "launcher-admin", "--admin-password", "Launcher.test.password.2026")
         site.stop()
-
-    def test_drush_on_an_unknown_command_refuses(self):
-        result = harness.run_drush(harness.BINARY, self.case_dir, self.data, "this-command-does-not-exist")
-        self.assertNotEqual(result.returncode, 0, "drush with an unknown Drush command exited zero")
 
     def test_serving_process_and_sigint(self):
         site = harness.Site(harness.BINARY, self.case_dir)

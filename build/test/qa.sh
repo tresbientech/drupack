@@ -3,13 +3,15 @@ set -euo pipefail
 
 # The full QA, which release.yml's qa jobs run on a release candidate, one phase per job.
 # Every phase builds the job image (both runtimes) and builds its sites inside it.
-#   demo     the checks that need no built file, Drupacked Demo at the build/release/demo-pin.sh
-#            commit with the first half of its build's suite, and the PHP unit files
+#   demo     the FrankenPHP adapter test, Drupacked Demo at the build/release/demo-pin.sh
+#            commit with its build's start cases, and the PHP unit files
 #   variant  a copy with a Mercure hub, and its musl file's cases
-#   host     Drupacked Demo with the second half of its build's suite, a copy without
-#            Node, the engine executable, the cases that need a daemon on this host, and
-#            the engine executable's cases against the demo
-# No phase runs all three on one build of each site, whose build runs its whole suite.
+#   host     Drupacked Demo with its build's start cases, a copy without Node, the engine
+#            executable, the cases that need a daemon on this host, and the engine
+#            executable's cases against the demo
+# The demo and host builds run the start cases, since release.yml's Linux jobs test the same
+# file in full and its Linux amd64 job runs the Go and Python unit tests. With no phase, one
+# build of each site runs its whole suite, after the unit tests.
 # Usage: build/test/qa.sh [demo|variant|host]
 phase=${1:-}
 case $phase in
@@ -62,10 +64,9 @@ unit_checks() {
     bash build/test/unit-tests.sh
 }
 
-# Builds Drupacked Demo. The build runs the share of its suite that $1 names as
-# DRUPACK_SHARD, and the whole suite without one.
+# Builds Drupacked Demo. The build runs the suite that $1 names as DRUPACK_SUITE.
 build_demo() {
-    docker run --rm --user "$(id -u):$(id -g)" -e "DRUPACK_SHARD=${1:-}" "${checkout[@]}" -v "$work:$work" -w /src drupack-job \
+    docker run --rm --user "$(id -u):$(id -g)" -e "DRUPACK_SUITE=$1" "${checkout[@]}" -v "$work:$work" -w /src drupack-job \
         drupack-build --site "$demo" --platform "$platform" --libc glibc \
         --output dist --work "$work/work"
     discard_results work
@@ -130,19 +131,19 @@ with open(sys.argv[2], "w") as handle:
 
 case $phase in
     demo)
-        unit_checks
-        build_demo 1/2+extra
+        bash runtime/frankenphp/adapt-test.sh gnu
+        build_demo smoke
         php_unit_files
         ;;
     variant) variant ;;
     host)
-        build_demo 2/2+extra
+        build_demo smoke
         host_cases
         ;;
     '')
         # The checks that need no built file run before any executable builds.
         unit_checks
-        build_demo
+        build_demo full
         variant
         php_unit_files
         host_cases

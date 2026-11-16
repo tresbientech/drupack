@@ -172,16 +172,20 @@ jobs:
           BRANCH: ${{ steps.bump.outputs.branch }}
         run: git push --quiet "$GITHUB_REMOTE" "HEAD:refs/heads/$BRANCH"
 
-      - name: Build and test the candidate on every platform
+      - name: Build and test the candidate
         if: steps.candidate.outputs.version
         env:
           BRANCH: ${{ steps.bump.outputs.branch }}
           SHA: ${{ steps.candidate.outputs.sha }}
           VERSION: ${{ steps.candidate.outputs.version }}
+          # A bump tests every platform in full. A named version moves no pin, so it tests one
+          # native platform per system in full and the others with their start cases.
+          SUITE: ${{ inputs.version == '' && 'full' || 'gate' }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           # The run builds under the tag's version, so the tag run publishes its files.
-          jq -n --arg ref "$BRANCH" --arg version "$VERSION" '{ref: $ref, inputs: {platform: "all", version: $version}}' \
+          jq -n --arg ref "$BRANCH" --arg version "$VERSION" --arg suite "$SUITE" \
+            '{ref: $ref, inputs: {platform: "all", version: $version, suite: $suite}}' \
             | curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" \
               -X POST "$GITHUB_API/actions/workflows/release.yml/dispatches" -d @-
           # An earlier candidate of the same bump ran on the same branch name, so the

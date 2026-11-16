@@ -1,6 +1,6 @@
 """Plans a release run: the version, the image tags, the candidate run to reuse, the build
-matrices and the Linux and macOS test rows. The gate job passes the event and reads the ten key=value
-lines this appends to --output. The flags it prints reproduce the plan where `gh` is logged in.
+matrices and the Linux, macOS and Windows test rows. The gate job passes the event and reads the eleven
+key=value lines this appends to --output. The flags it prints reproduce the plan where `gh` is logged in.
 """
 
 import argparse
@@ -20,9 +20,11 @@ DOCS = re.compile(r"^docs/|^LICENSE$|^[^/]+\.md$")
 # The macOS test rows per architecture, one per share of the test classes. An architecture's last
 # test row also runs the variant cases. An architecture without rows runs the start cases in its build job.
 SHARDS = {"arm64": 2}
-# The Linux test rows per architecture. The first also runs the unit tests and the musl start,
-# and uploads the engine executables.
+# The Linux test rows per architecture. The first runs the musl start and uploads the engine
+# executables; amd64's first also runs the unit tests and the lint.
 LINUX_SHARDS = 2
+# The Windows test rows per runner, one per share. amd64's last share also runs the variant cases.
+WINDOWS_SHARDS = 5
 
 
 def listed(path, body, key, fields):
@@ -58,14 +60,47 @@ def linux_runtime(targets, linux):
             for row in linux for libc in targets["libcs"]]
 
 
+def linux_tests(linux, gate):
+    """A gate run tests arm64 with the smoke set; every other run tests each architecture in full."""
+    rows = []
+    for row in linux:
+        if gate and row["arch"] != "amd64":
+            rows.append({"arch": row["arch"], "shard": "", "smoke": True, "first": True, "units": False})
+            continue
+        rows += [{"arch": row["arch"], "shard": f"{index}/{LINUX_SHARDS}", "smoke": False, "first": index == 1,
+                  "units": index == 1 and row["arch"] == "amd64"} for index in range(1, LINUX_SHARDS + 1)]
+    return rows
+
+
+def windows_tests(windows, gate):
+    """Both runners test the amd64 build: arm64 runs it under x64 emulation, and a gate run
+    gives arm64 the smoke set alone."""
+    if not windows:
+        return []
+    rows = [{"name": f"Windows amd64 tests ({index}/{WINDOWS_SHARDS})", "runner": "windows-2025",
+             "results": f"windows-amd64-{index}", "shard": f"{index}/{WINDOWS_SHARDS}+extra",
+             "variant": index == WINDOWS_SHARDS, "smoke": False} for index in range(1, WINDOWS_SHARDS + 1)]
+    if gate:
+        return rows + [{"name": "Windows arm64 start cases (amd64 emulated)", "runner": "windows-11-arm",
+                        "results": "windows-arm64-smoke", "shard": "", "variant": False, "smoke": True}]
+    rows += [{"name": f"Windows arm64 tests (amd64 emulated, {index}/{WINDOWS_SHARDS})", "runner": "windows-11-arm",
+              "results": f"windows-arm64-{index}", "shard": f"{index}/{WINDOWS_SHARDS}", "variant": False,
+              "smoke": False} for index in range(1, WINDOWS_SHARDS + 1)]
+    return rows + [{"name": "Windows arm64 variant tests (amd64 emulated)", "runner": "windows-11-arm",
+                    "results": "windows-arm64-variant", "shard": "", "variant": True, "smoke": False}]
+
+
 def plan(event, targets, fetch):
     tag = event["ref_type"] == "tag"
+    # A gate candidate tests one native platform per system in full; a tag run and a push take no suite.
+    gate = event["suite"] == "gate"
     version = event["ref_name"] if tag else (event["version"] or "dev-" + event["sha"][:12])
     # build.yml reads sha-COMMIT at a tag and dev-COMMIT on a branch, and a tag run publishes its candidate's sha-COMMIT.
     image_tags = "sha" if tag else "dev sha" if event["version"] and event["platform"] == "all" else "dev"
     linux = macos = windows = []
     run = candidate(event, version, fetch) if tag else None
-    if run is None and (tag or event["event_name"] == "workflow_dispatch"):
+    # The weekly schedule plans like a dispatch of every platform with no version.
+    if run is None and (tag or event["event_name"] in ("workflow_dispatch", "schedule")):
         linux, macos, windows = (platform_matrix(targets, system, event["platform"])
                                  for system in ("linux", "macos", "windows"))
     # A new branch reports an all-zero before, which compares against nothing.
@@ -86,11 +121,9 @@ def plan(event, targets, fetch):
     tests = [{"arch": row["arch"], "shard": f"{index}/{SHARDS[row['arch']]}", "results": f"macos-{row['arch']}-{index}",
               "variant": index == SHARDS[row["arch"]]} for row in macos if row["arch"] in SHARDS
              for index in range(1, SHARDS[row["arch"]] + 1)]
-    linux_tests = [{"arch": row["arch"], "shard": f"{index}/{LINUX_SHARDS}", "first": index == 1}
-                   for row in linux for index in range(1, LINUX_SHARDS + 1)]
     return {"version": version, "build": build, "candidate": run, "image_tags": image_tags, "linux": linux,
-            "linux_tests": linux_tests, "linux_runtime": runtimes, "macos": macos, "macos_tests": tests,
-            "windows": windows}
+            "linux_tests": linux_tests(linux, gate), "linux_runtime": runtimes, "macos": macos, "macos_tests": tests,
+            "windows": windows, "windows_tests": windows_tests(windows, gate)}
 
 
 def encode(key, value):
@@ -103,6 +136,8 @@ def main(argv):
     parser = argparse.ArgumentParser(description=__doc__)
     for flag in ("ref-type", "ref-name", "event-name", "sha", "before", "platform", "version", "repo", "targets"):
         parser.add_argument("--" + flag, required=True)
+    # Empty on a push, a tag and the schedule, which test in full.
+    parser.add_argument("--suite", required=True, choices=("", "full", "gate"))
     parser.add_argument("--output")
     args = parser.parse_args(argv)
     print("Flags:", " ".join(f"--{name.replace('_', '-')} {shlex.quote(value)}" for name, value in vars(args).items() if name != "output"))

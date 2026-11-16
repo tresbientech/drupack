@@ -1,0 +1,158 @@
+name: macOS build
+description: Builds one architecture's executables, uploads them, and runs the start cases when asked.
+inputs:
+  arch:
+    description: arm64 or amd64, the runner's own architecture.
+    required: true
+  version:
+    description: The version the executables carry.
+    required: true
+  go-version:
+    description: The Go release the build and the fixture launchers use.
+    required: true
+  go-tests:
+    description: true runs the Go unit tests.
+    required: true
+  start-cases:
+    description: true runs the start cases, for an architecture with no test row.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v7
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: false
+
+    # One macOS job runs the Go tests; lint runs in the Linux amd64 job.
+    - name: Run the Go unit tests
+      if: inputs.go-tests == 'true'
+      shell: bash
+      run: bash build/test/go-tests.sh test
+
+    # static-php-cli runs on PHP and Composer, which the arm64 runner image lacks.
+    - name: Install PHP and Composer
+      if: inputs.arch == 'arm64'
+      shell: bash
+      run: brew install --quiet php composer
+
+    - uses: actions/download-artifact@v8
+      with:
+        name: payload-archive
+        path: dist/payload
+
+    - uses: actions/download-artifact@v8
+      with:
+        name: engine-payload-archive
+        path: dist/engine-payload
+
+    - uses: actions/download-artifact@v8
+      with:
+        name: variant-payload-archive
+        path: dist/variant-payload
+
+    # The buildroot holds the PHP the allowlist names, so the list files belong
+    # in the key beside the script that compiles them.
+    - uses: actions/cache/restore@v6
+      with:
+        path: |
+          ${{ runner.temp }}/drupack/downloads
+          ${{ runner.temp }}/drupack/buildroot
+          ${{ runner.temp }}/drupack/pkgroot
+        key: macos-${{ inputs.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
+
+    - name: Build the executables
+      env:
+        # static-php-cli reads library releases from the GitHub API, which rate-limits anonymous requests.
+        GITHUB_TOKEN: ${{ github.token }}
+        DRUPACK_VERSION: ${{ inputs.version }}
+      shell: bash
+      run: |
+        bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/drupacked-demo dist/engine-payload dist/engine/drupack
+        cp dist/payload/site.json dist/site.json
+
+    # Saved before the later steps, so a failure in one does not repeat the PHP build.
+    - uses: actions/cache/save@v6
+      with:
+        path: |
+          ${{ runner.temp }}/drupack/downloads
+          ${{ runner.temp }}/drupack/buildroot
+          ${{ runner.temp }}/drupack/pkgroot
+        key: macos-${{ inputs.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: runtime-macos-${{ inputs.arch }}
+        path: ${{ runner.temp }}/drupack/runtime
+        if-no-files-found: error
+
+    - name: Report the runtime's components
+      env:
+        TARGET: macos-${{ inputs.arch }}
+      shell: bash
+      run: |
+        mkdir runtime-components
+        python3 build/release/sbom.py runtime --target "$TARGET" "$RUNNER_TEMP/drupack/runtime/drupack" >"runtime-components/$TARGET.json"
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: runtime-components-macos-${{ inputs.arch }}
+        path: runtime-components
+        if-no-files-found: error
+
+    - name: Pack the variant fixture
+      env:
+        DRUPACK_VERSION: ${{ inputs.version }}
+        TARGET: macos-${{ inputs.arch }}
+      shell: bash
+      run: |
+        mkdir -p dist/variant
+        (cd launcher && go run ./cmd/pack -target "$TARGET" -runtime "$RUNNER_TEMP/drupack/runtime" \
+          -payload ../dist/variant-payload -version "$DRUPACK_VERSION" -output ../dist/variant/variant-demo)
+        cp dist/variant-payload/site.json dist/variant/site.json
+
+    - name: Check the unsigned launch steps
+      shell: bash
+      run: |
+        cp dist/drupacked-demo "$RUNNER_TEMP/quarantined"
+        xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" "$RUNNER_TEMP/quarantined"
+        xattr -d com.apple.quarantine "$RUNNER_TEMP/quarantined"
+        "$RUNNER_TEMP/quarantined" --version
+
+    - name: Run the start cases
+      if: inputs.start-cases == 'true'
+      env:
+        DRUPACK_TEST_ENGINE: dist/engine/drupack
+        DRUPACK_SUITE: smoke
+      shell: bash
+      run: python3 tests/conformance dist/drupacked-demo test-results/conformance
+
+    - name: Upload test results
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: test-results-macos-${{ inputs.arch }}-build
+        path: |
+          test-results/**/*.log
+          test-results/**/run.out
+          test-results/**/run.err
+
+    # The files the macos-test jobs run. The name stays outside the patterns the
+    # sbom and publish jobs download. The retention stays the default: the gate
+    # rebuilds a candidate when any of its artifacts expired.
+    - uses: actions/upload-artifact@v7
+      with:
+        name: suite-macos-${{ inputs.arch }}
+        path: |
+          dist/drupacked-demo
+          dist/site.json
+          dist/engine/drupack
+          dist/variant
+        compression-level: 0
+        if-no-files-found: error
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: drupack-macos-${{ inputs.arch }}
+        path: dist/engine/drupack
+        if-no-files-found: error

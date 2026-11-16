@@ -4,6 +4,7 @@ Importable with no built executable and no results directory: BINARY and RESULTS
 None until tests/conformance/__main__.py sets them, before unittest imports a case module.
 """
 
+import atexit
 import hashlib
 import json
 import os
@@ -74,6 +75,10 @@ ALWAYS_COMPILED = frozenset({
     "reflection", "spl", "standard", "uri",
 })
 
+# php.net's Windows build compiles these into PHP itself, so a Windows build loads them unlisted.
+BUILT_IN = {LINUX: frozenset(), MACOS: frozenset(),
+            WINDOWS: frozenset({"bcmath", "calendar", "readline", "xmlreader"})}
+
 
 def expected_extensions():
     """The allowlist and the site's additions, under the names this platform's PHP
@@ -89,6 +94,14 @@ def expected_extensions():
 # The offline case's docker invocation sets this in the container; running_offline() is
 # true only for that inner run, never for the host run that launches the container.
 OFFLINE_ENV = "CONFORMANCE_OFFLINE"
+
+
+def smoke_run():
+    """Whether DRUPACK_SUITE names the smoke set. A value other than smoke, full or none stops the run."""
+    suite = os.environ.get("DRUPACK_SUITE", "")
+    if suite not in ("", "full", "smoke"):
+        raise SystemExit(f"DRUPACK_SUITE={suite} names no suite: use smoke or full")
+    return suite == "smoke"
 
 
 def running_offline():
@@ -888,6 +901,16 @@ class DatabaseServer:
             raise AssertionError(f"{sql!r} failed on {self.backend}: {result.stdout}{result.stderr}")
         return result.stdout.strip()
 
+    def empty(self):
+        """Leaves the database drupal with no table, for a case that starts on a server another case used."""
+        if self.backend == "mysql":
+            # The test user holds every privilege on this database, so it can drop and recreate it.
+            self.execute("", "DROP DATABASE drupal")
+            self.execute("", "CREATE DATABASE drupal")
+        else:
+            self.execute("drupal", "DROP SCHEMA public CASCADE")
+            self.execute("drupal", "CREATE SCHEMA public")
+
     def connection(self, database="drupal"):
         """The launch options that point a first start at database on this server."""
         return ["--database", self.backend, "--db-host", self.host, "--db-port", str(self.port),
@@ -901,3 +924,17 @@ class DatabaseServer:
                             timeout=WAITS["docker_admin"].seconds)
         remove_container(self.container)
         self.container = None
+
+
+_shared_servers = {}
+
+
+def shared_database_server(backend):
+    """The one server of backend this process starts, however many cases use it, removed when the
+    process exits. A case that needs a database of its own creates one or calls empty()."""
+    if backend not in _shared_servers:
+        server = DatabaseServer(backend, "shared", RESULTS)
+        server.start()
+        atexit.register(server.stop)
+        _shared_servers[backend] = server
+    return _shared_servers[backend]

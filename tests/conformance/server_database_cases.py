@@ -1,8 +1,8 @@
 """MySQL and PostgreSQL as the site's live backend.
 
-Each backend has its own class and harness.DatabaseServer, started in setUpClass and
-stopped in tearDownClass. _ServerDatabaseBackend is a mixin, so unittest never collects it
-with no DATABASE set.
+Each backend has its own class, and the harness.DatabaseServer it shares with the other cases
+of its backend. Each class empties the database drupal before its cases.
+_ServerDatabaseBackend is a mixin, so unittest never collects it with no DATABASE set.
 """
 
 import json
@@ -39,12 +39,8 @@ class _ServerDatabaseBackend:
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.server = harness.DatabaseServer(cls.DATABASE, "server-database", cls.class_dir)
-        cls.server.start()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.server.stop()
+        cls.server = harness.shared_database_server(cls.DATABASE)
+        cls.server.empty()
 
     def test_first_start_then_restart(self):
         data = self.case_dir / "data"
@@ -121,13 +117,7 @@ class _ServerDatabaseBackend:
                                  "config:get", "system.site", "name", "--format=string")
         self.assertEqual(name.stdout.strip(), "Interrupted install", "the refused resume changed the database")
 
-        if self.DATABASE == "mysql":
-            # The test user holds every privilege on this database, so it can drop and recreate it.
-            self.server.execute("", "DROP DATABASE drupal")
-            self.server.execute("", "CREATE DATABASE drupal")
-        else:
-            self.server.execute("drupal", "DROP SCHEMA public CASCADE")
-            self.server.execute("drupal", "CREATE SCHEMA public")
+        self.server.empty()
         site = harness.Site(harness.BINARY, self.case_dir / "emptied-resume")
         site.start(data, "--admin-user", "resume-admin", "--admin-password", harness.DATABASE_PASSWORD,
                    ready_wait="database_start")

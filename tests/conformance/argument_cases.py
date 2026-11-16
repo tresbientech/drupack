@@ -6,7 +6,8 @@ import harness
 
 
 class ArgumentCases(harness.ConformanceCase):
-    PLATFORMS = (harness.LINUX, harness.MACOS)
+    # PHP's check and the launcher's refusal read no OS, so one platform proves them.
+    PLATFORMS = (harness.LINUX,)
 
     def refuse(self, data, *args):
         """Run a start expected to refuse within the refusal budget; assert no Site data."""

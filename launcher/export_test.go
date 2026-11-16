@@ -185,3 +185,30 @@ func TestSiteExportRefusals(t *testing.T) {
 		t.Errorf("a refused export created %s: %v", absent, err)
 	}
 }
+
+// TestProbeAnswer is the Drush probe's stand-in: run by the test below, it prints
+// DRUPACK_PROBE_ANSWER as Drush prints the module's state.
+func TestProbeAnswer(t *testing.T) {
+	if answer, ok := os.LookupEnv("DRUPACK_PROBE_ANSWER"); ok {
+		os.Stdout.WriteString(answer + "\n")
+		os.Exit(0)
+	}
+}
+
+func TestAnExportRefusesADrupalWithoutTomeStatic(t *testing.T) {
+	for answer, want := range map[string]string{
+		"0": "export runs tome:static, and this Drupal has no tome_static module enabled. Enable it: ./demo drush pm:install tome_static",
+		"1": "",
+	} {
+		probe := Command{Path: os.Args[0], Args: []string{os.Args[0], "-test.run=^TestProbeAnswer$"},
+			Env: append(os.Environ(), "DRUPACK_PROBE_ANSWER="+answer)}
+		err := exportCall{probe: probe}.requireTomeStatic("./demo")
+		got := ""
+		if err != nil {
+			got = err.Error()
+		}
+		if got != want {
+			t.Errorf("probe answering %s: %q, want %q", answer, got, want)
+		}
+	}
+}

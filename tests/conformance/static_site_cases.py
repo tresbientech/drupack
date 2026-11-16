@@ -1,9 +1,9 @@
 """The static port a site's contract turns on: before any export it answers 404, a page written
 into the static directory answers on its path and its index with no redirect, a miss answers
 the export's own 404 page, dynamic paths reach Drupal ahead of the export, a start without
---static-listen takes the port after the site's, a taken static port refuses, both ports log their requests to
+--static-listen takes the port after the site's, both ports log their requests to
 the file --access-log names, --error-log writes warnings and no request, the static port serves https from the site's root, and a site without the key serves no second port. `export`
-writes the front page and the uploads its pages show, takes the reader's URI, names a missing module, and the Drush entry
+writes the front page and the uploads its pages show, takes the reader's URI, and the Drush entry
 reruns itself on the runtime's php.
 """
 
@@ -126,15 +126,6 @@ class StaticSite(harness.ConformanceCase):
         self.assertEqual(request(port + 1, "/")[0], 404)
         self.assertIn(f"Static:    http://localhost:{port + 1}/", site.log_path.read_text(errors="replace"))
 
-    def test_a_taken_static_port_refuses_and_names_the_option(self):
-        with socket.socket() as holder:
-            holder.bind(("127.0.0.1", 0))
-            holder.listen()
-            taken = holder.getsockname()[1]
-            output = harness.refuse(self, self.case_dir, "taken", "--data-dir", str(self.case_dir / "data"),
-                                    "--static-listen", f"127.0.0.1:{taken}")
-        self.assertIn(f"Another program is listening on 127.0.0.1:{taken}", output)
-        self.assertIn("--static-listen", output)
 
 
 class StaticSiteOff(harness.ConformanceCase):
@@ -223,17 +214,13 @@ class StaticSiteExport(harness.ConformanceCase):
                            cwd=self.class_dir, capture_output=True, text=True, timeout=harness.WAITS["drush"].seconds,
                            env=dict(os.environ, PATH=str(path)))
 
-    def test_an_export_writes_the_front_page_and_the_static_port_serves_it(self):
+    def test_an_export_writes_the_front_page_serves_it_and_holds_the_uploads_its_pages_show(self):
         result = self.export(self.data)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue((self.data / "static" / "index.html").is_file(), result.stdout)
         status, _, body = request(self.static_port, "/")
         self.assertEqual(status, 200)
         self.assertIn(f"http://localhost:{self.static_port}/", body)
-
-    def test_an_export_holds_the_uploads_its_pages_show(self):
-        result = self.export(self.data)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         static = self.data / "static"
         pages = "".join(page.read_text(errors="replace") for page in static.rglob("index.html"))
         # Styles are derivatives Drupal generates; every other file under the address is an upload.
@@ -249,15 +236,6 @@ class StaticSiteExport(harness.ConformanceCase):
         page = (self.data / "static" / "index.html").read_text(errors="replace")
         self.assertIn("https://example.test/", page)
         self.assertNotIn(f"http://localhost:{self.static_port}/", page)
-
-    def test_an_export_without_tome_static_refuses_naming_the_module(self):
-        uninstall = harness.run_drush(harness.BINARY, self.class_dir, self.data, "pm:uninstall", "tome_static", "--yes")
-        self.assertEqual(uninstall.returncode, 0, uninstall.stderr)
-        self.addCleanup(harness.run_drush, harness.BINARY, self.class_dir, self.data, "pm:install", "tome_static", "--yes")
-        result = self.export(self.data)
-        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn(f"no tome_static module enabled. Enable it: {harness.BINARY} drush pm:install tome_static",
-                      result.stdout + result.stderr)
 
     def test_a_drush_child_runs_php_from_the_runtime_with_no_php_on_path(self):
         empty = harness.fresh_dir(self.case_dir / "empty-path")

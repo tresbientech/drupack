@@ -9,6 +9,10 @@ on:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
       - '[0-9]+.[0-9]+.[0-9]+-*'
+  # The full suite once a week, on main and under a dev version, so Linux arm64 and Windows arm64,
+  # which a gate candidate tests with their start cases alone, still run every case. It publishes nothing.
+  schedule:
+    - cron: '23 4 * * 1'
   workflow_dispatch:
     inputs:
       platform:
@@ -26,6 +30,13 @@ on:
         description: The version a candidate run builds, which its tag run then publishes.
         type: string
         default: ''
+      suite:
+        description: full tests every platform in full but macOS amd64, which runs its start cases in both; gate tests Linux amd64, macOS arm64 and Windows amd64 in full and the others with their start cases.
+        type: choice
+        default: full
+        options:
+          - full
+          - gate
 
 permissions:
   contents: read
@@ -41,8 +52,8 @@ env:
   GOPROXY: https://proxy.golang.org|https://proxy.golang.org,direct
 
 jobs:
-  # A tag whose candidate run succeeded publishes that run's files. Other tags and
-  # dispatches cover every platform (a dispatch can name one). A main push covers
+  # A tag whose candidate run succeeded publishes that run's files. Other tags, dispatches
+  # and the schedule cover every platform (a dispatch can name one). A main push covers
   # Linux amd64 when it touched something an executable carries; the comparison
   # runs here because GitHub leaves path filters on tag pushes undocumented.
   gate:
@@ -63,6 +74,7 @@ jobs:
       macos: ${{ steps.targets.outputs.macos }}
       macos_tests: ${{ steps.targets.outputs.macos_tests }}
       windows: ${{ steps.targets.outputs.windows }}
+      windows_tests: ${{ steps.targets.outputs.windows_tests }}
       demo_repository: ${{ steps.demo.outputs.repository }}
       demo_ref: ${{ steps.demo.outputs.ref }}
     steps:
@@ -92,10 +104,11 @@ jobs:
           BEFORE: ${{ github.event.before }}
           PLATFORM: ${{ inputs.platform || 'all' }}
           NAMED: ${{ inputs.version }}
+          SUITE: ${{ inputs.suite }}
         run: |
           python3 build/release/release-plan.py --ref-type "$GITHUB_REF_TYPE" --ref-name "$GITHUB_REF_NAME" \
             --event-name "$GITHUB_EVENT_NAME" --sha "$GITHUB_SHA" --before "$BEFORE" \
-            --platform "$PLATFORM" --version "$NAMED" --repo "$GITHUB_REPOSITORY" \
+            --platform "$PLATFORM" --version "$NAMED" --suite "$SUITE" --repo "$GITHUB_REPOSITORY" \
             --targets launcher/internal/payload/targets.json --output "$GITHUB_OUTPUT"
 
   # A builder image carries the PHP its own build compiled, so one image serves
@@ -387,9 +400,11 @@ jobs:
       ref: ${{ needs.gate.outputs.demo_ref }}
       # The macOS and Windows runtime files of this run are not published yet.
       platforms: linux-amd64
+      # The Linux jobs test this executable's build in full; this run proves the entry point a site calls.
+      suite: smoke
 
   linux:
-    name: Linux ${{ matrix.arch }} (${{ matrix.shard }})
+    name: Linux ${{ matrix.arch }} (${{ matrix.shard || 'start cases' }})
     # GitHub waits on the whole linux-runtime matrix, so this architecture also
     # waits on the other one's two legs. With the builder images published every
     # leg finishes within a minute of the rest.
@@ -417,7 +432,7 @@ jobs:
           cache: false
 
       - name: Run the Go unit tests
-        if: matrix.first
+        if: matrix.units
         shell: bash
         run: bash build/test/go-tests.sh
 
@@ -464,13 +479,14 @@ jobs:
           cp ../dist/payload/site.json ../dist/site.json
 
       - name: Run the Python unit tests
-        if: matrix.first
+        if: matrix.units
         run: bash build/test/unit-tests.sh
 
       - name: Run the test scripts
         env:
           DRUPACK_TEST_ENGINE: dist/engine/drupack
           DRUPACK_SHARD: ${{ matrix.shard }}
+          DRUPACK_SUITE: ${{ matrix.smoke && 'smoke' || 'full' }}
         run: |
           python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests demo/tests
 
@@ -549,9 +565,10 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: false
 
+      # The Windows build files and lock calls; lint runs in the Linux amd64 job.
       - name: Run the Go unit tests
         shell: bash
-        run: bash build/test/go-tests.sh
+        run: bash build/test/go-tests.sh test
 
       - uses: actions/download-artifact@v8
         with:
@@ -645,18 +662,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - {name: 'Windows amd64 tests (1/5)', runner: windows-2025, results: windows-amd64-1, shard: 1/5+extra, variant: false}
-          - {name: 'Windows amd64 tests (2/5)', runner: windows-2025, results: windows-amd64-2, shard: 2/5+extra, variant: false}
-          - {name: 'Windows amd64 tests (3/5)', runner: windows-2025, results: windows-amd64-3, shard: 3/5+extra, variant: false}
-          - {name: 'Windows amd64 tests (4/5)', runner: windows-2025, results: windows-amd64-4, shard: 4/5+extra, variant: false}
-          - {name: 'Windows amd64 tests (5/5)', runner: windows-2025, results: windows-amd64-5, shard: 5/5+extra, variant: true}
-          - {name: 'Windows arm64 tests (amd64 emulated, 1/5)', runner: windows-11-arm, results: windows-arm64-1, shard: 1/5, variant: false}
-          - {name: 'Windows arm64 tests (amd64 emulated, 2/5)', runner: windows-11-arm, results: windows-arm64-2, shard: 2/5, variant: false}
-          - {name: 'Windows arm64 tests (amd64 emulated, 3/5)', runner: windows-11-arm, results: windows-arm64-3, shard: 3/5, variant: false}
-          - {name: 'Windows arm64 tests (amd64 emulated, 4/5)', runner: windows-11-arm, results: windows-arm64-4, shard: 4/5, variant: false}
-          - {name: 'Windows arm64 tests (amd64 emulated, 5/5)', runner: windows-11-arm, results: windows-arm64-5, shard: 5/5, variant: false}
-          - {name: 'Windows arm64 variant tests (amd64 emulated)', runner: windows-11-arm, results: windows-arm64-variant, shard: '', variant: true}
+        include: ${{ fromJSON(needs.gate.outputs.windows_tests) }}
     defaults:
       run:
         shell: pwsh
@@ -682,10 +688,11 @@ jobs:
           path: dist
 
       - name: Run the conformance suite
-        if: matrix.shard != ''
+        if: matrix.smoke || matrix.shard != ''
         env:
           DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
           DRUPACK_SHARD: ${{ matrix.shard }}
+          DRUPACK_SUITE: ${{ matrix.smoke && 'smoke' || 'full' }}
         run: python tests/conformance dist\drupacked-demo.exe test-results\conformance --site-tests demo\tests
 
       - name: Run the variant fixture cases
@@ -703,157 +710,45 @@ jobs:
             test-results/**/run.out
             test-results/**/run.err
 
-  # Builds each architecture's executables once. The macos-test jobs run the suite
-  # on those files, and an architecture with no test row runs the start cases here.
-  macos:
-    name: macOS ${{ matrix.arch }} build
+  # Builds each architecture's executables once, one job per architecture, so the
+  # macos-test jobs wait for the arm64 build alone. They run the suite on those files,
+  # and an architecture with no test row runs the start cases in its build job.
+  macos-arm64:
+    name: macOS arm64 build
     needs: [gate, payload]
-    if: needs.gate.outputs.macos != '[]'
-    runs-on: ${{ matrix.arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
+    if: contains(needs.gate.outputs.macos, 'arm64')
+    runs-on: macos-15
     timeout-minutes: 240
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.gate.outputs.macos) }}
     steps:
       - uses: actions/checkout@v7
-
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/macos-build
         with:
+          arch: arm64
+          version: ${{ needs.gate.outputs.version }}
           go-version: ${{ env.GO_VERSION }}
-          cache: false
+          go-tests: 'true'
+          start-cases: ${{ !contains(fromJSON(needs.gate.outputs.macos_tests).*.arch, 'arm64') }}
 
-      - name: Run the Go unit tests
-        shell: bash
-        run: bash build/test/go-tests.sh
-
-      # static-php-cli runs on PHP and Composer, which the arm64 runner image lacks.
-      - name: Install PHP and Composer
-        if: matrix.arch == 'arm64'
-        run: brew install --quiet php composer
-
-      - uses: actions/download-artifact@v8
+  macos-amd64:
+    name: macOS amd64 build
+    needs: [gate, payload]
+    if: contains(needs.gate.outputs.macos, 'amd64')
+    runs-on: macos-15-intel
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/macos-build
         with:
-          name: payload-archive
-          path: dist/payload
+          arch: amd64
+          version: ${{ needs.gate.outputs.version }}
+          go-version: ${{ env.GO_VERSION }}
+          go-tests: 'false'
+          start-cases: ${{ !contains(fromJSON(needs.gate.outputs.macos_tests).*.arch, 'amd64') }}
 
-      - uses: actions/download-artifact@v8
-        with:
-          name: engine-payload-archive
-          path: dist/engine-payload
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: variant-payload-archive
-          path: dist/variant-payload
-
-      # The buildroot holds the PHP the allowlist names, so the list files belong
-      # in the key beside the script that compiles them.
-      - uses: actions/cache/restore@v6
-        with:
-          path: |
-            ${{ runner.temp }}/drupack/downloads
-            ${{ runner.temp }}/drupack/buildroot
-            ${{ runner.temp }}/drupack/pkgroot
-          key: macos-${{ matrix.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
-
-      - name: Build the executables
-        env:
-          # static-php-cli reads library releases from the GitHub API, which rate-limits anonymous requests.
-          GITHUB_TOKEN: ${{ github.token }}
-          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
-        run: |
-          bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/drupacked-demo dist/engine-payload dist/engine/drupack
-          cp dist/payload/site.json dist/site.json
-
-      # Saved before the later steps, so a failure in one does not repeat the PHP build.
-      - uses: actions/cache/save@v6
-        with:
-          path: |
-            ${{ runner.temp }}/drupack/downloads
-            ${{ runner.temp }}/drupack/buildroot
-            ${{ runner.temp }}/drupack/pkgroot
-          key: macos-${{ matrix.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: runtime-macos-${{ matrix.arch }}
-          path: ${{ runner.temp }}/drupack/runtime
-          if-no-files-found: error
-
-      - name: Report the runtime's components
-        env:
-          TARGET: macos-${{ matrix.arch }}
-        run: |
-          mkdir runtime-components
-          python3 build/release/sbom.py runtime --target "$TARGET" "$RUNNER_TEMP/drupack/runtime/drupack" >"runtime-components/$TARGET.json"
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: runtime-components-macos-${{ matrix.arch }}
-          path: runtime-components
-          if-no-files-found: error
-
-      - name: Pack the variant fixture
-        env:
-          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
-          TARGET: macos-${{ matrix.arch }}
-        run: |
-          mkdir -p dist/variant
-          (cd launcher && go run ./cmd/pack -target "$TARGET" -runtime "$RUNNER_TEMP/drupack/runtime" \
-            -payload ../dist/variant-payload -version "$DRUPACK_VERSION" -output ../dist/variant/variant-demo)
-          cp dist/variant-payload/site.json dist/variant/site.json
-
-      - name: Check the unsigned launch steps
-        run: |
-          cp dist/drupacked-demo "$RUNNER_TEMP/quarantined"
-          xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" "$RUNNER_TEMP/quarantined"
-          xattr -d com.apple.quarantine "$RUNNER_TEMP/quarantined"
-          "$RUNNER_TEMP/quarantined" --version
-
-      - name: Run the start cases
-        if: ${{ !contains(fromJSON(needs.gate.outputs.macos_tests).*.arch, matrix.arch) }}
-        env:
-          DRUPACK_TEST_ENGINE: dist/engine/drupack
-        run: |
-          python3 tests/conformance dist/drupacked-demo test-results/conformance \
-            -k test_a_start_serves_the_folder_and_writes_only_its_files \
-            -k test_seeded_sqlite_site_and_drush -k SeededSite.test_extensions
-
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-results-macos-${{ matrix.arch }}-build
-          path: |
-            test-results/**/*.log
-            test-results/**/run.out
-            test-results/**/run.err
-
-      # The files the macos-test jobs run. The name stays outside the patterns the
-      # sbom and publish jobs download. The retention stays the default: the gate
-      # rebuilds a candidate when any of its artifacts expired.
-      - uses: actions/upload-artifact@v7
-        with:
-          name: suite-macos-${{ matrix.arch }}
-          path: |
-            dist/drupacked-demo
-            dist/site.json
-            dist/engine/drupack
-            dist/variant
-          compression-level: 0
-          if-no-files-found: error
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: drupack-macos-${{ matrix.arch }}
-          path: dist/engine/drupack
-          if-no-files-found: error
-
-  # Each job runs one share of the test classes on the files the macos job built.
+  # Each job runs one share of the test classes on the files the macos-arm64 job built.
   macos-test:
     name: macOS ${{ matrix.arch }} tests (${{ matrix.shard }})
-    needs: [gate, macos]
+    needs: [gate, macos-arm64]
     if: needs.gate.outputs.macos_tests != '[]'
     runs-on: macos-15
     timeout-minutes: 90
@@ -910,12 +805,12 @@ jobs:
             test-results/**/run.out
             test-results/**/run.err
 
-  # An all-platform dispatch also runs build/test/qa.sh, one phase per job. upstream.yml
-  # dispatches one for each release candidate.
+  # An all-platform dispatch and the weekly schedule also run build/test/qa.sh, one phase
+  # per job. upstream.yml dispatches one for each release candidate.
   qa:
     name: QA ${{ matrix.phase }}
     needs: [gate, linux-runtime, builder-push]
-    if: github.event_name == 'workflow_dispatch' && inputs.platform == 'all'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.platform == 'all')
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
@@ -1012,7 +907,7 @@ jobs:
   # The scans read the downloaded folders as they land: the merge keeps each
   # component's name, version and identifiers, never its file path.
   sbom:
-    needs: [gate, linux, windows, windows-test, macos, macos-test, demo]
+    needs: [gate, linux, windows, windows-test, macos-arm64, macos-amd64, macos-test, demo]
     if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' }}
     runs-on: ubuntu-24.04
     permissions:
@@ -1072,7 +967,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [gate, linux, windows, windows-test, macos, macos-test, demo, sbom]
+    needs: [gate, linux, windows, windows-test, macos-arm64, macos-amd64, macos-test, demo, sbom]
     if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' }}
     runs-on: ubuntu-24.04
     permissions:

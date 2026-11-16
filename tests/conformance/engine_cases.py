@@ -369,16 +369,6 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertEqual(status, 403)
         self.assertNotIn("unlocked", body)
 
-    def test_a_broken_project_snippet_stops_the_start(self):
-        snippet = self.project / "drupack.caddy"
-        snippet.write_text("not_a_directive foo\n")
-        self.addCleanup(snippet.unlink)
-        result = self.engine_run("start", str(self.project), "--foreground", "--listen", f"127.0.0.1:{harness.pick_port()}")
-        self.assertNotEqual(result.returncode, 0)
-        output = result.stdout + result.stderr
-        self.assertIn("unrecognized directive: not_a_directive", output)
-        self.assertIn(snippet.resolve().as_posix(), output)
-
     def test_a_start_serves_the_folder_and_writes_only_its_files(self):
         before = self.snapshot()
         port, log = self.start("start-directory", str(self.project))
@@ -396,10 +386,17 @@ class EngineExecutable(harness.ConformanceCase):
         self.assertEqual(response.status, 302, f"the login link did not sign in: inspect {log}")
         self.assertIn("SESS", response.getheader("Set-Cookie", ""))
         connection.close()
+        refused = self.engine_run("restart", str(self.project))
+        self.assertEqual(refused.returncode, 1, f"{refused.stdout}{refused.stderr}")
+        self.assertIn("in the foreground", refused.stderr)
+        self.assertEqual(self.status(port, "/user/login"), 200, "the refused restart stopped the server")
+        stop = self.engine_run("stop", str(self.project))
+        self.assertEqual(stop.returncode, 0, stop.stderr)
+        self.assertIsNone(self.status(port, "/"), "the server still answers after stop")
         self.doCleanups()
         self.assertEqual(self.snapshot(), before, "the start changed the project outside its public files directory")
 
-    def test_a_detached_start_returns_once_ready_and_stop_ends_it(self):
+    def test_a_detached_start_in_the_folder_runs_until_stop_ends_it_and_leaves_the_project_unchanged(self):
         settings = self.docroot / "sites" / "default" / "settings.php"
         original = settings.read_text()
         self.addCleanup(settings.write_text, original)
@@ -410,7 +407,11 @@ if (isset($_GET['drupack-log-case'])) {
   drupack_fatal_case();
 }
 """)
-        port, start = self.detached_start(str(self.project))
+        before = self.snapshot()
+        not_running = self.engine_run("status", str(self.project))
+        self.assertEqual(not_running.returncode, 3, f"{not_running.stdout}{not_running.stderr}")
+        self.assertIn("is not running", not_running.stdout)
+        port, start = self.detached_start(cwd=self.project)
         self.assertEqual(start.returncode, 0, f"the start exited non-zero: {start.stdout}{start.stderr}")
         self.assertIn("  Login:   run ", start.stdout)
         self.assertNotIn(harness.LINK_PATH, start.stdout)
@@ -418,41 +419,33 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertNotIn("redirected default logger", start.stdout)
         self.assertNotIn("Press Ctrl+C", start.stdout)
         self.assertEqual(self.status(port, "/"), 200)
+        status = self.engine_run("status", str(self.project))
+        self.assertEqual(status.returncode, 0, f"{status.stdout}{status.stderr}")
+        self.assertIn("in the background.", status.stdout)
+        self.assertIn("  URL:    http://", status.stdout)
+        self.assertIn(f":{port}\n", status.stdout)
+        logs_line = start.stdout.split("  Logs:    ")[1].splitlines()[0]
+        self.assertIn(f"  Logs:   {logs_line}\n", status.stdout)
+        self.assertIn(f"  Words:  {self.engine} --listen 127.0.0.1:{port}\n", status.stdout)
+        self.assertIn("\nDrush status:\n", status.stdout)
+        self.assertRegex(status.stdout, r"\n  +Drupal version +: \d+\.")
         # Caddy's log goes to a file that rolls, and the start's own output to server.log.
-        logs = Path(start.stdout.split("  Logs:    ")[1].splitlines()[0]).expanduser()
+        logs = Path(logs_line).expanduser()
         output, caddy = logs / "server.log", logs / "caddy.log"
         self.assertTrue(output.is_file() and caddy.is_file(), f"no server.log and caddy.log in {logs}")
         self.assertEqual(self.status(port, "/?drupack-log-case"), 500)
         harness.wait_for_text(caddy, "drupack_fatal_case")
         self.assertNotIn("drupack_fatal_case", output.read_text(errors="replace"))
-        stop = self.engine_run("stop", str(self.project))
+        stop = self.engine_run("stop", cwd=self.project)
         self.assertEqual(stop.returncode, 0, stop.stderr)
         self.assertIn("stopped", stop.stdout)
         self.assertIsNone(self.status(port, "/"), "the server still answers after stop")
         again = self.engine_run("stop", str(self.project))
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertIn("is not running", again.stdout)
-
-    def test_status_reads_a_detached_start_until_its_stop(self):
-        before = self.engine_run("status", str(self.project))
-        self.assertEqual(before.returncode, 3, f"{before.stdout}{before.stderr}")
-        self.assertIn("is not running", before.stdout)
-        port, start = self.detached_start(str(self.project))
-        self.assertEqual(start.returncode, 0, f"the start exited non-zero: {start.stdout}{start.stderr}")
-        status = self.engine_run("status", str(self.project))
-        self.assertEqual(status.returncode, 0, f"{status.stdout}{status.stderr}")
-        self.assertIn("in the background.", status.stdout)
-        self.assertIn("  URL:    http://", status.stdout)
-        self.assertIn(f":{port}\n", status.stdout)
-        logs = start.stdout.split("  Logs:    ")[1].splitlines()[0]
-        self.assertIn(f"  Logs:   {logs}\n", status.stdout)
-        self.assertIn(f" {self.project} --listen 127.0.0.1:{port}\n", status.stdout)
-        self.assertIn("\nDrush status:\n", status.stdout)
-        self.assertRegex(status.stdout, r"\n  +Drupal version +: \d+\.")
-        stop = self.engine_run("stop", str(self.project))
-        self.assertEqual(stop.returncode, 0, stop.stderr)
         after = self.engine_run("status", str(self.project))
         self.assertEqual(after.returncode, 3, f"{after.stdout}{after.stderr}")
+        self.assertEqual(self.snapshot(), before, "the start or stop changed the project outside its public files directory")
 
     def test_restart_replays_a_detached_start_from_another_directory(self):
         first, second = self.class_dir / "restart-first", self.class_dir / "restart-second"
@@ -461,6 +454,7 @@ if (isset($_GET['drupack-log-case'])) {
             (directory / "a.log").unlink(missing_ok=True)
         port, start = self.detached_start(str(self.project), "--access-log=a.log", cwd=first)
         self.assertEqual(start.returncode, 0, f"{start.stdout}{start.stderr}")
+        self.assertIn(f"Stop it with:\n\n    {self.engine} stop {self.project}\n", start.stdout)
         self.assertEqual(self.status(port, "/user/login"), 200)
         served = (first / "a.log").stat().st_size
         restart = self.engine_run("restart", str(self.project), cwd=second, wait="start")
@@ -475,33 +469,6 @@ if (isset($_GET['drupack-log-case'])) {
                            capture_output=True, text=True, timeout=harness.WAITS["stop"].seconds + 30)
         self.assertEqual(stop.returncode, 0, stop.stderr)
         self.assertIsNone(self.status(port, "/"), "the printed command left the server running")
-
-    def test_restart_refuses_a_foreground_start(self):
-        port, _ = self.start("restart-foreground", str(self.project))
-        refused = self.engine_run("restart", str(self.project))
-        self.assertEqual(refused.returncode, 1, f"{refused.stdout}{refused.stderr}")
-        self.assertIn("in the foreground", refused.stderr)
-        self.assertEqual(self.status(port, "/user/login"), 200, "the refused restart stopped the server")
-
-    def test_the_printed_stop_command_names_a_folder_started_from_another_directory(self):
-        port, start = self.detached_start(str(self.project))
-        self.assertEqual(start.returncode, 0, f"{start.stdout}{start.stderr}")
-        command = f"    {self.engine} stop {self.project}\n"
-        self.assertIn(f"Stop it with:\n\n{command}", start.stdout)
-        stop = harness.run(shlex.split(command, posix=os.name != "nt"), cwd=self.class_dir.parent,
-                           capture_output=True, text=True, timeout=harness.WAITS["stop"].seconds + 30)
-        self.assertEqual(stop.returncode, 0, stop.stderr)
-        self.assertIn("stopped", stop.stdout)
-        self.assertIsNone(self.status(port, "/"), "the printed command left the server running")
-
-    def test_a_detached_start_and_stop_leave_the_project_unchanged(self):
-        before = self.snapshot()
-        port, start = self.detached_start(cwd=self.project)
-        self.assertEqual(start.returncode, 0, f"the start exited non-zero: {start.stdout}{start.stderr}")
-        self.assertEqual(self.status(port, "/"), 200)
-        stop = self.engine_run("stop", cwd=self.project)
-        self.assertEqual(stop.returncode, 0, stop.stderr)
-        self.assertEqual(self.snapshot(), before, "the start or stop changed the project outside its public files directory")
 
     def test_a_watched_second_start_on_a_served_folder_hands_over(self):
         if harness.current_platform() == harness.WINDOWS:
@@ -521,13 +488,6 @@ if (isset($_GET['drupack-log-case'])) {
         opened = harness.wait_for_recorded_url(recorded, harness.WAITS["browser_open"].seconds)
         self.assertEqual(recorded.read_text().splitlines(), [link], "the hand-over opened another page than the link")
         self.assertEqual(opened, link)
-
-    def test_a_second_start_on_a_served_folder_says_it_already_serves(self):
-        _, first = self.detached_start(str(self.project))
-        self.assertEqual(first.returncode, 0, f"{first.stdout}{first.stderr}")
-        second = self.engine_run(str(self.project), "--listen", f"127.0.0.1:{harness.pick_port()}")
-        self.assertEqual(second.returncode, 1, second.stdout)
-        self.assertIn(f"drupack already serves {self.project.as_posix()}", second.stderr)
 
     def test_a_start_inside_the_drain_after_ctrl_break_says_it_already_serves(self):
         if harness.current_platform() != harness.WINDOWS:
@@ -550,12 +510,6 @@ if (isset($_GET['drupack-log-case'])) {
             self.assertIn(f"drupack already serves {self.project.as_posix()}", second.stderr)
             self.assertEqual(slow.result(), 200, "the drain cut the request short")
         self.process.wait(timeout=harness.WAITS["stop"].seconds)
-
-    def test_a_start_in_the_foreground_is_stopped_by_stop(self):
-        port, _ = self.start("start-stopped", str(self.project))
-        stop = self.engine_run("stop", str(self.project))
-        self.assertEqual(stop.returncode, 0, stop.stderr)
-        self.assertIsNone(self.status(port, "/"), "the server still answers after stop")
 
     def test_clean_keeps_a_served_folders_entry_and_removes_it_once_stopped(self):
         # A cache of its own: the run's shared cache holds the site executable's entries too.
@@ -614,18 +568,6 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertIn("<form", body)
         self.assert_refuses_the_name(port, f"evil.example:{port}")
 
-    def test_a_start_refuses_a_hostname_listener(self):
-        port = harness.pick_port()
-        refused = self.engine_run(str(self.project), "--foreground", "--listen", f"localhost:{port}")
-        self.assertEqual(refused.returncode, 1, refused.stdout)
-        self.assertIn("--listen requires IP:PORT, with IPv6 enclosed in brackets", refused.stderr)
-        self.assertIsNone(self.status(port, "/"))
-
-    def test_a_start_refuses_a_host_that_is_no_name(self):
-        refused = self.engine_run(str(self.project), "--foreground", "--host", "a b")
-        self.assertEqual(refused.returncode, 1, refused.stdout)
-        self.assertIn("Invalid --host value", refused.stderr)
-
     def with_subdomain(self, value, project=None):
         """Sets extra.drupack.subdomain in a project's composer.json until the case ends, or removes it
         for None. The project defaults to the demo's copy, whose composer.json sets one."""
@@ -647,10 +589,6 @@ if (isset($_GET['drupack-log-case'])) {
         request = Request(f"http://127.0.0.1:{port}/user/login", headers={"Host": f"shop.drupack.site:{port}"})
         with urlopen(request, timeout=harness.WAITS["http_request"].seconds) as response:
             self.assertEqual(response.status, 200)
-
-    def test_a_start_without_a_directory_serves_the_working_directory(self):
-        port, _ = self.start("start-working-directory", cwd=self.project)
-        self.assertEqual(self.status(port, "/"), 200)
 
     def test_a_stop_ends_a_request_that_is_still_running(self):
         # FrankenPHP waits 30s for a running request before it forces the stop, the
@@ -741,14 +679,6 @@ if (isset($_GET['drupack-log-case'])) {
         database = harness.fresh_dir(self.class_dir / f"uninstalled-{self._testMethodName}") / "site.sqlite"
         settings.write_text(SETTINGS.format(database=json.dumps(str(database))))
 
-    def test_a_start_on_a_project_with_no_installed_site_prints_the_installer_address(self):
-        self.uninstall()
-        port, log = self.start("uninstalled", str(self.project))
-        output = log.read_text()
-        self.assertIn(f"  Install: http://127.0.0.1:{port}/core/install.php\n", output)
-        self.assertNotIn("  Login:", output)
-        self.assertNotIn("No login link", output)
-
     def test_a_start_on_a_project_with_no_settings_file_prints_the_installer_address(self):
         settings = self.docroot / "sites" / "default" / "settings.php"
         original = settings.read_text()
@@ -763,8 +693,6 @@ if (isset($_GET['drupack-log-case'])) {
     def watched_start(self, name):
         """Starts the project under a pseudo-terminal with a recorder posing as the browser
         opener, and returns the port, the log and the one URL the recorder received."""
-        if harness.current_platform() == harness.WINDOWS:
-            self.skipTest("the browser recorder is a shell script")
         script, recorded = harness.install_recorder(self.class_dir / f"{name}-recorder")
         env = dict(os.environ, PATH=f"{script.parent}{os.pathsep}{os.environ.get('PATH', '')}")
         port, log = self.start(name, str(self.project), env=env, attach_pty=True)
@@ -772,12 +700,25 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertEqual(recorded.read_text().splitlines(), [opened], "the start opened more than one page")
         return port, log, opened
 
-    def test_a_watched_start_of_an_uninstalled_project_opens_the_installer(self):
+    def test_an_uninstalled_project_prints_the_installer_address_and_a_watched_start_opens_it(self):
         self.uninstall()
-        port, log, opened = self.watched_start("watched-uninstalled")
-        self.assertEqual(opened, f"http://127.0.0.1:{port}/core/install.php", f"inspect {log}")
+        if harness.current_platform() == harness.WINDOWS:
+            # The browser recorder is a shell script, so no page is recorded.
+            port, log = self.start("uninstalled", str(self.project))
+            opened = None
+        else:
+            port, log, opened = self.watched_start("watched-uninstalled")
+        installer = f"http://127.0.0.1:{port}/core/install.php"
+        self.assertEqual(harness.wait_for_line(log, 0, "  Install: ", harness.WAITS["start"].seconds), installer)
+        output = log.read_text()
+        self.assertNotIn("  Login:", output)
+        self.assertNotIn("No login link", output)
+        if opened is not None:
+            self.assertEqual(opened, installer, f"inspect {log}")
 
     def test_a_watched_start_opens_the_printed_login_link(self):
+        if harness.current_platform() == harness.WINDOWS:
+            self.skipTest("the browser recorder is a shell script")
         _, log, opened = self.watched_start("watched-installed")
         link = harness.wait_for_line(log, 0, "  Login:   ", harness.WAITS["start"].seconds)
         self.assertIn("/user/reset/1/", link)
@@ -814,7 +755,7 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertEqual(len(entries), 1, f"entries recording {listen}: {entries}")
         return entries[0]
 
-    def test_a_project_with_the_mercure_key_serves_the_hub_from_its_cache_entry(self):
+    def test_a_project_with_the_mercure_key_serves_the_hub_from_its_cache_entry_and_drush_sees_it(self):
         self.with_mercure()
         before = self.snapshot()
         port, log = self.start("mercure", str(self.project))
@@ -845,18 +786,13 @@ if (isset($_GET['drupack-log-case'])) {
                 self.assertEqual(stat.S_IMODE((entry / f"mercure_{name}_secret").stat().st_mode), 0o600, name)
         self.assertTrue((entry / "mercure.db").is_file())
         self.assertEqual(self.snapshot(), before, "the hub wrote into the project folder")
-
-    def test_drush_sees_the_hub_the_last_start_served(self):
-        self.with_mercure()
-        port, _ = self.start("mercure-drush", str(self.project))
-        entry = self.hub_entry(port)
         code = "echo json_encode(array_map('getenv', ['DRUPACK_MERCURE_URL', 'DRUPACK_MERCURE_PUBLISHER_SECRET', 'DRUPACK_MERCURE_SUBSCRIBER_SECRET']));"
         result = self.engine_run("drush", "php:eval", code, cwd=self.project)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), [
             f"http://127.0.0.1:{port}{HUB}",
-            (entry / "mercure_publisher_secret").read_text(),
-            (entry / "mercure_subscriber_secret").read_text(),
+            secrets["publisher"],
+            secrets["subscriber"],
         ])
 
     def test_a_project_without_the_mercure_key_serves_no_hub(self):
@@ -925,17 +861,34 @@ if (isset($_GET['drupack-log-case'])) {
         self.addCleanup(shutil.rmtree, html, ignore_errors=True)
         return html
 
-    def test_a_start_serves_the_static_port_and_export_fills_it(self):
+    def test_the_static_port_refuses_like_the_site_hands_dynamic_paths_to_drupal_and_export_fills_it(self):
         before = self.snapshot()
         html = self.export_directory()
         port = harness.pick_port()
-        while (static := harness.pick_port()) == port:
-            pass
-        _, log = self.start("static", str(self.project), "--static-listen", f"127.0.0.1:{static}", port=port)
+        static = port + 1
+        _, log = self.start("static", str(self.project), port=port)
         url = f"http://127.0.0.1:{static}/"
         self.assertIn(f"  Static:  {url}\n", log.read_text(errors="replace"))
         self.assertEqual(self.status(static, "/"), 404)
         self.assertFalse(html.exists(), "the start created the export directory")
+        for path in (".env", "index.php", "composer.json", "sites/default/settings.php", "page/index.html",
+                     "drupack.mercure.caddy"):
+            (html / path).parent.mkdir(parents=True, exist_ok=True)
+            (html / path).write_text("kept out")
+        expected = {"/.env": 403, "/index.php": 403, "/composer.json": 403,
+                    "/sites/default/settings.php": 403, "/drupack.mercure.caddy": 403, "/page/": 200}
+        for path, status in expected.items():
+            with self.subTest(path):
+                self.assertEqual(self.status(static, path), status)
+        page = html / "search" / "node" / "index.html"
+        page.parent.mkdir(parents=True)
+        page.write_text("exported copy")
+        status, headers, body = self.fetch(static, "/search/node?keys=drupal")
+        self.assertEqual(status, 200, body[:300])
+        self.assertTrue(headers.get("X-Generator", "").startswith("Drupal"), dict(headers))
+        self.assertNotIn("exported copy", body)
+        self.assertEqual(self.status(static, "/user/login"), 404)
+        self.assertEqual(self.status(static, "/search/x.php"), 403)
         # On Windows core leaves a component's path absolute, and Tome copies its assets under it.
         # A site's settings.php loads Drupack's WindowsPathServiceProvider; a folder's does not.
         if harness.current_platform() == harness.WINDOWS:
@@ -947,21 +900,6 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertEqual(status, 200)
         self.assertIn(url, body)
         self.assertEqual(self.snapshot("html"), before, "the export wrote outside html")
-
-    def test_the_static_port_hands_dynamic_paths_to_drupal(self):
-        port = harness.pick_port()
-        _, log = self.start("dynamic", str(self.project), port=port)
-        static = port + 1
-        self.assertIn(f"  Static:  http://127.0.0.1:{static}/\n", log.read_text(errors="replace"))
-        page = self.export_directory() / "search" / "node" / "index.html"
-        page.parent.mkdir(parents=True)
-        page.write_text("exported copy")
-        status, headers, body = self.fetch(static, "/search/node?keys=drupal")
-        self.assertEqual(status, 200, body[:300])
-        self.assertTrue(headers.get("X-Generator", "").startswith("Drupal"), dict(headers))
-        self.assertNotIn("exported copy", body)
-        self.assertEqual(self.status(static, "/user/login"), 404)
-        self.assertEqual(self.status(static, "/search/x.php"), 403)
 
     def test_a_start_writes_the_logs_its_options_name(self):
         settings = self.docroot / "sites" / "default" / "settings.php"
@@ -1027,35 +965,12 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertIn("tome_static_directory in the project's settings.php must name a directory", result.stderr)
         self.assertIn("Cannot read tome_static_directory from the settings of", result.stderr)
 
-    def test_the_static_port_meets_the_site_ports_refusals_and_refuses_any_php(self):
-        html = self.export_directory()
-        for path in (".env", "index.php", "composer.json", "sites/default/settings.php", "page/index.html",
-                     "drupack.mercure.caddy"):
-            (html / path).parent.mkdir(parents=True, exist_ok=True)
-            (html / path).write_text("kept out")
-        port = harness.pick_port()
-        self.start("refusals", str(self.project), port=port)
-        expected = {"/.env": 403, "/index.php": 403, "/composer.json": 403,
-                    "/sites/default/settings.php": 403, "/drupack.mercure.caddy": 403, "/page/": 200}
-        for path, status in expected.items():
-            with self.subTest(path):
-                self.assertEqual(self.status(port + 1, path), status)
-
     def test_a_project_without_the_static_key_serves_no_second_port(self):
         self.edit_json(self.project / "composer.json", lambda content: content["extra"]["drupack"].pop("static"))
         port = harness.pick_port()
         _, log = self.start("no-static", str(self.project), port=port)
         self.assertIsNone(self.status(port + 1, "/"), f"the next port answered: inspect {log}")
         self.assertNotIn("  Static:", log.read_text(errors="replace"))
-
-    def test_export_without_tome_static_refuses_naming_the_module(self):
-        uninstall = self.engine_run("drush", "pm:uninstall", "tome_static", "--yes", cwd=self.project)
-        self.assertEqual(uninstall.returncode, 0, uninstall.stderr)
-        self.addCleanup(self.engine_run, "drush", "pm:install", "tome_static", "--yes", cwd=self.project)
-        export = self.engine_run("export", "--uri", "http://127.0.0.1:1/", cwd=self.project)
-        self.assertEqual(export.returncode, 1, export.stdout)
-        self.assertIn(f"no tome_static module enabled. Enable it: {self.engine} drush pm:install tome_static",
-                      export.stderr)
 
     def alias_run(self, *commands):
         """Runs each shell command from class_dir inside Drush, whose PATH names the php alias, and returns

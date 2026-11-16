@@ -28,7 +28,7 @@ bash runtime/builder/build-builder.sh gnu drupack-builder-gnu:local
 bash build/test/qa.sh
 ```
 
-`build/test/qa.sh` builds the `job` image, builds Drupacked Demo and the engine executable inside it, and runs the tests. `drupack-build -help` lists the options of a hand build. The macOS and Windows builds run on their own hosts; `.github/workflows/release.yml` shows their commands and tools.
+`build/test/qa.sh` builds the `job` image, builds Drupacked Demo and the engine executable inside it, and runs the tests. `drupack-build -help` lists the options of a hand build. The macOS and Windows builds run on their own hosts; `.github/workflows/release.yml` and `.github/actions/macos-build/action.yml` show their commands and tools.
 
 ## Tests
 

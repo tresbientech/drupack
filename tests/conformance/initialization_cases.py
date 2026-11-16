@@ -99,7 +99,26 @@ def reset_installation_state(data):
 class FirstStartAndListener(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX,)
 
-    def test_first_start_creates_the_site_and_serves_through_drush(self):
+    def test_first_start_creates_the_site_serves_through_drush_and_a_later_start_keeps_the_keys_it_replaced(self):
+        def identity():
+            values = []
+            for command in (("state:get", "system.cron_key"), ("state:get", "system.private_key"),
+                            ("config:get", "system.site", "uuid", "--format=json")):
+                result = harness.run_drush(harness.BINARY, self.case_dir, data, *command)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                values.append(result.stdout.strip())
+            values[2] = json.loads(values[2])["system.site:uuid"]
+            return values
+
+        with sqlite3.connect(self.site_application() / "seed" / "site.sqlite") as seed:
+            states = dict(seed.execute(
+                "SELECT name, value FROM key_value WHERE collection = 'state' AND name IN ('system.cron_key', 'system.private_key')"))
+            config = seed.execute("SELECT data FROM config WHERE collection = '' AND name = 'system.site'").fetchone()[0]
+        unserialized = lambda text, pattern: re.search(pattern, text.decode() if isinstance(text, bytes) else text).group(1)
+        seeded = [unserialized(states["system.cron_key"], r'^s:\d+:"(.*)";$'),
+                  unserialized(states["system.private_key"], r'^s:\d+:"(.*)";$'),
+                  unserialized(config, r's:4:"uuid";s:36:"([^"]+)"')]
+
         data = self.case_dir / "data"
         site = harness.Site(harness.BINARY, self.case_dir / "first-start")
         site.start(data, "--admin-user", "init-admin", "--admin-password", PASSWORD)
@@ -139,6 +158,13 @@ class FirstStartAndListener(harness.ConformanceCase):
             self.assertIn(f"init-admin | {harness.SITE['site_name']}", body)
         finally:
             site.stop()
+        first = identity()
+        for name, seed_value, value in zip(("cron key", "private key", "site UUID"), seeded, first):
+            self.assertNotEqual(value, seed_value, f"the first start kept the seed's {name}")
+        site = harness.Site(harness.BINARY, self.case_dir / "later-start")
+        site.start(data)
+        site.stop()
+        self.assertEqual(identity(), first, "a later start replaced the site's keys")
 
     def test_a_start_on_site_data_every_account_can_write_warns_and_serves(self):
         data = self.case_dir / "open-data"
@@ -154,38 +180,6 @@ class FirstStartAndListener(harness.ConformanceCase):
         finally:
             site.stop()
 
-
-    def test_a_first_start_replaces_the_seeds_keys_and_a_later_start_keeps_them(self):
-        def identity():
-            values = []
-            for command in (("state:get", "system.cron_key"), ("state:get", "system.private_key"),
-                            ("config:get", "system.site", "uuid", "--format=json")):
-                result = harness.run_drush(harness.BINARY, self.case_dir, data, *command)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                values.append(result.stdout.strip())
-            values[2] = json.loads(values[2])["system.site:uuid"]
-            return values
-
-        with sqlite3.connect(self.site_application() / "seed" / "site.sqlite") as seed:
-            states = dict(seed.execute(
-                "SELECT name, value FROM key_value WHERE collection = 'state' AND name IN ('system.cron_key', 'system.private_key')"))
-            config = seed.execute("SELECT data FROM config WHERE collection = '' AND name = 'system.site'").fetchone()[0]
-        unserialized = lambda text, pattern: re.search(pattern, text.decode() if isinstance(text, bytes) else text).group(1)
-        seeded = [unserialized(states["system.cron_key"], r'^s:\d+:"(.*)";$'),
-                  unserialized(states["system.private_key"], r'^s:\d+:"(.*)";$'),
-                  unserialized(config, r's:4:"uuid";s:36:"([^"]+)"')]
-
-        data = self.case_dir / "data"
-        site = harness.Site(harness.BINARY, self.case_dir / "first-start")
-        site.start(data, "--admin-user", "init-admin", "--admin-password", PASSWORD)
-        site.stop()
-        first = identity()
-        for name, seed_value, value in zip(("cron key", "private key", "site UUID"), seeded, first):
-            self.assertNotEqual(value, seed_value, f"the first start kept the seed's {name}")
-        site = harness.Site(harness.BINARY, self.case_dir / "later-start")
-        site.start(data)
-        site.stop()
-        self.assertEqual(identity(), first, "a later start replaced the site's keys")
 
 class RecordedBackendAndAdoption(harness.ConformanceCase):
     PLATFORMS = (harness.LINUX,)
@@ -465,12 +459,7 @@ class PostgresqlLifecycle(harness.ConformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.server = harness.DatabaseServer("pgsql", "initialization", cls.class_dir)
-        cls.server.start()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.server.stop()
+        cls.server = harness.shared_database_server("pgsql")
 
     def _create_database(self, name):
         self.server.execute("drupal", f"CREATE DATABASE {name}")

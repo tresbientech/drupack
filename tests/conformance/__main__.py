@@ -3,7 +3,8 @@
 Discovers every *_cases.py module under this directory, and under DIR when given, and hands
 the rest of argv to unittest, so a caller's own -k, -v or -q still applies on top of this
 suite's default. The site.json beside EXECUTABLE names the site the cases expect.
-DRUPACK_SHARD=K/N runs the Kth of N shares of the test classes.
+DRUPACK_SHARD=K/N runs the Kth of N shares of the test classes. DRUPACK_SUITE=smoke runs the
+start cases of SMOKE alone, and DRUPACK_SUITE=full or no DRUPACK_SUITE runs every case.
 """
 
 import json
@@ -17,6 +18,14 @@ from pathlib import Path
 import harness
 
 USAGE = "Usage: python3 tests/conformance EXECUTABLE RESULTS [--site-tests DIR] [unittest arguments]"
+
+# The start cases a platform without the whole suite runs: an engine start, then a seeded site
+# with Drush and the shipped PHP extensions. A site build without an engine runs the last two.
+SMOKE = (
+    "engine_cases.EngineExecutable.test_a_start_serves_the_folder_and_writes_only_its_files",
+    "site_cases.SeededSite.test_seeded_sqlite_site_and_drush",
+    "site_cases.SeededSite.test_extensions",
+)
 
 # A run writes this into the results directory it creates, so a later run empties
 # only a tree the suite made, never whatever path the command line handed it.
@@ -101,6 +110,8 @@ class CaseLoader(unittest.TestLoader):
         suite = super().discover(start_dir, pattern, top_level_dir)
         if self.site_tests is not None:
             suite.addTests(super().discover(str(self.site_tests), pattern, str(self.site_tests)))
+        if harness.smoke_run():
+            return unittest.TestSuite(test for test in flatten(suite) if test.id() in SMOKE)
         spec = os.environ.get("DRUPACK_SHARD")
         return shard(suite, spec) if spec else suite
 

@@ -2,7 +2,7 @@
 
 ## Context
 
-Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstream version must reach readers without the owner noticing it. A release builds five platforms and runs the whole suite, so the graph must build each thing once. drupal.org has no API that creates a release node, and Packagist takes each `drupal/drupack` version from one.
+Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstream version must reach readers without the owner noticing it. A release builds five platforms and tests each one, so the graph must build each thing once. drupal.org has no API that creates a release node, and Packagist takes each `drupal/drupack` version from one.
 
 ## Decision
 
@@ -16,8 +16,11 @@ Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstrea
 
 - A builder image takes a tag that digests its inputs. A runtime job pulls that tag, and a miss builds the image in the job. A fork builds and skips the push.
 - The `payload` job builds the application once. Every platform packs its output.
-- macOS and Windows build and pack in one job, then upload the files as a `suite-*` artifact. The test jobs download it and run one `DRUPACK_SHARD` share each.
-- macOS arm64 runs the whole suite. macOS amd64 runs three start cases in its build job: the engine start, a seeded site with Drush, and the shipped PHP extensions.
+- macOS and Windows build and pack in one job, then upload the files as a `suite-*` artifact. The test jobs download it and run one `DRUPACK_SHARD` share or the start cases each.
+- Each macOS architecture builds in its own job, from one composite action, so the arm64 test jobs wait for the arm64 build alone.
+- macOS arm64 runs the whole suite. macOS amd64 runs the start cases in its build job.
+- The Linux amd64 first job lints and runs the Python unit tests. The Go unit tests run once per system: there, in the Windows build and in the macOS arm64 build.
+- release.yml runs the `full` suite each Monday on `main`, with QA, under a `dev-` version. The weekly run publishes nothing.
 - `publish` needs the test jobs.
 
 ### The upstream run
@@ -34,6 +37,8 @@ Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstrea
 ### The candidate and the tag
 
 - The job dispatches `release.yml` on every platform with `version`. The run is named `Release candidate VERSION`.
+- A bump candidate runs the `full` suite: every platform runs every case, except macOS amd64, which runs the start cases in each profile. A named version runs `gate`. Linux amd64, macOS arm64 and Windows amd64 run every case. Linux arm64, Windows arm64 and macOS amd64 run the start cases.
+- The demo build through build.yml and the QA demo and host builds run the start cases. The Linux jobs test the same file in full.
 - `build/release/wait-for-run.sh` finds the run by the candidate's commit and polls it. It names each failed job and, once the run completes, reruns the failed jobs once.
 - The candidate's `qa` jobs are the release's QA. No local run precedes a release.
 - On green, one atomic push sends `main` as a fast-forward and the next tag to drupal.org. A second push sends both to GitHub. The job then deletes the branch.
@@ -53,6 +58,8 @@ Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstrea
 A builder image tagged by its inputs answers the objection that one image cannot serve several extension sets: another list is another tag. Testing in shares keeps the wall clock near the longest share.
 
 The macOS amd64 suite took 50 of a full run's 154 macOS minutes, on the same OS arm64 tests, and no fix in the history was specific to Intel. Intel Macs are the least used target, and GitHub retires its last Intel runner image in 2027.
+
+A bump moves PHP or FrankenPHP, which every platform's file carries, so a bump tests every platform before its tag, macOS amd64 with its start cases. A named version changes Drupack's own code, which the three full platforms run on each system. Windows arm64 runs the amd64 file under emulation, and Linux arm64 runs the code Linux amd64 tests. The weekly run shows a defect on Linux arm64 and Windows arm64 within seven days.
 
 A script plans the run so a unit test checks the plan. A plan written in workflow expressions shows its mistakes in a finished run alone. A failed lookup that read as no candidate would rebuild what it could have published.
 

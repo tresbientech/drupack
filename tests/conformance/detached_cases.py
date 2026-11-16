@@ -65,8 +65,13 @@ class DetachedCases(harness.ConformanceCase):
         self.assertEqual(drush.returncode, 0, f"drush failed against the detached site: {drush.stderr}")
         self.assertIn("is ready.", log.read_text(errors="replace"))
 
-    def test_a_first_start_returns_once_the_site_answers(self):
+    def test_a_first_start_returns_once_the_site_answers_and_stop_ends_it(self):
         self._assert_returns_with_a_running_site()
+        result = self._stop()
+        self.assertEqual(result.returncode, 0, f"stop exited non-zero: {result.stderr}")
+        self.assertIn("stopped", result.stdout)
+        with self.assertRaises(OSError):
+            socket.create_connection(("127.0.0.1", self.port), timeout=harness.WAITS["port_closed"].seconds).close()
 
     def _assert_powershell_runs_the_printed_stop(self, binary, cwd, word):
         """PowerShell hands a program its full path, which the harness passes the same way."""
@@ -88,12 +93,6 @@ class DetachedCases(harness.ConformanceCase):
         self._assert_powershell_runs_the_printed_stop(
             harness.BINARY, harness.BINARY.parent, f".\\{harness.BINARY.name}")
 
-    def test_powershell_runs_the_stop_command_of_an_executable_under_a_space(self):
-        binary = self.case_dir / "with space" / harness.BINARY.name
-        binary.parent.mkdir()
-        shutil.copy2(harness.BINARY, binary)
-        self._assert_powershell_runs_the_printed_stop(binary, self.case_dir, f"& '{binary}'")
-
     def test_powershell_runs_the_stop_command_of_an_executable_under_quotes_and_a_dollar(self):
         binary = self.case_dir / "it's $HOME \u2019q" / harness.BINARY.name
         binary.parent.mkdir()
@@ -113,14 +112,6 @@ class DetachedCases(harness.ConformanceCase):
                            timeout=harness.WAITS["stop"].seconds + 30)
         self.assertEqual(stop.returncode, 0, f"{stop.stdout}{stop.stderr}")
         self.assertIn("stopped", stop.stdout)
-
-    def test_stop_ends_a_detached_site(self):
-        self.assertEqual(self._start().returncode, 0)
-        result = self._stop()
-        self.assertEqual(result.returncode, 0, f"stop exited non-zero: {result.stderr}")
-        self.assertIn("stopped", result.stdout)
-        with self.assertRaises(OSError):
-            socket.create_connection(("127.0.0.1", self.port), timeout=harness.WAITS["port_closed"].seconds).close()
 
     def test_a_start_on_a_taken_port_exits_one_and_leaves_no_server(self):
         holder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

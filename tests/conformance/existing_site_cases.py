@@ -21,12 +21,8 @@ class ExistingSiteAdoption(harness.ConformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.server = harness.DatabaseServer("mysql", "existing-site", cls.class_dir)
-        cls.server.start()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.server.stop()
+        cls.server = harness.shared_database_server("mysql")
+        cls.server.empty()
 
     def drush(self, installer, *command):
         """Runs the application's Drush on the installer's Site data, as the seed build does."""

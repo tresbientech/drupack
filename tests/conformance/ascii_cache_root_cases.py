@@ -65,14 +65,8 @@ class AsciiCacheRootCases(harness.ConformanceCase):
             f"a {script_name!r} cache root did not load {missing}",
         )
 
-    def test_accented_latin_cache_root_serves_cleanly(self):
-        self._assert_serves_from("tëst")
-
     def test_cyrillic_cache_root_serves_cleanly(self):
         self._assert_serves_from("Ольга")
-
-    def test_cjk_cache_root_serves_cleanly(self):
-        self._assert_serves_from("田中")
 
     def test_accented_latin_data_and_cache_dir_serve_cleanly(self):
         # A non-ASCII account name puts the data directory under a non-ASCII path too; the

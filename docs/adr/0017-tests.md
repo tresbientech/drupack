@@ -18,6 +18,7 @@ Behavior must be proven on every platform Drupack ships. A Windows defect passes
 ### Test shares
 
 - `DRUPACK_SHARD=K/N` runs the Kth of N shares of the test classes, split by measured class time.
+- `DRUPACK_SUITE=smoke` runs the start cases the runner names once: an engine start, a seeded site with Drush, and the shipped PHP extensions. A site build without an engine runs the last two.
 
 ### Unit tests
 
