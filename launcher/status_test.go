@@ -48,15 +48,15 @@ func TestStatus(t *testing.T) {
 			"A fixture-site start is still preparing this Site data: DIR\n", 4},
 		{"a server an earlier release started", answering(nil), "fixture-site serves SHOWN." + rows, 0},
 		{"a background server", answering(&state.Start{Cwd: "/srv", Words: []string{"--data-dir", "a dir", "--access-log"}, Background: true}),
-			"fixture-site serves SHOWN in the background." + rows + "  Logs:   SHOWN/logs/\n  From:   /srv\n  Words:  fixture-site --data-dir " + shellWord("a dir", runtime.GOOS == "windows") + " --access-log\n", 0},
+			"fixture-site serves SHOWN in the background." + rows + "  Logs:   SHOWN/logs/\n  From:   /srv\n  Words:  ./fixture-site --data-dir " + shellWord("a dir", runtime.GOOS == "windows") + " --access-log\n", 0},
 		{"a foreground server", answering(&state.Start{Cwd: "/srv", Words: []string{"--foreground"}}),
-			"fixture-site serves SHOWN in the foreground." + rows + "  From:   /srv\n  Words:  fixture-site --foreground\n", 0},
+			"fixture-site serves SHOWN in the foreground." + rows + "  From:   /srv\n  Words:  ./fixture-site --foreground\n", 0},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			dir := t.TempDir()
 			row.arrange(t, dir)
 			var out bytes.Buffer
-			l := Launch{Name: "fixture-site", Root: t.TempDir()}
+			l := Launch{Name: "fixture-site", Invoked: "./fixture-site", Root: t.TempDir()}
 			err := runStatus(l, command{word: "status", target: dir}, &out)
 			code := 0
 			if exit, ok := err.(exitError); ok {

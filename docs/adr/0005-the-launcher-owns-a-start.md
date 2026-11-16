@@ -34,7 +34,7 @@ A start decides a listener, a TLS source, a host, a scheme, a static listener an
 - `Facts` holds what a start knows. `Facts.Env` is pure and is the one writer of a child's environment.
 - `runtime/environment.txt` declares every `DRUPACK_*` and `DRUSH_*` name it sets. Tests hold the code to that file.
 - A variable the launcher owns overrides an inherited one. Windows matches names in any case.
-- Environment variables carry only values that `settings.php`, Drush, Tome's children, Caddy or the runtime's watch read. The launcher passes its own choices as arguments.
+- Environment variables carry only values a child process reads. The readers column of `runtime/environment.txt` names each reader. The launcher passes its own choices as arguments.
 
 ### The server config
 

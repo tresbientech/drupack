@@ -68,7 +68,7 @@ func runStatus(l Launch, c command, out io.Writer) error {
 		if record.Background {
 			how, logs = " in the background", logsDir(l.Engine, dir)
 		}
-		words := []string{l.Name}
+		words := []string{l.Invoked}
 		for _, word := range record.Words {
 			words = append(words, shellWord(word, runtime.GOOS == "windows"))
 		}
