@@ -121,7 +121,7 @@ jobs:
     runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 180
     # static-php-cli and the sources it fetches run in this job, so its token
-    # cannot write packages. builder-push pushes the image this job builds.
+    # cannot write packages. payload pushes the image this job builds.
     permissions:
       contents: read
       packages: read
@@ -224,18 +224,18 @@ jobs:
           path: runtime-components
           if-no-files-found: error
 
-  # Pushes each builder image linux-runtime built. This job runs no code from the
-  # image or its build, and it names each image itself, so a loaded archive can
-  # push under no other name. Loading and pushing an arm64 image runs nothing, so
-  # one amd64 job pushes every architecture's.
-  builder-push:
-    name: Push the Linux builders
+  # The application (PHP source, vendor, translations, seeded database) is the same
+  # on every platform, so every executable packs this one build. Every run pushes
+  # the job image under the commit for build.yml; publish names it after the version.
+  # It also pushes each builder image linux-runtime built, before it runs any build
+  # output. Loading and pushing an image runs no code from it, and this job names
+  # each image itself, so a loaded archive can push under no other name.
+  payload:
+    name: payload
     needs: [gate, linux-runtime]
-    # A leg that built its image pushes it when another leg failed. A leg that
-    # built nothing uploaded no artifact.
-    if: ${{ !cancelled() && needs.gate.result == 'success' && needs.gate.outputs.linux_runtime != '[]' && github.event.repository.fork == false }}
+    if: needs.gate.outputs.build == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 90
     permissions:
       actions: read
       contents: read
@@ -243,7 +243,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ needs.gate.outputs.demo_repository }}
+          ref: ${{ needs.gate.outputs.demo_ref }}
+          path: demo
+          persist-credentials: false
+
+      # The later steps run the runtime in containers that mount the workspace, so this
+      # step runs first, before any build output runs, and logs out when done. A leg
+      # that built nothing uploaded no artifact.
       - name: Push the builder images
+        if: github.event.repository.fork == false
         env:
           GH_TOKEN: ${{ github.token }}
           LINUX_RUNTIME: ${{ needs.gate.outputs.linux_runtime }}
@@ -262,34 +273,12 @@ jobs:
               *) echo "$name: no machine type for $arch" >&2; exit 1 ;;
             esac
             image=ghcr.io/$GITHUB_REPOSITORY-builder:$(bash runtime/builder/builder-tag.sh "$builder" "$machine")
-            mkdir -p builder-images
-            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" >"builder-images/$name.zip"
-            unzip -q "builder-images/$name.zip" -d "builder-images/$name"
-            zstd -dc "builder-images/$name/image.tar.zst" | docker load
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" >"$RUNNER_TEMP/$name.zip"
+            unzip -q "$RUNNER_TEMP/$name.zip" -d "$RUNNER_TEMP/$name"
+            zstd -dc "$RUNNER_TEMP/$name/image.tar.zst" | docker load
             docker push "$image"
           done
-
-  # The application (PHP source, vendor, translations, seeded database) is the same
-  # on every platform, so every executable packs this one build. Every run pushes
-  # the job image under the commit for build.yml; publish names it after the version.
-  payload:
-    name: payload
-    needs: [gate, linux-runtime]
-    if: needs.gate.outputs.build == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ needs.gate.outputs.demo_repository }}
-          ref: ${{ needs.gate.outputs.demo_ref }}
-          path: demo
-          persist-credentials: false
+          docker logout ghcr.io
 
       - uses: actions/download-artifact@v8
         with:
@@ -782,9 +771,10 @@ jobs:
   # An all-platform dispatch and the weekly schedule also run build/test/qa.sh, one phase
   # per job. upstream.yml dispatches one for each release candidate.
   qa:
-    name: QA ${{ matrix.phase }}
-    needs: [gate, linux-runtime, builder-push]
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.platform == 'all')
+    name: QA
+    needs: [gate, payload]
+    # A fork pushes no builder image, and the demo phase pulls one.
+    if: github.event.repository.fork == false && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.platform == 'all'))
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
@@ -820,7 +810,7 @@ jobs:
           done
 
       # runtime/frankenphp/adapt-test.sh, which the demo phase runs, works in the glibc builder
-      # image that the builder-push job of this run published under its digest tag.
+      # image that the payload job of this run published under its digest tag.
       - name: Pull the glibc builder image
         if: matrix.phase == 'demo'
         env:

@@ -22,7 +22,7 @@ Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstrea
 - The Linux amd64 first job lints and runs the Python unit tests. The Go unit tests run once per system: there, in the Windows build and in the macOS arm64 build.
 - release.yml runs the `full` suite each Monday on `main`, with QA, under a `dev-` version. The weekly run publishes nothing.
 - `publish` needs `sbom`, which needs every build and test job.
-- One builder-push job pushes the Linux builder images every runtime leg built, on amd64. `builder-tag.sh` takes each image's machine type as an argument.
+- payload pushes the Linux builder images every runtime leg built, on amd64. `builder-tag.sh` takes each image's machine type as an argument. QA pulls them, so it needs payload.
 
 ### The upstream run
 
