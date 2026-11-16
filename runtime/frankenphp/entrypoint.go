@@ -307,8 +307,9 @@ func stopGuard() (context.Context, chan<- os.Signal) {
 // os.Interrupt to a process, so there the guard is armed through its channel and
 // Caddy stops directly.
 // It runs in the stop channel's request, where no caller takes an error, so a
-// failure prints and exits with 1.
-func stopServer(guardSignals chan<- os.Signal) {
+// failure prints and exits with 1. Windows ends no child with its parent, so the
+// exit waits for cronEnded, which the armed guard closes by ending the cron child.
+func stopServer(guardSignals chan<- os.Signal, cronEnded <-chan struct{}) {
 	self, err := os.FindProcess(os.Getpid())
 	if err == nil && self.Signal(os.Interrupt) == nil {
 		return
@@ -317,6 +318,7 @@ func stopServer(guardSignals chan<- os.Signal) {
 	case guardSignals <- os.Interrupt:
 	default:
 	}
+	<-cronEnded
 	if err := caddy.Stop(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -440,6 +442,11 @@ func serve(arguments []string) error {
 		cron = []string{executable, "php-cli",
 			filepath.Join(application, "vendor", "drush", "drush", "drush.php"), "cron"}
 	}
+	// cronEnded closes once run returns, after any cron child has exited. Caddy's
+	// signal exit runs OnExit callbacks before os.Exit, and no OS ends a child with
+	// its parent, so the exit waits for it. The guard's deadline bounds the wait.
+	cronEnded := make(chan struct{})
+	caddy.OnExit(func(context.Context) { <-cronEnded })
 	err = run(stopping, siteName(), plan{
 		open:       os.Getenv("DRUPACK_RUNTIME_OPEN"),
 		cron:       cron,
@@ -447,7 +454,8 @@ func serve(arguments []string) error {
 		stopRecord: os.Getenv("DRUPACK_RUNTIME_STOP_RECORD"),
 		firstCron:  cronFirstDelay,
 		cronEvery:  cronInterval,
-	}, os.Stdout, os.Stderr, openBrowser, func() { stopServer(guardSignals) })
+	}, os.Stdout, os.Stderr, openBrowser, func() { stopServer(guardSignals, cronEnded) })
+	close(cronEnded)
 	if err != nil {
 		// A site nothing can stop does not serve.
 		return errors.Join(err, caddy.Stop())
