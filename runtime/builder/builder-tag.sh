@@ -4,11 +4,13 @@ set -euo pipefail
 # A run whose inputs are unchanged finds the image already published and
 # skips the PHP compile.
 #
-# Usage: builder-tag.sh musl|gnu
+# Usage: builder-tag.sh musl|gnu [MACHINE]
+# MACHINE is the uname -m of the host the image runs on, this host's when unset.
 # EXTENSIONS_FILE names the extension list, runtime/extensions/php-extensions.txt by default.
 
-usage='Usage: builder-tag.sh musl|gnu'
+usage='Usage: builder-tag.sh musl|gnu [MACHINE]'
 libc=${1:?$usage}
+machine=${2:-$(uname -m)}
 directory=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 . "$directory/builder-inputs.sh"
 
@@ -20,4 +22,4 @@ extension_libs=$(bash "$directory/../extensions/extensions-list.sh" "$directory/
 # The scripts that compile the image change what it holds.
 recipe=$(cat "$directory/build-builder.sh" "$directory/spc-craft.sh" "$directory/fetch-spc.sh" "$directory/spc-sqlite.patch" | sha256sum)
 printf '%s\n' "$frankenphp_commit" "$spc_commit" "$toolchain_base" "$php_version" "$extensions" "$extension_libs" \
-    "$libc" "$(uname -m)" "$recipe" | sha256sum | cut -c 1-16
+    "$libc" "$machine" "$recipe" | sha256sum | cut -c 1-16

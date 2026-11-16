@@ -1,0 +1,71 @@
+name: Site build
+
+# Builds the pinned Drupacked Demo commit through build.yml, the workflow site
+# repositories call, in the job image a release.yml run pushed under this commit.
+# A release's own run does not wait for it.
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      repository: ${{ steps.demo.outputs.repository }}
+      ref: ${{ steps.demo.outputs.ref }}
+      built: ${{ steps.built.outputs.built }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: demo
+        name: Name the demo commit
+        run: |
+          . build/release/demo-pin.sh
+          printf 'repository=%s\nref=%s\n' "$demo_repository" "$demo_ref" >>"$GITHUB_OUTPUT"
+
+      # A main push that changes documentation alone builds nothing, so its run
+      # pushes no job image.
+      - id: built
+        name: Find the job image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          RUN: ${{ github.event.workflow_run.id }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          built=true
+          if [ "$EVENT" = workflow_run ]; then
+            payload=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN/jobs?per_page=100" --jq '.jobs[] | select(.name == "payload") | .conclusion')
+            case "$CONCLUSION $RUN_EVENT $payload" in
+              'success push success' | 'success schedule success') ;;
+              *) built=false ;;
+            esac
+          fi
+          echo "built=$built" >>"$GITHUB_OUTPUT"
+
+  build:
+    name: Drupacked Demo through build.yml
+    needs: pin
+    if: needs.pin.outputs.built == 'true'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/build.yml
+    with:
+      repository: ${{ needs.pin.outputs.repository }}
+      ref: ${{ needs.pin.outputs.ref }}
+      # The macOS and Windows runtime files of this commit are not published.
+      platforms: linux-amd64
+      # release.yml's Linux jobs test this build in full; this run proves the entry point a site calls.
+      suite: smoke

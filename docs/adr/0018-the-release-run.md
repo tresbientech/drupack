@@ -21,7 +21,8 @@ Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstrea
 - macOS arm64 runs the whole suite. macOS amd64 runs the start cases in its build job.
 - The Linux amd64 first job lints and runs the Python unit tests. The Go unit tests run once per system: there, in the Windows build and in the macOS arm64 build.
 - release.yml runs the `full` suite each Monday on `main`, with QA, under a `dev-` version. The weekly run publishes nothing.
-- `publish` needs the test jobs.
+- `publish` needs `sbom`, which needs every build and test job.
+- One builder-push job pushes the Linux builder images every runtime leg built, on amd64. `builder-tag.sh` takes each image's machine type as an argument.
 
 ### The upstream run
 
@@ -38,7 +39,8 @@ Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstrea
 
 - The job dispatches `release.yml` on every platform with `version`. The run is named `Release candidate VERSION`.
 - A bump candidate runs the `full` suite: every platform runs every case, except macOS amd64, which runs the start cases in each profile. A named version runs `gate`. Linux amd64, macOS arm64 and Windows amd64 run every case. Linux arm64, Windows arm64 and macOS amd64 run the start cases.
-- The demo build through build.yml and the QA demo and host builds run the start cases. The Linux jobs test the same file in full.
+- The QA demo and host builds run the start cases. The Linux jobs test the same file in full.
+- A release's run calls no `build.yml`. `site-build.yml` calls it after each successful push or weekly run on `main` that built a job image.
 - `build/release/wait-for-run.sh` finds the run by the candidate's commit and polls it. It names each failed job and, once the run completes, reruns the failed jobs once.
 - The candidate's `qa` jobs are the release's QA. No local run precedes a release.
 - On green, one atomic push sends `main` as a fast-forward and the next tag to drupal.org. A second push sends both to GitHub. The job then deletes the branch.

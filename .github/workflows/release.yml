@@ -225,56 +225,49 @@ jobs:
           if-no-files-found: error
 
   # Pushes each builder image linux-runtime built. This job runs no code from the
-  # image or its build, and it names the image itself, so a loaded archive can
-  # push under no other name.
+  # image or its build, and it names each image itself, so a loaded archive can
+  # push under no other name. Loading and pushing an arm64 image runs nothing, so
+  # one amd64 job pushes every architecture's.
   builder-push:
-    name: Push the Linux ${{ matrix.arch }} ${{ matrix.libc }} builder
+    name: Push the Linux builders
     needs: [gate, linux-runtime]
-    # A leg that built its image pushes it when another leg failed. The artifact
-    # lookup below skips a leg that built nothing.
+    # A leg that built its image pushes it when another leg failed. A leg that
+    # built nothing uploaded no artifact.
     if: ${{ !cancelled() && needs.gate.result == 'success' && needs.gate.outputs.linux_runtime != '[]' && github.event.repository.fork == false }}
-    # builder-tag.sh digests the machine type, so the leg runs on its image's architecture.
-    runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       actions: read
       contents: read
       packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.gate.outputs.linux_runtime) }}
     steps:
       - uses: actions/checkout@v7
 
-      # linux-runtime uploads an image only when it built one.
-      - id: artifact
-        name: Look for a built image
+      - name: Push the builder images
         env:
           GH_TOKEN: ${{ github.token }}
-          NAME: builder-linux-${{ matrix.arch }}-${{ matrix.libc }}
-          BUILDER: ${{ matrix.builder }}
+          LINUX_RUNTIME: ${{ needs.gate.outputs.linux_runtime }}
         run: |
-          count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$NAME" --jq '.total_count')
-          if [ "$count" != 0 ]; then
-            printf 'image=ghcr.io/%s-builder:%s\n' "$GITHUB_REPOSITORY" "$(bash runtime/builder/builder-tag.sh "$BUILDER")" >>"$GITHUB_OUTPUT"
-          fi
-
-      - if: steps.artifact.outputs.image != ''
-        uses: actions/download-artifact@v8
-        with:
-          name: builder-linux-${{ matrix.arch }}-${{ matrix.libc }}
-          path: builder-image
-
-      - name: Push the builder image
-        if: steps.artifact.outputs.image != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-          IMAGE: ${{ steps.artifact.outputs.image }}
-        run: |
-          zstd -dc builder-image/image.tar.zst | docker load
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          docker push "$IMAGE"
+          jq -r '.[] | "\(.arch) \(.libc) \(.builder)"' <<<"$LINUX_RUNTIME" | while read -r arch libc builder; do
+            name=builder-linux-$arch-$libc
+            id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$name" --jq '.artifacts[0].id // empty')
+            if [ -z "$id" ]; then
+              echo "$name: no image built"
+              continue
+            fi
+            case $arch in
+              amd64) machine=x86_64 ;;
+              arm64) machine=aarch64 ;;
+              *) echo "$name: no machine type for $arch" >&2; exit 1 ;;
+            esac
+            image=ghcr.io/$GITHUB_REPOSITORY-builder:$(bash runtime/builder/builder-tag.sh "$builder" "$machine")
+            mkdir -p builder-images
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" >"builder-images/$name.zip"
+            unzip -q "builder-images/$name.zip" -d "builder-images/$name"
+            zstd -dc "builder-images/$name/image.tar.zst" | docker load
+            docker push "$image"
+          done
 
   # The application (PHP source, vendor, translations, seeded database) is the same
   # on every platform, so every executable packs this one build. Every run pushes
@@ -383,25 +376,6 @@ jobs:
           name: variant-payload-archive
           path: dist/variant/payload
           if-no-files-found: error
-
-  # The demo goes through the workflow site repositories call, in the image the
-  # payload job pushed. That image carries the amd64 glibc runtime only when the
-  # run builds Linux amd64.
-  demo:
-    name: Drupacked Demo through build.yml
-    needs: [gate, payload]
-    if: contains(needs.gate.outputs.linux, 'amd64')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/build.yml
-    with:
-      repository: ${{ needs.gate.outputs.demo_repository }}
-      ref: ${{ needs.gate.outputs.demo_ref }}
-      # The macOS and Windows runtime files of this run are not published yet.
-      platforms: linux-amd64
-      # The Linux jobs test this executable's build in full; this run proves the entry point a site calls.
-      suite: smoke
 
   linux:
     name: Linux ${{ matrix.arch }} (${{ matrix.shard || 'start cases' }})
@@ -907,7 +881,7 @@ jobs:
   # The scans read the downloaded folders as they land: the merge keeps each
   # component's name, version and identifiers, never its file path.
   sbom:
-    needs: [gate, linux, windows, windows-test, macos-arm64, macos-amd64, macos-test, demo]
+    needs: [gate, linux, windows, windows-test, macos-arm64, macos-amd64, macos-test]
     if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' }}
     runs-on: ubuntu-24.04
     permissions:
@@ -967,7 +941,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [gate, linux, windows, windows-test, macos-arm64, macos-amd64, macos-test, demo, sbom]
+    needs: [gate, sbom]
     if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' }}
     runs-on: ubuntu-24.04
     permissions:
