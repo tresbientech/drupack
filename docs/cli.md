@@ -63,7 +63,7 @@ drupack --version
 `drupack` serves a Drupal project folder under the folder's own settings. It
 has no Site data and takes none of the site options. Its state lives in the
 cache, keyed by the folder, so the folder gains no file. `drupack --version`
-names FrankenPHP, PHP, Caddy and SQLite alone.
+names FrankenPHP, PHP, Caddy, SQLite and the Composer it carries.
 
 An option takes `--name value` or `--name=value`. A rejected value prints its
 reason on standard error and exits 1.

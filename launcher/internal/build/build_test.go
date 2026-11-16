@@ -552,7 +552,7 @@ func TestTheEnginePlanPacksAFilePerLibcAndPlatformAndReadsNoSite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"stage the engine files", "archive the engine files", "compress the engine files",
+	want := []string{"stage the engine files", "archive the engine files", "compress the engine files", "record the Composer version",
 		"pack the engine executable for linux-amd64", "pack the engine executable for linux-amd64-musl",
 		"pack the engine executable for linux-arm64", "pack the engine executable for linux-arm64-musl"}
 	if got := names(plan); !reflect.DeepEqual(got, want) {
@@ -631,7 +631,7 @@ func TestAPayloadOnlyEnginePlanExportsTheArchiveAndPacksNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"stage the engine files", "archive the engine files", "compress the engine files", "export the engine payload"}
+	want := []string{"stage the engine files", "archive the engine files", "compress the engine files", "record the Composer version", "export the engine payload"}
 	if got := names(plan); !reflect.DeepEqual(got, want) {
 		t.Fatalf("steps %v, want %v", got, want)
 	}

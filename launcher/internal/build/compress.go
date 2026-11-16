@@ -10,11 +10,13 @@ import (
 
 // Names in the application payload: build/pack/app-payload.sh writes the tar and the checksum,
 // compressPayload the compressed copy every pack step carries, NodeDirName holds Node.
+// The engine payload also holds ComposerVersionName, the release of the phar it carries.
 const (
-	PayloadName    = "app-payload.tar.zst"
-	ChecksumName   = "app_checksum.txt"
-	NodeDirName    = "node"
-	payloadTarName = "app-payload.tar"
+	PayloadName         = "app-payload.tar.zst"
+	ChecksumName        = "app_checksum.txt"
+	ComposerVersionName = "composer_version.txt"
+	NodeDirName         = "node"
+	payloadTarName      = "app-payload.tar"
 )
 
 // compressPayload compresses payload/app-payload.tar once into payload/app-payload.tar.zst.

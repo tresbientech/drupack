@@ -170,6 +170,11 @@ func resolve(o options) (packing, error) {
 	p := packing{options: o, arch: arch, entry: entryName(platform), libc: libc, checksum: string(bytes.TrimSpace(checksum))}
 	p.site = site{name: build.EngineName, version: o.version, engine: true, musl: libc == "musl"}
 	if o.engine {
+		composer, err := os.ReadFile(filepath.Join(o.payload, build.ComposerVersionName))
+		if err != nil {
+			return packing{}, err
+		}
+		p.site.components = []string{"Composer " + string(composer)}
 		return p, nil
 	}
 	described, err := siteconfig.Load(o.payload)

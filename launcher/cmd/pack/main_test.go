@@ -45,6 +45,8 @@ func payloadDir(t *testing.T, siteJSON string, nodeFiles ...string) string {
 	files := map[string]string{build.PayloadName: "compressed", build.ChecksumName: "abc123\n"}
 	if siteJSON != "" {
 		files[siteconfig.OutputName] = siteJSON
+	} else {
+		files[build.ComposerVersionName] = "2.11.2"
 	}
 	for _, name := range nodeFiles {
 		files[filepath.Join(build.NodeDirName, name)] = "archive"
@@ -217,7 +219,7 @@ func packedSource(t *testing.T, directory string, o options) string {
 
 func TestTheEngineExecutableCarriesTheEngineMark(t *testing.T) {
 	generated := packedSource(t, payloadDir(t, ""), options{target: "linux-amd64", engine: true})
-	for _, want := range []string{"var siteName = \"drupack\"", "var siteVersion = \"0.5.0\"", "var engine = true"} {
+	for _, want := range []string{"var siteName = \"drupack\"", "var siteVersion = \"0.5.0\"", "var siteComponents = \"Composer 2.11.2\"", "var engine = true"} {
 		if !strings.Contains(generated, want) {
 			t.Fatalf("payload.go does not carry %q:\n%s", want, generated)
 		}

@@ -1,9 +1,12 @@
 package build
 
 import (
+	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/cache"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
@@ -36,11 +39,12 @@ func NewEnginePlan(r Request) (Plan, error) {
 		{Name: "stage the engine files", Func: func(io.Writer) error { return stageEngine(r.Engine, r.Composer, files) }},
 		{Name: "archive the engine files", Command: []string{"bash", filepath.Join(r.Engine, "build", "pack", "app-payload.sh"), files, payload}},
 		{Name: "compress the engine files", Func: func(io.Writer) error { return compressPayload(payload) }},
+		{Name: "record the Composer version", Func: func(io.Writer) error { return recordComposerVersion(r.PHP, r.Composer, payload) }},
 	}}
 	if r.PayloadOnly {
 		plan.Steps = append(plan.Steps, Step{Name: "export the engine payload", Func: func(io.Writer) error {
 			return copyInto(filepath.Join(r.Output, "payload"),
-				filepath.Join(payload, PayloadName), filepath.Join(payload, ChecksumName))
+				filepath.Join(payload, PayloadName), filepath.Join(payload, ChecksumName), filepath.Join(payload, ComposerVersionName))
 		}})
 		return plan, nil
 	}
@@ -63,4 +67,23 @@ func stageEngine(engine, composer, files string) error {
 		}
 	}
 	return copyFile(composer, filepath.Join(files, cache.ComposerPhar))
+}
+
+// composerRelease reads the release from the first line of composer --version.
+var composerRelease = regexp.MustCompile(`^Composer version (\S+)`)
+
+// recordComposerVersion writes the release of the composer phar into the engine
+// payload, so pack names it on --version without starting PHP.
+func recordComposerVersion(php, composer, payload string) error {
+	command := exec.Command(php, "php-cli", composer, "--version", "--no-ansi")
+	command.Env = append(os.Environ(), "PHPRC="+filepath.Dir(php))
+	out, err := command.Output()
+	if err != nil {
+		return fmt.Errorf("composer --version: %w", err)
+	}
+	release := composerRelease.FindSubmatch(out)
+	if release == nil {
+		return fmt.Errorf("composer --version names no release: %q", out)
+	}
+	return os.WriteFile(filepath.Join(payload, ComposerVersionName), release[1], 0o600)
 }

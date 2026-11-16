@@ -193,9 +193,9 @@ class EngineExecutable(harness.ConformanceCase):
             self.assertEqual(response.status, 200)
         self.assertIn(f"URL:     https://127.0.0.1:{port}\n", log.read_text(errors="replace"))
 
-    def test_version_names_the_runtime_components_alone(self):
+    def test_version_names_the_runtime_components_and_composer(self):
         lines = version_cases.version_lines(self.engine)[1:]
-        self.assertEqual([line.split(" ")[0] for line in lines], list(version_cases.RUNTIME_COMPONENTS))
+        self.assertEqual([line.split(" ")[0] for line in lines], [*version_cases.RUNTIME_COMPONENTS, "Composer"])
         for line in lines:
             self.assertRegex(line, rf" {version_cases.RELEASE}$")
 
