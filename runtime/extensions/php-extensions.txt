@@ -5,20 +5,22 @@
 # runtime/extensions/check-extensions.py fails when a site's composer.lock declares an
 # extension this file omits.
 #
-# Not shipped. bcmath, ftp, mbregex, readline and xz reach only guarded
-# call sites, and the Windows build runs without them today. pathauto asks for
-# mb_eregi_replace and falls back to preg_replace. calendar, exif,
-# shmop, sockets, sysvmsg, sysvsem, sysvshm, tidy and zstd have no call site at
-# all. amqp, ast, dba, gettext, gmp, igbinary, imagick, ldap, lz4, memcached,
-# mysqli, parallel, protobuf, redis, soap, ssh2, xlswriter, xmlreader and
-# xsl serve modules or database drivers Drupack does not ship.
+# Not shipped. ftp, mbregex, readline and xz reach only guarded call sites, and
+# the Windows build runs without them today. pathauto asks for mb_eregi_replace
+# and falls back to preg_replace. calendar, shmop, sockets, sysvmsg, sysvsem,
+# sysvshm, tidy and zstd have no call site at all. amqp, ast, dba, gettext, gmp,
+# igbinary, imagick, ldap, lz4, memcached, mysqli, parallel, protobuf, redis,
+# soap, ssh2, xlswriter and xsl serve modules or database drivers Drupack does
+# not ship.
 
 apcu             # Drupal file cache and class loader cache
+bcmath           # drupal/commerce requires it; physical and currency call it
 brotli           # Caddy's brotli module; core AssetDumper writes .br assets
 bz2              # core Tar archiver and config import read .tar.bz2
 ctype            # Drupal core, webmozart/assert
 curl             # Drupal HTTP client; the build fetches translations with it
 dom              # Drupal core, Drush, svg-sanitize, html5
+exif             # geolocation, geocoder and ldap read image metadata with it
 fileinfo         # MIME detection; mcp/sdk declares it
 filter           # Drupal core
 gd               # Drupal core image toolkit
@@ -44,6 +46,7 @@ sodium           # symfony/uid
 sqlite3          # pdo_sqlite needs it
 tokenizer        # Drupal core, nikic/php-parser, psysh
 xml              # Drupal core
+xmlreader        # phpoffice/phpspreadsheet, migrate_plus's XML parser, tmgmt's XLIFF
 xmlwriter        # simple_sitemap, which Drupal CMS site templates require
 yaml             # core InfoParserDynamic parses .info.yml with it, Symfony otherwise
 zip              # core Archiver; Composer unpacks dist archives in the build and drupack composer
