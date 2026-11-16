@@ -7,7 +7,7 @@ This package installs the `drupack` executable into a Composer project.
 ## Install
 
 ```sh
-composer require drupal/drupack
+composer require 'drupal/drupack:^1.0@RC'
 ./drupack
 ```
 

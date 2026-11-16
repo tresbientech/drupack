@@ -28,8 +28,11 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 - The engine build copies the phar the job image pins, the one site builds install with, beside the engine's application files.
 - The working directory holds a Drupal project. Its `composer.lock` names a `drupal/core` release. With no lock, its `composer.json` requires `drupal/core`, `drupal/core-recommended` or `drupal/core-composer-scaffold`, or sets `extra.drupal-scaffold`. A `type` starting with `drupal-` names a Drupal package, such as core's own `composer.json`, and no project.
 - The command refuses `-d`, `--working-dir` and a non-blank `COMPOSER`, before the options end at `--`. Each points Composer at another project than the one checked.
-- It refuses `global`, `create-project`, `self-update` and `selfupdate`, under any prefix in any case, since Composer runs a command from a unique abbreviation.
-- `create-project` writes a new directory, and the engine stays one per project, inside it. A template starts as a clone or a download, then `composer install`.
+- It refuses `global`, `self-update` and `selfupdate`, under any prefix in any case, since Composer runs a command from a unique abbreviation.
+- `create-project` checks its package in place of the working directory, from a prefix of two letters on. `composer show --available --format=json` reads it from an empty directory, in the repositories `create-project` reads.
+- The package's `type` names no Drupal package, and it requires `drupal/core`, `drupal/core-recommended` or `drupal/core-composer-scaffold`. The report carries no `extra`, so `extra.drupal-scaffold` alone names no such package.
+- `create-project` refuses a missing package, `--repository`, `--repository-url` and `--add-repository`. A version word after the directory wins over one joined to the package, as in Composer.
+- The lookup reads the release `show` picks, and `create-project` picks one by stability. A project package keeps its Drupal requirements across its releases.
 - The project's scripts and plugins run as the reader's own code. The check names the project, and limits nothing they run.
 
 ### composer.json settings

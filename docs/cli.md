@@ -149,10 +149,25 @@ the working directory. The working directory holds a Drupal project:
   `drupal-core` or `drupal-module` do
 
 It refuses `-d`, `--working-dir` and a non-blank `COMPOSER`, which point
-Composer at another project. It refuses `global`, `create-project` and
-`self-update`, under any prefix, in any case. A template or a distribution starts as a
-clone or a download, then `drupack composer install`. A Drupack release moves
-the Composer it carries.
+Composer at another project. It refuses `global` and `self-update`, under any
+prefix, in any case. A Drupack release moves the Composer it carries.
+
+`drupack composer create-project PACKAGE [DIRECTORY [VERSION]]` creates a
+project in a new directory, from any working directory. `composer show` reads
+the package first. The command runs for a package that names a Drupal project:
+
+- its `type` names no Drupal package
+- it requires `drupal/core`, `drupal/core-recommended` or
+  `drupal/core-composer-scaffold`
+
+`--repository`, `--repository-url` and `--add-repository` are refused, so the
+check and the install read the same repositories.
+
+```sh
+./drupack composer create-project drupal/cms my-site
+cd my-site
+../drupack
+```
 
 `drupack export` runs Tome at the static URL the last start served. A project
 no start has served needs `--uri`.

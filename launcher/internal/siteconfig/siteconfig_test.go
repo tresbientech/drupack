@@ -490,3 +490,23 @@ func TestCheckDrupalReadsTheLockOrTheComposerJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckProjectPackageReadsTheTypeAndRequirements(t *testing.T) {
+	cases := []struct {
+		name, kind string
+		require    map[string]any
+		refuses    bool
+	}{
+		{name: "drupal/cms", kind: "project", require: map[string]any{"drupal/core-recommended": "^11.5"}},
+		{name: "acme/scaffolded", kind: "project", require: map[string]any{"drupal/core-composer-scaffold": "^11"}},
+		{name: "symfony/skeleton", kind: "project", require: map[string]any{"symfony/flex": "^2"}, refuses: true},
+		{name: "acme/bare", kind: "project", refuses: true},
+		{name: "acme/profile", kind: "drupal-profile", require: map[string]any{"drupal/core": "^11"}, refuses: true},
+	}
+	for _, c := range cases {
+		err := siteconfig.CheckProjectPackage(c.name, c.kind, c.require)
+		if want := c.name + " creates no Drupal project: a Drupal project's type names no Drupal package, and it requires drupal/core, drupal/core-recommended, drupal/core-composer-scaffold"; c.refuses && (err == nil || err.Error() != want) || !c.refuses && err != nil {
+			t.Errorf("CheckProjectPackage(%s) = %v, refuses %v", c.name, err, c.refuses)
+		}
+	}
+}

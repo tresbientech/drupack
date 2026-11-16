@@ -1190,6 +1190,35 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertTrue((fixture / "vendor" / "autoload.php").is_file())
         self.assertTrue((fixture / "vendor" / "acme" / "module" / "composer.json").is_file())
 
+    def test_composer_creates_a_drupal_project_offline(self):
+        # Path repositories in a Composer home of its own, with Packagist off: the package
+        # lookup and create-project both read them, and no network.
+        fixture = harness.fresh_dir(self.class_dir / "create-project")
+        manifests = {
+            "drupal-starter": {"name": "acme/drupal-starter", "type": "project", "version": "1.0.0",
+                               "require": {"drupal/core-recommended": "11.4.0"}},
+            "core-recommended": {"name": "drupal/core-recommended", "type": "library", "version": "11.4.0"},
+            "plain-starter": {"name": "acme/plain-starter", "type": "project", "version": "1.0.0"},
+        }
+        repositories = []
+        for directory, manifest in manifests.items():
+            package = (fixture / "packages" / directory).resolve()
+            package.mkdir(parents=True)
+            (package / "composer.json").write_text(json.dumps(manifest))
+            repositories.append({"type": "path", "url": str(package), "options": {"symlink": False}})
+        home = (fixture / "composer-home").resolve()
+        home.mkdir()
+        (home / "config.json").write_text(json.dumps({"repositories": repositories + [{"packagist.org": False}]}))
+        env = dict(os.environ, COMPOSER_HOME=str(home), COMPOSER_NO_INTERACTION="1")
+        created = self.engine_run("composer", "create-project", "acme/drupal-starter", "site", cwd=fixture, env=env)
+        self.assertEqual(created.returncode, 0, created.stdout + created.stderr)
+        self.assertTrue((fixture / "site" / "vendor" / "autoload.php").is_file())
+        refused = self.engine_run("composer", "create-project", "acme/plain-starter", "plain", cwd=fixture, env=env)
+        self.assertNotEqual(refused.returncode, 0, refused.stdout + refused.stderr)
+        self.assertIn("acme/plain-starter creates no Drupal project: a Drupal project's type names no Drupal "
+                      "package, and it requires drupal/core", refused.stdout + refused.stderr)
+        self.assertFalse((fixture / "plain").exists())
+
     def test_the_drupack_package_runs_its_installer_after_composer(self):
         # Path repositories with Packagist off, so Composer reads no network. composer/semver
         # comes from the engine's composer.phar, and drupack-install refuses dev-main before

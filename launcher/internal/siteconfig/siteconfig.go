@@ -376,6 +376,31 @@ func CheckDrupal(project string) error {
 	return nil
 }
 
+// namesDrupal reports a Drupal project's composer.json: its type names no Drupal
+// package, and it requires one of drupalPackages or sets extra.drupal-scaffold.
+func namesDrupal(kind string, require map[string]any, scaffold bool) bool {
+	// drupal/core and each module, theme, profile or recipe carry a composer.json of
+	// their own type, which requires the scaffold too.
+	if strings.HasPrefix(kind, "drupal-") {
+		return false
+	}
+	for _, name := range drupalPackages {
+		if _, required := require[name]; required {
+			return true
+		}
+	}
+	return scaffold
+}
+
+// CheckProjectPackage refuses a create-project package that names no Drupal project.
+// composer show, which reads its type and requirements, reports no extra.
+func CheckProjectPackage(name, kind string, require map[string]any) error {
+	if !namesDrupal(kind, require, false) {
+		return fmt.Errorf("%s creates no Drupal project: a Drupal project's type names no Drupal package, and it requires %s", name, strings.Join(drupalPackages, ", "))
+	}
+	return nil
+}
+
 const tomePackage = "drupal/tome"
 
 // CheckStatic refuses extra.drupack.static on a project whose composer.lock names no
@@ -490,18 +515,10 @@ func ReadComposer(project string, mode Mode) (Composer, error) {
 	if err != nil {
 		return Composer{}, err
 	}
-	// require is read to name Drupal alone, so a value Composer would refuse names none.
+	// type and require are read to name Drupal alone, so a value Composer would refuse names none.
+	kind, _ := composer["type"].(string)
 	require, _ := composer["require"].(map[string]any)
-	settings := Composer{}
-	// drupal/core and each module, theme, profile or recipe carry a composer.json of
-	// their own type, which requires the scaffold too.
-	if kind, _ := composer["type"].(string); !strings.HasPrefix(kind, "drupal-") {
-		settings.NamesDrupal = extra["drupal-scaffold"] != nil
-		for _, name := range drupalPackages {
-			_, required := require[name]
-			settings.NamesDrupal = settings.NamesDrupal || required
-		}
-	}
+	settings := Composer{NamesDrupal: namesDrupal(kind, require, extra["drupal-scaffold"] != nil)}
 	if settings.Docroot, err = docroot(file, locations["web-root"], mode); err != nil {
 		return Composer{}, err
 	}

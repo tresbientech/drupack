@@ -68,7 +68,7 @@ The public command-line interface that exposes the Drush command set for a Packa
 _Avoid_: `dr`, the name of Drupal core's own command line.
 
 **`composer` command**:
-The Engine executable's public command that runs the Composer it carries, on the bundled PHP, in the Drupal project in the working directory. A Packaged site has no such command.
+The Engine executable's public command that runs the Composer it carries, on the bundled PHP, in the Drupal project in the working directory. Its `create-project` creates a Drupal project in a new directory instead. A Packaged site has no such command.
 _Avoid_: the host's Composer, global Composer.
 
 **`clean` command**:
