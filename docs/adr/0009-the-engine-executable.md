@@ -27,7 +27,8 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 - `drupack composer ARGS` runs the engine's `composer.phar` on the runtime's `php-cli`, with the environment `drupack php` gets. A site executable has no such command.
 - The engine build copies the phar the job image pins, the one site builds install with, beside the engine's application files.
 - The working directory holds a `composer.json`. Its `composer.lock` names a `drupal/core` release. With no lock, its `type` does not start with `drupal-`, which core's own `composer.json` and each module's carry. A folder made with `create-project --no-install` holds no lock, and its project package may require core through a profile only.
-- The command refuses `-d`, `--working-dir` and a non-blank `COMPOSER`, before the options end at `--`. Each points Composer at another project than the one checked.
+- The command refuses `-d`, `--working-dir` and a non-blank `COMPOSER`, before the options end at `--`. Each points Composer at another project than the one checked. `-d` counts inside a cluster such as `-nd`. A short option that takes a value in any Composer command reads the rest of its word, as `-s` does in `-sdev`.
+- The command word is the first word with no leading dash, also after `--`, as Composer reads it.
 - It refuses `global`, `self-update` and `selfupdate`, under any prefix in any case, since Composer runs a command from a unique abbreviation.
 - `create-project`, from a prefix of two letters on, runs from any working directory with no check of its package. A distribution's project package, such as `farmos/project`, requires Drupal core through its profile only.
 - The project's scripts and plugins run as the reader's own code.

@@ -45,6 +45,8 @@ func TestEngineComposerRefusesAnotherProjectAndItsOwnUpdate(t *testing.T) {
 		{[]string{"-d", "/elsewhere", "install"}, "and refuses -d."},
 		{[]string{"install", "-d/elsewhere"}, "and refuses -d/elsewhere."},
 		{[]string{"-nd", "/elsewhere", "install"}, "and refuses -nd."},
+		{[]string{"install", "-vd", "/elsewhere"}, "and refuses -vd."},
+		{[]string{"--", "-d", "global", "about"}, "refuses global"},
 		{[]string{"--working-dir", "/elsewhere", "install"}, "and refuses --working-dir."},
 		{[]string{"--working-dir=/elsewhere", "install"}, "and refuses --working-dir=/elsewhere."},
 	}
@@ -67,7 +69,7 @@ func TestEngineComposerRefusesAnotherProjectAndItsOwnUpdate(t *testing.T) {
 
 func TestEngineComposerPassesWordsAfterTheOptionsEnd(t *testing.T) {
 	f := newProject(t, drupalComposer)
-	for _, words := range [][]string{{"run-script", "task", "--", "-d", "global"}, {"search", "drupal"}, {"-n", "show"}, {"config", "--global", "github-oauth.github.com"}, {"c", "drupal/cms"}} {
+	for _, words := range [][]string{{"run-script", "task", "--", "-d", "global"}, {"install", "--", "-dother"}, {"search", "drupal"}, {"-n", "show"}, {"config", "--global", "github-oauth.github.com"}, {"c", "drupal/cms"}} {
 		if _, err := engineComposer(Facts{Launch: f.launch()}, parseLine(t, true, append([]string{"composer"}, words...)...), f.project); err != nil {
 			t.Errorf("composer %q: %v", words, err)
 		}
@@ -81,12 +83,33 @@ func TestEngineComposerCreatesAProjectFromAnyDirectory(t *testing.T) {
 		"cr acme/x":                  t.TempDir(),
 		"create-project --repository https://e.x acme/x": t.TempDir(),
 		"create-project farmos/project:4.x-dev farm":     f.project,
+		"-- create-project acme/x":                       t.TempDir(),
+		"create-project -sdev acme/x":                    t.TempDir(),
 	} {
 		fields := strings.Fields(words)
 		got, err := engineComposer(Facts{Launch: f.launch()}, parseLine(t, true, append([]string{"composer"}, fields...)...), cwd)
 		want := append([]string{"drupack", "php-cli", filepath.Join("/cache/app", "composer.phar")}, fields...)
 		if err != nil || got.Path != "/runtime/frankenphp" || !slices.Equal(got.Args, want) {
 			t.Errorf("composer %s: (%q, %q, %v), want /runtime/frankenphp %q", words, got.Path, got.Args, err, want)
+		}
+	}
+}
+
+func TestComposerRefusalFindsTheCommandComposerRuns(t *testing.T) {
+	cases := []struct {
+		words   []string
+		command string
+	}{
+		{[]string{"show", "-fdjson"}, "show"},
+		{[]string{"_complete", "-idrupal"}, "_complete"},
+		{[]string{"run-script", "task", "--", "-d", "global"}, "run-script"},
+		// Composer runs its list command for an empty command word.
+		{[]string{"", "global"}, ""},
+	}
+	for _, c := range cases {
+		command, err := composerRefusal(Launch{Invoked: "./drupack", Name: "drupack"}, c.words)
+		if err != nil || command != c.command {
+			t.Errorf("%q: (%q, %v), want (%q, nil)", c.words, command, err, c.command)
 		}
 	}
 }

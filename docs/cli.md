@@ -147,8 +147,13 @@ the working directory. The working directory holds a `composer.json`, and:
   `drupal-module` do
 
 It refuses `-d`, `--working-dir` and a non-blank `COMPOSER`, which point
-Composer at another project. It refuses `global` and `self-update`, under any
-prefix, in any case. A Drupack release moves the Composer it carries.
+Composer at another project. `-d` counts inside a cluster of short options, such
+as `-nd`. A short option that takes a value in any Composer command reads the
+rest of its word, as `-s` does in `-sdev`. No option is checked after `--`.
+
+The command is the first word with no leading dash, also after `--`. It refuses
+`global` and `self-update`, under any prefix, in any case. A Drupack release
+moves the Composer it carries.
 
 `drupack composer create-project PACKAGE [DIRECTORY [VERSION]]` creates a
 project in a new directory, from any working directory. It takes

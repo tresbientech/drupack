@@ -38,26 +38,24 @@ func engineComposer(f Facts, c command, cwd string) (Command, error) {
 
 // composerRefusal refuses the words and the variable that point Composer at another
 // project than the one CheckDrupal reads, and returns the command word in lower case.
-// The reader types both. Composer stops reading options at "--", and runs a command
-// from any prefix of its name, in any case.
+// The reader types both. Composer stops reading options at "--", takes the first word
+// with no leading dash as the command, also after "--", and runs a command from any
+// prefix of its name, in any case.
 func composerRefusal(l Launch, words []string) (string, error) {
 	// Composer reads composer.json when COMPOSER is empty or blank.
 	if file, _ := l.lookup("COMPOSER"); strings.TrimSpace(file) != "" {
 		return "", fmt.Errorf("%s composer refuses a set COMPOSER, which names another file than the project's composer.json. Unset it.", l.Invoked)
 	}
-	command := ""
+	command, found, options := "", false, true
 	for _, word := range words {
-		if word == "--" {
-			break
-		}
 		switch {
-		case word == "--working-dir", strings.HasPrefix(word, "--working-dir="),
-			// A short option word holding d names the working directory: -d, -dDIR, or a
-			// cluster such as -nd.
-			!strings.HasPrefix(word, "--") && strings.HasPrefix(word, "-") && strings.Contains(word, "d"):
+		case word == "--":
+			options = false
+		case options && strings.HasPrefix(word, "-") && namesWorkingDir(word):
 			return "", fmt.Errorf("%s composer runs in the working directory, and refuses %s. Run it from the project's root.", l.Invoked, word)
-		case command == "" && !strings.HasPrefix(word, "-"):
-			command = strings.ToLower(word)
+		// An empty word is Composer's command too: it runs list.
+		case !found && !strings.HasPrefix(word, "-"):
+			command, found = strings.ToLower(word), true
 		}
 	}
 	for _, refused := range refusedComposerCommands {
@@ -68,4 +66,20 @@ func composerRefusal(l Launch, words []string) (string, error) {
 		}
 	}
 	return command, nil
+}
+
+// shortValueOptions are the short options that take a value in any Composer command,
+// Symfony's _complete included.
+const shortValueOptions = "sflaticS"
+
+// namesWorkingDir reports an option word that names the working directory, as
+// Composer reads it: --working-dir, -d, or a cluster that reaches d before a short
+// option taking a value, which takes the rest of the word: -nd names it, -sdev does not.
+func namesWorkingDir(word string) bool {
+	if strings.HasPrefix(word, "--") {
+		return word == "--working-dir" || strings.HasPrefix(word, "--working-dir=")
+	}
+	cluster := word[1:]
+	i := strings.IndexAny(cluster, "d"+shortValueOptions)
+	return i >= 0 && cluster[i] == 'd'
 }
