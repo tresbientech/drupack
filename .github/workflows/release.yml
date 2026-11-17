@@ -258,27 +258,48 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           LINUX_RUNTIME: ${{ needs.gate.outputs.linux_runtime }}
+        # After docker load, docker uploads a layer before it learns ghcr holds it.
+        # One lane per architecture runs in parallel, so a lane's second image
+        # finds the base layers its first image pushed.
         run: |
+          push_lane() {
+            local arch=$1
+            jq -r --arg arch "$arch" '.[] | select(.arch == $arch) | "\(.libc) \(.builder)"' <<<"$LINUX_RUNTIME" | while read -r libc builder; do
+              name=builder-linux-$arch-$libc
+              id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$name" --jq '.artifacts[0].id // empty')
+              if [ -z "$id" ]; then
+                echo "$name: no image built"
+                continue
+              fi
+              case $arch in
+                amd64) machine=x86_64 ;;
+                arm64) machine=aarch64 ;;
+                *) echo "$name: no machine type for $arch" >&2; exit 1 ;;
+              esac
+              image=ghcr.io/$GITHUB_REPOSITORY-builder:$(bash runtime/builder/builder-tag.sh "$builder" "$machine")
+              gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" >"$RUNNER_TEMP/$name.zip"
+              unzip -q "$RUNNER_TEMP/$name.zip" -d "$RUNNER_TEMP/$name"
+              zstd -dc "$RUNNER_TEMP/$name/image.tar.zst" | docker load
+              docker push "$image"
+            done
+          }
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          jq -r '.[] | "\(.arch) \(.libc) \(.builder)"' <<<"$LINUX_RUNTIME" | while read -r arch libc builder; do
-            name=builder-linux-$arch-$libc
-            id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$name" --jq '.artifacts[0].id // empty')
-            if [ -z "$id" ]; then
-              echo "$name: no image built"
-              continue
-            fi
-            case $arch in
-              amd64) machine=x86_64 ;;
-              arm64) machine=aarch64 ;;
-              *) echo "$name: no machine type for $arch" >&2; exit 1 ;;
-            esac
-            image=ghcr.io/$GITHUB_REPOSITORY-builder:$(bash runtime/builder/builder-tag.sh "$builder" "$machine")
-            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" >"$RUNNER_TEMP/$name.zip"
-            unzip -q "$RUNNER_TEMP/$name.zip" -d "$RUNNER_TEMP/$name"
-            zstd -dc "$RUNNER_TEMP/$name/image.tar.zst" | docker load
-            docker push "$image"
+          arches=()
+          pids=()
+          for arch in $(jq -r '[.[].arch] | unique[]' <<<"$LINUX_RUNTIME"); do
+            push_lane "$arch" >"$RUNNER_TEMP/push-$arch.log" 2>&1 &
+            arches+=("$arch")
+            pids+=($!)
+          done
+          status=0
+          for i in "${!pids[@]}"; do
+            wait "${pids[$i]}" || status=1
+            echo "::group::${arches[$i]} images"
+            cat "$RUNNER_TEMP/push-${arches[$i]}.log"
+            echo "::endgroup::"
           done
           docker logout ghcr.io
+          exit "$status"
 
       - uses: actions/download-artifact@v8
         with:
