@@ -1,6 +1,9 @@
 package main
 
 import (
+	"errors"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 )
@@ -61,9 +64,22 @@ type Command struct {
 	Path string
 	Args []string
 	Env  []string
-	// Dir is the directory Windows starts the child in. A Unix exec keeps the
+	// Dir is the directory runChild starts the child in. A Unix exec keeps the
 	// working directory it has.
 	Dir string
+}
+
+// runChild runs c on this process's standard streams and waits for it. A child
+// that exits non-zero has printed its own failure.
+func runChild(c Command) error {
+	command := exec.Command(c.Path, c.Args[1:]...)
+	command.Stdin, command.Stdout, command.Stderr = os.Stdin, os.Stdout, os.Stderr
+	command.Env, command.Dir = c.Env, c.Dir
+	err := command.Run()
+	if child, ok := errors.AsType[*exec.ExitError](err); ok {
+		return exitError(child.ExitCode())
+	}
+	return err
 }
 
 // Plan returns the runtime's command for a line it reads itself: php, php-cli, the

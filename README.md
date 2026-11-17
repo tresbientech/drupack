@@ -36,9 +36,9 @@ composer require 'drupal/drupack:^1.0@RC'
 
 The package is a Composer plugin, which Composer asks you to trust once. A `y` writes `allow-plugins.drupal/drupack` into `composer.json`. From then on, `composer install` and `composer update` download the release that matches the package's version, on a server too. A deploy without a terminal needs that entry committed first. A project that runs `drupack-install` from its own scripts removes them.
 
-`drupack` serves the project in the working directory on `http://127.0.0.1:3787` and prints a one-time login link. It keeps serving in the background, and `drupack stop` ends it. The project's `settings.php` names the database and the files paths, and Drupack writes nothing into the project.
+`drupack` serves the project in the working directory on `http://127.0.0.1:3787` and prints a one-time login link. It keeps serving in the background, and `drupack stop` ends it. The project's `settings.php` names the database and the files paths. Drupack writes nothing into the project, apart from the `composer install` a start runs after a yes or with `--yes`.
 
-- `drupack composer install` installs a fresh clone with the Composer `drupack` carries.
+- `drupack composer install` installs a fresh clone with the Composer `drupack` carries. On a terminal, a start of a fresh clone asks to run it first, and `drupack --yes` runs it without asking.
 - `drupack composer create-project drupal/cms my-site` creates a Drupal project, with no PHP on the machine. From inside it, `../drupack` serves it.
 - `drupack drush COMMAND` runs the project's own Drush on the bundled PHP.
 - `drupack php SCRIPT` runs the bundled PHP.

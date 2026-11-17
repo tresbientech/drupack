@@ -3,10 +3,8 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"syscall"
@@ -34,20 +32,10 @@ func phpBinary(l Launch) string {
 
 // launch starts the command as a child, since Windows cannot replace a process image.
 func launch(c Command) error {
-	command := exec.Command(c.Path, c.Args[1:]...)
-	command.Stdin = os.Stdin
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	command.Env = c.Env
-	command.Dir = c.Dir
 	// The child shares the console and gets a Ctrl+C itself. This process waits
 	// for it, so its handle holds the lease until the server exits.
 	signal.Notify(make(chan os.Signal, 1), os.Interrupt)
-	err := command.Run()
-	if child, ok := errors.AsType[*exec.ExitError](err); ok {
-		return exitError(child.ExitCode())
-	}
-	return err
+	return runChild(c)
 }
 
 // restrictUmask does nothing: Windows has no umask.

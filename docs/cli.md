@@ -43,7 +43,7 @@ from [A packaged site](#a-packaged-site) on describe them.
 ## The engine executable
 
 ```
-drupack [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--host HOST] [--foreground] [--access-log[=FILE]] [--error-log[=FILE]] [--trusted-proxies CIDR[,CIDR]]
+drupack [start] [DIR] [--listen IP:PORT] [--static-listen IP:PORT] [--host HOST] [--foreground] [--yes] [--access-log[=FILE]] [--error-log[=FILE]] [--trusted-proxies CIDR[,CIDR]]
 drupack stop [DIR]
 drupack status [DIR]
 drupack restart [DIR]
@@ -62,7 +62,7 @@ drupack --version
 
 `drupack` serves a Drupal project folder under the folder's own settings. It
 has no Site data and takes none of the site options. Its state lives in the
-cache, keyed by the folder, so the folder gains no file. `drupack --version`
+cache, keyed by the folder, so serving adds no file to the folder. `drupack --version`
 names FrankenPHP, PHP, Caddy, SQLite and the Composer it carries.
 
 An option takes `--name value` or `--name=value`. A rejected value prints its
@@ -108,8 +108,11 @@ service manager restarts.
 - The docroot is the scaffold web root `composer.json` names, `web` when it
   names none.
 - The start refuses a docroot without Drupal core.
-- A folder with no Drupal core, a `composer.json` and no `vendor/` is refused
-  with `drupack composer install`, before the `composer.lock` checks.
+- A folder with no Drupal core, a `composer.json` and no `vendor/` is a fresh
+  clone. On a terminal, the start asks to run `drupack composer install`, and
+  serves the folder once it succeeds. Without a terminal, or after a no, the
+  start refuses with that command. `--yes` runs the install without asking,
+  with or without a terminal. All of it comes before the `composer.lock` checks.
 - The start refuses a folder whose PHP version or `composer.lock` extensions
   the bundled PHP does not meet, and names what is missing.
 - A start a person watches prints a one-time login link through the folder's

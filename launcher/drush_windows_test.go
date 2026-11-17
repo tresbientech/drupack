@@ -21,7 +21,7 @@ func TestVendorRootRefusesAJunctionAtVendor(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(project, "vendor", "autoload.php")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := vendorRoot(project); err == nil || !strings.Contains(err.Error(), "is a link") {
+	if _, err := vendorRoot(project, "./drupack"); err == nil || !strings.Contains(err.Error(), "is a link") {
 		t.Fatalf("vendorRoot() = %v, want a refusal naming the junction", err)
 	}
 }

@@ -1,16 +1,19 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -18,6 +21,7 @@ import (
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/fsguard"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/localtls"
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/payload"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/siteconfig"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/state"
 )
@@ -92,9 +96,49 @@ func drupalDocroot(l Launch, project, relative string) (string, error) {
 func docrootRefusal(l Launch, project, missing string) error {
 	_, composerErr := os.Stat(siteconfig.ComposerFile(project))
 	if _, vendorErr := os.Stat(filepath.Join(project, "vendor")); composerErr == nil && errors.Is(vendorErr, os.ErrNotExist) {
-		return fmt.Errorf("%s has no vendor/. Run %s composer install in it first.", project, l.Invoked)
+		return freshCloneError{project: project, invoked: l.Invoked}
 	}
 	return fmt.Errorf("%s is not a Drupal project: %s does not exist. %s serves Drupal alone.", project, missing, l.Name)
+}
+
+// freshCloneError refuses a Composer project with no vendor/, which composer install makes servable.
+type freshCloneError struct{ project, invoked string }
+
+func (f freshCloneError) Error() string {
+	return fmt.Sprintf("%s has no vendor/. Run %s composer install in it first.", f.project, f.invoked)
+}
+
+// offerInstall runs the engine's composer install in a fresh clone once the
+// reader accepts, or at once with --yes. Every other case returns nil and
+// leaves the outcome to check.
+func (e *engineStart) offerInstall(in io.Reader, out io.Writer, terminal bool) error {
+	project, err := projectFolder(e.Invoked, cmp.Or(e.c.target, defaultFolder))
+	if err != nil {
+		return err
+	}
+	composer, err := siteconfig.ReadComposer(project, siteconfig.Folder)
+	if err != nil {
+		return err
+	}
+	_, err = drupalDocroot(e.Launch, project, composer.Docroot)
+	yes := e.c.options.Yes
+	if _, fresh := errors.AsType[freshCloneError](err); !fresh || !terminal && !yes {
+		return nil
+	}
+	// Composer's own refusals come before the question.
+	call, err := engineComposer(e.Facts, command{words: []string{"install"}}, project)
+	if err != nil {
+		return err
+	}
+	if !yes {
+		fmt.Fprintf(out, "No vendor/. Run %s composer install now? [Y/n] ", e.Invoked)
+		answer, err := bufio.NewReader(in).ReadString('\n')
+		if err != nil || !slices.Contains([]string{"", "y", "yes"}, strings.ToLower(strings.TrimSpace(answer))) {
+			return nil
+		}
+	}
+	call.Dir = project
+	return runChild(call)
 }
 
 // operate runs one operation of operate.php through the runtime's php-cli and
@@ -189,7 +233,14 @@ func start(l Launch, c command) error {
 	}
 	var mode startMode = &packagedStart{Launch: l, Inputs: startInputs(c.options), c: c, cwd: cwd}
 	if l.Engine {
-		mode = &engineStart{Launch: l, c: c}
+		e := &engineStart{Launch: l, c: c}
+		// A detached child has no reader to ask, and its parent offered the install.
+		if l.Child == nil {
+			if err := e.offerInstall(os.Stdin, os.Stdout, payload.Terminal(os.Stdin) && payload.Terminal(os.Stdout)); err != nil {
+				return err
+			}
+		}
+		mode = e
 	}
 	if !c.options.Foreground && !l.ConsoleOwned {
 		log, target, err := mode.detach()

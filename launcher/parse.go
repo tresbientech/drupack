@@ -28,7 +28,7 @@ type options struct {
 	DataDir, Listen, StaticListen, Host, FilesDir, TrustedProxies string
 	Database, DBHost, DBPort, DBName, DBUser, DBPassword          string
 	AdminUser, AdminPassword, SiteName                            string
-	NoBrowser, Foreground                                         bool
+	NoBrowser, Foreground, Yes                                    bool
 	// AccessLog and ErrorLog are nil for a line without the option, and hold ""
 	// for the option written bare.
 	AccessLog, ErrorLog *string
@@ -184,6 +184,7 @@ var engineGroups = []optionGroup{
 	}},
 	{"Start options:", []option{
 		foregroundOption,
+		{name: "yes", help: "Run composer install in a fresh clone, without\nasking", set: func(o *options, _ string) { o.Yes = true }},
 		accessLogOption,
 		errorLogOption,
 		trustedProxiesOption,

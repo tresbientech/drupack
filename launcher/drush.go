@@ -171,7 +171,7 @@ type engineProject struct {
 // openFolder finds the project holding cwd, the nearest directory at or above it
 // with a vendor/autoload.php, and reads its composer.json.
 func openFolder(l Launch, cwd string) (engineProject, error) {
-	project, err := vendorRoot(cwd)
+	project, err := vendorRoot(cwd, l.Invoked)
 	if err != nil {
 		return engineProject{}, err
 	}
@@ -224,7 +224,7 @@ func engineDrush(facts Facts, c command, cwd string) (Command, error) {
 // this user's groups on Unix. A link at
 // vendor/ or the autoloader is refused: whoever owns the link can retarget it
 // after the owner check.
-func vendorRoot(cwd string) (string, error) {
+func vendorRoot(cwd, invoked string) (string, error) {
 	start, err := filepath.EvalSymlinks(cwd)
 	if err != nil {
 		return "", err
@@ -253,7 +253,7 @@ func vendorRoot(cwd string) (string, error) {
 			return dir, nil
 		}
 		if filepath.Dir(dir) == dir {
-			return "", fmt.Errorf("No vendor/autoload.php in %s or any directory above it. Run composer install in the project.", fsguard.Canonical(start))
+			return "", fmt.Errorf("No vendor/autoload.php in %s or any directory above it. Run %s composer install in the project.", fsguard.Canonical(start), invoked)
 		}
 	}
 }

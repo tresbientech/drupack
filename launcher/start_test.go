@@ -1,15 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
 
+	"git.tresbien.tech/tresbientech/drupack/launcher/internal/cache"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/caddyfile"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/localtls"
 	"git.tresbien.tech/tresbientech/drupack/launcher/internal/payload"
@@ -229,5 +232,77 @@ func TestAnEngineStartNamesComposerInstallForAFreshClone(t *testing.T) {
 	put(t, filepath.Join(project, "web", "core", "lib", "Drupal.php"), "<?php")
 	if _, err := e.check(); err == nil || !strings.Contains(err.Error(), "composer.lock") {
 		t.Errorf("an installed docroot: error = %v, want the lock's refusal", err)
+	}
+}
+
+func TestAStartOffersComposerInstallForAFreshClone(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the runtime stand-in is a shell script")
+	}
+	const question = "No vendor/. Run ./drupack composer install now? [Y/n] "
+	installed := map[string]string{"web/index.php": "<?php", "web/core/lib/Drupal.php": "<?php"}
+	for _, row := range []struct {
+		name     string
+		answer   string
+		terminal bool
+		yes      bool
+		files    map[string]string
+		exit     int
+		asked    bool
+		ran      bool
+		err      string
+	}{
+		{name: "Enter accepts", answer: "\n", terminal: true, asked: true, ran: true},
+		{name: "y accepts", answer: "y\n", terminal: true, asked: true, ran: true},
+		{name: "YES accepts", answer: "YES\n", terminal: true, asked: true, ran: true},
+		{name: "n declines", answer: "n\n", terminal: true, asked: true},
+		{name: "another word declines", answer: "x\n", terminal: true, asked: true},
+		{name: "end of input declines", answer: "", terminal: true, asked: true},
+		{name: "a yes cut off before its newline declines", answer: "yes", terminal: true, asked: true},
+		{name: "no terminal asks nothing", answer: "y\n"},
+		{name: "an installed docroot asks nothing", answer: "y\n", terminal: true, files: installed},
+		{name: "Composer's refusal comes before the question", answer: "y\n", terminal: true,
+			files: map[string]string{"composer.lock": `{"packages": []}`}, err: "names no drupal/core release"},
+		{name: "a failed install returns its exit code", answer: "y\n", terminal: true, exit: 3, asked: true, ran: true},
+		{name: "--yes installs with no terminal and no question", yes: true, ran: true},
+		{name: "--yes installs on a terminal with no question", answer: "n\n", terminal: true, yes: true, ran: true},
+		{name: "--yes leaves a project with a vendor/ alone", yes: true, files: map[string]string{"vendor/autoload.php": "<?php"}},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			project := realDir(t)
+			put(t, filepath.Join(project, "composer.json"), `{}`)
+			for name, content := range row.files {
+				put(t, filepath.Join(project, name), content)
+			}
+			// The stand-in records its arguments in its working directory.
+			entry := filepath.Join(t.TempDir(), "frankenphp")
+			put(t, entry, fmt.Sprintf("#!/bin/sh\necho \"$@\" >> ran\nexit %d\n", row.exit))
+			if err := os.Chmod(entry, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			e := engineStart{Facts: Facts{Launch: Launch{Args: []string{"./drupack"}, Name: "drupack", Invoked: "./drupack", Engine: true,
+				Entry: entry, Application: t.TempDir()}}, c: command{target: project, options: options{Yes: row.yes}}}
+			var out bytes.Buffer
+			err := e.offerInstall(strings.NewReader(row.answer), &out, row.terminal)
+			switch {
+			case row.err != "":
+				if err == nil || !strings.Contains(err.Error(), row.err) {
+					t.Errorf("error = %v, want %q", err, row.err)
+				}
+			case row.exit != 0:
+				if err != exitError(row.exit) {
+					t.Errorf("error = %v, want exitError(%d)", err, row.exit)
+				}
+			case err != nil:
+				t.Errorf("error = %v", err)
+			}
+			if asked := out.String() == question; asked != row.asked {
+				t.Errorf("printed %q, asked = %v, want %v", out.String(), asked, row.asked)
+			}
+			ran, _ := os.ReadFile(filepath.Join(project, "ran"))
+			if want := map[bool]string{true: "php-cli " + filepath.Join(e.Application, cache.ComposerPhar) + " install\n"}[row.ran]; string(ran) != want {
+				t.Errorf("runtime ran with %q, want %q", ran, want)
+			}
+		})
 	}
 }

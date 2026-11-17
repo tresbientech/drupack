@@ -11,8 +11,8 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 - Each release publishes a generic `drupack` executable per platform. It carries the runtimes and the engine's files, and no application.
 - `drupack [DIR]` serves the project folder DIR, the working directory by default. The docroot comes from `composer.json`'s scaffold web root, or `web` when unset.
 - A start refuses a docroot without Drupal core, and a `composer.lock` that requires an extension the runtime lacks. The refusal names the missing extensions.
-- A start that finds no Drupal core in a folder with a `composer.json` and no `vendor/` names `drupack composer install`. It checks the docroot before the lock.
-- The folder's own settings own the database, the files paths and the hash salt. Drupack writes nothing into the folder.
+- A start that finds no Drupal core in a folder with a `composer.json` and no `vendor/` asks, on a terminal, to run `drupack composer install`, then serves. `--yes` runs it without asking. Without a terminal or `--yes`, or after a no, it names that command. It checks the docroot before the lock.
+- The folder's own settings own the database, the files paths and the hash salt. Drupack writes nothing into the folder, apart from the `composer install` a start runs after a yes or with `--yes`.
 - The engine serves on `127.0.0.1:3787`. It runs no cron and has no Site data. A cache entry keyed by the folder's path holds its [lease and stop channel](0006-one-server-per-site-data.md).
 - `drupack drush` runs the folder's Drush on the runtime's PHP. `drupack dr` runs Drupal core's `vendor/bin/dr`. A site executable names its Drush command `drush`.
 - `drupack php` takes `SCRIPT [ARGUMENTS]` or `-r CODE [ARGUMENTS]`, after any `-d KEY[=VALUE]`. It refuses any other option by name before PHP starts.

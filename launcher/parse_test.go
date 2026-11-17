@@ -48,6 +48,8 @@ func TestParse(t *testing.T) {
 			command{word: "start", target: "project", options: options{Listen: "[::1]:9", StaticListen: "127.0.0.1:10", Foreground: true}}, ""},
 		{"the engine takes a listener option's next word whatever it holds", []string{"drupack", "--listen", "--foreground"}, true, unset,
 			command{word: "start", options: options{Listen: "--foreground"}}, ""},
+		{"the engine reads --yes", []string{"drupack", "--yes"}, true, unset, command{word: "start", options: options{Listen: defaultListen, Yes: true}}, ""},
+		{"a site start refuses --yes", []string{"SITE", "--yes"}, false, unset, command{}, "Unknown argument: --yes"},
 		{"the engine refuses a listener with no word", []string{"drupack", "--static-listen"}, true, unset, command{}, "--static-listen takes IP:PORT"},
 		{"a start reads a bare --access-log", []string{"SITE", "--access-log", "--foreground"}, false, unset, command{word: "start", options: options{DataDir: "./data", AccessLog: some(""), Foreground: true}}, ""},
 		{"a start reads the file of --access-log", []string{"SITE", "--access-log=a.log"}, false, unset, command{word: "start", options: options{DataDir: "./data", AccessLog: some("a.log")}}, ""},
@@ -242,6 +244,14 @@ func helpCommands(help string) []string {
 		words = append(words, strings.Split(match[1], ", ")...)
 	}
 	return words
+}
+
+func TestTheEngineHelpListsYesUnderStartOptions(t *testing.T) {
+	_, group, _ := strings.Cut(helpText(Launch{Name: "drupack", Engine: true}, "dev"), "Start options:")
+	group, _, _ = strings.Cut(group, "\n\n")
+	if !strings.Contains(group, "\n  --yes ") {
+		t.Errorf("the engine's start options read %q, want --yes among them", group)
+	}
 }
 
 // The help names the executable in its first sentence, and starts each command

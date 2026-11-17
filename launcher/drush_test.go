@@ -430,7 +430,7 @@ func TestEngineDrushRefusals(t *testing.T) {
 	}
 	bare := realDir(t)
 	_, err = drushPlan(f.launch(), parseDrush(t, true, "status"), bare)
-	if want := "No vendor/autoload.php in " + fsguard.Canonical(bare) + " or any directory above it. Run composer install in the project."; err == nil || err.Error() != want {
+	if want := "No vendor/autoload.php in " + fsguard.Canonical(bare) + " or any directory above it. Run ./drupack composer install in the project."; err == nil || err.Error() != want {
 		t.Errorf("error = %v, want %q", err, want)
 	}
 	broken := newProject(t, `{"extra": {"drupack": {"mercure": "yes"}}}`)
@@ -485,7 +485,7 @@ func TestVendorRootFindsTheProjectFromItsSubfolder(t *testing.T) {
 	if err := os.MkdirAll(cwd, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := vendorRoot(cwd); err != nil || got != project {
+	if got, err := vendorRoot(cwd, "./drupack"); err != nil || got != project {
 		t.Fatalf("vendorRoot() = %q, %v, want %q", got, err, project)
 	}
 }
@@ -507,7 +507,7 @@ func TestVendorRootRefusesALinkedVendor(t *testing.T) {
 			if err := os.Symlink(target, filepath.Join(project, name)); err != nil {
 				t.Skipf("cannot make a link: %v", err)
 			}
-			if _, err := vendorRoot(project); err == nil || !strings.Contains(err.Error(), "is a link") {
+			if _, err := vendorRoot(project, "./drupack"); err == nil || !strings.Contains(err.Error(), "is a link") {
 				t.Fatalf("vendorRoot() = %v, want a refusal naming the link", err)
 			}
 		})
