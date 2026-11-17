@@ -1,5 +1,5 @@
 name: Release
-# A tag run finds its candidate run by this name.
+# A tag run and a main push run find their candidate run by this name.
 run-name: ${{ inputs.version != '' && inputs.platform == 'all' && format('Release candidate {0}', inputs.version) || '' }}
 
 on:
@@ -52,10 +52,11 @@ env:
   GOPROXY: https://proxy.golang.org|https://proxy.golang.org,direct
 
 jobs:
-  # A tag whose candidate run succeeded publishes that run's files. Other tags, dispatches
-  # and the schedule cover every platform (a dispatch can name one). A main push covers
-  # Linux amd64 when it touched something an executable carries; the comparison
-  # runs here because GitHub leaves path filters on tag pushes undocumented.
+  # A tag whose candidate run succeeded publishes that run's files, and a main push of
+  # that commit builds nothing. Other tags, dispatches and the schedule cover every
+  # platform (a dispatch can name one). Another main push covers Linux amd64 when it
+  # touched something an executable carries; the comparison runs here because GitHub
+  # leaves path filters on tag pushes undocumented.
   gate:
     name: gate
     runs-on: ubuntu-24.04

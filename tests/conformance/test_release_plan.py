@@ -51,6 +51,8 @@ def event(**fields):
 
 
 TAG = event(ref_type="tag", ref_name=VERSION, before="0" * 40)
+# Every push asks for a candidate first; these responses find none.
+NO_RUN = {RUNS_PATH: {"workflow_runs": []}}
 
 
 def changed(*names):
@@ -85,13 +87,12 @@ class Row(unittest.TestCase):
 
 class Tag(Row):
     def test_a_tag_picks_its_candidate_from_the_recorded_runs(self):
-        other = event(ref_type="tag", ref_name="1.0.0-beta16")
         both_fetches = [RUNS_PATH, ARTIFACTS_PATH]
         rows = {
-            "no candidate": (TAG, {RUNS_PATH: {"workflow_runs": []}}, None, [RUNS_PATH]),
+            "no candidate": (TAG, NO_RUN, None, [RUNS_PATH]),
             "a live candidate": (TAG, {RUNS_PATH: RUNS, ARTIFACTS_PATH: ARTIFACTS}, CANDIDATE, both_fetches),
             "an expired candidate": (TAG, {RUNS_PATH: RUNS, ARTIFACTS_PATH: with_expired([False, True])}, None, both_fetches),
-            "no matching run fetches no artifacts": (other, {RUNS_PATH: RUNS}, None, [RUNS_PATH]),
+            "a run of another title fetches no artifacts": (TAG, {RUNS_PATH: {"workflow_runs": RUNS["workflow_runs"][1:]}}, None, [RUNS_PATH]),
             "an empty artifact list": (TAG, {RUNS_PATH: RUNS, ARTIFACTS_PATH: with_expired([])}, CANDIDATE, both_fetches),
         }
         for label, (tag, responses, candidate, fetched) in rows.items():
@@ -128,11 +129,28 @@ class Dispatch(Row):
 
 
 class Push(Row):
-    def test_a_new_branch_builds_linux_amd64_without_a_fetch(self):
-        result = self.run_plan(event(before="0" * 40))
+    def test_a_main_push_reuses_a_live_candidate_and_compares_otherwise(self):
+        rows = {
+            "a live candidate": ({RUNS_PATH: RUNS, ARTIFACTS_PATH: ARTIFACTS}, CANDIDATE, [RUNS_PATH, ARTIFACTS_PATH]),
+            "an expired candidate": ({RUNS_PATH: RUNS, ARTIFACTS_PATH: with_expired([True]), COMPARE_PATH: changed("build/release/demo-pin.sh")},
+                                     None, [RUNS_PATH, ARTIFACTS_PATH, COMPARE_PATH]),
+            "no candidate": ({**NO_RUN, COMPARE_PATH: changed("build/release/demo-pin.sh")}, None, [RUNS_PATH, COMPARE_PATH]),
+        }
+        for label, (responses, candidate, fetched) in rows.items():
+            with self.subTest(label):
+                result = self.run_plan(event(), responses)
+                self.assertEqual(("dev-" + SHA[:12], "dev", candidate), (result["version"], result["image_tags"], result["candidate"]))
+                self.assertEqual(fetched, self.fetched)
+                if candidate is None:
+                    self.assertEqual(AMD64, result["linux"])
+                else:
+                    self.assertNotBuilding(result)
+
+    def test_a_new_branch_builds_linux_amd64_without_a_compare(self):
+        result = self.run_plan(event(before="0" * 40), NO_RUN)
         self.assertEqual((AMD64, [], [], True), (result["linux"], result["macos"], result["windows"], result["build"]))
         self.assertEqual("dev-" + SHA[:12], result["version"])
-        self.assertEqual([], self.fetched)
+        self.assertEqual([RUNS_PATH], self.fetched)
 
     def test_the_compare_decides_whether_a_push_builds(self):
         rows = {
@@ -144,8 +162,8 @@ class Push(Row):
         }
         for label, (files, builds) in rows.items():
             with self.subTest(label):
-                result = self.run_plan(event(), {COMPARE_PATH: files})
-                self.assertEqual([COMPARE_PATH], self.fetched)
+                result = self.run_plan(event(), {**NO_RUN, COMPARE_PATH: files})
+                self.assertEqual([RUNS_PATH, COMPARE_PATH], self.fetched)
                 if builds:
                     self.assertEqual(AMD64, result["linux"])
                 else:
@@ -160,10 +178,10 @@ class LinuxRuntime(Row):
             "a macos-only build still compiles the payload": (dispatch(platform="macos-amd64"), [runtime("amd64", MUSL)]),
         }.items():
             with self.subTest(label):
-                self.assertEqual(expected, self.run_plan(dispatched)["linux_runtime"])
+                self.assertEqual(expected, self.run_plan(dispatched, NO_RUN)["linux_runtime"])
 
     def test_no_build_has_no_runtime_row(self):
-        self.assertEqual([], self.run_plan(event(), {COMPARE_PATH: COMPARE})["linux_runtime"])
+        self.assertEqual([], self.run_plan(event(), {**NO_RUN, COMPARE_PATH: COMPARE})["linux_runtime"])
 
 
 def linux_rows(arch):
@@ -200,7 +218,7 @@ class LinuxTests(Row):
         rows = {"a push": (event(before="0" * 40), linux_rows("amd64")), "a tag": (TAG, linux_rows("amd64") + linux_rows("arm64"))}
         for label, (planned, expected) in rows.items():
             with self.subTest(label):
-                self.assertEqual(expected, self.run_plan(planned, {RUNS_PATH: {"workflow_runs": []}})["linux_tests"])
+                self.assertEqual(expected, self.run_plan(planned, NO_RUN)["linux_tests"])
 
 
 class WindowsTests(Row):
@@ -236,7 +254,7 @@ class MacosTests(Row):
 
 class Failure(Row):
     def test_a_failed_fetch_stops_the_plan(self):
-        for label, planned, responses in (("compare", event(), {}), ("runs", TAG, {}), ("artifacts", TAG, {RUNS_PATH: RUNS})):
+        for label, planned, responses in (("compare", event(), NO_RUN), ("runs", TAG, {}), ("artifacts", TAG, {RUNS_PATH: RUNS})):
             with self.subTest(label), self.assertRaises(Unscripted):
                 self.run_plan(planned, responses)
 
@@ -247,7 +265,7 @@ class Failure(Row):
             run(id="12"), run(id=True), run(id=None), run(display_title=None), {"workflow_runs": {"id": 1}})]
         rows += [(TAG, ARTIFACTS_PATH, "artifacts", {RUNS_PATH: RUNS}, bad) for bad in (
             {"artifacts": [{"expired": "false"}]}, {"artifacts": [{}]}, {"artifacts": "none"})]
-        rows += [(event(), COMPARE_PATH, "compare", {}, bad) for bad in (
+        rows += [(event(), COMPARE_PATH, "compare", NO_RUN, bad) for bad in (
             {"files": [{"filename": 3}]}, {"files": [{}]}, {"files": None})]
         for planned, path, pattern, others, bad in rows:
             with self.subTest(path=path, body=bad), self.assertRaisesRegex(ValueError, pattern):

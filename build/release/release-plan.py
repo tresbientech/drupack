@@ -37,12 +37,12 @@ def listed(path, body, key, fields):
     return entries
 
 
-def candidate(event, version, fetch):
-    """The id of the successful candidate run for this commit, unless its files expired."""
-    title = TITLE.format(version=version)
+def candidate(event, fetch):
+    """The id of the successful candidate run for this commit, unless its files expired. A commit
+    holds one version's pin, so its candidate needs no version to be found."""
     path = f"repos/{event['repo']}/actions/workflows/release.yml/runs?head_sha={event['sha']}&event=workflow_dispatch&status=success"
     runs = listed(path, fetch(path), "workflow_runs", {"display_title": str, "id": int})
-    run = next((run["id"] for run in runs if run["display_title"] == title), None)
+    run = next((run["id"] for run in runs if run["display_title"].startswith(TITLE.format(version=""))), None)
     if run is None:
         return None
     path = f"repos/{event['repo']}/actions/runs/{run}/artifacts?per_page=100"
@@ -98,7 +98,8 @@ def plan(event, targets, fetch):
     # build.yml reads sha-COMMIT at a tag and dev-COMMIT on a branch, and a tag run publishes its candidate's sha-COMMIT.
     image_tags = "sha" if tag else "dev sha" if event["version"] and event["platform"] == "all" else "dev"
     linux = macos = windows = []
-    run = candidate(event, version, fetch) if tag else None
+    # A release pushes its tested commit to main and to the tag, and both runs reuse its candidate.
+    run = candidate(event, fetch) if event["event_name"] == "push" else None
     # The weekly schedule plans like a dispatch of every platform with no version.
     if run is None and (tag or event["event_name"] in ("workflow_dispatch", "schedule")):
         linux, macos, windows = (platform_matrix(targets, system, event["platform"])
@@ -159,7 +160,7 @@ def main(argv):
     expired = [path for path in fetched if "/artifacts?" in path]
     if expired and result["candidate"] is None:
         print(f"The files of candidate run {expired[0].split('/')[5]} expired.")
-    print(f"Publishing the files of candidate run {result['candidate']}." if result["candidate"] is not None
+    print(f"Reusing the files of candidate run {result['candidate']}." if result["candidate"] is not None
           else "Building." if result["build"] else "Nothing to build.")
     lines = "".join(f"{key}={encode(key, value)}\n" for key, value in result.items())
     print(lines, end="")

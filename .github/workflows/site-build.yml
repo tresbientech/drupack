@@ -1,8 +1,9 @@
 name: Site build
 
 # Builds the pinned Drupacked Demo commit through build.yml, the workflow site
-# repositories call, in the job image a release.yml run pushed under this commit.
-# A release's own run does not wait for it.
+# repositories call, in the job image pushed under main's commit: by a release.yml
+# run on main, or by the candidate run of a release. A release's own run does not
+# wait for it.
 on:
   workflow_run:
     workflows: [Release]
@@ -15,10 +16,10 @@ permissions:
 
 jobs:
   pin:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      actions: read
       contents: read
     outputs:
       repository: ${{ steps.demo.outputs.repository }}
@@ -33,26 +34,22 @@ jobs:
           . build/release/demo-pin.sh
           printf 'repository=%s\nref=%s\n' "$demo_repository" "$demo_ref" >>"$GITHUB_OUTPUT"
 
-      # A main push that changes documentation alone builds nothing, so its run
-      # pushes no job image.
+      # A commit that changed documentation alone has no job image.
       - id: built
         name: Find the job image
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVENT: ${{ github.event_name }}
-          RUN: ${{ github.event.workflow_run.id }}
-          RUN_EVENT: ${{ github.event.workflow_run.event }}
-          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         run: |
-          built=true
-          if [ "$EVENT" = workflow_run ]; then
-            payload=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN/jobs?per_page=100" --jq '.jobs[] | select(.name == "payload") | .conclusion')
-            case "$CONCLUSION $RUN_EVENT $payload" in
-              'success push success' | 'success schedule success') ;;
-              *) built=false ;;
-            esac
-          fi
-          echo "built=$built" >>"$GITHUB_OUTPUT"
+          image=$GITHUB_REPOSITORY-build
+          token=$(curl -fsS "https://ghcr.io/token?scope=repository:$image:pull" | jq -r .token)
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -I -H "Authorization: Bearer $token" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+            "https://ghcr.io/v2/$image/manifests/dev-$GITHUB_SHA")
+          echo "ghcr.io/$image:dev-$GITHUB_SHA answers HTTP $code."
+          # Any answer but found or missing stops the job, so a registry outage never reads as no image.
+          case $code in
+            200) echo built=true ;;
+            404) echo built=false ;;
+            *) exit 1 ;;
+          esac >>"$GITHUB_OUTPUT"
 
   build:
     name: Drupacked Demo through build.yml

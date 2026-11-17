@@ -10,7 +10,8 @@ Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstrea
 
 - `build/release/release-plan.py` owns the release plan. It returns the version, the candidate run, the image tags, one matrix per platform family, the test rows and the runtimes to build.
 - `fetch` is the one port to GitHub. A failed call stops the gate.
-- A tag whose candidate run succeeded publishes that run's files. Other tags and dispatches cover every platform. A main push covers Linux amd64 when it touched a path an executable carries.
+- A push, to main or a tag, first looks for a successful candidate run at its commit. A tag with one publishes that run's files, and a main push with one builds nothing.
+- Other tags and dispatches cover every platform. Another main push covers Linux amd64 when it touched a path an executable carries.
 
 ### The graph
 
@@ -40,11 +41,11 @@ Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstrea
 - The job dispatches `release.yml` on every platform with `version`. The run is named `Release candidate VERSION`.
 - A bump candidate runs the `full` suite: every platform runs every case, except macOS amd64, which runs the start cases in each profile. A named version runs `gate`. Linux amd64, macOS arm64 and Windows amd64 run every case. Linux arm64, Windows arm64 and macOS amd64 run the start cases.
 - The QA demo and host builds run the start cases. The Linux jobs test the same file in full.
-- A release's run calls no `build.yml`. `site-build.yml` calls it after each successful push or weekly run on `main` that built a job image.
+- A release's run calls no `build.yml`. `site-build.yml` calls it after each successful push or weekly run on `main`, when ghcr holds the job image `dev-COMMIT` of `main`'s commit. The candidate pushes that image for a release's commit.
 - `build/release/wait-for-run.sh` finds the run by the candidate's commit and polls it. It names each failed job and, once the run completes, reruns the failed jobs once.
 - The candidate's `qa` jobs are the release's QA. No local run precedes a release.
 - On green, one atomic push sends `main` as a fast-forward and the next tag to drupal.org. A second push sends both to GitHub. The job then deletes the branch.
-- The tag run's gate finds the candidate run at the tag's commit. When it exists with live artifacts, every build job skips and `publish` downloads its files. Otherwise the tag builds every platform.
+- The gate of the tag run and of the `main` run finds the candidate run at the commit. When it exists with live artifacts, every build job skips, and the tag's `publish` downloads its files. Otherwise the tag builds every platform.
 - A `tag` job waits for the tag run with the same script. No person pushes a version tag.
 
 ### The drupal.org release form
