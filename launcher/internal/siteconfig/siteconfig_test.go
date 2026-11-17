@@ -468,9 +468,10 @@ func TestCheckDrupalReadsTheLockOrTheComposerJSON(t *testing.T) {
 			refuses: "composer.lock: packages names no drupal/core release"},
 		{name: "a malformed lock", composer: scaffold("web"), lock: `{"packages":`, refuses: "composer.lock: unexpected end of JSON input"},
 		{name: "no lock, core-recommended", composer: `{"require": {"drupal/core-recommended": "^11"}}`},
-		{name: "no lock, the scaffold", composer: scaffold("web")},
-		{name: "no lock, no Drupal", composer: `{"require": {"laravel/framework": "^12"}}`,
-			refuses: "requires none of drupal/core, drupal/core-recommended, drupal/core-composer-scaffold and sets no extra.drupal-scaffold"},
+		{name: "no lock, farmOS", composer: `{"name": "farmos/project", "require": {"farmos/farmos": "^4"}}`},
+		{name: "no lock, no Drupal", composer: `{"require": {"laravel/framework": "^12"}}`},
+		{name: "no lock, a module", composer: `{"type": "drupal-module", "require": {"drupal/core": "^11"}}`,
+			refuses: "composer.json names a drupal- type, which a Drupal package carries."},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -488,25 +489,5 @@ func TestCheckDrupalReadsTheLockOrTheComposerJSON(t *testing.T) {
 				t.Fatalf("CheckDrupal = %v; want %q", err, c.refuses)
 			}
 		})
-	}
-}
-
-func TestCheckProjectPackageReadsTheTypeAndRequirements(t *testing.T) {
-	cases := []struct {
-		name, kind string
-		require    map[string]any
-		refuses    bool
-	}{
-		{name: "drupal/cms", kind: "project", require: map[string]any{"drupal/core-recommended": "^11.5"}},
-		{name: "acme/scaffolded", kind: "project", require: map[string]any{"drupal/core-composer-scaffold": "^11"}},
-		{name: "symfony/skeleton", kind: "project", require: map[string]any{"symfony/flex": "^2"}, refuses: true},
-		{name: "acme/bare", kind: "project", refuses: true},
-		{name: "acme/profile", kind: "drupal-profile", require: map[string]any{"drupal/core": "^11"}, refuses: true},
-	}
-	for _, c := range cases {
-		err := siteconfig.CheckProjectPackage(c.name, c.kind, c.require)
-		if want := c.name + " creates no Drupal project: a Drupal project's type names no Drupal package, and it requires drupal/core, drupal/core-recommended, drupal/core-composer-scaffold"; c.refuses && (err == nil || err.Error() != want) || !c.refuses && err != nil {
-			t.Errorf("CheckProjectPackage(%s) = %v, refuses %v", c.name, err, c.refuses)
-		}
 	}
 }

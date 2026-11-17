@@ -59,8 +59,8 @@ Serve:
 Run:
   drush        Run the Drush of the project holding the working directory
   dr           Run Drupal core's command line of that project
-  composer     Run the bundled Composer in that project, or create a Drupal
-               project with create-project
+  composer     Run the bundled Composer in that project, or create a project
+               with create-project
   php          Run SCRIPT or -r CODE on the bundled PHP, with -d KEY[=VALUE]
                settings and no other PHP option
   export       Export that project with Tome at the static URL its last start

@@ -26,14 +26,11 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 
 - `drupack composer ARGS` runs the engine's `composer.phar` on the runtime's `php-cli`, with the environment `drupack php` gets. A site executable has no such command.
 - The engine build copies the phar the job image pins, the one site builds install with, beside the engine's application files.
-- The working directory holds a Drupal project. Its `composer.lock` names a `drupal/core` release. With no lock, its `composer.json` requires `drupal/core`, `drupal/core-recommended` or `drupal/core-composer-scaffold`, or sets `extra.drupal-scaffold`. A `type` starting with `drupal-` names a Drupal package, such as core's own `composer.json`, and no project.
+- The working directory holds a `composer.json`. Its `composer.lock` names a `drupal/core` release. With no lock, its `type` does not start with `drupal-`, which core's own `composer.json` and each module's carry. A folder made with `create-project --no-install` holds no lock, and its project package may require core through a profile only.
 - The command refuses `-d`, `--working-dir` and a non-blank `COMPOSER`, before the options end at `--`. Each points Composer at another project than the one checked.
 - It refuses `global`, `self-update` and `selfupdate`, under any prefix in any case, since Composer runs a command from a unique abbreviation.
-- `create-project` checks its package in place of the working directory, from a prefix of two letters on. `composer show --available --format=json` reads it from an empty directory, in the repositories `create-project` reads.
-- The package's `type` names no Drupal package, and it requires `drupal/core`, `drupal/core-recommended` or `drupal/core-composer-scaffold`. The report carries no `extra`, so `extra.drupal-scaffold` alone names no such package.
-- `create-project` refuses a missing package, `--repository`, `--repository-url` and `--add-repository`. A version word after the directory wins over one joined to the package, as in Composer.
-- The lookup reads the release `show` picks, and `create-project` picks one by stability. A project package keeps its Drupal requirements across its releases.
-- The project's scripts and plugins run as the reader's own code. The check names the project, and limits nothing they run.
+- `create-project`, from a prefix of two letters on, runs from any working directory with no check of its package. A distribution's project package, such as `farmos/project`, requires Drupal core through its profile only.
+- The project's scripts and plugins run as the reader's own code.
 
 ### composer.json settings
 
@@ -72,6 +69,6 @@ A per-site build would still need a build. Writing an include line into the fold
 
 Two readers of `composer.json`, one in Go and one in PHP, drift apart. An absolute web root, a subdomain with a newline and invalid JSON are the inputs they disagree on. One reader with a mode removes the drift. The placement rule rests on three facts: the engine never reads `drupack.yml`, a plain Composer project has none, and a site behaves the same served or packed.
 
-A fresh clone has no `vendor/`, and its host often has no PHP. The engine carries the PHP Composer needs, so it carries Composer too. A `composer.phar` beside the engine would age apart from it, and self-update moves the engine with its phar. A check on the project keeps the engine a Drupal tool.
+A fresh clone has no `vendor/`, and its host often has no PHP. The engine carries the PHP Composer needs, so it carries Composer too. A `composer.phar` beside the engine would age apart from it, and self-update moves the engine with its phar. The lock check keeps the command on Drupal projects. The type check keeps it out of core's and each module's own `composer.json`. A check of the project package would refuse each distribution whose package requires core through its profile.
 
 A package cannot carry five 90 MB builds, so the install script downloads one. `release.json` is host-neutral, and its checksum and asset come from one origin over TLS.

@@ -74,8 +74,26 @@ func TestEngineComposerPassesWordsAfterTheOptionsEnd(t *testing.T) {
 	}
 }
 
+func TestEngineComposerCreatesAProjectFromAnyDirectory(t *testing.T) {
+	f := newProject(t, `{"require": {"laravel/framework": "^12"}}`)
+	for words, cwd := range map[string]string{
+		"create-project acme/x site": t.TempDir(),
+		"cr acme/x":                  t.TempDir(),
+		"create-project --repository https://e.x acme/x": t.TempDir(),
+		"create-project farmos/project:4.x-dev farm":     f.project,
+	} {
+		fields := strings.Fields(words)
+		got, err := engineComposer(Facts{Launch: f.launch()}, parseLine(t, true, append([]string{"composer"}, fields...)...), cwd)
+		want := append([]string{"drupack", "php-cli", filepath.Join("/cache/app", "composer.phar")}, fields...)
+		if err != nil || got.Path != "/runtime/frankenphp" || !slices.Equal(got.Args, want) {
+			t.Errorf("composer %s: (%q, %q, %v), want /runtime/frankenphp %q", words, got.Path, got.Args, err, want)
+		}
+	}
+}
+
 func TestEngineComposerRefusesAProjectWithoutDrupal(t *testing.T) {
 	f := newProject(t, `{"require": {"laravel/framework": "^12"}}`)
+	put(t, filepath.Join(f.project, "composer.lock"), `{"packages": [{"name": "laravel/framework", "version": "12.0.0"}]}`)
 	_, err := engineComposer(Facts{Launch: f.launch()}, parseLine(t, true, "composer", "install"), f.project)
 	if err == nil || !strings.Contains(err.Error(), "holds no Drupal project") {
 		t.Errorf("error = %v, want the Drupal refusal", err)
@@ -85,8 +103,8 @@ func TestEngineComposerRefusesAProjectWithoutDrupal(t *testing.T) {
 	}
 	// Drupal core's own package, which requires the scaffold.
 	put(t, filepath.Join(f.cwd, "composer.json"), `{"name": "drupal/core", "type": "drupal-core", "require": {"drupal/core-composer-scaffold": "*"}, "extra": {"drupal-scaffold": {}}}`)
-	if _, err := engineComposer(Facts{Launch: f.launch()}, parseLine(t, true, "composer", "require", "drupal/token"), f.cwd); err == nil || !strings.Contains(err.Error(), "holds no Drupal project") {
-		t.Errorf("from web/core: error = %v, want the Drupal refusal", err)
+	if _, err := engineComposer(Facts{Launch: f.launch()}, parseLine(t, true, "composer", "require", "drupal/token"), f.cwd); err == nil || !strings.Contains(err.Error(), "names a drupal- type") {
+		t.Errorf("from web/core: error = %v, want the drupal- type refusal", err)
 	}
 }
 
@@ -94,71 +112,5 @@ func TestASiteExecutableHasNoComposerCommand(t *testing.T) {
 	_, err := parse(Launch{Args: []string{"SITE", "composer", "install"}, Name: "fixture-site", Invoked: "./fixture-site"})
 	if err == nil || !strings.HasPrefix(err.Error(), "Unknown command: composer") {
 		t.Errorf("error = %v, want Unknown command: composer", err)
-	}
-}
-
-func TestCreateProjectTargetReadsThePackageAndVersion(t *testing.T) {
-	cases := []struct {
-		words         []string
-		name, version string
-	}{
-		{[]string{"create-project", "drupal/cms", "site"}, "drupal/cms", ""},
-		{[]string{"Create-P", "drupal/cms"}, "drupal/cms", ""},
-		{[]string{"create-project", "drupal/cms:^2", "site"}, "drupal/cms", "^2"},
-		{[]string{"create-project", "drupal/cms=2.2.9"}, "drupal/cms", "2.2.9"},
-		{[]string{"create-project", "drupal/cms", "site", "2.2.9"}, "drupal/cms", "2.2.9"},
-		{[]string{"create-project", "drupal/cms:^1", "site", "^2"}, "drupal/cms", "^2"},
-		{[]string{"-n", "create-project", "-s", "dev", "drupal/cms"}, "drupal/cms", ""},
-		{[]string{"create-project", "-ns", "dev", "--stability=rc", "drupal/cms"}, "drupal/cms", ""},
-		{[]string{"create-project", "--require", "drupal/token", "--audit-format", "json", "--prefer-install", "dist", "--ignore-platform-req", "ext-gd", "drupal/cms"}, "drupal/cms", ""},
-		{[]string{"create-project", "--no-install", "--", "drupal/cms", "site"}, "drupal/cms", ""},
-	}
-	for _, c := range cases {
-		name, version, err := createProjectTarget(Launch{Invoked: "./drupack"}, c.words)
-		if err != nil || name != c.name || version != c.version {
-			t.Errorf("%q: (%q, %q, %v), want (%q, %q)", c.words, name, version, err, c.name, c.version)
-		}
-	}
-}
-
-func TestCreateProjectTargetRefusesAnotherRepositoryAndNoPackage(t *testing.T) {
-	cases := []struct {
-		words []string
-		want  string
-	}{
-		{[]string{"create-project", "--repository", "https://example.com", "acme/site"}, "refuses --repository, which reads another repository"},
-		{[]string{"create-project", "--repository={\"type\":\"path\"}", "acme/site"}, "refuses --repository={"},
-		{[]string{"create-project", "--repository-url=https://example.com", "acme/site"}, "refuses --repository-url=https://example.com,"},
-		{[]string{"create-project", "--add-repository", "acme/site"}, "refuses --add-repository,"},
-		{[]string{"create-project"}, "create-project needs a package, such as drupal/cms."},
-		{[]string{"create-project", "-s", "dev"}, "create-project needs a package"},
-	}
-	for _, c := range cases {
-		_, _, err := createProjectTarget(Launch{Invoked: "./drupack"}, c.words)
-		if err == nil || !strings.Contains(err.Error(), c.want) {
-			t.Errorf("%q: error = %v, want one holding %q", c.words, err, c.want)
-		}
-	}
-}
-
-func TestPackageFromShowReadsTheTypeAndRequirements(t *testing.T) {
-	kind, require, err := packageFromShow([]byte(`{"name": "drupal/cms", "type": "project", "requires": {"drupal/core-recommended": "^11.5"}}`))
-	if err != nil || kind != "project" || require["drupal/core-recommended"] != "^11.5" {
-		t.Errorf("drupal/cms: (%q, %v, %v)", kind, require, err)
-	}
-	if kind, require, err := packageFromShow([]byte(`{"name": "acme/bare", "type": "project"}`)); err != nil || kind != "project" || require != nil {
-		t.Errorf("no requires: (%q, %v, %v), want project and none", kind, require, err)
-	}
-	for report, want := range map[string]string{
-		``:                                    "the report is no JSON object",
-		`["project"]`:                         "the report is no JSON object",
-		`{"type": 1}`:                         "the report is no JSON object",
-		`{"type": "project", "requires": []}`: "the report is no JSON object",
-		`{"name": "acme/site"}`:               "the report names no type",
-		`{"type": "project"} {}`:              "the report holds more than one JSON value",
-	} {
-		if _, _, err := packageFromShow([]byte(report)); err == nil || !strings.Contains(err.Error(), want) {
-			t.Errorf("%q: error = %v, want one holding %q", report, err, want)
-		}
 	}
 }

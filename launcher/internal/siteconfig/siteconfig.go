@@ -334,10 +334,6 @@ func lockedPackages(directory string) (map[string]string, error) {
 
 const corePackage = "drupal/core"
 
-// drupalPackages are the requirements that make a composer.json a Drupal project's
-// before its lock exists.
-var drupalPackages = []string{corePackage, "drupal/core-recommended", "drupal/core-composer-scaffold"}
-
 // coreReleases returns the drupal/core and drush/drush releases, which --version names.
 func coreReleases(packages map[string]string) (drupal, drush string, err error) {
 	for _, name := range []string{corePackage, "drush/drush"} {
@@ -348,10 +344,9 @@ func coreReleases(packages map[string]string) (drupal, drush string, err error) 
 	return packages[corePackage], packages["drush/drush"], nil
 }
 
-// CheckDrupal refuses a project that holds no Drupal, before the engine's composer
-// command runs in it. Its composer.lock must name a drupal/core release. Without a
-// lock, its composer.json must require one of drupalPackages or set
-// extra.drupal-scaffold.
+// CheckDrupal refuses a project before the engine's composer command runs in it.
+// Its composer.lock must name a drupal/core release. Without a lock, its
+// composer.json must carry no drupal- type.
 func CheckDrupal(project string) error {
 	file := ComposerFile(project)
 	if _, err := os.Stat(file); err != nil {
@@ -370,33 +365,8 @@ func CheckDrupal(project string) error {
 	if err != nil {
 		return err
 	}
-	if !composer.NamesDrupal {
-		return fmt.Errorf("%s requires none of %s and sets no extra.drupal-scaffold, so it holds no Drupal project", file, strings.Join(drupalPackages, ", "))
-	}
-	return nil
-}
-
-// namesDrupal reports a Drupal project's composer.json: its type names no Drupal
-// package, and it requires one of drupalPackages or sets extra.drupal-scaffold.
-func namesDrupal(kind string, require map[string]any, scaffold bool) bool {
-	// drupal/core and each module, theme, profile or recipe carry a composer.json of
-	// their own type, which requires the scaffold too.
-	if strings.HasPrefix(kind, "drupal-") {
-		return false
-	}
-	for _, name := range drupalPackages {
-		if _, required := require[name]; required {
-			return true
-		}
-	}
-	return scaffold
-}
-
-// CheckProjectPackage refuses a create-project package that names no Drupal project.
-// composer show, which reads its type and requirements, reports no extra.
-func CheckProjectPackage(name, kind string, require map[string]any) error {
-	if !namesDrupal(kind, require, false) {
-		return fmt.Errorf("%s creates no Drupal project: a Drupal project's type names no Drupal package, and it requires %s", name, strings.Join(drupalPackages, ", "))
+	if composer.DrupalPackage {
+		return fmt.Errorf("%s names a drupal- type, which a Drupal package carries. Run composer in the project's root.", file)
 	}
 	return nil
 }
@@ -445,9 +415,9 @@ type Composer struct {
 	// Subdomain is the Site host's label. Empty means the label comes from the
 	// site's or the folder's name.
 	Subdomain string `json:"subdomain,omitempty"`
-	// NamesDrupal is true when type names no Drupal package, and require names one
-	// of drupalPackages or extra.drupal-scaffold is set.
-	NamesDrupal bool `json:"namesDrupal,omitempty"`
+	// DrupalPackage is true when type starts with drupal-, as the composer.json of
+	// core, a module, a theme, a profile or a recipe does.
+	DrupalPackage bool `json:"drupalPackage,omitempty"`
 }
 
 // Static holds extra.drupack.static. Dynamic lists the Caddy path matcher patterns
@@ -475,9 +445,10 @@ func ComposerFile(project string) string {
 	return project + "/composer.json"
 }
 
-// ReadComposer reads the web root, the Mercure flag, the subdomain and the static
-// settings from the composer.json in project. The project's author writes that file, so each
-// setting is checked, and a refusal names the file and the field.
+// ReadComposer reads the web root, the Mercure flag, the subdomain, the static
+// settings and whether type names a Drupal package from the composer.json in
+// project. The project's author writes that file, so each setting is checked, and
+// a refusal names the file and the field.
 //
 // Folder takes a missing file or web root as "web", and a web root of "." as the
 // project itself. Packed refuses all three, since a packed site's settings.php
@@ -515,10 +486,9 @@ func ReadComposer(project string, mode Mode) (Composer, error) {
 	if err != nil {
 		return Composer{}, err
 	}
-	// type and require are read to name Drupal alone, so a value Composer would refuse names none.
+	// type is read to name a Drupal package alone, so a value Composer would refuse names none.
 	kind, _ := composer["type"].(string)
-	require, _ := composer["require"].(map[string]any)
-	settings := Composer{NamesDrupal: namesDrupal(kind, require, extra["drupal-scaffold"] != nil)}
+	settings := Composer{DrupalPackage: strings.HasPrefix(kind, "drupal-")}
 	if settings.Docroot, err = docroot(file, locations["web-root"], mode); err != nil {
 		return Composer{}, err
 	}

@@ -140,28 +140,19 @@ processes run on that PHP too. It refuses a project another account owns.
 way. Drupal 11.4 and later ship it.
 
 `drupack composer` runs the Composer the engine carries, on the bundled PHP, in
-the working directory. The working directory holds a Drupal project:
+the working directory. The working directory holds a `composer.json`, and:
 
 - its `composer.lock` names a `drupal/core` release
-- with no lock, its `composer.json` requires `drupal/core`,
-  `drupal/core-recommended` or `drupal/core-composer-scaffold`, or sets
-  `extra.drupal-scaffold`, and its `type` names no Drupal package, as
-  `drupal-core` or `drupal-module` do
+- with no lock, its `type` names no Drupal package, as `drupal-core` or
+  `drupal-module` do
 
 It refuses `-d`, `--working-dir` and a non-blank `COMPOSER`, which point
 Composer at another project. It refuses `global` and `self-update`, under any
 prefix, in any case. A Drupack release moves the Composer it carries.
 
 `drupack composer create-project PACKAGE [DIRECTORY [VERSION]]` creates a
-project in a new directory, from any working directory. `composer show` reads
-the package first. The command runs for a package that names a Drupal project:
-
-- its `type` names no Drupal package
-- it requires `drupal/core`, `drupal/core-recommended` or
-  `drupal/core-composer-scaffold`
-
-`--repository`, `--repository-url` and `--add-repository` are refused, so the
-check and the install read the same repositories.
+project in a new directory, from any working directory. It takes
+`--repository`, `--repository-url` and `--add-repository` as Composer does.
 
 ```sh
 ./drupack composer create-project drupal/cms my-site
