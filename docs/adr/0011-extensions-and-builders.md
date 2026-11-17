@@ -21,6 +21,7 @@ Three builders compile PHP: Linux, macOS and Windows. Each must ship the extensi
 
 - `runtime/builder/builder-inputs.sh` pins the FrankenPHP commit, the PHP version and a static-php-cli v3 commit. `build/release/upstream.py` moves all three.
 - `runtime/builder/fetch-spc.sh` checks out that commit and verifies its hash.
+- A Linux builder image is FrankenPHP's toolchain image on the pinned RHEL 8 base, plus one layer: the paths `embed.sh` reads from the PHP compile. `build-builder.sh` lists them: PHP's libraries, headers and tools, spc, the Go toolchain and, for musl, zig. Sources, downloads and Go caches stay out: over 80 percent of the compile's bytes.
 - The glibc build links against glibc 2.28, the glibc of the RHEL 8 toolchain image. `build/install/install.sh` and self-update take the glibc file on glibc 2.28 or later, and the musl file below it.
 
 ### Trust store and php.ini

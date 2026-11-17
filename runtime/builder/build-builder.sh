@@ -53,36 +53,68 @@ sed -i "s#^$base_line\$#FROM $toolchain_base#" "$dockerfile"
 
 target=static-builder-$libc
 container=drupack-builder-$libc-$$
-# The image holds only the toolchain. build-static.sh compiles PHP when the
-# container runs, and the stopped container, committed, is the builder image.
-# bake would read the workflow's GO_VERSION, so it is unset for the pinned
-# FrankenPHP's own.
+# The toolchain image holds no PHP: build-static.sh compiles it when the
+# container runs. bake would read the workflow's GO_VERSION, so it is unset for
+# the pinned FrankenPHP's own.
 cd "$source"
 env -u GO_VERSION VERSION=$frankenphp_version docker buildx bake --load \
     --set "$target.platform=$platform" \
     --set "$target.tags=$tag-toolchain" \
     "$target"
-# build-static.sh reads GITHUB_TOKEN to raise its GitHub API rate limit. The
-# token enters through a mounted file, since docker commit keeps every -e value
-# in the image it writes, and the release publishes that image.
-token=$(mktemp)
-trap 'rm -f "$token"' EXIT
-printf '%s' "${GITHUB_TOKEN:-}" >"$token"
-# zig compiles a native target for the build host's CPU, so musl names its
-# architecture's baseline. docker commit keeps it for embed.sh.
+# The builder image is the toolchain plus what embed.sh reads from the compile:
+# PHP's libraries, headers and php-config, spc, and the Go toolchain without
+# spc's module cache. Sources, downloads and build caches stay out.
+paths=(
+    go/src/app/dist/buildroot/bin
+    go/src/app/dist/buildroot/include
+    go/src/app/dist/buildroot/lib
+    go/src/app/dist/spc
+    go/src/app/static-php-cli
+    opt/spc-pkgroot/go-xcaddy/bin
+    opt/spc-pkgroot/go-xcaddy/lib
+    opt/spc-pkgroot/go-xcaddy/pkg
+    opt/spc-pkgroot/go-xcaddy/src
+    opt/spc-pkgroot/go-xcaddy/go.env
+    opt/spc-pkgroot/go-xcaddy/VERSION
+)
 target=()
+image_env=
+# zig compiles a native target for the build host's CPU, so musl names its
+# architecture's baseline, for the compile and for embed.sh. zig links musl.
 if [ "$libc" = musl ]; then
-    target=(-e "SPC_TARGET=$(uname -m)-linux-musl")
+    spc_target=$(uname -m)-linux-musl
+    target=(-e "SPC_TARGET=$spc_target")
+    image_env="ENV SPC_TARGET=$spc_target"
+    paths+=(opt/spc-pkgroot/zig)
 fi
+# build-static.sh reads GITHUB_TOKEN to raise its GitHub API rate limit. The
+# stopped container keeps it in its config, so the container goes on any exit.
+trap 'docker rm -f "$container" >/dev/null' EXIT
 # zig, the musl linker, opens a file per object while it links.
 docker run --name "$container" --ulimit nofile=8192:8192 \
-    -v "$token:/run/github-token:ro" \
+    -e GITHUB_TOKEN \
     "${target[@]}" \
     -e "PHP_VERSION=$php_version" \
     -e "PHP_EXTENSIONS=$extensions" \
     -e "PHP_EXTENSION_LIBS=$extension_libs" \
     "$tag-toolchain" \
     ./spc-craft.sh
-docker commit "$container" "$tag"
+# docker cp nests a directory inside an existing one, so the stage starts empty.
+stage=$work/image
+rm -rf "$stage"
+for path in "${paths[@]}"; do
+    mkdir -p "$stage/$(dirname -- "$path")"
+    docker cp "$container:/$path" "$stage/$path"
+done
+# COPY merges into what the toolchain holds. The base ships an older Go in
+# go-xcaddy, and the compile's Go replaces it whole.
+docker build --tag "$tag" --file - "$stage" <<EOF
+FROM $tag-toolchain
+RUN rm -rf /opt/spc-pkgroot/go-xcaddy
+COPY . /
+$image_env
+EOF
 docker rm "$container"
+trap - EXIT
 docker image rm "$tag-toolchain"
+rm -rf "$stage"

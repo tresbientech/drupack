@@ -14,7 +14,7 @@ Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstrea
 
 ### The graph
 
-- A builder image takes a tag that digests its inputs. A runtime job pulls that tag, and a miss builds the image in the job. A fork builds and skips the push.
+- A builder image takes a tag that digests its inputs. A runtime job pulls that tag, and a miss builds the image in the job. A fork builds and skips the push. The image holds the toolchain and the compiled PHP that `embed.sh` links: 1.2 GB (glibc) or 1.5 GB (musl) compressed, with a 0.4 GB or 0.6 GB compile layer.
 - The `payload` job builds the application once. Every platform packs its output.
 - macOS and Windows build and pack in one job, then upload the files as a `suite-*` artifact. The test jobs download it and run one `DRUPACK_SHARD` share or the start cases each.
 - Each macOS architecture builds in its own job, from one composite action, so the arm64 test jobs wait for the arm64 build alone.

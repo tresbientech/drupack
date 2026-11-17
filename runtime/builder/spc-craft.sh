@@ -10,8 +10,4 @@ composer install --working-dir=static-php-cli --no-dev --no-interaction --prefer
 mkdir -p dist
 printf '#!/bin/sh\nexec php /go/src/app/static-php-cli/bin/spc "$@"\n' >dist/spc
 chmod +x dist/spc
-if [ -s /run/github-token ]; then
-    GITHUB_TOKEN=$(cat /run/github-token)
-    export GITHUB_TOKEN
-fi
 exec ./build-static.sh
