@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
 """Writes a release's CycloneDX SBOM.
 
-Usage: sbom.py runtime --target TARGET RUNTIME
+Usage: sbom.py runtime --target TARGET [--libraries FILE] RUNTIME
        sbom.py merge --name NAME --version VERSION --runtime-components FILE...
            [--site SITE_JSON] --output FILE SYFT...
 
 runtime prints, as JSON, a list holding the report of the runtime executable
 that release target TARGET packs: the FrankenPHP, PHP, Caddy and SQLite releases
 its --version names, each PHP extension it loads, and the C libraries PHP names,
-each with its version. syft reads none of them from a release file, which
-carries the runtime compressed inside the launcher.
+each with its version. FILE is the report of runtime/builder/runtime-libraries.sh,
+whose linked libraries join the list when PHP names no release of them. syft
+reads none of them from a release file, which carries the runtime compressed
+inside the launcher.
 
 merge writes the SBOM of release NAME at VERSION: each component of the reports
 in the FILE lists, once per name and version with a drupack:target property per
 target that ships it, Node when SITE_JSON names it, and each component of the
-SYFT CycloneDX scans of the shipped files that has a version.
+SYFT CycloneDX scans of the shipped files that has a version. A scanned component
+sharing a name and version with a listed one stays only when both have a purl and
+the two differ.
 """
 
 import argparse
@@ -72,6 +76,61 @@ LIBRARIES = {
     "LibYAML": ("info('yaml', 'LibYAML Version')", ("pyyaml", "libyaml")),
     "bzip2": ("info('bz2', 'BZip2 Version')", ("bzip", "bzip2")),
 }
+# The project of each pkg-config record a runtime links. A project with several
+# libraries has several records. None marks a record with its own numbering, whose
+# project another record names. A record absent here keeps its own name.
+LINKED_PROJECTS = {
+    "freetype2": "FreeType",
+    "gmp": "GMP",
+    "icu-i18n": "ICU",
+    "icu-io": "ICU",
+    "icu-uc": "ICU",
+    "lber": "OpenLDAP",
+    "ldap": "OpenLDAP",
+    "libbrotlicommon": "brotli",
+    "libbrotlidec": "brotli",
+    "libbrotlienc": "brotli",
+    "libcares": "c-ares",
+    "libcrypto": "OpenSSL",
+    "libcurl": "curl",
+    "libexslt": None,
+    "libjpeg": "libjpeg-turbo",
+    "liblzma": "xz",
+    "libnghttp2": "nghttp2",
+    "libnghttp3": "nghttp3",
+    "libngtcp2": "ngtcp2",
+    "libngtcp2_crypto_ossl": "ngtcp2",
+    "libpng16": "libpng",
+    "libsharpyuv": "libwebp",
+    "libssl": "OpenSSL",
+    "libturbojpeg": "libjpeg-turbo",
+    "libwebpdecoder": "libwebp",
+    "libwebpdemux": "libwebp",
+    "libwebpmux": "libwebp",
+    "libxml-2.0": "libxml2",
+    "libzstd": "zstd",
+    "mit-krb5": "MIT Kerberos",
+    "mit-krb5-gssapi": "MIT Kerberos",
+    "sqlite3": "SQLite",
+    "yaml-0.1": "LibYAML",
+}
+# CPE vendor and product by library, from NVD's dictionary.
+CPE_PRODUCTS = {name: product for name, (_, product) in LIBRARIES.items() if product} | {
+    "aom": ("aomedia", "aomedia"),
+    "c-ares": ("c-ares", "c-ares"),
+    "GMP": ("gmplib", "gmp"),
+    "libavif": ("aomedia", "libavif"),
+    "libedit": ("libedit_project", "libedit"),
+    "libidn2": ("gnu", "libidn2"),
+    "libjpeg-turbo": ("libjpeg-turbo", "libjpeg-turbo"),
+    "libwebp": ("webmproject", "libwebp"),
+    "libxslt": ("xmlsoft", "libxslt"),
+    "MIT Kerberos": ("mit", "kerberos_5"),
+    "ncurses": ("gnu", "ncurses"),
+    "OpenLDAP": ("openldap", "openldap"),
+    "xz": ("tukaani", "xz"),
+    "zstd": ("facebook", "zstandard"),
+}
 # info() reads a row of an extension's phpinfo() section, which the runtime's
 # php-cli prints as HTML. A loaded extension without the row stops the report.
 REPORT = r"""<?php
@@ -92,7 +151,26 @@ foreach (get_loaded_extensions() as $name) echo "extension\t", $name, "\t", phpv
 RELEASE = re.compile(r"(?<!\w)\d[\w.]*")
 
 
-def runtime_components(runtime):
+def library_component(name, release):
+    component = {"type": "library", "name": name, "version": release}
+    if name in CPE_PRODUCTS:
+        component["cpe"] = cpe(*CPE_PRODUCTS[name], release)
+    return component
+
+
+def linked_components(report, named):
+    """One component per project in the report, leaving out the lowercase names in named."""
+    components = []
+    for line in report.read_text().splitlines():
+        record, version = line.split()
+        name = LINKED_PROJECTS.get(record, record)
+        if name is not None and name.lower() not in named:
+            named.add(name.lower())
+            components.append(library_component(name, version))
+    return components
+
+
+def runtime_components(runtime, libraries):
     # The launcher points PHPRC at the runtime directory, whose php.ini loads the
     # extensions a Windows runtime carries as DLLs.
     environment = {**os.environ, "PHPRC": str(Path(runtime).parent)}
@@ -115,11 +193,9 @@ def runtime_components(runtime):
             components.append({"type": "library", "name": "ext-" + name.lower().replace(" ", "-"),
                                "version": version.rsplit(" ", 1)[-1]})
         elif version:
-            release = RELEASE.search(version).group()
-            component = {"type": "library", "name": name, "version": release}
-            if LIBRARIES[name][1]:
-                component["cpe"] = cpe(*LIBRARIES[name][1], release)
-            components.append(component)
+            components.append(library_component(name, RELEASE.search(version).group()))
+    if libraries:
+        components += linked_components(libraries, {c["name"].lower() for c in components})
     return components
 
 
@@ -144,19 +220,23 @@ def merge(args):
             components.append({"type": "application", "name": "Node.js", "version": node,
                                "purl": f"pkg:generic/node@{node}", "cpe": cpe("nodejs", "node.js", node)})
     scans = [json.loads(path.read_text()) for path in args.syft]
-    # A scan lists a component once per file holding it, and a release holds a
-    # build per target, so the first entry of each name and version stays.
-    seen = {(c["name"].lower(), c["version"]) for c in components}
+    # A scan lists a component once per file holding it, and a release holds a build per
+    # target, so a repeat goes. Two ecosystems can share a name and version, which their
+    # purls tell apart. A missing purl tells nothing, so that entry counts as a repeat.
+    purls = {}
+    for component in components:
+        purls.setdefault((component["name"].lower(), component["version"]), set()).add(component.get("purl"))
     for scan in scans:
         for component in scan.get("components", []):
             version = component.get("version")
             if component["type"] == "file" or version in (None, "", "UNKNOWN") \
                     or component.get("purl", "").startswith(FRANKENPHP_MODULES):
                 continue
-            key = (component["name"].lower(), version)
-            if key in seen:
+            known = purls.setdefault((component["name"].lower(), version), set())
+            purl = component.get("purl")
+            if known and (purl is None or None in known or purl in known):
                 continue
-            seen.add(key)
+            known.add(purl)
             components.append({field: component[field] for field in ("type", "name", "version", "purl", "cpe", "licenses")
                                if field in component})
     return {
@@ -178,6 +258,7 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     runtime = commands.add_parser("runtime")
     runtime.add_argument("--target", required=True)
+    runtime.add_argument("--libraries", type=Path)
     runtime.add_argument("runtime")
     merged = commands.add_parser("merge")
     merged.add_argument("--name", required=True)
@@ -188,7 +269,7 @@ def main():
     merged.add_argument("syft", nargs="+", type=Path)
     args = parser.parse_args()
     if args.command == "runtime":
-        json.dump([{"target": args.target, "components": runtime_components(args.runtime)}], sys.stdout, indent=2)
+        json.dump([{"target": args.target, "components": runtime_components(args.runtime, args.libraries)}], sys.stdout, indent=2)
         print()
     else:
         args.output.write_text(json.dumps(merge(args), indent=2) + "\n")

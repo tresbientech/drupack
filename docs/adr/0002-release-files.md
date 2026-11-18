@@ -24,7 +24,7 @@ A reader downloads one file and runs it, with no installer and no antivirus warn
 - A release also carries `install-NAME.sh` for each executable, and `install-NAME.ps1` when NAME has a Windows build.
 - Only `checksums.txt`, `release.json`, the SBOM and the install scripts carry no version in their name.
 - A release publishes the macOS and Windows runtimes as `runtime-VERSION-TARGET.tar.zst`. No install script names them.
-- A script finds the host's target, downloads that build into the current directory and checks its SHA-256. It then prints the command that starts it there, `./NAME`.
+- A script finds the host's target. An executable file already holding that target's SHA-256 stays. Any other file gives way to the build, which the script downloads into the current directory and checks. It then prints the command that starts it there, `./NAME`.
 - On Linux the script installs the glibc file when the host runs glibc 2.28 or later. Otherwise it installs the musl file.
 - `releases/latest/download/` serves the latest scripts, and `releases/download/VERSION/` pins one.
 

@@ -25,7 +25,7 @@ irm https://drupack.tresbien.tech/install.ps1 | iex
 .\drupack.exe
 ```
 
-The script downloads the build for your system into the current directory and checks its SHA-256. Each project keeps its own `drupack`, so each one stays on the version it installed.
+The script installs the build for your system into the current directory and checks the SHA-256 of what it downloads. A file that already matches stays. Each project keeps its own `drupack`, so each one stays on the version it installed.
 
 A Composer project can pin `drupack` instead:
 
@@ -34,7 +34,7 @@ composer require 'drupal/drupack:^1.0@RC'
 ./drupack
 ```
 
-The package is a Composer plugin, which Composer asks you to trust once. A `y` writes `allow-plugins.drupal/drupack` into `composer.json`. From then on, `composer install` and `composer update` download the release that matches the package's version, on a server too. A deploy without a terminal needs that entry committed first. A project that runs `drupack-install` from its own scripts removes them.
+The package is a Composer plugin, which Composer asks you to trust once. A `y` writes `allow-plugins.drupal/drupack` into `composer.json`. From then on, `composer install` and `composer update` install this system's build of the package's version, on a server too. A build that already matches stays. A deploy without a terminal needs that entry committed first. A project that runs `drupack-install` from its own scripts removes them.
 
 `drupack` serves the project in the working directory on `http://127.0.0.1:3787` and prints a one-time login link. It keeps serving in the background, and `drupack stop` ends it. The project's `settings.php` names the database and the files paths. Drupack writes nothing into the project, apart from the `composer install` a start runs after a yes or with `--yes`.
 
@@ -53,6 +53,8 @@ A Linux release publishes two builds per processor, one for each C library. The 
 ```sh
 curl -fsSL https://drupack.tresbien.tech/install.sh | DRUPACK_LIBC=musl sh
 ```
+
+`composer install` and `composer update` make the same pick, so a project on a chosen build sets `DRUPACK_LIBC` for them too.
 
 ## Downloading by hand
 

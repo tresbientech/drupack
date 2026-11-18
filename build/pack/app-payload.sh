@@ -31,8 +31,7 @@ cd "$output"
 # A package Composer installs from source holds a .git clone, left out of both archives.
 archive_options=(--mtime=@0 --owner=0 --group=0 --numeric-owner --mode=u+rw,go+rX --exclude='.git')
 # Drupal's cached absolute paths use the full application input identity.
-tar "${archive_options[@]}" -cf - -C "$application" . \
-    | sha256sum | cut -d ' ' -f 1 | tr -d '\n' > app_checksum.txt
+input=$(tar "${archive_options[@]}" -cf - -C "$application" . | sha256sum | cut -d ' ' -f 1)
 tar "${archive_options[@]}" \
     --exclude='tests' --exclude='Tests' \
     --exclude='*.js.map' --exclude='*.css.map' --exclude='*.pcss.css' \
@@ -48,3 +47,6 @@ if [ -n "$docroot" ] && [ -e "$application/$hyperscriptify/LICENSE" ]; then
         "$contrib/canvas/ui/src" "$contrib/canvas/ui/src/local_packages" \
         "$hyperscriptify" "$hyperscriptify/LICENSE"
 fi
+# The key names the input and the packed result, so a changed packing rule gets a new one.
+payload=$(sha256sum app-payload.tar | cut -d ' ' -f 1)
+printf '%s\n%s\n' "$input" "$payload" | sha256sum | cut -d ' ' -f 1 | tr -d '\n' > app_checksum.txt

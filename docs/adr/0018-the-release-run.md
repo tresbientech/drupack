@@ -23,6 +23,8 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Windows extensions, Composer a
 - The Linux amd64 first job lints and runs the Python unit tests. The Go unit tests run once per system: there, in the Windows build and in the macOS arm64 build.
 - release.yml runs the `full` suite each Monday on `main`, with QA, under a `dev-` version. The weekly run publishes nothing.
 - `publish` needs `sbom`, which needs every build and test job.
+- A Linux or macOS runtime's SBOM report adds the libraries its link step names, from their pkg-config records, one component per project. PHP's own report wins where both name a library. A Windows report holds what PHP names.
+- The SBOM merge drops a scanned component sharing a name and version with a listed one, unless both carry a `purl` and the two differ.
 - payload pushes the Linux builder images every runtime leg built, on amd64, one lane per architecture in parallel. After `docker load`, docker uploads a layer before it learns ghcr holds it, so a lane's second image reuses its first image's base layers. `builder-tag.sh` takes each image's machine type as an argument. QA pulls them, so it needs payload.
 
 ### The upstream run

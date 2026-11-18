@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[2] / "build" / "release" / "sbom.py"
+LIBRARY_REPORT = SCRIPT.parents[2] / "runtime" / "builder" / "runtime-libraries.sh"
 # The stub answers drupack-version as the runtime does, and php-cli with the lines the
 # report script prints. An empty library line names an extension it does not load.
 RUNTIME = """#!/bin/sh
@@ -65,6 +66,66 @@ class Sbom(unittest.TestCase):
         self.assertEqual(components[0]["purl"], "pkg:github/php/frankenphp@v1.12.7")
         self.assertEqual(components[8]["cpe"], "cpe:2.3:a:openssl:openssl:3.6.5:*:*:*:*:*:*:*")
         self.assertNotIn("cpe", components[11])
+
+    def test_the_library_report_lists_the_records_on_the_link_line(self):
+        pkgconfig = self.scratch / "buildroot" / "lib" / "pkgconfig"
+        pkgconfig.mkdir(parents=True)
+        for name, version, libs in (("libavif", "1.4.2", "-L${libdir} -lavif"),
+                                    ("libcurl", "8.23.0", "-L${libdir} -lcurl -lssl"),
+                                    ("libjpeg", "3.2.1", "-L${libdir} -ljpeg"),
+                                    ("libssl", "3.6.5", "-L${libdir} -lssl"),
+                                    ("libargon2", "ZERO", "-L${libdir} -largon2"),
+                                    ("ncurses", "${version}", "-L${libdir} -lncurses"),
+                                    ("form", "6.5", "-L${libdir} -lform -lcurl"),
+                                    ("zlib", "1.4", "-L${libdir} -lz")):
+            (pkgconfig / f"{name}.pc").write_text(
+                f"version=6.6.1\nName: {name}\nVersion: {version}\nLibs: {libs}\nLibs.private: -lm\n")
+        flags = "-Wl,-z,now -L/buildroot/lib -lavif -lcurl -largon2 -lncurses -lzstd /buildroot/lib/libjpeg.a"
+        report = subprocess.run(["sh", LIBRARY_REPORT, self.scratch / "buildroot", flags],
+                                check=True, capture_output=True, text=True).stdout
+        self.assertEqual(report, "libavif 1.4.2\nlibcurl 8.23.0\nlibjpeg 3.2.1\nncurses 6.6.1\n")
+
+    def test_the_library_report_refuses_a_link_line_no_record_names(self):
+        pkgconfig = self.scratch / "buildroot" / "lib" / "pkgconfig"
+        pkgconfig.mkdir(parents=True)
+        (pkgconfig / "libavif.pc").write_text("Version: 1.4.2\nLibs: -lavif\n")
+        result = subprocess.run(["sh", LIBRARY_REPORT, self.scratch / "buildroot", "-lother"],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("No pkg-config record", result.stderr)
+
+    def test_runtime_adds_the_linked_libraries_php_does_not_name(self):
+        libraries = self.scratch / "libraries.txt"
+        libraries.write_text("aom 3.15.3\nlibcrypto 9.9.9\nlibexslt 0.8.25\nlibnghttp3 1.19.0\nlibsharpyuv 1.6.0\n"
+                             "libssh2 9.9.9\nlibwebp 1.6.0\nlibwebpmux 1.6.0\nlibxslt 1.1.45\nnewlib 2.0\n")
+        [report] = json.loads(self.sbom("runtime", "--target", "linux-amd64", "--libraries", libraries,
+                                        self.runtime).stdout)
+        linked = report["components"][12:]
+        self.assertEqual([(c["name"], c["version"]) for c in linked], [
+            ("aom", "3.15.3"), ("nghttp3", "1.19.0"), ("libwebp", "1.6.0"), ("libxslt", "1.1.45"), ("newlib", "2.0")])
+        self.assertEqual([c.get("cpe") for c in linked], [
+            "cpe:2.3:a:aomedia:aomedia:3.15.3:*:*:*:*:*:*:*", None,
+            "cpe:2.3:a:webmproject:libwebp:1.6.0:*:*:*:*:*:*:*",
+            "cpe:2.3:a:xmlsoft:libxslt:1.1.45:*:*:*:*:*:*:*", None])
+
+    def test_merge_keeps_scanned_packages_whose_purls_differ(self):
+        runtime = self.report("linux-amd64", self.runtime)
+        npm, composer = "pkg:npm/shared@1.0.0", "pkg:composer/acme/shared@1.0.0"
+        scan = {"specVersion": "1.6", "metadata": {"tools": []}, "components": [
+            component("shared", "1.0.0", purl=npm),
+            component("shared", "1.0.0", purl=composer),
+            component("shared", "1.0.0", purl=npm),
+            component("shared", "1.0.0"),
+            component("libssh2", "1.11.1", purl="pkg:generic/libssh2@1.11.1"),
+        ]}
+        scanned = self.scratch / "scan.json"
+        scanned.write_text(json.dumps(scan))
+        output = self.scratch / "sbom.cdx.json"
+        self.sbom("merge", "--name", "acme", "--version", "1.0.0", "--runtime-components", runtime,
+                  "--output", output, scanned)
+        components = json.loads(output.read_text())["components"]
+        self.assertEqual([c["purl"] for c in components if c["name"] == "shared"], [npm, composer])
+        self.assertEqual([c.get("purl") for c in components if c["name"] == "libssh2"], [None])
 
     def test_merge_names_the_targets_that_ship_each_runtime_component(self):
         linux = self.report("linux-amd64", self.runtime)

@@ -8,7 +8,7 @@ function translationProjects(array $packages): array
     foreach ($packages as $package) {
         if ($package['name'] === 'drupal/core') {
             $projects['drupal'] = $package['version'];
-        } elseif (in_array($package['type'], ['drupal-module', 'drupal-theme', 'drupal-profile'], true)) {
+        } elseif (str_starts_with($package['name'], 'drupal/') && in_array($package['type'], ['drupal-module', 'drupal-theme', 'drupal-profile'], true)) {
             // Composer repository metadata may omit Drupal's version annotation.
             $projects[substr($package['name'], 7)] = $package['extra']['drupal']['version'] ?? $package['version'];
         }
@@ -41,6 +41,11 @@ function fetchTranslation(string $url): string|null|false
         fprintf(STDERR, "Translation fetch got no usable answer: %s (HTTP %d)\n", $url, $status);
     }
     return false;
+}
+
+// application/tests/install_translations_test.php loads this file for its functions alone.
+if (defined('DRUPACK_INSTALL_TRANSLATIONS_LIBRARY')) {
+    return;
 }
 
 // The build passes the application directory, which holds the lock and site.json.

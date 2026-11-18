@@ -87,7 +87,8 @@ class EngineExecutable(harness.ConformanceCase):
         shutil.copyfile(cls.project / "seed" / "site.sqlite", database)
         (cls.docroot / "sites" / "default" / "settings.php").write_text(
             SETTINGS.format(database=json.dumps(str(database))))
-        # A project whose lock declares an extension no runtime carries, and no Drush.
+        # A project whose lock declares an extension no runtime carries, a version of a carried
+        # one no runtime reaches, and no Drush.
         cls.lacking = cls.class_dir / "lacking"
         (cls.lacking / "web" / "core" / "lib").mkdir(parents=True)
         (cls.lacking / "web" / "index.php").write_text("<?php")
@@ -95,7 +96,8 @@ class EngineExecutable(harness.ConformanceCase):
         (cls.lacking / "vendor").mkdir()
         (cls.lacking / "vendor" / "autoload.php").write_text("<?php")
         (cls.lacking / "composer.lock").write_text(json.dumps(
-            {"packages": [{"name": "acme/absent", "require": {"ext-drupack-absent": "*"}}]}))
+            {"packages": [{"name": "acme/absent", "require": {"ext-drupack-absent": "*"}},
+                          {"name": "acme/future", "require": {"ext-json": ">=99"}}]}))
 
     def engine_run(self, *arguments, cwd=None, env=None, wait="drush"):
         return harness.run([str(self.engine), *arguments], cwd=cwd or self.class_dir, env=env,
@@ -614,10 +616,11 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertIn(f"No login link: {bare.as_posix()} has no Drush.", output)
         self.assertNotIn("  Login:", output)
 
-    def test_a_start_refuses_a_lock_declaring_an_extension_the_runtime_lacks(self):
+    def test_a_start_refuses_a_lock_the_runtime_extensions_do_not_meet(self):
         result = self.engine_run(str(self.lacking))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("drupack-absent: acme/absent", result.stderr)
+        self.assertIn("does not satisfy >=99: acme/future", result.stderr)
 
     def test_a_folder_without_composer_json_serves_its_web_directory(self):
         if harness.SITE["docroot"] != "web":

@@ -12,6 +12,8 @@ declare(strict_types=1);
 // its message on stderr and exits 1. A site operation reads the start's database, administrator
 // and site name options from their DRUPACK_* variables, so no credential reaches argv.
 
+use Composer\Semver\Semver;
+use Composer\Semver\VersionParser;
 use Drupal\Core\DrupalKernel;
 use Drupal\Core\Site\Settings;
 use Drupack\Support\Need;
@@ -475,9 +477,42 @@ function runStep(Step $step, SiteData $site, array $options, string $binary, boo
     }
 }
 
-// composer.lock is the reader's file. An extension it declares that this runtime
-// lacks fails only once a request reaches the code needing it, so a start refuses.
-// Composer's own platform_check.php tests the PHP version alone by default.
+// The version Composer gives an extension: the reported one, else its leading number, else 0.
+function composerExtensionVersion(string $reported): string
+{
+    try {
+        (new VersionParser())->normalize($reported);
+        return $reported;
+    } catch (UnexpectedValueException) {
+        return preg_match('/^\d+\.\d+\.\d+(?:\.\d+)?/', $reported, $match) === 1 ? $match[0] : '0';
+    }
+}
+
+// The lock's extension requirements under Composer's lower-case names, each with its
+// [declarer, constraint] pairs.
+function declaredExtensions(array $lock, string $project): array
+{
+    $sources = [["$project/composer.json", $lock['platform'] ?? []]];
+    foreach ($lock['packages'] ?? [] as $package) {
+        $sources[] = [$package['name'], $package['require'] ?? []];
+    }
+    $declared = [];
+    foreach ($sources as [$declarer, $requirements]) {
+        foreach ($requirements as $requirement => $constraint) {
+            $requirement = strtolower($requirement);
+            if (str_starts_with($requirement, 'ext-')) {
+                $declared[$requirement][] = [$declarer, $constraint];
+            }
+        }
+    }
+    return $declared;
+}
+
+// composer.lock is the reader's file. An extension it declares that this runtime lacks, or
+// holds at a version outside the declared constraint, fails only once a request reaches the
+// code needing it, so a start refuses. Composer's own platform_check.php tests the PHP version
+// alone by default. The engine carries composer.phar beside this file, and PHP opens it only
+// when a constraint other than * loads a version class.
 function checkPlatform(string $binary, string $project): void
 {
     $check = "$project/vendor/composer/platform_check.php";
@@ -495,24 +530,40 @@ function checkPlatform(string $binary, string $project): void
     if (!is_array($lock)) {
         return;
     }
-    $declared = [];
-    foreach (array_keys($lock['platform'] ?? []) as $requirement) {
-        $declared[$requirement][] = "$project/composer.json";
-    }
-    foreach ($lock['packages'] ?? [] as $package) {
-        foreach (array_keys($package['require'] ?? []) as $requirement) {
-            $declared[$requirement][] = $package['name'];
+    spl_autoload_register(static function (string $class): void {
+        if (str_starts_with($class, 'Composer\\Semver\\')) {
+            require 'phar://' . __DIR__ . '/composer.phar/vendor/composer/semver/src/' . strtr(substr($class, 16), '\\', '/') . '.php';
         }
+    });
+    // Composer spells an extension's spaces as dashes: ext-zend-opcache.
+    $loaded = [];
+    foreach (get_loaded_extensions() as $extension) {
+        $loaded['ext-' . str_replace(' ', '-', strtolower($extension))] = $extension;
     }
     $missing = [];
-    foreach ($declared as $requirement => $declarers) {
-        // Composer spells an extension's spaces as dashes: ext-zend-opcache.
-        if (str_starts_with($requirement, 'ext-') && !extension_loaded(str_replace('-', ' ', substr($requirement, 4)))) {
-            $missing[] = '  ' . substr($requirement, 4) . ': ' . implode(', ', $declarers);
+    $outdated = [];
+    foreach (declaredExtensions($lock, $project) as $requirement => $declarers) {
+        $name = substr($requirement, 4);
+        if (!isset($loaded[$requirement])) {
+            $missing[] = "  $name: " . implode(', ', array_column($declarers, 0));
+            continue;
+        }
+        $reported = (string) phpversion($loaded[$requirement]);
+        foreach ($declarers as [$declarer, $constraint]) {
+            if ($constraint !== '*' && !Semver::satisfies(composerExtensionVersion($reported), $constraint)) {
+                $outdated[] = "  $name " . ($reported ?: '0') . " does not satisfy $constraint: $declarer";
+            }
         }
     }
+    $refusals = [];
     if ($missing !== []) {
-        throw new RuntimeException("$project/composer.lock declares PHP extensions this runtime lacks:\n" . implode("\n", $missing));
+        $refusals[] = "$project/composer.lock declares PHP extensions this runtime lacks:\n" . implode("\n", $missing);
+    }
+    if ($outdated !== []) {
+        $refusals[] = "$project/composer.lock declares PHP extension versions this runtime does not meet:\n" . implode("\n", $outdated);
+    }
+    if ($refusals !== []) {
+        throw new RuntimeException(implode("\n", $refusals));
     }
 }
 

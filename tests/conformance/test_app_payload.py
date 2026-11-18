@@ -51,6 +51,12 @@ class AppPayload(unittest.TestCase):
         with tarfile.open(self.output / "app-payload.tar") as archive:
             self.assertEqual([name for name in archive.getnames() if "tests" in Path(name).parts], [])
 
+    def test_the_checksum_follows_a_changed_packing_rule(self):
+        source = self.application / "web" / "modules" / "contrib" / "canvas" / "ui" / "src" / "app.js"
+        source.parent.mkdir(parents=True)
+        source.write_text("x")
+        self.assertNotEqual(self.pack("web"), self.pack())
+
     def test_only_a_payload_with_a_docroot_leaves_out_the_drupal_module_sources(self):
         source = self.application / "web" / "modules" / "contrib" / "canvas" / "ui" / "src" / "app.js"
         source.parent.mkdir(parents=True)

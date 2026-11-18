@@ -37,7 +37,7 @@ test('a branch or an unreadable version is refused', function (): void {
 
 test('the version enters a release URL as one encoded path segment', function (): void {
     same('https://github.com/tresbientech/drupack/releases/download/0.5.1/install-drupack.sh', releaseUrl('0.5.1', 'install-drupack.sh'));
-    same('https://github.com/tresbientech/drupack/releases/download/0.5.1%0A%2F..%2Fx/checksums.txt', releaseUrl("0.5.1\n/../x", 'checksums.txt'));
+    same('https://github.com/tresbientech/drupack/releases/download/0.5.1%0A%2F..%2Fx/install-drupack.sh', releaseUrl("0.5.1\n/../x", 'install-drupack.sh'));
 });
 
 test('each system runs the fetched script as a file', function (): void {
@@ -58,17 +58,6 @@ test('the fetched script runs in the project root with DRUPACK_LIBC', function (
         putenv('DRUPACK_LIBC');
     }
     same('musl', file_get_contents("$directory/libc"));
-});
-
-test('a build is current when the release lists its SHA-256 for drupack', function (): void {
-    $directory = directory('current');
-    file_put_contents("$directory/drupack", 'a drupack build');
-    $sha256 = hash('sha256', 'a drupack build');
-    same(true, isRelease("$directory/drupack", "0000  drupack-0.5.1-macos-arm64\n$sha256  drupack-0.5.1-linux-amd64\n", '0.5.1'));
-    same(false, isRelease("$directory/drupack", "$sha256  drupack-0.5.2-linux-amd64\n", '0.5.1'));
-    same(false, isRelease("$directory/drupack", "$sha256  drupacked-demo-0.5.1-linux-amd64\n", '0.5.1'));
-    file_put_contents("$directory/drupack", "#!/bin/sh\necho 'drupack 0.5.1 (drupack 0.5.1, glibc)'\n");
-    same(false, isRelease("$directory/drupack", "$sha256  drupack-0.5.1-linux-amd64\n", '0.5.1'));
 });
 
 test('the executable joins an existing .gitignore once', function (): void {

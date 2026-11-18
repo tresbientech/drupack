@@ -6,6 +6,7 @@ Run with:
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -108,6 +109,107 @@ class SiteReleaseFiles(unittest.TestCase):
         result = self.write("release/1.0", self.build("demo-linux-amd64"))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("'release/1.0' holds a character", result.stderr)
+
+
+# Answers the script's download from the release directory, and logs the request.
+CURL = """#!/bin/sh
+echo "$4" >>"$CURL_LOG"
+cp "$RELEASE/${4##*/}" "$3"
+"""
+UNAME = """#!/bin/sh
+case $1 in -s) echo Linux ;; -m) echo x86_64 ;; esac
+"""
+
+
+@unittest.skipIf(os.name == "nt", "the shell script runs on Linux and macOS")
+class InstallScriptRun(unittest.TestCase):
+    """install-demo.sh on a stubbed Linux amd64 host, picking a build through DRUPACK_LIBC."""
+
+    def setUp(self):
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.scratch = Path(scratch.name)
+        self.release = self.scratch / "release"
+        self.project = self.scratch / "project"
+        self.project.mkdir()
+        self.installed = self.project / "demo"
+        self.log = self.scratch / "curl.log"
+        self.tools = self.scratch / "tools"
+        self.tools.mkdir()
+        for name, text in (("curl", CURL), ("uname", UNAME)):
+            (self.tools / name).write_text(text)
+            (self.tools / name).chmod(0o755)
+        builds = []
+        for suffix in ("", "-musl"):
+            build = self.scratch / f"demo-linux-amd64{suffix}"
+            build.write_bytes(f"the linux-amd64{suffix} build".encode())
+            builds.append(build)
+        subprocess.run([sys.executable, RELEASE_FILES, "--output", self.release, "--version", "1.2.3",
+                        "--base-url", BASE_URL, "--commit", "release-case", *builds], check=True)
+        self.glibc = b"the linux-amd64 build"
+        self.musl = b"the linux-amd64-musl build"
+
+    def install(self, libc="glibc"):
+        env = dict(os.environ, PATH=f"{self.tools}{os.pathsep}{os.environ['PATH']}", DRUPACK_LIBC=libc,
+                   RELEASE=str(self.release), CURL_LOG=str(self.log))
+        result = subprocess.run(["sh", self.release / "install-demo.sh"], cwd=self.project, env=env,
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout
+
+    def place(self, contents, mode=0o755):
+        self.installed.write_bytes(contents)
+        self.installed.chmod(mode)
+
+    def assert_replaced(self, contents):
+        self.assertTrue(self.log.exists(), "the script downloaded nothing")
+        self.assertFalse(self.installed.is_symlink())
+        self.assertEqual(self.installed.read_bytes(), contents)
+        self.assertEqual(self.installed.stat().st_mode & 0o777, 0o755)
+
+    def test_a_matching_executable_is_left_alone_without_a_download(self):
+        self.place(self.glibc)
+        before = self.installed.stat()
+        output = self.install()
+        self.assertFalse(self.log.exists())
+        self.assertEqual((self.installed.stat().st_ino, self.installed.stat().st_mtime_ns),
+                         (before.st_ino, before.st_mtime_ns))
+        self.assertIn("demo 1.2.3 is already in", output)
+        self.assertTrue(output.endswith("\n\n    ./demo\n"), output)
+        self.assertEqual(sorted(path.name for path in self.project.iterdir()), ["demo"])
+
+    def test_a_link_to_a_matching_executable_stays_a_link(self):
+        target = self.scratch / "kept"
+        target.write_bytes(self.glibc)
+        target.chmod(0o755)
+        self.installed.symlink_to(target)
+        self.install()
+        self.assertFalse(self.log.exists())
+        self.assertTrue(self.installed.is_symlink())
+
+    def test_a_link_to_another_build_gives_way_and_its_target_stays(self):
+        target = self.scratch / "kept"
+        target.write_bytes(self.musl)
+        target.chmod(0o755)
+        self.installed.symlink_to(target)
+        self.install()
+        self.assert_replaced(self.glibc)
+        self.assertEqual(target.read_bytes(), self.musl)
+
+    def test_a_matching_file_that_cannot_run_is_replaced(self):
+        self.place(self.glibc, 0o644)
+        self.install()
+        self.assert_replaced(self.glibc)
+
+    def test_the_other_c_library_build_is_replaced(self):
+        self.place(self.glibc)
+        self.install("musl")
+        self.assert_replaced(self.musl)
+
+    def test_a_file_from_another_platform_is_replaced(self):
+        self.place(b"a macOS build")
+        self.install()
+        self.assert_replaced(self.glibc)
 
 
 if __name__ == "__main__":

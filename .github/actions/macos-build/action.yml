@@ -92,7 +92,8 @@ runs:
       shell: bash
       run: |
         mkdir runtime-components
-        python3 build/release/sbom.py runtime --target "$TARGET" "$RUNNER_TEMP/drupack/runtime/drupack" >"runtime-components/$TARGET.json"
+        python3 build/release/sbom.py runtime --target "$TARGET" --libraries "$RUNNER_TEMP/drupack/runtime-libraries.txt" \
+          "$RUNNER_TEMP/drupack/runtime/drupack" >"runtime-components/$TARGET.json"
 
     - uses: actions/upload-artifact@v7
       with:

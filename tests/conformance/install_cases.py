@@ -143,6 +143,23 @@ class InstallScript(harness.ConformanceCase):
         start = f".\\{self.name}.exe" if self.windows else f"./{self.name}"
         self.assertTrue(result.stdout.endswith(f"\n\n    {start}\n"), result.stdout)
 
+    def test_a_second_windows_run_downloads_nothing(self):
+        # test_release_files.py runs the shell script's cases without a server or a build.
+        if not self.windows:
+            self.skipTest("the PowerShell script runs on Windows")
+        release = self.release("repeat", self.host_build())
+        result, directory = self.install(release)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        (release / f"{self.name}-{VERSION}-{self.target}{self.extension}").unlink()
+        installed = directory / f"{self.name}{self.extension}"
+        command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+                   f"irm {self.url}/{release.name}/install-{self.name}.ps1 | iex"]
+        result = harness.run(command, cwd=directory, capture_output=True, text=True,
+                             timeout=harness.WAITS["drush"].seconds)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("is already in", result.stdout)
+        self.assertEqual(sha256(installed), sha256(harness.BINARY))
+
     def test_the_script_refuses_a_download_whose_sha256_differs(self):
         release = self.release("tampered", self.host_build())
         (release / f"{self.name}-{VERSION}-{self.target}{self.extension}").write_bytes(b"tampered")

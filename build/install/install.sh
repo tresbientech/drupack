@@ -16,6 +16,28 @@ fail() {
     exit 1
 }
 
+sha256() {
+    if command -v sha256sum >/dev/null; then
+        sha256sum "$1" | cut -d ' ' -f 1
+    else
+        shasum -a 256 "$1" | cut -d ' ' -f 1
+    fi
+}
+
+# Prints the result and how to start the build.
+finish() {
+    echo "$1"
+    echo
+    echo "Start it with:"
+    echo
+    # Bold green on a terminal, plain text when piped or when NO_COLOR is set.
+    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+        printf '    \033[1;32m./%s\033[0m\n' "$name"
+    else
+        printf '    ./%s\n' "$name"
+    fi
+}
+
 case "$(uname -s)" in
     Linux) os=linux ;;
     Darwin) os=macos ;;
@@ -61,6 +83,11 @@ if [ -z "$expected" ]; then
     fail "$name $version has no $target build. It has:$(echo "$builds" | awk 'NF { printf " %s", $1 }')."
 fi
 
+if [ -f "$name" ] && [ -x "$name" ] && [ "$(sha256 "$name")" = "$expected" ]; then
+    finish "$name $version is already in $PWD/$name."
+    exit 0
+fi
+
 url=$base_url/$name-$version-$target
 # mktemp creates a new file, so a file or link already in this directory cannot
 # stand in for the download.
@@ -73,11 +100,7 @@ else
     wget -q -O "$download" "$url"
 fi
 
-if command -v sha256sum >/dev/null; then
-    actual=$(sha256sum "$download" | cut -d ' ' -f 1)
-else
-    actual=$(shasum -a 256 "$download" | cut -d ' ' -f 1)
-fi
+actual=$(sha256 "$download")
 if [ "$actual" != "$expected" ]; then
     fail "The download's SHA-256 is $actual, and the release lists $expected. Nothing was installed."
 fi
@@ -87,13 +110,4 @@ if [ -e "$name" ]; then
 fi
 chmod 755 "$download"
 mv -f "$download" "$name"
-echo "Installed $name $version in $PWD/$name."
-echo
-echo "Start it with:"
-echo
-# Bold green on a terminal, plain text when piped or when NO_COLOR is set.
-if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
-    printf '    \033[1;32m./%s\033[0m\n' "$name"
-else
-    printf '    ./%s\n' "$name"
-fi
+finish "Installed $name $version in $PWD/$name."

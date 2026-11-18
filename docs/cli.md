@@ -570,10 +570,16 @@ run:
 ## Site data
 
 `--data-dir` selects the Site data directory. A relative path resolves against
-the directory you started Drupack in. Site data holds the database, the
+the directory you started Drupack in. Site data holds the SQLite database, the
 uploads, the private files, the configuration exports, the generated settings
-and the logs. Copy the directory to back the site up, with the site stopped.
-Keep the copy private, since it holds the site's secrets.
+and the logs.
+
+To back up a site, stop it and copy the directory. Keep the copy private, since
+it holds the site's secrets. The backup also needs what lives outside the
+directory:
+
+- the server database, when the site uses MySQL or PostgreSQL
+- the folder `files` leads to, when `files` is a link or a mount
 
 A start creates a missing Site data directory readable and writable by you
 alone. Every start, `drush` and `export` warn when another account owns Site

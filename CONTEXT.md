@@ -158,7 +158,7 @@ A PHP extension that a package in the application's lock file names as a require
 ### Engine executable
 
 - An **Engine executable** has no **Site data**. A **Project folder**'s own settings name its database and files.
-- An **Engine executable** refuses a **Project folder** with a **Declared extension** its **Runtime** lacks.
+- An **Engine executable** refuses a **Project folder** with a **Declared extension** its **Runtime** lacks, or holds at a version outside the declared constraint.
 - An **Engine executable** runs a **Project folder**'s own Drush with `drush`, and Drupal core's command line with `dr`.
 - An **Engine executable** runs the Composer it carries in a **Project folder** with `composer`.
 - A Linux release holds an **Engine executable** per C library, as it does for a **Packaged site**.

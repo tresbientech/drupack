@@ -37,7 +37,7 @@ FROM ${EXTENSIONS} AS extensions
 FROM ${MUSL_BUILDER} AS runtime-musl
 ARG DRUPACK_VERSION
 COPY runtime/builder/embed.sh /usr/local/bin/embed.sh
-COPY runtime/builder/builder-inputs.sh runtime/extensions/php-extension-libs.txt runtime/extensions/extensions-list.sh /build/
+COPY runtime/builder/builder-inputs.sh runtime/builder/runtime-libraries.sh runtime/extensions/php-extension-libs.txt runtime/extensions/extensions-list.sh /build/
 COPY --from=extensions /php-extensions.txt /build/php-extensions.txt
 COPY runtime/frankenphp/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
 COPY runtime/frankenphp/watch/watch.go /go/src/app/caddy/frankenphp/drupack_watch.go
@@ -48,7 +48,7 @@ COPY runtime/php.ini runtime/cacert.pem /out/
 FROM ${GNU_BUILDER} AS runtime-gnu
 ARG DRUPACK_VERSION
 COPY runtime/builder/embed.sh /usr/local/bin/embed.sh
-COPY runtime/builder/builder-inputs.sh runtime/extensions/php-extension-libs.txt runtime/extensions/extensions-list.sh /build/
+COPY runtime/builder/builder-inputs.sh runtime/builder/runtime-libraries.sh runtime/extensions/php-extension-libs.txt runtime/extensions/extensions-list.sh /build/
 COPY --from=extensions /php-extensions.txt /build/php-extensions.txt
 COPY runtime/frankenphp/entrypoint.go /go/src/app/caddy/frankenphp/drupack.go
 COPY runtime/frankenphp/watch/watch.go /go/src/app/caddy/frankenphp/drupack_watch.go
@@ -66,9 +66,11 @@ COPY --from=runtime-gnu /out/drupack /drupack
 # builds one runtime.
 FROM scratch AS runtime-musl-files
 COPY --from=runtime-musl /out /out
+COPY --from=runtime-musl /runtime-libraries.txt /runtime-libraries.txt
 
 FROM scratch AS runtime-gnu-files
 COPY --from=runtime-gnu /out /out
+COPY --from=runtime-gnu /runtime-libraries.txt /runtime-libraries.txt
 
 # One PLATFORM-LIBC directory per runtime. A local build carries its own
 # architecture's two; the release passes all four.

@@ -10,7 +10,8 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 
 - Each release publishes a generic `drupack` executable per platform. It carries the runtimes and the engine's files, and no application.
 - `drupack [DIR]` serves the project folder DIR, the working directory by default. The docroot comes from `composer.json`'s scaffold web root, or `web` when unset.
-- A start refuses a docroot without Drupal core, and a `composer.lock` that requires an extension the runtime lacks. The refusal names the missing extensions.
+- A start refuses a docroot without Drupal core, and a `composer.lock` that requires an extension the runtime lacks or holds outside a declared constraint. The refusal names each missing extension, or the extension, its version, the constraint and the declarer.
+- The version check follows Composer's reading of an extension's version, with the `Composer\Semver` classes of the engine's `composer.phar`.
 - A start that finds no Drupal core in a folder with a `composer.json` and no `vendor/` asks, on a terminal, to run `drupack composer install`, then serves. `--yes` runs it without asking. Without a terminal or `--yes`, or after a no, it names that command. It checks the docroot before the lock.
 - The folder's own settings own the database, the files paths and the hash salt. Drupack writes nothing into the folder, apart from the `composer install` a start runs after a yes or with `--yes`.
 - The engine serves on `127.0.0.1:3787`. It runs no cron and has no Site data. A cache entry keyed by the folder's path holds its [lease and stop channel](0006-one-server-per-site-data.md).
@@ -51,7 +52,8 @@ A developer with a Drupal project on disk, such as a ddev checkout, needs to ser
 - Composer runs a plugin only once `allow-plugins` names it, so a project trusts `drupal/drupack` once. Composer's own root scripts would take two `composer config` lines per project.
 - `drupack-install` reads the package's installed version and fetches that release's `install-drupack.sh`, or the `.ps1` on Windows. It runs the script from a temporary file with the project root as the working directory.
 - It adds `/drupack` to the project's `.gitignore` when the project root or a parent holds `.git`.
-- A `./drupack` whose SHA-256 the release's `checksums.txt` lists is left alone. `drupack-install` never runs that file.
+- The script keeps an executable `./drupack` whose SHA-256 equals the host target's and replaces any other file. `drupack-install` never runs that file.
+- The script picks the C library as it does on its own, so a chosen build stays only when `DRUPACK_LIBC` reaches the Composer run.
 - A `dev-main` install is refused.
 
 ### Self-update

@@ -4,8 +4,9 @@
 declare(strict_types=1);
 
 // Installs the drupack build for this host into the project root, from the release whose
-// tag matches this package's installed version. The release's install script downloads the
-// build and checks its SHA-256.
+// tag matches this package's installed version. The release's install script picks the build
+// for this host, leaves a matching file alone, and otherwise downloads the build and checks
+// its SHA-256.
 
 use Composer\InstalledVersions;
 use Composer\Semver\VersionParser;
@@ -55,20 +56,6 @@ function runScript(bool $windows, string $script, string $root): int
     $pipes = [];
     $discard = ['file', $windows ? 'NUL' : '/dev/null', 'w'];
     return proc_close(proc_open(installCommand($windows, $script), [0 => STDIN, 1 => $discard, 2 => STDERR], $pipes, $root));
-}
-
-// Whether $binary is byte for byte a drupack build of $version, by the release's
-// checksums.txt. The file is never run, since a project can hold any file there.
-function isRelease(string $binary, string $checksums, string $version): bool
-{
-    $actual = hash_file('sha256', $binary);
-    foreach (preg_split('/\R/', trim($checksums)) as $line) {
-        [$sha256, $asset] = preg_split('/\s+/', trim($line), 2) + [1 => ''];
-        if (str_starts_with($asset, "drupack-$version-") && hash_equals($sha256, $actual)) {
-            return true;
-        }
-    }
-    return false;
 }
 
 function download(string $url): string
@@ -123,26 +110,22 @@ try {
     $version = releaseVersion(InstalledVersions::getPrettyVersion('drupal/drupack'));
     $root = realpath(InstalledVersions::getRootPackage()['install_path']);
     $name = executable($windows);
-    if (is_file("$root/$name") && isRelease("$root/$name", download(releaseUrl($version, 'checksums.txt')), $version)) {
-        echo "$root/$name is drupack $version already.\n";
-    } else {
-        // PowerShell runs a file only under its .ps1 extension, so the temporary copy
-        // keeps the release file's. The random name and the exclusive open keep a
-        // planted file or link from standing in for it.
-        $extension = $windows ? 'ps1' : 'sh';
-        $contents = download(releaseUrl($version, "install-drupack.$extension"));
-        $script = sys_get_temp_dir() . '/drupack-install-' . bin2hex(random_bytes(8)) . ".$extension";
-        $handle = fopen($script, 'x');
-        fwrite($handle, $contents);
-        fclose($handle);
-        echo "Downloading drupack $version for this system.\n";
-        $status = runScript($windows, $script, $root);
-        unlink($script);
-        if ($status !== 0) {
-            throw new RuntimeException("drupack $version was not installed.");
-        }
-        echo "Installed drupack $version in $root/$name.\n";
+    // PowerShell runs a file only under its .ps1 extension, so the temporary copy
+    // keeps the release file's. The random name and the exclusive open keep a
+    // planted file or link from standing in for it.
+    $extension = $windows ? 'ps1' : 'sh';
+    $contents = download(releaseUrl($version, "install-drupack.$extension"));
+    $script = sys_get_temp_dir() . '/drupack-install-' . bin2hex(random_bytes(8)) . ".$extension";
+    $handle = fopen($script, 'x');
+    fwrite($handle, $contents);
+    fclose($handle);
+    echo "Checking drupack $version for this system.\n";
+    $status = runScript($windows, $script, $root);
+    unlink($script);
+    if ($status !== 0) {
+        throw new RuntimeException("drupack $version was not installed.");
     }
+    echo "drupack $version is in $root/$name.\n";
     if (ignore($root, $name)) {
         echo "Added /$name to .gitignore.\n";
     }

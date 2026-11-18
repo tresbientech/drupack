@@ -53,6 +53,8 @@ if [ ! -f "$work/buildroot/lib/libphp.a" ]; then
 fi
 php_includes=$("${spc[@]}" spc-config "$extensions" --with-libs="$extension_libs" --includes)
 php_libraries=$("${spc[@]}" spc-config "$extensions" --with-libs="$extension_libs" --libs)
+# build/release/sbom.py reads this report.
+sh "$repository/runtime/builder/runtime-libraries.sh" "$work/buildroot" "$php_libraries" >"$work/runtime-libraries.txt"
 # --version names the SQLite release static-php-cli compiled into PHP.
 sqlite_version=$(sed -n 's/^#define SQLITE_VERSION *"\(.*\)"$/\1/p' "$work/buildroot/include/sqlite3.h")
 if [[ -z $sqlite_version ]]; then

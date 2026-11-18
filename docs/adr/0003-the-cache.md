@@ -12,6 +12,7 @@ A release carries its runtime and application files compressed. Extracting them 
 - A runtime entry is named from the version and a digest of the payload. Two builds with one version string keep separate entries.
 - The root also holds `app/` (applications), `node/` (Node releases) and `folders/` (the engine's per-folder state).
 - FrankenPHP is built without its embedded `app.tar`, so it extracts nothing. The launcher extracts the application once per release into `app/`, and every Site data of that release serves from it.
+- `app_checksum.txt` keys an application entry. It is the SHA-256 of two digests: the input tree's and the finished `app-payload.tar`'s. A changed packing rule gets a new entry.
 - The application directory is read-only. Nothing writes into it, and a site's public files live in Site data under the root-relative address `sites/default/files`.
 - `deployment_identifier` hashes the application path, so each release gets its own Drupal cache key.
 
