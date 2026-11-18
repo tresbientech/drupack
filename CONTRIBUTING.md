@@ -34,11 +34,12 @@ bash build/test/qa.sh
 
 A conformance case asserts what only a live run shows: an HTTP answer, a served certificate, a process, a database or an OS. A choice a pure function makes, such as a refusal message or a start plan, gets a unit test instead.
 
-Every Python script in `build/`, `runtime/` and `tests/` imports the standard library alone.
+Every Python script in `build/`, `runtime/` and `tests/` imports the standard library alone. A merge request runs ruff's security rules on them, and `ruff.toml` lists each accepted hit with its reason.
 
 ```sh
 bash build/test/go-tests.sh
 bash build/test/unit-tests.sh
+ruff check .
 DRUPACK_TEST_ENGINE=dist/engine/drupack-linux-amd64 python3 tests/conformance dist/drupacked-demo-linux-amd64 test-results/conformance --site-tests demo/tests
 ```
 

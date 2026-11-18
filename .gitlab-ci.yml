@@ -1,6 +1,6 @@
-# drupal.org's runners run the unit tests of a merge request, and one daily job
-# that starts GitHub's workflows. GitHub's release.yml builds and tests the
-# executables.
+# drupal.org's runners run the unit tests and ruff's security rules on a merge
+# request, and one daily job that starts GitHub's workflows. GitHub's release.yml
+# builds and tests the executables.
 
 tests:
   image: golang:bookworm
@@ -41,6 +41,20 @@ tests:
       export GOTOOLCHAIN="go$(sed -n "s/^  GO_VERSION: '\(.*\)'$/\1/p" .github/workflows/release.yml)"
     - bash build/test/go-tests.sh
     - bash build/test/unit-tests.sh
+
+# ruff.toml lists the accepted hits, each with its reason.
+ruff:
+  image: python:3-slim
+  interruptible: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/*.py"
+        - .gitlab-ci.yml
+        - ruff.toml
+  script:
+    - pip install --quiet --root-user-action=ignore ruff==0.15.10
+    - ruff check .
 
 # GitHub's cron starts late under load, so drupal.org's pipeline schedule is the
 # clock. GITHUB_DISPATCH_TOKEN is a masked, protected CI/CD variable.

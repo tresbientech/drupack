@@ -45,7 +45,7 @@ VCPKG_TOOL_RELEASES = "https://api.github.com/repos/microsoft/vcpkg-tool/release
 PECL_RELEASES = "https://pecl.php.net/rest/r/"
 PECL_WINDOWS = "https://downloads.php.net/~windows/pecl/releases/"
 GO_RELEASES = "https://go.dev/dl/?mode=json&include=all"
-DOCKER_TOKEN = "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/golang:pull"
+DOCKER_AUTH = "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/golang:pull"
 DOCKER_MANIFESTS = "https://registry-1.docker.io/v2/library/golang/manifests/"
 GO_PROXY = "https://proxy.golang.org/"
 COMPOSER_VERSIONS = "https://getcomposer.org/versions"
@@ -95,9 +95,10 @@ STABILITY = {"alpha": 0, "beta": 1, "rc": 2, None: 3}
 
 def download(url):
     request = urllib.request.Request(url)
-    # A GitHub runner's token lifts the API's per-address rate limit.
+    # A GitHub runner's token lifts the API's per-address rate limit. urllib copies a plain
+    # header to a redirect's target, which may be another host.
     if url.startswith("https://api.github.com/") and os.environ.get("GITHUB_TOKEN"):
-        request.add_header("Authorization", f"Bearer {os.environ['GITHUB_TOKEN']}")
+        request.add_unredirected_header("Authorization", f"Bearer {os.environ['GITHUB_TOKEN']}")
     with urllib.request.urlopen(request, timeout=60) as response:
         return response.read()
 
@@ -353,7 +354,7 @@ def go(summary):
 def golang_digest(version):
     """The digest of the multi-platform index Docker Hub serves as golang:VERSION-bookworm."""
     # Docker Hub's token and digest are remote input.
-    token = json.loads(fetch(DOCKER_TOKEN)).get("token")
+    token = json.loads(fetch(DOCKER_AUTH)).get("token")
     if not isinstance(token, str) or not token:
         sys.exit("Docker Hub gave no pull token for library/golang")
     digest = head(f"{DOCKER_MANIFESTS}{version}-bookworm", {

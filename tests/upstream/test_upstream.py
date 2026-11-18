@@ -17,7 +17,9 @@ import sys
 import tempfile
 import unittest
 import urllib.error
+import urllib.request
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("upstream", ROOT / "build" / "release" / "upstream.py")
@@ -144,7 +146,7 @@ class Bumper(unittest.TestCase):
         pinned = upstream.read(upstream.BUILDER_INPUTS, upstream.FRANKENPHP_COMMIT_PIN)
         self.indexes[f"{upstream.FRANKENPHP_RAW}/{pinned}/caddy/go.mod"] = f"module example\n\n{go_mod}"
         self.indexes[upstream.GO_RELEASES] = json.dumps([{"version": v, "stable": stable} for v in versions])
-        self.indexes[upstream.DOCKER_TOKEN] = json.dumps({"token": "pull-token"})
+        self.indexes[upstream.DOCKER_AUTH] = json.dumps({"token": "pull-token"})
 
     def go_pins(self):
         return {path: upstream.read(path, upstream.GO_LINE) for path in upstream.GO_MODS} | {
@@ -702,6 +704,23 @@ class ReleaseNode(unittest.TestCase):
             self.post("1.0.0-beta20", "<h4>Task</h4>\n")
         self.assertEqual(str(stopped.exception), "drupal.org refused the form: Error message The tag 1.0.0-beta20 is taken.")
         self.assertEqual(len(self.requests), 3)
+
+
+class Download(unittest.TestCase):
+    def test_a_redirect_leaves_the_github_token_behind(self):
+        opened = []
+
+        def urlopen(request, timeout):
+            opened.append(request)
+            return io.BytesIO(b"body")
+
+        with mock.patch.dict("os.environ", {"GITHUB_TOKEN": "runner-token"}), \
+                mock.patch.object(urllib.request, "urlopen", urlopen):
+            self.assertEqual(upstream.download("https://api.github.com/repos/acme/tool"), b"body")
+        self.assertEqual(opened[0].get_header("Authorization"), "Bearer runner-token")
+        redirected = urllib.request.HTTPRedirectHandler().redirect_request(
+            opened[0], None, 302, "Found", {}, "https://downloads.example/tool")
+        self.assertIsNone(redirected.get_header("Authorization"))
 
 
 class GoPins(unittest.TestCase):

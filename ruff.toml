@@ -1,0 +1,22 @@
+# ruff reads the Python code for security problems. Each ignore is a reviewed hit.
+[lint]
+select = ["S"]
+
+[lint.per-file-ignores]
+# S603, S607: the release scripts pass argument lists, with no shell, to tools on the job's PATH.
+# S310: these two scripts open https addresses the code names.
+"build/release/class-seconds.py" = ["S603", "S607"]
+"build/release/next-version.py" = ["S607"]
+"build/release/release-files.py" = ["S603", "S607"]
+"build/release/release-node.py" = ["S310", "S603", "S607"]
+"build/release/release-plan.py" = ["S603", "S607"]
+"build/release/upstream.py" = ["S310", "S603", "S607"]
+# S603: these run the PHP runtime the same job built.
+"build/release/sbom.py" = ["S603"]
+"runtime/extensions/check-extensions.py" = ["S603"]
+# S603, S607: tests start the built executables and local tools.
+# S105: their passwords belong to throwaway sites.
+# S310: they open the local servers they start.
+# S104: two cases bind every interface to test a non-loopback listener.
+# S311: a random number picks a free port.
+"tests/**/*.py" = ["S104", "S105", "S310", "S311", "S603", "S607"]
