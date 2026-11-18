@@ -1,6 +1,6 @@
-"""A packaged site serves the drupack.caddy and the drupack.mercure.caddy its build packed.
-build/test/variant-fixture.sh writes both; a build's own run skips the class on a site without a
-drupack.caddy, and the hub case on a site whose hub file leaves the debugger off."""
+"""A packaged site serves the .drupack/route.caddy and the .drupack/mercure.caddy its build
+packed. build/test/variant-fixture.sh writes both; a build's own run skips the class on a site
+without a route file, and the hub case on a site whose hub file leaves the debugger off."""
 
 import unittest
 from urllib.error import HTTPError
@@ -14,8 +14,8 @@ class ProjectRules(harness.ConformanceCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        if not (cls.site_application() / "drupack.caddy").is_file():
-            raise unittest.SkipTest("the packaged site has no drupack.caddy")
+        if not (cls.site_application() / ".drupack" / "route.caddy").is_file():
+            raise unittest.SkipTest("the packaged site has no .drupack/route.caddy")
         cls.site = harness.Site(harness.BINARY, cls.class_dir / "site")
         cls.site.start(cls.class_dir / "data")
 
@@ -34,7 +34,7 @@ class ProjectRules(harness.ConformanceCase):
         self.assertEqual(error.exception.code, 403)
 
     def test_the_packed_hub_file_turns_on_the_debugger(self):
-        hub = self.site_application() / "drupack.mercure.caddy"
+        hub = self.site_application() / ".drupack" / "mercure.caddy"
         if not hub.is_file() or "debugger" not in hub.read_text().split():
             self.skipTest("the packaged site's hub file turns on no debugger")
         self.assertEqual(self.site.fetch("/.well-known/mercure/debug/")[0], 200)

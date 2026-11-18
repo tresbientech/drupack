@@ -2,7 +2,7 @@
 
 ## Context
 
-Caddy's global `log` block configures the process log, and an access log needs a `log` directive in a site block. Caddy refuses that directive inside `route`, where a project's `drupack.caddy` is imported. An engine server's process log goes to standard error at `ERROR`, which drops most PHP messages. A server behind a reverse proxy sees the proxy's address as the client.
+Caddy's global `log` block configures the process log, and an access log needs a `log` directive in a site block. Caddy refuses that directive inside `route`, where a project's `.drupack/route.caddy` is imported. An engine server's process log goes to standard error at `ERROR`, which drops most PHP messages. A server behind a reverse proxy sees the proxy's address as the client.
 
 ## Decision
 

@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Writes the variant fixture to DIRECTORY: the tracked files of the Drupacked Demo checkout
-# DEMO, named variant-demo, with no translations. It adds a Mercure hub, a drupack.caddy and
-# a drupack.mercure.caddy.
+# DEMO, named variant-demo, with no translations. It adds a Mercure hub, a
+# .drupack/route.caddy and a .drupack/mercure.caddy.
 # Staging copies what git lists, and git ignores dist, so DIRECTORY lies outside this checkout.
 # Usage: build/test/variant-fixture.sh DEMO DIRECTORY
 
@@ -22,6 +22,7 @@ with open(path, "w") as handle:
     json.dump(composer, handle, indent=4)
     handle.write("\n")' "$destination/composer.json"
 # The project's own Caddy rules, which project_rules_cases.py asserts on the packed site.
-printf 'header X-Project-Rule applied\n' >"$destination/drupack.caddy"
+mkdir "$destination/.drupack"
+printf 'header X-Project-Rule applied\n' >"$destination/.drupack/route.caddy"
 # The project's hub directives: the debugger UI answers only when the start imported them.
-printf 'debugger\n' >"$destination/drupack.mercure.caddy"
+printf 'debugger\n' >"$destination/.drupack/mercure.caddy"

@@ -18,6 +18,7 @@ Names:
 - the three `DRUPACK_MERCURE_` variables a Mercure hub start exports
 - `DRUPACK_RUNTIME_TRUSTED_PROXIES`, which a project's `settings.php` reads
 - the `extra.drupack` keys of `composer.json`: `mercure`, `subdomain` and `static`
+- the project's start files, `.drupack/route.caddy` and `.drupack/mercure.caddy`
 - the `drupal/drupack` Composer plugin, which `allow-plugins` names, and its bin script, `vendor/bin/drupack-install`
 - the release file names, `drupack-VERSION-TARGET`, with `checksums.txt`, `release.json`, `install-drupack.sh` and `install-drupack.ps1`
 - the install addresses, `https://drupack.tresbien.tech/install.sh` and `install.ps1`

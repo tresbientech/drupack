@@ -37,15 +37,19 @@ Drupal's hardening lives in Apache files that Caddy never reads. They are the ro
 
 ### The project's own rules
 
-- A project keeps one snippet, `drupack.caddy`, at its root beside `composer.json`. The engine reads the folder's file. A Packaged site reads the copy in its payload.
+- The Start folder, `.drupack` beside `composer.json`, holds the files a start reads from a project: `route.caddy` and `mercure.caddy`.
+- A project keeps one snippet, `.drupack/route.caddy`. The engine reads the folder's file. A Packaged site reads the copy in its payload.
 - The Caddyfile imports it inside the route after `guards.caddy` and before the Mercure fragment and `php_server`. A refused request is answered before the snippet runs.
 - The engine's aggregate file server runs after the snippet, so a snippet's header reaches an aggregate.
 - The file is read at start. A change, a creation or a removal takes a restart.
 - The server word adapts the configuration before `run`. On an adapter error it prints Caddy's message, then a line naming each project file, and exits 1.
-- The guards refuse `/drupack.caddy` by name.
+- The dotted-segment guard refuses every path under `/.drupack/`. A start file needs no refusal of its own.
+- A start that finds `drupack.caddy` or `drupack.mercure.caddy` beside `composer.json` fails. Its message holds one line per file, with the file's path in `.drupack/`.
 
 ## Reason
 
 Caddy applies none of Apache's protections by default. An unguarded Drupack site would serve settings, vendor code and backup files that Apache hides. Generating `guards.caddy` from core's `.htaccess` fails: RE2 has no lookahead, Apache has semantics Caddy lacks, and the redirect and aggregate blocks end up hand-written. A hash test gives the drift signal.
 
 The project snippet runs after the guards so a project cannot loosen a refusal by accident. A rule on a guarded path is dead text, and the docs say so. Drupack checks no directive in the file, because only the project's author writes it. A `--watch` reload would not help: the import target is fixed at start, so a file created later waits for a restart anyway.
+
+One folder holds every file a start reads, so a later file adds no name at the project root and no guard. A root file fails the start: rules dropped without a message would leave a site without its redirects and headers.

@@ -553,14 +553,44 @@ func projectFile(rules, name string) string {
 	return ""
 }
 
+// The files a start reads from the project, relative to it.
+const (
+	routeFile = ".drupack/route.caddy"
+	hubFile   = ".drupack/mercure.caddy"
+)
+
+// rootNames are the files a start refuses beside composer.json, each with the
+// start file Drupack reads in its place.
+var rootNames = []struct{ root, start string }{
+	{"drupack.caddy", routeFile},
+	{"drupack.mercure.caddy", hubFile},
+}
+
+// refuseRootFiles fails with one line per rootNames file rules holds.
+func refuseRootFiles(rules string) error {
+	var found []string
+	for _, name := range rootNames {
+		if file := projectFile(rules, name.root); file != "" {
+			found = append(found, fmt.Sprintf("Drupack reads %s/%s, and found %s. Move the file.", rules, name.start, file))
+		}
+	}
+	if found == nil {
+		return nil
+	}
+	return errors.New(strings.Join(found, "\n"))
+}
+
 // execServer renders config into dir's Caddyfile and becomes the runtime's
-// server on it, under lease. rules is the folder that may hold a drupack.caddy
-// and a drupack.mercure.caddy, argv0 the name the server's process shows and
-// cwd the folder it runs in.
+// server on it, under lease. rules is the folder that may hold a routeFile
+// and a hubFile, argv0 the name the server's process shows and cwd the folder
+// it runs in.
 func execServer(f Facts, dir state.Dir, lease *state.Lease, config caddyfile.Config, choice localtls.Choice, plan startPlan, rules, argv0, cwd string) error {
+	if err := refuseRootFiles(rules); err != nil {
+		return err
+	}
 	config.Bind, config.Port, config.TLS = plan.Bind, plan.Port, choice
-	config.ProjectRules = projectFile(rules, "drupack.caddy")
-	if hub := projectFile(rules, "drupack.mercure.caddy"); hub != "" {
+	config.ProjectRules = projectFile(rules, routeFile)
+	if hub := projectFile(rules, hubFile); hub != "" {
 		if config.Mercure == nil {
 			return fmt.Errorf("%s holds Mercure hub directives, and %s/composer.json does not set extra.drupack.mercure to true", hub, rules)
 		}

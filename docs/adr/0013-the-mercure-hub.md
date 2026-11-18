@@ -24,12 +24,11 @@ FrankenPHP links the Mercure hub into every runtime. A site that wants live upda
 
 ### The project's hub file
 
-- A project keeps extra hub directives in `drupack.mercure.caddy`, beside `composer.json`. The engine reads the folder's file. A Packaged site reads the copy in its payload.
-- `mercure.caddy` imports the file as the first line of the `mercure` block. Mercure keeps the last value of a repeated setting, so Drupack's `resource_identifier`, `cookie_name` and `transport` win. An `issuer` block of the project's joins Drupack's.
+- A project keeps extra hub directives in `.drupack/mercure.caddy`. The engine reads the folder's file. A Packaged site reads the copy in its payload.
+- Drupack's `mercure.caddy` fragment imports the file as the first line of the `mercure` block. Mercure keeps the last value of a repeated setting, so Drupack's `resource_identifier`, `cookie_name` and `transport` win. An `issuer` block of the project's joins Drupack's.
 - A start that finds the file while it serves no hub fails, and its message names the file and `extra.drupack.mercure`.
 - When the Caddyfile fails to adapt, the start prints one line per project file.
-- The request guards refuse `/drupack.mercure.caddy` by name.
-- Drupack checks no directive in the file. Its author is the project's author, as with `drupack.caddy` in [0014](0014-request-guards-and-caddy-rules.md).
+- Drupack checks no directive in the file. Its author is the project's author, as with `.drupack/route.caddy` in [0014](0014-request-guards-and-caddy-rules.md).
 - A change to the file takes a restart.
 
 ## Reason
@@ -38,4 +37,4 @@ The setting lives in `composer.json` because the engine never reads `drupack.yml
 
 Drupack fixes the hub's core directives so `mercure_publish()` keeps reaching the hub it serves. One field per option under `extra.drupack.mercure` would cross the composer reader, `site.json`, the template and the tests for each option. A file takes every directive at once.
 
-A second hub declared in `drupack.caddy` fails. An unnamed block fails the start. A named block answers requests while `mercure_publish()` keeps publishing to Drupack's hub.
+A second hub declared in `.drupack/route.caddy` fails. An unnamed block fails the start. A named block answers requests while `mercure_publish()` keeps publishing to Drupack's hub.

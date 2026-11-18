@@ -41,7 +41,7 @@ A start decides a listener, a TLS source, a host, a scheme, a static listener an
 - The HTTP rules are Caddy fragments: a main template, one fragment per mode and TLS source, and one each for guards, logs, static serving and the Mercure hub.
 - Each start renders the fragments for its plan into one owner-only Caddyfile in the state directory. A feature that is off leaves its fragment out.
 - One function quotes every value. The file holds no `{$...}` reference. A start refuses a path holding `{` or `}`, which Caddy reads as a placeholder.
-- The Caddyfile imports the project's `drupack.caddy` by absolute path, after the guards and before the hub and `php_server`.
+- The Caddyfile imports the project's `.drupack/route.caddy` by absolute path, after the guards and before the hub and `php_server`.
 
 ### The runtime's commands
 

@@ -97,21 +97,55 @@ func TestNameHint(t *testing.T) {
 
 func TestExecServerRefusesAHubFileWithoutTheMercureKey(t *testing.T) {
 	rules := t.TempDir()
-	hub := filepath.Join(rules, "drupack.mercure.caddy")
-	if err := os.WriteFile(hub, []byte("anonymous\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	writeProjectFile(t, rules, hubFile)
 	err := execServer(Facts{}, state.Dir{}, nil, caddyfile.Config{}, localtls.Choice{}, startPlan{}, rules, "drupack", rules)
-	want := rules + "/drupack.mercure.caddy holds Mercure hub directives, and " + rules + "/composer.json does not set extra.drupack.mercure to true"
+	want := rules + "/.drupack/mercure.caddy holds Mercure hub directives, and " + rules + "/composer.json does not set extra.drupack.mercure to true"
 	if err == nil || err.Error() != want {
 		t.Errorf("execServer = %v, want %q", err, want)
 	}
 }
 
+// writeProjectFile writes a file holding one directive to name under rules.
+func writeProjectFile(t *testing.T, rules, name string) {
+	t.Helper()
+	file := filepath.Join(rules, filepath.FromSlash(name))
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("anonymous\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestExecServerRefusesARootFileAndNamesItsStartFile(t *testing.T) {
+	route := "Drupack reads %[1]s/.drupack/route.caddy, and found %[1]s/drupack.caddy. Move the file."
+	hub := "Drupack reads %[1]s/.drupack/mercure.caddy, and found %[1]s/drupack.mercure.caddy. Move the file."
+	for _, row := range []struct {
+		name  string
+		files []string
+		want  string
+	}{
+		{"the route file", []string{"drupack.caddy"}, route},
+		{"the hub file", []string{"drupack.mercure.caddy"}, hub},
+		{"both, with the start files present", []string{"drupack.caddy", "drupack.mercure.caddy", routeFile, hubFile}, route + "\n" + hub},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			rules := t.TempDir()
+			for _, file := range row.files {
+				writeProjectFile(t, rules, file)
+			}
+			err := execServer(Facts{}, state.Dir{}, nil, caddyfile.Config{}, localtls.Choice{}, startPlan{}, rules, "drupack", rules)
+			if want := strings.ReplaceAll(row.want, "%[1]s", rules); err == nil || err.Error() != want {
+				t.Errorf("execServer = %v, want %q", err, want)
+			}
+		})
+	}
+}
+
 func TestServeArgumentsNameTheCommandTheFileAndEachProjectFile(t *testing.T) {
-	config := caddyfile.Config{ProjectRules: "/p/drupack.caddy", Mercure: &caddyfile.Mercure{ProjectRules: "/p/drupack.mercure.caddy"}}
+	config := caddyfile.Config{ProjectRules: "/p/.drupack/route.caddy", Mercure: &caddyfile.Mercure{ProjectRules: "/p/.drupack/mercure.caddy"}}
 	got := serveArguments("demo", "/state/Caddyfile", config)
-	want := []string{"demo", "drupack-serve", "/state/Caddyfile", "/p/drupack.caddy", "/p/drupack.mercure.caddy"}
+	want := []string{"demo", "drupack-serve", "/state/Caddyfile", "/p/.drupack/route.caddy", "/p/.drupack/mercure.caddy"}
 	if !slices.Equal(got, want) {
 		t.Errorf("serveArguments = %q, want %q", got, want)
 	}

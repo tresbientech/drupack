@@ -22,9 +22,9 @@ The site repository can be private. The examples use a site named `acme`.
 - `drupack.yml`, the site contract. It holds what packing alone needs. A key
   the engine's start reads too, such as the Mercure hub, sits in
   `composer.json` under `extra.drupack`.
-- `drupack.caddy`, optional Caddy rules of the site's own, which
+- `.drupack/route.caddy`, optional Caddy rules of the site's own, which
   [a later section](#a-sites-own-caddy-rules) describes.
-- `drupack.mercure.caddy`, optional directives for the site's Mercure hub,
+- `.drupack/mercure.caddy`, optional directives for the site's Mercure hub,
   which [Hub settings of your own](#hub-settings-of-your-own) describes.
 - `tests/`, optional conformance cases the suite runs after the engine's own.
 
@@ -279,7 +279,7 @@ opens and one when it closes, for each topic it matches.
 
 ### Hub settings of your own
 
-A `drupack.mercure.caddy` beside `composer.json` holds
+A `mercure.caddy` in the `.drupack` folder, beside `composer.json`, holds
 [Mercure directives](https://mercure.rocks/docs/deployment/configuration) for the hub. The
 engine executable reads it from the folder it serves, and a packaged site
 reads the copy its build packed. A change takes a restart.
@@ -298,8 +298,7 @@ write_timeout 0s
 
 Drupack's own address, cookie name, secrets and history file stay in force
 over the file. An `issuer` block of yours joins Drupack's. A start refuses the
-file in a project that leaves `extra.drupack.mercure` off, and the server
-refuses a request for `/drupack.mercure.caddy`.
+file in a project that leaves `extra.drupack.mercure` off.
 
 Drupack checks no directive in the file. `playground` hands every visitor an
 all-access token, so keep it out of a site you ship.
@@ -329,10 +328,13 @@ rewrites every page.
 
 ## A site's own Caddy rules
 
-A `drupack.caddy` at the project root, beside `composer.json`, holds Caddyfile
-directives of your own. The engine executable reads it from the folder it
-serves, and a packaged site reads the copy its build packed. A start reads the
-file once, so a change takes a restart.
+A `route.caddy` in the `.drupack` folder, beside `composer.json`, holds
+Caddyfile directives of your own. The engine executable reads it from the
+folder it serves, and a packaged site reads the copy its build packed. A start
+reads the file once, so a change takes a restart.
+
+A start stops when `drupack.caddy` or `drupack.mercure.caddy` sits beside
+`composer.json`, and names the file's place in `.drupack/`.
 
 ```caddyfile
 header /reports/* X-Robots-Tag noindex
@@ -345,11 +347,11 @@ reproduce Drupal's `.htaccess` family, and before Drupal. It adds headers,
 redirects, rewrites, refusals and proxies. A rule on a path the guards refuse,
 such as `settings.php` or a PHP file below the docroot root, is dead text,
 since the guard answers first. A rewrite the snippet makes is not checked
-again. The guards also refuse `/drupack.caddy` and `/drupack.mercure.caddy`.
+again. The guards also refuse every path under `/.drupack/`.
 
 A `mercure` block in this file fails the start, or under a `name` splits the
 hub from `mercure_publish()`. Hub directives go in
-[`drupack.mercure.caddy`](#hub-settings-of-your-own).
+[`.drupack/mercure.caddy`](#hub-settings-of-your-own).
 
 A header Drupal also sends, such as `X-Frame-Options`, needs Caddy's `defer`
 block, or the response carries both values. A matcher name Drupack's own rules

@@ -249,8 +249,8 @@ class EngineExecutable(harness.ConformanceCase):
             self.marker(relative, PHP_MARKER)
         for relative in ("vendor/notes.txt", "sites/default/files/config_probe/sync/plain.txt",
                          "package-lock.json", ".well-known/probe.txt", ".well-known/.hidden",
-                         ".well-known-evil/x.txt", "probe.sqlite", "sites/default/files/.probe", "drupack.caddy",
-                         "drupack.mercure.caddy"):
+                         ".well-known-evil/x.txt", "probe.sqlite", "sites/default/files/.probe",
+                         ".drupack/route.caddy"):
             self.marker(relative, TEXT_MARKER)
         self.marker("probe.svgz", gzip.compress(SVG_MARKER))
         self.marker("probe-proxy.php", '<?php echo "proxy=", var_export($_SERVER["HTTP_PROXY"] ?? null, true);')
@@ -274,10 +274,9 @@ class EngineExecutable(harness.ConformanceCase):
                                          "/sites/default/SETTINGS.PHP", "/sites/default/default.services.yml",
                                          "/sites/default/settings.txt"]),
             "dotted segment": (403, ["/.well-known/.hidden", "/.well-known-evil/x.txt",
-                                     "/sites/default/files/.probe"]),
+                                     "/sites/default/files/.probe", "/.drupack/route.caddy"]),
             "protected name": (403, ["/package-lock.json", "/PACKAGE-LOCK.JSON", "/probe.sqlite",
-                                     "/core/composer.json", "/clients/acme.inc", "/Tag", "/drupack.caddy",
-                                     "/drupack.mercure.caddy"]),
+                                     "/core/composer.json", "/clients/acme.inc", "/Tag"]),
             "protected directory": (403, ["/vendor/notes.txt", "/vendor/",
                                           "/sites/default/files/config_probe/sync/plain.txt"]),
             "public storage php": (404, ["/sites/default/files/probe.php", "/sites/default/files/probe.php/x",
@@ -359,15 +358,13 @@ class EngineExecutable(harness.ConformanceCase):
                 self.assertIn("no-cache", values[0])
 
     def test_a_project_snippet_runs_after_the_guards(self):
-        # drupack.caddy at the project root is imported after the guards, so its respond on a
-        # guarded path never answers.
+        # The project's route file is imported after the guards, so its respond on a guarded
+        # path never answers.
         self.marker("modules/probe/probe.php", PHP_MARKER)
         self.marker("css/css_probe.css", TEXT_MARKER)
-        snippet = self.project / "drupack.caddy"
-        snippet.write_text('header X-Project-Rule applied\n'
-                           'redir /old-path /new-path 301\n'
-                           'respond /modules/probe/probe.php "unlocked" 200\n')
-        self.addCleanup(snippet.unlink)
+        self.start_file("route.caddy", 'header X-Project-Rule applied\n'
+                                       'redir /old-path /new-path 301\n'
+                                       'respond /modules/probe/probe.php "unlocked" 200\n')
         port, _ = self.start("project-snippet", str(self.project))
         for path in ("/user/login", "/core/misc/drupal.js", "/css/css_probe.css"):
             with self.subTest(path=path):
@@ -809,12 +806,17 @@ if (isset($_GET['drupack-log-case'])) {
         port, log = self.start("no-mercure", str(self.project))
         self.assertEqual(self.status(port, f"{HUB}?match={TOPIC}"), 404, f"inspect {log}")
 
+    def start_file(self, name, text):
+        """Writes name into the project's .drupack folder until the case ends, and returns it."""
+        file = self.project / ".drupack" / name
+        file.parent.mkdir(exist_ok=True)
+        file.write_text(text)
+        self.addCleanup(shutil.rmtree, file.parent, ignore_errors=True)
+        return file
+
     def with_hub_file(self, text):
-        """Writes the project's drupack.mercure.caddy until the case ends, and returns it."""
-        hub = self.project / "drupack.mercure.caddy"
-        hub.write_text(text)
-        self.addCleanup(hub.unlink)
-        return hub
+        """Writes the project's hub file until the case ends, and returns it."""
+        return self.start_file("mercure.caddy", text)
 
     def test_a_hub_file_lets_a_subscriber_without_a_token_in(self):
         self.with_mercure()
@@ -855,9 +857,7 @@ if (isset($_GET['drupack-log-case'])) {
         self.with_mercure()
         hub = self.with_hub_file("not_a_hub_directive foo\n")
         # Both project files, so the server word takes its longest argument list.
-        snippet = self.project / "drupack.caddy"
-        snippet.write_text("header X-Project-Rule applied\n")
-        self.addCleanup(snippet.unlink)
+        snippet = self.start_file("route.caddy", "header X-Project-Rule applied\n")
         result = self.engine_run("start", str(self.project), "--foreground", "--listen", f"127.0.0.1:{harness.pick_port()}")
         self.assertNotEqual(result.returncode, 0)
         output = result.stdout + result.stderr
@@ -882,11 +882,11 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertEqual(self.status(static, "/"), 404)
         self.assertFalse(html.exists(), "the start created the export directory")
         for path in (".env", "index.php", "composer.json", "sites/default/settings.php", "page/index.html",
-                     "drupack.mercure.caddy"):
+                     ".drupack/route.caddy"):
             (html / path).parent.mkdir(parents=True, exist_ok=True)
             (html / path).write_text("kept out")
         expected = {"/.env": 403, "/index.php": 403, "/composer.json": 403,
-                    "/sites/default/settings.php": 403, "/drupack.mercure.caddy": 403, "/page/": 200}
+                    "/sites/default/settings.php": 403, "/.drupack/route.caddy": 403, "/page/": 200}
         for path, status in expected.items():
             with self.subTest(path):
                 self.assertEqual(self.status(static, path), status)

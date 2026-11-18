@@ -110,10 +110,10 @@ func place(t *testing.T, rendered string, projectRules string) served {
 	write(t, filepath.Join(s.root, "project", "web", "index.php"), "<?php echo 'php ran';")
 	write(t, filepath.Join(s.root, "project", "html", "index.html"), "exported page")
 	write(t, filepath.Join(s.root, "data", "static", "index.html"), "exported page")
-	write(t, filepath.Join(s.root, "project", "drupack.caddy"), projectRules)
-	write(t, filepath.Join(s.root, "app", "drupack.caddy"), projectRules)
-	write(t, filepath.Join(s.root, "project", "drupack.mercure.caddy"), "debugger\n")
-	write(t, filepath.Join(s.root, "app", "drupack.mercure.caddy"), "debugger\n")
+	write(t, filepath.Join(s.root, "project", ".drupack", "route.caddy"), projectRules)
+	write(t, filepath.Join(s.root, "app", ".drupack", "route.caddy"), projectRules)
+	write(t, filepath.Join(s.root, "project", ".drupack", "mercure.caddy"), "debugger\n")
+	write(t, filepath.Join(s.root, "app", ".drupack", "mercure.caddy"), "debugger\n")
 	write(t, filepath.Join(s.root, "data", "files", "stored.txt"), "stored file")
 	write(t, filepath.Join(s.root, "state", "keep"), "")
 	certificates(t, filepath.Join(s.root, "tls"))
@@ -230,7 +230,7 @@ func TestAdaptRenderedFiles(t *testing.T) {
 	}
 }
 
-// A broken drupack.caddy fails the adapter, before any server starts. The error
+// A broken route file fails the adapter, before any server starts. The error
 // names the rendered file, so the runtime adds the project's path to it.
 func TestAdaptRefusesBrokenProjectRules(t *testing.T) {
 	goldens := os.Getenv("DRUPACK_ADAPT_FILES")
@@ -242,13 +242,13 @@ func TestAdaptRefusesBrokenProjectRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := place(t, string(rendered), "not_a_directive foo\n")
-	_, err = adapt(s.file, []string{"/p/drupack.caddy"})
+	_, err = adapt(s.file, []string{"/p/.drupack/route.caddy"})
 	if err == nil || !strings.Contains(err.Error(), "unrecognized directive: not_a_directive") ||
-		!strings.HasSuffix(err.Error(), "\nThe project's /p/drupack.caddy is part of this configuration.") {
+		!strings.HasSuffix(err.Error(), "\nThe project's /p/.drupack/route.caddy is part of this configuration.") {
 		t.Errorf("adapt error = %v, want the directive and the project file's line", err)
 	}
 	s = place(t, string(rendered), "")
-	write(t, filepath.Join(s.root, "app", "drupack.mercure.caddy"), "not_a_hub_directive foo\n")
+	write(t, filepath.Join(s.root, "app", ".drupack", "mercure.caddy"), "not_a_hub_directive foo\n")
 	if _, err = adapt(s.file, nil); err == nil || !strings.Contains(err.Error(), "not_a_hub_directive") {
 		t.Errorf("adapt error with a broken hub file = %v", err)
 	}

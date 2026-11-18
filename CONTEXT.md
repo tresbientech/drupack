@@ -32,7 +32,7 @@ The Node.js release a Packaged site carries when its Site contract asks for one:
 _Avoid_: embedded Node, Node runtime
 
 **Mercure hub**:
-The hub a Packaged site or a Project folder serves at `/.well-known/mercure` when its `composer.json` sets `extra.drupack.mercure`. Its secrets and its history live in Site data, or in the folder's cache entry for the Engine executable, which the **`clean` command** removes once no server runs the folder. A `drupack.mercure.caddy` beside `composer.json` adds the project's own hub directives.
+The hub a Packaged site or a Project folder serves at `/.well-known/mercure` when its `composer.json` sets `extra.drupack.mercure`. Its secrets and its history live in Site data, or in the folder's cache entry for the Engine executable, which the **`clean` command** removes once no server runs the folder. A `mercure.caddy` in the **Start folder** adds the project's own hub directives.
 
 ### Engine executable
 
@@ -42,6 +42,10 @@ The `drupack` executable: the Runtime, Drupack's own files and the Composer it c
 **Project folder**:
 A Drupal Composer project on disk, with its dependencies installed. An Engine executable serves it unchanged, under its own settings.
 _Avoid_: served folder, codebase
+
+**Start folder**:
+The `.drupack` directory beside a project's `composer.json`. It holds the files a start reads from the project: `route.caddy`, the project's own Caddy rules, and `mercure.caddy`, its hub directives.
+_Avoid_: config folder
 
 ### Release
 
@@ -161,6 +165,7 @@ A PHP extension that a package in the application's lock file names as a require
 - An **Engine executable** refuses a **Project folder** with a **Declared extension** its **Runtime** lacks, or holds at a version outside the declared constraint.
 - An **Engine executable** runs a **Project folder**'s own Drush with `drush`, and Drupal core's command line with `dr`.
 - An **Engine executable** runs the Composer it carries in a **Project folder** with `composer`.
+- An **Engine executable** reads the **Start folder** of the **Project folder** it serves. A **Packaged site** reads the copy its build packed.
 - A Linux release holds an **Engine executable** per C library, as it does for a **Packaged site**.
 
 ### Extensions

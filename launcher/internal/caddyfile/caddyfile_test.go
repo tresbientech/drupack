@@ -30,8 +30,8 @@ func rows() map[string]Config {
 	everything.Mode, everything.ID = Site, "site-id"
 	everything.FilesDir, everything.LogPath = Root+"/data/files", Root+"/data/logs/server.log"
 	everything.TLS = localtls.Choice{Source: "drupack", Alias: alias, Root: Root + "/tls/root.pem", RootKey: Root + "/tls/root.key", Authority: "Drupack local root"}
-	everything.Mercure = &Mercure{URL: "http://127.0.0.1:3787/.well-known/mercure", Publisher: "p0", Subscriber: "s0", DB: Root + "/state/mercure.db", ProjectRules: Root + "/app/drupack.mercure.caddy"}
-	everything.ProjectRules = Root + "/app/drupack.caddy"
+	everything.Mercure = &Mercure{URL: "http://127.0.0.1:3787/.well-known/mercure", Publisher: "p0", Subscriber: "s0", DB: Root + "/state/mercure.db", ProjectRules: Root + "/app/.drupack/mercure.caddy"}
+	everything.ProjectRules = Root + "/app/.drupack/route.caddy"
 	everything.Static = &Static{Bind: "127.0.0.1", Port: 3788, Root: Root + "/data/static", Dynamic: []string{"/api/*"}}
 	everything.AccessLog, everything.ErrorLog = Root+"/data/logs/access.log", Root+"/data/logs/error.log"
 	everything.TrustedProxies = []string{"192.168.0.58/32", "fd00::/8"}
