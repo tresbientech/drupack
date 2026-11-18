@@ -12,8 +12,11 @@
 	order php_server before file_server
 {{- if .TrustedProxies}}
 	# client_ip and the access log take the client from a forwarded header these peers sent.
+	# A client can write the header's left end, so the address comes from its right end:
+	# the first one that is not a listed peer.
 	servers {
 		trusted_proxies static{{range .TrustedProxies}} {{.}}{{end}}
+		trusted_proxies_strict
 	}
 {{- end}}
 {{include (print .Mode "-log") . | indent 1}}
@@ -38,7 +41,14 @@
 {{- end}}
 	bind {{quote .Bind}}
 	root * {{quote .Docroot}}
+{{- if .Mercure}}
+	# The hub's private updates do not share a compression context. A project's rules run
+	# in this site block, so the matcher's name is Drupack's own.
+	@drupackCompressible not path /.well-known/mercure /.well-known/mercure/*
+	encode @drupackCompressible zstd br gzip
+{{- else}}
 	encode zstd br gzip
+{{- end}}
 {{- if .AccessLog}}
 	# A named logger tags each line, and the static port's writes to the same file.
 	log site {

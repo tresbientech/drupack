@@ -26,7 +26,7 @@ The rule applies to a resolved path. An error counts as exposed.
 |---|---|---|
 | `DRUPACK_CACHE_DIR` | the rule, with readers | refused |
 | A default cache root candidate | the rule with readers, then the rule on its folder | refused with a notice; the next candidate is tried |
-| Site data, a named `--files-dir` | the rule | a warning; the command goes on |
+| Site data, the folder a linked `files` leads to | the rule | a warning; the command goes on |
 | The first `vendor/autoload.php` above the working directory | owner of the file, `vendor/` and the project; no link | refused |
 
 - On Unix the `vendor/` check also accepts a path owned by one of the reader's groups. Windows keeps the owner rule.

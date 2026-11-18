@@ -200,12 +200,12 @@ func TestBundleAndFolderRecords(t *testing.T) {
 	if _, ok := dir.Bundle(); ok {
 		t.Error("the bundle is still there")
 	}
-	// A start without a static listener or a files directory records null for both, as Site data does.
+	// A start without a static listener records null for it.
 	if err := dir.WriteListener(state.Listener{Listen: "[::1]:80", Host: "::1", Scheme: "http"}); err != nil {
 		t.Fatal(err)
 	}
 	content, _ := os.ReadFile(filepath.Join(dir.Path(), "listener"))
-	if want := `{"listen":"[::1]:80","host":"::1","files-dir":null,"scheme":"http","static-listen":null}`; string(content) != want {
+	if want := `{"listen":"[::1]:80","host":"::1","scheme":"http","static-listen":null}`; string(content) != want {
 		t.Errorf("listener = %s, want %s", content, want)
 	}
 }

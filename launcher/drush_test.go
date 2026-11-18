@@ -135,19 +135,16 @@ func TestSiteDrushEnvironment(t *testing.T) {
 			absent: []string{"DRUPACK_RUNTIME_STATIC_ROOT", "DRUPACK_MERCURE_URL", "DRUPACK_MERCURE_PUBLISHER_SECRET"},
 		},
 		{
-			name: "an HTTPS record brings its scheme, files directory and bundle",
+			name: "an HTTPS record brings its scheme and bundle",
 			site: siteconfig.Site{Port: 8123},
 			prepare: func(t *testing.T, f siteFixture) {
-				f.record(t, `{"listen":"[::1]:9000","host":"::1","files-dir":"`+fsguard.Canonical(filepath.Join(filepath.Dir(f.data), "pub"))+`","scheme":"https","static-listen":null}`)
+				f.record(t, `{"listen":"[::1]:9000","host":"::1","scheme":"https","static-listen":null}`)
 				put(t, filepath.Join(f.data, "runtime", "ca-bundle.pem"), "roots")
-				if err := os.MkdirAll(filepath.Join(filepath.Dir(f.data), "pub"), 0o700); err != nil {
-					t.Fatal(err)
-				}
 			},
 			words: []string{"status"},
 			want: func(f siteFixture) map[string]string {
 				return map[string]string{
-					"DRUPACK_RUNTIME_FILES_DIR": fsguard.Canonical(filepath.Join(filepath.Dir(f.data), "pub")),
+					"DRUPACK_RUNTIME_FILES_DIR": fsguard.Canonical(filepath.Join(f.data, "files")),
 					"DRUPACK_RUNTIME_HOST":      "[::1]",
 					"DRUSH_OPTIONS_URI":         "https://[::1]:9000/",
 					"DRUPACK_CA_FILE":           fsguard.Canonical(filepath.Join(f.data, "runtime", "ca-bundle.pem")),
@@ -155,17 +152,16 @@ func TestSiteDrushEnvironment(t *testing.T) {
 			},
 		},
 		{
-			name: "an option overrides the record, and a relative path starts at the reader's directory",
+			name: "an option overrides the record",
 			site: siteconfig.Site{Port: 8123},
 			prepare: func(t *testing.T, f siteFixture) {
 				f.record(t, `{"listen":"127.0.0.1:9000","host":"recorded.test","scheme":"https"}`)
 			},
-			words: []string{"--listen", "127.0.0.1:9100", "--host=typed.test", "--files-dir", "pub", "status"},
+			words: []string{"--listen", "127.0.0.1:9100", "--host=typed.test", "status"},
 			want: func(f siteFixture) map[string]string {
 				return map[string]string{
-					"DRUPACK_RUNTIME_FILES_DIR": fsguard.Canonical(filepath.Join(f.cwd, "pub")),
-					"DRUPACK_RUNTIME_HOST":      "typed.test",
-					"DRUSH_OPTIONS_URI":         "https://typed.test:9100/",
+					"DRUPACK_RUNTIME_HOST": "typed.test",
+					"DRUSH_OPTIONS_URI":    "https://typed.test:9100/",
 				}
 			},
 		},

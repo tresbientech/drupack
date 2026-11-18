@@ -30,7 +30,7 @@ type Listener struct {
 	// Listen is IP:PORT.
 	Listen string `json:"listen"`
 	Host   string `json:"host"`
-	// FilesDir is "" when the start named no files directory.
+	// FilesDir is a public files folder older Site data records. No start writes it.
 	FilesDir string `json:"files-dir"`
 	Scheme   string `json:"scheme"`
 	// StaticListen is "" for a site without a static listener.
@@ -81,7 +81,7 @@ func (e *UnreadableError) Error() string {
 // Listener reads the record. A Site data no start has served holds none, and
 // ok is false.
 func (d Dir) Listener() (record Listener, ok bool, err error) {
-	path := filepath.Join(d.path, listenerName)
+	path := d.ListenerPath()
 	content, err := readShared(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return Listener{}, false, nil
@@ -132,6 +132,11 @@ func (d Dir) MercureSecrets() (publisher, subscriber string, ok bool, err error)
 		values[i] = string(content)
 	}
 	return values[0], values[1], true, nil
+}
+
+// ListenerPath is the file that holds the Listener record.
+func (d Dir) ListenerPath() string {
+	return filepath.Join(d.path, listenerName)
 }
 
 // StopRecordPath is where the server writes its stop record, which Stop reads.
@@ -225,9 +230,8 @@ func (d Dir) WriteListener(record Listener) error {
 	content, _ := json.Marshal(struct {
 		Listen       string  `json:"listen"`
 		Host         string  `json:"host"`
-		FilesDir     *string `json:"files-dir"`
 		Scheme       string  `json:"scheme"`
 		StaticListen *string `json:"static-listen"`
-	}{record.Listen, record.Host, text(record.FilesDir), record.Scheme, text(record.StaticListen)})
+	}{record.Listen, record.Host, record.Scheme, text(record.StaticListen)})
 	return d.writeWhole(listenerName, content)
 }

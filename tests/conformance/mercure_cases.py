@@ -18,7 +18,6 @@ import ssl
 import stat
 import time
 import unittest
-import zlib
 from urllib.error import HTTPError
 from urllib.parse import urlencode
 
@@ -77,17 +76,17 @@ def post(port, secret, data, context=None):
 
 
 class Stream:
-    """One subscription that accepts gzip, read as it arrives. query holds its matchers, TOPIC
-    by default. The token goes in the Authorization header, or in the cookie a browser's
+    """One subscription that accepts encoding, read as it arrives. query holds its matchers,
+    TOPIC by default. The token goes in the Authorization header, or in the cookie a browser's
     EventSource sends when cookie is set."""
 
-    def __init__(self, port, bearer, last_event_id=None, cookie=False, context=None, query=None):
+    def __init__(self, port, bearer, last_event_id=None, cookie=False, context=None, query=None, encoding="gzip"):
         timeout = harness.WAITS["http_request"].seconds
         if context is None:
             self.connection = http.client.HTTPConnection("localhost", port, timeout=timeout)
         else:
             self.connection = http.client.HTTPSConnection("localhost", port, timeout=timeout, context=context)
-        headers = {"Accept": "text/event-stream", "Accept-Encoding": "gzip"}
+        headers = {"Accept": "text/event-stream", "Accept-Encoding": encoding}
         if cookie:
             headers["Cookie"] = f"{COOKIE}={bearer}"
         else:
@@ -97,10 +96,6 @@ class Stream:
         matchers = urlencode({"match": TOPIC} if query is None else query)
         self.connection.request("GET", f"{HUB}?{matchers}", headers=headers)
         self.response = self.connection.getresponse()
-        # Caddy's encode skips a response whose first write falls under its minimum length,
-        # and the hub opens every stream with a two-byte comment line.
-        gzip = self.response.getheader("Content-Encoding") == "gzip"
-        self.decode = zlib.decompressobj(16 + zlib.MAX_WBITS).decompress if gzip else bytes
         self.text = ""
         # The end of the last event next_event() returned.
         self.consumed = 0
@@ -112,7 +107,7 @@ class Stream:
         chunk = self.response.read1(4096)
         if not chunk:
             raise AssertionError(f"the stream ended before {wanted}: {self.text!r}")
-        self.text += self.decode(chunk).decode()
+        self.text += chunk.decode()
 
     def read_until(self, needle, seconds=15):
         """Reads until the decoded stream holds needle, and fails after seconds."""
@@ -197,6 +192,20 @@ class MercureHub(harness.ConformanceCase):
                     self.assertEqual(connection.getresponse().status, 401)
                 finally:
                     connection.close()
+
+    def test_the_hub_answers_uncompressed(self):
+        for encoding in ("zstd", "br", "gzip"):
+            with self.subTest(encoding):
+                stream = Stream(self.site.port, self.subscriber_token(), encoding=encoding)
+                try:
+                    self.assertEqual((stream.response.status, stream.response.getheader("Content-Encoding")), (200, None))
+                    stream.read_until(":")
+                    update = self.publish(encoding)
+                    stream.read_until(f"id: {update}\ndata: {encoding}\n")
+                finally:
+                    stream.close()
+        _, headers, _ = self.site.fetch_bytes("/user/login", {"Accept-Encoding": "gzip"})
+        self.assertEqual(headers.get("Content-Encoding"), "gzip", "a page outside the hub stays compressed")
 
     def test_an_http_publish_reaches_a_subscriber(self):
         stream = Stream(self.site.port, self.subscriber_token())

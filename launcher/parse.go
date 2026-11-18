@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -25,10 +26,10 @@ type command struct {
 
 // options are the options a reader wrote, each empty when left out.
 type options struct {
-	DataDir, Listen, StaticListen, Host, FilesDir, TrustedProxies string
-	Database, DBHost, DBPort, DBName, DBUser, DBPassword          string
-	AdminUser, AdminPassword, SiteName                            string
-	NoBrowser, Foreground, Yes                                    bool
+	DataDir, Listen, StaticListen, Host, TrustedProxies  string
+	Database, DBHost, DBPort, DBName, DBUser, DBPassword string
+	AdminUser, AdminPassword, SiteName                   string
+	NoBrowser, Foreground, Yes                           bool
 	// AccessLog and ErrorLog are nil for a line without the option, and hold ""
 	// for the option written bare.
 	AccessLog, ErrorLog *string
@@ -143,7 +144,6 @@ var siteGroups = []optionGroup{
 		listenOption,
 		staticListenOption,
 		hostOption,
-		{name: "files-dir", value: "PATH", help: "Public files, files in Site data by default", set: func(o *options, v string) { o.FilesDir = v }},
 	}},
 	{"Start options:", []option{
 		foregroundOption,
@@ -336,6 +336,10 @@ func scanOptions(arguments []string, table []option, lookup func(string) (string
 			return options{}, nil, true, nil
 		}
 		name, value, inline := strings.Cut(arguments[0], "=")
+		// A restart replays the words of a start that may have named this option.
+		if name == "--files-dir" {
+			return options{}, nil, false, errors.New("--files-dir is gone. Public files live in files in Site data, which may be a link to another folder. Remove the option, and stop a running site before starting it again.")
+		}
 		i := slices.IndexFunc(table, func(o option) bool { return "--"+o.name == name })
 		if i < 0 && strict {
 			return options{}, nil, false, fmt.Errorf("Unknown argument: %s", arguments[0])

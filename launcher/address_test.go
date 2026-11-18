@@ -14,7 +14,7 @@ import (
 func TestServed(t *testing.T) {
 	plain := siteTarget(siteconfig.Site{Port: 1})
 	engine := Site{DefaultListen: "127.0.0.1:3787", Engine: true}
-	record := state.Listener{Listen: "127.0.0.1:8080", Host: "shop.drupack.site", Scheme: "https", FilesDir: "/recorded/files"}
+	record := state.Listener{Listen: "127.0.0.1:8080", Host: "shop.drupack.site", Scheme: "https"}
 	withStatic := record
 	withStatic.StaticListen = "127.0.0.1:8081"
 	shop := Address{record, "127.0.0.1", 8080, true}
@@ -49,8 +49,6 @@ func TestServed(t *testing.T) {
 			plan: mustPlan(t, "127.0.0.1", 8080, "127.0.0.1:9001", true, "shop.drupack.site", "https")},
 		{name: "typed host over record", site: plain, record: &record, typed: state.Listener{Host: "blog.drupack.site"},
 			want: with(func(a *Address) { a.Host = "blog.drupack.site" })},
-		{name: "typed files directory over record", site: plain, record: &record, typed: state.Listener{FilesDir: "/typed/files"},
-			want: with(func(a *Address) { a.FilesDir = "/typed/files" })},
 		{name: "a record with a static listener", site: plain, record: &withStatic, noun: "site", hasStatic: true,
 			want: with(func(a *Address) { a.StaticListen = "127.0.0.1:8081" }),
 			plan: mustPlan(t, "127.0.0.1", 8080, "127.0.0.1:8081", true, "shop.drupack.site", "https")},

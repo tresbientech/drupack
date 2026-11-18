@@ -20,6 +20,7 @@ FrankenPHP links the Mercure hub into every runtime. A site that wants live upda
 - Subscribers and HTTP publishers sign HS256 tokens whose `iss` and `aud` are the hub's address. A request publishes with `mercure_publish()` and no token. Drush and cron publish over HTTP.
 - The hub keeps its update history in `mercure.db`, in Site data or the folder's cache entry.
 - Every hub turns on `subscriptions`. Subscription events and the subscription API are private. A token reads them through a grant the site signs. Drupack mints no token.
+- The site's `encode` leaves out `/.well-known/mercure` and every path below it. Private updates share no compression context, and a subscriber holds no compressor.
 
 ### The project's hub file
 

@@ -208,8 +208,6 @@ type staged struct {
 	// directories a port serves.
 	logDir   string
 	answered []string
-	// recordedFiles is the files directory a start named, "" for Site data's own.
-	recordedFiles string
 }
 
 type ready struct {
@@ -301,9 +299,7 @@ func start(l Launch, c command) error {
 		return err
 	}
 	// The start's --listen chooses the ports, so drush and export read the addresses back from here.
-	listener := plan.record()
-	listener.FilesDir = staged.recordedFiles
-	if err := staged.dir.WriteListener(listener); err != nil {
+	if err := staged.dir.WriteListener(plan.record()); err != nil {
 		return err
 	}
 	if err := staged.dir.WriteStart(startRecord(l, cwd)); err != nil {
@@ -402,8 +398,8 @@ func (e *engineStart) check() (checked, error) {
 	if err := siteconfig.CheckStatic(e.project, e.composer); err != nil {
 		return checked{}, err
 	}
-	// The engine has no --data-dir or --files-dir, so these are the paths of its
-	// Caddyfile that a reader chooses.
+	// The engine has no --data-dir, so these are the paths of its Caddyfile that a
+	// reader chooses.
 	if err := caddyfile.RefuseBraces("The project folder", e.project); err != nil {
 		return checked{}, err
 	}

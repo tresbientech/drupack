@@ -125,12 +125,18 @@ clear on one side empties the other's caches.
    `.git/info/exclude` when the site's repository should not hold it.
 3. Compile the runtimes when the site adds extensions, then build, as the
    section on PHP extensions shows.
-4. Start the executable on DDEV's database and files directory:
+4. Link Site data's `files` to DDEV's files directory before the first start:
+
+   ```sh
+   mkdir -m 700 data
+   ln -s "$PWD/../acme/docroot/sites/default/files" data/files
+   ```
+
+5. Start the executable on DDEV's database:
 
    ```sh
    ./acme-linux-amd64 --data-dir data --database mysql --db-host 127.0.0.1 \
-       --db-port 33306 --db-name db --db-user db --db-password db \
-       --files-dir ../acme/docroot/sites/default/files
+       --db-port 33306 --db-name db --db-user db --db-password db
    ```
 
 The files directory holds what the database names, such as Site Studio's

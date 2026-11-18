@@ -72,9 +72,6 @@ func openSite(f Facts, site siteconfig.Site, c command, cwd string) (openedSite,
 		return openedSite{}, fmt.Errorf("This Site data has no site yet: %s. Start %s once to create one.", fsguard.Canonical(data), l.Name)
 	}
 	typed := state.Listener{Listen: c.options.Listen, StaticListen: c.options.StaticListen, Host: c.options.Host}
-	if c.options.FilesDir != "" {
-		typed.FilesDir = fromCwd(c.options.FilesDir)
-	}
 	served, err := Served(state.At(data), l.Name, siteTarget(site), typed)
 	if err != nil {
 		return openedSite{}, err
@@ -90,19 +87,15 @@ func openSite(f Facts, site siteconfig.Site, c command, cwd string) (openedSite,
 		return openedSite{}, err
 	}
 	warnExposed(data)
-	named := served.FilesDir != ""
 	files, scratch, err := siteDirs(data, served.FilesDir, site.Static != nil)
 	if err != nil {
 		return openedSite{}, err
-	}
-	if named {
-		warnExposed(files)
 	}
 	f.Data, f.Files, f.Scratch = fsguard.Canonical(data), fsguard.Canonical(files), fsguard.Canonical(scratch)
 	f.Host, f.URL = plan.Host, plan.URL
 	staticURL := ""
 	if plan.Static != nil {
-		f.StaticRoot = fsguard.Canonical(filepath.Join(data, "static"))
+		f.StaticRoot = fsguard.Canonical(filepath.Join(data, staticDir))
 		staticURL = plan.Static.URL
 	}
 	if bundle, ok := state.At(scratch).Bundle(); ok {

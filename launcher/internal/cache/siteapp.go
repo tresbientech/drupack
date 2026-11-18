@@ -22,6 +22,11 @@ func SiteApp(data string) string {
 	return filepath.Join(data, siteAppName)
 }
 
+// SiteAppFolders are the folders in data that hold the application or its replacement.
+func SiteAppFolders(data string) []string {
+	return []string{SiteApp(data), filepath.Join(data, previousAppName), filepath.Join(data, stagingPrefix+siteAppName)}
+}
+
 func SiteAppCurrent(data, checksum string) bool {
 	recorded, err := os.ReadFile(filepath.Join(SiteApp(data), releaseName))
 	return err == nil && string(recorded) == checksum

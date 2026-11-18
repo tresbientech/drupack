@@ -340,7 +340,7 @@ func execute(step Step, log io.Writer) error {
 // compiled PHP lands in the docroot's files directory, which the application does not ship.
 func installSeed(log io.Writer, r Request, application string, phpEnv []string) error {
 	seed := filepath.Join(application, "seed")
-	for _, directory := range []string{"private", "tmp", "config"} {
+	for _, directory := range []string{"private", "tmp", "config", "files"} {
 		if err := os.MkdirAll(filepath.Join(seed, directory), 0o755); err != nil {
 			return err
 		}
@@ -376,7 +376,7 @@ func stageSite(log io.Writer, site, application string, builds ...string) error 
 	}
 	for _, relative := range files {
 		path := filepath.Join(site, relative)
-		if slices.ContainsFunc(builds, func(directory string) bool { return within(path, directory) }) {
+		if slices.ContainsFunc(builds, func(directory string) bool { return fsguard.Within(path, directory) }) {
 			continue
 		}
 		if err := stageEntry(log, root, path, filepath.Join(application, relative), relative); err != nil {
@@ -465,12 +465,12 @@ func stageEntry(log io.Writer, root, path, destination, relative string) error {
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
 		target, err := filepath.EvalSymlinks(path)
-		if err != nil || !within(target, root) {
+		if err != nil || !fsguard.Within(target, root) {
 			link, _ := os.Readlink(path)
 			fmt.Fprintf(log, "Left out %s, a link to %s, which is not in the site\n", relative, link)
 			return nil
 		}
-		if within(path, target) {
+		if fsguard.Within(path, target) {
 			return fmt.Errorf("%s links to %s, a directory holding the link itself", relative, target)
 		}
 		path = target
@@ -492,11 +492,6 @@ func stageEntry(log io.Writer, root, path, destination, relative string) error {
 		}
 	}
 	return nil
-}
-
-func within(path, directory string) bool {
-	relative, err := filepath.Rel(directory, path)
-	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
 // siteFiles lists the site's files relative to it. Only a site outside any git

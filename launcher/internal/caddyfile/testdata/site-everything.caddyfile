@@ -23,8 +23,11 @@
 	}
 	order php_server before file_server
 	# client_ip and the access log take the client from a forwarded header these peers sent.
+	# A client can write the header's left end, so the address comes from its right end:
+	# the first one that is not a listed peer.
 	servers {
 		trusted_proxies static 192.168.0.58/32 fd00::/8
+		trusted_proxies_strict
 	}
 	log {
 		output file "/drupack-test/data/logs/server.log" {
@@ -79,7 +82,10 @@
 	}
 	bind "127.0.0.1"
 	root * "/drupack-test/project/web"
-	encode zstd br gzip
+	# The hub's private updates do not share a compression context. A project's rules run
+	# in this site block, so the matcher's name is Drupack's own.
+	@drupackCompressible not path /.well-known/mercure /.well-known/mercure/*
+	encode @drupackCompressible zstd br gzip
 	# A named logger tags each line, and the static port's writes to the same file.
 	log site {
 		output file "/drupack-test/data/logs/access.log" {
@@ -201,6 +207,12 @@
 		route /sites/default/files/* {
 			root * "/drupack-test/data/files"
 			uri strip_prefix /sites/default/files
+			# The request guards test these names against the docroot, which holds no public files.
+			@drupackProtectedFiles {
+				path_regexp "(?i)^/(private[. ]*|config_[^/]*)(/|$)"
+				file {path} {path}/
+			}
+			respond @drupackProtectedFiles 403
 			@stored file
 			import cachedForAYear @stored
 			@storedSvgz {

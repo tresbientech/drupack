@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"os/exec"
@@ -59,9 +60,8 @@ type packagedStart struct {
 	c    command
 	cwd  string
 	site siteconfig.Site
-	// typedData and typedFiles are --data-dir and --files-dir from the working
-	// directory, before any link resolves. typedFiles is "" without the option.
-	typedData, typedFiles string
+	// typedData is --data-dir from the working directory, before any link resolves.
+	typedData string
 	// installed reports whether check found an installed site before the claim.
 	installed bool
 	// listen is the IP:PORT text the refusals name.
@@ -110,15 +110,9 @@ func (s *packagedStart) check() (checked, error) {
 	if err != nil {
 		return checked{}, err
 	}
-	// Both paths reach the Caddyfile.
+	// The path reaches the Caddyfile.
 	if err := caddyfile.RefuseBraces("--data-dir", fsguard.Canonical(s.typedData)); err != nil {
 		return checked{}, err
-	}
-	if o.FilesDir != "" {
-		s.typedFiles = s.fromCwd(o.FilesDir)
-		if err := caddyfile.RefuseBraces("--files-dir", fsguard.Canonical(s.typedFiles)); err != nil {
-			return checked{}, err
-		}
 	}
 	return checked{
 		listen: s.listen, bind: bind, port: port,
@@ -139,34 +133,27 @@ func (s *packagedStart) stage(plan startPlan) (staged, error) {
 		return staged{}, err
 	}
 	warnExposed(data)
-	served, err := Served(state.At(data), l.Name, siteTarget(s.site), state.Listener{FilesDir: s.typedFiles})
+	served, err := Served(state.At(data), l.Name, siteTarget(s.site), state.Listener{})
 	if err != nil {
 		return staged{}, err
 	}
-	named := served.FilesDir != ""
 	files, scratch, err := siteDirs(data, served.FilesDir, s.site.Static != nil)
 	if err != nil {
 		return staged{}, err
-	}
-	if named {
-		warnExposed(files)
 	}
 	// The Caddyfile holds the resolved paths, and a link can lead to a brace.
 	if err := caddyfile.RefuseBraces("--data-dir", fsguard.Canonical(data)); err != nil {
 		return staged{}, err
 	}
-	if err := caddyfile.RefuseBraces("--files-dir", fsguard.Canonical(files)); err != nil {
+	if err := caddyfile.RefuseBraces("The Files directory", fsguard.Canonical(files)); err != nil {
 		return staged{}, err
 	}
 	s.Data, s.Files, s.Scratch = fsguard.Canonical(data), fsguard.Canonical(files), fsguard.Canonical(scratch)
 	s.Host, s.URL = plan.Host, plan.URL
 	staged := staged{dir: state.At(data), logDir: s.Data + "/logs"}
-	if named {
-		staged.recordedFiles = s.Files
-	}
 	staged.answered = []string{fsguard.Canonical(l.Application), fsguard.Canonical(cache.SiteApp(s.Data)), s.Files}
 	if s.site.Static != nil {
-		s.StaticRoot = s.Data + "/static"
+		s.StaticRoot = s.Data + "/" + staticDir
 		staged.answered = append(staged.answered, s.StaticRoot)
 	}
 	return staged, nil
@@ -180,28 +167,169 @@ func checkDatabase(c command, f Facts) error {
 	return nil
 }
 
-// siteDirs creates the directories a start and drush find in Site data, and the
-// translations folder of files, Site data's own files directory when files is "".
-// It returns the resolved files and scratch directories.
-func siteDirs(data, files string, static bool) (resolved, scratch string, err error) {
-	names := []string{"runtime", "private", "tmp", "config", "logs"}
+// siteDataDirs are the folders every site keeps in Site data. staticDir joins them
+// for a site with a static port.
+var siteDataDirs = []string{"runtime", "private", "tmp", "config", "logs"}
+
+const (
+	staticDir = "static"
+	filesName = "files"
+	// folderLinks bounds a chain of Windows junctions.
+	folderLinks = 64
+)
+
+// resolveFolder follows path's links. EvalSymlinks leaves a Windows junction at the end
+// of a path, which Lstat reports as irregular.
+func resolveFolder(path string) (string, error) {
+	for range folderLinks {
+		resolved, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return "", err
+		}
+		info, err := os.Lstat(resolved)
+		if err != nil || info.Mode()&fs.ModeIrregular == 0 {
+			return resolved, err
+		}
+		if path, err = os.Readlink(resolved); err != nil {
+			return "", err
+		}
+	}
+	return "", fmt.Errorf("%s leads through too many links", fsguard.Canonical(path))
+}
+
+// linkCommand is the line that makes link lead to target. mklink is a Command Prompt command.
+func linkCommand(target, link string, windows bool) string {
+	if windows {
+		return `mklink /J "` + link + `" "` + target + `"`
+	}
+	return "ln -s " + shellWord(target, false) + " " + shellWord(link, false)
+}
+
+// checkRecordedFiles refuses Site data whose record names a public files folder that
+// files in data does not lead to, so a site never serves an empty folder in place of its
+// uploads. A recorded folder that is gone while files exists counts as moved into files.
+// A recorded folder overlapping private Site data can never be linked, so its refusal
+// names the way out.
+func checkRecordedFiles(data, recorded string) error {
+	root := filepath.Join(data, filesName)
+	recorded = filepath.FromSlash(recorded)
+	source, sourceErr := os.Stat(recorded)
+	target, targetErr := os.Stat(root)
+	for _, err := range []error{sourceErr, targetErr} {
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	shownRoot, shownRecorded := fsguard.Canonical(root), fsguard.Canonical(recorded)
+	if sourceErr == nil {
+		resolved, err := resolveFolder(recorded)
+		if err != nil {
+			return err
+		}
+		overlaps, err := overlapsSiteData(data, resolved)
+		if err != nil {
+			return err
+		}
+		if overlaps {
+			return fmt.Errorf("This Site data keeps its public files in %s, which overlaps private Site data. Move the uploads into %s, then delete %s.",
+				shownRecorded, shownRoot, fsguard.Canonical(state.At(data).ListenerPath()))
+		}
+	}
+	link := linkCommand(recorded, root, runtime.GOOS == "windows")
+	switch {
+	case sourceErr != nil && targetErr != nil:
+		return fmt.Errorf("This Site data keeps its public files in %s, which is gone. Restore that folder, or create %s.", shownRecorded, shownRoot)
+	case sourceErr != nil:
+		return nil
+	case targetErr != nil:
+		return fmt.Errorf("This Site data keeps its public files in %s. Link them, then run this again: %s", shownRecorded, link)
+	case os.SameFile(source, target):
+		return nil
+	}
+	return fmt.Errorf("This Site data keeps its public files in %s, and %s is another folder. Move that folder aside, then run: %s", shownRecorded, shownRoot, link)
+}
+
+// overlapsSiteData reports whether the resolved folder holds Site data, or overlaps a
+// folder in it that stays private. It runs once the directories exist, so another
+// spelling of a reserved folder finds it.
+func overlapsSiteData(data, folder string) (bool, error) {
+	exposed, err := fsguard.SameOrBelow(data, folder)
+	if err != nil {
+		return false, err
+	}
+	reserved := cache.SiteAppFolders(data)
+	for _, name := range append(slices.Clone(siteDataDirs), staticDir) {
+		reserved = append(reserved, filepath.Join(data, name))
+	}
+	for _, path := range reserved {
+		resolved, err := resolveFolder(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return false, err
+		}
+		for _, pair := range [][2]string{{folder, resolved}, {resolved, folder}} {
+			below, err := fsguard.SameOrBelow(pair[0], pair[1])
+			if err != nil {
+				return false, err
+			}
+			exposed = exposed || below
+		}
+	}
+	return exposed, nil
+}
+
+// refuseExposedFiles stops the server publishing Site data from the Files directory.
+func refuseExposedFiles(data, files string) error {
+	exposed, err := overlapsSiteData(data, files)
+	if err != nil {
+		return err
+	}
+	if exposed {
+		return fmt.Errorf("The Files directory %s overlaps private Site data in %s. Point %s at another folder.",
+			fsguard.Canonical(files), fsguard.Canonical(data), fsguard.Canonical(filepath.Join(data, filesName)))
+	}
+	return nil
+}
+
+// siteDirs creates the directories a start and drush find in Site data, with files and
+// its translations folder. files may be a link or a mount. recorded is the folder older
+// Site data names for public files, or "". data is resolved. It returns the resolved
+// files and scratch directories.
+func siteDirs(data, recorded string, static bool) (files, scratch string, err error) {
+	names := siteDataDirs
 	if static {
-		names = append(names, "static")
+		names = append(slices.Clone(names), staticDir)
 	}
 	for _, name := range names {
 		if err := os.MkdirAll(filepath.Join(data, name), 0o700); err != nil {
 			return "", "", err
 		}
 	}
-	files = cmp.Or(files, filepath.Join(data, "files"))
+	root := filepath.Join(data, filesName)
+	if recorded != "" {
+		if err := checkRecordedFiles(data, recorded); err != nil {
+			return "", "", err
+		}
+	}
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		return "", "", err
+	}
+	if files, err = resolveFolder(root); err != nil {
+		return "", "", err
+	}
+	if err := refuseExposedFiles(data, files); err != nil {
+		return "", "", err
+	}
+	if files != root {
+		warnExposed(files)
+	}
 	if err := os.MkdirAll(filepath.Join(files, "translations"), 0o700); err != nil {
 		return "", "", err
 	}
-	if resolved, err = filepath.EvalSymlinks(files); err != nil {
-		return "", "", err
-	}
 	scratch, err = filepath.EvalSymlinks(filepath.Join(data, "runtime"))
-	return resolved, scratch, err
+	return files, scratch, err
 }
 
 // warnExposed names the account other than this user, root or the system that

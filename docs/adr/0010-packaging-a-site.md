@@ -14,7 +14,10 @@ Packaged sites are [experimental within 1.x](0019-the-stable-surface.md).
 - `recipe` is optional. A build without one packs no Seed site.
 - A first start of such a site needs `--database mysql` or `--database pgsql`. A SQLite start refuses and names both. A database that holds no site refuses too.
 - `settings` names a PHP file in the site. The generated `settings.php` requires it last. The build refuses a file the site lacks.
-- `--files-dir` moves the public files out of Site data. The settings keep `file_public_path` at `sites/default/files`. The Listener record keeps the directory.
+- Public files live in `files` in Site data, which may be a link or a mount. The launcher checks this one path, because Caddy, PHP and Twig all read the folder it resolves to. The settings keep `file_public_path` at `sites/default/files`.
+- A start, `drush` and `export` refuse a `files` that leads to Site data or above it. They also refuse one that overlaps a folder holding private files, logs, runtime state, configuration exports, a static export or the application copy in Site data. The check compares file identities, so letter case and Windows junctions cannot hide an overlap.
+- The server publishes the folder, apart from `private` and `config_*` at its top and the names its request guards refuse. A link placed inside the folder publishes its target.
+- A Listener record from an earlier release can name a files folder. A start, `drush` and `export` refuse until `files` leads there, and print the link command. A recorded folder that overlaps private Site data gets the steps to move its uploads.
 - `platforms` and `libc` give the site's default targets, with the values of `--platform` and `--libc`. The flags and the CI inputs override the file.
 
 ### Added extensions

@@ -369,13 +369,16 @@ A server behind a reverse proxy sees the proxy as the sender of every request.
 between them:
 
 ```
-drupack --trusted-proxies 192.168.0.58,10.0.0.0/8
+drupack --trusted-proxies 192.168.0.58,10.0.0.5
 ```
 
-For a request one of them sent, the server takes the client's address from
-`X-Forwarded-For`. The access log's `client_ip` then holds the client, and
-`remote_ip` the proxy.
+For a request one of them sent, the server reads `X-Forwarded-For` from the
+right and takes the first address that is not a listed proxy. The access log's
+`client_ip` then holds the client, and `remote_ip` the proxy.
 
+- List every proxy in a chain, since an unlisted one is taken for the client.
+- A listed range holds proxies alone. A client inside it is skipped as a proxy,
+  so the address it forged is taken for its own.
 - No proxy is trusted without the option.
 - The start refuses `0.0.0.0/0` and `::/0`, which would let any client name
   its own address.
@@ -471,7 +474,6 @@ file carries it, Drupal core and Drush.
 | `--listen` | IP:PORT | `127.0.0.1` on the port `drupack.yml` names, `7225` by default | none | every start, `drush` |
 | `--static-listen` | IP:PORT | the site listener's address on its port plus one | none | every start, `drush` and `export` of a site with a static export |
 | `--host` | HOST | the [Site host](#site-hosts) when it resolves to 127.0.0.1, `localhost` otherwise | none | every start, `drush` |
-| `--files-dir` | PATH | `files` in Site data | none | every start, `drush` |
 | `--database` | `sqlite`, `mysql`, `pgsql` | `sqlite` | `DRUPACK_DATABASE` | every start |
 | `--db-host` | HOST | none | `DRUPACK_DB_HOST` | every start |
 | `--db-port` | PORT | `3306` or `5432` | `DRUPACK_DB_PORT` | every start |
@@ -598,14 +600,31 @@ the application in `app` in Site data. A start lays it there once per release.
 
 ## Public files
 
-`--files-dir` names the directory that holds the site's public files, which the
-site addresses as `/sites/default/files`. A relative path resolves against the
-directory you started Drupack in.
+A site keeps its public files in `files` in Site data, and addresses them as
+`/sites/default/files`. To keep them elsewhere, make `files` a link or a mount
+before the start:
 
-Site data records the directory a start names. Later starts and `drush` use it
-without the option, and a new `--files-dir` replaces it.
+- Linux and macOS: `ln -s /srv/public DATA/files`
+- Windows, in Command Prompt: `mklink /J DATA\files C:\srv\public`
 
-`--data-dir` and `--files-dir` refuse a path that contains `{` or `}`.
+The server publishes this folder. It refuses `private` and `config_*` folders
+at the top of the folder, and the names its request guards refuse. A link placed
+inside the folder publishes its target, so keep links to private data out of it.
+
+A start, `drush` and `export` refuse a `files` that leads to Site data or to a
+folder above it. They also refuse one that overlaps `private`, `runtime`, `tmp`,
+`config`, `logs`, `static` or the application folders in Site data. The check
+follows links and junctions. It does not detect a mount of a subfolder.
+
+Earlier releases had a `--files-dir` option, and Site data may still record its
+folder. A start, `drush` and `export` then refuse until `files` leads to that
+folder, and print the link command. They go on when that folder is gone and
+`files` exists. The next start drops the record. A recorded folder that overlaps
+private Site data cannot be linked: move the uploads into `files`, then delete
+the `listener` file in Site data.
+
+`--data-dir` refuses a path that contains `{` or `}`. A start refuses the same
+characters in the folder `files` leads to.
 
 ## The listener
 
@@ -635,8 +654,8 @@ SITE drush status
 SITE drush --data-dir ./data user:login
 ```
 
-`drush` acts on `--data-dir`, `--listen`, `--static-listen`, `--host` and
-`--files-dir`, and refuses the other 14 before the Drush command. It works
+`drush` acts on `--data-dir`, `--listen`, `--static-listen` and `--host`, and
+refuses the other 14 before the Drush command. It works
 while the site serves, and needs an installed site.
 
 ## Cron and updates

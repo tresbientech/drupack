@@ -943,6 +943,16 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertEqual({line["level"] for line in lines} - {"warn", "error"}, set())
         self.assertEqual([line["logger"] for line in lines if line["logger"].startswith("http.log.access")], [])
 
+    def test_a_forged_forwarded_address_is_not_logged(self):
+        port = harness.pick_port()
+        _, log = self.start("forged", str(self.project), "--access-log", "--trusted-proxies", "127.0.0.1,::1", port=port)
+        self.fetch(port, "/user/login", headers={"X-Forwarded-For": "6.6.6.6, 203.0.113.9, 127.0.0.1"})
+        access = Path(harness.wait_for_line(log, 0, "  Access:  ", 1)).expanduser()
+        harness.wait_for_text(access, "X-Forwarded-For")
+        requests =[json.loads(line)["request"] for line in access.read_text().splitlines()]
+        forwarded = [request["client_ip"] for request in requests if "X-Forwarded-For" in request["headers"]]
+        self.assertEqual(forwarded, ["203.0.113.9"])
+
     def test_the_static_port_serves_the_directory_the_projects_settings_name(self):
         settings = self.docroot / "sites" / "default" / "settings.php"
         original = settings.read_text()

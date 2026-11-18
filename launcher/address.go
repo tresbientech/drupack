@@ -57,7 +57,6 @@ func Served(dir state.Dir, name string, s Site, typed state.Listener) (Address, 
 	}
 	record.Listen = cmp.Or(typed.Listen, record.Listen, s.DefaultListen)
 	record.StaticListen = cmp.Or(typed.StaticListen, record.StaticListen)
-	record.FilesDir = cmp.Or(typed.FilesDir, record.FilesDir)
 	record.Scheme = cmp.Or(record.Scheme, state.UnrecordedScheme)
 	bind, port, err := parseListen(record.Listen, "--listen")
 	if err != nil {

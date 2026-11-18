@@ -17,10 +17,10 @@ Two FrankenPHP processes over one database and one runtime directory corrupt bot
 
 ### The Listener record
 
-- Every start writes `listener` in its state directory: the addresses, the permitted host, the scheme and the files directory.
+- Every start writes `listener` in its state directory: the addresses, the permitted host and the scheme.
 - `drush` and `export` read the record as their default. `--listen` and `--host` typed on the command line win.
 - A handover reads the record alone and ignores a typed `--listen` and `--host`. With no record it uses its own plan.
-- A site start reads only the files directory from the record, so `--listen` does not stick.
+- A site start ignores the record's addresses, so `--listen` does not stick. It reads the files folder a record from an earlier release names, and refuses until `files` leads there.
 - A site serves on `127.0.0.1:7225` by default, or the `port` its contract names. The engine serves on `127.0.0.1:3787`.
 - The server exports `DRUSH_OPTIONS_URI`, so every Drush child builds URLs from the address a reader types.
 - A record that is not a JSON object fails the start, naming the file.

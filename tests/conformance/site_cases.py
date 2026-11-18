@@ -2,6 +2,7 @@
 
 import gzip
 import json
+import os
 import shutil
 import tempfile
 import time
@@ -265,16 +266,47 @@ class SeededSite(harness.ConformanceCase):
                     self.fail(f"expected {path} to be blocked, got {status}: {body!r}")
         self.assertEqual(self.site.http("/sites/default/files/ordinary.txt"), "not executable")
 
-    def test_files_dir_outside_site_data(self):
+    def link_files(self, data, target):
+        data.mkdir(mode=0o700)
+        target.mkdir(parents=True, exist_ok=True)
+        if os.name == "nt":
+            harness.run(["cmd", "/c", "mklink", "/J", str(data / "files"), str(target)], check=True, capture_output=True)
+        else:
+            (data / "files").symlink_to(target)
+
+    def test_files_link_outside_site_data(self):
         data = self.case_dir / "data"
         public = self.case_dir / "public"
-        self.site.start(data, *CREDENTIALS, "--files-dir", str(public))
-        (public / "probe.txt").write_text("served from the files directory")
-        self.assertEqual(self.site.http("/sites/default/files/probe.txt"), "served from the files directory")
-        self.assertFalse((data / "files").exists(), "Site data holds a files directory")
+        self.link_files(data, public)
+        self.site.start(data, *CREDENTIALS)
+        (public / "probe.txt").write_text("served through the link")
+        self.assertEqual(self.site.http("/sites/default/files/probe.txt"), "served through the link")
         self.site.stop()
         self.site.start(data)
-        self.assertEqual(self.site.http("/sites/default/files/probe.txt"), "served from the files directory")
+        self.assertEqual(self.site.http("/sites/default/files/probe.txt"), "served through the link")
+
+    def test_files_link_overlapping_site_data_is_refused(self):
+        data = self.case_dir / "data"
+        self.link_files(data, data / "private")
+        result = harness.run([str(self.binary), "--foreground", "--data-dir", str(data),
+                              "--listen", f"127.0.0.1:{harness.pick_port()}", *CREDENTIALS],
+                             cwd=self.case_dir, capture_output=True, text=True,
+                             timeout=harness.WAITS["http_request"].seconds)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("overlaps private Site data", result.stderr)
+        self.assertFalse((data / "listener").exists(), "the refused start recorded a listener")
+        self.assertFalse((data / "private" / "translations").exists(), "the refused start wrote through the link")
+
+    def test_public_storage_refuses_private_and_config_folders(self):
+        files = self.served() / "files"
+        for relative in ("private/probe.txt", "config_probe/probe.txt", "photos/private/probe.txt"):
+            (files / relative).parent.mkdir(parents=True, exist_ok=True)
+            (files / relative).write_text("public marker")
+        for relative in ("private/probe.txt", "config_probe/probe.txt"):
+            with self.subTest(relative=relative), self.assertRaises(HTTPError) as error:
+                self.site.fetch("/sites/default/files/" + relative)
+            self.assertEqual(error.exception.code, 403)
+        self.assertEqual(self.site.http("/sites/default/files/photos/private/probe.txt"), "public marker")
 
     def test_public_storage_serves_precompressed_aggregates(self):
         data = self.served()

@@ -55,10 +55,10 @@ _Avoid_: installer
 ### Site data
 
 **Site data**:
-The persistent information of one installed site, including its content and, unless a start names a Files directory, its uploaded files.
+The persistent information of one installed site, including its content and its uploaded files.
 
 **Files directory**:
-The directory holding a site's public files, addressed as `sites/default/files`. It is `files` in Site data unless `--files-dir` names another, which the Listener record keeps.
+The directory holding a site's public files, addressed as `sites/default/files`. It is `files` in Site data, which may be a link or a mount.
 
 **First start**:
 The start that turns an empty Site data directory into an installed site.
@@ -78,7 +78,7 @@ The public command that removes unpacked releases, and the state of folders no s
 An environment variable that selects the default Site data directory for a Packaged site.
 
 **Listener record**:
-The listen address, static listener address, permitted host and scheme the last start served, and the Files directory it named, held in Site data.
+The listen address, static listener address, permitted host and scheme the last start served, held in Site data. A record from an earlier release can also name a Files directory.
 
 **Served address**:
 What the last start served: the reader's typed values first, then the Listener record, then the default.

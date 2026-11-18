@@ -24,6 +24,7 @@ Caddy's global `log` block configures the process log, and an access log needs a
 
 - `--trusted-proxies CIDR[,CIDR]` names the proxies in front of a server, on the engine start and the Packaged site start.
 - The Caddyfile lists them as `trusted_proxies static` in the global `servers` block, so both ports read them.
+- `trusted_proxies_strict` reads `X-Forwarded-For` from the right and takes the first address that is not a listed proxy. A client can write the header's left end. Every proxy in a chain is listed, and a listed range holds no clients.
 - An entry is an address or a CIDR range. The start refuses other text, and refuses `0.0.0.0/0` and `::/0`.
 - No proxy is trusted without the option.
 - The access log's `client_ip` holds the client for a request a trusted proxy sent. `remote_ip` holds the proxy.

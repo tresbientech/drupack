@@ -6,6 +6,12 @@
 route /sites/default/files/* {
 	root * {{quote .FilesDir}}
 	uri strip_prefix /sites/default/files
+	# The request guards test these names against the docroot, which holds no public files.
+	@drupackProtectedFiles {
+		path_regexp "(?i)^/(private[. ]*|config_[^/]*)(/|$)"
+		file {path} {path}/
+	}
+	respond @drupackProtectedFiles 403
 	@stored file
 	import cachedForAYear @stored
 	@storedSvgz {
