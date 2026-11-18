@@ -44,6 +44,8 @@ type Facts struct {
 	Open, Alias string
 	// StopRecord is the file the runtime's watch writes the stop channel's address to.
 	StopRecord string
+	// TrustedProxies is the checked list of --trusted-proxies.
+	TrustedProxies []string
 }
 
 // binDir is an application's bin/, which holds the php and drush its children run.
@@ -148,6 +150,12 @@ func (f Facts) Env(k Kind) []string {
 			e.put("DRUPACK_RUNTIME_OPEN=" + f.Open)
 		}
 		e.put("DRUPACK_RUNTIME_STOP_RECORD=" + fsguard.Canonical(f.StopRecord))
+		// Drupal trusts forwarded headers from this list, so a start without the option
+		// clears an inherited one.
+		e.drop("DRUPACK_RUNTIME_TRUSTED_PROXIES")
+		if len(f.TrustedProxies) > 0 {
+			e.put("DRUPACK_RUNTIME_TRUSTED_PROXIES=" + strings.Join(f.TrustedProxies, ","))
+		}
 		if !f.Engine {
 			// Every step that needed the administrator password has run. The server passes
 			// its environment to every process it starts, including PHP code a site runs.

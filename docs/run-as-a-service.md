@@ -181,16 +181,25 @@ The port serves plain HTTP: let the firewall admit the proxy alone.
 
 ### The project's settings
 
-`--trusted-proxies` puts the visitor's address in the access log. Drupal reads
-the forwarded address, scheme and host once `settings.php` names the proxy:
+`--trusted-proxies` puts the visitor's address in the access log. The server
+passes the list to PHP as `DRUPACK_RUNTIME_TRUSTED_PROXIES`, with commas between
+the entries. The project's `settings.php` gives it to Drupal:
 
 ```php
-$settings['reverse_proxy'] = TRUE;
-$settings['reverse_proxy_addresses'] = ['127.0.0.1'];
+use Symfony\Component\HttpFoundation\Request;
+
+$proxies = getenv('DRUPACK_RUNTIME_TRUSTED_PROXIES');
+if ($proxies !== false) {
+  $settings['reverse_proxy'] = TRUE;
+  $settings['reverse_proxy_addresses'] = explode(',', $proxies);
+  $settings['reverse_proxy_trusted_headers'] = Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO;
+}
 $settings['trusted_host_patterns'] = ['^www\.example\.org$'];
 ```
 
-`reverse_proxy_addresses` holds the address the proxy connects from.
+Drupal then reads the visitor's address and the `https` scheme from the proxy's
+headers. The host stays the request's `Host`, which `trusted_host_patterns`
+checks.
 
 ## Logs
 

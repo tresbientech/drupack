@@ -28,7 +28,9 @@ Caddy's global `log` block configures the process log, and an access log needs a
 - An entry is an address or a CIDR range. The start refuses other text, and refuses `0.0.0.0/0` and `::/0`.
 - No proxy is trusted without the option.
 - The access log's `client_ip` holds the client for a request a trusted proxy sent. `remote_ip` holds the proxy.
-- PHP's `REMOTE_ADDR` stays the proxy's address. Drupal reads the client from the header once `settings.php` sets `reverse_proxy` and `reverse_proxy_addresses`. Drupack sets neither.
+- PHP's `REMOTE_ADDR` stays the proxy's address. The server receives the checked list as `DRUPACK_RUNTIME_TRUSTED_PROXIES`.
+- A Packaged site's generated settings trust that list for `X-Forwarded-For` and `X-Forwarded-Proto`. The host stays the request's own, which `trusted_host_patterns` checks.
+- An engine project's `settings.php` reads the same variable, since the engine writes nothing into a project.
 - The option is a start option, not a `composer.json` setting, as [0009](0009-the-engine-executable.md) sorts them. The proxy belongs to the machine, and the same project runs with none in development.
 
 ## Reason

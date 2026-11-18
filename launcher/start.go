@@ -309,6 +309,7 @@ func start(l Launch, c command) error {
 	if err != nil {
 		return err
 	}
+	ready.facts.TrustedProxies = proxies
 	fmt.Print(ready.summary)
 	return execServer(ready.facts, staged.dir, lease, ready.config, choice, plan, ready.rules, ready.argv0, ready.cwd)
 }

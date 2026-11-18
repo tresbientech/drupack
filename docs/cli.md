@@ -382,9 +382,12 @@ right and takes the first address that is not a listed proxy. The access log's
 - No proxy is trusted without the option.
 - The start refuses `0.0.0.0/0` and `::/0`, which would let any client name
   its own address.
-- PHP's `REMOTE_ADDR` stays the proxy's address. Drupal reads the client from
-  the header once `settings.php` sets `reverse_proxy` and
-  `reverse_proxy_addresses`.
+- PHP's `REMOTE_ADDR` stays the proxy's address, and the server passes the list
+  to PHP as `DRUPACK_RUNTIME_TRUSTED_PROXIES`.
+- A project's `settings.php` gives that list to Drupal, as
+  [Run as a service](run-as-a-service.md#the-projects-settings) shows.
+- A packaged site's settings trust the list for `X-Forwarded-For` and
+  `X-Forwarded-Proto`.
 
 ## The cache
 

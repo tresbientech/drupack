@@ -22,6 +22,7 @@ OPEN           writers=launcher/childenv.go  readers=runtime/frankenphp/entrypoi
 SITE_VERSION   writers=launcher/childenv.go  readers=runtime/frankenphp/entrypoint.go  kinds=reader,server,operate,drush,export  modes=site,engine
 STATIC_ROOT    writers=launcher/childenv.go  readers=application/settings.php  kinds=server,operate,drush,export  modes=site
 STOP_RECORD    writers=launcher/childenv.go  readers=runtime/frankenphp/entrypoint.go  kinds=server  modes=site,engine
+TRUSTED_PROXIES writers=launcher/childenv.go  readers=application/settings.php  kinds=server  modes=site,engine
 DRUPACK_CA_FILE writers=launcher/childenv.go,launcher/internal/build/build.go  readers=runtime/php.ini,launcher/update.go  kinds=reader,server,operate,drush,export  modes=site,engine
 DRUPACK_DRUSH_SCRIPT writers=launcher/childenv.go,launcher/internal/build/build.go  readers=application/drush  kinds=server,operate,drush,export  modes=site,engine
 DRUPACK_MERCURE_PUBLISHER_SECRET writers=launcher/childenv.go  readers=  kinds=server,operate,drush,export  modes=site,engine

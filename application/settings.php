@@ -37,6 +37,14 @@ $settings['trusted_host_patterns'] = [
   '^' . preg_quote(getenv('DRUPACK_RUNTIME_HOST'), '/') . '$',
   '^' . preg_quote(getenv('DRUPACK_RUNTIME_ALIAS'), '/') . '$',
 ];
+// The host stays the request's own, which trusted_host_patterns checks.
+$drupack_proxies = getenv('DRUPACK_RUNTIME_TRUSTED_PROXIES');
+if ($drupack_proxies !== false) {
+  $settings['reverse_proxy'] = TRUE;
+  $settings['reverse_proxy_addresses'] = explode(',', $drupack_proxies);
+  $settings['reverse_proxy_trusted_headers'] = \Symfony\Component\HttpFoundation\Request::HEADER_X_FORWARDED_FOR
+    | \Symfony\Component\HttpFoundation\Request::HEADER_X_FORWARDED_PROTO;
+}
 // automated_cron would run a queue or a drupal.org fetch inside a reader's page. The module
 // stays installed, as Drupal CMS recipes install it; the server runs cron in a child process.
 $config['automated_cron.settings']['interval'] = 0;

@@ -16,7 +16,7 @@ func TestEnvKinds(t *testing.T) {
 	separator := string(os.PathListSeparator)
 	launch := Launch{
 		Entry: "/runtime/dir/frankenphp", Application: "/cache/app", Name: "demo",
-		Parent: []string{"PATH=/bin", "DRUPACK_RUNTIME_OPEN=http://stale/", "DRUPACK_ADMIN_PASSWORD=inherited", "DRUPACK_RUNTIME_STATIC_ROOT=/stale"},
+		Parent: []string{"PATH=/bin", "DRUPACK_RUNTIME_OPEN=http://stale/", "DRUPACK_ADMIN_PASSWORD=inherited", "DRUPACK_RUNTIME_STATIC_ROOT=/stale", "DRUPACK_RUNTIME_TRUSTED_PROXIES=192.0.2.99"},
 	}
 	engine := launch
 	engine.Engine = true
@@ -59,6 +59,9 @@ func TestEnvKinds(t *testing.T) {
 	folderServing.Script, folderServing.StopRecord = "", "/data/stop.json"
 	folderOpening := folderServing
 	folderOpening.Open = "http://127.0.0.1:3787/core/install.php"
+	proxied := []string{"127.0.0.1", "10.0.0.0/8"}
+	servingProxied, folderProxied := serving, folderServing
+	servingProxied.TrustedProxies, folderProxied.TrustedProxies = proxied, proxied
 	for _, row := range []struct {
 		name  string
 		facts Facts
@@ -83,7 +86,11 @@ func TestEnvKinds(t *testing.T) {
 			with(laidVariables, map[string]string{"DRUPACK_ADMIN_PASSWORD": "inherited"}), []string{"DRUPACK_DATABASE"}},
 		{"a site's server loses the password and opens the link", serving, Server,
 			with(with(laidVariables, watch), map[string]string{"DRUPACK_RUNTIME_OPEN": "http://[::1]:8080/user/reset/1", "DRUPACK_RUNTIME_ALIAS": "demo.drupack.site"}),
-			[]string{"DRUPACK_ADMIN_PASSWORD", "DRUPACK_DATABASE"}},
+			[]string{"DRUPACK_ADMIN_PASSWORD", "DRUPACK_DATABASE", "DRUPACK_RUNTIME_TRUSTED_PROXIES"}},
+		{"a site's server reads the trusted proxies", servingProxied, Server,
+			map[string]string{"DRUPACK_RUNTIME_TRUSTED_PROXIES": "127.0.0.1,10.0.0.0/8"}, nil},
+		{"an engine server reads the trusted proxies", folderProxied, Server,
+			map[string]string{"DRUPACK_RUNTIME_TRUSTED_PROXIES": "127.0.0.1,10.0.0.0/8"}, nil},
 		{"the engine's check reads the reader's environment", Facts{Launch: engine}, Operate,
 			map[string]string{"PATH": "/bin", "DRUPACK_ADMIN_PASSWORD": "inherited"}, []string{"DRUPACK_RUNTIME_APP_DIR", "DRUPACK_DRUSH_SCRIPT"}},
 		{"the engine's drush reads the last start's bundle and hub", folder, Drush, folderVariables, []string{"DRUPACK_RUNTIME_DATA_DIR", "DRUPACK_RUNTIME_APP_DIR"}},
@@ -147,7 +154,7 @@ func TestEnvDeclared(t *testing.T) {
 		t.Fatal(err)
 	}
 	hub := &caddyfile.Mercure{}
-	engine := Facts{Launch: Launch{Engine: true}, CAFile: "x", Hub: hub, Bin: "x", Script: "x", StopRecord: "x", Open: "x"}
+	engine := Facts{Launch: Launch{Engine: true}, CAFile: "x", Hub: hub, Bin: "x", Script: "x", StopRecord: "x", Open: "x", TrustedProxies: []string{"x"}}
 	site := engine
 	site.Engine = false
 	site.Data, site.StaticRoot, site.SiteApp, site.Alias = "x", "x", "x", "x"

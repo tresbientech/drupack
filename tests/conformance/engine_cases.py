@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
+from urllib.request import Request, urlopen
 
 import harness
 import version_cases
@@ -55,16 +55,23 @@ PHP_MARKER_OUTPUT = "guard-probe-executed"
 PHP_MARKER = f"<?php echo '{PHP_MARKER_OUTPUT}';"
 TEXT_MARKER = "guard-probe-served"
 SVG_MARKER = b'<svg xmlns="http://www.w3.org/2000/svg"><title>guard-probe-svgz</title></svg>'
-
-
-class KeepRedirects(HTTPRedirectHandler):
-    """Leaves a 3xx answer to the caller, where urllib would follow it."""
-
-    def redirect_request(self, *_):
-        return None
-
-
-REDIRECTS_KEPT = build_opener(KeepRedirects())
+# The settings docs/run-as-a-service.md gives a project, and a page that prints what Drupal's
+# own middleware makes of the request under them.
+PROXY_SETTINGS = """
+$proxies = getenv('DRUPACK_RUNTIME_TRUSTED_PROXIES');
+if ($proxies !== false) {
+  $settings['reverse_proxy'] = TRUE;
+  $settings['reverse_proxy_addresses'] = explode(',', $proxies);
+  $settings['reverse_proxy_trusted_headers'] = \\Symfony\\Component\\HttpFoundation\\Request::HEADER_X_FORWARDED_FOR
+    | \\Symfony\\Component\\HttpFoundation\\Request::HEADER_X_FORWARDED_PROTO;
+}
+if (isset($_GET['drupack-proxy-case'])) {
+  $request = \\Symfony\\Component\\HttpFoundation\\Request::createFromGlobals();
+  \\Drupal\\Core\\StackMiddleware\\ReverseProxyMiddleware::setSettingsOnRequest($request, new \\Drupal\\Core\\Site\\Settings($settings));
+  echo $request->getClientIp(), ' ', $request->getScheme();
+  exit;
+}
+"""
 
 
 class EngineExecutable(harness.ConformanceCase):
@@ -148,7 +155,7 @@ class EngineExecutable(harness.ConformanceCase):
         unfollowed. The body is latin-1 text, so encode("latin-1") returns the original bytes."""
         request = Request(f"http://127.0.0.1:{port}{path}", headers=headers or {})
         try:
-            with REDIRECTS_KEPT.open(request, timeout=harness.WAITS["http_request"].seconds) as response:
+            with harness.REDIRECTS_KEPT.open(request, timeout=harness.WAITS["http_request"].seconds) as response:
                 return response.status, response.headers, response.read().decode("latin-1")
         except HTTPError as error:
             return error.code, error.headers, error.read().decode("latin-1")
@@ -952,6 +959,16 @@ if (isset($_GET['drupack-log-case'])) {
         requests =[json.loads(line)["request"] for line in access.read_text().splitlines()]
         forwarded = [request["client_ip"] for request in requests if "X-Forwarded-For" in request["headers"]]
         self.assertEqual(forwarded, ["203.0.113.9"])
+
+    def test_a_projects_settings_read_the_trusted_proxies(self):
+        settings = self.docroot / "sites" / "default" / "settings.php"
+        original = settings.read_text()
+        self.addCleanup(settings.write_text, original)
+        settings.write_text(original + PROXY_SETTINGS)
+        port, _ = self.start("proxy-settings", str(self.project), "--trusted-proxies", "127.0.0.1,::1")
+        status, _, body = self.fetch(port, "/?drupack-proxy-case",
+                                     headers={"X-Forwarded-For": "203.0.113.9", "X-Forwarded-Proto": "https"})
+        self.assertEqual((status, body), (200, "203.0.113.9 https"))
 
     def test_the_static_port_serves_the_directory_the_projects_settings_name(self):
         settings = self.docroot / "sites" / "default" / "settings.php"

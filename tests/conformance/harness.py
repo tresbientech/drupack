@@ -23,7 +23,7 @@ import unittest
 from collections import namedtuple
 from pathlib import Path
 from urllib.error import URLError
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 try:
     import pty
@@ -576,6 +576,16 @@ def login_link(binary, work_dir, data_dir):
     if minted.returncode != 0:
         raise AssertionError(f"drush user:login failed: {minted.stderr}")
     return minted.stdout.strip()
+
+
+class KeepRedirects(HTTPRedirectHandler):
+    """Leaves a 3xx answer to the caller, where urllib would follow it."""
+
+    def redirect_request(self, *_):
+        return None
+
+
+REDIRECTS_KEPT = build_opener(KeepRedirects())
 
 
 class Site:

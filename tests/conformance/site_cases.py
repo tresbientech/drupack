@@ -220,6 +220,20 @@ class SeededSite(harness.ConformanceCase):
             self.site.http("/admin/dashboard")
         self.assertEqual(error.exception.code, 403)
 
+    def test_a_trusted_proxy_names_the_visitor_and_the_scheme(self):
+        data = self.case_dir / "proxied"
+        self.site.start(data, *CREDENTIALS, "--trusted-proxies", "127.0.0.1,::1")
+        link = harness.login_link(harness.BINARY, self.case_dir, data)
+        request = Request(link, headers={"X-Forwarded-For": "203.0.113.9", "X-Forwarded-Proto": "https",
+                                         "X-Forwarded-Host": "forged.example"})
+        with self.assertRaises(HTTPError) as redirect:
+            harness.REDIRECTS_KEPT.open(request, timeout=harness.WAITS["http_request"].seconds)
+        self.assertTrue(redirect.exception.headers["Location"].startswith(f"https://{urlsplit(link).netloc}/"),
+                        redirect.exception.headers["Location"])
+        session = self.run_drush(data, "php:eval", "echo \\Drupal::database()->query("
+                                 "\"SELECT hostname FROM {sessions} WHERE uid = 1\")->fetchField();")
+        self.assertEqual(session.stdout.strip(), "203.0.113.9", session.stderr)
+
     def test_protected_files(self):
         self.served()
         # A packaged site keeps private storage in Site data, so the docroot path answers 404.

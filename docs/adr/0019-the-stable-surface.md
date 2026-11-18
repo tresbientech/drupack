@@ -16,6 +16,7 @@ Names:
 - the environment variables `DRUPACK_CACHE_DIR`, `DRUPACK_CA_FILE`, `DRUPACK_TLS_DIR`, `DRUPACK_DNS_ANSWER` and `DRUPACK_NO_UPDATE_CHECK`
 - `DRUPACK_LIBC`, which the install script reads
 - the three `DRUPACK_MERCURE_` variables a Mercure hub start exports
+- `DRUPACK_RUNTIME_TRUSTED_PROXIES`, which a project's `settings.php` reads
 - the `extra.drupack` keys of `composer.json`: `mercure`, `subdomain` and `static`
 - the `drupal/drupack` Composer plugin, which `allow-plugins` names, and its bin script, `vendor/bin/drupack-install`
 - the release file names, `drupack-VERSION-TARGET`, with `checksums.txt`, `release.json`, `install-drupack.sh` and `install-drupack.ps1`
