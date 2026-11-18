@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Moves the PHP, FrankenPHP, Windows PECL, Composer, Go and Go tool pins to their newest version inside their line,
-and prints what it did as a Markdown summary. Go's line is its own or the one FrankenPHP needs,
-whichever is newer. It edits the working tree and never commits.
+"""Moves the PHP, FrankenPHP, Windows PECL, Composer and Go pins to their newest version inside their line, moves the
+CA bundle to curl's newest extract, and prints what it did as a Markdown summary. The executables carry all of these,
+so a move of one starts a release. The Go check tools and the launcher's Go modules move only alongside such a move.
+Go's line is its own or the one FrankenPHP needs, whichever is newer. It edits the working tree and never commits.
 
     python3 build/release/upstream.py
 """
@@ -16,14 +17,19 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BUILDER_INPUTS = "runtime/builder/builder-inputs.sh"
 WINDOWS_BUILD = "build/windows/build.ps1"
 RELEASE_WORKFLOW = ".github/workflows/release.yml"
-GO_MODS = ("launcher/go.mod", "runtime/frankenphp/watch/go.mod")
+LAUNCHER = "launcher"
+LAUNCHER_MOD = "launcher/go.mod"
+LAUNCHER_SUM = "launcher/go.sum"
+GO_MODS = (LAUNCHER_MOD, "runtime/frankenphp/watch/go.mod")
 DOCKERFILE = "Dockerfile"
+CA_BUNDLE = "runtime/cacert.pem"
 
 PHP_RELEASES = "https://www.php.net/releases/index.php?json&version="
 WINDOWS_CHECKSUMS = "https://downloads.php.net/~windows/releases/sha256sum.txt"
@@ -46,6 +52,8 @@ COMPOSER_VERSIONS = "https://getcomposer.org/versions"
 COMPOSER_DOWNLOAD = "https://getcomposer.org/download/"
 # Composer's Tags Public Key, from https://composer.github.io/pubkeys.html.
 COMPOSER_KEY = "build/release/composer-releases.pub"
+CA_RELEASE = "https://curl.se/ca/cacert.pem"
+CA_CHECKSUM = CA_RELEASE + ".sha256"
 
 # Each pin's line in its file, its value captured.
 PHP_PIN = r"^php_version=(.+)$"
@@ -67,6 +75,10 @@ GO_IMAGE_PIN = r"^ARG JOB_BASE=golang:(.+)-bookworm@sha256:[0-9a-f]{64}$"
 GO_IMAGE_DIGEST_PIN = r"^ARG JOB_BASE=golang:.+-bookworm@sha256:([0-9a-f]{64})$"
 COMPOSER_PIN = r"^RUN wget -q -O /opt/composer\.phar https://getcomposer\.org/download/(.+)/composer\.phar \\$"
 COMPOSER_SHA_PIN = r"^    && echo '([0-9a-f]{64})  /opt/composer\.phar' \| sha256sum -c -$"
+CA_DATE = r"^## Certificate data from Mozilla as of: (.+) GMT$"
+CA_SHA_PIN = r"^# runtime/cacert\.pem comes from \S+, sha256\n# ([0-9a-f]{64}), \d+$"
+CA_COUNT_PIN = r"^# runtime/cacert\.pem comes from \S+, sha256\n# [0-9a-f]{64}, (\d+)$"
+GO_REQUIREMENT = r"^\t(\S+) (v\S+)(?: // indirect)?$"
 GO_RELEASE = re.compile(r"go\d+\.\d+\.\d+")
 # Each Go tool the checks install as MODULE/cmd/NAME@vX.Y.Z: its name, its module and the
 # file pinning it. The module path names the major, so its newest release stays inside it.
@@ -373,14 +385,83 @@ def tools(summary):
         summary.row(name, current, newest, "bumped")
 
 
-def main():
-    summary = Summary()
+def ca_date(text):
+    """The date of the Mozilla data a CA bundle holds."""
+    dates = re.findall(CA_DATE, text, re.MULTILINE)
+    if len(dates) != 1:
+        sys.exit(f"a CA bundle names the dates {dates!r}")
+    try:
+        return datetime.strptime(dates[0], "%a %b %d %H:%M:%S %Y")
+    except ValueError:
+        sys.exit(f"a CA bundle names the date {dates[0]!r}")
+
+
+def ca_bundle(summary):
+    current = ca_date((ROOT / CA_BUNDLE).read_bytes().decode())
+    # curl.se's bundle and checksum are remote input.
+    bundle = download(CA_RELEASE)
+    checksum = fetch(CA_CHECKSUM).partition(" ")[0]
+    if hashlib.sha256(bundle).hexdigest() != checksum:
+        sys.exit(f"{CA_RELEASE} does not match the checksum {checksum!r}")
+    text = bundle.decode()
+    newest = ca_date(text)
+    certificates = text.count("-----BEGIN CERTIFICATE-----")
+    if certificates == 0 or certificates != text.count("-----END CERTIFICATE-----"):
+        sys.exit(f"{CA_RELEASE} holds no whole list of certificates")
+    versions = current.date().isoformat(), newest.date().isoformat()
+    if newest <= current:
+        summary.row("CA bundle", *versions, "current")
+        return
+    (ROOT / CA_BUNDLE).write_bytes(bundle)
+    rewrite(DOCKERFILE, CA_SHA_PIN, checksum)
+    rewrite(DOCKERFILE, CA_COUNT_PIN, str(certificates))
+    summary.row("CA bundle", *versions, "bumped")
+
+
+def run_go(*arguments):
+    # Standard output carries the summary.
+    subprocess.run(["go", *arguments], cwd=ROOT / LAUNCHER, check=True, stdout=sys.stderr)
+
+
+def go_requirements():
+    return dict(re.findall(GO_REQUIREMENT, (ROOT / LAUNCHER_MOD).read_text(), re.MULTILINE))
+
+
+def go_modules(summary):
+    """Moves the launcher's modules inside their majors."""
+    files = {path: (ROOT / path).read_bytes() for path in (LAUNCHER_MOD, LAUNCHER_SUM)}
+    before = go_requirements()
+    line = read(LAUNCHER_MOD, GO_LINE)
+    run_go("get", "-u", "-t", "./...")
+    run_go("mod", "tidy")
+    needed = read(LAUNCHER_MOD, GO_LINE)
+    if needed != line:
+        for path, content in files.items():
+            (ROOT / path).write_bytes(content)
+        summary.row("Go modules", line, needed, "waits for that Go")
+        return
+    for module, version in sorted(go_requirements().items()):
+        if before.get(module) != version:
+            summary.row(module, before.get(module, "none"), version, "bumped")
+
+
+def bump(summary):
     php(summary)
     pecl(summary)
     composer(summary)
     frankenphp(summary)
     go(summary)
-    tools(summary)
+    ca_bundle(summary)
+    # upstream.yml releases when this script changed a file. No executable carries the check
+    # tools, and the modules move too often to pay for a run on every platform each time.
+    if any(row[3] == "bumped" for row in summary.rows):
+        tools(summary)
+        go_modules(summary)
+
+
+def main():
+    summary = Summary()
+    bump(summary)
     sys.stdout.write(summary.render())
 
 

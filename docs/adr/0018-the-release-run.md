@@ -2,7 +2,7 @@
 
 ## Context
 
-Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstream version must reach readers without the owner noticing it. A release builds five platforms and tests each one, so the graph must build each thing once. drupal.org has no API that creates a release node, and Packagist takes each `drupal/drupack` version from one.
+Drupack pins PHP, FrankenPHP, Go and its modules, Windows extensions, Composer and the CA bundle. A new upstream version must reach readers without the owner noticing it. A release builds five platforms and tests each one, so the graph must build each thing once. drupal.org has no API that creates a release node, and Packagist takes each `drupal/drupack` version from one.
 
 ## Decision
 
@@ -30,8 +30,10 @@ Drupack pins PHP, FrankenPHP, Go, Windows extensions and Composer. A new upstrea
 - `.github/workflows/upstream.yml` runs on GitHub, and drupal.org's pipeline schedule dispatches it daily. A dispatch with `version` releases `main` under that version with no bump.
 - `build/release/upstream.py` moves each pin to its newest version inside its line. PHP waits until php.net lists both Windows zips.
 - A newer Composer release is written only after its `composer.phar.sig` verifies against a key kept in the repository.
+- A newer curl extract replaces `runtime/cacert.pem` once it matches curl's published SHA-256.
 - A newer major is never written.
-- The run stops when no pin moves.
+- A release starts when a pin the executables carry moves: PHP, a Windows extension, Composer, FrankenPHP, Go or the CA bundle. The run stops when none moves.
+- `golangci-lint`, `govulncheck` and the launcher's Go modules move only in a run that releases. The modules stay inside their majors, and a module that needs a newer Go waits.
 - The candidate is the bump on `main` HEAD, on a GitHub-only branch named by the SHA-256 of the bump's diff. A hand version names its branch by the version.
 - Each candidate moves `build/release/demo-pin.sh` to the Drupacked Demo's latest release that descends from the pin.
 - A candidate that failed is not built again unless the dispatch sets `force`. A named version always builds.
@@ -67,6 +69,8 @@ A bump moves PHP or FrankenPHP, which every platform's file carries, so a bump t
 A script plans the run so a unit test checks the plan. A plan written in workflow expressions shows its mistakes in a finished run alone. A failed lookup that read as no candidate would rebuild what it could have published.
 
 The engine ships the pinned `composer.phar`. Its bump checks the SHA-384 signature `composer self-update` checks, against a key kept in the repository, so a tampered download server cannot pass.
+
+A release gives readers a new executable, so a tool no executable carries starts none. Go modules publish more often than a run on every platform is worth, so they join a bump that already pays for one.
 
 The upstream run lives on GitHub, where the builds run. Testing the candidate before the tag moves means a red platform never ships, and the tag run publishes the candidate's files.
 

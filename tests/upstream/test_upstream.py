@@ -24,7 +24,8 @@ spec = importlib.util.spec_from_file_location("upstream", ROOT / "build" / "rele
 upstream = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(upstream)
 
-PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD, upstream.RELEASE_WORKFLOW, upstream.DOCKERFILE, *upstream.GO_MODS, "build/test/go-tests.sh"]
+PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD, upstream.RELEASE_WORKFLOW, upstream.DOCKERFILE, *upstream.GO_MODS,
+          upstream.LAUNCHER_SUM, upstream.CA_BUNDLE, "build/test/go-tests.sh"]
 COMMIT = "c0ffee" * 6 + "c0ff"
 SPC_COMMIT = "5bc" * 13 + "5"
 BASELINE = "ba5e" * 10
@@ -66,6 +67,7 @@ class Bumper(unittest.TestCase):
         self.addCleanup(setattr, upstream, "fetch", upstream.fetch)
         self.addCleanup(setattr, upstream, "download", upstream.download)
         self.addCleanup(setattr, upstream, "head", upstream.head)
+        self.addCleanup(setattr, upstream, "run_go", upstream.run_go)
         upstream.ROOT = self.tree
         self.php = upstream.read(upstream.BUILDER_INPUTS, r"^php_version=(.+)$")
         self.indexes = {}
@@ -443,6 +445,108 @@ class Bumper(unittest.TestCase):
         summary = self.run_bumper(upstream.composer)
         self.assertEqual(summary.rows, [("Composer", current, current, "current")])
         self.assertEqual(summary.notes, ["MAJOR Composer 3.0.0 is out, outside the 2 line"])
+
+    def serve_ca(self, date="Thu Nov  5 04:12:01 2099", roots=2, checksum=None, header=None):
+        """Publishes a CA bundle of `roots` certificates, and returns it."""
+        root = "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n"
+        first = header if header is not None else f"## Certificate data from Mozilla as of: {date} GMT\n"
+        bundle = (first + root * roots).encode()
+        self.archives[upstream.CA_RELEASE] = bundle
+        self.indexes[upstream.CA_CHECKSUM] = f"{checksum or hashlib.sha256(bundle).hexdigest()}  cacert.pem\n"
+        return bundle
+
+    def ca_pins(self):
+        return (self.tree / upstream.CA_BUNDLE).read_bytes(), self.text(upstream.DOCKERFILE)
+
+    def ca_day(self):
+        return upstream.ca_date(self.text(upstream.CA_BUNDLE)).date().isoformat()
+
+    def test_a_newer_ca_extract_rewrites_the_bundle_and_its_note(self):
+        current = self.ca_day()
+        bundle = self.serve_ca()
+        summary = self.run_bumper(upstream.ca_bundle)
+        self.assertEqual((self.tree / upstream.CA_BUNDLE).read_bytes(), bundle)
+        self.assertEqual(upstream.read(upstream.DOCKERFILE, upstream.CA_SHA_PIN), hashlib.sha256(bundle).hexdigest())
+        self.assertEqual(upstream.read(upstream.DOCKERFILE, upstream.CA_COUNT_PIN), "2")
+        self.assertEqual(summary.rows, [("CA bundle", current, "2099-11-05", "bumped")])
+
+    def test_a_ca_extract_that_is_not_newer_writes_nothing(self):
+        before = self.ca_pins()
+        same = upstream.read(upstream.CA_BUNDLE, upstream.CA_DATE)
+        for date in (same, "Mon Jan  1 00:00:00 2001"):
+            with self.subTest(date):
+                self.serve_ca(date)
+                summary = self.run_bumper(upstream.ca_bundle)
+                self.assertEqual(summary.rows[0][3], "current")
+                self.assertEqual(self.ca_pins(), before)
+
+    def test_a_ca_bundle_that_fails_its_checksum_stops_the_run_before_any_write(self):
+        before = self.ca_pins()
+        self.serve_ca(checksum="ab" * 32)
+        with self.assertRaises(SystemExit):
+            self.run_bumper(upstream.ca_bundle)
+        self.assertEqual(self.ca_pins(), before)
+
+    def test_a_malformed_ca_bundle_stops_the_run_before_any_write(self):
+        before = self.ca_pins()
+        cases = {"no certificate": {"roots": 0}, "no date": {"header": ""}, "a bad date": {"date": "soon"}}
+        for name, bundle in cases.items():
+            with self.subTest(name), self.assertRaises(SystemExit):
+                self.serve_ca(**bundle)
+                self.run_bumper(upstream.ca_bundle)
+            self.assertEqual(self.ca_pins(), before)
+
+    def move_modules(self, go_line=None):
+        """Stands in for go: raises golang.org/x/sys, and the go line when `go_line` is set."""
+        self.go_calls = []
+
+        def run_go(*arguments):
+            self.go_calls.append(arguments)
+            path = self.tree / upstream.LAUNCHER_MOD
+            text = re.sub(r"(golang\.org/x/sys) v\S+", r"\1 v9.9.9", path.read_text())
+            path.write_text(re.sub(r"^go .+$", f"go {go_line}", text, flags=re.MULTILINE) if go_line else text)
+            (self.tree / upstream.LAUNCHER_SUM).write_text("moved\n")
+        upstream.run_go = run_go
+
+    def test_go_modules_move_inside_their_majors(self):
+        current = upstream.go_requirements()["golang.org/x/sys"]
+        self.move_modules()
+        summary = self.run_bumper(upstream.go_modules)
+        self.assertEqual(summary.rows, [("golang.org/x/sys", current, "v9.9.9", "bumped")])
+        self.assertEqual(self.go_calls, [("get", "-u", "-t", "./..."), ("mod", "tidy")])
+        self.assertEqual(self.text(upstream.LAUNCHER_SUM), "moved\n")
+
+    def test_go_modules_that_need_a_newer_go_wait_for_it(self):
+        line = upstream.read(upstream.LAUNCHER_MOD, upstream.GO_LINE)
+        before = self.text(upstream.LAUNCHER_MOD), self.text(upstream.LAUNCHER_SUM)
+        self.move_modules("9.9.9")
+        summary = self.run_bumper(upstream.go_modules)
+        self.assertEqual(summary.rows, [("Go modules", line, "9.9.9", "waits for that Go")])
+        self.assertEqual((self.text(upstream.LAUNCHER_MOD), self.text(upstream.LAUNCHER_SUM)), before)
+
+    def run_bump(self, moved):
+        """Runs the whole bump with `moved` as the one source that moves its pin, and returns what ran."""
+        ran = []
+        carried = ("php", "pecl", "composer", "frankenphp", "go", "ca_bundle")
+
+        def source(name):
+            def step(summary):
+                ran.append(name)
+                summary.row(name, "1", "2" if name == moved else "1", "bumped" if name == moved else "current")
+            return step
+        for name in (*carried, "tools", "go_modules"):
+            self.addCleanup(setattr, upstream, name, getattr(upstream, name))
+            setattr(upstream, name, source(name))
+        upstream.bump(upstream.Summary())
+        return ran[len(carried):]
+
+    def test_each_pin_the_executables_carry_brings_the_tools_and_modules_along(self):
+        for name in ("php", "pecl", "composer", "frankenphp", "go", "ca_bundle"):
+            with self.subTest(name):
+                self.assertEqual(self.run_bump(name), ["tools", "go_modules"])
+
+    def test_tools_and_modules_stay_when_no_carried_pin_moved(self):
+        self.assertEqual(self.run_bump(None), [])
 
 
 def build_script(case, name):

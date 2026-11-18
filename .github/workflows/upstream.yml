@@ -1,7 +1,7 @@
 name: Upstream
 
-# Releases Drupack when an upstream it pins has a newer version inside its line,
-# or when a dispatch names a version. The candidate is built and tested on every
+# Releases Drupack when a pin the executables carry has a newer version inside its
+# line, or when a dispatch names a version. The candidate is built and tested on every
 # platform, with build/test/qa.sh, by release.yml before drupal.org receives main and
 # the tag; the tag run of release.yml then publishes it.
 #
@@ -59,11 +59,18 @@ jobs:
           git fetch --quiet "$DRUPAL_ORG_REMOTE" main
           [ "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)" ] || { echo "GitHub's main is not drupal.org's main." >&2; exit 1; }
 
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: launcher/go.mod
+          cache: false
+
       - id: bump
         name: Bump the pins, or take the version the dispatch names
         env:
           GITHUB_TOKEN: ${{ github.token }}
           NAMED: ${{ inputs.version }}
+          # setup-go sets local, and the bump can raise the go line before it moves the modules.
+          GOTOOLCHAIN: auto
         run: |
           if [ -n "$NAMED" ]; then
             version=$(python3 build/release/next-version.py "$NAMED")
@@ -72,7 +79,7 @@ jobs:
           else
             python3 build/release/upstream.py | tee "$RUNNER_TEMP/summary.md"
             if [ -z "$(git status --porcelain)" ]; then
-              echo 'No pin moved.'
+              echo 'No pin the executables carry moved.'
               exit 0
             fi
           fi

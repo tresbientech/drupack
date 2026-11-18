@@ -26,7 +26,7 @@ Three builders compile PHP: Linux, macOS and Windows. Each must ship the extensi
 
 ### Trust store and php.ini
 
-- `runtime/cacert.pem` ships beside the runtime. It is curl's published bundle.
+- `runtime/cacert.pem` ships beside the runtime. It is curl's published bundle, and the upstream run moves it to each new extract.
 - The launcher sets `DRUPACK_CA_FILE` for every child. It yields to a caller who set it, so a reader behind a TLS-inspection proxy points at their own bundle.
 
 ## Reason
@@ -37,4 +37,4 @@ The platform facts sit in one Python file. The Linux builder containers have bas
 
 The pinned spc commit makes a rebuild compile with the same tool. The static-php-cli v3 branch has no tagged release and publishes an unchecked nightly, so a commit pin with a hash check is the available control.
 
-Bundling the CA file lets a release reach updates.drupal.org on a host with no CA package, and on Windows, where curl reads no system path. The bundle ages with the release.
+Bundling the CA file lets a release reach updates.drupal.org on a host with no CA package, and on Windows, where curl reads no system path. A published release keeps the bundle it shipped with.
