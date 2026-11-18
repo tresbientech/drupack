@@ -465,12 +465,12 @@ if (isset($_GET['drupack-log-case'])) {
         self.assertEqual(start.returncode, 0, f"{start.stdout}{start.stderr}")
         self.assertIn(f"Stop it with:\n\n    {self.engine} stop {self.project}\n", start.stdout)
         self.assertEqual(self.status(port, "/user/login"), 200)
-        served = (first / "a.log").stat().st_size
         restart = self.engine_run("restart", str(self.project), cwd=second, wait="start")
         self.assertEqual(restart.returncode, 0, f"{restart.stdout}{restart.stderr}")
         self.assertIn("stopped.", restart.stdout)
-        self.assertEqual(self.status(port, "/user/login"), 200)
-        self.assertGreater((first / "a.log").stat().st_size, served, "the restart logged elsewhere than the start's path")
+        self.assertEqual(self.status(port, "/user/login?after-restart"), 200)
+        # Caddy writes the line after the response headers reach the client.
+        harness.wait_for_text(first / "a.log", "after-restart")
         self.assertFalse((second / "a.log").exists(), "the restart resolved --access-log from its own directory")
         command = f"    {self.engine} stop {self.project}\n"
         self.assertIn(f"Stop it with:\n\n{command}", restart.stdout)
