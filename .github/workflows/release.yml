@@ -824,7 +824,7 @@ jobs:
       - name: Check the Go modules for vulnerabilities
         if: matrix.phase == 'host'
         run: |
-          GOBIN=$RUNNER_TEMP go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          GOBIN=$RUNNER_TEMP go install golang.org/x/vuln/cmd/govulncheck@v1.10.0
           for module in $(git ls-files '*/go.mod'); do
             for goos in linux darwin windows; do
               (cd "$(dirname -- "$module")" && GOOS=$goos "$RUNNER_TEMP/govulncheck" ./...)
