@@ -455,7 +455,7 @@ jobs:
           mkdir -p ../dist/musl ../dist/engine/musl
           for libc in glibc musl; do
             # The musl files land in their own directories, since each artifact holds one file named NAME.
-            directory= target=$TARGET
+            directory='' target=$TARGET
             if [ "$libc" = musl ]; then directory=/musl target=$TARGET-musl; fi
             go run ./cmd/pack -target "$target" -runtime "../runtime-$libc/out" -payload ../dist/payload \
               -version "$DRUPACK_VERSION" -output "../dist$directory/drupacked-demo"
@@ -1053,8 +1053,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
         run: |
+          # The pins the tag's upstream run moved open the notes. A tag with none gives an
+          # empty file, and gh then sends the generated notes alone.
+          python3 build/release/release-node.py upgrades "$VERSION" >"$RUNNER_TEMP/upgrades.md"
           gh release create "$VERSION" release/* \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "Drupack $VERSION" \
+            --notes-file "$RUNNER_TEMP/upgrades.md" \
             --generate-notes

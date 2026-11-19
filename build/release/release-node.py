@@ -4,13 +4,15 @@ drupal/drupack version from one, and drupal.org has no API that creates it.
 
     python3 build/release/release-node.py check            stops while Packagist lists no release for the highest tag
     python3 build/release/release-node.py notes TAG PHAR   prints the release notes of TAG, as HTML
+    python3 build/release/release-node.py upgrades TAG     prints the pins TAG's upstream run moved, as Markdown
     python3 build/release/release-node.py entry TAG        prints what the release form takes for TAG, as Markdown
     python3 build/release/release-node.py session          stops when the session no longer opens the release form
     python3 build/release/release-node.py form TAG         prints the fields of the form's second step for TAG
     python3 build/release/release-node.py post TAG         creates the release of TAG
 
 entry and post read the notes from standard input. PHAR is drupalorg-cli, which writes the notes
-from the commits since the tag before.
+from the commits since the tag before. notes puts the pins TAG's upstream run moved above them, and
+upgrades gives the GitHub Release the same list.
 
 session, form and post act as nod_bot. DRUPAL_ORG_SESSION holds the Cookie request header of a
 browser logged in on www.drupal.org, copied whole from the developer tools' Network tab. The form
@@ -26,9 +28,10 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from html import escape
 from html.parser import HTMLParser
 
-from upstream import PACKAGIST_METADATA, fetch, release_key
+from upstream import PACKAGIST_METADATA, bumped, fetch, release_key
 
 PACKAGE = "drupal/drupack"
 HOST = "www.drupal.org"
@@ -45,6 +48,7 @@ PLACEHOLDER = "<p><em>Add a summary here</em></p>\n"
 # drupalorg-cli credits nod_bot, which files and comments on every issue for nod_.
 BOT = '<a href="https://www.drupal.org/u/nod_bot">nod_bot</a>'
 OWNER = '<a href="https://www.drupal.org/u/nod_">nod_</a>'
+UPGRADES = "Upgraded packages"
 CONTRIBUTORS = re.compile(r"<h3>Contributors \(\d+\)</h3>\n<p>(.+)</p>\n")
 TAG_FIELD = "field_release_vcs_label[und][0][value]"
 NOTES_FIELD = "body[und][0][value]"
@@ -182,6 +186,27 @@ def credited(notes):
     return CONTRIBUTORS.sub(owner, notes, count=1)
 
 
+def upgraded(tag):
+    """Each pin the upstream run moved in TAG's commit, whose body holds the run's summary."""
+    body = subprocess.run(["git", "log", "-1", "--format=%b", tag], check=True, capture_output=True, text=True).stdout
+    return [f"{source} {current} to {found}" for source, current, found in bumped(body)]
+
+
+def upgrades_html(moves):
+    if not moves:
+        return ""
+    # The versions reached the commit body from php.net, the Go proxy and other remote sources.
+    items = "".join(f"<li>{escape(move)}</li>\n" for move in moves)
+    return f"<h3>{UPGRADES}</h3>\n<ul>\n{items}</ul>\n"
+
+
+def upgrades_markdown(moves):
+    if not moves:
+        return ""
+    # GitHub renders the HTML a release body holds.
+    return f"## {UPGRADES}\n\n" + "".join(f"- {escape(move)}\n" for move in moves)
+
+
 def release_types(notes):
     return [release_type for heading, release_type in RELEASE_TYPES.items() if f"<h4>{heading}</h4>" in notes]
 
@@ -215,8 +240,13 @@ def check():
 
 
 def notes(tag, phar):
-    print(credited(subprocess.run(["php", phar, "mrn", previous(git_tags(), tag), tag, "--format=html"],
-                                  check=True, capture_output=True, text=True).stdout), end="")
+    changes = subprocess.run(["php", phar, "mrn", previous(git_tags(), tag), tag, "--format=html"],
+                             check=True, capture_output=True, text=True).stdout
+    print(upgrades_html(upgraded(tag)) + credited(changes), end="")
+
+
+def upgrades(tag):
+    print(upgrades_markdown(upgraded(tag)), end="")
 
 
 def entry(tag):
@@ -244,7 +274,7 @@ def post(tag):
     print(f"{RELEASES}{tag}")
 
 
-COMMANDS = {"check": check, "notes": notes, "entry": entry, "session": session, "form": form, "post": post}
+COMMANDS = {"check": check, "notes": notes, "upgrades": upgrades, "entry": entry, "session": session, "form": form, "post": post}
 
 if __name__ == "__main__":
     COMMANDS[sys.argv[1]](*sys.argv[2:])

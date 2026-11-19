@@ -141,6 +141,12 @@ class Summary:
         return "\n".join(lines + [""] + self.notes) + "\n"
 
 
+def bumped(rendered):
+    """The source, old value and new value of each row a rendered summary marks bumped."""
+    rows = (line.strip("| ").split(" | ") for line in rendered.splitlines() if line.startswith("| "))
+    return [tuple(row[:3]) for row in rows if row[3:] == ["bumped"]]
+
+
 def read(path, pattern):
     """The single value `pattern` captures in `path`."""
     values = re.findall(pattern, (ROOT / path).read_text(), re.MULTILINE)

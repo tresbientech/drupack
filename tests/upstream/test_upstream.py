@@ -646,6 +646,28 @@ class ReleaseNode(unittest.TestCase):
         self.assertIn(self.module.FORM, entry)
         self.assertIn("```html\n<h4>Bug</h4>", entry)
 
+    def test_a_commit_body_gives_its_bumped_rows(self):
+        summary = upstream.Summary()
+        summary.row("PHP", "8.5.12", "8.5.13", "bumped")
+        summary.row("Composer", "2.11.2", "2.11.2", "current")
+        summary.row("Go modules", "1.27", "1.28", "waits for that Go")
+        summary.row("static-php-cli", "5e913373a08c", "0a1b2c3d4e5f", "bumped")
+        summary.notes.append("MAJOR PHP 9.0.0 is out, outside the 8.5 line")
+        body = summary.render() + "\nDrupacked Demo: 2026.11.7 to 2026.11.9\n"
+        self.assertEqual(upstream.bumped(body),
+                         [("PHP", "8.5.12", "8.5.13"), ("static-php-cli", "5e913373a08c", "0a1b2c3d4e5f")])
+
+    def test_the_notes_list_each_move_escaped(self):
+        self.assertEqual(self.module.upgrades_html(["PHP 8.5.12 to 8.5.13", "<b> 1 to 2&3"]),
+                         "<h3>Upgraded packages</h3>\n<ul>\n<li>PHP 8.5.12 to 8.5.13</li>\n"
+                         "<li>&lt;b&gt; 1 to 2&amp;3</li>\n</ul>\n")
+        self.assertEqual(self.module.upgrades_markdown(["PHP 8.5.12 to 8.5.13", "<b> 1 to 2&3"]),
+                         "## Upgraded packages\n\n- PHP 8.5.12 to 8.5.13\n- &lt;b&gt; 1 to 2&amp;3\n")
+
+    def test_a_tag_without_a_move_gets_no_heading(self):
+        self.assertEqual(self.module.upgrades_html([]), "")
+        self.assertEqual(self.module.upgrades_markdown([]), "")
+
     FIRST_STEP = """<form id="search-block-form"><input type="text" name="search_block_form" value=""></form>
         <textarea name="stray">outside any form</textarea>
         <form id="project-release-node-form" action="/node/add/project-release/3624016">

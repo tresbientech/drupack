@@ -55,6 +55,7 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Windows extensions, Composer a
 ### The drupal.org release form
 
 - The `notes` job writes the release notes with `drupalorg-cli`, pinned by version and SHA-256, from the commits that name an issue. Bug gives "Bug fixes" and Feature gives "New features". The script never ticks "Security update".
+- A bump release's notes open with an "Upgraded packages" list: every `bumped` row of the summary in the tag commit's body, as name, old value and new value. The node on drupal.org and the GitHub Release both carry it. `upstream.py` holds the one reader of that table.
 - The `node` job posts the form as `nod_bot` with `build/release/release-node.py`, once the tag run has published.
 - `DRUPAL_ORG_SESSION` holds the `Cookie` header of a browser logged in as `nod_bot`. The cookie goes to `www.drupal.org` only. A redirect that leaves that site stops the script.
 - The `node` job runs this repository's code alone. The `notes` job runs `drupalorg-cli` and holds no secret.
