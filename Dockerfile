@@ -26,7 +26,7 @@ ARG NODE_IMAGE=node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419
 # php.ini and the trust bundle sit beside the executable, where the launcher's
 # environment function finds them.
 # runtime/cacert.pem comes from https://curl.se/ca/cacert.pem, sha256
-# f66dff1bdf8f96060b8177976f8b7d9254bc89bc4db933d769f7384d28480bc9, 121
+# 427c064216761a1e72a8b30f0d954d08cb6e4435a82091fb865afd20c8497285, 118
 # certificates. A refresh replaces the file and that checksum in one commit;
 # no build fetches it.
 FROM scratch AS engine-extensions
