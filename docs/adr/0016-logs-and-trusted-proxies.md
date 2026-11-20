@@ -18,7 +18,6 @@ Caddy's global `log` block configures the process log, and an access log needs a
 
 - Caddy creates each file with mode 0600.
 - A FILE resolves against the working directory. The start refuses a FILE that holds a brace, one inside a directory the server answers requests from, and one file named by both options.
-- On Windows, `build/windows/build.ps1` rewrites FrankenPHP's `go_log` level numbers, so a Windows log holds the levels the other platforms hold.
 
 ### Trusted proxies
 
