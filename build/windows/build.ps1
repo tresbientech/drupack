@@ -21,8 +21,8 @@ if ($EnginePayloadDirectory) {
   $engineOutputPath = Join-Path (Resolve-Path $engineDirectory).Path (Split-Path -Leaf $EngineOutput)
 }
 
-$frankenphpVersion = '1.13.5'
-$frankenphpCommit = 'a3663e9e2cc4c258018a28ee068e50cc12f3ed2d'
+$frankenphpVersion = '1.13.6'
+$frankenphpCommit = '6775138789d2d0b834b6447cdc3e56b383fd651d'
 $phpVersion = '8.5.13'
 $phpToolset = 'vs17-x64'
 # The newest PHP release lives under releases/, older ones under releases/archives/.
