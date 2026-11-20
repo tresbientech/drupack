@@ -109,7 +109,7 @@ COPY build /opt/drupack/engine/build
 COPY launcher /opt/drupack/engine/launcher
 COPY runtime/cacert.pem /opt/drupack/engine/runtime/
 COPY runtime/extensions/php-extensions.txt runtime/extensions/check-extensions.py /opt/drupack/engine/runtime/extensions/
-COPY runtime/builder/builder-inputs.sh runtime/builder/fetch-spc.sh runtime/builder/spc-sqlite.patch /opt/drupack/engine/runtime/builder/
+COPY runtime/builder/builder-inputs.sh runtime/builder/fetch-spc.sh runtime/builder/spc-sqlite.patch runtime/builder/spc-icu.patch /opt/drupack/engine/runtime/builder/
 COPY tests /opt/drupack/engine/tests
 ENV DRUPACK_PHP=/opt/drupack/runtimes/linux-${TARGETARCH}-musl/drupack \
     DRUPACK_SPC=/opt/drupack/static-php-cli \

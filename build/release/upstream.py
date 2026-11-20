@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Moves the PHP, FrankenPHP, Windows PECL, Composer and Go pins to their newest version inside their line, moves the
+"""Moves the PHP, FrankenPHP, Composer and Go pins to their newest version inside their line, moves the
 CA bundle to curl's newest extract, and records the newest release of SQLite and of each library static-php-cli links.
 It prints what it did as a Markdown summary. The executables carry all of these, so a move of one starts a release.
 The Go check tools and the launcher's Go modules move only alongside such a move. Go's line is its own or the one
@@ -20,7 +20,6 @@ import re
 import subprocess
 import sys
 import tempfile
-import urllib.error
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -42,18 +41,11 @@ EXTENSIONS_LIST = "runtime/extensions/extensions-list.sh"
 EXTENSION_LISTS = ("runtime/extensions/php-extensions.txt", "runtime/extensions/php-extension-libs.txt")
 
 PHP_RELEASES = "https://www.php.net/releases/index.php?json&version="
-WINDOWS_CHECKSUMS = "https://downloads.php.net/~windows/releases/sha256sum.txt"
 FRANKENPHP_API = "https://api.github.com/repos/php/frankenphp"
 # static-php-cli v3 has no tagged release. Its branch head moves with each FrankenPHP
 # bump, since FrankenPHP's own builder runs that branch's nightly.
 SPC_BRANCH = "https://api.github.com/repos/crazywhalecc/static-php-cli/branches/v3"
-# FrankenPHP's vcpkg.json names a vcpkg baseline, which names the vcpkg-tool release
-# that reads it. The Windows build checks out vcpkg at that baseline.
 FRANKENPHP_RAW = "https://raw.githubusercontent.com/php/frankenphp"
-VCPKG_RAW = "https://raw.githubusercontent.com/microsoft/vcpkg"
-VCPKG_TOOL_RELEASES = "https://api.github.com/repos/microsoft/vcpkg-tool/releases/tags/"
-PECL_RELEASES = "https://pecl.php.net/rest/r/"
-PECL_WINDOWS = "https://downloads.php.net/~windows/pecl/releases/"
 GO_RELEASES = "https://go.dev/dl/?mode=json&include=all"
 DOCKER_AUTH = "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/golang:pull"
 DOCKER_MANIFESTS = "https://registry-1.docker.io/v2/library/golang/manifests/"
@@ -72,21 +64,12 @@ SQLITE_PATCH = "runtime/builder/spc-sqlite.patch"
 
 # Each pin's line in its file, its value captured.
 PHP_PIN = r"^php_version=(.+)$"
-PHP_WINDOWS_PIN = r"^\$phpVersion = '(.+)'$"
-PHP_TOOLSET = r"^\$phpToolset = '(.+)'$"
 FRANKENPHP_PIN = r"^frankenphp_version=(.+)$"
 FRANKENPHP_COMMIT_PIN = r"^frankenphp_commit=(.+)$"
-FRANKENPHP_WINDOWS_PIN = r"^\$frankenphpVersion = '(.+)'$"
-FRANKENPHP_WINDOWS_COMMIT_PIN = r"^\$frankenphpCommit = '(.+)'$"
 SPC_PIN = r"^spc_commit=(.+)$"
-VCPKG_PIN = r"^\$vcpkgCommit = '(.+)'$"
-VCPKG_TOOL_PIN = r"^    Urls = @\('https://github\.com/microsoft/vcpkg-tool/releases/download/(.+)/vcpkg\.exe'\)$"
-# A PECL extension the Windows build downloads, with its version and checksum.
-PECL_ENTRY = r"^  '{name}' = @\{{ Version = '{version}'; Sha256 = '{sha256}' \}}$"
-VCPKG_TOOL_SHA_PIN = r"^  'vcpkg\.exe' = @\{\n.*\n    Sha256 = '([0-9a-f]{64})'$"
 GO_PIN = r"^  GO_VERSION: '(.+)'$"
-WATCHER_PIN = rf"^    Urls = @\('https://github\.com/e-dant/watcher/releases/download/(.+)/{re.escape(WATCHER_ASSET)}'\)$"
-WATCHER_SHA_PIN = r"^  'watcher\.tar' = @\{\n.*\n    Sha256 = '([0-9a-f]{64})'$"
+WATCHER_PIN = rf"^\$watcherUrl = 'https://github\.com/e-dant/watcher/releases/download/(.+)/{re.escape(WATCHER_ASSET)}'$"
+WATCHER_SHA_PIN = r"^\$watcherSha256 = '([0-9a-f]{64})'$"
 # A sqlite-autoconf release as its path under sqlite.org: the year, then the release in seven digits.
 SQLITE_PATH = r"\d{4}/sqlite-autoconf-\d{7}\.tar\.gz"
 # The SQLite release the patch gives static-php-cli.
@@ -203,15 +186,6 @@ def newest_php(line):
     return version
 
 
-def windows_hashes(version, toolset):
-    """The SHA-256 of each Windows zip of `version`, or None while php.net lists either one missing."""
-    listed = {name: sha256 for sha256, name in re.findall(r"^([0-9a-f]{64}) \*(\S+)$", fetch(WINDOWS_CHECKSUMS), re.MULTILINE)}
-    names = [f"php-{version}-Win32-{toolset}.zip", f"php-devel-pack-{version}-Win32-{toolset}.zip"]
-    if not all(name in listed for name in names):
-        return None
-    return [listed[name] for name in names]
-
-
 def php(summary):
     current = read(BUILDER_INPUTS, PHP_PIN)
     line = ".".join(current.split(".")[:2])
@@ -222,48 +196,8 @@ def php(summary):
     if version_key(newest) <= version_key(current):
         summary.row("PHP", current, newest, "current")
         return
-    hashes = windows_hashes(newest, read(WINDOWS_BUILD, PHP_TOOLSET))
-    if hashes is None:
-        summary.row("PHP", current, newest, "waits for the Windows zips")
-        return
     rewrite(BUILDER_INPUTS, PHP_PIN, newest)
-    rewrite(WINDOWS_BUILD, PHP_WINDOWS_PIN, newest)
-    for name, sha256 in zip(["php.zip", "php-devel.zip"], hashes):
-        rewrite(WINDOWS_BUILD, rf"^  '{re.escape(name)}' = @\{{\n.*\n    Sha256 = '([0-9a-f]{{64}})'$", sha256)
     summary.row("PHP", current, newest, "bumped")
-
-
-def pecl_pin(name="([a-z_]+)", version="([^']+)", sha256="[0-9a-f]{64}"):
-    """PECL_ENTRY with each field's pattern; the defaults capture name and version."""
-    return PECL_ENTRY.format(name=name, version=version, sha256=sha256)
-
-
-def pecl(summary):
-    php_minor = ".".join(read(WINDOWS_BUILD, PHP_WINDOWS_PIN).split(".")[:2])
-    toolset = read(WINDOWS_BUILD, PHP_TOOLSET)
-    for name, current in re.findall(pecl_pin(), (ROOT / WINDOWS_BUILD).read_text(), re.MULTILINE):
-        line = current.split(".")[0]
-        # PECL's release list is remote input.
-        stable = re.findall(r"<v>([^<]+)</v><s>stable</s>", fetch(f"{PECL_RELEASES}{name}/allreleases.xml"))
-        if not stable or not all(re.fullmatch(r"\d+\.\d+\.\d+", version) for version in stable):
-            sys.exit(f"PECL lists the stable {name} releases {stable!r}")
-        newest = max((v for v in stable if v.split(".")[0] == line), key=version_key)
-        above = max(stable, key=version_key)
-        if above.split(".")[0] != line:
-            summary.notes.append(f"MAJOR php_{name} {above} is out, outside the {line} line")
-        if version_key(newest) <= version_key(current):
-            summary.row(f"php_{name}", current, newest, "current")
-            continue
-        try:
-            archive = download(f"{PECL_WINDOWS}{name}/{newest}/php_{name}-{newest}-{php_minor}-ts-{toolset}.zip")
-        except urllib.error.HTTPError as error:
-            if error.code != 404:
-                raise
-            summary.row(f"php_{name}", current, newest, "waits for the Windows DLL")
-            continue
-        rewrite(WINDOWS_BUILD, pecl_pin(name), newest)
-        rewrite(WINDOWS_BUILD, pecl_pin(name, version="[^']+", sha256="([0-9a-f]{64})"), hashlib.sha256(archive).hexdigest())
-        summary.row(f"php_{name}", current, newest, "bumped")
 
 
 def composer(summary):
@@ -324,8 +258,6 @@ def frankenphp(summary):
         sys.exit(f"FrankenPHP v{newest} names {target!r}, not a commit")
     rewrite(BUILDER_INPUTS, FRANKENPHP_PIN, newest)
     rewrite(BUILDER_INPUTS, FRANKENPHP_COMMIT_PIN, target["sha"])
-    rewrite(WINDOWS_BUILD, FRANKENPHP_WINDOWS_PIN, newest)
-    rewrite(WINDOWS_BUILD, FRANKENPHP_WINDOWS_COMMIT_PIN, target["sha"])
     summary.row("FrankenPHP", current, newest, "bumped")
     spc_current = read(BUILDER_INPUTS, SPC_PIN)
     # The branch head is remote input.
@@ -334,27 +266,6 @@ def frankenphp(summary):
         sys.exit(f"static-php-cli v3 names {spc_head!r}, not a commit")
     rewrite(BUILDER_INPUTS, SPC_PIN, spc_head)
     summary.row("static-php-cli", spc_current[:12], spc_head[:12], "current" if spc_head == spc_current else "bumped")
-    vcpkg(summary, target["sha"])
-
-
-def vcpkg(summary, frankenphp_commit):
-    current = read(WINDOWS_BUILD, VCPKG_PIN)
-    # The manifest, the tool metadata and the release digest are remote input.
-    baseline = json.loads(fetch(f"{FRANKENPHP_RAW}/{frankenphp_commit}/vcpkg.json")).get("builtin-baseline")
-    if not isinstance(baseline, str) or not re.fullmatch(r"[0-9a-f]{40}", baseline):
-        sys.exit(f"FrankenPHP {frankenphp_commit[:12]}'s vcpkg.json names baseline {baseline!r}, not a commit")
-    metadata = fetch(f"{VCPKG_RAW}/{baseline}/scripts/vcpkg-tool-metadata.txt")
-    tool = re.search(r"^VCPKG_TOOL_RELEASE_TAG=(\d{4}-\d{2}-\d{2})$", metadata, re.MULTILINE)
-    if not tool:
-        sys.exit(f"vcpkg {baseline[:12]} names no vcpkg-tool release")
-    assets = json.loads(fetch(VCPKG_TOOL_RELEASES + tool[1]))["assets"]
-    digest = next((asset.get("digest") for asset in assets if asset["name"] == "vcpkg.exe"), None)
-    if not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
-        sys.exit(f"vcpkg-tool {tool[1]} gives vcpkg.exe the digest {digest!r}")
-    rewrite(WINDOWS_BUILD, VCPKG_PIN, baseline)
-    rewrite(WINDOWS_BUILD, VCPKG_TOOL_PIN, tool[1])
-    rewrite(WINDOWS_BUILD, VCPKG_TOOL_SHA_PIN, digest.removeprefix("sha256:"))
-    summary.row("vcpkg", current[:12], baseline[:12], "current" if baseline == current else "bumped")
 
 
 def go(summary):
@@ -576,7 +487,6 @@ def libraries(summary, answers):
 def bump(summary, answers):
     """Moves every pin, records the library releases of `answers`, and returns the suite the candidate runs."""
     php(summary)
-    pecl(summary)
     composer(summary)
     frankenphp(summary)
     go(summary)

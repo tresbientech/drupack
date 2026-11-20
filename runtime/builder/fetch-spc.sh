@@ -13,6 +13,8 @@ builder=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 rm -rf "$directory"
 git init --quiet "$directory"
+# Git for Windows checks out CRLF by default, and the patches below then apply to no file.
+git -C "$directory" config core.autocrlf false
 git -C "$directory" fetch --quiet --depth 1 https://github.com/crazywhalecc/static-php-cli.git "$spc_commit"
 git -C "$directory" -c advice.detachedHead=false checkout --quiet FETCH_HEAD
 head=$(git -C "$directory" rev-parse HEAD)
@@ -24,3 +26,6 @@ fi
 # SQLite releases reject. The patch names the SQLite release the Linux and macOS
 # runtimes link, which build/release/upstream.py moves.
 git -C "$directory" apply "$builder/spc-sqlite.patch"
+# ICU names its source file icu4c-VERSION-sources.tgz since 78, and static-php-cli
+# looks for the older name, which stops at 77.1.
+git -C "$directory" apply "$builder/spc-icu.patch"

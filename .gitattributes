@@ -12,6 +12,11 @@
 /launcher/internal/caddyfile/fragments/*.caddy text eol=lf
 /launcher/internal/caddyfile/testdata/*.caddyfile text eol=lf
 
+# The Windows build runs these through Git's bash, which reads a CRLF as part
+# of a line, and a patch with CRLF endings applies to no file.
+*.sh text eol=lf
+*.patch text eol=lf
+
 # gci reads a Go file with CRLF endings as unformatted, and build/test/go-tests.sh
 # lints the Windows checkout too.
 *.go text eol=lf

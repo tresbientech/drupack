@@ -171,8 +171,7 @@ def linked_components(report, named):
 
 
 def runtime_components(runtime, libraries):
-    # The launcher points PHPRC at the runtime directory, whose php.ini loads the
-    # extensions a Windows runtime carries as DLLs.
+    # The launcher points PHPRC at the runtime directory, which holds php.ini.
     environment = {**os.environ, "PHPRC": str(Path(runtime).parent)}
     lines = subprocess.run([runtime, "drupack-version"], check=True, capture_output=True, text=True,
                            env=environment).stdout.splitlines()

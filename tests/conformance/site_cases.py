@@ -114,8 +114,7 @@ class SeededSite(harness.ConformanceCase):
         loaded = {extension.lower() for extension in extensions}
         # A build loads the allowlist's extensions and nothing else: an absence and a surplus
         # both fail.
-        built_in = harness.ALWAYS_COMPILED | harness.BUILT_IN[harness.current_platform()]
-        self.assertEqual(sorted(harness.expected_extensions() | built_in), sorted(loaded))
+        self.assertEqual(sorted(harness.expected_extensions() | harness.ALWAYS_COMPILED), sorted(loaded))
         self.assertTrue({"mysql", "pgsql", "sqlite"} <= set(drivers), drivers)
 
     def test_image_styles_read_the_formats_readers_upload(self):

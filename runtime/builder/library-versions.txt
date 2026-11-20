@@ -6,7 +6,7 @@ ext-zip 1.22.8
 freetype VER-2-15-0
 gettext 1.0
 gmp 6.3.0
-icu release-77-1
+icu release-79.1
 idn2 2.3.8
 ldap 2.7.2
 libavif v1.4.2

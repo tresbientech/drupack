@@ -75,11 +75,6 @@ ALWAYS_COMPILED = frozenset({
     "reflection", "spl", "standard", "uri",
 })
 
-# php.net's Windows build compiles these into PHP itself, so a Windows build loads them unlisted.
-BUILT_IN = {LINUX: frozenset(), MACOS: frozenset(),
-            WINDOWS: frozenset({"bcmath", "calendar", "readline", "xmlreader"})}
-
-
 def expected_extensions():
     """The allowlist and the site's additions, under the names this platform's PHP
     reports them by."""

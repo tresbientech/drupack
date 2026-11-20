@@ -203,10 +203,10 @@ exists, each run prints one line naming it. `DRUPACK_NO_UPDATE_CHECK=1` turns
 the check off. It stays off under `CI`, without a terminal, and for a Composer
 copy.
 
-A release follows its upstreams. On Linux and macOS it carries the newest
-release of each C library PHP links, such as OpenSSL, curl and SQLite, as of
-its build. On Windows those libraries come inside PHP's own build and move
-when PHP releases. The release notes list each move under "Upgraded packages".
+A release follows its upstreams. It carries the newest release of each C
+library PHP links, such as OpenSSL, curl and SQLite, as of its build. On
+Windows, ICU comes from a prebuilt archive and moves when that archive does.
+The release notes list each move under "Upgraded packages".
 
 ## `php`, `node`, `npm` and `npx`
 

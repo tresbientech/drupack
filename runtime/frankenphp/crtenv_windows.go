@@ -1,17 +1,20 @@
 package main
 
+/*
+#include <stdlib.h>
+*/
+import "C"
+
 import (
 	"fmt"
 	"syscall"
 	"unsafe"
 )
 
-// ucrtPutenv is the C runtime's _wputenv_s. PHP's getenv reads the C runtime's own
-// table, which os.Setenv leaves unchanged on Windows. php8ts.dll links ucrtbase.dll
-// at load time, so the name resolves to the module already in the process.
-var ucrtPutenv = syscall.NewLazyDLL("ucrtbase.dll").NewProc("_wputenv_s")
-
 // setCRTEnv sets name in the C runtime's table, and an empty value removes it.
+// PHP's getenv reads that table, which os.Setenv leaves unchanged on Windows. PHP
+// and this file link the same static C runtime, so the call goes through cgo:
+// ucrtbase.dll holds another table.
 func setCRTEnv(name, value string) error {
 	wideName, err := syscall.UTF16PtrFromString(name)
 	if err != nil {
@@ -21,7 +24,7 @@ func setCRTEnv(name, value string) error {
 	if err != nil {
 		return err
 	}
-	if errno, _, _ := ucrtPutenv.Call(uintptr(unsafe.Pointer(wideName)), uintptr(unsafe.Pointer(wideValue))); errno != 0 {
+	if errno := C._wputenv_s((*C.wchar_t)(unsafe.Pointer(wideName)), (*C.wchar_t)(unsafe.Pointer(wideValue))); errno != 0 {
 		return fmt.Errorf("_wputenv_s %s: errno %d", name, errno)
 	}
 	return nil

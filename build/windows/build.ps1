@@ -21,69 +21,37 @@ if ($EnginePayloadDirectory) {
   $engineOutputPath = Join-Path (Resolve-Path $engineDirectory).Path (Split-Path -Leaf $EngineOutput)
 }
 
-$frankenphpVersion = '1.13.6'
-$frankenphpCommit = '6775138789d2d0b834b6447cdc3e56b383fd651d'
-$phpVersion = '8.5.13'
-$phpToolset = 'vs17-x64'
-# The newest PHP release lives under releases/, older ones under releases/archives/.
-$phpDownloadBases = @('https://downloads.php.net/~windows/releases', 'https://downloads.php.net/~windows/releases/archives')
-$vcpkgCommit = '817892b0ecbc6af994dd6df999c73faf795adbf2'
-$downloads = [ordered]@{
-  'php.zip' = @{
-    Urls = $phpDownloadBases | ForEach-Object { "$_/php-$phpVersion-Win32-$phpToolset.zip" }
-    Sha256 = '792fe1553895ee98f9bc3c9d50c539910f7d0066676a6523207ca91429d4d475'
-  }
-  'php-devel.zip' = @{
-    Urls = $phpDownloadBases | ForEach-Object { "$_/php-devel-pack-$phpVersion-Win32-$phpToolset.zip" }
-    Sha256 = '771a2834aaa0ba1fd1385c7bc6df3c2873a294c0838e99a553f43208769ea744'
-  }
-  'watcher.tar' = @{
-    Urls = @('https://github.com/e-dant/watcher/releases/download/0.14.5/x86_64-pc-windows-msvc.tar')
-    Sha256 = '43034cbb07252751246afab8880da74c0340429f1865fd5bd6ce7c17e83c104f'
-  }
-  'vcpkg.exe' = @{
-    Urls = @('https://github.com/microsoft/vcpkg-tool/releases/download/2026-09-26/vcpkg.exe')
-    Sha256 = '2a4ae1467b9e797964c60c919d057b9e5dc1ec03f4b9632c1150026db25201f2'
-  }
-}
-# The php.net zip leaves these out. PECL publishes a DLL per PHP minor release
-# and thread-safety build.
-$phpMinor = ($phpVersion -split '\.')[0..1] -join '.'
-$peclExtensions = [ordered]@{
-  'apcu' = @{ Version = '5.1.28'; Sha256 = 'ade68cbc6ace5002a2ecac3fda9ab38ec188d4322dd83d6867213ab8411951f0' }
-  'brotli' = @{ Version = '0.21.1'; Sha256 = 'e0085ad53b30788ba764a19143c2b801e5a0c6317a752a89b5ba168551ae1ab9' }
-  'yaml' = @{ Version = '2.3.0'; Sha256 = 'def9671417f65c830d0c2475012f37a1866edbfbe2c754befb32fdec6b41b666' }
-}
-foreach ($name in $peclExtensions.Keys) {
-  $release = $peclExtensions[$name].Version
-  $downloads["php_$name.zip"] = @{
-    Urls = @("https://downloads.php.net/~windows/pecl/releases/$name/$release/php_$name-$release-$phpMinor-ts-$phpToolset.zip")
-    Sha256 = $peclExtensions[$name].Sha256
-  }
-}
-$extensions = Get-Content (Join-Path $PSScriptRoot '..\..\runtime\extensions\php-extensions.txt') |
-  ForEach-Object { ($_ -split '#')[0].Trim() } |
-  Where-Object { $_ }
+$repository = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+# The FrankenPHP and PHP pins every builder compiles.
+$pins = Get-Content -Raw (Join-Path $repository 'runtime\builder\builder-inputs.sh') | ConvertFrom-StringData
+$frankenphpVersion = $pins.frankenphp_version
+$phpVersion = $pins.php_version
+# Git for Windows carries the bash that runs the builder's shell files. A bare
+# bash can name the WSL launcher.
+$bash = Join-Path (git --exec-path) '..\..\..\bin\bash.exe'
+$listScript = Join-Path $repository 'runtime\extensions\extensions-list.sh'
+# The allowlist every builder compiles. static-php-cli has no pcntl, posix or
+# password-argon2 on Windows, and builds no static watcher there.
+$extensions = ((& $bash $listScript (Join-Path $repository 'runtime\extensions\php-extensions.txt')) -split ',' |
+  Where-Object { $_ -notin 'pcntl', 'posix', 'password-argon2' }) -join ','
+# FrankenPHP needs pthreads on Windows, which static-php-cli adds through the
+# FrankenPHP target this build leaves out.
+$extensionLibs = (@((& $bash $listScript (Join-Path $repository 'runtime\extensions\php-extension-libs.txt')) -split ',' |
+  Where-Object { $_ -ne 'watcher' }) + 'pthreads4w') -join ','
 
-function Get-PinnedFile([string] $Name, [hashtable] $Source) {
-  $path = Join-Path $downloadDirectory $Name
-  if ((Test-Path $path) -and (Get-FileHash $path -Algorithm SHA256).Hash -eq $Source.Sha256) {
-    return $path
+# build/release/upstream.py moves both with the watcher line of library-versions.txt.
+$watcherUrl = 'https://github.com/e-dant/watcher/releases/download/0.14.5/x86_64-pc-windows-msvc.tar'
+$watcherSha256 = '43034cbb07252751246afab8880da74c0340429f1865fd5bd6ce7c17e83c104f'
+# static-php-cli links ICU from a zip static-php.dev replaces in place, and checks
+# no hash. This one holds ICU 79.1.
+$icuSha256 = 'dcd8f8064297ac7d45273bb146ed8d4ff6e7399cd3ccb11c95acd109cc2e6891'
+
+function Assert-Sha256([string] $Path, [string] $Sha256) {
+  $hash = (Get-FileHash $Path -Algorithm SHA256).Hash
+  if ($hash -ne $Sha256) {
+    Remove-Item $Path
+    throw "Checksum mismatch for $(Split-Path -Leaf $Path): $hash"
   }
-  foreach ($url in $Source.Urls) {
-    try {
-      Invoke-WebRequest -Uri $url -OutFile $path
-      break
-    } catch {
-      if ($url -eq $Source.Urls[-1]) { throw }
-    }
-  }
-  $hash = (Get-FileHash $path -Algorithm SHA256).Hash
-  if ($hash -ne $Source.Sha256) {
-    Remove-Item $path
-    throw "Checksum mismatch for ${Name}: $hash"
-  }
-  return $path
 }
 
 function Reset-Directory([string] $Path) {
@@ -91,53 +59,67 @@ function Reset-Directory([string] $Path) {
   New-Item -ItemType Directory -Path $Path | Out-Null
 }
 
+# spc-config prints MSVC switches, and cgo hands its flags to clang.
+function ConvertTo-ClangFlags([string] $Flags) {
+  $Flags -replace '/I"([^"]+)"', '-I$1' -replace '/LIBPATH:"([^"]+)"', '-L$1' -replace '(?<=^| )([\w.+-]+)\.lib(?= |$)', '-l$1'
+}
+
 $buildTools = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Llvm.Clang Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 if (-not $buildTools) { throw 'Visual Studio Build Tools with the C++ Clang and x64 build tools components are required' }
 
-$work = New-Item -ItemType Directory -Force -Path $WorkDirectory
-$downloadDirectory = New-Item -ItemType Directory -Force -Path (Join-Path $work 'downloads')
-$files = @{}
-foreach ($name in $downloads.Keys) { $files[$name] = Get-PinnedFile $name $downloads[$name] }
-
-$php = Join-Path $work 'php'
-$phpDevel = Join-Path $work 'php-devel'
+$work = (New-Item -ItemType Directory -Force -Path $WorkDirectory).FullName
 $watcher = Join-Path $work 'watcher'
 $frankenphp = Join-Path $work 'frankenphp'
 $runtime = Join-Path $work 'runtime'
 $frankenphpExecutable = Join-Path $runtime 'frankenphp.exe'
-foreach ($directory in $php, $phpDevel, $watcher, $runtime) { Reset-Directory $directory }
-Expand-Archive -Path $files['php.zip'] -DestinationPath $php
-Expand-Archive -Path $files['php-devel.zip'] -DestinationPath $phpDevel
-# Only the extension DLL joins ext. brotli's zip also carries brotlienc.dll, and
-# php_brotli loads the vcpkg brotli libraries the runtime ships instead.
-foreach ($name in $peclExtensions.Keys) {
-  $pecl = Join-Path $work "pecl-$name"
-  Reset-Directory $pecl
-  Expand-Archive -Path $files["php_$name.zip"] -DestinationPath $pecl
-  Copy-Item (Join-Path $pecl "php_$name.dll") (Join-Path $php 'ext')
-}
-tar -xf $files['watcher.tar'] -C $watcher
-$phpDevelRoot = Join-Path $phpDevel "php-$phpVersion-devel-$phpToolset"
+$compiled = Join-Path $work 'buildroot\compiled'
+foreach ($directory in $watcher, $runtime) { Reset-Directory $directory }
+$watcherArchive = Join-Path $work 'watcher.tar'
+Invoke-WebRequest -Uri $watcherUrl -OutFile $watcherArchive
+Assert-Sha256 $watcherArchive $watcherSha256
+tar -xf $watcherArchive -C $watcher
 $watcherRoot = Join-Path $watcher 'x86_64-pc-windows-msvc'
 
-$vcpkg = Join-Path $work 'vcpkg'
-if (-not (Test-Path (Join-Path $vcpkg '.git'))) {
-  Reset-Directory $vcpkg
-  git -C $vcpkg init --quiet
-  git -C $vcpkg remote add origin https://github.com/microsoft/vcpkg.git
+# static-php-cli runs from the pinned checkout, on the host's PHP and Composer. It
+# keeps its downloads, its sources and its buildroot in the directory it runs from.
+Push-Location $work
+try {
+  & $bash (Join-Path $repository 'runtime\builder\fetch-spc.sh') static-php-cli
+  # static-php-cli is third-party code, so none of its Composer scripts or plugins run.
+  composer install --working-dir=static-php-cli --no-dev --no-interaction --prefer-dist --no-scripts --no-plugins
+  $spc = 'static-php-cli\bin\spc'
+  # Installs the build tools static-php-cli needs.
+  php $spc doctor --auto-fix
+  # A buildroot that holds the marker came from the release job's cache, whose key
+  # hashes every input of this compile.
+  if (-not (Test-Path $compiled)) {
+    # static-php-cli's pre-built archives lag the libraries' own releases, so each
+    # library compiles from its source release. It builds no ICU on Windows.
+    php $spc download --with-php=$phpVersion --for-extensions=$extensions --for-libs=$extensionLibs --prefer-binary=icu --retry 5
+    Assert-Sha256 'downloads\icu-static-windows-x64.zip' $icuSha256
+    php $spc build $extensions --with-libs=$extensionLibs --enable-zts --build-embed --disable-opcache-jit
+    # php8embed.lib exists before static-php-cli installs PHP's headers, so the
+    # marker names a finished compile. The release job saves its cache on it.
+    New-Item -ItemType File $compiled | Out-Null
+  }
+  $phpIncludes = ConvertTo-ClangFlags (php $spc spc-config $extensions --with-libs=$extensionLibs --includes)
+  $phpLibraries = ConvertTo-ClangFlags (php $spc spc-config $extensions --with-libs=$extensionLibs --libs)
+} finally {
+  Pop-Location
 }
-git -C $vcpkg fetch --quiet --depth 1 origin $vcpkgCommit
-git -C $vcpkg checkout --quiet --force $vcpkgCommit
-Copy-Item $files['vcpkg.exe'] (Join-Path $vcpkg 'vcpkg.exe') -Force
+$buildroot = Join-Path $work 'buildroot'
+# FrankenPHP includes headers static-php-cli leaves in PHP's source tree: ext,
+# sapi/cli and win32.
+$phpSource = Join-Path $work 'source\php-src'
+# --version names the SQLite release static-php-cli compiled into PHP.
+$sqliteVersion = [regex]::Match((Get-Content -Raw "$buildroot\include\sqlite3.h"), '(?m)^#define SQLITE_VERSION\s+"(.+)"').Groups[1].Value
+if (-not $sqliteVersion) { throw 'sqlite3.h names no SQLITE_VERSION' }
 
 if (Test-Path $frankenphp) { Remove-Item -Recurse -Force $frankenphp }
 git -c core.autocrlf=false clone --quiet --depth 1 --branch "v$frankenphpVersion" https://github.com/php/frankenphp.git $frankenphp
 # A tag can move, so the checkout must match the pinned commit.
 $frankenphpHead = git -C $frankenphp rev-parse HEAD
-if ($frankenphpHead -ne $frankenphpCommit) { throw "FrankenPHP v$frankenphpVersion resolved to $frankenphpHead, expected $frankenphpCommit" }
-$vcpkgInstalled = Join-Path $frankenphp 'vcpkg_installed'
-& (Join-Path $vcpkg 'vcpkg.exe') install --vcpkg-root=$vcpkg --x-manifest-root=$frankenphp --x-install-root=$vcpkgInstalled --triplet=x64-windows --disable-metrics
-$vcpkgRoot = Join-Path $vcpkgInstalled 'x64-windows'
+if ($frankenphpHead -ne $pins.frankenphp_commit) { throw "FrankenPHP v$frankenphpVersion resolved to $frankenphpHead, expected $($pins.frankenphp_commit)" }
 
 # The launcher carries the application, so the server embeds an empty archive,
 # which leaves frankenphp's own extraction unused. Its embed directive still
@@ -148,22 +130,23 @@ Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\frankenphp\entrypoint.go') (Jo
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\frankenphp\watch\watch.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_watch.go')
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\frankenphp\crtenv_windows.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_crtenv_windows.go')
 
-# php.net publishes x64 builds alone, so a Windows on Arm host builds the amd64
-# runtime too, with its own clang.
+# static-php-cli builds x64 alone on Windows, so a Windows on Arm host builds the
+# amd64 runtime too, with its own clang.
 $clangHost = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'ARM64' } else { 'x64' }
-$env:PATH = @("$buildTools\VC\Tools\Llvm\$clangHost\bin", "$vcpkgRoot\bin", $watcherRoot, $php, $env:PATH) -join ';'
+$env:PATH = @("$buildTools\VC\Tools\Llvm\$clangHost\bin", $watcherRoot, $env:PATH) -join ';'
 $env:GOARCH = 'amd64'
 # Go turns cgo off by default when GOARCH differs from the host's.
 $env:CGO_ENABLED = '1'
 $env:CC = 'clang --target=x86_64-pc-windows-msvc'
 $env:CXX = 'clang++ --target=x86_64-pc-windows-msvc'
-$env:CGO_CFLAGS = "-DFRANKENPHP_VERSION=$frankenphpVersion -I$vcpkgRoot\include -I$watcherRoot -I$phpDevelRoot\include -I$phpDevelRoot\include\main -I$phpDevelRoot\include\TSRM -I$phpDevelRoot\include\Zend -I$phpDevelRoot\include\ext"
-$env:CGO_LDFLAGS = "-L$vcpkgRoot\lib -lbrotlienc -L$watcherRoot -llibwatcher-c -L$php -L$phpDevelRoot\lib -lphp8ts -lphp8embed"
-# github.com/google/brotli/go/cbrotli finds the vcpkg brotli libraries through pkg-config.
-$env:PKG_CONFIG_PATH = "$vcpkgRoot\lib\pkgconfig"
-# The SQLite release the zip's PHP loads, for --version.
-$sqliteVersion = & (Join-Path $php 'php.exe') -n -d "extension_dir=$php\ext" -d extension=sqlite3 -r 'echo current(SQLite3::version());'
-if (-not $sqliteVersion) { throw 'php.exe named no SQLite release' }
+$env:CGO_CFLAGS = "$phpIncludes -I$phpSource -I$phpSource\main -I$phpSource\ext -I$phpSource\Zend -I$phpSource\TSRM -I$watcherRoot -DFRANKENPHP_VERSION=$frankenphpVersion -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1"
+# The flags after the libraries are the ones static-php-cli's own FrankenPHP link
+# passes on Windows, in src/Package/Target/php/frankenphp.php. The /INCLUDE symbols
+# pull in the objects FrankenPHP reaches through dllimport, and libcmt is the
+# static C runtime PHP was compiled against.
+$env:CGO_LDFLAGS = "$phpLibraries -lpathcch -lsecur32 -lcrypt32 -lgdi32 -Wl,/INCLUDE:zend_atomic_bool_store -Wl,/INCLUDE:lxb_url_parse -Wl,/INCLUDE:lxb_unicode_idna_init -llibcmt -Wl,/NODEFAULTLIB:msvcrt -Wl,/NODEFAULTLIB:msvcrtd -Wl,/FORCE:MULTIPLE -L$watcherRoot -llibwatcher-c"
+# github.com/google/brotli/go/cbrotli finds static-php-cli's brotli through pkg-config.
+$env:PKG_CONFIG_PATH = "$buildroot\lib\pkgconfig"
 Push-Location (Join-Path $frankenphp 'caddy\frankenphp')
 try {
   go build '-tags=nobadger,nomysql,nopgx' -ldflags="-extldflags=-fuse-ld=lld -X 'main.version=$Version' -X 'main.frankenphpVersion=$frankenphpVersion' -X 'main.sqliteVersion=$sqliteVersion' -X 'github.com/caddyserver/caddy/v2.CustomVersion=FrankenPHP $frankenphpVersion PHP $phpVersion Caddy'" -o $frankenphpExecutable
@@ -171,23 +154,9 @@ try {
   Pop-Location
 }
 
-Get-ChildItem $php -File | Where-Object Extension -ne '.exe' | Copy-Item -Destination $runtime
-Copy-Item -Recurse (Join-Path $php 'ext') (Join-Path $runtime 'ext')
 Copy-Item (Join-Path $watcherRoot 'libwatcher-c.dll') $runtime
-foreach ($library in 'brotlienc.dll', 'brotlidec.dll', 'brotlicommon.dll', 'pthreadVC3.dll') {
-  Copy-Item (Join-Path $vcpkgRoot "bin\$library") $runtime
-}
-
-# The repository's php.ini is the only source of PHP settings; this build only adds
-# what only it can supply: where this PHP puts its extensions, and which to load. The
-# launcher sets PHPRC to the extracted runtime directory.
-Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\php.ini') (Join-Path $runtime 'php.ini')
-# A listed extension the zip carries as a DLL gets a php.ini line. The rest are
-# compiled into php8ts.dll or absent on Windows. The conformance suite checks the
-# loaded set against the allowlist on the packed executable.
-$dllExtensions = $extensions | Where-Object { Test-Path (Join-Path $php "ext\php_$_.dll") }
-Add-Content -Path (Join-Path $runtime 'php.ini') -Value (@('extension_dir = "${PHPRC}\ext"') + ($dllExtensions | ForEach-Object { "extension=$_" }))
-Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\cacert.pem') $runtime
+# php.ini and the trust bundle ride beside frankenphp.exe, where PHPRC names them.
+Copy-Item (Join-Path $repository 'runtime\php.ini'), (Join-Path $repository 'runtime\cacert.pem') $runtime
 
 # The packer resolves a relative -output against its own working directory,
 # which Push-Location is about to change, so $Output must resolve here.

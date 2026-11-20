@@ -301,7 +301,7 @@ jobs:
             test-results/**/run.out
             test-results/**/run.err
 
-  # php.net publishes no arm64 PHP, so Windows on Arm runs the windows-amd64
+  # static-php-cli builds x64 alone on Windows, so Windows on Arm runs the windows-amd64
   # executable under emulation. This job runs the suite on it there.
   windows-arm:
     name: Windows arm64 (amd64 emulated)

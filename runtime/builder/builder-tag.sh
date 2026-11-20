@@ -22,7 +22,7 @@ extension_libs=$(bash "$directory/../extensions/extensions-list.sh" "$directory/
 # The scripts that compile the image change what it holds. static-php-cli takes each
 # library's newest release as it compiles, so a release library-versions.txt records
 # builds a new image.
-recipe=$(cat "$directory/build-builder.sh" "$directory/spc-craft.sh" "$directory/fetch-spc.sh" "$directory/spc-sqlite.patch" \
+recipe=$(cat "$directory/build-builder.sh" "$directory/spc-craft.sh" "$directory/fetch-spc.sh" "$directory/spc-sqlite.patch" "$directory/spc-icu.patch" \
     "$directory/library-versions.txt" | sha256sum)
 printf '%s\n' "$frankenphp_commit" "$spc_commit" "$toolchain_base" "$php_version" "$extensions" "$extension_libs" \
     "$libc" "$machine" "$recipe" | sha256sum | cut -c 1-16

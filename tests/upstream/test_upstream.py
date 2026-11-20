@@ -30,16 +30,11 @@ PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD, upstream.RELEASE_WORK
           upstream.LAUNCHER_SUM, upstream.CA_BUNDLE, "build/test/go-tests.sh", upstream.LIBRARY_VERSIONS,
           upstream.EXTENSIONS_LIST, *upstream.EXTENSION_LISTS, upstream.SQLITE_PATCH]
 # Each source whose move starts a release, by its function in upstream.py.
-CARRIED = ("php", "pecl", "composer", "frankenphp", "go", "ca_bundle", "sqlite", "libraries")
+CARRIED = ("php", "composer", "frankenphp", "go", "ca_bundle", "sqlite", "libraries")
 COMMIT = "c0ffee" * 6 + "c0ff"
 SPC_COMMIT = "5bc" * 13 + "5"
-BASELINE = "ba5e" * 10
 TOOL_SHA = "70" * 32
 IMAGE_DIGEST = "d1" * 32
-
-
-def checksums(*names):
-    return "".join(f"{'ab' * 32} *{name}\n" for name in names)
 
 
 def rsa_key(directory, name):
@@ -100,41 +95,18 @@ class Bumper(unittest.TestCase):
         self.manifests.append(url.removeprefix(upstream.DOCKER_MANIFESTS))
         return {"Docker-Content-Digest": self.digest}
 
-    def pecl_pins(self):
-        return dict(re.findall(upstream.pecl_pin(), self.text(upstream.WINDOWS_BUILD), re.MULTILINE))
-
-    def serve_pecl(self, name, *versions, dll=True):
-        """Lists `versions` as the stable releases of `name`, and every other pin at its own version."""
-        for pinned, current in self.pecl_pins().items():
-            listed = versions if pinned == name else (current,)
-            self.indexes[f"{upstream.PECL_RELEASES}{pinned}/allreleases.xml"] = "".join(
-                f" <r><v>{version}</v><s>stable</s></r>\n" for version in listed)
-        if dll:
-            newest = versions[0]
-            self.archives[f"{upstream.PECL_WINDOWS}{name}/{newest}/php_{name}-{newest}-8.5-ts-vs17-x64.zip"] = b"dll"
-
-    def serve_php(self, line_version, major_version=None, windows=None):
+    def serve_php(self, line_version, major_version=None):
         self.indexes[upstream.PHP_RELEASES + "8.5"] = json.dumps({"version": line_version})
         self.indexes[upstream.PHP_RELEASES + "8"] = json.dumps({"version": major_version or line_version})
-        names = windows if windows is not None else [
-            f"php-{line_version}-Win32-vs17-x64.zip", f"php-devel-pack-{line_version}-Win32-vs17-x64.zip"]
-        self.indexes[upstream.WINDOWS_CHECKSUMS] = checksums(*names)
 
     def run_bumper(self, source=upstream.php):
         summary = upstream.Summary()
         source(summary)
         return summary
 
-    def serve_frankenphp(self, *tags, annotated=True, spc=SPC_COMMIT, manifest=None, go_mod="go 1.1\n"):
+    def serve_frankenphp(self, *tags, annotated=True, spc=SPC_COMMIT, go_mod="go 1.1\n"):
         self.indexes[upstream.SPC_BRANCH] = json.dumps({"commit": {"sha": spc}})
         self.indexes[f"{upstream.FRANKENPHP_RAW}/{COMMIT}/caddy/go.mod"] = f"module example\n\n{go_mod}"
-        self.indexes[f"{upstream.FRANKENPHP_RAW}/{COMMIT}/vcpkg.json"] = json.dumps(
-            manifest if manifest is not None else {"dependencies": ["brotli"], "builtin-baseline": BASELINE})
-        self.indexes[f"{upstream.VCPKG_RAW}/{BASELINE}/scripts/vcpkg-tool-metadata.txt"] = (
-            "VCPKG_TOOL_RELEASE_TAG=2099-01-02\nVCPKG_MACOS_SHA=00\n")
-        self.indexes[upstream.VCPKG_TOOL_RELEASES + "2099-01-02"] = json.dumps({"assets": [
-            {"name": "vcpkg-arm64.exe", "digest": "sha256:" + "11" * 32},
-            {"name": "vcpkg.exe", "digest": "sha256:" + TOOL_SHA}]})
         api = upstream.FRANKENPHP_API
         self.indexes[f"{api}/releases?per_page=100"] = json.dumps(
             [{"tag_name": tag, "draft": False, "prerelease": False} for tag in tags])
@@ -165,15 +137,12 @@ class Bumper(unittest.TestCase):
         major, minor, patch = self.php.split(".")
         return f"{major}.{minor}.{int(patch) + 1}"
 
-    def test_a_newer_patch_rewrites_every_php_pin(self):
+    def test_a_newer_patch_rewrites_the_php_pin(self):
         newer = self.newer_patch()
         self.serve_php(newer)
         summary = self.run_bumper()
         self.assertEqual(summary.rows, [("PHP", self.php, newer, "bumped")])
         self.assertIn(f"\nphp_version={newer}\n", self.text(upstream.BUILDER_INPUTS))
-        windows = self.text(upstream.WINDOWS_BUILD)
-        self.assertIn(f"$phpVersion = '{newer}'", windows)
-        self.assertEqual(windows.count(f"Sha256 = '{'ab' * 32}'"), 2)
 
     def test_the_current_version_writes_nothing(self):
         self.serve_php(self.php)
@@ -181,14 +150,6 @@ class Bumper(unittest.TestCase):
         summary = self.run_bumper()
         self.assertEqual(summary.rows, [("PHP", self.php, self.php, "current")])
         self.assertEqual({path: self.text(path) for path in PINNED}, before)
-
-    def test_a_missing_windows_zip_holds_php_back(self):
-        newer = self.newer_patch()
-        self.serve_php(newer, windows=[f"php-{newer}-Win32-vs17-x64.zip"])
-        before = self.text(upstream.BUILDER_INPUTS)
-        summary = self.run_bumper()
-        self.assertEqual(summary.rows, [("PHP", self.php, newer, "waits for the Windows zips")])
-        self.assertEqual(self.text(upstream.BUILDER_INPUTS), before)
 
     def test_a_newer_minor_is_reported_as_a_major(self):
         self.serve_php(self.php, major_version="8.6.0")
@@ -209,28 +170,21 @@ class Bumper(unittest.TestCase):
             self.run_bumper()
 
     def test_a_pin_matching_nowhere_stops_the_run(self):
-        path = self.tree / upstream.WINDOWS_BUILD
-        path.write_text(re.sub(r"^\$phpVersion = .*$", "", path.read_text(), flags=re.MULTILINE))
+        path = self.tree / upstream.BUILDER_INPUTS
+        path.write_text(re.sub(r"^php_version=.*$", "", path.read_text(), flags=re.MULTILINE))
         self.serve_php(self.newer_patch())
         with self.assertRaises(SystemExit):
             self.run_bumper()
 
-    def test_a_newer_frankenphp_rewrites_version_and_commit_in_both_builds(self):
+    def test_a_newer_frankenphp_rewrites_version_and_commit(self):
         self.serve_frankenphp("v1.99.0", "v1.12.7")
         summary = self.run_bumper(upstream.frankenphp)
         self.assertEqual(summary.rows[0][2:], ("1.99.0", "bumped"))
         inputs = self.text(upstream.BUILDER_INPUTS)
         self.assertIn("\nfrankenphp_version=1.99.0\n", inputs)
         self.assertIn(f"\nfrankenphp_commit={COMMIT}\n", inputs)
-        windows = self.text(upstream.WINDOWS_BUILD)
-        self.assertIn("$frankenphpVersion = '1.99.0'", windows)
-        self.assertIn(f"$frankenphpCommit = '{COMMIT}'", windows)
         self.assertIn(f"\nspc_commit={SPC_COMMIT}\n", inputs)
         self.assertEqual(summary.rows[1][0::3], ("static-php-cli", "bumped"))
-        self.assertIn(f"$vcpkgCommit = '{BASELINE}'", windows)
-        self.assertIn("vcpkg-tool/releases/download/2099-01-02/vcpkg.exe", windows)
-        self.assertIn(f"Sha256 = '{TOOL_SHA}'", windows)
-        self.assertEqual(summary.rows[2][0::3], ("vcpkg", "bumped"))
 
     def newer_go(self):
         current = upstream.read(upstream.RELEASE_WORKFLOW, upstream.GO_PIN)
@@ -328,11 +282,6 @@ class Bumper(unittest.TestCase):
                 self.serve_tools(**{"golangci-lint": version})
                 self.run_bumper(upstream.tools)
 
-    def test_a_frankenphp_manifest_without_a_vcpkg_baseline_stops_the_run(self):
-        self.serve_frankenphp("v1.99.0", manifest={"dependencies": ["brotli"]})
-        with self.assertRaises(SystemExit):
-            self.run_bumper(upstream.frankenphp)
-
     def test_a_current_frankenphp_leaves_static_php_cli_alone(self):
         current = upstream.read(upstream.BUILDER_INPUTS, r"^frankenphp_version=(.+)$")
         pinned = upstream.read(upstream.BUILDER_INPUTS, upstream.SPC_PIN)
@@ -356,42 +305,6 @@ class Bumper(unittest.TestCase):
         summary = self.run_bumper(upstream.frankenphp)
         self.assertEqual(summary.rows, [("FrankenPHP", current, current, "current")])
         self.assertEqual(summary.notes, ["MAJOR FrankenPHP 2.0.0 is out, outside the 1 line"])
-
-    def test_a_newer_pecl_release_rewrites_its_version_and_checksum(self):
-        current = self.pecl_pins()["brotli"]
-        self.serve_pecl("brotli", "0.99.0", current)
-        summary = self.run_bumper(upstream.pecl)
-        self.assertIn(("php_brotli", current, "0.99.0", "bumped"), summary.rows)
-        self.assertIn(f"'brotli' = @{{ Version = '0.99.0'; Sha256 = '{hashlib.sha256(b'dll').hexdigest()}' }}",
-                      self.text(upstream.WINDOWS_BUILD))
-        self.assertEqual([row[3] for row in summary.rows].count("current"), len(self.pecl_pins()) - 1)
-
-    def test_current_pecl_releases_write_nothing(self):
-        self.serve_pecl("brotli", self.pecl_pins()["brotli"])
-        before = self.text(upstream.WINDOWS_BUILD)
-        summary = self.run_bumper(upstream.pecl)
-        self.assertEqual({row[3] for row in summary.rows}, {"current"})
-        self.assertEqual(self.text(upstream.WINDOWS_BUILD), before)
-
-    def test_a_missing_windows_dll_holds_the_pecl_pin_back(self):
-        current = self.pecl_pins()["brotli"]
-        self.serve_pecl("brotli", "0.99.0", current, dll=False)
-        before = self.text(upstream.WINDOWS_BUILD)
-        summary = self.run_bumper(upstream.pecl)
-        self.assertIn(("php_brotli", current, "0.99.0", "waits for the Windows DLL"), summary.rows)
-        self.assertEqual(self.text(upstream.WINDOWS_BUILD), before)
-
-    def test_a_newer_pecl_major_is_reported_and_not_taken(self):
-        current = self.pecl_pins()["apcu"]
-        self.serve_pecl("apcu", "6.0.0", current)
-        summary = self.run_bumper(upstream.pecl)
-        self.assertIn(("php_apcu", current, current, "current"), summary.rows)
-        self.assertEqual(summary.notes, [f"MAJOR php_apcu 6.0.0 is out, outside the {current.split('.')[0]} line"])
-
-    def test_a_malformed_pecl_version_stops_the_run(self):
-        self.serve_pecl("yaml", "2.9.0;id")
-        with self.assertRaises(SystemExit):
-            self.run_bumper(upstream.pecl)
 
     def serve_composer(self, *versions, signer=None, sig=None):
         """Lists `versions` as Composer's stable releases, each with a phar signed by `signer`,
@@ -718,7 +631,7 @@ class Bumper(unittest.TestCase):
                 self.assertEqual(self.run_bump(*moved), ("gate", ["tools", "go_modules"]))
 
     def test_any_other_pin_moving_takes_the_full_suite(self):
-        for name in ("php", "pecl", "composer", "frankenphp", "go", "ca_bundle"):
+        for name in ("php", "composer", "frankenphp", "go", "ca_bundle"):
             with self.subTest(name):
                 self.assertEqual(self.run_bump(name, "libraries")[0], "full")
 
