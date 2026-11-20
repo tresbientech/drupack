@@ -66,7 +66,7 @@ runs:
       env:
         # static-php-cli reads library releases from the GitHub API, which rate-limits anonymous requests.
         GITHUB_TOKEN: ${{ github.token }}
-        DRUPACK_VERSION: ${{ inputs.version }}
+        DRUPACK_ENGINE_VERSION: ${{ inputs.version }}
       shell: bash
       run: |
         bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/drupacked-demo dist/engine-payload dist/engine/drupack
@@ -104,13 +104,13 @@ runs:
 
     - name: Pack the variant fixture
       env:
-        DRUPACK_VERSION: ${{ inputs.version }}
+        DRUPACK_ENGINE_VERSION: ${{ inputs.version }}
         TARGET: macos-${{ inputs.arch }}
       shell: bash
       run: |
         mkdir -p dist/variant
         (cd launcher && go run ./cmd/pack -target "$TARGET" -runtime "$RUNNER_TEMP/drupack/runtime" \
-          -payload ../dist/variant-payload -version "$DRUPACK_VERSION" -output ../dist/variant/variant-demo)
+          -payload ../dist/variant-payload -version "$DRUPACK_ENGINE_VERSION" -output ../dist/variant/variant-demo)
         cp dist/variant-payload/site.json dist/variant/site.json
 
     - name: Check the unsigned launch steps

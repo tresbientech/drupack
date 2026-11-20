@@ -191,14 +191,14 @@ jobs:
 
       - name: Build the runtime
         env:
-          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+          DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
           IMAGE: ${{ steps.builder.outputs.image }}
           LIBC: ${{ matrix.libc }}
           BUILDER: ${{ matrix.builder }}
         run: |
           # The Dockerfile names each builder image's argument after the builder, upper case.
           docker build --target "runtime-$BUILDER-files" \
-            --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" \
+            --build-arg "DRUPACK_ENGINE_VERSION=$DRUPACK_ENGINE_VERSION" \
             --build-arg "${BUILDER^^}_BUILDER=$IMAGE" \
             --output "type=local,dest=runtime-$LIBC" .
           df -h /
@@ -318,7 +318,7 @@ jobs:
       # image is pulled here. A run of every platform built all four.
       - name: Build the job image
         env:
-          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+          DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
           LINUX_RUNTIME: ${{ needs.gate.outputs.linux_runtime }}
         run: |
           mkdir runtimes
@@ -338,7 +338,7 @@ jobs:
           docker build --target job --build-arg RUNTIMES=release-runtimes --build-context release-runtimes=runtimes \
             --build-arg RUNTIME_COMPONENTS=release-runtime-components \
             --build-context release-runtime-components=runtime-components \
-            --build-arg "DRUPACK_VERSION=$DRUPACK_VERSION" -t drupack-job .
+            --build-arg "DRUPACK_ENGINE_VERSION=$DRUPACK_ENGINE_VERSION" -t drupack-job .
 
       - name: Export the application payload
         run: |
@@ -448,7 +448,7 @@ jobs:
         working-directory: launcher
         env:
           CGO_ENABLED: '0'
-          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+          DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
           TARGET: linux-${{ matrix.arch }}
         run: |
           chmod +x ../runtime-musl/out/drupack ../runtime-glibc/out/drupack
@@ -458,9 +458,9 @@ jobs:
             directory='' target=$TARGET
             if [ "$libc" = musl ]; then directory=/musl target=$TARGET-musl; fi
             go run ./cmd/pack -target "$target" -runtime "../runtime-$libc/out" -payload ../dist/payload \
-              -version "$DRUPACK_VERSION" -output "../dist$directory/drupacked-demo"
+              -version "$DRUPACK_ENGINE_VERSION" -output "../dist$directory/drupacked-demo"
             go run ./cmd/pack -engine -target "$target" -runtime "../runtime-$libc/out" -payload ../dist/engine-payload \
-              -version "$DRUPACK_VERSION" -output "../dist/engine$directory/drupack"
+              -version "$DRUPACK_ENGINE_VERSION" -output "../dist/engine$directory/drupack"
           done
           cp ../dist/payload/site.json ../dist/site.json
 
@@ -595,9 +595,9 @@ jobs:
         env:
           # static-php-cli reads library releases from the GitHub API, which rate-limits anonymous requests.
           GITHUB_TOKEN: ${{ github.token }}
-          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+          DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
         run: |
-          ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupacked-demo.exe -EnginePayloadDirectory dist\engine-payload -EngineOutput dist\engine\drupack.exe
+          ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_ENGINE_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupacked-demo.exe -EnginePayloadDirectory dist\engine-payload -EngineOutput dist\engine\drupack.exe
           Copy-Item dist\payload\site.json dist\site.json
 
       # build.ps1 writes the marker when the compile ends, so a failed link keeps
@@ -650,11 +650,11 @@ jobs:
       # directory, with the amd64 launcher the release ships.
       - name: Pack the variant fixture
         env:
-          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+          DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
         run: |
           New-Item -ItemType Directory -Force -Path dist\variant | Out-Null
           Push-Location launcher
-          go run ./cmd/pack -target windows-amd64 -runtime "$env:RUNNER_TEMP\drupack\runtime" -payload ..\dist\variant-payload -version $env:DRUPACK_VERSION -output ..\dist\variant\variant-demo.exe
+          go run ./cmd/pack -target windows-amd64 -runtime "$env:RUNNER_TEMP\drupack\runtime" -payload ..\dist\variant-payload -version $env:DRUPACK_ENGINE_VERSION -output ..\dist\variant\variant-demo.exe
           Pop-Location
           Copy-Item dist\variant-payload\site.json dist\variant\site.json
 
@@ -889,7 +889,7 @@ jobs:
       - name: Run build/test/qa.sh
         env:
           PHASE: ${{ matrix.phase }}
-          DRUPACK_VERSION: ${{ needs.gate.outputs.version }}
+          DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
           DRUPACK_QA_RUNTIMES: ${{ runner.temp }}/runtimes
         run: |
           set -o pipefail

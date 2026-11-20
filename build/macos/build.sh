@@ -18,7 +18,7 @@ repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 
 # The FrankenPHP and PHP pins every Linux builder image compiles.
 . "$repository/runtime/builder/builder-inputs.sh"
-drupack_version=${DRUPACK_VERSION:-dev}
+drupack_version=${DRUPACK_ENGINE_VERSION:-dev}
 # The allowlist every builder compiles. spc resolves the libraries each name needs.
 extensions=$(bash "$repository/runtime/extensions/extensions-list.sh" "$repository/runtime/extensions/php-extensions.txt")
 extension_libs=$(bash "$repository/runtime/extensions/extensions-list.sh" "$repository/runtime/extensions/php-extension-libs.txt")

@@ -35,7 +35,7 @@ COPY runtime/extensions/php-extensions.txt /php-extensions.txt
 FROM ${EXTENSIONS} AS extensions
 
 FROM ${MUSL_BUILDER} AS runtime-musl
-ARG DRUPACK_VERSION
+ARG DRUPACK_ENGINE_VERSION
 COPY runtime/builder/embed.sh /usr/local/bin/embed.sh
 COPY runtime/builder/builder-inputs.sh runtime/builder/runtime-libraries.sh runtime/extensions/php-extension-libs.txt runtime/extensions/extensions-list.sh /build/
 COPY --from=extensions /php-extensions.txt /build/php-extensions.txt
@@ -46,7 +46,7 @@ RUN bash /usr/local/bin/embed.sh
 COPY runtime/php.ini runtime/cacert.pem /out/
 
 FROM ${GNU_BUILDER} AS runtime-gnu
-ARG DRUPACK_VERSION
+ARG DRUPACK_ENGINE_VERSION
 COPY runtime/builder/embed.sh /usr/local/bin/embed.sh
 COPY runtime/builder/builder-inputs.sh runtime/builder/runtime-libraries.sh runtime/extensions/php-extension-libs.txt runtime/extensions/extensions-list.sh /build/
 COPY --from=extensions /php-extensions.txt /build/php-extensions.txt
@@ -90,7 +90,7 @@ FROM ${RUNTIME_COMPONENTS} AS runtime-components
 FROM ${NODE_IMAGE} AS node
 
 FROM ${JOB_BASE} AS job
-ARG DRUPACK_VERSION
+ARG DRUPACK_ENGINE_VERSION
 ARG TARGETARCH
 # Go moves to the next entry after a "|" on any error, so a dropped fetch gets
 # a second attempt. go.sum checks either answer.
@@ -127,7 +127,7 @@ RUN cd /opt/drupack/engine/launcher \
     && CGO_ENABLED=0 go build -o /usr/local/bin/drupack-build ./cmd/drupack-build \
     && chmod -R a+rX /go/pkg/mod
 ENV DRUPACK_ENGINE=/opt/drupack/engine \
-    DRUPACK_ENGINE_VERSION=${DRUPACK_VERSION:-dev} \
+    DRUPACK_ENGINE_VERSION=${DRUPACK_ENGINE_VERSION:-dev} \
     DRUPACK_RUNTIMES=/opt/drupack/runtimes \
     DRUPACK_RUNTIME_COMPONENTS=/opt/drupack/runtime-components \
     HOME=/tmp \

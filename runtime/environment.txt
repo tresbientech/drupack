@@ -28,4 +28,5 @@ DRUPACK_DRUSH_SCRIPT writers=launcher/childenv.go,launcher/internal/build/build.
 DRUPACK_MERCURE_PUBLISHER_SECRET writers=launcher/childenv.go  readers=  kinds=server,operate,drush,export  modes=site,engine
 DRUPACK_MERCURE_SUBSCRIBER_SECRET writers=launcher/childenv.go  readers=  kinds=server,operate,drush,export  modes=site,engine
 DRUPACK_MERCURE_URL writers=launcher/childenv.go  readers=  kinds=server,operate,drush,export  modes=site,engine
+DRUPACK_VERSION writers=runtime/frankenphp/entrypoint.go  readers=  kinds=  modes=
 DRUSH_OPTIONS_URI writers=launcher/childenv.go  readers=  kinds=server,operate,drush,export  modes=site
