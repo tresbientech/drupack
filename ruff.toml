@@ -11,9 +11,8 @@ select = ["S"]
 "build/release/release-node.py" = ["S310", "S603", "S607"]
 "build/release/release-plan.py" = ["S603", "S607"]
 "build/release/upstream.py" = ["S310", "S603", "S607"]
-# S603: these run the PHP runtime the same job built.
+# S603: it runs the PHP runtime the same job built.
 "build/release/sbom.py" = ["S603"]
-"runtime/extensions/check-extensions.py" = ["S603"]
 # S603, S607: tests start the built executables and local tools.
 # S105: their passwords belong to throwaway sites.
 # S310: they open the local servers they start.

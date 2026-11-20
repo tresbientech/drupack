@@ -10,7 +10,7 @@ Three builders compile PHP: Linux, macOS and Windows. Each must ship the extensi
 
 - `runtime/extensions/php-extensions.txt` lists every shipped extension, one per line, with a trailing comment naming what needs it.
 - The three builders, `check-extensions.py` and the conformance suite read that file. None repeats a literal list.
-- `check-extensions.py` runs `spc dump-extensions` on a site's lock and fails the build when the lock declares a name the file omits.
+- `check-extensions.py` reads the `ext-*` requirements of a site's lock, from its packages and its platform block, and fails the build when the lock declares a name the file omits.
 - The conformance suite asserts that a binary loads exactly the names the file lists, plus the extensions PHP always compiles.
 - `tests/conformance/harness.py` holds the facts that differ by platform.
 - `build.ps1` hands static-php-cli the list without `pcntl`, `posix` and `password-argon2`, which it does not build on Windows. It runs no load check.
@@ -21,6 +21,7 @@ Three builders compile PHP: Linux, macOS and Windows. Each must ship the extensi
 
 - `runtime/builder/builder-inputs.sh` pins the FrankenPHP commit, the PHP version and a static-php-cli v3 commit. `build/release/upstream.py` moves all three.
 - `runtime/builder/fetch-spc.sh` checks out that commit, verifies its hash and applies two patches. static-php-cli names SQLite 3.45.2 and passes flags newer releases reject. `spc-sqlite.patch` names a current release, which the upstream run moves.
+- static-php-cli is third-party code. Every builder installs its Composer packages with `--no-scripts --no-plugins`, and it runs in no job that holds a secret or pushes.
 - `spc-icu.patch` names the file ICU publishes its source under since ICU 78. static-php-cli looks for the older name, which stops at 77.1.
 - static-php-cli compiles every other library at its newest release. `runtime/builder/library-versions.txt` records those releases, and the upstream run moves it.
 - `builder-tag.sh` digests the pins, both lists, the build scripts, both patches and the versions file into a Linux image's tag.

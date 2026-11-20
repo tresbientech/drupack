@@ -36,7 +36,8 @@ cd "$work"
 work=$(pwd)
 # static-php-cli runs from the pinned checkout, on the runner's PHP and Composer.
 bash "$repository/runtime/builder/fetch-spc.sh" "$work/static-php-cli"
-composer install --working-dir="$work/static-php-cli" --no-dev --no-interaction --prefer-dist
+# static-php-cli is third-party code, so none of its Composer scripts or plugins run.
+composer install --working-dir="$work/static-php-cli" --no-dev --no-interaction --prefer-dist --no-scripts --no-plugins
 spc=(php "$work/static-php-cli/bin/spc")
 
 # Installs pkg-config and the other build tools static-php-cli needs.
