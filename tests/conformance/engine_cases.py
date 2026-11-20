@@ -208,6 +208,16 @@ class EngineExecutable(harness.ConformanceCase):
         for line in lines:
             self.assertRegex(line, rf" {version_cases.RELEASE}$")
 
+    def test_php_reads_the_engine_release_in_a_command_and_in_a_request(self):
+        # --version prints "drupack RELEASE (drupack RELEASE, LIBC)", the libc on Linux alone.
+        release = version_cases.version_lines(self.engine)[0].split("(drupack ", 1)[1].rstrip(")").split(",")[0]
+        code = "echo getenv('DRUPACK_VERSION');"
+        command = self.engine_run("php", "-r", code, env=dict(os.environ, DRUPACK_VERSION="inherited"))
+        self.assertEqual((command.returncode, command.stdout), (0, release), command.stderr)
+        self.marker("engine-case-version.php", f"<?php {code}")
+        port, log = self.start("release-variable", str(self.project))
+        self.assertEqual(self.fetch(port, "/engine-case-version.php")[2], release, f"inspect {log}")
+
     def marker(self, relative, content):
         """Writes a file into the served docroot for the length of the test, with the
         directories it has to create."""

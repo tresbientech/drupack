@@ -17,6 +17,7 @@ Names:
 - `DRUPACK_LIBC`, which the install script reads
 - the three `DRUPACK_MERCURE_` variables a Mercure hub start exports
 - `DRUPACK_RUNTIME_TRUSTED_PROXIES`, which a project's `settings.php` reads
+- `DRUPACK_VERSION`, the engine's release, which a module reads to learn that Drupack runs it
 - the `extra.drupack` keys of `composer.json`: `mercure`, `subdomain` and `static`
 - the project's start files, `.drupack/route.caddy` and `.drupack/mercure.caddy`
 - the `drupal/drupack` Composer plugin, which `allow-plugins` names, and its bin script, `vendor/bin/drupack-install`

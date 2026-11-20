@@ -440,6 +440,14 @@ Drupack carries a copy of curl's `cacert.pem`, and PHP verifies HTTPS against
 it, whatever the machine's own trust store holds. Behind a proxy that re-signs
 TLS, set `DRUPACK_CA_FILE` to a bundle holding the proxy's root certificate.
 
+Drupack sets `DRUPACK_VERSION` for every PHP process it starts: a request,
+`php`, `composer`, `drush` and `export`. Its value is the engine's release,
+such as `1.0.0`. A module tests the name to learn that Drupack runs it:
+
+```php
+$drupack = getenv('DRUPACK_VERSION') !== FALSE;
+```
+
 Ten options of a packaged site read a variable when the option is absent. Its
 [options table](#options) names each one.
 

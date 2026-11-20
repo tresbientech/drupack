@@ -501,6 +501,10 @@ func init() {
 	if err := os.Setenv("DRUPACK_RUNTIME_BINARY", canonical(executable)); err != nil {
 		panic(err)
 	}
+	// PHP code outside this repository tests this name to learn that Drupack runs it.
+	if err := os.Setenv("DRUPACK_VERSION", version); err != nil {
+		panic(err)
+	}
 	if origin, err = os.Getwd(); err != nil {
 		panic(err)
 	}
