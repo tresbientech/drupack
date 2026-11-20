@@ -20,7 +20,7 @@ Read before a change:
 
 ## Build
 
-Build on Linux `amd64` or `arm64` with Docker and BuildKit, Go, `python3` and `zstd`. Build the two builder images first. Each compiles PHP from source and takes over an hour. Docker keeps them, so later builds reuse them.
+Build on Linux `amd64` or `arm64` with Docker and BuildKit, Go, `python3` and `zstd`. Build the two builder images first. Each compiles PHP from source and takes over an hour. Docker keeps them, so later builds reuse them. An image holds the libraries of the day it was compiled: build it again after a pin or `runtime/builder/library-versions.txt` moves.
 
 ```sh
 bash runtime/builder/build-builder.sh musl drupack-builder-musl:local

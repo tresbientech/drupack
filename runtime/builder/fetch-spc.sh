@@ -21,5 +21,6 @@ if [ "$head" != "$spc_commit" ]; then
     exit 1
 fi
 # static-php-cli pins SQLite 3.45.2, and its recipe passes configure flags newer
-# SQLite releases reject. The patch names the SQLite release every runtime links.
+# SQLite releases reject. The patch names the SQLite release the Linux and macOS
+# runtimes link, which build/release/upstream.py moves.
 git -C "$directory" apply "$builder/spc-sqlite.patch"

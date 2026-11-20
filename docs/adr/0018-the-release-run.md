@@ -2,7 +2,7 @@
 
 ## Context
 
-Drupack pins PHP, FrankenPHP, Go and its modules, Windows extensions, Composer and the CA bundle. A new upstream version must reach readers without the owner noticing it. A release builds five platforms and tests each one, so the graph must build each thing once. drupal.org has no API that creates a release node, and Packagist takes each `drupal/drupack` version from one.
+Drupack pins PHP, FrankenPHP, Go and its modules, Windows extensions, Composer and the CA bundle. static-php-cli links about 40 C libraries into the Linux and macOS files, each at its newest release. A new upstream version must reach readers without the owner noticing it. A release builds five platforms and tests each one, so the graph must build each thing once. drupal.org has no API that creates a release node, and Packagist takes each `drupal/drupack` version from one.
 
 ## Decision
 
@@ -33,8 +33,14 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Windows extensions, Composer a
 - `build/release/upstream.py` moves each pin to its newest version inside its line. PHP waits until php.net lists both Windows zips.
 - A newer Composer release is written only after its `composer.phar.sig` verifies against a key kept in the repository.
 - A newer curl extract replaces `runtime/cacert.pem` once it matches curl's published SHA-256.
-- A newer major is never written.
-- A release starts when a pin the executables carry moves: PHP, a Windows extension, Composer, FrankenPHP, Go or the CA bundle. The run stops when none moves.
+- A newer major of a pin is never written. A library takes the release static-php-cli's own pattern allows, and a newer major can be that release.
+- A release starts when something the executables carry moves: PHP, a Windows extension, Composer, FrankenPHP, Go, the CA bundle, SQLite or a library. The run stops when none moves.
+- `runtime/builder/library-versions.txt` records the newest release of each artifact static-php-cli links. The pinned static-php-cli resolves the set from the two extension lists and names each release.
+- An artifact with a fixed URL or built from a branch head has no release to record, such as bzip2 and libaom.
+- static-php-cli runs in a job of its own, at the commit `main` pins. That job holds no secret and its token reads public content. The upstream job takes the answers as data and checks each name and release.
+- The file records what the run saw. A build links the release it finds, and the next run records that one.
+- `runtime/builder/spc-sqlite.patch` names SQLite's release as a URL. The run rewrites it from sqlite.org's product list, inside the 3 line.
+- A moved `watcher` line writes the same release into the Windows build, which downloads its own copy.
 - `golangci-lint`, `govulncheck` and the launcher's Go modules move only in a run that releases. The modules stay inside their majors, and a module that needs a newer Go waits.
 - The candidate is the bump on `main` HEAD, on a GitHub-only branch named by the SHA-256 of the bump's diff. A hand version names its branch by the version.
 - Each candidate moves `build/release/demo-pin.sh` to the Drupacked Demo's latest release that descends from the pin.
@@ -43,7 +49,7 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Windows extensions, Composer a
 ### The candidate and the tag
 
 - The job dispatches `release.yml` on every platform with `version`. The run is named `Release candidate VERSION`.
-- A bump candidate runs the `full` suite: every platform runs every case, except macOS amd64, which runs the start cases in each profile. A named version runs `gate`. Linux amd64, macOS arm64 and Windows amd64 run every case. Linux arm64, Windows arm64 and macOS amd64 run the start cases.
+- A bump that moves PHP, a Windows extension, Composer, FrankenPHP, Go or the CA bundle runs the `full` suite. Every platform runs every case, except macOS amd64, which runs the start cases in each profile. A bump that moves SQLite or libraries alone runs `gate`, as a named version does. The demo pin and the docs pin, which every candidate moves, change no suite. Under `gate`, Linux amd64, macOS arm64 and Windows amd64 run every case. Linux arm64, Windows arm64 and macOS amd64 run the start cases.
 - The QA demo and host builds run the start cases. The Linux jobs test the same file in full.
 - A release's run calls no `build.yml`. `site-build.yml` calls it after each successful push or weekly run on `main`, when ghcr holds the job image `dev-COMMIT` of `main`'s commit. The candidate pushes that image for a release's commit.
 - `build/release/wait-for-run.sh` finds the run by the candidate's commit and polls it. It names each failed job and, once the run completes, reruns the failed jobs once.
@@ -67,13 +73,17 @@ A builder image tagged by its inputs answers the objection that one image cannot
 
 The macOS amd64 suite took 50 of a full run's 154 macOS minutes, on the same OS arm64 tests, and no fix in the history was specific to Intel. Intel Macs are the least used target, and GitHub retires its last Intel runner image in 2027.
 
-A bump moves PHP or FrankenPHP, which every platform's file carries, so a bump tests every platform before its tag, macOS amd64 with its start cases. A named version changes Drupack's own code, which the three full platforms run on each system. Windows arm64 runs the amd64 file under emulation, and Linux arm64 runs the code Linux amd64 tests. The weekly run shows a defect on Linux arm64 and Windows arm64 within seven days.
+A bump of PHP or FrankenPHP changes every platform's file, so it tests every platform before its tag, macOS amd64 with its start cases. A named version changes Drupack's own code, which the three full platforms run on each system. A library release changes the Linux and macOS files alone, and October 20 to November 20, 2026 held ten of them. Its bump runs `gate` too. Windows arm64 runs the amd64 file under emulation, and Linux arm64 runs the code Linux amd64 tests. The weekly run shows a defect on Linux arm64 and Windows arm64 within seven days.
 
 A script plans the run so a unit test checks the plan. A plan written in workflow expressions shows its mistakes in a finished run alone. A failed lookup that read as no candidate would rebuild what it could have published.
 
 The engine ships the pinned `composer.phar`. Its bump checks the SHA-384 signature `composer self-update` checks, against a key kept in the repository, so a tampered download server cannot pass.
 
 A release gives readers a new executable, so a tool no executable carries starts none. Go modules publish more often than a run on every platform is worth, so they join a bump that already pays for one.
+
+A library fix once waited for the next PHP or FrankenPHP bump: six releases shipped libpq 18.6 after 18.7 existed. static-php-cli already resolves each library's newest release for the build, so the run asks it and keeps no list of its own.
+
+The upstream job holds the mirror's deploy key and the drupal.org token, and it commits its working tree. Third-party code that ran there could edit a tracked file or read a later step's secret. In its own job, a wrong answer can start a release and nothing else.
 
 The upstream run lives on GitHub, where the builds run. Testing the candidate before the tag moves means a red platform never ships, and the tag run publishes the candidate's files.
 

@@ -41,8 +41,8 @@ spc=(php "$work/static-php-cli/bin/spc")
 
 # Installs pkg-config and the other build tools static-php-cli needs.
 "${spc[@]}" doctor --auto-fix
-# A buildroot that holds libphp.a came from release.yml's cache, whose key names
-# this script, the pins and both lists. spc build compiles PHP again over it.
+# A buildroot that holds libphp.a came from the cache of .github/actions/macos-build/action.yml,
+# whose key hashes every input of this compile. spc build compiles PHP again over it.
 if [ ! -f "$work/buildroot/lib/libphp.a" ]; then
     # static-php-cli's pre-built archives lag the libraries' own releases, so each
     # library compiles from its source release.

@@ -52,14 +52,15 @@ runs:
         path: dist/variant-payload
 
     # The buildroot holds the PHP the allowlist names, so the list files belong
-    # in the key beside the script that compiles them.
+    # in the key beside the scripts that compile them. The versions file changes
+    # when a library releases, and static-php-cli then downloads that release.
     - uses: actions/cache/restore@v6
       with:
         path: |
           ${{ runner.temp }}/drupack/downloads
           ${{ runner.temp }}/drupack/buildroot
           ${{ runner.temp }}/drupack/pkgroot
-        key: macos-${{ inputs.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
+        key: macos-${{ inputs.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/builder/fetch-spc.sh', 'runtime/builder/spc-sqlite.patch', 'runtime/builder/library-versions.txt', 'runtime/extensions/extensions-list.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
 
     - name: Build the executables
       env:
@@ -78,7 +79,7 @@ runs:
           ${{ runner.temp }}/drupack/downloads
           ${{ runner.temp }}/drupack/buildroot
           ${{ runner.temp }}/drupack/pkgroot
-        key: macos-${{ inputs.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
+        key: macos-${{ inputs.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/builder/fetch-spc.sh', 'runtime/builder/spc-sqlite.patch', 'runtime/builder/library-versions.txt', 'runtime/extensions/extensions-list.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
 
     - uses: actions/upload-artifact@v7
       with:

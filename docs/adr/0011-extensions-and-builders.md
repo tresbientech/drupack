@@ -20,7 +20,11 @@ Three builders compile PHP: Linux, macOS and Windows. Each must ship the extensi
 ### The Linux and macOS builders
 
 - `runtime/builder/builder-inputs.sh` pins the FrankenPHP commit, the PHP version and a static-php-cli v3 commit. `build/release/upstream.py` moves all three.
-- `runtime/builder/fetch-spc.sh` checks out that commit and verifies its hash.
+- `runtime/builder/fetch-spc.sh` checks out that commit, verifies its hash and applies `spc-sqlite.patch`. static-php-cli names SQLite 3.45.2 and passes flags newer releases reject. The patch names a current release, which the upstream run moves.
+- static-php-cli compiles every other library at its newest release. `runtime/builder/library-versions.txt` records those releases, and the upstream run moves it.
+- `builder-tag.sh` digests the pins, both lists, the build scripts, the SQLite patch and the versions file into a Linux image's tag.
+- The macOS buildroot is cached under a key that hashes `build/macos/build.sh`, the pins, `fetch-spc.sh`, the SQLite patch, the versions file, `extensions-list.sh` and both lists.
+- A library release therefore builds a new image and a new buildroot.
 - A Linux builder image is FrankenPHP's toolchain image on the pinned RHEL 8 base, plus one layer: the paths `embed.sh` reads from the PHP compile. `build-builder.sh` lists them: PHP's libraries, headers and tools, spc, the Go toolchain and, for musl, zig. Sources, downloads and Go caches stay out: over 80 percent of the compile's bytes.
 - The glibc build links against glibc 2.28, the glibc of the RHEL 8 toolchain image. `build/install/install.sh` and self-update take the glibc file on glibc 2.28 or later, and the musl file below it.
 

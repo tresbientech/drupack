@@ -27,7 +27,10 @@ upstream = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(upstream)
 
 PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD, upstream.RELEASE_WORKFLOW, upstream.DOCKERFILE, *upstream.GO_MODS,
-          upstream.LAUNCHER_SUM, upstream.CA_BUNDLE, "build/test/go-tests.sh"]
+          upstream.LAUNCHER_SUM, upstream.CA_BUNDLE, "build/test/go-tests.sh", upstream.LIBRARY_VERSIONS,
+          upstream.EXTENSIONS_LIST, *upstream.EXTENSION_LISTS, upstream.SQLITE_PATCH]
+# Each source whose move starts a release, by its function in upstream.py.
+CARRIED = ("php", "pecl", "composer", "frankenphp", "go", "ca_bundle", "sqlite", "libraries")
 COMMIT = "c0ffee" * 6 + "c0ff"
 SPC_COMMIT = "5bc" * 13 + "5"
 BASELINE = "ba5e" * 10
@@ -70,6 +73,7 @@ class Bumper(unittest.TestCase):
         self.addCleanup(setattr, upstream, "download", upstream.download)
         self.addCleanup(setattr, upstream, "head", upstream.head)
         self.addCleanup(setattr, upstream, "run_go", upstream.run_go)
+        self.addCleanup(setattr, upstream, "run_spc", upstream.run_spc)
         upstream.ROOT = self.tree
         self.php = upstream.read(upstream.BUILDER_INPUTS, r"^php_version=(.+)$")
         self.indexes = {}
@@ -526,29 +530,234 @@ class Bumper(unittest.TestCase):
         self.assertEqual(summary.rows, [("Go modules", line, "9.9.9", "waits for that Go")])
         self.assertEqual((self.text(upstream.LAUNCHER_MOD), self.text(upstream.LAUNCHER_SUM)), before)
 
-    def run_bump(self, moved):
-        """Runs the whole bump with `moved` as the one source that moves its pin, and returns what ran."""
+    def serve_sqlite(self, *products):
+        """Lists each (release, path) of `products` as a sqlite-autoconf on sqlite.org, among its other products."""
+        lines = ["PRODUCT,VERSION,RELATIVE-URL,SIZE-IN-BYTES,SHA3-HASH", "PRODUCT,3.99.9,2099/sqlite-src-3990900.zip,14899528,877c"]
+        lines += [f"PRODUCT,{release},{path},3332984,b6ce" for release, path in products]
+        self.indexes[upstream.SQLITE_DOWNLOADS] = "<!-- Download product data for scripts to read\n" + "\n".join(lines) + "\n-->\n"
+
+    def sqlite_pin(self):
+        return upstream.read(upstream.SQLITE_PATCH, upstream.SQLITE_PIN)
+
+    def test_a_newer_sqlite_rewrites_the_url_of_the_patch(self):
+        pinned = self.sqlite_pin()
+        self.serve_sqlite(("3.99.9", "2099/sqlite-autoconf-3990900.tar.gz"))
+        summary = self.run_bumper(upstream.sqlite)
+        self.assertEqual(summary.rows, [("SQLite", upstream.sqlite_release(pinned), "3.99.9", "bumped")])
+        self.assertEqual(self.sqlite_pin(), "2099/sqlite-autoconf-3990900.tar.gz")
+        self.assertEqual(self.text(upstream.SQLITE_PATCH).replace("2099/sqlite-autoconf-3990900.tar.gz", pinned),
+                         (ROOT / upstream.SQLITE_PATCH).read_text())
+
+    def test_a_sqlite_at_or_under_the_patch_writes_nothing(self):
+        pinned = self.sqlite_pin()
+        current = upstream.sqlite_release(pinned)
+        for release, path in ((current, pinned), ("3.8.11", "2015/sqlite-autoconf-3081100.tar.gz")):
+            with self.subTest(release):
+                self.serve_sqlite((release, path))
+                summary = self.run_bumper(upstream.sqlite)
+                self.assertEqual(summary.rows, [("SQLite", current, release, "current")])
+                self.assertEqual(self.sqlite_pin(), pinned)
+
+    def test_a_malformed_sqlite_product_list_stops_the_run(self):
+        pinned = self.sqlite_pin()
+        twice = ("3.99.9", "2099/sqlite-autoconf-3990900.tar.gz"), ("3.99.8", "2099/sqlite-autoconf-3990800.tar.gz")
+        for products in ((), twice, (("3.99.9", "2099/sqlite-autoconf-3990800.tar.gz"),), (("3.99.x", "2099/sqlite-autoconf-3990900.tar.gz"),)):
+            with self.subTest(products):
+                self.serve_sqlite(*products)
+                with self.assertRaises(SystemExit):
+                    self.run_bumper(upstream.sqlite)
+                self.assertEqual(self.sqlite_pin(), pinned)
+
+    def test_a_sqlite_outside_the_3_line_is_noted_and_not_written(self):
+        pinned = self.sqlite_pin()
+        self.serve_sqlite(("4.0.0", "2099/sqlite-autoconf-4000000.tar.gz"))
+        summary = self.run_bumper(upstream.sqlite)
+        self.assertEqual(summary.notes, ["MAJOR SQLite 4.0.0 is out, outside the 3 line"])
+        self.assertEqual([row[3] for row in summary.rows], ["current"])
+        self.assertEqual(self.sqlite_pin(), pinned)
+
+    def libraries(self, summary):
+        """Records what the probe answers, as upstream.yml's two jobs do between them."""
+        upstream.libraries(summary, json.loads(json.dumps(upstream.probe_libraries())))
+
+    def serve_spc(self, releases, unsupported=(), recorded=""):
+        """Stands in for static-php-cli. `releases` maps an artifact to the newest release it names,
+        `unsupported` lists the artifacts whose URL is fixed, and `recorded` is the versions file.
+        It returns the answer it gives check-update, which a test may change."""
+        (self.tree / upstream.LIBRARY_VERSIONS).write_text(recorded)
+        (self.tree / upstream.EXTENSION_LISTS[0]).write_text("curl   # a comment\nzlib\n")
+        (self.tree / upstream.EXTENSION_LISTS[1]).write_text("watcher\n")
+        answers = {name: {"need-update": True, "unsupported": name in unsupported, "old": None, "new": new}
+                   for name, new in {**dict.fromkeys(unsupported), **releases}.items()}
+        self.spc_calls = []
+
+        def run_spc(directory, *arguments):
+            self.spc_calls.append(arguments)
+            if arguments[0] == "check-update":
+                return json.dumps(answers)
+            licenses = Path(arguments[-1].removeprefix("--dump-dir="))
+            licenses.mkdir()
+            (licenses / "SUMMARY.json").write_text(json.dumps({"artifacts": dict.fromkeys(answers, {})}))
+            return "a log line\n"
+        upstream.run_spc = run_spc
+        return answers
+
+    def test_a_library_release_rewrites_its_line(self):
+        self.serve_spc({"zlib": "v1.4", "curl": "curl-8_23_0"}, recorded="curl curl-8_22_0\nzlib v1.4\n")
+        summary = self.run_bumper(self.libraries)
+        self.assertEqual(summary.rows, [("curl", "curl-8_22_0", "curl-8_23_0", "bumped"), ("zlib", "v1.4", "v1.4", "current")])
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "curl curl-8_23_0\nzlib v1.4\n")
+        self.assertEqual(self.spc_calls[0][:3], ("dump-license", "--for-extensions=curl,zlib", "--for-libs=watcher"))
+        self.assertEqual(self.spc_calls[1], ("check-update", "curl,zlib", "--bare", "--json"))
+
+    def test_recorded_library_releases_write_nothing(self):
+        recorded = "curl curl-8_23_0\nzlib v1.4\n"
+        self.serve_spc({"curl": "curl-8_23_0", "zlib": "v1.4"}, recorded=recorded)
+        summary = self.run_bumper(self.libraries)
+        self.assertEqual({row[3] for row in summary.rows}, {"current"})
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), recorded)
+
+    def test_an_artifact_with_no_release_of_its_own_stays_out(self):
+        self.serve_spc({"php-src": "8.5.13", "libaom": "dev-main+d03d2c6", "zlib": "v1.4"}, unsupported=("bzip2", "sqlite"),
+                       recorded="zlib v1.4\n")
+        summary = self.run_bumper(self.libraries)
+        self.assertEqual(summary.rows, [("zlib", "v1.4", "v1.4", "current")])
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "zlib v1.4\n")
+        self.assertEqual(self.spc_calls[1][1], "bzip2,libaom,sqlite,zlib")
+
+    def test_an_artifact_static_php_cli_no_longer_links_leaves_the_file_with_a_row(self):
+        self.serve_spc({"zlib": "v1.4"}, unsupported=("bzip2",), recorded="bzip2 1.0.8\nxz v5.8.4\nzlib v1.4\n")
+        summary = self.run_bumper(self.libraries)
+        self.assertEqual(summary.rows[1:], [("bzip2", "1.0.8", "none", "removed"), ("xz", "v5.8.4", "none", "removed")])
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "zlib v1.4\n")
+
+    def test_a_malformed_answer_from_static_php_cli_stops_the_run(self):
+        for name, new in (("zlib", None), ("zlib", ""), ("zlib", "v1.4 | 2"), ("zlib", "<b>"), ("zlib", 14), ("z lib", "v1.4"),
+                          ("zlib", "../../x"), ("zlib", "v" * 65), ("z" * 65, "v1.4")):
+            with self.subTest(name=name, new=new):
+                self.serve_spc({name: new}, recorded="zlib v1.3\n")
+                with self.assertRaises(SystemExit):
+                    self.run_bumper(self.libraries)
+                self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "zlib v1.3\n")
+
+    def test_an_unsupported_flag_that_is_no_boolean_stops_the_run(self):
+        answers = self.serve_spc({"zlib": "v1.4"})
+        answers["zlib"]["unsupported"] = "false"
+        with self.assertRaises(SystemExit):
+            self.run_bumper(self.libraries)
+
+    def test_an_artifact_new_to_the_file_reads_none(self):
+        self.serve_spc({"xz": "v5.8.4", "zlib": "v1.4"}, recorded="zlib v1.4\n")
+        summary = self.run_bumper(self.libraries)
+        self.assertEqual(summary.rows[0], ("xz", "none", "v5.8.4", "bumped"))
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "xz v5.8.4\nzlib v1.4\n")
+
+    def serve_watcher(self, release, digest):
+        self.indexes[upstream.WATCHER_RELEASES + release] = json.dumps({"assets": [
+            {"name": "aarch64-pc-windows-msvc.tar", "digest": "sha256:" + "11" * 32},
+            {"name": upstream.WATCHER_ASSET, "digest": digest}]})
+
+    def test_a_watcher_release_reaches_the_windows_build(self):
+        self.serve_spc({"watcher": "9.9.9", "zlib": "v1.4"}, recorded="watcher 0.14.5\nzlib v1.4\n")
+        self.serve_watcher("9.9.9", "sha256:" + TOOL_SHA)
+        summary = self.run_bumper(self.libraries)
+        self.assertEqual(summary.rows[0], ("watcher", "0.14.5", "9.9.9", "bumped"))
+        windows = self.text(upstream.WINDOWS_BUILD)
+        self.assertIn(f"/e-dant/watcher/releases/download/9.9.9/{upstream.WATCHER_ASSET}'", windows)
+        self.assertEqual(upstream.read(upstream.WINDOWS_BUILD, upstream.WATCHER_SHA_PIN), TOOL_SHA)
+
+    def test_a_recorded_watcher_leaves_the_windows_build_alone(self):
+        before = self.text(upstream.WINDOWS_BUILD)
+        self.serve_spc({"watcher": "0.14.5"}, recorded="watcher 0.14.5\n")
+        self.run_bumper(self.libraries)
+        self.assertEqual(self.text(upstream.WINDOWS_BUILD), before)
+
+    def test_a_watcher_release_without_a_windows_digest_stops_the_run_before_any_write(self):
+        before = self.text(upstream.WINDOWS_BUILD)
+        for digest in (None, "sha256:short", "md5:" + TOOL_SHA):
+            with self.subTest(digest):
+                self.serve_spc({"watcher": "9.9.9"}, recorded="watcher 0.14.5\n")
+                self.serve_watcher("9.9.9", digest)
+                with self.assertRaises(SystemExit):
+                    self.run_bumper(self.libraries)
+                self.assertEqual(self.text(upstream.WINDOWS_BUILD), before)
+                self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "watcher 0.14.5\n")
+
+    def test_the_library_lines_stay_sorted(self):
+        self.serve_spc({"zlib": "v1.4", "curl": "curl-8_23_0", "libpng": "v1.6.59"})
+        self.run_bumper(self.libraries)
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "curl curl-8_23_0\nlibpng v1.6.59\nzlib v1.4\n")
+        self.assertEqual(self.spc_calls[1][1], "curl,libpng,zlib")
+
+    def run_bump(self, *moved):
+        """Runs the whole bump with each source of `moved` moving its pin. It returns the suite
+        the bump names and what ran after the sources that start a release."""
         ran = []
-        carried = ("php", "pecl", "composer", "frankenphp", "go", "ca_bundle")
 
         def source(name):
-            def step(summary):
+            def step(summary, *answers):
                 ran.append(name)
-                summary.row(name, "1", "2" if name == moved else "1", "bumped" if name == moved else "current")
+                summary.row(name, "1", "2" if name in moved else "1", "bumped" if name in moved else "current")
             return step
-        for name in (*carried, "tools", "go_modules"):
+        for name in (*CARRIED, "tools", "go_modules"):
             self.addCleanup(setattr, upstream, name, getattr(upstream, name))
             setattr(upstream, name, source(name))
-        upstream.bump(upstream.Summary())
-        return ran[len(carried):]
+        return upstream.bump(upstream.Summary(), {}), ran[len(CARRIED):]
 
     def test_each_pin_the_executables_carry_brings_the_tools_and_modules_along(self):
-        for name in ("php", "pecl", "composer", "frankenphp", "go", "ca_bundle"):
+        for name in CARRIED:
             with self.subTest(name):
-                self.assertEqual(self.run_bump(name), ["tools", "go_modules"])
+                self.assertEqual(self.run_bump(name)[1], ["tools", "go_modules"])
 
     def test_tools_and_modules_stay_when_no_carried_pin_moved(self):
-        self.assertEqual(self.run_bump(None), [])
+        self.assertEqual(self.run_bump()[1], [])
+
+    def test_the_libraries_moving_alone_take_the_gate_suite(self):
+        for moved in (("libraries",), ("sqlite",), ("sqlite", "libraries")):
+            with self.subTest(moved):
+                self.assertEqual(self.run_bump(*moved), ("gate", ["tools", "go_modules"]))
+
+    def test_any_other_pin_moving_takes_the_full_suite(self):
+        for name in ("php", "pecl", "composer", "frankenphp", "go", "ca_bundle"):
+            with self.subTest(name):
+                self.assertEqual(self.run_bump(name, "libraries")[0], "full")
+
+    def test_the_suite_reaches_the_output_file(self):
+        output = self.tree / "output"
+        output.write_text("earlier=1\n")
+        self.addCleanup(setattr, upstream, "bump", upstream.bump)
+        answers = self.tree / "answers.json"
+        answers.write_text('{"zlib": {"unsupported": false, "new": "v1.4"}}')
+        given = []
+        upstream.bump = lambda summary, answers: given.append(answers) or "gate"
+        arguments = ["upstream.py", "--libraries", str(answers), "--output", str(output)]
+        with mock.patch.object(sys, "argv", arguments), contextlib.redirect_stdout(io.StringIO()):
+            upstream.main()
+        self.assertEqual(output.read_text(), "earlier=1\nsuite=gate\n")
+        self.assertEqual(given, [{"zlib": {"unsupported": False, "new": "v1.4"}}])
+
+    def test_the_probe_prints_the_answers_and_writes_nothing(self):
+        self.serve_spc({"zlib": "v1.4", "php-src": "8.5.13"}, recorded="zlib v1.3\n")
+        self.addCleanup(setattr, upstream, "bump", upstream.bump)
+        upstream.bump = lambda summary, answers: self.fail("the probe moved a pin")
+        printed = io.StringIO()
+        with mock.patch.object(sys, "argv", ["upstream.py", "--probe-libraries"]), contextlib.redirect_stdout(printed):
+            upstream.main()
+        self.assertEqual(list(json.loads(printed.getvalue())), ["zlib"])
+        self.assertEqual(printed.getvalue().count("\n"), 1)
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "zlib v1.3\n")
+
+    def test_a_bump_without_the_answers_is_refused(self):
+        with mock.patch.object(sys, "argv", ["upstream.py"]), contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                upstream.main()
+
+    def test_answers_that_are_no_object_stop_the_run(self):
+        (self.tree / upstream.LIBRARY_VERSIONS).write_text("zlib v1.3\n")
+        for answers in ([], None, "zlib"):
+            with self.subTest(answers), self.assertRaises(SystemExit):
+                upstream.libraries(upstream.Summary(), answers)
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "zlib v1.3\n")
 
 
 def build_script(case, name):

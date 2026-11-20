@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """Moves the PHP, FrankenPHP, Windows PECL, Composer and Go pins to their newest version inside their line, moves the
-CA bundle to curl's newest extract, and prints what it did as a Markdown summary. The executables carry all of these,
-so a move of one starts a release. The Go check tools and the launcher's Go modules move only alongside such a move.
-Go's line is its own or the one FrankenPHP needs, whichever is newer. It edits the working tree and never commits.
+CA bundle to curl's newest extract, and records the newest release of SQLite and of each library static-php-cli links.
+It prints what it did as a Markdown summary. The executables carry all of these, so a move of one starts a release.
+The Go check tools and the launcher's Go modules move only alongside such a move. Go's line is its own or the one
+FrankenPHP needs, whichever is newer. It edits the working tree and never commits.
 
-    python3 build/release/upstream.py
+static-php-cli is third-party code, so one command runs it and writes nothing, and the other takes its answers as data:
+
+    python3 build/release/upstream.py --probe-libraries > ANSWERS
+    python3 build/release/upstream.py --libraries ANSWERS [--output FILE]
 """
 
+import argparse
 import base64
 import hashlib
 import json
@@ -30,6 +35,11 @@ LAUNCHER_SUM = "launcher/go.sum"
 GO_MODS = (LAUNCHER_MOD, "runtime/frankenphp/watch/go.mod")
 DOCKERFILE = "Dockerfile"
 CA_BUNDLE = "runtime/cacert.pem"
+LIBRARY_VERSIONS = "runtime/builder/library-versions.txt"
+FETCH_SPC = "runtime/builder/fetch-spc.sh"
+EXTENSIONS_LIST = "runtime/extensions/extensions-list.sh"
+# The builders hand static-php-cli the first list as extensions and the second as libraries.
+EXTENSION_LISTS = ("runtime/extensions/php-extensions.txt", "runtime/extensions/php-extension-libs.txt")
 
 PHP_RELEASES = "https://www.php.net/releases/index.php?json&version="
 WINDOWS_CHECKSUMS = "https://downloads.php.net/~windows/releases/sha256sum.txt"
@@ -54,6 +64,11 @@ COMPOSER_DOWNLOAD = "https://getcomposer.org/download/"
 COMPOSER_KEY = "build/release/composer-releases.pub"
 CA_RELEASE = "https://curl.se/ca/cacert.pem"
 CA_CHECKSUM = CA_RELEASE + ".sha256"
+SQLITE_DOWNLOADS = "https://www.sqlite.org/download.html"
+WATCHER_RELEASES = "https://api.github.com/repos/e-dant/watcher/releases/tags/"
+# The Windows build downloads this file of a watcher release. The other builds compile the watcher.
+WATCHER_ASSET = "x86_64-pc-windows-msvc.tar"
+SQLITE_PATCH = "runtime/builder/spc-sqlite.patch"
 
 # Each pin's line in its file, its value captured.
 PHP_PIN = r"^php_version=(.+)$"
@@ -70,6 +85,14 @@ VCPKG_TOOL_PIN = r"^    Urls = @\('https://github\.com/microsoft/vcpkg-tool/rele
 PECL_ENTRY = r"^  '{name}' = @\{{ Version = '{version}'; Sha256 = '{sha256}' \}}$"
 VCPKG_TOOL_SHA_PIN = r"^  'vcpkg\.exe' = @\{\n.*\n    Sha256 = '([0-9a-f]{64})'$"
 GO_PIN = r"^  GO_VERSION: '(.+)'$"
+WATCHER_PIN = rf"^    Urls = @\('https://github\.com/e-dant/watcher/releases/download/(.+)/{re.escape(WATCHER_ASSET)}'\)$"
+WATCHER_SHA_PIN = r"^  'watcher\.tar' = @\{\n.*\n    Sha256 = '([0-9a-f]{64})'$"
+# A sqlite-autoconf release as its path under sqlite.org: the year, then the release in seven digits.
+SQLITE_PATH = r"\d{4}/sqlite-autoconf-\d{7}\.tar\.gz"
+# The SQLite release the patch gives static-php-cli.
+SQLITE_PIN = rf"^\+    source: 'https://www\.sqlite\.org/({SQLITE_PATH})'$"
+# The line of sqlite.org's product list that names the newest sqlite-autoconf: its release and its path.
+SQLITE_PRODUCT = rf"^PRODUCT,(\d+\.\d+\.\d+),({SQLITE_PATH}),\d+,[0-9a-f]+$"
 GO_LINE = r"^go (\d+\.\d+(?:\.\d+)?)$"
 GO_IMAGE_PIN = r"^ARG JOB_BASE=golang:(.+)-bookworm@sha256:[0-9a-f]{64}$"
 GO_IMAGE_DIGEST_PIN = r"^ARG JOB_BASE=golang:.+-bookworm@sha256:([0-9a-f]{64})$"
@@ -87,6 +110,9 @@ GO_TOOLS = (
     ("govulncheck", "golang.org/x/vuln", RELEASE_WORKFLOW),
 )
 STABLE_TAG = re.compile(r"v\d+\.\d+\.\d+")
+# An artifact's name or release in static-php-cli's words, such as postgresql and REL_18_7.
+# Each reaches the versions file, the commit message, the release notes and a URL of the Windows build.
+ARTIFACT_WORD = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,63}")
 PACKAGIST_METADATA = "https://repo.packagist.org/p2/"
 
 RELEASE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)(\d+))?", re.IGNORECASE)
@@ -134,6 +160,9 @@ class Summary:
 
     def row(self, source, current, found, action):
         self.rows.append((source, current, found, action))
+
+    def moved(self):
+        return any(action == "bumped" for *_, action in self.rows)
 
     def render(self):
         lines = ["| Source | Current | Found | Action |", "|---|---|---|---|"]
@@ -452,24 +481,135 @@ def go_modules(summary):
             summary.row(module, before.get(module, "none"), version, "bumped")
 
 
-def bump(summary):
+def sqlite_release(path):
+    """The release a sqlite-autoconf path names: 3540100 is 3.54.1."""
+    return ".".join(str(int(part)) for part in re.search(r"-(\d)(\d\d)(\d\d)\d\d\.tar\.gz$", path).groups())
+
+
+def sqlite(summary):
+    """Moves the SQLite release spc-sqlite.patch gives static-php-cli, inside the 3 line."""
+    current = sqlite_release(read(SQLITE_PATCH, SQLITE_PIN))
+    # sqlite.org's product list is remote input, and its release must be the one its path names.
+    products = re.findall(SQLITE_PRODUCT, fetch(SQLITE_DOWNLOADS), re.MULTILINE)
+    if len(products) != 1 or sqlite_release(products[0][1]) != products[0][0]:
+        sys.exit(f"sqlite.org lists the sqlite-autoconf releases {products!r}")
+    newest, path = products[0]
+    if newest.split(".")[0] != "3":
+        summary.notes.append(f"MAJOR SQLite {newest} is out, outside the 3 line")
+        summary.row("SQLite", current, current, "current")
+        return
+    if version_key(newest) <= version_key(current):
+        summary.row("SQLite", current, newest, "current")
+        return
+    rewrite(SQLITE_PATCH, SQLITE_PIN, path)
+    summary.row("SQLite", current, newest, "bumped")
+
+
+def run_spc(directory, *arguments):
+    """What the pinned static-php-cli prints for `arguments`. The first call checks it out into `directory`."""
+    if not (directory / "bin" / "spc").exists():
+        # Standard output carries the summary.
+        subprocess.run(["bash", str(ROOT / FETCH_SPC), str(directory)], check=True, stdout=sys.stderr)
+        subprocess.run(["composer", "install", f"--working-dir={directory}", "--no-dev", "--no-interaction", "--prefer-dist",
+                        "--no-scripts", "--no-plugins"], check=True, stdout=sys.stderr)
+    # static-php-cli writes its cache and its logs into the directory it runs from.
+    return subprocess.run(["php", "bin/spc", *arguments], cwd=directory, check=True, stdout=subprocess.PIPE, text=True).stdout
+
+
+def windows_watcher(release):
+    """Gives the Windows build the watcher release static-php-cli names for the other builds."""
+    # The release's assets are remote input.
+    assets = json.loads(fetch(WATCHER_RELEASES + release))["assets"]
+    digest = next((asset.get("digest") for asset in assets if asset["name"] == WATCHER_ASSET), None)
+    if not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+        sys.exit(f"watcher {release} gives {WATCHER_ASSET} the digest {digest!r}")
+    rewrite(WINDOWS_BUILD, WATCHER_PIN, release)
+    rewrite(WINDOWS_BUILD, WATCHER_SHA_PIN, digest.removeprefix("sha256:"))
+
+
+def probe_libraries():
+    """What the pinned static-php-cli answers for each artifact it resolves from the extension lists.
+    It runs third-party code, so upstream.yml calls it in a job that holds no secret and pushes nothing."""
+    extensions, libs = (subprocess.run(["bash", str(ROOT / EXTENSIONS_LIST), str(ROOT / path)], check=True,
+                                       stdout=subprocess.PIPE, text=True).stdout.strip() for path in EXTENSION_LISTS)
+    with tempfile.TemporaryDirectory() as scratch:
+        spc, licenses = Path(scratch) / "spc", Path(scratch) / "licenses"
+        # dump-license resolves the lists as a build does and downloads nothing.
+        run_spc(spc, "dump-license", f"--for-extensions={extensions}", f"--for-libs={libs}", f"--dump-dir={licenses}")
+        # PHP has its own pin.
+        names = sorted(set(json.loads((licenses / "SUMMARY.json").read_text())["artifacts"]) - {"php-src"})
+        answers = json.loads(run_spc(spc, "check-update", ",".join(names), "--bare", "--json"))
+    return {name: answers.get(name) for name in names}
+
+
+def libraries(summary, answers):
+    """Records the newest release of each artifact in `answers`, which probe_libraries gave."""
+    recorded = dict(line.split() for line in (ROOT / LIBRARY_VERSIONS).read_text().splitlines())
+    found = {}
+    # static-php-cli gave the names, each library's own site gave its release, and another job
+    # carried both here, so the answers are remote input.
+    if not isinstance(answers, dict):
+        sys.exit(f"static-php-cli answers {answers!r}")
+    for name, answer in sorted(answers.items()):
+        if not ARTIFACT_WORD.fullmatch(name) or not isinstance(answer, dict) or not isinstance(answer.get("unsupported"), bool):
+            sys.exit(f"static-php-cli answers {answer!r} for the artifact {name!r}")
+        new = answer.get("new")
+        # An unsupported artifact has a fixed URL.
+        if answer["unsupported"]:
+            continue
+        if not isinstance(new, str) or not ARTIFACT_WORD.fullmatch(new):
+            sys.exit(f"static-php-cli names {new!r} as the newest {name}")
+        # A branch head has no release.
+        if not new.startswith("dev-"):
+            found[name] = new
+    for name, new in found.items():
+        moved = recorded.get(name) != new
+        if moved and name == "watcher":
+            windows_watcher(new)
+        summary.row(name, recorded.get(name, "none"), new, "bumped" if moved else "current")
+    # The file changes, so a release starts, and this row says why.
+    for name in sorted(recorded.keys() - found.keys()):
+        summary.row(name, recorded[name], "none", "removed")
+    (ROOT / LIBRARY_VERSIONS).write_text("".join(f"{name} {new}\n" for name, new in found.items()))
+
+
+def bump(summary, answers):
+    """Moves every pin, records the library releases of `answers`, and returns the suite the candidate runs."""
     php(summary)
     pecl(summary)
     composer(summary)
     frankenphp(summary)
     go(summary)
     ca_bundle(summary)
+    # A move above changes PHP, FrankenPHP or the launcher on every platform, so it tests each in full.
+    # The libraries moving alone take the suite a named version takes.
+    suite = "full" if summary.moved() else "gate"
+    sqlite(summary)
+    libraries(summary, answers)
     # upstream.yml releases when this script changed a file. No executable carries the check
     # tools, and the modules move too often to pay for a run on every platform each time.
-    if any(row[3] == "bumped" for row in summary.rows):
+    if summary.moved():
         tools(summary)
         go_modules(summary)
+    return suite
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Moves the pins and prints a Markdown summary.")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--probe-libraries", action="store_true", help="print static-php-cli's answers as JSON and write nothing")
+    mode.add_argument("--libraries", metavar="FILE", help="the answers --probe-libraries printed")
+    parser.add_argument("--output", metavar="FILE", help="the file suite=NAME is appended to, a step's $GITHUB_OUTPUT")
+    args = parser.parse_args()
+    if args.probe_libraries:
+        print(json.dumps(probe_libraries()))
+        return
     summary = Summary()
-    bump(summary)
+    suite = bump(summary, json.loads(Path(args.libraries).read_text()))
     sys.stdout.write(summary.render())
+    if args.output:
+        with open(args.output, "a") as output:
+            output.write(f"suite={suite}\n")
 
 
 if __name__ == "__main__":
