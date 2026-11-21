@@ -30,7 +30,7 @@ PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD, upstream.RELEASE_WORK
           upstream.LAUNCHER_SUM, upstream.CA_BUNDLE, "build/test/go-tests.sh", upstream.LIBRARY_VERSIONS,
           upstream.EXTENSIONS_LIST, *upstream.EXTENSION_LISTS, upstream.SQLITE_PATCH, upstream.BRANCH_PINS]
 # Each source whose move starts a release, by its function in upstream.py.
-CARRIED = ("take_php", "composer", "take_frankenphp", "go", "ca_bundle", "take_sqlite", "libraries", "libaom")
+CARRIED = ("php", "composer", "frankenphp", "go", "ca_bundle", "sqlite", "libraries", "libaom")
 COMMIT = "c0ffee" * 6 + "c0ff"
 SPC_COMMIT = "5bc" * 13 + "5"
 TOOL_SHA = "70" * 32
@@ -690,7 +690,7 @@ class Bumper(unittest.TestCase):
     def run_bump(self, *moved, answers=None):
         """Runs the whole bump with each source of `moved` moving its pin. It returns the suite
         the bump names and what ran after the sources that start a release."""
-        ran = []
+        ran = self.ran = []
 
         def source(name):
             def step(summary, *values):
@@ -700,7 +700,7 @@ class Bumper(unittest.TestCase):
         for name in (*CARRIED, "tools", "go_modules"):
             self.addCleanup(setattr, upstream, name, getattr(upstream, name))
             setattr(upstream, name, source(name))
-        return upstream.bump(upstream.Summary(), answers or {"pins": PINS, "notes": [], "libraries": {}}), ran[len(CARRIED):]
+        return upstream.bump(upstream.Summary(), {"pins": PINS, "libraries": {}} if answers is None else answers), ran[len(CARRIED):]
 
     def test_each_pin_the_executables_carry_brings_the_tools_and_modules_along(self):
         for name in CARRIED:
@@ -711,42 +711,23 @@ class Bumper(unittest.TestCase):
         self.assertEqual(self.run_bump()[1], [])
 
     def test_the_libraries_moving_alone_take_the_gate_suite(self):
-        for moved in (("libraries",), ("take_sqlite",), ("libaom",), ("take_sqlite", "libraries")):
+        for moved in (("libraries",), ("sqlite",), ("libaom",), ("sqlite", "libraries")):
             with self.subTest(moved):
                 self.assertEqual(self.run_bump(*moved), ("gate", ["tools", "go_modules"]))
 
     def test_any_other_pin_moving_takes_the_full_suite(self):
-        for name in ("take_php", "composer", "take_frankenphp", "go", "ca_bundle"):
+        for name in ("php", "composer", "frankenphp", "go", "ca_bundle"):
             with self.subTest(name):
                 self.assertEqual(self.run_bump(name, "libraries")[0], "full")
 
-    def test_the_pins_the_probe_picked_reach_the_pin_files(self):
-        for name in ("composer", "go", "ca_bundle", "libraries", "libaom", "tools", "go_modules"):
-            self.addCleanup(setattr, upstream, name, getattr(upstream, name))
-            setattr(upstream, name, lambda summary, *values: None)
-        picked = PINS | {"php": "8.5.99", "frankenphp": "1.99.0", "frankenphp_commit": COMMIT, "spc": SPC_COMMIT,
-                         "sqlite": "2099/sqlite-autoconf-3990000.tar.gz"}
-        summary = upstream.Summary()
-        note = "MAJOR PHP 9.0.0 is out, outside the 8.5 line"
-        self.assertEqual(upstream.bump(summary, {"pins": picked, "notes": [note], "libraries": {}}), "full")
-        self.assertEqual(upstream.read(upstream.BUILDER_INPUTS, upstream.PHP_PIN), "8.5.99")
-        self.assertEqual(upstream.read(upstream.BUILDER_INPUTS, upstream.FRANKENPHP_PIN), ("1.99.0", COMMIT))
-        self.assertEqual(upstream.read(upstream.BUILDER_INPUTS, upstream.SPC_PIN), SPC_COMMIT)
-        self.assertEqual(self.sqlite_pin(), "2099/sqlite-autoconf-3990000.tar.gz")
-        self.assertEqual([row[0] for row in summary.rows], ["PHP", "FrankenPHP", "static-php-cli", "SQLite"])
-        self.assertEqual(summary.notes, [note])
-
-    def test_malformed_pins_or_notes_stop_the_run_before_any_write(self):
-        pinned = {path: self.text(path) for path in (upstream.BUILDER_INPUTS, upstream.SQLITE_PATCH)}
-        for change in ({"pins": PINS | {"php": "8.5"}}, {"pins": PINS | {"spc": "main"}}, {"pins": PINS | {"sqlite": "../x"}},
-                       {"pins": PINS | {"frankenphp": 1}}, {"pins": PINS | {"extra": "1"}}, {"pins": None},
-                       {"notes": ["MAJOR PHP 9.0.0 is out | <b>"]}, {"notes": "MAJOR"}, {"notes": [3]}):
+    def test_a_probe_that_downloaded_on_other_pins_stops_the_run_before_the_record(self):
+        for change in ({"spc": "0" * 40}, {"php": "8.5.99"}, {"extra": "1"}):
             with self.subTest(change), self.assertRaises(SystemExit):
-                self.run_bump(answers={"pins": PINS, "notes": [], "libraries": {}} | change)
-        for answers in ([], "zlib"):
+                self.run_bump(answers={"pins": PINS | change, "libraries": {}})
+            self.assertNotIn("libraries", self.ran)
+        for answers in ([], "zlib", {"libraries": {}}):
             with self.subTest(answers), self.assertRaises(SystemExit):
-                upstream.bump(upstream.Summary(), answers)
-        self.assertEqual({path: self.text(path) for path in pinned}, pinned)
+                self.run_bump(answers=answers)
 
     def test_the_suite_reaches_the_output_file(self):
         output = self.tree / "output"
@@ -770,7 +751,7 @@ class Bumper(unittest.TestCase):
         with mock.patch.object(sys, "argv", ["upstream.py", "--probe"]), contextlib.redirect_stdout(printed):
             upstream.main()
         answers = json.loads(printed.getvalue())
-        self.assertEqual(answers, {"pins": PINS, "notes": [], "libraries": {
+        self.assertEqual(answers, {"pins": PINS, "libraries": {
             "zlib": {"release": "v1.4", "file": "zlib.tar.gz", "sha256": hashlib.sha256(b"zlib").hexdigest()}}})
         self.assertEqual(printed.getvalue().count("\n"), 1)
         self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "kept\n")
@@ -778,14 +759,10 @@ class Bumper(unittest.TestCase):
     def test_the_probe_downloads_on_the_pins_it_picked(self):
         self.serve_spc({"zlib": ("v1.4", b"zlib")})
 
-        def php(summary):
-            summary.notes.append("MAJOR PHP 9.0.0 is out, outside the 8.5 line")
-            upstream.rewrite(upstream.BUILDER_INPUTS, upstream.PHP_PIN, "8.5.99")
-        upstream.php = php
+        upstream.php = lambda summary: upstream.rewrite(upstream.BUILDER_INPUTS, upstream.PHP_PIN, "8.5.99")
         answers = upstream.probe()
         self.assertEqual(self.spc_calls[0][1], "--with-php=8.5.99")
-        self.assertEqual(answers["pins"]["php"], "8.5.99")
-        self.assertEqual(answers["notes"], ["MAJOR PHP 9.0.0 is out, outside the 8.5 line"])
+        self.assertEqual(answers["pins"], PINS | {"php": "8.5.99"})
 
     def test_a_bump_without_the_answers_is_refused(self):
         with mock.patch.object(sys, "argv", ["upstream.py"]), contextlib.redirect_stderr(io.StringIO()):

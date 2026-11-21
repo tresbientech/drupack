@@ -69,9 +69,6 @@ SQLITE_PATCH = "runtime/builder/spc-sqlite.patch"
 
 COMMIT = r"[0-9a-f]{40}"
 SHA256 = r"[0-9a-f]{64}"
-VERSION = r"\d+\.\d+\.\d+"
-# The note newest_in_line writes for PHP, FrankenPHP or SQLite, which the probe hands over.
-MAJOR_NOTE = r"MAJOR (?:PHP|FrankenPHP|SQLite) \d+(?:\.\d+)* is out, outside the \d+(?:\.\d+)? line"
 # A downloaded file's name in static-php-cli's downloads folder, with no path in it.
 FILE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,127}")
 # The musl set holds every source the Linux, macOS and Windows builds share.
@@ -221,12 +218,8 @@ def php(summary):
     newest = newest_php(line)
     # The major's answer feeds the note alone; the line's answer is the pick.
     newest_in_line(summary, "PHP", line, [newest_php(line.split(".")[0])], current)
-    take_php(summary, newest)
-
-
-def take_php(summary, version):
-    if summary.moves("PHP", read(BUILDER_INPUTS, PHP_PIN), version):
-        rewrite(BUILDER_INPUTS, PHP_PIN, version)
+    if summary.moves("PHP", current, newest):
+        rewrite(BUILDER_INPUTS, PHP_PIN, newest)
 
 
 def composer(summary):
@@ -273,24 +266,14 @@ def frankenphp(summary):
         target = json.loads(fetch(f"{FRANKENPHP_API}/git/tags/{target['sha']}"))["object"]
     if target["type"] != "commit" or not re.fullmatch(COMMIT, target["sha"]):
         sys.exit(f"FrankenPHP v{newest} names {target!r}, not a commit")
+    rewrite(BUILDER_INPUTS, FRANKENPHP_PIN, newest, target["sha"])
+    spc_current = read(BUILDER_INPUTS, SPC_PIN)
     # The branch head is remote input.
     spc_head = json.loads(fetch(SPC_BRANCH))["commit"]["sha"]
     if not re.fullmatch(COMMIT, spc_head):
         sys.exit(f"static-php-cli v3 names {spc_head!r}, not a commit")
-    pin_frankenphp(summary, newest, target["sha"], spc_head)
-
-
-def take_frankenphp(summary, version, commit, spc):
-    if summary.moves("FrankenPHP", read(BUILDER_INPUTS, FRANKENPHP_PIN)[0], version):
-        pin_frankenphp(summary, version, commit, spc)
-
-
-def pin_frankenphp(summary, version, commit, spc):
-    """Writes a FrankenPHP release with its commit, and the static-php-cli commit that moves with it."""
-    rewrite(BUILDER_INPUTS, FRANKENPHP_PIN, version, commit)
-    spc_current = read(BUILDER_INPUTS, SPC_PIN)
-    rewrite(BUILDER_INPUTS, SPC_PIN, spc)
-    summary.row("static-php-cli", spc_current[:12], spc[:12], "current" if spc == spc_current else "bumped")
+    rewrite(BUILDER_INPUTS, SPC_PIN, spc_head)
+    summary.row("static-php-cli", spc_current[:12], spc_head[:12], "current" if spc_head == spc_current else "bumped")
 
 
 def go(summary):
@@ -422,12 +405,7 @@ def sqlite(summary):
     if len(products) != 1 or sqlite_release(products[0][1]) != products[0][0]:
         sys.exit(f"sqlite.org lists the sqlite-autoconf releases {products!r}")
     newest, path = products[0]
-    in_line = newest_in_line(summary, "SQLite", "3", [newest], current) == newest
-    take_sqlite(summary, path if in_line else read(SQLITE_PATCH, SQLITE_PIN))
-
-
-def take_sqlite(summary, path):
-    if summary.moves("SQLite", sqlite_release(read(SQLITE_PATCH, SQLITE_PIN)), sqlite_release(path)):
+    if summary.moves("SQLite", current, newest_in_line(summary, "SQLite", "3", [newest], current)):
         rewrite(SQLITE_PATCH, SQLITE_PIN, path)
 
 
@@ -463,6 +441,7 @@ def probe():
     extensions, libs = (subprocess.run(["bash", str(ROOT / EXTENSIONS_LIST), str(ROOT / path)], check=True,
                                        stdout=subprocess.PIPE, text=True).stdout.strip() for path in EXTENSION_LISTS)
     packages = ",".join(["php-embed", *(f"ext-{name}" for name in extensions.split(",")), libs])
+    picked = pins()
     branch_pins = [line.split()[0] for line in (ROOT / BRANCH_PINS).read_text().splitlines()
                    if not line.startswith("#") and line.split()[1] == "all"]
     with tempfile.TemporaryDirectory() as scratch:
@@ -472,10 +451,14 @@ def probe():
         run_spc(spc, "download", f"--with-php={read(BUILDER_INPUTS, PHP_PIN)}", f"--for-packages={packages}", "--source-only",
                 "--no-alt", "--retry=5", *(f"--custom-local={name}:{empty}" for name in branch_pins))
         found = downloads(spc / "downloads")
+    return {"pins": picked, "libraries": found}
+
+
+def pins():
+    """The PHP, FrankenPHP, static-php-cli and SQLite pins the probe downloads on, as the pin files hold them."""
     frankenphp_version, frankenphp_commit = read(BUILDER_INPUTS, FRANKENPHP_PIN)
-    pins = {"php": read(BUILDER_INPUTS, PHP_PIN), "frankenphp": frankenphp_version, "frankenphp_commit": frankenphp_commit,
+    return {"php": read(BUILDER_INPUTS, PHP_PIN), "frankenphp": frankenphp_version, "frankenphp_commit": frankenphp_commit,
             "spc": read(BUILDER_INPUTS, SPC_PIN), "sqlite": read(SQLITE_PATCH, SQLITE_PIN)}
-    return {"pins": pins, "notes": summary.notes, "libraries": found}
 
 
 def downloads(folder):
@@ -494,18 +477,6 @@ def downloads(folder):
         found[name] = {"release": source["version"] or "-", "file": source["filename"],
                        "sha256": hashlib.sha256((folder / source["filename"]).read_bytes()).hexdigest()}
     return found
-
-
-def take_pins(answers):
-    """The pins and notes of the probe's `answers`. Another job carried them here, so they are remote input."""
-    patterns = {"php": VERSION, "frankenphp": VERSION, "frankenphp_commit": COMMIT, "spc": COMMIT, "sqlite": SQLITE_PATH}
-    pins, notes = answers.get("pins"), answers.get("notes")
-    if not isinstance(pins, dict) or pins.keys() != patterns.keys() or not all(
-            isinstance(pins[key], str) and re.fullmatch(pattern, pins[key]) for key, pattern in patterns.items()):
-        sys.exit(f"the probe picked the pins {pins!r}")
-    if not isinstance(notes, list) or not all(isinstance(note, str) and re.fullmatch(MAJOR_NOTE, note) for note in notes):
-        sys.exit(f"the probe wrote the notes {notes!r}")
-    return pins, notes
 
 
 def shown(record, hashed):
@@ -564,21 +535,21 @@ def libaom(summary):
     rewrite(BRANCH_PINS, LIBAOM_PIN, url, newest, commit)
 
 def bump(summary, answers):
-    """Moves every pin, writes the pins and sources of `answers`, which probe gave, and returns the suite the candidate runs."""
+    """Moves every pin, records the sources of `answers`, which probe gave, and returns the suite the candidate runs."""
     if not isinstance(answers, dict):
         sys.exit(f"the probe answered {answers!r}")
-    pins, notes = take_pins(answers)
-    summary.notes += notes
-    take_php(summary, pins["php"])
+    php(summary)
     composer(summary)
-    # go reads the FrankenPHP commit this writes.
-    take_frankenphp(summary, pins["frankenphp"], pins["frankenphp_commit"], pins["spc"])
+    frankenphp(summary)
     go(summary)
     ca_bundle(summary)
     # A move above changes PHP, FrankenPHP or the launcher on every platform, so it tests each in full.
     # The libraries moving alone take the suite a named version takes.
     suite = "full" if summary.moved() else "gate"
-    take_sqlite(summary, pins["sqlite"])
+    sqlite(summary)
+    # The probe runs third-party code, so its pins only confirm the ones this job picked.
+    if answers.get("pins") != pins():
+        sys.exit(f"the probe downloaded on the pins {answers.get('pins')!r}, and the bump picked {pins()!r}")
     libraries(summary, answers.get("libraries"))
     libaom(summary)
     # upstream.yml releases when this script changed a file. No executable carries the check
