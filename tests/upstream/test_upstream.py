@@ -119,7 +119,7 @@ class Bumper(unittest.TestCase):
 
     def serve_go(self, *versions, go_mod="go 1.1\n", stable=True):
         """Lists `versions` on go.dev, and `go_mod` as the caddy/go.mod of the pinned FrankenPHP commit."""
-        pinned = upstream.read(upstream.BUILDER_INPUTS, upstream.FRANKENPHP_COMMIT_PIN)
+        pinned = upstream.read(upstream.BUILDER_INPUTS, upstream.FRANKENPHP_PIN)[1]
         self.indexes[f"{upstream.FRANKENPHP_RAW}/{pinned}/caddy/go.mod"] = f"module example\n\n{go_mod}"
         self.indexes[upstream.GO_RELEASES] = json.dumps([{"version": v, "stable": stable} for v in versions])
         self.indexes[upstream.DOCKER_AUTH] = json.dumps({"token": "pull-token"})
@@ -127,7 +127,7 @@ class Bumper(unittest.TestCase):
     def go_pins(self):
         return {path: upstream.read(path, upstream.GO_LINE) for path in upstream.GO_MODS} | {
             upstream.RELEASE_WORKFLOW: upstream.read(upstream.RELEASE_WORKFLOW, upstream.GO_PIN),
-            upstream.DOCKERFILE: upstream.read(upstream.DOCKERFILE, upstream.GO_IMAGE_PIN),
+            upstream.DOCKERFILE: upstream.read(upstream.DOCKERFILE, upstream.GO_IMAGE_PIN)[0],
         }
 
     def text(self, path):
@@ -196,7 +196,7 @@ class Bumper(unittest.TestCase):
         self.serve_go(f"go{newer}", f"go{current}")
         summary = self.run_bumper(upstream.go)
         self.assertEqual(set(self.go_pins().values()), {newer})
-        self.assertEqual(upstream.read(upstream.DOCKERFILE, upstream.GO_IMAGE_DIGEST_PIN), IMAGE_DIGEST)
+        self.assertEqual(upstream.read(upstream.DOCKERFILE, upstream.GO_IMAGE_PIN)[1], IMAGE_DIGEST)
         self.assertEqual(self.manifests, [f"{newer}-bookworm"])
         self.assertEqual(summary.rows, [("Go", current, newer, "bumped")])
 
@@ -319,7 +319,7 @@ class Bumper(unittest.TestCase):
                 sig if sig is not None else json.dumps({"sha384": base64.b64encode(signature).decode()}))
 
     def composer_pin(self):
-        return upstream.read(upstream.DOCKERFILE, upstream.COMPOSER_PIN)
+        return upstream.read(upstream.DOCKERFILE, upstream.COMPOSER_PIN)[0]
 
     def test_a_newer_signed_composer_rewrites_its_version_and_checksum(self):
         current = self.composer_pin()
@@ -327,7 +327,7 @@ class Bumper(unittest.TestCase):
         summary = self.run_bumper(upstream.composer)
         self.assertEqual(summary.rows, [("Composer", current, "2.99.0", "bumped")])
         self.assertEqual(self.composer_pin(), "2.99.0")
-        self.assertEqual(upstream.read(upstream.DOCKERFILE, upstream.COMPOSER_SHA_PIN), hashlib.sha256(b"phar 2.99.0").hexdigest())
+        self.assertEqual(upstream.read(upstream.DOCKERFILE, upstream.COMPOSER_PIN)[1], hashlib.sha256(b"phar 2.99.0").hexdigest())
 
     def test_a_composer_signed_by_another_key_stops_the_run_before_its_pins(self):
         self.serve_composer("2.99.0", signer=self.stranger)
@@ -385,8 +385,7 @@ class Bumper(unittest.TestCase):
         bundle = self.serve_ca()
         summary = self.run_bumper(upstream.ca_bundle)
         self.assertEqual((self.tree / upstream.CA_BUNDLE).read_bytes(), bundle)
-        self.assertEqual(upstream.read(upstream.DOCKERFILE, upstream.CA_SHA_PIN), hashlib.sha256(bundle).hexdigest())
-        self.assertEqual(upstream.read(upstream.DOCKERFILE, upstream.CA_COUNT_PIN), "2")
+        self.assertEqual(upstream.read(upstream.DOCKERFILE, upstream.CA_PIN), (hashlib.sha256(bundle).hexdigest(), "2"))
         self.assertEqual(summary.rows, [("CA bundle", current, "2099-11-05", "bumped")])
 
     def test_a_ca_extract_that_is_not_newer_writes_nothing(self):
@@ -577,7 +576,7 @@ class Bumper(unittest.TestCase):
         self.assertEqual(summary.rows[0], ("watcher", "0.14.5", "9.9.9", "bumped"))
         windows = self.text(upstream.WINDOWS_BUILD)
         self.assertIn(f"/e-dant/watcher/releases/download/9.9.9/{upstream.WATCHER_ASSET}'", windows)
-        self.assertEqual(upstream.read(upstream.WINDOWS_BUILD, upstream.WATCHER_SHA_PIN), TOOL_SHA)
+        self.assertEqual(upstream.read(upstream.WINDOWS_BUILD, upstream.WATCHER_PIN)[1], TOOL_SHA)
 
     def test_a_recorded_watcher_leaves_the_windows_build_alone(self):
         before = self.text(upstream.WINDOWS_BUILD)
@@ -604,11 +603,11 @@ class Bumper(unittest.TestCase):
 
     def serve_libaom(self, tags, prefix=upstream.GITILES_PREFIX):
         """Lists `tags`, each tag name with its gitiles entry, as libaom's tags."""
-        url = upstream.read(upstream.BRANCH_PINS, upstream.LIBAOM_URL_PIN)
+        url = upstream.read(upstream.BRANCH_PINS, upstream.LIBAOM_PIN)[0]
         self.indexes[f"{url}/+refs/tags?format=JSON"] = prefix + json.dumps(tags)
 
     def test_the_newest_libaom_release_tag_rewrites_its_tag_and_commit(self):
-        before, current = self.text(upstream.BRANCH_PINS), upstream.read(upstream.BRANCH_PINS, upstream.LIBAOM_PIN)
+        before, current = self.text(upstream.BRANCH_PINS), " ".join(upstream.read(upstream.BRANCH_PINS, upstream.LIBAOM_PIN)[1:])
         self.serve_libaom({"v4.0.0": {"value": "3" * 40, "peeled": "4" * 40}, "v5.0.0-rc1": {"value": "5" * 40},
                            "v9": {"value": "6" * 40}, "3gpp-2021-10-15": {"value": "7" * 40}})
         summary = self.run_bumper(upstream.libaom)
@@ -906,7 +905,7 @@ class GoPins(unittest.TestCase):
     def test_every_go_pin_names_one_version(self):
         pins = {path: upstream.read(path, upstream.GO_LINE) for path in upstream.GO_MODS}
         pins[upstream.RELEASE_WORKFLOW] = upstream.read(upstream.RELEASE_WORKFLOW, upstream.GO_PIN)
-        pins[upstream.DOCKERFILE] = upstream.read(upstream.DOCKERFILE, upstream.GO_IMAGE_PIN)
+        pins[upstream.DOCKERFILE] = upstream.read(upstream.DOCKERFILE, upstream.GO_IMAGE_PIN)[0]
         self.assertEqual(len(set(pins.values())), 1, pins)
 
 

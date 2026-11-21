@@ -37,9 +37,6 @@ DOCKERFILE = "Dockerfile"
 CA_BUNDLE = "runtime/cacert.pem"
 LIBRARY_VERSIONS = "runtime/builder/library-versions.txt"
 BRANCH_PINS = "runtime/builder/branch-pins.txt"
-# The libaom line of BRANCH_PINS: its URL, then its tag and the commit the tag names.
-LIBAOM_URL_PIN = r"^libaom all (\S+) "
-LIBAOM_PIN = r"^libaom all \S+ (\S+ [0-9a-f]{40})$"
 # gitiles prefixes each JSON answer with this line, which stops a script include of it.
 GITILES_PREFIX = ")]}'\n"
 FETCH_SPC = "runtime/builder/fetch-spc.sh"
@@ -69,14 +66,15 @@ WATCHER_RELEASES = "https://api.github.com/repos/e-dant/watcher/releases/tags/"
 WATCHER_ASSET = "x86_64-pc-windows-msvc.tar"
 SQLITE_PATCH = "runtime/builder/spc-sqlite.patch"
 
-# Each pin's line in its file, its value captured.
+COMMIT = r"[0-9a-f]{40}"
+SHA256 = r"[0-9a-f]{64}"
+# Each pin's lines in its file, their values captured.
 PHP_PIN = r"^php_version=(.+)$"
-FRANKENPHP_PIN = r"^frankenphp_version=(.+)$"
-FRANKENPHP_COMMIT_PIN = r"^frankenphp_commit=(.+)$"
+FRANKENPHP_PIN = r"^frankenphp_version=(.+)\nfrankenphp_commit=(.+)$"
 SPC_PIN = r"^spc_commit=(.+)$"
 GO_PIN = r"^  GO_VERSION: '(.+)'$"
-WATCHER_PIN = rf"^\$watcherUrl = 'https://github\.com/e-dant/watcher/releases/download/(.+)/{re.escape(WATCHER_ASSET)}'$"
-WATCHER_SHA_PIN = r"^\$watcherSha256 = '([0-9a-f]{64})'$"
+WATCHER_PIN = (rf"^\$watcherUrl = 'https://github\.com/e-dant/watcher/releases/download/(.+)/{re.escape(WATCHER_ASSET)}'\n"
+               rf"\$watcherSha256 = '({SHA256})'$")
 # A sqlite-autoconf release as its path under sqlite.org: the year, then the release in seven digits.
 SQLITE_PATH = r"\d{4}/sqlite-autoconf-\d{7}\.tar\.gz"
 # The SQLite release the patch gives static-php-cli.
@@ -84,13 +82,13 @@ SQLITE_PIN = rf"^\+    source: 'https://www\.sqlite\.org/({SQLITE_PATH})'$"
 # The line of sqlite.org's product list that names the newest sqlite-autoconf: its release and its path.
 SQLITE_PRODUCT = rf"^PRODUCT,(\d+\.\d+\.\d+),({SQLITE_PATH}),\d+,[0-9a-f]+$"
 GO_LINE = r"^go (\d+\.\d+(?:\.\d+)?)$"
-GO_IMAGE_PIN = r"^ARG JOB_BASE=golang:(.+)-bookworm@sha256:[0-9a-f]{64}$"
-GO_IMAGE_DIGEST_PIN = r"^ARG JOB_BASE=golang:.+-bookworm@sha256:([0-9a-f]{64})$"
-COMPOSER_PIN = r"^RUN wget -q -O /opt/composer\.phar https://getcomposer\.org/download/(.+)/composer\.phar \\$"
-COMPOSER_SHA_PIN = r"^    && echo '([0-9a-f]{64})  /opt/composer\.phar' \| sha256sum -c -$"
+GO_IMAGE_PIN = rf"^ARG JOB_BASE=golang:(.+)-bookworm@sha256:({SHA256})$"
+COMPOSER_PIN = (r"^RUN wget -q -O /opt/composer\.phar https://getcomposer\.org/download/(.+)/composer\.phar \\\n"
+                rf"    && echo '({SHA256})  /opt/composer\.phar' \| sha256sum -c -$")
 CA_DATE = r"^## Certificate data from Mozilla as of: (.+) GMT$"
-CA_SHA_PIN = r"^# runtime/cacert\.pem comes from \S+, sha256\n# ([0-9a-f]{64}), \d+$"
-CA_COUNT_PIN = r"^# runtime/cacert\.pem comes from \S+, sha256\n# [0-9a-f]{64}, (\d+)$"
+CA_PIN = rf"^# runtime/cacert\.pem comes from \S+, sha256\n# ({SHA256}), (\d+)$"
+# The libaom line of BRANCH_PINS: its URL, its tag and the commit the tag names.
+LIBAOM_PIN = rf"^libaom all (\S+) (\S+) ({COMMIT})$"
 GO_REQUIREMENT = r"^\t(\S+) (v\S+)(?: // indirect)?$"
 GO_RELEASE = re.compile(r"go\d+\.\d+\.\d+")
 # Each Go tool the checks install as MODULE/cmd/NAME@vX.Y.Z: its name, its module and the
@@ -131,7 +129,7 @@ def head(url, headers):
 
 
 def version_key(version):
-    return tuple(int(part) for part in version.split("."))
+    return tuple(int(part) for part in version.removeprefix("v").split("."))
 
 
 def release_key(version):
@@ -151,6 +149,12 @@ class Summary:
     def row(self, source, current, found, action):
         self.rows.append((source, current, found, action))
 
+    def moves(self, source, current, newest):
+        """Writes the bumped row when `newest` is newer than `current`, else the current row, and says which."""
+        moved = version_key(newest) > version_key(current)
+        self.row(source, current, newest, "bumped" if moved else "current")
+        return moved
+
     def moved(self):
         return any(action == "bumped" for *_, action in self.rows)
 
@@ -167,22 +171,32 @@ def bumped(rendered):
 
 
 def read(path, pattern):
-    """The single value `pattern` captures in `path`."""
+    """What the one match of `pattern` in `path` captures: a value, or a tuple of several."""
     values = re.findall(pattern, (ROOT / path).read_text(), re.MULTILINE)
     if len(values) != 1:
         sys.exit(f"{path}: {pattern} matches {len(values)} times, not once")
     return values[0]
 
 
-def rewrite(path, pattern, value):
-    """Replaces the one value `pattern` captures in `path` with `value`."""
+def rewrite(path, pattern, *values):
+    """Replaces each value the one match of `pattern` in `path` captures, in order, with `values`."""
     file = ROOT / path
     text = file.read_text()
     matches = list(re.finditer(pattern, text, re.MULTILINE))
     if len(matches) != 1:
         sys.exit(f"{path}: {pattern} matches {len(matches)} times, not once")
-    start, end = matches[0].span(1)
-    file.write_text(text[:start] + value + text[end:])
+    # The last group first, so the spans before it stay valid.
+    for group, value in reversed(list(enumerate(values, 1))):
+        text = text[:matches[0].start(group)] + value + text[matches[0].end(group):]
+    file.write_text(text)
+
+
+def newest_in_line(summary, source, line, versions, current):
+    """The newest of `versions` inside `line`, or `current`. The newest of all, outside the line, gets a note."""
+    above = max(versions, key=version_key, default=current)
+    if not above.startswith(line + "."):
+        summary.notes.append(f"MAJOR {source} {above} is out, outside the {line} line")
+    return max((v for v in versions if v.startswith(line + ".")), key=version_key, default=current)
 
 
 def newest_php(line):
@@ -197,35 +211,24 @@ def php(summary):
     current = read(BUILDER_INPUTS, PHP_PIN)
     line = ".".join(current.split(".")[:2])
     newest = newest_php(line)
-    major = newest_php(line.split(".")[0])
-    if not major.startswith(line + "."):
-        summary.notes.append(f"MAJOR PHP {major} is out, outside the {line} line")
-    if version_key(newest) <= version_key(current):
-        summary.row("PHP", current, newest, "current")
-        return
-    rewrite(BUILDER_INPUTS, PHP_PIN, newest)
-    summary.row("PHP", current, newest, "bumped")
+    # The major's answer feeds the note alone; the line's answer is the pick.
+    newest_in_line(summary, "PHP", line, [newest_php(line.split(".")[0])], current)
+    if summary.moves("PHP", current, newest):
+        rewrite(BUILDER_INPUTS, PHP_PIN, newest)
 
 
 def composer(summary):
-    current = read(DOCKERFILE, COMPOSER_PIN)
-    line = current.split(".")[0]
+    current = read(DOCKERFILE, COMPOSER_PIN)[0]
     # getcomposer.org's version list is remote input.
     stable = [entry.get("version") for entry in json.loads(fetch(COMPOSER_VERSIONS)).get("stable", [])]
     if not stable or not all(isinstance(v, str) and re.fullmatch(r"\d+\.\d+\.\d+", v) for v in stable):
         sys.exit(f"getcomposer.org lists the stable Composer releases {stable!r}")
-    newest = max((v for v in stable if v.split(".")[0] == line), key=version_key, default=current)
-    above = max(stable, key=version_key)
-    if above.split(".")[0] != line:
-        summary.notes.append(f"MAJOR Composer {above} is out, outside the {line} line")
-    if version_key(newest) <= version_key(current):
-        summary.row("Composer", current, newest, "current")
+    newest = newest_in_line(summary, "Composer", current.split(".")[0], stable, current)
+    if not summary.moves("Composer", current, newest):
         return
     phar = download(f"{COMPOSER_DOWNLOAD}{newest}/composer.phar")
     verify_composer(newest, phar, fetch(f"{COMPOSER_DOWNLOAD}{newest}/composer.phar.sig"))
-    rewrite(DOCKERFILE, COMPOSER_PIN, newest)
-    rewrite(DOCKERFILE, COMPOSER_SHA_PIN, hashlib.sha256(phar).hexdigest())
-    summary.row("Composer", current, newest, "bumped")
+    rewrite(DOCKERFILE, COMPOSER_PIN, newest, hashlib.sha256(phar).hexdigest())
 
 
 def verify_composer(version, phar, sig):
@@ -245,31 +248,24 @@ def verify_composer(version, phar, sig):
 
 
 def frankenphp(summary):
-    current = read(BUILDER_INPUTS, FRANKENPHP_PIN)
-    line = current.split(".")[0]
+    current = read(BUILDER_INPUTS, FRANKENPHP_PIN)[0]
     releases = [release["tag_name"] for release in json.loads(fetch(f"{FRANKENPHP_API}/releases?per_page=100"))
                 if not release["draft"] and not release["prerelease"]]
     # GitHub release tags are remote input.
     versions = [tag[1:] for tag in releases if STABLE_TAG.fullmatch(tag)]
-    newest = max((v for v in versions if v.split(".")[0] == line), key=version_key)
-    above = max(versions, key=version_key)
-    if above.split(".")[0] != line:
-        summary.notes.append(f"MAJOR FrankenPHP {above} is out, outside the {line} line")
-    if version_key(newest) <= version_key(current):
-        summary.row("FrankenPHP", current, newest, "current")
+    newest = newest_in_line(summary, "FrankenPHP", current.split(".")[0], versions, current)
+    if not summary.moves("FrankenPHP", current, newest):
         return
     target = json.loads(fetch(f"{FRANKENPHP_API}/git/ref/tags/v{newest}"))["object"]
     if target["type"] == "tag":
         target = json.loads(fetch(f"{FRANKENPHP_API}/git/tags/{target['sha']}"))["object"]
-    if target["type"] != "commit" or not re.fullmatch(r"[0-9a-f]{40}", target["sha"]):
+    if target["type"] != "commit" or not re.fullmatch(COMMIT, target["sha"]):
         sys.exit(f"FrankenPHP v{newest} names {target!r}, not a commit")
-    rewrite(BUILDER_INPUTS, FRANKENPHP_PIN, newest)
-    rewrite(BUILDER_INPUTS, FRANKENPHP_COMMIT_PIN, target["sha"])
-    summary.row("FrankenPHP", current, newest, "bumped")
+    rewrite(BUILDER_INPUTS, FRANKENPHP_PIN, newest, target["sha"])
     spc_current = read(BUILDER_INPUTS, SPC_PIN)
     # The branch head is remote input.
     spc_head = json.loads(fetch(SPC_BRANCH))["commit"]["sha"]
-    if not re.fullmatch(r"[0-9a-f]{40}", spc_head):
+    if not re.fullmatch(COMMIT, spc_head):
         sys.exit(f"static-php-cli v3 names {spc_head!r}, not a commit")
     rewrite(BUILDER_INPUTS, SPC_PIN, spc_head)
     summary.row("static-php-cli", spc_current[:12], spc_head[:12], "current" if spc_head == spc_current else "bumped")
@@ -277,7 +273,7 @@ def frankenphp(summary):
 
 def go(summary):
     current = read(RELEASE_WORKFLOW, GO_PIN)
-    frankenphp_commit = read(BUILDER_INPUTS, FRANKENPHP_COMMIT_PIN)
+    frankenphp_commit = read(BUILDER_INPUTS, FRANKENPHP_PIN)[1]
     # The macOS and Windows builds compile FrankenPHP's caddy module with GOTOOLCHAIN=local.
     # Its go.mod is remote input.
     lines = re.findall(GO_LINE, fetch(f"{FRANKENPHP_RAW}/{frankenphp_commit}/caddy/go.mod"), re.MULTILINE)
@@ -292,16 +288,13 @@ def go(summary):
     newest = max((v for v in versions if v.rsplit(".", 1)[0] == line), key=version_key, default=None)
     if newest is None or version_key(newest) < version_key(floor):
         sys.exit(f"go.dev lists no Go {line} release at or above {floor}")
-    if version_key(newest) <= version_key(current):
-        summary.row("Go", current, newest, "current")
+    if not summary.moves("Go", current, newest):
         return
     digest = golang_digest(newest)
     rewrite(RELEASE_WORKFLOW, GO_PIN, newest)
     for path in GO_MODS:
         rewrite(path, GO_LINE, newest)
-    rewrite(DOCKERFILE, GO_IMAGE_PIN, newest)
-    rewrite(DOCKERFILE, GO_IMAGE_DIGEST_PIN, digest)
-    summary.row("Go", current, newest, "bumped")
+    rewrite(DOCKERFILE, GO_IMAGE_PIN, newest, digest)
 
 
 def golang_digest(version):
@@ -314,7 +307,7 @@ def golang_digest(version):
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json",
     }).get("Docker-Content-Digest")
-    if not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+    if not isinstance(digest, str) or not re.fullmatch(rf"sha256:{SHA256}", digest):
         sys.exit(f"Docker Hub gives golang:{version}-bookworm the digest {digest!r}")
     return digest.removeprefix("sha256:")
 
@@ -331,12 +324,8 @@ def tools(summary):
         version = json.loads(fetch(f"{GO_PROXY}{module}/@latest")).get("Version")
         if not isinstance(version, str) or not STABLE_TAG.fullmatch(version):
             sys.exit(f"proxy.golang.org gives {module} the latest version {version!r}")
-        newest = version[1:]
-        if version_key(newest) <= version_key(current):
-            summary.row(name, current, newest, "current")
-            continue
-        rewrite(path, pattern, newest)
-        summary.row(name, current, newest, "bumped")
+        if summary.moves(name, current, version[1:]):
+            rewrite(path, pattern, version[1:])
 
 
 def ca_date(text):
@@ -367,8 +356,7 @@ def ca_bundle(summary):
         summary.row("CA bundle", *versions, "current")
         return
     (ROOT / CA_BUNDLE).write_bytes(bundle)
-    rewrite(DOCKERFILE, CA_SHA_PIN, checksum)
-    rewrite(DOCKERFILE, CA_COUNT_PIN, str(certificates))
+    rewrite(DOCKERFILE, CA_PIN, checksum, str(certificates))
     summary.row("CA bundle", *versions, "bumped")
 
 
@@ -412,15 +400,8 @@ def sqlite(summary):
     if len(products) != 1 or sqlite_release(products[0][1]) != products[0][0]:
         sys.exit(f"sqlite.org lists the sqlite-autoconf releases {products!r}")
     newest, path = products[0]
-    if newest.split(".")[0] != "3":
-        summary.notes.append(f"MAJOR SQLite {newest} is out, outside the 3 line")
-        summary.row("SQLite", current, current, "current")
-        return
-    if version_key(newest) <= version_key(current):
-        summary.row("SQLite", current, newest, "current")
-        return
-    rewrite(SQLITE_PATCH, SQLITE_PIN, path)
-    summary.row("SQLite", current, newest, "bumped")
+    if summary.moves("SQLite", current, newest_in_line(summary, "SQLite", "3", [newest], current)):
+        rewrite(SQLITE_PATCH, SQLITE_PIN, path)
 
 
 def run_spc(directory, *arguments):
@@ -439,10 +420,9 @@ def windows_watcher(release):
     # The release's assets are remote input.
     assets = json.loads(fetch(WATCHER_RELEASES + release))["assets"]
     digest = next((asset.get("digest") for asset in assets if asset["name"] == WATCHER_ASSET), None)
-    if not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+    if not isinstance(digest, str) or not re.fullmatch(rf"sha256:{SHA256}", digest):
         sys.exit(f"watcher {release} gives {WATCHER_ASSET} the digest {digest!r}")
-    rewrite(WINDOWS_BUILD, WATCHER_PIN, release)
-    rewrite(WINDOWS_BUILD, WATCHER_SHA_PIN, digest.removeprefix("sha256:"))
+    rewrite(WINDOWS_BUILD, WATCHER_PIN, release, digest.removeprefix("sha256:"))
 
 
 def probe_libraries():
@@ -494,25 +474,23 @@ def libraries(summary, answers):
 def libaom(summary):
     """Moves libaom's line of BRANCH_PINS to the newest release tag gitiles lists, and the commit it names.
     static-php-cli builds libaom from its main branch, so the probe records no release for it."""
-    current = read(BRANCH_PINS, LIBAOM_PIN).split()[0]
-    answer = fetch(read(BRANCH_PINS, LIBAOM_URL_PIN) + "/+refs/tags?format=JSON")
+    url, current, _ = read(BRANCH_PINS, LIBAOM_PIN)
+    answer = fetch(url + "/+refs/tags?format=JSON")
     # The tags and the commits gitiles names are remote input.
     if not answer.startswith(GITILES_PREFIX):
         sys.exit(f"gitiles answers {answer[:40]!r} for libaom's tags")
     tags = json.loads(answer.removeprefix(GITILES_PREFIX))
     if not isinstance(tags, dict):
         sys.exit(f"gitiles lists libaom's tags as {tags!r}")
-    newest = max((tag for tag in tags if STABLE_TAG.fullmatch(tag)), key=lambda tag: version_key(tag[1:]))
-    if version_key(newest[1:]) <= version_key(current[1:]):
-        summary.row("libaom", current, newest, "current")
+    newest = max((tag for tag in tags if STABLE_TAG.fullmatch(tag)), key=version_key)
+    if not summary.moves("libaom", current, newest):
         return
     entry = tags[newest]
     # An annotated tag names its tag object and peels to the commit; a lightweight tag names the commit.
     commit = (entry["peeled"] if "peeled" in entry else entry.get("value")) if isinstance(entry, dict) else None
-    if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
+    if not isinstance(commit, str) or not re.fullmatch(COMMIT, commit):
         sys.exit(f"gitiles names {entry!r} for libaom {newest}, not a commit")
-    rewrite(BRANCH_PINS, LIBAOM_PIN, f"{newest} {commit}")
-    summary.row("libaom", current, newest, "bumped")
+    rewrite(BRANCH_PINS, LIBAOM_PIN, url, newest, commit)
 
 def bump(summary, answers):
     """Moves every pin, records the library releases of `answers`, and returns the suite the candidate runs."""
