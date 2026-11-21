@@ -21,7 +21,7 @@ libunistring 1.5
 libwebp v1.6.0
 libxml2 v2.15.4
 libxslt 1.1.45
-libyaml 0.2.5
+libyaml 0.2.6
 libzip v1.12.1
 ncurses 6.6
 nghttp2 v1.71.0

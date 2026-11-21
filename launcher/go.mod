@@ -4,7 +4,7 @@ go 1.27.4
 
 require (
 	github.com/ProtonMail/go-crypto v1.5.2
-	github.com/klauspost/compress v1.20.4
+	github.com/klauspost/compress v1.20.5
 	github.com/smallstep/truststore v0.13.0
 	golang.org/x/sys v0.50.0
 	golang.org/x/term v0.48.0
