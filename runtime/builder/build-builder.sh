@@ -42,6 +42,7 @@ fi
 # The toolchain image copies the checkout, so the build runs the pinned spc.
 bash "$directory/fetch-spc.sh" "$source/static-php-cli"
 cp "$directory/spc-craft.sh" "$source/spc-craft.sh"
+cp "$directory/check-downloads.php" "$directory/library-versions.txt" "$source/"
 # build-static.sh writes craft.yml's custom-local list, which also reaches spc build.
 # The pin checkouts enter the compile container alone, so neither image holds them.
 pins=$(bash "$directory/fetch-branch-pins.sh" linux "$work/branch-pins")
@@ -105,6 +106,7 @@ docker create --name "$container" --ulimit nofile=8192:8192 \
     -e "PHP_VERSION=$php_version" \
     -e "PHP_EXTENSIONS=$extensions" \
     -e "PHP_EXTENSION_LIBS=$extension_libs" \
+    -e "CHECK_DOWNLOADS=${EXTENSIONS_FILE:+--report-unlisted}" \
     "$tag-toolchain" \
     ./spc-craft.sh
 docker cp "$work/branch-pins" "$container:/go/src/app/branch-pins"

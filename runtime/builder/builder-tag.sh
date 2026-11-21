@@ -23,6 +23,6 @@ extension_libs=$(bash "$directory/../extensions/extensions-list.sh" "$directory/
 # library's newest release as it compiles, so a release library-versions.txt records
 # builds a new image.
 recipe=$(cat "$directory/build-builder.sh" "$directory/spc-craft.sh" "$directory/fetch-spc.sh" "$directory/fetch-commit.sh" "$directory/branch-pins.txt" "$directory/fetch-branch-pins.sh" "$directory/spc-sqlite.patch" "$directory/spc-icu.patch" \
-    "$directory/library-versions.txt" | sha256sum)
+    "$directory/library-versions.txt" "$directory/check-downloads.php" | sha256sum)
 printf '%s\n' "$frankenphp_commit" "$spc_commit" "$toolchain_base" "$php_version" "$extensions" "$extension_libs" \
     "$libc" "$machine" "$recipe" | sha256sum | cut -c 1-16

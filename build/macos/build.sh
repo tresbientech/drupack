@@ -50,11 +50,15 @@ if [ ! -f "$work/buildroot/lib/libphp.a" ]; then
     download=() build=()
     while IFS= read -r pin; do download+=("--custom-local=$pin") build+=("--dl-custom-local=$pin"); done <<<"$pins"
     # static-php-cli's pre-built archives lag the libraries' own releases, so each
-    # library compiles from its source release.
-    "${spc[@]}" download --with-php="$php_version" --for-extensions="$extensions" --for-libs="$extension_libs" --retry 5 "${download[@]}"
+    # library compiles from its source release. The set is the one upstream.py records.
+    "${spc[@]}" download --with-php="$php_version" --for-packages="php-embed,ext-${extensions//,/,ext-},$extension_libs" \
+        --no-alt --retry 5 "${download[@]}"
+    php "$repository/runtime/builder/check-downloads.php" downloads
     # spc's embed smoke test reads nm's stdout and stderr into one stream, which can
     # split a symbol name and fail the link. The runtime link below tests the embed.
     "${spc[@]}" build --enable-zts --build-embed --disable-opcache-jit --no-smoke-test=embed "$extensions" --with-libs="$extension_libs" "${build[@]}"
+    # The build downloads what its own options miss.
+    php "$repository/runtime/builder/check-downloads.php" downloads
 fi
 php_includes=$("${spc[@]}" spc-config "$extensions" --with-libs="$extension_libs" --includes)
 php_libraries=$("${spc[@]}" spc-config "$extensions" --with-libs="$extension_libs" --libs)
