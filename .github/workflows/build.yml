@@ -4,8 +4,8 @@ name: Build a site
 # Linux executables in the engine's job image. Each macOS and Windows target
 # packs on a runner of its own system, from the runtime files of an engine
 # release. It uploads the executables, and with `publish` a tag run releases them
-# in the caller's repository. The jobs declare no permissions and run with the
-# ones the calling job grants.
+# in the caller's repository. The jobs that run the site's code read the site
+# and nothing more; publish runs with the permissions the calling job grants.
 on:
   workflow_call:
     inputs:
@@ -54,6 +54,8 @@ jobs:
   engine:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      id-token: write
     outputs:
       image: ${{ steps.image.outputs.image }}
       repository: ${{ steps.image.outputs.repository }}
@@ -116,6 +118,8 @@ jobs:
     needs: engine
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    permissions:
+      contents: read
     container:
       image: ${{ needs.engine.outputs.image }}
     outputs:
@@ -217,6 +221,8 @@ jobs:
     if: needs.build.outputs.native != '[]'
     runs-on: ${{ matrix.target == 'macos-arm64' && 'macos-15' || matrix.target == 'macos-amd64' && 'macos-15-intel' || 'windows-2025' }}
     timeout-minutes: 120
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -309,6 +315,8 @@ jobs:
     if: contains(fromJSON(needs.build.outputs.native), 'windows-amd64')
     runs-on: windows-11-arm
     timeout-minutes: 120
+    permissions:
+      contents: read
     defaults:
       run:
         shell: pwsh
