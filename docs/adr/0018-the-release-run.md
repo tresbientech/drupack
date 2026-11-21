@@ -1,8 +1,8 @@
-# A daily run releases on green CI and posts the drupal.org release form
+# A daily run releases on green CI and the maintainer's approval, and posts the drupal.org release form
 
 ## Context
 
-Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. static-php-cli links about 40 C libraries into every platform's file, each at its newest release. A new upstream version must reach readers without the owner noticing it. A release builds five platforms and tests each one, so the graph must build each thing once. drupal.org has no API that creates a release node, and Packagist takes each `drupal/drupack` version from one.
+Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. static-php-cli links about 40 C libraries into every platform's file, each at its newest release. A new upstream version reaches readers after one approval by the owner. A release builds five platforms and tests each one, so the graph must build each thing once. drupal.org has no API that creates a release node, and Packagist takes each `drupal/drupack` version from one.
 
 ## Decision
 
@@ -56,9 +56,13 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 - A release's run calls no `build.yml`. `site-build.yml` calls it after each successful push or weekly run on `main`, when ghcr holds the job image `dev-COMMIT` of `main`'s commit. The candidate pushes that image for a release's commit.
 - `build/release/wait-for-run.sh` finds the run by the candidate's commit and polls it. It names each failed job and, once the run completes, reruns the failed jobs once.
 - The candidate's `qa` jobs are the release's QA. No local run precedes a release.
-- On green, one atomic push sends `main` as a fast-forward and the next tag to drupal.org. A second push sends both to GitHub. The job then deletes the branch.
+- On green, a nightly candidate waits in the `approve` job for the maintainer's approval in the `release` environment. A dispatch with `version` skips that job.
+- The `release` job then sends `main` as a fast-forward and the next tag to drupal.org in one atomic push. A second push sends both to GitHub.
+- A run dispatched while a release waits stays pending behind it, in the `upstream` concurrency group. A later dispatch replaces a pending one.
+- A `cleanup` job deletes the candidate branch for any result: a red candidate, a rejection or a release.
 - The gate of the tag run and of the `main` run finds the candidate run at the commit. When it exists with live artifacts, every build job skips, and the tag's `publish` downloads its files. Otherwise the tag builds every platform.
-- A `tag` job waits for the tag run with the same script. No person pushes a version tag.
+- The builder image archives live one day, and only their own run reads them, so their expiry leaves a candidate live.
+- A `tag` job waits for the tag run with the same script. No person pushes a version tag; the maintainer approves the push.
 
 ### The drupal.org release form
 
@@ -85,8 +89,8 @@ A release gives readers a new executable, so a tool no executable carries starts
 
 A library fix once waited for the next PHP or FrankenPHP bump: six releases shipped libpq 18.6 after 18.7 existed. static-php-cli already resolves each library's newest release for the build, so the run asks it and keeps no list of its own.
 
-The upstream job holds the mirror's deploy key and the drupal.org token, and it commits its working tree. Third-party code that ran there could edit a tracked file or read a later step's secret. In its own job, a wrong answer can start a release and nothing else.
+The upstream job commits its working tree and pushes the candidate branch with its job token. The release job holds the mirror's deploy key and the drupal.org token. Third-party code that ran in the upstream job could edit a tracked file or push a branch. In its own job, a wrong answer can start a candidate and nothing else.
 
-The upstream run lives on GitHub, where the builds run. Testing the candidate before the tag moves means a red platform never ships, and the tag run publishes the candidate's files.
+The upstream run lives on GitHub, where the builds run. A red platform never ships, since the candidate is tested before the tag moves, and the tag run publishes the candidate's files. The approval lets the owner read the bump summary before a release: a bad upstream release otherwise reaches every executable and self-update within a day.
 
 drupal.org staff accept a plain HTTP post with an honest user agent for limited use. They advise against a browser driver. A maintainer's own cookie would act as a person on all of drupal.org. A release cannot be deleted, so the post follows a green tag run and is sent once.

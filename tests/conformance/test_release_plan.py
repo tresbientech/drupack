@@ -59,8 +59,8 @@ def changed(*names):
     return {"files": [{"filename": name} for name in names]}
 
 
-def with_expired(flags):
-    return {"artifacts": [{"expired": flag} for flag in flags]}
+def with_expired(flags, name="payload-archive"):
+    return {"artifacts": [{"name": name, "expired": flag} for flag in flags]}
 
 
 class Unscripted(Exception): ...  # a path the test did not script
@@ -92,6 +92,8 @@ class Tag(Row):
             "no candidate": (TAG, NO_RUN, None, [RUNS_PATH]),
             "a live candidate": (TAG, {RUNS_PATH: RUNS, ARTIFACTS_PATH: ARTIFACTS}, CANDIDATE, both_fetches),
             "an expired candidate": (TAG, {RUNS_PATH: RUNS, ARTIFACTS_PATH: with_expired([False, True])}, None, both_fetches),
+            "an expired builder archive keeps the candidate":
+                (TAG, {RUNS_PATH: RUNS, ARTIFACTS_PATH: with_expired([True], "builder-linux-arm64-gnu")}, CANDIDATE, both_fetches),
             "a run of another title fetches no artifacts": (TAG, {RUNS_PATH: {"workflow_runs": RUNS["workflow_runs"][1:]}}, None, [RUNS_PATH]),
             "an empty artifact list": (TAG, {RUNS_PATH: RUNS, ARTIFACTS_PATH: with_expired([])}, CANDIDATE, both_fetches),
         }
