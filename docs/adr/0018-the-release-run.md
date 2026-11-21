@@ -56,7 +56,7 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 - A release's run calls no `build.yml`. `site-build.yml` calls it after each successful push or weekly run on `main`, when ghcr holds the job image `dev-COMMIT` of `main`'s commit. The candidate pushes that image for a release's commit.
 - `build/release/wait-for-run.sh` finds the run by the candidate's commit and polls it. It names each failed job and, once the run completes, reruns the failed jobs once.
 - The candidate's `qa` jobs are the release's QA. No local run precedes a release.
-- On green, a nightly candidate waits in the `approve` job for the maintainer's approval in the `release` environment. A dispatch with `version` skips that job.
+- On green, the candidate waits in the `approve` job for the maintainer's approval in the `release` environment. A dispatch with `version` waits too.
 - The `release` job then sends `main` as a fast-forward and the next tag to drupal.org in one atomic push. A second push sends both to GitHub.
 - A run dispatched while a release waits stays pending behind it, in the `upstream` concurrency group. A later dispatch replaces a pending one.
 - A `cleanup` job deletes the candidate branch for any result: a red candidate, a rejection or a release.

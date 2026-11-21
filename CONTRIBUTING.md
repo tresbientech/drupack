@@ -53,7 +53,7 @@ bash build/dev/dev-server.sh ./dev-data 7225
 
 ## Releases
 
-Never push a version tag. To release `main`, dispatch `.github/workflows/upstream.yml` on GitHub with `version`, such as `1.0.1`. Its candidate run is the release QA, so no local `build/test/qa.sh` run comes before it.
+Never push a version tag. To release `main`, dispatch `.github/workflows/upstream.yml` on GitHub with `version`, such as `1.0.1`, and approve its `approve` job once the candidate passes. Its candidate run is the release QA, so no local `build/test/qa.sh` run comes before it.
 
 The run's `node` job posts the drupal.org release form as `nod_bot`. The `DRUPAL_ORG_SESSION` secret holds that session, which lasts about four weeks. `.github/workflows/release-node.yml` fails each morning once it expires. To renew it:
 

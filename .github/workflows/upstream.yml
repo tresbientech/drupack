@@ -4,7 +4,7 @@ name: Upstream
 # line, when a library they link has a newer release, or when a dispatch names a
 # version. The candidate is built and tested on every platform, with build/test/qa.sh,
 # by release.yml before drupal.org receives main and the tag; the tag run of release.yml
-# then publishes it. A nightly release waits for the maintainer's approval first.
+# then publishes it. Every release waits for the maintainer's approval first.
 #
 # drupal.org's daily pipeline schedule dispatches this workflow, from the
 # dispatch job of .gitlab-ci.yml.
@@ -242,11 +242,11 @@ jobs:
           bash build/release/wait-for-run.sh "event=workflow_dispatch&head_sha=$SHA"
           printf 'version=%s\nsha=%s\n' "$VERSION" "$SHA" >>"$GITHUB_OUTPUT"
 
-  # The release environment names the maintainer as required reviewer. A dispatch
-  # with a version skips this job, and a rejection fails it, so release never runs.
+  # The release environment names the maintainer as required reviewer. A rejection
+  # fails this job, so release never runs.
   approve:
     needs: upstream
-    if: needs.upstream.outputs.version && inputs.version == ''
+    if: needs.upstream.outputs.version
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: release
@@ -261,9 +261,6 @@ jobs:
   # concurrency group, until the maintainer approves or rejects it.
   release:
     needs: [upstream, approve]
-    if: >-
-      !cancelled() && needs.upstream.outputs.version
-      && (needs.approve.result == 'success' || needs.approve.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
