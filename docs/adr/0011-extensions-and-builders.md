@@ -24,8 +24,9 @@ Three builders compile PHP: Linux, macOS and Windows. Each must ship the extensi
 - static-php-cli is third-party code. Every builder installs its Composer packages with `--no-scripts --no-plugins`, and it runs in no job that holds a secret or pushes.
 - `spc-icu.patch` names the file ICU publishes its source under since ICU 78. static-php-cli looks for the older name, which stops at 77.1.
 - static-php-cli compiles every other library at its newest release. `runtime/builder/library-versions.txt` records those releases, and the upstream run moves it.
-- `builder-tag.sh` digests the pins, both lists, the build scripts, both patches and the versions file into a Linux image's tag.
-- The macOS buildroot is cached under a key that hashes `build/macos/build.sh`, the pins, `fetch-spc.sh`, both patches, the versions file, `extensions-list.sh` and both lists.
+- static-php-cli builds pthreads4w, libiconv-win, ext-yaml and libaom from a branch head. `runtime/builder/branch-pins.txt` pins each to a commit. A person moves each pin but libaom's, which the upstream run moves. `fetch-branch-pins.sh` checks out each commit. The build passes each checkout as `custom-local` to static-php-cli's download step and to its build step, which downloads again.
+- `builder-tag.sh` digests the pins, both lists, the build scripts, both patches, the versions file and `branch-pins.txt` into a Linux image's tag. The pin checkouts enter the compile container alone, so the image holds none.
+- The macOS buildroot is cached under a key that hashes `build/macos/build.sh`, the pins, `fetch-spc.sh` with `fetch-commit.sh`, `branch-pins.txt` with `fetch-branch-pins.sh`, both patches, the versions file, `extensions-list.sh` and both lists.
 - A library release therefore builds a new image and a new buildroot.
 - A Linux builder image is FrankenPHP's toolchain image on the pinned RHEL 8 base, plus one layer: the paths `embed.sh` reads from the PHP compile. `build-builder.sh` lists them: PHP's libraries, headers and tools, spc, the Go toolchain and, for musl, zig. Sources, downloads and Go caches stay out: over 80 percent of the compile's bytes.
 - The glibc build links against glibc 2.28, the glibc of the RHEL 8 toolchain image. `build/install/install.sh` and self-update take the glibc file on glibc 2.28 or later, and the musl file below it.
@@ -38,7 +39,8 @@ Three builders compile PHP: Linux, macOS and Windows. Each must ship the extensi
 - The file watcher is a DLL from its own release, pinned by URL and SHA-256. The other builders compile it.
 - PHP links the static C runtime, so `crtenv_windows.go` sets PHP's environment through cgo.
 - The release job caches the buildroot and the header folders of PHP's source, under a key that hashes every input of the compile. `build.ps1` writes a marker when the compile ends, and the job saves the cache once the marker exists.
-- `.gitattributes` keeps shell scripts and patches as LF, and `fetch-spc.sh` turns `core.autocrlf` off in its checkout.
+- The job also caches the checkouts of `branch-pins.txt`, under a key of the pin list and its two scripts. SourceForge, which serves pthreads4w, has served a web page in place of a download. The job fetches the checkouts only when both caches miss. It saves them before the compile, which builds them in place.
+- `.gitattributes` keeps shell scripts, patches and `branch-pins.txt` as LF, and `fetch-commit.sh` turns `core.autocrlf` off in each checkout.
 
 ### Trust store and php.ini
 

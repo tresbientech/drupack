@@ -1,0 +1,6 @@
+# NAME PLATFORMS URL REF COMMIT for each artifact static-php-cli builds from a branch head.
+# PLATFORMS is all or windows. REF names the branch or tag COMMIT came from.
+pthreads4w windows https://git.code.sf.net/p/pthreads4w/code master 8e467a62a14fd9de15af33beec0a913d23f4d2f9
+libiconv-win windows https://github.com/static-php/libiconv-win.git master 822b5aaf1ce02cab8d3c4589a22c02d408c9c519
+ext-yaml all https://github.com/php/pecl-file_formats-yaml php7 a7a3b8680b8fbf0895fd63371a0ffc1305b1a5b8
+libaom all https://aomedia.googlesource.com/aom v3.15.3 b141d9c45db236335351c8a4b2a14b3ade27c937

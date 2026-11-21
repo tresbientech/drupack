@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Moves the PHP, FrankenPHP, Composer and Go pins to their newest version inside their line, moves the
-CA bundle to curl's newest extract, and records the newest release of SQLite and of each library static-php-cli links.
+CA bundle to curl's newest extract, moves libaom to its newest release tag, and records the newest release of SQLite
+and of each library static-php-cli links.
 It prints what it did as a Markdown summary. The executables carry all of these, so a move of one starts a release.
 The Go check tools and the launcher's Go modules move only alongside such a move. Go's line is its own or the one
 FrankenPHP needs, whichever is newer. It edits the working tree and never commits.
@@ -35,6 +36,12 @@ GO_MODS = (LAUNCHER_MOD, "runtime/frankenphp/watch/go.mod")
 DOCKERFILE = "Dockerfile"
 CA_BUNDLE = "runtime/cacert.pem"
 LIBRARY_VERSIONS = "runtime/builder/library-versions.txt"
+BRANCH_PINS = "runtime/builder/branch-pins.txt"
+# The libaom line of BRANCH_PINS: its URL, then its tag and the commit the tag names.
+LIBAOM_URL_PIN = r"^libaom all (\S+) "
+LIBAOM_PIN = r"^libaom all \S+ (\S+ [0-9a-f]{40})$"
+# gitiles prefixes each JSON answer with this line, which stops a script include of it.
+GITILES_PREFIX = ")]}'\n"
 FETCH_SPC = "runtime/builder/fetch-spc.sh"
 EXTENSIONS_LIST = "runtime/extensions/extensions-list.sh"
 # The builders hand static-php-cli the first list as extensions and the second as libraries.
@@ -484,6 +491,29 @@ def libraries(summary, answers):
     (ROOT / LIBRARY_VERSIONS).write_text("".join(f"{name} {new}\n" for name, new in found.items()))
 
 
+def libaom(summary):
+    """Moves libaom's line of BRANCH_PINS to the newest release tag gitiles lists, and the commit it names.
+    static-php-cli builds libaom from its main branch, so the probe records no release for it."""
+    current = read(BRANCH_PINS, LIBAOM_PIN).split()[0]
+    answer = fetch(read(BRANCH_PINS, LIBAOM_URL_PIN) + "/+refs/tags?format=JSON")
+    # The tags and the commits gitiles names are remote input.
+    if not answer.startswith(GITILES_PREFIX):
+        sys.exit(f"gitiles answers {answer[:40]!r} for libaom's tags")
+    tags = json.loads(answer.removeprefix(GITILES_PREFIX))
+    if not isinstance(tags, dict):
+        sys.exit(f"gitiles lists libaom's tags as {tags!r}")
+    newest = max((tag for tag in tags if STABLE_TAG.fullmatch(tag)), key=lambda tag: version_key(tag[1:]))
+    if version_key(newest[1:]) <= version_key(current[1:]):
+        summary.row("libaom", current, newest, "current")
+        return
+    entry = tags[newest]
+    # An annotated tag names its tag object and peels to the commit; a lightweight tag names the commit.
+    commit = (entry["peeled"] if "peeled" in entry else entry.get("value")) if isinstance(entry, dict) else None
+    if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
+        sys.exit(f"gitiles names {entry!r} for libaom {newest}, not a commit")
+    rewrite(BRANCH_PINS, LIBAOM_PIN, f"{newest} {commit}")
+    summary.row("libaom", current, newest, "bumped")
+
 def bump(summary, answers):
     """Moves every pin, records the library releases of `answers`, and returns the suite the candidate runs."""
     php(summary)
@@ -496,6 +526,7 @@ def bump(summary, answers):
     suite = "full" if summary.moved() else "gate"
     sqlite(summary)
     libraries(summary, answers)
+    libaom(summary)
     # upstream.yml releases when this script changed a file. No executable carries the check
     # tools, and the modules move too often to pay for a run on every platform each time.
     if summary.moved():

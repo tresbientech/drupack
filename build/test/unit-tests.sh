@@ -4,7 +4,7 @@ set -euo pipefail
 # The Python unit tests, which need no built file. build/test/qa.sh and release.yml's
 # Linux job both run this list.
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
-for file in test_shard.py test_environment.py test_app_payload.py test_release_files.py test_targets.py test_native_pack.py test_sbom.py test_release_plan.py test_check_extensions.py; do
+for file in test_shard.py test_environment.py test_app_payload.py test_release_files.py test_targets.py test_native_pack.py test_sbom.py test_release_plan.py test_check_extensions.py test_branch_pins.py; do
     python3 -m unittest discover -s tests/conformance -p "$file"
 done
 python3 -m unittest discover -s tests/upstream

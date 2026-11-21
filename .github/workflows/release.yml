@@ -589,7 +589,27 @@ jobs:
             ${{ runner.temp }}\drupack\source\php-src\win32
             ~\go\pkg\mod
             ~\AppData\Local\go-build
-          key: windows-build-${{ hashFiles('build/windows/build.ps1', 'runtime/builder/builder-inputs.sh', 'runtime/builder/fetch-spc.sh', 'runtime/builder/spc-sqlite.patch', 'runtime/builder/spc-icu.patch', 'runtime/builder/library-versions.txt', 'runtime/extensions/extensions-list.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
+          key: windows-build-${{ hashFiles('build/windows/build.ps1', 'runtime/builder/builder-inputs.sh', 'runtime/builder/fetch-spc.sh', 'runtime/builder/fetch-commit.sh', 'runtime/builder/branch-pins.txt', 'runtime/builder/fetch-branch-pins.sh', 'runtime/builder/spc-sqlite.patch', 'runtime/builder/spc-icu.patch', 'runtime/builder/library-versions.txt', 'runtime/extensions/extensions-list.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
+
+      # A compile reads each artifact of branch-pins.txt from its checkout, and SourceForge,
+      # which serves pthreads4w, has failed a download. The restore on every run keeps the
+      # entry in use, and the save comes before the compile, which builds the checkouts in place.
+      - uses: actions/cache/restore@v6
+        id: pins-cache
+        with:
+          path: ${{ runner.temp }}\drupack\branch-pins
+          key: windows-branch-pins-${{ hashFiles('runtime/builder/branch-pins.txt', 'runtime/builder/fetch-branch-pins.sh', 'runtime/builder/fetch-commit.sh') }}
+
+      - name: Fetch the branch-head sources
+        if: ${{ steps.compile-cache.outputs.cache-hit != 'true' && steps.pins-cache.outputs.cache-hit != 'true' }}
+        shell: bash
+        run: bash runtime/builder/fetch-branch-pins.sh windows "$(cygpath -m "$RUNNER_TEMP")/drupack/branch-pins" >/dev/null
+
+      - uses: actions/cache/save@v6
+        if: ${{ steps.compile-cache.outputs.cache-hit != 'true' && steps.pins-cache.outputs.cache-hit != 'true' }}
+        with:
+          path: ${{ runner.temp }}\drupack\branch-pins
+          key: ${{ steps.pins-cache.outputs.cache-primary-key }}
 
       - name: Build the executables
         env:
@@ -638,7 +658,7 @@ jobs:
       - name: Report the runtime's components
         run: |
           New-Item -ItemType Directory -Path runtime-components | Out-Null
-          python build/release/sbom.py runtime --target windows-amd64 "$env:RUNNER_TEMP\drupack\runtime\frankenphp.exe" >runtime-components\windows-amd64.json
+          python build/release/sbom.py runtime --target windows-amd64 --spc-cache "$env:RUNNER_TEMP\drupack\buildroot\.cache.json" "$env:RUNNER_TEMP\drupack\runtime\frankenphp.exe" >runtime-components\windows-amd64.json
 
       - uses: actions/upload-artifact@v7
         with:

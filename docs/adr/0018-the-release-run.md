@@ -23,7 +23,7 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 - The Linux amd64 first job lints and runs the Python unit tests. The Go unit tests run once per system: there, in the Windows build and in the macOS arm64 build.
 - release.yml runs the `full` suite each Monday on `main`, with QA, under a `dev-` version. The weekly run publishes nothing.
 - `publish` needs `sbom`, which needs every build and test job.
-- A Linux or macOS runtime's SBOM report adds the libraries its link step names, from their pkg-config records, one component per project. PHP's own report wins where both name a library. A Windows report holds what PHP names.
+- A Linux or macOS runtime's SBOM report adds the libraries its link step names, from their pkg-config records, one component per project. PHP's own report wins where both name a library. A Windows report adds the source library releases from static-php-cli's download record, saved with the compile.
 - The SBOM merge drops a scanned component sharing a name and version with a listed one, unless both carry a `purl` and the two differ.
 - payload pushes the Linux builder images every runtime leg built, on amd64, one lane per architecture in parallel. After `docker load`, docker uploads a layer before it learns ghcr holds it, so a lane's second image reuses its first image's base layers. `builder-tag.sh` takes each image's machine type as an argument. QA pulls them, so it needs payload.
 
@@ -34,9 +34,10 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 - A newer Composer release is written only after its `composer.phar.sig` verifies against a key kept in the repository.
 - A newer curl extract replaces `runtime/cacert.pem` once it matches curl's published SHA-256.
 - A newer major of a pin is never written. A library takes the release static-php-cli's own pattern allows, and a newer major can be that release.
-- A release starts when something the executables carry moves: PHP, Composer, FrankenPHP, Go, the CA bundle, SQLite or a library. The run stops when none moves.
+- A release starts when something the executables carry moves: PHP, Composer, FrankenPHP, Go, the CA bundle, SQLite, a library or libaom's tag. The run stops when none moves.
 - `runtime/builder/library-versions.txt` records the newest release of each artifact static-php-cli links. The pinned static-php-cli resolves the set from the two extension lists and names each release.
-- An artifact with a fixed URL or built from a branch head has no release to record, such as bzip2 and libaom.
+- The probe records no artifact at a fixed URL, such as bzip2 1.0.8, and none built from a branch head. `runtime/builder/branch-pins.txt` holds the commit of each branch-head artifact.
+- The run moves libaom's line of `branch-pins.txt` to the newest `vX.Y.Z` tag gitiles lists, with the commit the tag names. A newer major counts, as for any library. Gitiles' answer is remote input, and the run checks the tag and the commit before it writes.
 - static-php-cli runs in a job of its own, at the commit `main` pins. That job holds no secret and its token reads public content. The upstream job takes the answers as data and checks each name and release.
 - The file records what the run saw. A build links the release it finds, and the next run records that one.
 - `runtime/builder/spc-sqlite.patch` names SQLite's release as a URL. The run rewrites it from sqlite.org's product list, inside the 3 line.
@@ -50,7 +51,7 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 ### The candidate and the tag
 
 - The job dispatches `release.yml` on every platform with `version`. The run is named `Release candidate VERSION`.
-- A bump that moves PHP, Composer, FrankenPHP, Go or the CA bundle runs the `full` suite. Every platform runs every case, except macOS amd64, which runs the start cases in each profile. A bump that moves SQLite or libraries alone runs `gate`, as a named version does. The demo pin and the docs pin, which every candidate moves, change no suite. Under `gate`, Linux amd64, macOS arm64 and Windows amd64 run every case. Linux arm64, Windows arm64 and macOS amd64 run the start cases.
+- A bump that moves PHP, Composer, FrankenPHP, Go or the CA bundle runs the `full` suite. Every platform runs every case, except macOS amd64, which runs the start cases in each profile. A bump that moves SQLite, libraries or libaom alone runs `gate`, as a named version does. The demo pin and the docs pin, which every candidate moves, change no suite. Under `gate`, Linux amd64, macOS arm64 and Windows amd64 run every case. Linux arm64, Windows arm64 and macOS amd64 run the start cases.
 - The QA demo and host builds run the start cases. The Linux jobs test the same file in full.
 - A release's run calls no `build.yml`. `site-build.yml` calls it after each successful push or weekly run on `main`, when ghcr holds the job image `dev-COMMIT` of `main`'s commit. The candidate pushes that image for a release's commit.
 - `build/release/wait-for-run.sh` finds the run by the candidate's commit and polls it. It names each failed job and, once the run completes, reruns the failed jobs once.

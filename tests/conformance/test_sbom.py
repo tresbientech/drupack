@@ -12,6 +12,7 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[2] / "build" / "release" / "sbom.py"
 LIBRARY_REPORT = SCRIPT.parents[2] / "runtime" / "builder" / "runtime-libraries.sh"
+BRANCH_PINS = SCRIPT.parents[2] / "runtime" / "builder" / "branch-pins.txt"
 # The stub answers drupack-version as the runtime does, and php-cli with the lines the
 # report script prints. An empty library line names an extension it does not load.
 RUNTIME = """#!/bin/sh
@@ -107,6 +108,29 @@ class Sbom(unittest.TestCase):
             "cpe:2.3:a:aomedia:aomedia:3.15.3:*:*:*:*:*:*:*", None,
             "cpe:2.3:a:webmproject:libwebp:1.6.0:*:*:*:*:*:*:*",
             "cpe:2.3:a:xmlsoft:libxslt:1.1.45:*:*:*:*:*:*:*", None])
+
+    def spc_cache(self, entries):
+        cache = self.scratch / ".cache.json"
+        cache.write_text(json.dumps(entries))
+        return subprocess.run([sys.executable, SCRIPT, "runtime", "--target", "windows-amd64", "--spc-cache", cache,
+                               self.runtime], capture_output=True, text=True)
+
+    def test_runtime_adds_the_libraries_static_php_cli_built_from_source(self):
+        pins = {pin[0]: pin for pin in (line.split() for line in BRANCH_PINS.read_text().splitlines()) if pin[0][0] != "#"}
+        source = {name: {"source": {"version": tag}} for name, tag in [
+            ("brotli", "v1.2.1"), ("freetype", "VER-2-15-0"), ("postgresql", "REL_18_7"), ("libssh2", "libssh2-1.11.1"),
+            ("libsodium", "1.0.22-RELEASE"), ("bzip2", None), ("php-src", "8.5.13"), ("ext-apcu", "v5.1.28")]}
+        local = {name: {"source": {"cache_type": "local"}} for name in ("pthreads4w", "libaom")}
+        result = self.spc_cache(source | local | {"jom": {"source": None, "binary": {}}})
+        linked = json.loads(result.stdout)[0]["components"][12:]
+        self.assertEqual([(c["name"], c["version"]) for c in linked], [
+            ("brotli", "1.2.1"), ("freetype", "2.15.0"), ("aom", pins["libaom"][3][1:]), ("libsodium", "1.0.22"),
+            ("libpq", "18.7"), ("pthreads4w", pins["pthreads4w"][4])])
+
+    def test_a_source_version_that_names_no_release_stops_the_report(self):
+        result = self.spc_cache({"zstd": {"source": {"version": "dev-main+abc1234"}}})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("zstd at 'dev-main+abc1234'", result.stderr)
 
     def test_merge_keeps_scanned_packages_whose_purls_differ(self):
         runtime = self.report("linux-amd64", self.runtime)

@@ -28,9 +28,9 @@ spec.loader.exec_module(upstream)
 
 PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD, upstream.RELEASE_WORKFLOW, upstream.DOCKERFILE, *upstream.GO_MODS,
           upstream.LAUNCHER_SUM, upstream.CA_BUNDLE, "build/test/go-tests.sh", upstream.LIBRARY_VERSIONS,
-          upstream.EXTENSIONS_LIST, *upstream.EXTENSION_LISTS, upstream.SQLITE_PATCH]
+          upstream.EXTENSIONS_LIST, *upstream.EXTENSION_LISTS, upstream.SQLITE_PATCH, upstream.BRANCH_PINS]
 # Each source whose move starts a release, by its function in upstream.py.
-CARRIED = ("php", "composer", "frankenphp", "go", "ca_bundle", "sqlite", "libraries")
+CARRIED = ("php", "composer", "frankenphp", "go", "ca_bundle", "sqlite", "libraries", "libaom")
 COMMIT = "c0ffee" * 6 + "c0ff"
 SPC_COMMIT = "5bc" * 13 + "5"
 TOOL_SHA = "70" * 32
@@ -602,6 +602,41 @@ class Bumper(unittest.TestCase):
         self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "curl curl-8_23_0\nlibpng v1.6.59\nzlib v1.4\n")
         self.assertEqual(self.spc_calls[1][1], "curl,libpng,zlib")
 
+    def serve_libaom(self, tags, prefix=upstream.GITILES_PREFIX):
+        """Lists `tags`, each tag name with its gitiles entry, as libaom's tags."""
+        url = upstream.read(upstream.BRANCH_PINS, upstream.LIBAOM_URL_PIN)
+        self.indexes[f"{url}/+refs/tags?format=JSON"] = prefix + json.dumps(tags)
+
+    def test_the_newest_libaom_release_tag_rewrites_its_tag_and_commit(self):
+        before, current = self.text(upstream.BRANCH_PINS), upstream.read(upstream.BRANCH_PINS, upstream.LIBAOM_PIN)
+        self.serve_libaom({"v4.0.0": {"value": "3" * 40, "peeled": "4" * 40}, "v5.0.0-rc1": {"value": "5" * 40},
+                           "v9": {"value": "6" * 40}, "3gpp-2021-10-15": {"value": "7" * 40}})
+        summary = self.run_bumper(upstream.libaom)
+        self.assertEqual(summary.rows, [("libaom", current.split()[0], "v4.0.0", "bumped")])
+        self.assertEqual(self.text(upstream.BRANCH_PINS), before.replace(current, f"v4.0.0 {'4' * 40}"))
+        # A lightweight tag names the commit itself.
+        self.serve_libaom({"v4.1.0": {"value": "5" * 40}})
+        self.run_bumper(upstream.libaom)
+        self.assertEqual(self.text(upstream.BRANCH_PINS), before.replace(current, f"v4.1.0 {'5' * 40}"))
+
+    def test_the_current_libaom_tag_writes_nothing(self):
+        before = self.text(upstream.BRANCH_PINS)
+        self.serve_libaom({"v3.15.2": {"value": "1" * 40}, "v3.15.3": {"value": "1" * 40, "peeled": "b" * 40}})
+        summary = self.run_bumper(upstream.libaom)
+        self.assertEqual(summary.rows, [("libaom", "v3.15.3", "v3.15.3", "current")])
+        self.assertEqual(self.text(upstream.BRANCH_PINS), before)
+
+    def test_a_malformed_libaom_answer_stops_the_run_before_any_write(self):
+        before = self.text(upstream.BRANCH_PINS)
+        for entry, prefix in (({"value": "1" * 40, "peeled": None}, upstream.GITILES_PREFIX),
+                              ({"value": "ABC"}, upstream.GITILES_PREFIX), ({"peeled": "1" * 39}, upstream.GITILES_PREFIX),
+                              ("1" * 40, upstream.GITILES_PREFIX), ({"value": "1" * 40}, "")):
+            with self.subTest(entry=entry, prefix=prefix):
+                self.serve_libaom({"v4.0.0": entry}, prefix)
+                with self.assertRaises(SystemExit):
+                    self.run_bumper(upstream.libaom)
+                self.assertEqual(self.text(upstream.BRANCH_PINS), before)
+
     def run_bump(self, *moved):
         """Runs the whole bump with each source of `moved` moving its pin. It returns the suite
         the bump names and what ran after the sources that start a release."""
@@ -626,7 +661,7 @@ class Bumper(unittest.TestCase):
         self.assertEqual(self.run_bump()[1], [])
 
     def test_the_libraries_moving_alone_take_the_gate_suite(self):
-        for moved in (("libraries",), ("sqlite",), ("sqlite", "libraries")):
+        for moved in (("libraries",), ("sqlite",), ("libaom",), ("sqlite", "libraries")):
             with self.subTest(moved):
                 self.assertEqual(self.run_bump(*moved), ("gate", ["tools", "go_modules"]))
 

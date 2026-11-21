@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Writes a release's CycloneDX SBOM.
 
-Usage: sbom.py runtime --target TARGET [--libraries FILE] RUNTIME
+Usage: sbom.py runtime --target TARGET [--libraries FILE | --spc-cache CACHE] RUNTIME
        sbom.py merge --name NAME --version VERSION --runtime-components FILE...
            [--site SITE_JSON] --output FILE SYFT...
 
@@ -9,7 +9,8 @@ runtime prints, as JSON, a list holding the report of the runtime executable
 that release target TARGET packs: the FrankenPHP, PHP, Caddy and SQLite releases
 its --version names, each PHP extension it loads, and the C libraries PHP names,
 each with its version. FILE is the report of runtime/builder/runtime-libraries.sh,
-whose linked libraries join the list when PHP names no release of them. syft
+whose linked libraries join the list when PHP names no release of them. CACHE,
+static-php-cli's download record, gives Windows the same list. syft
 reads none of them from a release file, which carries the runtime compressed
 inside the launcher.
 
@@ -92,8 +93,10 @@ LINKED_PROJECTS = {
     "libbrotlienc": "brotli",
     "libcares": "c-ares",
     "libcrypto": "OpenSSL",
+    "libaom": "aom",
     "libcurl": "curl",
     "libexslt": None,
+    "libiconv-win": "libiconv",
     "libjpeg": "libjpeg-turbo",
     "liblzma": "xz",
     "libnghttp2": "nghttp2",
@@ -111,6 +114,7 @@ LINKED_PROJECTS = {
     "libzstd": "zstd",
     "mit-krb5": "MIT Kerberos",
     "mit-krb5-gssapi": "MIT Kerberos",
+    "postgresql": "libpq",
     "sqlite3": "SQLite",
     "yaml-0.1": "LibYAML",
 }
@@ -149,6 +153,9 @@ foreach (get_loaded_extensions() as $name) echo "extension\t", $name, "\t", phpv
 """
 # The first number of a release string: "OpenSSL 3.6.5 29 Sep 2026", "libssh2/1.11.1".
 RELEASE = re.compile(r"(?<!\w)\d[\w.]*")
+BRANCH_PINS = Path(__file__).resolve().parents[2] / "runtime" / "builder" / "branch-pins.txt"
+# A release in a static-php-cli source version: v1.2.1, VER-2-15-0, REL_18_7, libssh2-1.11.1, 1.0.22-RELEASE.
+SPC_RELEASE = re.compile(r"(?:v|[A-Za-z][A-Za-z0-9]*[-_])?(\d+(?:[._-]\d+)*)(?:-RELEASE)?")
 
 
 def library_component(name, release):
@@ -158,11 +165,25 @@ def library_component(name, release):
     return component
 
 
-def linked_components(report, named):
-    """One component per project in the report, leaving out the lowercase names in named."""
+def spc_records(cache):
+    """Each library static-php-cli built from source, with its release or, for a branch pin, its commit."""
+    pins = {pin[0]: pin for pin in (line.split() for line in BRANCH_PINS.read_text().splitlines()) if pin[0][0] != "#"}
+    # static-php-cli writes the cache, so its entries are remote input.
+    for name, entry in sorted(json.loads(cache.read_text()).items()):
+        tag = pins[name][3] if name in pins else (entry["source"] or {}).get("version")
+        # A fixed URL records no version, and PHP reports those libraries itself.
+        if not entry["source"] or not tag or name in ("php-src", "php-micro") or name.startswith("ext-"):
+            continue
+        release = SPC_RELEASE.fullmatch(tag)
+        if not release and name not in pins:
+            sys.exit(f"static-php-cli records {name} at {tag!r}, which names no release")
+        yield name, re.sub(r"[_-]", ".", release.group(1)) if release else pins[name][4]
+
+
+def linked_components(records, named):
+    """One component per project of the (record, version) pairs, leaving out the lowercase names in named."""
     components = []
-    for line in report.read_text().splitlines():
-        record, version = line.split()
+    for record, version in records:
         name = LINKED_PROJECTS.get(record, record)
         if name is not None and name.lower() not in named:
             named.add(name.lower())
@@ -170,7 +191,7 @@ def linked_components(report, named):
     return components
 
 
-def runtime_components(runtime, libraries):
+def runtime_components(runtime, records):
     # The launcher points PHPRC at the runtime directory, which holds php.ini.
     environment = {**os.environ, "PHPRC": str(Path(runtime).parent)}
     lines = subprocess.run([runtime, "drupack-version"], check=True, capture_output=True, text=True,
@@ -193,9 +214,7 @@ def runtime_components(runtime, libraries):
                                "version": version.rsplit(" ", 1)[-1]})
         elif version:
             components.append(library_component(name, RELEASE.search(version).group()))
-    if libraries:
-        components += linked_components(libraries, {c["name"].lower() for c in components})
-    return components
+    return components + linked_components(records, {c["name"].lower() for c in components})
 
 
 def merge(args):
@@ -258,6 +277,7 @@ def main():
     runtime = commands.add_parser("runtime")
     runtime.add_argument("--target", required=True)
     runtime.add_argument("--libraries", type=Path)
+    runtime.add_argument("--spc-cache", type=Path)
     runtime.add_argument("runtime")
     merged = commands.add_parser("merge")
     merged.add_argument("--name", required=True)
@@ -268,7 +288,9 @@ def main():
     merged.add_argument("syft", nargs="+", type=Path)
     args = parser.parse_args()
     if args.command == "runtime":
-        json.dump([{"target": args.target, "components": runtime_components(args.runtime, args.libraries)}], sys.stdout, indent=2)
+        records = [line.split() for line in args.libraries.read_text().splitlines()] if args.libraries else \
+            spc_records(args.spc_cache) if args.spc_cache else []
+        json.dump([{"target": args.target, "components": runtime_components(args.runtime, records)}], sys.stdout, indent=2)
         print()
     else:
         args.output.write_text(json.dumps(merge(args), indent=2) + "\n")

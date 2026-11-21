@@ -11,17 +11,7 @@ directory=${1:?$usage}
 builder=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 . "$builder/builder-inputs.sh"
 
-rm -rf "$directory"
-git init --quiet "$directory"
-# Git for Windows checks out CRLF by default, and the patches below then apply to no file.
-git -C "$directory" config core.autocrlf false
-git -C "$directory" fetch --quiet --depth 1 https://github.com/crazywhalecc/static-php-cli.git "$spc_commit"
-git -C "$directory" -c advice.detachedHead=false checkout --quiet FETCH_HEAD
-head=$(git -C "$directory" rev-parse HEAD)
-if [ "$head" != "$spc_commit" ]; then
-    printf 'static-php-cli resolved to %s, expected %s\n' "$head" "$spc_commit" >&2
-    exit 1
-fi
+bash "$builder/fetch-commit.sh" "$directory" https://github.com/crazywhalecc/static-php-cli.git "$spc_commit"
 # static-php-cli pins SQLite 3.45.2, and its recipe passes configure flags newer
 # SQLite releases reject. The patch names the SQLite release the Linux and macOS
 # runtimes link, which build/release/upstream.py moves.

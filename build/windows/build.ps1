@@ -93,11 +93,16 @@ try {
   # A buildroot that holds the marker came from the release job's cache, whose key
   # hashes every input of this compile.
   if (-not (Test-Path $compiled)) {
+    # static-php-cli builds each artifact of branch-pins.txt from its checkout. spc build
+    # downloads again with its own options, and without these it clones the branch head.
+    $branchPins = & $bash (Join-Path $repository 'runtime\builder\fetch-branch-pins.sh') windows ((Join-Path $work 'branch-pins') -replace '\\', '/')
     # static-php-cli's pre-built archives lag the libraries' own releases, so each
     # library compiles from its source release. It builds no ICU on Windows.
-    php $spc download --with-php=$phpVersion --for-extensions=$extensions --for-libs=$extensionLibs --prefer-binary=icu --retry 5
+    php $spc download --with-php=$phpVersion --for-extensions=$extensions --for-libs=$extensionLibs --prefer-binary=icu --retry 5 @($branchPins | ForEach-Object { "--custom-local=$_" })
     Assert-Sha256 'downloads\icu-static-windows-x64.zip' $icuSha256
-    php $spc build $extensions --with-libs=$extensionLibs --enable-zts --build-embed --disable-opcache-jit
+    php $spc build $extensions --with-libs=$extensionLibs --enable-zts --build-embed --disable-opcache-jit @($branchPins | ForEach-Object { "--dl-custom-local=$_" })
+    # build/release/sbom.py reads the library releases from static-php-cli's download record.
+    Copy-Item downloads\.cache.json (Split-Path $compiled)
     # php8embed.lib exists before static-php-cli installs PHP's headers, so the
     # marker names a finished compile. The release job saves its cache on it.
     New-Item -ItemType File $compiled | Out-Null

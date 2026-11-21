@@ -16,6 +16,7 @@
 # of a line, and a patch with CRLF endings applies to no file.
 *.sh text eol=lf
 *.patch text eol=lf
+/runtime/builder/branch-pins.txt text eol=lf
 
 # gci reads a Go file with CRLF endings as unformatted, and build/test/go-tests.sh
 # lints the Windows checkout too.
