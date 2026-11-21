@@ -30,11 +30,20 @@ PINNED = [upstream.BUILDER_INPUTS, upstream.WINDOWS_BUILD, upstream.RELEASE_WORK
           upstream.LAUNCHER_SUM, upstream.CA_BUNDLE, "build/test/go-tests.sh", upstream.LIBRARY_VERSIONS,
           upstream.EXTENSIONS_LIST, *upstream.EXTENSION_LISTS, upstream.SQLITE_PATCH, upstream.BRANCH_PINS]
 # Each source whose move starts a release, by its function in upstream.py.
-CARRIED = ("php", "composer", "frankenphp", "go", "ca_bundle", "sqlite", "libraries", "libaom")
+CARRIED = ("take_php", "composer", "take_frankenphp", "go", "ca_bundle", "take_sqlite", "libraries", "libaom")
 COMMIT = "c0ffee" * 6 + "c0ff"
 SPC_COMMIT = "5bc" * 13 + "5"
 TOOL_SHA = "70" * 32
 IMAGE_DIGEST = "d1" * 32
+# The pins a probe that moved nothing answers, read from the real pin files.
+PINS = {"php": upstream.read(upstream.BUILDER_INPUTS, upstream.PHP_PIN),
+        **dict(zip(("frankenphp", "frankenphp_commit"), upstream.read(upstream.BUILDER_INPUTS, upstream.FRANKENPHP_PIN))),
+        "spc": upstream.read(upstream.BUILDER_INPUTS, upstream.SPC_PIN), "sqlite": upstream.read(upstream.SQLITE_PATCH, upstream.SQLITE_PIN)}
+
+
+def record(name, release, content):
+    """The versions file line of a source the stub serves."""
+    return f"{name} {release} {name}.tar.gz {hashlib.sha256(content).hexdigest()}\n"
 
 
 def rsa_key(directory, name):
@@ -489,80 +498,118 @@ class Bumper(unittest.TestCase):
         self.assertEqual(self.sqlite_pin(), pinned)
 
     def libraries(self, summary):
-        """Records what the probe answers, as upstream.yml's two jobs do between them."""
-        upstream.libraries(summary, json.loads(json.dumps(upstream.probe_libraries())))
+        """Records what the probe downloads, as upstream.yml's two jobs do between them."""
+        upstream.libraries(summary, json.loads(json.dumps(upstream.probe()))["libraries"])
 
-    def serve_spc(self, releases, unsupported=(), recorded=""):
-        """Stands in for static-php-cli. `releases` maps an artifact to the newest release it names,
-        `unsupported` lists the artifacts whose URL is fixed, and `recorded` is the versions file.
-        It returns the answer it gives check-update, which a test may change."""
+    def serve_spc(self, sources, recorded=""):
+        """Stands in for static-php-cli's download. `sources` maps an artifact to its release (None for a fixed URL)
+        and the bytes of its file, or to the cache type of a source with no file, such as local. `recorded` is the
+        versions file. The probe's pin picks, which their own tests cover, pick nothing here."""
         (self.tree / upstream.LIBRARY_VERSIONS).write_text(recorded)
         (self.tree / upstream.EXTENSION_LISTS[0]).write_text("curl   # a comment\nzlib\n")
         (self.tree / upstream.EXTENSION_LISTS[1]).write_text("watcher\n")
-        answers = {name: {"need-update": True, "unsupported": name in unsupported, "old": None, "new": new}
-                   for name, new in {**dict.fromkeys(unsupported), **releases}.items()}
+        for name in ("php", "frankenphp", "sqlite"):
+            self.addCleanup(setattr, upstream, name, getattr(upstream, name))
+            setattr(upstream, name, lambda summary: None)
         self.spc_calls = []
 
         def run_spc(directory, *arguments):
             self.spc_calls.append(arguments)
-            if arguments[0] == "check-update":
-                return json.dumps(answers)
-            licenses = Path(arguments[-1].removeprefix("--dump-dir="))
-            licenses.mkdir()
-            (licenses / "SUMMARY.json").write_text(json.dumps({"artifacts": dict.fromkeys(answers, {})}))
+            folder = directory / "downloads"
+            folder.mkdir(parents=True)
+            cache = {}
+            for name, source in sources.items():
+                if isinstance(source, str):
+                    cache[name] = {"source": {"cache_type": source, "dirname": name, "version": None}, "binary": []}
+                    continue
+                (folder / f"{name}.tar.gz").write_bytes(source[1])
+                cache[name] = {"source": {"cache_type": "archive", "filename": f"{name}.tar.gz", "version": source[0],
+                                          "hash": "unread"}, "binary": []}
+            (folder / ".cache.json").write_text(json.dumps(cache))
             return "a log line\n"
         upstream.run_spc = run_spc
-        return answers
 
     def test_a_library_release_rewrites_its_line(self):
-        self.serve_spc({"zlib": "v1.4", "curl": "curl-8_23_0"}, recorded="curl curl-8_22_0\nzlib v1.4\n")
+        self.serve_spc({"zlib": ("v1.4", b"zlib"), "curl": ("curl-8_23_0", b"curl 8.23")},
+                       recorded=record("curl", "curl-8_22_0", b"curl 8.22") + record("zlib", "v1.4", b"zlib"))
         summary = self.run_bumper(self.libraries)
         self.assertEqual(summary.rows, [("curl", "curl-8_22_0", "curl-8_23_0", "bumped"), ("zlib", "v1.4", "v1.4", "current")])
-        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "curl curl-8_23_0\nzlib v1.4\n")
-        self.assertEqual(self.spc_calls[0][:3], ("dump-license", "--for-extensions=curl,zlib", "--for-libs=watcher"))
-        self.assertEqual(self.spc_calls[1], ("check-update", "curl,zlib", "--bare", "--json"))
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), record("curl", "curl-8_23_0", b"curl 8.23") + record("zlib", "v1.4", b"zlib"))
+        self.assertEqual(self.spc_calls[0][:6], ("download", f"--with-php={self.php}", "--for-packages=php-embed,ext-curl,ext-zlib,watcher",
+                                                 "--source-only", "--no-alt", "--retry=5"))
+        # Each branch pin the Linux build compiles, and none of the Windows build's alone.
+        self.assertEqual([argument.split(":")[0] for argument in self.spc_calls[0][6:]],
+                         ["--custom-local=ext-yaml", "--custom-local=libaom", "--custom-local=libargon2"])
 
-    def test_recorded_library_releases_write_nothing(self):
-        recorded = "curl curl-8_23_0\nzlib v1.4\n"
-        self.serve_spc({"curl": "curl-8_23_0", "zlib": "v1.4"}, recorded=recorded)
+    def test_recorded_sources_write_nothing(self):
+        recorded = record("curl", "curl-8_23_0", b"curl") + record("zlib", "v1.4", b"zlib")
+        self.serve_spc({"curl": ("curl-8_23_0", b"curl"), "zlib": ("v1.4", b"zlib")}, recorded=recorded)
         summary = self.run_bumper(self.libraries)
         self.assertEqual({row[3] for row in summary.rows}, {"current"})
         self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), recorded)
 
-    def test_an_artifact_with_no_release_of_its_own_stays_out(self):
-        self.serve_spc({"php-src": "8.5.13", "libaom": "dev-main+d03d2c6", "zlib": "v1.4"}, unsupported=("bzip2", "sqlite"),
-                       recorded="zlib v1.4\n")
+    def test_a_file_that_changed_under_its_release_shows_both_hashes(self):
+        old, new = hashlib.sha256(b"zlib").hexdigest(), hashlib.sha256(b"zlib again").hexdigest()
+        self.serve_spc({"zlib": ("v1.4", b"zlib again")}, recorded=record("zlib", "v1.4", b"zlib"))
         summary = self.run_bumper(self.libraries)
-        self.assertEqual(summary.rows, [("zlib", "v1.4", "v1.4", "current")])
-        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "zlib v1.4\n")
-        self.assertEqual(self.spc_calls[1][1], "bzip2,libaom,sqlite,zlib")
+        self.assertEqual(summary.rows, [("zlib", f"v1.4 (sha256:{old[:12]})", f"v1.4 (sha256:{new[:12]})", "bumped")])
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), record("zlib", "v1.4", b"zlib again"))
 
-    def test_an_artifact_static_php_cli_no_longer_links_leaves_the_file_with_a_row(self):
-        self.serve_spc({"zlib": "v1.4"}, unsupported=("bzip2",), recorded="bzip2 1.0.8\nxz v5.8.4\nzlib v1.4\n")
+    def test_a_source_at_a_fixed_url_is_recorded_by_its_file(self):
+        self.serve_spc({"bzip2": (None, b"bzip2")})
         summary = self.run_bumper(self.libraries)
-        self.assertEqual(summary.rows[1:], [("bzip2", "1.0.8", "none", "removed"), ("xz", "v5.8.4", "none", "removed")])
-        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "zlib v1.4\n")
+        self.assertEqual(summary.rows, [("bzip2", "none", "bzip2.tar.gz", "bumped")])
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), record("bzip2", "-", b"bzip2"))
 
-    def test_a_malformed_answer_from_static_php_cli_stops_the_run(self):
-        for name, new in (("zlib", None), ("zlib", ""), ("zlib", "v1.4 | 2"), ("zlib", "<b>"), ("zlib", 14), ("z lib", "v1.4"),
-                          ("zlib", "../../x"), ("zlib", "v" * 65), ("z" * 65, "v1.4")):
-            with self.subTest(name=name, new=new):
-                self.serve_spc({name: new}, recorded="zlib v1.3\n")
-                with self.assertRaises(SystemExit):
-                    self.run_bumper(self.libraries)
-                self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "zlib v1.3\n")
+    def test_a_branch_pin_stays_out_of_the_file(self):
+        self.serve_spc({"ext-yaml": "local", "zlib": ("v1.4", b"zlib")})
+        self.run_bumper(self.libraries)
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), record("zlib", "v1.4", b"zlib"))
 
-    def test_an_unsupported_flag_that_is_no_boolean_stops_the_run(self):
-        answers = self.serve_spc({"zlib": "v1.4"})
-        answers["zlib"]["unsupported"] = "false"
+    def test_a_git_source_outside_the_branch_pins_stops_the_probe(self):
+        self.serve_spc({"libargon2": "git", "zlib": ("v1.4", b"zlib")}, recorded="kept\n")
         with self.assertRaises(SystemExit):
             self.run_bumper(self.libraries)
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "kept\n")
 
-    def test_an_artifact_new_to_the_file_reads_none(self):
-        self.serve_spc({"xz": "v5.8.4", "zlib": "v1.4"}, recorded="zlib v1.4\n")
+    def test_a_file_name_with_a_path_stops_the_probe(self):
+        self.serve_spc({"zlib": ("v1.4", b"zlib")})
+        upstream_run_spc = upstream.run_spc
+
+        def run_spc(directory, *arguments):
+            upstream_run_spc(directory, *arguments)
+            cache = directory / "downloads" / ".cache.json"
+            cache.write_text(cache.read_text().replace('"zlib.tar.gz"', '"../../zlib.tar.gz"'))
+        upstream.run_spc = run_spc
+        with self.assertRaises(SystemExit):
+            upstream.probe()
+
+    def test_a_source_static_php_cli_no_longer_downloads_leaves_the_file_with_a_row(self):
+        self.serve_spc({"zlib": ("v1.4", b"zlib")}, recorded=record("bzip2", "-", b"bz") + record("xz", "v5.8.4", b"xz")
+                       + record("zlib", "v1.4", b"zlib"))
+        summary = self.run_bumper(self.libraries)
+        self.assertEqual(summary.rows[1:], [("bzip2", "bzip2.tar.gz", "none", "removed"), ("xz", "v5.8.4", "none", "removed")])
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), record("zlib", "v1.4", b"zlib"))
+
+    def test_a_malformed_answer_stops_the_run(self):
+        (self.tree / upstream.LIBRARY_VERSIONS).write_text(record("zlib", "v1.3", b"zlib"))
+        good = {"release": "v1.4", "file": "zlib.tar.gz", "sha256": TOOL_SHA}
+        for name, change in (("zlib", {"release": None}), ("zlib", {"release": ""}), ("zlib", {"release": "v1.4 | 2"}),
+                             ("zlib", {"release": "<b>"}), ("zlib", {"release": 14}), ("z lib", {}), ("z" * 65, {}),
+                             ("zlib", {"release": "v" * 65}), ("zlib", {"file": "../../x"}), ("zlib", {"file": "a b"}),
+                             ("zlib", {"sha256": "70" * 31}), ("zlib", {"sha256": "XY" * 32}), ("zlib", {"extra": "1"})):
+            with self.subTest(name=name, change=change), self.assertRaises(SystemExit):
+                upstream.libraries(upstream.Summary(), {name: good | change})
+        for found in ([], None, "zlib", {"zlib": "v1.4"}):
+            with self.subTest(found), self.assertRaises(SystemExit):
+                upstream.libraries(upstream.Summary(), found)
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), record("zlib", "v1.3", b"zlib"))
+
+    def test_a_source_new_to_the_file_reads_none(self):
+        self.serve_spc({"xz": ("v5.8.4", b"xz"), "zlib": ("v1.4", b"zlib")}, recorded=record("zlib", "v1.4", b"zlib"))
         summary = self.run_bumper(self.libraries)
         self.assertEqual(summary.rows[0], ("xz", "none", "v5.8.4", "bumped"))
-        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "xz v5.8.4\nzlib v1.4\n")
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), record("xz", "v5.8.4", b"xz") + record("zlib", "v1.4", b"zlib"))
 
     def serve_watcher(self, release, digest):
         self.indexes[upstream.WATCHER_RELEASES + release] = json.dumps({"assets": [
@@ -570,7 +617,8 @@ class Bumper(unittest.TestCase):
             {"name": upstream.WATCHER_ASSET, "digest": digest}]})
 
     def test_a_watcher_release_reaches_the_windows_build(self):
-        self.serve_spc({"watcher": "9.9.9", "zlib": "v1.4"}, recorded="watcher 0.14.5\nzlib v1.4\n")
+        self.serve_spc({"watcher": ("9.9.9", b"w"), "zlib": ("v1.4", b"zlib")},
+                       recorded=record("watcher", "0.14.5", b"w") + record("zlib", "v1.4", b"zlib"))
         self.serve_watcher("9.9.9", "sha256:" + TOOL_SHA)
         summary = self.run_bumper(self.libraries)
         self.assertEqual(summary.rows[0], ("watcher", "0.14.5", "9.9.9", "bumped"))
@@ -578,28 +626,31 @@ class Bumper(unittest.TestCase):
         self.assertIn(f"/e-dant/watcher/releases/download/9.9.9/{upstream.WATCHER_ASSET}'", windows)
         self.assertEqual(upstream.read(upstream.WINDOWS_BUILD, upstream.WATCHER_PIN)[1], TOOL_SHA)
 
-    def test_a_recorded_watcher_leaves_the_windows_build_alone(self):
+    def test_a_watcher_release_that_stays_leaves_the_windows_build_alone(self):
         before = self.text(upstream.WINDOWS_BUILD)
-        self.serve_spc({"watcher": "0.14.5"}, recorded="watcher 0.14.5\n")
-        self.run_bumper(self.libraries)
-        self.assertEqual(self.text(upstream.WINDOWS_BUILD), before)
+        for content in (b"w", b"w again"):
+            with self.subTest(content):
+                self.serve_spc({"watcher": ("0.14.5", content)}, recorded=record("watcher", "0.14.5", b"w"))
+                # Without a served release, a request for it stops the run.
+                self.run_bumper(self.libraries)
+                self.assertEqual(self.text(upstream.WINDOWS_BUILD), before)
 
     def test_a_watcher_release_without_a_windows_digest_stops_the_run_before_any_write(self):
         before = self.text(upstream.WINDOWS_BUILD)
         for digest in (None, "sha256:short", "md5:" + TOOL_SHA):
             with self.subTest(digest):
-                self.serve_spc({"watcher": "9.9.9"}, recorded="watcher 0.14.5\n")
+                self.serve_spc({"watcher": ("9.9.9", b"w")}, recorded=record("watcher", "0.14.5", b"w"))
                 self.serve_watcher("9.9.9", digest)
                 with self.assertRaises(SystemExit):
                     self.run_bumper(self.libraries)
                 self.assertEqual(self.text(upstream.WINDOWS_BUILD), before)
-                self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "watcher 0.14.5\n")
+                self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), record("watcher", "0.14.5", b"w"))
 
     def test_the_library_lines_stay_sorted(self):
-        self.serve_spc({"zlib": "v1.4", "curl": "curl-8_23_0", "libpng": "v1.6.59"})
+        self.serve_spc({"zlib": ("v1.4", b"z"), "curl": ("curl-8_23_0", b"c"), "libpng": ("v1.6.59", b"p")})
         self.run_bumper(self.libraries)
-        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "curl curl-8_23_0\nlibpng v1.6.59\nzlib v1.4\n")
-        self.assertEqual(self.spc_calls[1][1], "curl,libpng,zlib")
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS),
+                         record("curl", "curl-8_23_0", b"c") + record("libpng", "v1.6.59", b"p") + record("zlib", "v1.4", b"z"))
 
     def serve_libaom(self, tags, prefix=upstream.GITILES_PREFIX):
         """Lists `tags`, each tag name with its gitiles entry, as libaom's tags."""
@@ -636,20 +687,20 @@ class Bumper(unittest.TestCase):
                     self.run_bumper(upstream.libaom)
                 self.assertEqual(self.text(upstream.BRANCH_PINS), before)
 
-    def run_bump(self, *moved):
+    def run_bump(self, *moved, answers=None):
         """Runs the whole bump with each source of `moved` moving its pin. It returns the suite
         the bump names and what ran after the sources that start a release."""
         ran = []
 
         def source(name):
-            def step(summary, *answers):
+            def step(summary, *values):
                 ran.append(name)
                 summary.row(name, "1", "2" if name in moved else "1", "bumped" if name in moved else "current")
             return step
         for name in (*CARRIED, "tools", "go_modules"):
             self.addCleanup(setattr, upstream, name, getattr(upstream, name))
             setattr(upstream, name, source(name))
-        return upstream.bump(upstream.Summary(), {}), ran[len(CARRIED):]
+        return upstream.bump(upstream.Summary(), answers or {"pins": PINS, "notes": [], "libraries": {}}), ran[len(CARRIED):]
 
     def test_each_pin_the_executables_carry_brings_the_tools_and_modules_along(self):
         for name in CARRIED:
@@ -660,51 +711,86 @@ class Bumper(unittest.TestCase):
         self.assertEqual(self.run_bump()[1], [])
 
     def test_the_libraries_moving_alone_take_the_gate_suite(self):
-        for moved in (("libraries",), ("sqlite",), ("libaom",), ("sqlite", "libraries")):
+        for moved in (("libraries",), ("take_sqlite",), ("libaom",), ("take_sqlite", "libraries")):
             with self.subTest(moved):
                 self.assertEqual(self.run_bump(*moved), ("gate", ["tools", "go_modules"]))
 
     def test_any_other_pin_moving_takes_the_full_suite(self):
-        for name in ("php", "composer", "frankenphp", "go", "ca_bundle"):
+        for name in ("take_php", "composer", "take_frankenphp", "go", "ca_bundle"):
             with self.subTest(name):
                 self.assertEqual(self.run_bump(name, "libraries")[0], "full")
+
+    def test_the_pins_the_probe_picked_reach_the_pin_files(self):
+        for name in ("composer", "go", "ca_bundle", "libraries", "libaom", "tools", "go_modules"):
+            self.addCleanup(setattr, upstream, name, getattr(upstream, name))
+            setattr(upstream, name, lambda summary, *values: None)
+        picked = PINS | {"php": "8.5.99", "frankenphp": "1.99.0", "frankenphp_commit": COMMIT, "spc": SPC_COMMIT,
+                         "sqlite": "2099/sqlite-autoconf-3990000.tar.gz"}
+        summary = upstream.Summary()
+        note = "MAJOR PHP 9.0.0 is out, outside the 8.5 line"
+        self.assertEqual(upstream.bump(summary, {"pins": picked, "notes": [note], "libraries": {}}), "full")
+        self.assertEqual(upstream.read(upstream.BUILDER_INPUTS, upstream.PHP_PIN), "8.5.99")
+        self.assertEqual(upstream.read(upstream.BUILDER_INPUTS, upstream.FRANKENPHP_PIN), ("1.99.0", COMMIT))
+        self.assertEqual(upstream.read(upstream.BUILDER_INPUTS, upstream.SPC_PIN), SPC_COMMIT)
+        self.assertEqual(self.sqlite_pin(), "2099/sqlite-autoconf-3990000.tar.gz")
+        self.assertEqual([row[0] for row in summary.rows], ["PHP", "FrankenPHP", "static-php-cli", "SQLite"])
+        self.assertEqual(summary.notes, [note])
+
+    def test_malformed_pins_or_notes_stop_the_run_before_any_write(self):
+        pinned = {path: self.text(path) for path in (upstream.BUILDER_INPUTS, upstream.SQLITE_PATCH)}
+        for change in ({"pins": PINS | {"php": "8.5"}}, {"pins": PINS | {"spc": "main"}}, {"pins": PINS | {"sqlite": "../x"}},
+                       {"pins": PINS | {"frankenphp": 1}}, {"pins": PINS | {"extra": "1"}}, {"pins": None},
+                       {"notes": ["MAJOR PHP 9.0.0 is out | <b>"]}, {"notes": "MAJOR"}, {"notes": [3]}):
+            with self.subTest(change), self.assertRaises(SystemExit):
+                self.run_bump(answers={"pins": PINS, "notes": [], "libraries": {}} | change)
+        for answers in ([], "zlib"):
+            with self.subTest(answers), self.assertRaises(SystemExit):
+                upstream.bump(upstream.Summary(), answers)
+        self.assertEqual({path: self.text(path) for path in pinned}, pinned)
 
     def test_the_suite_reaches_the_output_file(self):
         output = self.tree / "output"
         output.write_text("earlier=1\n")
         self.addCleanup(setattr, upstream, "bump", upstream.bump)
         answers = self.tree / "answers.json"
-        answers.write_text('{"zlib": {"unsupported": false, "new": "v1.4"}}')
+        answers.write_text('{"libraries": {}}')
         given = []
         upstream.bump = lambda summary, answers: given.append(answers) or "gate"
-        arguments = ["upstream.py", "--libraries", str(answers), "--output", str(output)]
+        arguments = ["upstream.py", "--answers", str(answers), "--output", str(output)]
         with mock.patch.object(sys, "argv", arguments), contextlib.redirect_stdout(io.StringIO()):
             upstream.main()
         self.assertEqual(output.read_text(), "earlier=1\nsuite=gate\n")
-        self.assertEqual(given, [{"zlib": {"unsupported": False, "new": "v1.4"}}])
+        self.assertEqual(given, [{"libraries": {}}])
 
-    def test_the_probe_prints_the_answers_and_writes_nothing(self):
-        self.serve_spc({"zlib": "v1.4", "php-src": "8.5.13"}, recorded="zlib v1.3\n")
+    def test_the_probe_prints_the_answers_and_moves_no_record(self):
+        self.serve_spc({"zlib": ("v1.4", b"zlib")}, recorded="kept\n")
         self.addCleanup(setattr, upstream, "bump", upstream.bump)
-        upstream.bump = lambda summary, answers: self.fail("the probe moved a pin")
+        upstream.bump = lambda summary, answers: self.fail("the probe bumped")
         printed = io.StringIO()
-        with mock.patch.object(sys, "argv", ["upstream.py", "--probe-libraries"]), contextlib.redirect_stdout(printed):
+        with mock.patch.object(sys, "argv", ["upstream.py", "--probe"]), contextlib.redirect_stdout(printed):
             upstream.main()
-        self.assertEqual(list(json.loads(printed.getvalue())), ["zlib"])
+        answers = json.loads(printed.getvalue())
+        self.assertEqual(answers, {"pins": PINS, "notes": [], "libraries": {
+            "zlib": {"release": "v1.4", "file": "zlib.tar.gz", "sha256": hashlib.sha256(b"zlib").hexdigest()}}})
         self.assertEqual(printed.getvalue().count("\n"), 1)
-        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "zlib v1.3\n")
+        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "kept\n")
+
+    def test_the_probe_downloads_on_the_pins_it_picked(self):
+        self.serve_spc({"zlib": ("v1.4", b"zlib")})
+
+        def php(summary):
+            summary.notes.append("MAJOR PHP 9.0.0 is out, outside the 8.5 line")
+            upstream.rewrite(upstream.BUILDER_INPUTS, upstream.PHP_PIN, "8.5.99")
+        upstream.php = php
+        answers = upstream.probe()
+        self.assertEqual(self.spc_calls[0][1], "--with-php=8.5.99")
+        self.assertEqual(answers["pins"]["php"], "8.5.99")
+        self.assertEqual(answers["notes"], ["MAJOR PHP 9.0.0 is out, outside the 8.5 line"])
 
     def test_a_bump_without_the_answers_is_refused(self):
         with mock.patch.object(sys, "argv", ["upstream.py"]), contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit):
                 upstream.main()
-
-    def test_answers_that_are_no_object_stop_the_run(self):
-        (self.tree / upstream.LIBRARY_VERSIONS).write_text("zlib v1.3\n")
-        for answers in ([], None, "zlib"):
-            with self.subTest(answers), self.assertRaises(SystemExit):
-                upstream.libraries(upstream.Summary(), answers)
-        self.assertEqual(self.text(upstream.LIBRARY_VERSIONS), "zlib v1.3\n")
 
 
 def build_script(case, name):

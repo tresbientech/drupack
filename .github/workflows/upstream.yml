@@ -42,10 +42,11 @@ env:
 jobs:
   # static-php-cli and its Composer packages are third-party code. They run here, where the
   # token reads public content and no secret exists, and the upstream job takes their
-  # answers as data. The checkout is main, so the static-php-cli is the one main pins.
+  # answers as data. The probe picks the PHP, FrankenPHP and SQLite pins in this checkout
+  # first, so the static-php-cli it runs and the sources it downloads are the candidate's.
   libraries:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       contents: read
     outputs:
@@ -63,12 +64,12 @@ jobs:
           php -r 'exit(PHP_VERSION_ID >= 80400 ? 0 : 1);'
 
       - id: probe
-        name: Ask static-php-cli for the newest release of each library
+        name: Pick the pins and record each source static-php-cli downloads on them
         if: inputs.version == ''
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          answers=$(python3 build/release/upstream.py --probe-libraries)
+          answers=$(python3 build/release/upstream.py --probe)
           echo "answers=$answers" >>"$GITHUB_OUTPUT"
 
   upstream:
@@ -109,7 +110,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           NAMED: ${{ inputs.version }}
-          LIBRARIES: ${{ needs.libraries.outputs.answers }}
+          ANSWERS: ${{ needs.libraries.outputs.answers }}
           # setup-go sets local, and the bump can raise the go line before it moves the modules.
           GOTOOLCHAIN: auto
         run: |
@@ -120,8 +121,8 @@ jobs:
           else
             # Without it the step takes tee's exit status, and a bump that stopped half way goes on to a candidate.
             set -o pipefail
-            printf '%s' "$LIBRARIES" >"$RUNNER_TEMP/libraries.json"
-            python3 build/release/upstream.py --libraries "$RUNNER_TEMP/libraries.json" --output "$GITHUB_OUTPUT" \
+            printf '%s' "$ANSWERS" >"$RUNNER_TEMP/answers.json"
+            python3 build/release/upstream.py --answers "$RUNNER_TEMP/answers.json" --output "$GITHUB_OUTPUT" \
               | tee "$RUNNER_TEMP/summary.md"
             if [ -z "$(git status --porcelain)" ]; then
               echo 'Nothing the executables carry moved.'

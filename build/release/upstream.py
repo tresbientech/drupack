@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Moves the PHP, FrankenPHP, Composer and Go pins to their newest version inside their line, moves the
-CA bundle to curl's newest extract, moves libaom to its newest release tag, and records the newest release of SQLite
-and of each library static-php-cli links.
+CA bundle to curl's newest extract, moves libaom to its newest release tag and SQLite to its newest release, and
+records the release, file and SHA-256 of each source static-php-cli downloads for the builds.
 It prints what it did as a Markdown summary. The executables carry all of these, so a move of one starts a release.
 The Go check tools and the launcher's Go modules move only alongside such a move. Go's line is its own or the one
 FrankenPHP needs, whichever is newer. It edits the working tree and never commits.
 
-static-php-cli is third-party code, so one command runs it and writes nothing, and the other takes its answers as data:
+static-php-cli is third-party code. One command picks the PHP, FrankenPHP and SQLite pins in its own checkout,
+downloads on them what the builds compile, and prints its answers. The other takes them as data:
 
-    python3 build/release/upstream.py --probe-libraries > ANSWERS
-    python3 build/release/upstream.py --libraries ANSWERS [--output FILE]
+    python3 build/release/upstream.py --probe > ANSWERS
+    python3 build/release/upstream.py --answers ANSWERS [--output FILE]
 """
 
 import argparse
@@ -68,6 +69,13 @@ SQLITE_PATCH = "runtime/builder/spc-sqlite.patch"
 
 COMMIT = r"[0-9a-f]{40}"
 SHA256 = r"[0-9a-f]{64}"
+VERSION = r"\d+\.\d+\.\d+"
+# The note newest_in_line writes for PHP, FrankenPHP or SQLite, which the probe hands over.
+MAJOR_NOTE = r"MAJOR (?:PHP|FrankenPHP|SQLite) \d+(?:\.\d+)* is out, outside the \d+(?:\.\d+)? line"
+# A downloaded file's name in static-php-cli's downloads folder, with no path in it.
+FILE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,127}")
+# The musl set holds every source the Linux, macOS and Windows builds share.
+SPC_TARGET = "x86_64-linux-musl"
 # Each pin's lines in its file, their values captured.
 PHP_PIN = r"^php_version=(.+)$"
 FRANKENPHP_PIN = r"^frankenphp_version=(.+)\nfrankenphp_commit=(.+)$"
@@ -213,8 +221,12 @@ def php(summary):
     newest = newest_php(line)
     # The major's answer feeds the note alone; the line's answer is the pick.
     newest_in_line(summary, "PHP", line, [newest_php(line.split(".")[0])], current)
-    if summary.moves("PHP", current, newest):
-        rewrite(BUILDER_INPUTS, PHP_PIN, newest)
+    take_php(summary, newest)
+
+
+def take_php(summary, version):
+    if summary.moves("PHP", read(BUILDER_INPUTS, PHP_PIN), version):
+        rewrite(BUILDER_INPUTS, PHP_PIN, version)
 
 
 def composer(summary):
@@ -261,14 +273,24 @@ def frankenphp(summary):
         target = json.loads(fetch(f"{FRANKENPHP_API}/git/tags/{target['sha']}"))["object"]
     if target["type"] != "commit" or not re.fullmatch(COMMIT, target["sha"]):
         sys.exit(f"FrankenPHP v{newest} names {target!r}, not a commit")
-    rewrite(BUILDER_INPUTS, FRANKENPHP_PIN, newest, target["sha"])
-    spc_current = read(BUILDER_INPUTS, SPC_PIN)
     # The branch head is remote input.
     spc_head = json.loads(fetch(SPC_BRANCH))["commit"]["sha"]
     if not re.fullmatch(COMMIT, spc_head):
         sys.exit(f"static-php-cli v3 names {spc_head!r}, not a commit")
-    rewrite(BUILDER_INPUTS, SPC_PIN, spc_head)
-    summary.row("static-php-cli", spc_current[:12], spc_head[:12], "current" if spc_head == spc_current else "bumped")
+    pin_frankenphp(summary, newest, target["sha"], spc_head)
+
+
+def take_frankenphp(summary, version, commit, spc):
+    if summary.moves("FrankenPHP", read(BUILDER_INPUTS, FRANKENPHP_PIN)[0], version):
+        pin_frankenphp(summary, version, commit, spc)
+
+
+def pin_frankenphp(summary, version, commit, spc):
+    """Writes a FrankenPHP release with its commit, and the static-php-cli commit that moves with it."""
+    rewrite(BUILDER_INPUTS, FRANKENPHP_PIN, version, commit)
+    spc_current = read(BUILDER_INPUTS, SPC_PIN)
+    rewrite(BUILDER_INPUTS, SPC_PIN, spc)
+    summary.row("static-php-cli", spc_current[:12], spc[:12], "current" if spc == spc_current else "bumped")
 
 
 def go(summary):
@@ -400,7 +422,12 @@ def sqlite(summary):
     if len(products) != 1 or sqlite_release(products[0][1]) != products[0][0]:
         sys.exit(f"sqlite.org lists the sqlite-autoconf releases {products!r}")
     newest, path = products[0]
-    if summary.moves("SQLite", current, newest_in_line(summary, "SQLite", "3", [newest], current)):
+    in_line = newest_in_line(summary, "SQLite", "3", [newest], current) == newest
+    take_sqlite(summary, path if in_line else read(SQLITE_PATCH, SQLITE_PIN))
+
+
+def take_sqlite(summary, path):
+    if summary.moves("SQLite", sqlite_release(read(SQLITE_PATCH, SQLITE_PIN)), sqlite_release(path)):
         rewrite(SQLITE_PATCH, SQLITE_PIN, path)
 
 
@@ -412,7 +439,8 @@ def run_spc(directory, *arguments):
         subprocess.run(["composer", "install", f"--working-dir={directory}", "--no-dev", "--no-interaction", "--prefer-dist",
                         "--no-scripts", "--no-plugins"], check=True, stdout=sys.stderr)
     # static-php-cli writes its cache and its logs into the directory it runs from.
-    return subprocess.run(["php", "bin/spc", *arguments], cwd=directory, check=True, stdout=subprocess.PIPE, text=True).stdout
+    return subprocess.run(["php", "bin/spc", *arguments], cwd=directory, check=True, stdout=subprocess.PIPE, text=True,
+                          env=os.environ | {"SPC_TARGET": SPC_TARGET}).stdout
 
 
 def windows_watcher(release):
@@ -425,50 +453,93 @@ def windows_watcher(release):
     rewrite(WINDOWS_BUILD, WATCHER_PIN, release, digest.removeprefix("sha256:"))
 
 
-def probe_libraries():
-    """What the pinned static-php-cli answers for each artifact it resolves from the extension lists.
+def probe():
+    """Picks the PHP, FrankenPHP and SQLite pins in this checkout, then downloads on them what the builds compile.
     It runs third-party code, so upstream.yml calls it in a job that holds no secret and pushes nothing."""
+    summary = Summary()
+    php(summary)
+    frankenphp(summary)
+    sqlite(summary)
     extensions, libs = (subprocess.run(["bash", str(ROOT / EXTENSIONS_LIST), str(ROOT / path)], check=True,
                                        stdout=subprocess.PIPE, text=True).stdout.strip() for path in EXTENSION_LISTS)
+    packages = ",".join(["php-embed", *(f"ext-{name}" for name in extensions.split(",")), libs])
+    branch_pins = [line.split()[0] for line in (ROOT / BRANCH_PINS).read_text().splitlines()
+                   if not line.startswith("#") and line.split()[1] == "all"]
     with tempfile.TemporaryDirectory() as scratch:
-        spc, licenses = Path(scratch) / "spc", Path(scratch) / "licenses"
-        # dump-license resolves the lists as a build does and downloads nothing.
-        run_spc(spc, "dump-license", f"--for-extensions={extensions}", f"--for-libs={libs}", f"--dump-dir={licenses}")
-        # PHP has its own pin.
-        names = sorted(set(json.loads((licenses / "SUMMARY.json").read_text())["artifacts"]) - {"php-src"})
-        answers = json.loads(run_spc(spc, "check-update", ",".join(names), "--bare", "--json"))
-    return {name: answers.get(name) for name in names}
+        spc, empty = Path(scratch) / "spc", Path(scratch) / "empty"
+        empty.mkdir()
+        # A branch pin compiles from the checkout fetch-branch-pins.sh makes, so the download takes an empty folder.
+        run_spc(spc, "download", f"--with-php={read(BUILDER_INPUTS, PHP_PIN)}", f"--for-packages={packages}", "--source-only",
+                "--no-alt", "--retry=5", *(f"--custom-local={name}:{empty}" for name in branch_pins))
+        found = downloads(spc / "downloads")
+    frankenphp_version, frankenphp_commit = read(BUILDER_INPUTS, FRANKENPHP_PIN)
+    pins = {"php": read(BUILDER_INPUTS, PHP_PIN), "frankenphp": frankenphp_version, "frankenphp_commit": frankenphp_commit,
+            "spc": read(BUILDER_INPUTS, SPC_PIN), "sqlite": read(SQLITE_PATCH, SQLITE_PIN)}
+    return {"pins": pins, "notes": summary.notes, "libraries": found}
 
 
-def libraries(summary, answers):
-    """Records the newest release of each artifact in `answers`, which probe_libraries gave."""
-    recorded = dict(line.split() for line in (ROOT / LIBRARY_VERSIONS).read_text().splitlines())
+def downloads(folder):
+    """The release, file and SHA-256 of each source static-php-cli downloaded into `folder`, by artifact.
+    A local source is a branch pin, which compiles from its own checkout."""
     found = {}
-    # static-php-cli gave the names, each library's own site gave its release, and another job
-    # carried both here, so the answers are remote input.
-    if not isinstance(answers, dict):
-        sys.exit(f"static-php-cli answers {answers!r}")
-    for name, answer in sorted(answers.items()):
-        if not ARTIFACT_WORD.fullmatch(name) or not isinstance(answer, dict) or not isinstance(answer.get("unsupported"), bool):
-            sys.exit(f"static-php-cli answers {answer!r} for the artifact {name!r}")
-        new = answer.get("new")
-        # An unsupported artifact has a fixed URL.
-        if answer["unsupported"]:
+    # static-php-cli writes the cache, so its entries are remote input.
+    for name, entry in sorted(json.loads((folder / ".cache.json").read_text()).items()):
+        source = entry["source"]
+        if source["cache_type"] == "local":
             continue
-        if not isinstance(new, str) or not ARTIFACT_WORD.fullmatch(new):
-            sys.exit(f"static-php-cli names {new!r} as the newest {name}")
-        # A branch head has no release.
-        if not new.startswith("dev-"):
-            found[name] = new
-    for name, new in found.items():
-        moved = recorded.get(name) != new
-        if moved and name == "watcher":
-            windows_watcher(new)
-        summary.row(name, recorded.get(name, "none"), new, "bumped" if moved else "current")
+        if source["cache_type"] not in ("archive", "file"):
+            sys.exit(f"static-php-cli fetched {name} as {source['cache_type']}, and branch-pins.txt pins no commit for it")
+        if not FILE_NAME.fullmatch(source["filename"]):
+            sys.exit(f"static-php-cli stored {name} as {source['filename']!r}, not a file of its downloads folder")
+        found[name] = {"release": source["version"] or "-", "file": source["filename"],
+                       "sha256": hashlib.sha256((folder / source["filename"]).read_bytes()).hexdigest()}
+    return found
+
+
+def take_pins(answers):
+    """The pins and notes of the probe's `answers`. Another job carried them here, so they are remote input."""
+    patterns = {"php": VERSION, "frankenphp": VERSION, "frankenphp_commit": COMMIT, "spc": COMMIT, "sqlite": SQLITE_PATH}
+    pins, notes = answers.get("pins"), answers.get("notes")
+    if not isinstance(pins, dict) or pins.keys() != patterns.keys() or not all(
+            isinstance(pins[key], str) and re.fullmatch(pattern, pins[key]) for key, pattern in patterns.items()):
+        sys.exit(f"the probe picked the pins {pins!r}")
+    if not isinstance(notes, list) or not all(isinstance(note, str) and re.fullmatch(MAJOR_NOTE, note) for note in notes):
+        sys.exit(f"the probe wrote the notes {notes!r}")
+    return pins, notes
+
+
+def shown(record, hashed):
+    """A record's release, or its file when it has none, with its SHA-256 prefix when `hashed`."""
+    release, file, sha256 = record
+    label = file if release == "-" else release
+    return f"{label} (sha256:{sha256[:12]})" if hashed else label
+
+
+def libraries(summary, found):
+    """Records the release, file and SHA-256 of each source in `found`, which probe gave."""
+    recorded = {name: tuple(rest) for name, *rest in (line.split() for line in (ROOT / LIBRARY_VERSIONS).read_text().splitlines())}
+    # static-php-cli named each artifact and its release, and fetched its file, in another job, so they are remote input.
+    if not isinstance(found, dict):
+        sys.exit(f"the probe found the sources {found!r}")
+    records = {}
+    for name, answer in sorted(found.items()):
+        if (not ARTIFACT_WORD.fullmatch(name) or not isinstance(answer, dict) or answer.keys() != {"release", "file", "sha256"}
+                or not all(isinstance(value, str) for value in answer.values())
+                or not (answer["release"] == "-" or ARTIFACT_WORD.fullmatch(answer["release"]))
+                or not FILE_NAME.fullmatch(answer["file"]) or not re.fullmatch(SHA256, answer["sha256"])):
+            sys.exit(f"the probe found {answer!r} for the artifact {name!r}")
+        records[name] = (answer["release"], answer["file"], answer["sha256"])
+    for name, new in records.items():
+        old = recorded.get(name)
+        if name == "watcher" and (old or ("none",))[0] != new[0]:
+            windows_watcher(new[0])
+        # A source whose release stays and whose file changed shows both hashes.
+        hashed = old is not None and old != new and shown(old, False) == shown(new, False)
+        summary.row(name, shown(old, hashed) if old else "none", shown(new, hashed), "current" if old == new else "bumped")
     # The file changes, so a release starts, and this row says why.
-    for name in sorted(recorded.keys() - found.keys()):
-        summary.row(name, recorded[name], "none", "removed")
-    (ROOT / LIBRARY_VERSIONS).write_text("".join(f"{name} {new}\n" for name, new in found.items()))
+    for name in sorted(recorded.keys() - records.keys()):
+        summary.row(name, shown(recorded[name], False), "none", "removed")
+    (ROOT / LIBRARY_VERSIONS).write_text("".join(f"{name} {' '.join(record)}\n" for name, record in records.items()))
 
 
 def libaom(summary):
@@ -493,17 +564,22 @@ def libaom(summary):
     rewrite(BRANCH_PINS, LIBAOM_PIN, url, newest, commit)
 
 def bump(summary, answers):
-    """Moves every pin, records the library releases of `answers`, and returns the suite the candidate runs."""
-    php(summary)
+    """Moves every pin, writes the pins and sources of `answers`, which probe gave, and returns the suite the candidate runs."""
+    if not isinstance(answers, dict):
+        sys.exit(f"the probe answered {answers!r}")
+    pins, notes = take_pins(answers)
+    summary.notes += notes
+    take_php(summary, pins["php"])
     composer(summary)
-    frankenphp(summary)
+    # go reads the FrankenPHP commit this writes.
+    take_frankenphp(summary, pins["frankenphp"], pins["frankenphp_commit"], pins["spc"])
     go(summary)
     ca_bundle(summary)
     # A move above changes PHP, FrankenPHP or the launcher on every platform, so it tests each in full.
     # The libraries moving alone take the suite a named version takes.
     suite = "full" if summary.moved() else "gate"
-    sqlite(summary)
-    libraries(summary, answers)
+    take_sqlite(summary, pins["sqlite"])
+    libraries(summary, answers.get("libraries"))
     libaom(summary)
     # upstream.yml releases when this script changed a file. No executable carries the check
     # tools, and the modules move too often to pay for a run on every platform each time.
@@ -516,15 +592,15 @@ def bump(summary, answers):
 def main():
     parser = argparse.ArgumentParser(description="Moves the pins and prints a Markdown summary.")
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--probe-libraries", action="store_true", help="print static-php-cli's answers as JSON and write nothing")
-    mode.add_argument("--libraries", metavar="FILE", help="the answers --probe-libraries printed")
+    mode.add_argument("--probe", action="store_true", help="pick the pins in this checkout and print static-php-cli's answers as JSON")
+    mode.add_argument("--answers", metavar="FILE", help="the answers --probe printed")
     parser.add_argument("--output", metavar="FILE", help="the file suite=NAME is appended to, a step's $GITHUB_OUTPUT")
     args = parser.parse_args()
-    if args.probe_libraries:
-        print(json.dumps(probe_libraries()))
+    if args.probe:
+        print(json.dumps(probe()))
         return
     summary = Summary()
-    suite = bump(summary, json.loads(Path(args.libraries).read_text()))
+    suite = bump(summary, json.loads(Path(args.answers).read_text()))
     sys.stdout.write(summary.render())
     if args.output:
         with open(args.output, "a") as output:

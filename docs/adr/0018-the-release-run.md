@@ -35,11 +35,12 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 - A newer curl extract replaces `runtime/cacert.pem` once it matches curl's published SHA-256.
 - A newer major of a pin is never written. A library takes the release static-php-cli's own pattern allows, and a newer major can be that release.
 - A release starts when something the executables carry moves: PHP, Composer, FrankenPHP, Go, the CA bundle, SQLite, a library or libaom's tag. The run stops when none moves.
-- `runtime/builder/library-versions.txt` records the newest release of each artifact static-php-cli links. The pinned static-php-cli resolves the set from the two extension lists and names each release.
-- The probe records no artifact at a fixed URL, such as bzip2 1.0.8, and none built from a branch head. `runtime/builder/branch-pins.txt` holds the commit of each branch-head artifact.
+- `runtime/builder/library-versions.txt` holds one `NAME RELEASE FILE SHA256` line for each source static-php-cli downloads for the builds. The probe resolves the set from `php-embed` and the two extension lists, for the Linux musl target, and hashes each file.
+- A source at a fixed URL, such as bzip2, records `-` as its release. A branch-head source gets an empty `custom-local` folder in the probe and stays out of the file. `runtime/builder/branch-pins.txt` holds its commit. The probe stops on any other `git` download.
 - The run moves libaom's line of `branch-pins.txt` to the newest `vX.Y.Z` tag gitiles lists, with the commit the tag names. A newer major counts, as for any library. Gitiles' answer is remote input, and the run checks the tag and the commit before it writes.
-- static-php-cli runs in a job of its own, at the commit `main` pins. That job holds no secret and its token reads public content. The upstream job takes the answers as data and checks each name and release.
-- The file records what the run saw. A build links the release it finds, and the next run records that one.
+- static-php-cli runs in the `libraries` job, which holds no secret and whose token reads public content. The job first picks the PHP, FrankenPHP with static-php-cli, and SQLite pins in its own checkout. It then downloads on them with `--source-only --no-alt`, so the record holds the candidate's sources from their primary URLs.
+- The upstream job writes the pins the probe picked and fetches none of them again. It takes the answers as data and checks each pin, note, name, release, file and hash.
+- The file records what the run downloaded. GitHub can serve a generated archive with new bytes under the same release. The next run then records the new hash, and its `bumped` row shows both hash prefixes. A build links the release it finds.
 - `runtime/builder/spc-sqlite.patch` names SQLite's release as a URL. The run rewrites it from sqlite.org's product list, inside the 3 line.
 - A moved `watcher` line writes the same release into the Windows build, which downloads its own copy.
 - The ICU archive the Windows build links has no release to record. Its SHA-256 pin in `build.ps1` moves by hand.
@@ -87,7 +88,7 @@ The engine ships the pinned `composer.phar`. Its bump checks the SHA-384 signatu
 
 A release gives readers a new executable, so a tool no executable carries starts none. Go modules publish more often than a run on every platform is worth, so they join a bump that already pays for one.
 
-A library fix once waited for the next PHP or FrankenPHP bump: six releases shipped libpq 18.6 after 18.7 existed. static-php-cli already resolves each library's newest release for the build, so the run asks it and keeps no list of its own.
+A library fix once waited for the next PHP or FrankenPHP bump: six releases shipped libpq 18.6 after 18.7 existed. static-php-cli already resolves each library's newest release for the build, so the run asks it and keeps no list of its own. The run hashes each file it downloads, so a build can refuse a file that differs from the one the run recorded.
 
 The upstream job commits its working tree and pushes the candidate branch with its job token. The release job holds the mirror's deploy key and the drupal.org token. Third-party code that ran in the upstream job could edit a tracked file or push a branch. In its own job, a wrong answer can start a candidate and nothing else.
 
