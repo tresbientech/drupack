@@ -244,6 +244,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: actions/checkout@v7
         with:
@@ -252,7 +254,7 @@ jobs:
           path: demo
           persist-credentials: false
 
-      # The later steps run the runtime in containers that mount the workspace, so this
+      # The later steps run the runtime in containers that mount workspace folders, so this
       # step runs first, before any build output runs, and logs out when done. A leg
       # that built nothing uploaded no artifact.
       - name: Push the builder images
@@ -340,23 +342,35 @@ jobs:
             --build-context release-runtime-components=runtime-components \
             --build-arg "DRUPACK_ENGINE_VERSION=$DRUPACK_ENGINE_VERSION" -t drupack-job .
 
-      - name: Export the application payload
-        run: |
-          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
-            drupack-build --site demo --payload-only --output dist
-
+      # A site build runs the demo's Composer plugins and scripts. The engine payload
+      # is uploaded before any of them runs, and each site build mounts its site
+      # read-only and one output folder, so no later step runs a file they wrote.
       - name: Export the engine payload
         run: |
-          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src drupack-job \
-            drupack-build --engine-executable --payload-only --output dist/engine
+          mkdir -p dist/engine
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/dist/engine:/out" drupack-job \
+            drupack-build --engine-executable --payload-only --output /out
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: engine-payload-archive
+          path: dist/engine/payload
+          if-no-files-found: error
+
+      - name: Export the application payload
+        run: |
+          mkdir -p dist/site
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/demo:/site:ro" -v "$PWD/dist/site:/out" drupack-job \
+            drupack-build --site /site --payload-only --output /out
 
       # The macOS and Windows jobs pack the variant fixture from this payload, which
       # holds each of their targets' Node archives.
       - name: Export the variant fixture payload
         run: |
           bash build/test/variant-fixture.sh demo "$RUNNER_TEMP/variant-site"
-          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -v "$RUNNER_TEMP/variant-site:/variant-site" -w /src drupack-job \
-            drupack-build --site /variant-site --payload-only --output dist/variant
+          mkdir -p dist/variant
+          docker run --rm --user "$(id -u):$(id -g)" -v "$RUNNER_TEMP/variant-site:/variant-site:ro" -v "$PWD/dist/variant:/out" drupack-job \
+            drupack-build --site /variant-site --payload-only --output /out
 
       # A main push and a tag push of one commit run at once. A release's image is
       # sha-COMMIT and a main run pushes dev-COMMIT, so a main run never replaces it.
@@ -374,13 +388,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: payload-archive
-          path: dist/payload
-          if-no-files-found: error
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: engine-payload-archive
-          path: dist/engine/payload
+          path: dist/site/payload
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v7
