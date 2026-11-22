@@ -17,9 +17,8 @@ TITLE = "Release candidate {version}"
 ZERO = "0" * 40
 # Documentation reaches no executable. A path this pattern does not name builds.
 DOCS = re.compile(r"^docs/|^LICENSE$|^[^/]+\.md$")
-# The macOS test rows per architecture, one per share of the test classes. An architecture's last
-# test row also runs the variant cases.
-SHARDS = {"arm64": 2}
+# The macOS test rows, one per share of the test classes. The last also runs the variant cases.
+MACOS_SHARDS = 2
 # The Linux test rows per architecture. The first runs the musl start and uploads the engine
 # executables; amd64's first also runs the unit tests and the lint.
 LINUX_SHARDS = 2
@@ -121,9 +120,8 @@ def plan(event, targets, fetch):
         payload = [row for row in linux_runtime(targets, [{"arch": "amd64"}]) if row["libc"] == "musl"]
         runtimes += [row for row in payload if row not in runtimes]
         runtimes.sort(key=lambda row: (row["arch"], row["builder"], row["libc"], row["suffix"]))
-    tests = [{"arch": row["arch"], "shard": f"{index}/{SHARDS[row['arch']]}", "results": f"macos-{row['arch']}-{index}",
-              "variant": index == SHARDS[row["arch"]]} for row in macos if row["arch"] in SHARDS
-             for index in range(1, SHARDS[row["arch"]] + 1)]
+    tests = [{"arch": row["arch"], "shard": f"{index}/{MACOS_SHARDS}", "results": f"macos-{row['arch']}-{index}",
+              "variant": index == MACOS_SHARDS} for row in macos for index in range(1, MACOS_SHARDS + 1)]
     return {"version": version, "build": build, "candidate": run, "image_tags": image_tags, "linux": linux,
             "linux_tests": linux_tests(linux, gate), "linux_runtime": runtimes, "macos": macos, "macos_tests": tests,
             "windows": windows, "windows_tests": windows_tests(windows, gate)}

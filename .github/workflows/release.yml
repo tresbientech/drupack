@@ -169,6 +169,21 @@ jobs:
           bash runtime/builder/build-builder.sh "$BUILDER" "$IMAGE" "$RUNNER_TEMP/builder"
           echo 'built=true' >>"$GITHUB_OUTPUT"
 
+      # static-php-cli's GitHub downloads pass the job token, so its logs can hold it.
+      - name: Redact static-php-cli's logs
+        if: failure()
+        env:
+          TOKEN: ${{ github.token }}
+        run: find "$RUNNER_TEMP/builder/spc-log" -type f -exec perl -pi -e 's/\Q$ENV{TOKEN}\E/***/g' {} + 2>/dev/null || true
+
+      - name: Upload static-php-cli's logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: spc-log-linux-${{ matrix.arch }}-${{ matrix.libc }}
+          path: ${{ runner.temp }}/builder/spc-log
+          retention-days: 7
+
       # The build below finds the image on the runner under the same name. A
       # fork's image stays there.
       - name: Save the builder image
@@ -626,6 +641,24 @@ jobs:
         run: |
           ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_ENGINE_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupacked-demo.exe -EnginePayloadDirectory dist\engine-payload -EngineOutput dist\engine\drupack.exe
           Copy-Item dist\payload\site.json dist\site.json
+
+      # static-php-cli's GitHub downloads pass the job token, so its logs can hold it.
+      - name: Redact static-php-cli's logs
+        if: failure()
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          Get-ChildItem "$env:RUNNER_TEMP\drupack\log" -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+            (Get-Content -Raw $_.FullName) -replace [regex]::Escape($env:TOKEN), '***' | Set-Content -NoNewline $_.FullName
+          }
+
+      - name: Upload static-php-cli's logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: spc-log-windows-amd64
+          path: ${{ runner.temp }}\drupack\log
+          retention-days: 7
 
       # build.ps1 writes the marker when the compile ends, so a failed link keeps
       # the compile and a failed compile saves nothing.

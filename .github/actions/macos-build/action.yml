@@ -68,6 +68,22 @@ runs:
         bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/drupacked-demo dist/engine-payload dist/engine/drupack
         cp dist/payload/site.json dist/site.json
 
+    # static-php-cli's GitHub downloads pass the job token, so its logs can hold it.
+    - name: Redact static-php-cli's logs
+      if: failure()
+      env:
+        TOKEN: ${{ github.token }}
+      shell: bash
+      run: find "$RUNNER_TEMP/drupack/log" -type f -exec perl -pi -e 's/\Q$ENV{TOKEN}\E/***/g' {} + 2>/dev/null || true
+
+    - name: Upload static-php-cli's logs
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: spc-log-macos-${{ inputs.arch }}
+        path: ${{ runner.temp }}/drupack/log
+        retention-days: 7
+
     # Saved before the later steps, so a failure in one does not repeat the PHP build.
     - uses: actions/cache/save@v6
       with:

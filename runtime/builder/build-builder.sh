@@ -104,8 +104,10 @@ if [ "$libc" = musl ]; then
     paths+=(opt/spc-pkgroot/zig)
 fi
 # build-static.sh reads GITHUB_TOKEN to raise its GitHub API rate limit. The
-# stopped container keeps it in its config, so the container goes on any exit.
-trap 'docker rm -f "$container" >/dev/null' EXIT
+# stopped container keeps it in its config, so the container goes on any exit,
+# after its static-php-cli logs are copied to WORK_DIRECTORY/spc-log. A run that
+# stops before static-php-cli starts has no log folder.
+trap 'docker cp "$container:/go/src/app/log" "$work/spc-log" 2>/dev/null || :; docker rm -f "$container" >/dev/null' EXIT
 # zig, the musl linker, opens a file per object while it links.
 docker create --name "$container" --ulimit nofile=8192:8192 \
     -e GITHUB_TOKEN \
