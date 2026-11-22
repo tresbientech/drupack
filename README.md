@@ -9,7 +9,7 @@ From 1.0.0, a 1.x release keeps the commands, options and settings of `drupack`.
 
 ## Serve a Drupal project you already have
 
-Install `drupack` in the project's root on Linux or macOS, then start it there:
+Install `drupack` in the project's root on Linux or macOS with Apple silicon, then start it there:
 
 ```sh
 cd path/to/your/project
@@ -65,7 +65,7 @@ The [releases page](https://github.com/tresbientech/drupack/releases) lists ever
 
 ## Build your own site
 
-A site repository holds a Composer project and a `drupack.yml`. A build on GitHub, Gitea, GitLab or any CI that runs a container turns it into one executable per platform, for Linux, macOS and Windows. A first start of that executable installs the site, and its data stays in one directory beside it.
+A site repository holds a Composer project and a `drupack.yml`. A build on GitHub, Gitea, GitLab or any CI that runs a container turns it into one executable per platform, for Linux, macOS on Apple silicon and Windows. A first start of that executable installs the site, and its data stays in one directory beside it.
 
 [Build your own site](docs/build-your-site.md) has the setup. The [Drupacked Demo](https://github.com/tresbientech/drupacked-demo) is a complete site built this way.
 

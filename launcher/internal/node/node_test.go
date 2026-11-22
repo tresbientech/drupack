@@ -20,15 +20,15 @@ import (
 // index lists releases out of order, leads with a prerelease, and v25.1.0
 // lacks a linux-arm64 build.
 const index = `[
-  {"version": "v27.0.0-alpha.0.0.0", "lts": false, "files": ["linux-x64", "linux-arm64", "osx-x64-tar", "osx-arm64-tar", "win-x64-zip"]},
-  {"version": "v24.20.0", "lts": "Krypton", "files": ["linux-x64", "linux-arm64", "osx-x64-tar", "osx-arm64-tar", "win-x64-zip"]},
-  {"version": "v26.10.0", "lts": false, "files": ["linux-x64", "linux-arm64", "osx-x64-tar", "osx-arm64-tar", "win-x64-zip"]},
-  {"version": "v25.1.0", "lts": false, "files": ["linux-x64", "osx-x64-tar", "osx-arm64-tar", "win-x64-zip"]},
-  {"version": "v24.21.0", "lts": "Krypton", "files": ["linux-x64", "linux-arm64", "linux-x64-musl", "osx-x64-tar", "osx-arm64-tar", "win-x64-zip"]},
-  {"version": "v22.30.0", "lts": "Jod", "files": ["linux-x64", "linux-arm64", "osx-x64-tar", "osx-arm64-tar", "win-x64-zip"]}
+  {"version": "v27.0.0-alpha.0.0.0", "lts": false, "files": ["linux-x64", "linux-arm64", "osx-arm64-tar", "win-x64-zip"]},
+  {"version": "v24.20.0", "lts": "Krypton", "files": ["linux-x64", "linux-arm64", "osx-arm64-tar", "win-x64-zip"]},
+  {"version": "v26.10.0", "lts": false, "files": ["linux-x64", "linux-arm64", "osx-arm64-tar", "win-x64-zip"]},
+  {"version": "v25.1.0", "lts": false, "files": ["linux-x64", "osx-arm64-tar", "win-x64-zip"]},
+  {"version": "v24.21.0", "lts": "Krypton", "files": ["linux-x64", "linux-arm64", "linux-x64-musl", "osx-arm64-tar", "win-x64-zip"]},
+  {"version": "v22.30.0", "lts": "Jod", "files": ["linux-x64", "linux-arm64", "osx-arm64-tar", "win-x64-zip"]}
 ]`
 
-var archiveSuffixes = []string{"linux-x64.tar.gz", "linux-arm64.tar.gz", "darwin-x64.tar.gz", "darwin-arm64.tar.gz", "win-x64.zip"}
+var archiveSuffixes = []string{"linux-x64.tar.gz", "linux-arm64.tar.gz", "darwin-arm64.tar.gz", "win-x64.zip"}
 
 type dist struct {
 	files  map[string][]byte
@@ -120,14 +120,14 @@ func TestEachValueFormPicksItsRelease(t *testing.T) {
 func TestEachTargetGetsItsBuildAndMuslGetsNone(t *testing.T) {
 	d := newDist(t)
 	r := d.request(t, "24", "linux-amd64", "linux-amd64-musl", "linux-arm64", "linux-arm64-musl",
-		"macos-amd64", "macos-arm64", "windows-amd64")
+		"macos-arm64", "windows-amd64")
 	resolved, err := node.Resolve(r)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for target, suffix := range map[string]string{
 		"linux-amd64": "linux-x64.tar.gz", "linux-arm64": "linux-arm64.tar.gz",
-		"macos-amd64": "darwin-x64.tar.gz", "macos-arm64": "darwin-arm64.tar.gz", "windows-amd64": "win-x64.zip",
+		"macos-arm64": "darwin-arm64.tar.gz", "windows-amd64": "win-x64.zip",
 	} {
 		path, carried := node.Archive(r.Dir, target)
 		if !carried || resolved.Archives[target] != path {
@@ -137,7 +137,7 @@ func TestEachTargetGetsItsBuildAndMuslGetsNone(t *testing.T) {
 			t.Errorf("%s: %s holds %q; want node-v24.21.0-%s", target, path, content, suffix)
 		}
 	}
-	if len(resolved.Archives) != 5 {
+	if len(resolved.Archives) != 4 {
 		t.Errorf("archives = %v; want none for a musl target", resolved.Archives)
 	}
 }

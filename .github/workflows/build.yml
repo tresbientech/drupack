@@ -20,7 +20,7 @@ on:
         type: string
         default: .
       platforms:
-        description: "Comma-separated targets: linux-amd64, linux-arm64, macos-amd64, macos-arm64, windows-amd64. Unset, drupack.yml's platforms."
+        description: "Comma-separated targets: linux-amd64, linux-arm64, macos-arm64, windows-amd64. Unset, drupack.yml's platforms."
         type: string
       libc:
         description: "The Linux files to build, one per C library: both, glibc or musl. Unset, drupack.yml's libc."
@@ -219,7 +219,7 @@ jobs:
   native:
     needs: [engine, build]
     if: needs.build.outputs.native != '[]'
-    runs-on: ${{ matrix.target == 'macos-arm64' && 'macos-15' || matrix.target == 'macos-amd64' && 'macos-15-intel' || 'windows-2025' }}
+    runs-on: ${{ matrix.target == 'macos-arm64' && 'macos-15' || 'windows-2025' }}
     timeout-minutes: 120
     permissions:
       contents: read

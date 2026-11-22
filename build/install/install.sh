@@ -52,6 +52,9 @@ esac
 if [ "$os" = macos ] && [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = 1 ]; then
     arch=arm64
 fi
+if [ "$os" = macos ] && [ "$arch" = amd64 ]; then
+    fail "$name has no build for an Intel Mac. 1.0.0-rc9 is the last release with one."
+fi
 target=$os-$arch
 # A Linux release publishes a glibc build and a musl build. A host holding the
 # glibc program interpreter of its architecture, at glibc 2.28 or later, runs

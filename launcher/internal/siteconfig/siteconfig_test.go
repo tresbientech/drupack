@@ -401,11 +401,11 @@ func drupackExtra(drupack string) string {
 }
 
 func TestParseAcceptsEveryNativeTarget(t *testing.T) {
-	site, err := siteconfig.Parse([]byte(minimal + "platforms: [linux-amd64, macos-amd64, macos-arm64, windows-amd64]\n"))
+	site, err := siteconfig.Parse([]byte(minimal + "platforms: [linux-amd64, macos-arm64, windows-amd64]\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"linux-amd64", "macos-amd64", "macos-arm64", "windows-amd64"}; !reflect.DeepEqual(site.Platforms, want) {
+	if want := []string{"linux-amd64", "macos-arm64", "windows-amd64"}; !reflect.DeepEqual(site.Platforms, want) {
 		t.Fatalf("Platforms = %v; want %v", site.Platforms, want)
 	}
 }

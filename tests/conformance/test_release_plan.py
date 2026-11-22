@@ -32,6 +32,7 @@ COMPARE_PATH = f"repos/{REPO}/compare/{BEFORE}...{SHA}"
 
 AMD64 = [{"arch": "amd64"}]
 BOTH = AMD64 + [{"arch": "arm64"}]
+ARM64 = BOTH[1:]
 GLIBC = {"builder": "gnu", "libc": "glibc", "suffix": ""}
 MUSL = {"builder": "musl", "libc": "musl", "suffix": "-musl"}
 
@@ -104,7 +105,7 @@ class Tag(Row):
                 self.assertEqual(fetched, self.fetched)
                 if candidate is None:
                     self.assertTrue(result["build"])
-                    self.assertEqual((BOTH, BOTH, AMD64), (result["linux"], result["macos"], result["windows"]))
+                    self.assertEqual((BOTH, ARM64, AMD64), (result["linux"], result["macos"], result["windows"]))
                 else:
                     self.assertNotBuilding(result)
 
@@ -118,9 +119,9 @@ class Tag(Row):
 class Dispatch(Row):
     def test_a_dispatch_plans_without_a_fetch(self):
         rows = {
-            "a named dispatch on all builds every platform": (dispatch(version="2.0.0"), "2.0.0", "dev sha", BOTH, BOTH, AMD64),
-            "a named dispatch on one platform builds it alone": (dispatch(version="2.0.0", platform="macos-arm64"), "2.0.0", "dev", [], BOTH[1:], []),
-            "an unnamed dispatch takes the commit for its version": (dispatch(before=""), "dev-" + SHA[:12], "dev", BOTH, BOTH, AMD64),
+            "a named dispatch on all builds every platform": (dispatch(version="2.0.0"), "2.0.0", "dev sha", BOTH, ARM64, AMD64),
+            "a named dispatch on one platform builds it alone": (dispatch(version="2.0.0", platform="macos-arm64"), "2.0.0", "dev", [], ARM64, []),
+            "an unnamed dispatch takes the commit for its version": (dispatch(before=""), "dev-" + SHA[:12], "dev", BOTH, ARM64, AMD64),
         }
         for label, (dispatched, version, image_tags, linux, macos, windows) in rows.items():
             with self.subTest(label):
@@ -177,7 +178,7 @@ class LinuxRuntime(Row):
         for label, (dispatched, expected) in {
             "an arm64 build adds the payload row": (dispatch(platform="linux-arm64"), [runtime("amd64", MUSL), runtime("arm64", GLIBC), runtime("arm64", MUSL)]),
             "an amd64 build has no duplicate row": (event(before="0" * 40), [runtime("amd64", GLIBC), runtime("amd64", MUSL)]),
-            "a macos-only build still compiles the payload": (dispatch(platform="macos-amd64"), [runtime("amd64", MUSL)]),
+            "a macos-only build still compiles the payload": (dispatch(platform="macos-arm64"), [runtime("amd64", MUSL)]),
         }.items():
             with self.subTest(label):
                 self.assertEqual(expected, self.run_plan(dispatched, NO_RUN)["linux_runtime"])
@@ -240,7 +241,7 @@ class Schedule(Row):
     def test_the_schedule_tests_every_platform_in_full_without_a_fetch(self):
         result = self.run_plan(event(event_name="schedule", before=""))
         self.assertEqual(("dev-" + SHA[:12], "dev", None), (result["version"], result["image_tags"], result["candidate"]))
-        self.assertEqual((BOTH, BOTH, AMD64), (result["linux"], result["macos"], result["windows"]))
+        self.assertEqual((BOTH, ARM64, AMD64), (result["linux"], result["macos"], result["windows"]))
         self.assertEqual((linux_rows("amd64") + linux_rows("arm64"), WINDOWS_FULL), (result["linux_tests"], result["windows_tests"]))
         self.assertEqual([], self.fetched)
 
@@ -249,7 +250,7 @@ class MacosTests(Row):
     def test_arm64_takes_a_row_per_share_and_the_last_runs_the_variant(self):
         arm64 = [{"arch": "arm64", "shard": f"{i}/2", "results": f"macos-arm64-{i}", "variant": i == 2} for i in (1, 2)]
         for suite in ("full", "gate"):
-            for platform, expected in {"macos-amd64": [], "macos-arm64": arm64, "all": arm64}.items():
+            for platform, expected in {"macos-arm64": arm64, "all": arm64}.items():
                 with self.subTest(suite=suite, platform=platform):
                     self.assertEqual(expected, self.run_plan(dispatch(platform=platform, suite=suite))["macos_tests"])
 

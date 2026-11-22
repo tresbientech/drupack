@@ -37,7 +37,7 @@ Packaged sites are [experimental within 1.x](0019-the-stable-surface.md).
 
 - The build verifies the OpenPGP signature on the release's `SHASUMS256.txt` against `launcher/internal/node/release-keys.asc`. It then checks each archive's SHA-256 against that file. Any failure stops the build.
 - A signature by an unknown releaser stops the build with a message naming the keyring file. A fresh export overwrites it.
-- A glibc Linux, macOS or Windows amd64 file carries the release beside its runtime. A musl file carries none, because Node publishes no official musl build for arm64.
+- A glibc Linux, macOS or Windows file carries the release beside its runtime. A musl file carries none, because Node publishes no official musl build for arm64.
 - The launcher unpacks the release into the cache once per version and puts its directory first on `PATH` for the server and Drush. `clean` removes it.
 - `node`, `npm` and `npx` are commands of a site that carries Node. On a musl file they exit 1 and name the glibc file.
 - The engine executable carries no Node.

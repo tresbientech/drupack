@@ -18,7 +18,7 @@ ZERO = "0" * 40
 # Documentation reaches no executable. A path this pattern does not name builds.
 DOCS = re.compile(r"^docs/|^LICENSE$|^[^/]+\.md$")
 # The macOS test rows per architecture, one per share of the test classes. An architecture's last
-# test row also runs the variant cases. An architecture without rows runs the start cases in its build job.
+# test row also runs the variant cases.
 SHARDS = {"arm64": 2}
 # The Linux test rows per architecture. The first runs the musl start and uploads the engine
 # executables; amd64's first also runs the unit tests and the lint.

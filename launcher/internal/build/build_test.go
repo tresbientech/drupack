@@ -684,7 +684,7 @@ func TestAPayloadOnlyBuildExportsTheNodeArchiveOfEachPayloadTarget(t *testing.T)
 	r.Work, r.Output = t.TempDir(), t.TempDir()
 	for _, name := range []string{"payload/app-payload.tar.zst", "payload/app_checksum.txt", "payload/site.json",
 		"payload/node/linux-amd64.tar.gz", "payload/node/linux-arm64.tar.gz",
-		"payload/node/macos-amd64.tar.gz", "payload/node/macos-arm64.tar.gz", "payload/node/windows-amd64.zip"} {
+		"payload/node/macos-arm64.tar.gz", "payload/node/windows-amd64.zip"} {
 		path := filepath.Join(r.Work, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
@@ -700,7 +700,7 @@ func TestAPayloadOnlyBuildExportsTheNodeArchiveOfEachPayloadTarget(t *testing.T)
 	if err := step(t, plan, "export the payload").Func(io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"linux-amd64.tar.gz", "linux-arm64.tar.gz", "macos-amd64.tar.gz", "macos-arm64.tar.gz", "windows-amd64.zip"} {
+	for _, name := range []string{"linux-amd64.tar.gz", "linux-arm64.tar.gz", "macos-arm64.tar.gz", "windows-amd64.zip"} {
 		if content, err := os.ReadFile(filepath.Join(r.Output, "payload", "node", name)); err != nil || string(content) != "payload/node/"+name {
 			t.Errorf("payload/node/%s = %q, %v", name, content, err)
 		}
@@ -759,7 +759,7 @@ func TestANativeBuildPacksTheLinuxTargetsAndLeavesTheOthers(t *testing.T) {
 }
 
 func TestANativeBuildTakesThePlatformOverride(t *testing.T) {
-	r := nativeRequest(t, "macos-amd64")
+	r := nativeRequest(t, "windows-amd64")
 	r.Site.Platforms = []string{"linux-amd64", "macos-arm64", "windows-amd64"}
 	plan, err := build.NewPlan(r)
 	if err != nil {
@@ -771,7 +771,7 @@ func TestANativeBuildTakesThePlatformOverride(t *testing.T) {
 	if !slices.Contains(names(plan), "export the payload") {
 		t.Error("a build of native targets alone exports no payload")
 	}
-	if got := listed(t, r, plan); got != `["macos-amd64"]` {
+	if got := listed(t, r, plan); got != `["windows-amd64"]` {
 		t.Errorf("%s = %s", build.NativeList, got)
 	}
 }

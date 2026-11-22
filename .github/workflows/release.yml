@@ -24,14 +24,13 @@ on:
           - linux-amd64
           - linux-arm64
           - macos-arm64
-          - macos-amd64
           - windows-amd64
       version:
         description: The version a candidate run builds, which its tag run then publishes.
         type: string
         default: ''
       suite:
-        description: full tests every platform in full but macOS amd64, which runs its start cases in both; gate tests Linux amd64, macOS arm64 and Windows amd64 in full and the others with their start cases.
+        description: full tests every platform in full; gate tests Linux amd64, macOS arm64 and Windows amd64 in full and the others with their start cases.
         type: choice
         default: full
         options:
@@ -759,9 +758,7 @@ jobs:
             test-results/**/run.out
             test-results/**/run.err
 
-  # Builds each architecture's executables once, one job per architecture, so the
-  # macos-test jobs wait for the arm64 build alone. They run the suite on those files,
-  # and an architecture with no test row runs the start cases in its build job.
+  # Builds the macOS executables once. The macos-test jobs run the suite on those files.
   macos-arm64:
     name: macOS arm64 build
     needs: [gate, payload]
@@ -776,23 +773,6 @@ jobs:
           version: ${{ needs.gate.outputs.version }}
           go-version: ${{ env.GO_VERSION }}
           go-tests: 'true'
-          start-cases: ${{ !contains(fromJSON(needs.gate.outputs.macos_tests).*.arch, 'arm64') }}
-
-  macos-amd64:
-    name: macOS amd64 build
-    needs: [gate, payload]
-    if: contains(needs.gate.outputs.macos, 'amd64')
-    runs-on: macos-15-intel
-    timeout-minutes: 240
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/macos-build
-        with:
-          arch: amd64
-          version: ${{ needs.gate.outputs.version }}
-          go-version: ${{ env.GO_VERSION }}
-          go-tests: 'false'
-          start-cases: ${{ !contains(fromJSON(needs.gate.outputs.macos_tests).*.arch, 'amd64') }}
 
   # Each job runs one share of the test classes on the files the macos-arm64 job built.
   macos-test:
@@ -957,7 +937,7 @@ jobs:
   # The scans read the downloaded folders as they land: the merge keeps each
   # component's name, version and identifiers, never its file path.
   sbom:
-    needs: [gate, linux, windows, windows-test, macos-arm64, macos-amd64, macos-test]
+    needs: [gate, linux, windows, windows-test, macos-arm64, macos-test]
     if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' }}
     runs-on: ubuntu-24.04
     permissions:

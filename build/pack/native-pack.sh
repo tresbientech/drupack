@@ -6,7 +6,7 @@
 #            --output FILE --site-version VERSION
 #
 # URL holds the release's files and ends in the release's version. TARGET is
-# macos-amd64, macos-arm64 or windows-amd64. DIRECTORY holds the files
+# macos-arm64 or windows-amd64. DIRECTORY holds the files
 # `drupack-build --native` exported. The release's checksums.txt vouches for the
 # runtime file. A macOS runner runs this with bash 3.2, and the Windows runner
 # runs it through Git Bash.

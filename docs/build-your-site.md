@@ -1,7 +1,7 @@
 # Build your own site
 
 Drupack builds an executable of any Drupal site from its Composer project, for
-Linux, macOS and Windows. A Linux build runs `drupack-build` inside the engine's
+Linux, macOS on Apple silicon and Windows. A Linux build runs `drupack-build` inside the engine's
 job image, `ghcr.io/tresbientech/drupack-build:VERSION`. The image carries the
 engine, PHP, Composer, Go, Python and all four Linux runtimes, and needs no
 Docker daemon.
@@ -62,7 +62,7 @@ port: 7225                 # the port the site listens on
 languages: [fr, de]        # translations the build fetches
 smoke_paths: [/, /about]   # paths the suite expects a 200 from, / by default
 platforms: [linux-amd64]   # targets: linux-amd64, linux-arm64,
-                           # macos-amd64, macos-arm64, windows-amd64
+                           # macos-arm64, windows-amd64
 libc: both                 # Linux files, one per C library: both, glibc or musl
 extensions: [gmp]          # PHP extensions the site adds to the engine's
 writable: [recipes]        # directories the site writes at runtime
@@ -79,7 +79,7 @@ the one for the host. The
 `drupack-build` flags `--platform` and `--libc` override the file, and so do
 the GitHub workflow's inputs.
 
-`macos-amd64`, `macos-arm64` and `windows-amd64` build in the GitHub workflow
+`macos-arm64` and `windows-amd64` build in the GitHub workflow
 alone. `drupack-build`, the Gitea and GitLab examples and a local build refuse
 them and name that workflow. A site that adds PHP extensions cannot list them:
 the build stops and names the extensions and the targets. The section on the

@@ -25,7 +25,6 @@ extension_libs=$(bash "$repository/runtime/extensions/extensions-list.sh" "$repo
 
 case "$(uname -m)" in
     arm64) target=macos-arm64 ;;
-    x86_64) target=macos-amd64 ;;
     *) printf 'Unsupported macOS architecture: %s\n' "$(uname -m)" >&2; exit 1 ;;
 esac
 

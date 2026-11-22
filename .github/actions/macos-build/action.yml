@@ -1,8 +1,8 @@
 name: macOS build
-description: Builds one architecture's executables, uploads them, and runs the start cases when asked.
+description: Builds the macOS executables and uploads them.
 inputs:
   arch:
-    description: arm64 or amd64, the runner's own architecture.
+    description: The runner's architecture, arm64.
     required: true
   version:
     description: The version the executables carry.
@@ -12,9 +12,6 @@ inputs:
     required: true
   go-tests:
     description: true runs the Go unit tests.
-    required: true
-  start-cases:
-    description: true runs the start cases, for an architecture with no test row.
     required: true
 runs:
   using: composite
@@ -32,7 +29,6 @@ runs:
 
     # static-php-cli runs on PHP and Composer, which the arm64 runner image lacks.
     - name: Install PHP and Composer
-      if: inputs.arch == 'arm64'
       shell: bash
       run: brew install --quiet php composer
 
@@ -120,24 +116,6 @@ runs:
         xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" "$RUNNER_TEMP/quarantined"
         xattr -d com.apple.quarantine "$RUNNER_TEMP/quarantined"
         "$RUNNER_TEMP/quarantined" --version
-
-    - name: Run the start cases
-      if: inputs.start-cases == 'true'
-      env:
-        DRUPACK_TEST_ENGINE: dist/engine/drupack
-        DRUPACK_SUITE: smoke
-      shell: bash
-      run: python3 tests/conformance dist/drupacked-demo test-results/conformance
-
-    - name: Upload test results
-      if: failure()
-      uses: actions/upload-artifact@v7
-      with:
-        name: test-results-macos-${{ inputs.arch }}-build
-        path: |
-          test-results/**/*.log
-          test-results/**/run.out
-          test-results/**/run.err
 
     # The files the macos-test jobs run. The name stays outside the patterns the
     # sbom and publish jobs download. The retention stays the default: the gate

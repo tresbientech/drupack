@@ -45,7 +45,6 @@ type build struct{ index, archive string }
 var builds = map[string]build{
 	"linux-amd64":   {"linux-x64", "linux-x64.tar.gz"},
 	"linux-arm64":   {"linux-arm64", "linux-arm64.tar.gz"},
-	"macos-amd64":   {"osx-x64-tar", "darwin-x64.tar.gz"},
 	"macos-arm64":   {"osx-arm64-tar", "darwin-arm64.tar.gz"},
 	"windows-amd64": {"win-x64-zip", "win-x64.zip"},
 }

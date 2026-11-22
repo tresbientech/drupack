@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 # The jobs that run the suite, per sys.platform.
-JOBS = {"linux": re.compile(r"^Linux (amd64|arm64)"), "darwin": re.compile(r"^macOS (amd64|arm64) tests"),
+JOBS = {"linux": re.compile(r"^Linux (amd64|arm64)"), "darwin": re.compile(r"^macOS arm64 tests"),
         "win32": re.compile(r"^Windows (amd64|arm64) tests")}
 STAMP = re.compile(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)\.\d+Z (.*)$")
 # unittest names a test "method (module.Class.method)" and a class-level skip "setUpClass (module.Class)".

@@ -18,8 +18,7 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 - A builder image takes a tag that digests its inputs. A runtime job pulls that tag, and a miss builds the image in the job. A fork builds and skips the push. The image holds the toolchain and the compiled PHP that `embed.sh` links: 1.2 GB (glibc) or 1.5 GB (musl) compressed, with a 0.4 GB or 0.6 GB compile layer.
 - The `payload` job builds the application once. Every platform packs its output.
 - macOS and Windows build and pack in one job, then upload the files as a `suite-*` artifact. The test jobs download it and run one `DRUPACK_SHARD` share or the start cases each.
-- Each macOS architecture builds in its own job, from one composite action, so the arm64 test jobs wait for the arm64 build alone.
-- macOS arm64 runs the whole suite. macOS amd64 runs the start cases in its build job.
+- macOS builds for arm64 alone, in one job from a composite action. The macOS test jobs wait for that build and run the whole suite.
 - The Linux amd64 first job lints and runs the Python unit tests. The Go unit tests run once per system: there, in the Windows build and in the macOS arm64 build.
 - release.yml runs the `full` suite each Monday on `main`, with QA, under a `dev-` version. The weekly run publishes nothing.
 - `publish` needs `sbom`, which needs every build and test job.
@@ -52,7 +51,7 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 ### The candidate and the tag
 
 - The `upstream` job dispatches `release.yml` on every platform with `version`. The run is named `Release candidate VERSION`.
-- A bump that moves PHP, Composer, FrankenPHP, Go or the CA bundle runs the `full` suite. Every platform runs every case, except macOS amd64, which runs the start cases in each profile. A bump that moves SQLite, libraries or libaom alone runs `gate`, as a named version does. The demo pin and the docs pin, which every candidate moves, change no suite. Under `gate`, Linux amd64, macOS arm64 and Windows amd64 run every case. Linux arm64, Windows arm64 and macOS amd64 run the start cases.
+- A bump that moves PHP, Composer, FrankenPHP, Go or the CA bundle runs the `full` suite. Every platform runs every case. A bump that moves SQLite, libraries or libaom alone runs `gate`, as a named version does. The demo pin and the docs pin, which every candidate moves, change no suite. Under `gate`, Linux amd64, macOS arm64 and Windows amd64 run every case. Linux arm64 and Windows arm64 run the start cases.
 - The QA demo and host builds run the start cases. The Linux jobs test the same file in full.
 - A release's run calls no `build.yml`. `site-build.yml` calls it after each successful push or weekly run on `main`, when ghcr holds the job image `dev-COMMIT` of `main`'s commit. The candidate pushes that image for a release's commit.
 - `build/release/wait-for-run.sh` finds the run by the candidate's commit and polls it. It names each failed job and, once the run completes, reruns the failed jobs once.
@@ -78,9 +77,9 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 
 A builder image tagged by its inputs answers the objection that one image cannot serve several extension sets: another list is another tag. Testing in shares keeps the wall clock near the longest share.
 
-The macOS amd64 suite took 50 of a full run's 154 macOS minutes, on the same OS arm64 tests, and no fix in the history was specific to Intel. Intel Macs are the least used target, and GitHub retires its last Intel runner image in 2027.
+macOS builds for Apple silicon alone. FrankenPHP publishes no macOS x86_64 build since 1.13.6. Intel Macs are the least used target, and GitHub retires its last Intel runner image in 2027.
 
-A bump of PHP or FrankenPHP changes every platform's file, so it tests every platform before its tag, macOS amd64 with its start cases. A named version changes Drupack's own code, which the three full platforms run on each system. A library release changes every platform's file, and October 20 to November 20, 2026 held ten of them. Its bump runs `gate` too, which runs every case once on each system. Windows arm64 runs the amd64 file under emulation, and Linux arm64 runs the code Linux amd64 tests. The weekly run shows a defect on Linux arm64 and Windows arm64 within seven days.
+A bump of PHP or FrankenPHP changes every platform's file, so it tests every platform before its tag. A named version changes Drupack's own code, which the three full platforms run on each system. A library release changes every platform's file, and October 20 to November 20, 2026 held ten of them. Its bump runs `gate` too, which runs every case once on each system. Windows arm64 runs the amd64 file under emulation, and Linux arm64 runs the code Linux amd64 tests. The weekly run shows a defect on Linux arm64 and Windows arm64 within seven days.
 
 A script plans the run so a unit test checks the plan. A plan written in workflow expressions shows its mistakes in a finished run alone. A failed lookup that read as no candidate would rebuild what it could have published.
 
