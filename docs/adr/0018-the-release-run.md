@@ -1,8 +1,8 @@
-# A daily run releases on green CI and the maintainer's approval, and posts the drupal.org release form
+# A daily run tests the bump as a canary, a dispatch releases on green CI and the maintainer's approval, and the run posts the drupal.org release form
 
 ## Context
 
-Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. static-php-cli links about 40 C libraries into every platform's file, each at its newest release. A new upstream version reaches readers after one approval by the owner. A release builds five platforms and tests each one, so the graph must build each thing once. drupal.org has no API that creates a release node, and Packagist takes each `drupal/drupack` version from one.
+Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. static-php-cli links about 40 C libraries into every platform's file, each at its newest release. A new upstream version reaches readers when the owner dispatches a release and approves it. A release builds five platforms and tests each one, so the graph must build each thing once. drupal.org has no API that creates a release node, and Packagist takes each `drupal/drupack` version from one.
 
 ## Decision
 
@@ -28,12 +28,13 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 
 ### The upstream run
 
-- `.github/workflows/upstream.yml` runs on GitHub, and drupal.org's pipeline schedule dispatches it daily. A dispatch with `version` releases `main` under that version with no bump.
+- `.github/workflows/upstream.yml` runs on GitHub, and drupal.org's pipeline schedule dispatches it daily with no input. That run is a canary: it builds and tests the bump and stops before `approve`.
+- A dispatch with `release` releases the bump. A dispatch with `version` releases `main` under that version with no bump.
 - `build/release/upstream.py` moves each pin to its newest version inside its line.
 - A newer Composer release is written only after its `composer.phar.sig` verifies against a key kept in the repository.
 - A newer curl extract replaces `runtime/cacert.pem` once it matches curl's published SHA-256.
 - A newer major of a pin is never written. A library takes the release static-php-cli's own pattern allows, and a newer major can be that release.
-- A release starts when something the executables carry moves: PHP, Composer, FrankenPHP, Go, the CA bundle, SQLite, a library or libaom's tag. The run stops when none moves.
+- A candidate starts when something the executables carry moves: PHP, Composer, FrankenPHP, Go, the CA bundle, SQLite, a library or libaom's tag. The run stops when none moves.
 - `runtime/builder/library-versions.txt` holds one `NAME RELEASE FILE SHA256` line for each source static-php-cli downloads for the builds. The probe resolves the set from `php-embed` and the two extension lists, for the Linux musl target, and hashes each file.
 - A source at a fixed URL, such as bzip2, records `-` as its release. A branch-head source gets an empty `custom-local` folder in the probe and stays out of the file. `runtime/builder/branch-pins.txt` holds its commit. The probe stops on any other `git` download.
 - The run moves libaom's line of `branch-pins.txt` to the newest `vX.Y.Z` tag gitiles lists, with the commit the tag names. A newer major counts, as for any library. Gitiles' answer is remote input, and the run checks the tag and the commit before it writes.
@@ -46,7 +47,7 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 - `golangci-lint`, `govulncheck` and the launcher's Go modules move only in a run that releases. The modules stay inside their majors, and a module that needs a newer Go waits.
 - The candidate is the bump on `main` HEAD, on a GitHub-only branch named by the SHA-256 of the bump's diff. A hand version names its branch by the version.
 - Each candidate moves `build/release/demo-pin.sh` to the Drupacked Demo's latest release that descends from the pin.
-- A candidate that failed is not built again unless the dispatch sets `force`. A named version always builds.
+- A canary skips a bump whose candidate already finished, and a release skips one whose candidate failed, unless the dispatch sets `force`. A named version always builds.
 
 ### The candidate and the tag
 
@@ -56,7 +57,7 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 - A release's run calls no `build.yml`. `site-build.yml` calls it after each successful push or weekly run on `main`, when ghcr holds the job image `dev-COMMIT` of `main`'s commit. The candidate pushes that image for a release's commit.
 - `build/release/wait-for-run.sh` finds the run by the candidate's commit and polls it. It names each failed job and, once the run completes, reruns the failed jobs once.
 - The candidate's `qa` jobs are the release's QA. No local run precedes a release.
-- On green, the candidate waits in the `approve` job for the maintainer's approval in the `release` environment. A dispatch with `version` waits too.
+- On green, a release's candidate waits in the `approve` job for the maintainer's approval in the `release` environment. A canary skips `approve`, so it pushes and tags nothing.
 - The `release` job then sends `main` as a fast-forward and the next tag to drupal.org in one atomic push. A second push sends both to GitHub.
 - A run dispatched while a release waits stays pending behind it, in the `upstream` concurrency group. A later dispatch replaces a pending one.
 - A `cleanup` job deletes the candidate branch for any result: a red candidate, a rejection or a release.
@@ -85,12 +86,14 @@ A script plans the run so a unit test checks the plan. A plan written in workflo
 
 The engine ships the pinned `composer.phar`. Its bump checks the SHA-384 signature `composer self-update` checks, against a key kept in the repository, so a tampered download server cannot pass.
 
-A release gives readers a new executable, so a tool no executable carries starts none. Go modules publish more often than a run on every platform is worth, so they join a bump that already pays for one.
+A release gives readers a new executable, so a tool no executable carries starts no candidate. Go modules publish more often than a run on every platform is worth, so they join a bump that already pays for one.
 
 A library fix once waited for the next PHP or FrankenPHP bump: six releases shipped libpq 18.6 after 18.7 existed. static-php-cli already resolves each library's newest release for the build, so the run asks it and keeps no list of its own. The run hashes each file it downloads, so a build can refuse a file that differs from the one the run recorded.
 
 The upstream job commits its working tree and pushes the candidate branch with its job token. The release job holds the mirror's deploy key and the drupal.org token. Third-party code that ran in the upstream job could edit a tracked file or push a branch. In its own job, a wrong answer can start a candidate and nothing else.
 
 The upstream run lives on GitHub, where the builds run. A red platform never ships, since the candidate is tested before the tag moves, and the tag run publishes the candidate's files. The approval lets the owner read the bump summary before a release: a bad upstream release otherwise reaches every executable and self-update within a day.
+
+A canary keeps upstream moves off the release line. From November 1 to 22, 2026, the daily release gave 19 tags in 16 days, and a red bump blocked the line until a same-day fix. A red canary blocks nothing, and the owner releases a set of pins a green canary tested.
 
 drupal.org staff accept a plain HTTP post with an honest user agent for limited use. They advise against a browser driver. A maintainer's own cookie would act as a person on all of drupal.org. A release cannot be deleted, so the post follows a green tag run and is sent once.

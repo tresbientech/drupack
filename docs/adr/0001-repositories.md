@@ -28,7 +28,7 @@ Drupack's code needs one place where merge requests land. Its executables need r
 - `tresbientech/drupacked-demo` is a Site repository. Its workflow calls `build.yml` at a Drupack tag.
 - The demo takes its own version, `YYYY.MM.N`: the year, the month, and a counter that restarts at 1 each month.
 - The demo's daily run bumps its Composer pins, its Node pin and the Drupack tag it names. Any move tags the demo.
-- The daily run in this repository moves the runtime's pins and no site package. A Drupack tag comes from one of those moves or from a `version` dispatch.
+- The daily run in this repository tests a move of the runtime's pins as a canary, and moves no site package. A Drupack tag comes from a `release` or `version` dispatch.
 - A Drupack release publishes no demo file. It publishes its macOS and Windows runtimes, which `build.yml` packs in native jobs.
 - `build/release/demo-pin.sh` pins the demo commit and its release. `release.yml` and `build/test/qa.sh` build that commit and run its site tests.
 - `.github/workflows/site-build.yml` builds that commit through `build.yml`, with its start cases. It runs after each successful `release.yml` push or weekly run on `main`, and on dispatch, when ghcr holds the job image of `main`'s commit. A registry answer other than found or missing fails it. A release's own run does not wait for it.

@@ -1,17 +1,21 @@
 name: Upstream
 
-# Releases Drupack when a pin the executables carry has a newer version inside its
-# line, when a library they link has a newer release, or when a dispatch names a
-# version. The candidate is built and tested on every platform, with build/test/qa.sh,
-# by release.yml before drupal.org receives main and the tag; the tag run of release.yml
-# then publishes it. Every release waits for the maintainer's approval first.
+# Bumps the pins the executables carry, and the libraries they link, to their newest
+# versions. release.yml builds and tests the candidate on every platform, with
+# build/test/qa.sh. A run with no input stops there, as a canary. A run with release
+# or version waits for the maintainer's approval, then gives drupal.org main and the
+# tag, and the tag run of release.yml publishes it.
 #
-# drupal.org's daily pipeline schedule dispatches this workflow, from the
-# dispatch job of .gitlab-ci.yml.
+# drupal.org's daily pipeline schedule dispatches this workflow with no input, from
+# the dispatch job of .gitlab-ci.yml.
 
 on:
   workflow_dispatch:
     inputs:
+      release:
+        description: Release the bump after the maintainer's approval.
+        type: boolean
+        default: false
       version:
         description: Release main under this version, with no bump.
         type: string
@@ -21,7 +25,7 @@ on:
         type: boolean
         default: false
       force:
-        description: Build a bump whose candidate already failed.
+        description: Build a bump whose candidate already ran.
         type: boolean
         default: false
 
@@ -170,18 +174,22 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
           FORCE: ${{ inputs.force }}
           NAMED: ${{ inputs.version }}
+          RELEASE: ${{ inputs.release }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           if [ "$DRY_RUN" = true ]; then
             git diff
             exit 0
           fi
-          # A named version is built whatever an earlier run on its branch did.
+          # A named version is built whatever an earlier run on its branch did. A release
+          # skips a failed candidate, and a canary any finished one.
           if [ -z "$NAMED" ] && [ "$FORCE" != true ]; then
-            failed=$(curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "$GITHUB_API/actions/workflows/release.yml/runs?branch=$BRANCH&status=failure" | jq .total_count)
-            if [ "$failed" -gt 0 ]; then
-              printf '%s already failed; dispatch with force to build it again.\n' "$BRANCH"
+            status=completed
+            [ "$RELEASE" = true ] && status=failure
+            ran=$(curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "$GITHUB_API/actions/workflows/release.yml/runs?branch=$BRANCH&status=$status" | jq .total_count)
+            if [ "$ran" -gt 0 ]; then
+              printf '%s already ran; dispatch with force to build it again.\n' "$BRANCH"
               exit 0
             fi
           fi
@@ -246,10 +254,10 @@ jobs:
           printf 'version=%s\nsha=%s\n' "$VERSION" "$SHA" >>"$GITHUB_OUTPUT"
 
   # The release environment names the maintainer as required reviewer. A rejection
-  # fails this job, so release never runs.
+  # fails this job, so release never runs. A canary skips it, and release with it.
   approve:
     needs: upstream
-    if: needs.upstream.outputs.version
+    if: needs.upstream.outputs.version && (inputs.release || inputs.version != '')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: release
