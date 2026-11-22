@@ -39,6 +39,13 @@ if [ "$head" != "$frankenphp_commit" ]; then
     exit 1
 fi
 
+# FrankenPHP's craft.yml can fetch extensions from git branches, for a PHP the
+# build does not compile. Without the list, craft builds the sources
+# library-versions.txt records.
+awk '/^  custom-git:$/ {skip = 1; next} skip && /^    - / {next} {skip = 0; print}' \
+    "$source/craft.yml" >"$work/craft.yml"
+mv "$work/craft.yml" "$source/craft.yml"
+
 # The toolchain image copies the checkout, so the build runs the pinned spc.
 bash "$directory/fetch-spc.sh" "$source/static-php-cli"
 cp "$directory/spc-craft.sh" "$source/spc-craft.sh"
