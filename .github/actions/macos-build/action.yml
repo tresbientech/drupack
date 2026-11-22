@@ -60,7 +60,7 @@ runs:
           ${{ runner.temp }}/drupack/downloads
           ${{ runner.temp }}/drupack/buildroot
           ${{ runner.temp }}/drupack/pkgroot
-        key: macos-${{ inputs.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/builder/fetch-spc.sh', 'runtime/builder/fetch-commit.sh', 'runtime/builder/branch-pins.txt', 'runtime/builder/fetch-branch-pins.sh', 'runtime/builder/spc-sqlite.patch', 'runtime/builder/spc-icu.patch', 'runtime/builder/library-versions.txt', 'runtime/extensions/extensions-list.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
+        key: macos-${{ inputs.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/builder/fetch-spc.sh', 'runtime/builder/fetch-commit.sh', 'runtime/builder/branch-pins.txt', 'runtime/builder/fetch-branch-pins.sh', 'runtime/builder/spc-sqlite.patch', 'runtime/builder/spc-icu.patch', 'runtime/builder/library-versions.txt', 'runtime/builder/check-downloads.php', 'runtime/extensions/extensions-list.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
 
     - name: Build the executables
       env:
@@ -79,7 +79,7 @@ runs:
           ${{ runner.temp }}/drupack/downloads
           ${{ runner.temp }}/drupack/buildroot
           ${{ runner.temp }}/drupack/pkgroot
-        key: macos-${{ inputs.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/builder/fetch-spc.sh', 'runtime/builder/fetch-commit.sh', 'runtime/builder/branch-pins.txt', 'runtime/builder/fetch-branch-pins.sh', 'runtime/builder/spc-sqlite.patch', 'runtime/builder/spc-icu.patch', 'runtime/builder/library-versions.txt', 'runtime/extensions/extensions-list.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
+        key: macos-${{ inputs.arch }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/builder/fetch-spc.sh', 'runtime/builder/fetch-commit.sh', 'runtime/builder/branch-pins.txt', 'runtime/builder/fetch-branch-pins.sh', 'runtime/builder/spc-sqlite.patch', 'runtime/builder/spc-icu.patch', 'runtime/builder/library-versions.txt', 'runtime/builder/check-downloads.php', 'runtime/extensions/extensions-list.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
 
     - uses: actions/upload-artifact@v7
       with:

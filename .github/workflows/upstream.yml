@@ -4,7 +4,7 @@ name: Upstream
 # line, when a library they link has a newer release, or when a dispatch names a
 # version. The candidate is built and tested on every platform, with build/test/qa.sh,
 # by release.yml before drupal.org receives main and the tag; the tag run of release.yml
-# then publishes it.
+# then publishes it. Every release waits for the maintainer's approval first.
 #
 # drupal.org's daily pipeline schedule dispatches this workflow, from the
 # dispatch job of .gitlab-ci.yml.
@@ -42,10 +42,11 @@ env:
 jobs:
   # static-php-cli and its Composer packages are third-party code. They run here, where the
   # token reads public content and no secret exists, and the upstream job takes their
-  # answers as data. The checkout is main, so the static-php-cli is the one main pins.
+  # answers as data. The probe picks the PHP, FrankenPHP and SQLite pins in this checkout
+  # first, so the static-php-cli it runs and the sources it downloads are the candidate's.
   libraries:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       contents: read
     outputs:
@@ -63,12 +64,12 @@ jobs:
           php -r 'exit(PHP_VERSION_ID >= 80400 ? 0 : 1);'
 
       - id: probe
-        name: Ask static-php-cli for the newest release of each library
+        name: Pick the pins and record each source static-php-cli downloads on them
         if: inputs.version == ''
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          answers=$(python3 build/release/upstream.py --probe-libraries)
+          answers=$(python3 build/release/upstream.py --probe)
           echo "answers=$answers" >>"$GITHUB_OUTPUT"
 
   upstream:
@@ -76,8 +77,15 @@ jobs:
     runs-on: ubuntu-latest
     # A release.yml run takes one hour, and a failed one runs its failed jobs again.
     timeout-minutes: 180
+    # The job's token pushes the candidate branch, which needs no workflow of its own,
+    # and dispatches release.yml on it.
+    permissions:
+      actions: write
+      contents: write
     outputs:
-      version: ${{ steps.release.outputs.version }}
+      branch: ${{ steps.push.outputs.branch }}
+      version: ${{ steps.tested.outputs.version }}
+      sha: ${{ steps.tested.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -102,7 +110,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           NAMED: ${{ inputs.version }}
-          LIBRARIES: ${{ needs.libraries.outputs.answers }}
+          ANSWERS: ${{ needs.libraries.outputs.answers }}
           # setup-go sets local, and the bump can raise the go line before it moves the modules.
           GOTOOLCHAIN: auto
         run: |
@@ -113,9 +121,11 @@ jobs:
           else
             # Without it the step takes tee's exit status, and a bump that stopped half way goes on to a candidate.
             set -o pipefail
-            printf '%s' "$LIBRARIES" >"$RUNNER_TEMP/libraries.json"
-            python3 build/release/upstream.py --libraries "$RUNNER_TEMP/libraries.json" --output "$GITHUB_OUTPUT" \
+            printf '%s' "$ANSWERS" >"$RUNNER_TEMP/answers.json"
+            python3 build/release/upstream.py --answers "$RUNNER_TEMP/answers.json" --output "$GITHUB_OUTPUT" \
               | tee "$RUNNER_TEMP/summary.md"
+            # The run page shows it beside the approval.
+            cat "$RUNNER_TEMP/summary.md" >>"$GITHUB_STEP_SUMMARY"
             if [ -z "$(git status --porcelain)" ]; then
               echo 'Nothing the executables carry moved.'
               exit 0
@@ -197,27 +207,23 @@ jobs:
           EOF
           printf 'version=%s\nsha=%s\n' "$VERSION" "$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
 
-      # A push made with the job's token starts no workflow, and release.yml runs
-      # on the push of main and the tag, so every push goes out with the deploy key.
-      - name: Reach GitHub
-        if: steps.candidate.outputs.version
-        env:
-          DEPLOY_KEY_BASE64: ${{ secrets.MIRROR_DEPLOY_KEY_BASE64 }}
-        run: |
-          umask 077
-          mkdir -p "$HOME/.ssh"
-          printf '%s' "$DEPLOY_KEY_BASE64" | base64 -d >"$HOME/.ssh/deploy"
-          printf 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n' >"$HOME/.ssh/known_hosts"
-          git config core.sshCommand "ssh -i $HOME/.ssh/deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
-
       # The candidate branch never reaches drupal.org.
-      - name: Push the candidate branch
+      - id: push
+        name: Push the candidate branch
         if: steps.candidate.outputs.version
         env:
           BRANCH: ${{ steps.bump.outputs.branch }}
-        run: git push --quiet "$GITHUB_REMOTE" "HEAD:refs/heads/$BRANCH"
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          authorization=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)
+          # The runner masks the secret and not a value built from it.
+          echo "::add-mask::$authorization"
+          git -c "http.extraHeader=Authorization: Basic $authorization" \
+            push --quiet "https://github.com/$GITHUB_REPOSITORY.git" "HEAD:refs/heads/$BRANCH"
+          printf 'branch=%s\n' "$BRANCH" >>"$GITHUB_OUTPUT"
 
-      - name: Build and test the candidate
+      - id: tested
+        name: Build and test the candidate
         if: steps.candidate.outputs.version
         env:
           BRANCH: ${{ steps.bump.outputs.branch }}
@@ -237,16 +243,60 @@ jobs:
           # An earlier candidate of the same bump ran on the same branch name, so the
           # run is found by its commit. A failed run gets one rerun of its failed jobs.
           bash build/release/wait-for-run.sh "event=workflow_dispatch&head_sha=$SHA"
+          printf 'version=%s\nsha=%s\n' "$VERSION" "$SHA" >>"$GITHUB_OUTPUT"
 
-      # A main that moved on drupal.org since the checkout refuses the fast-forward,
+  # The release environment names the maintainer as required reviewer. A rejection
+  # fails this job, so release never runs.
+  approve:
+    needs: upstream
+    if: needs.upstream.outputs.version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    permissions: {}
+    steps:
+      - name: Take the maintainer's approval
+        env:
+          VERSION: ${{ needs.upstream.outputs.version }}
+        run: echo "The maintainer approved $VERSION."
+
+  # A run dispatched while a release waits stays pending, behind the upstream
+  # concurrency group, until the maintainer approves or rejects it.
+  release:
+    needs: [upstream, approve]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.upstream.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # A push made with the job's token starts no workflow, and release.yml runs
+      # on the push of main and the tag, so both pushes go out with the deploy key.
+      - name: Reach GitHub
+        env:
+          DEPLOY_KEY_BASE64: ${{ secrets.MIRROR_DEPLOY_KEY_BASE64 }}
+        run: |
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s' "$DEPLOY_KEY_BASE64" | base64 -d >"$HOME/.ssh/deploy"
+          printf 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n' >"$HOME/.ssh/known_hosts"
+          git config core.sshCommand "ssh -i $HOME/.ssh/deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+
+      # A main that moved on drupal.org since the candidate refuses the fast-forward,
       # and with it the tag. GitHub then receives the same two refs, and its tag push
       # starts the release.yml run that publishes.
       - id: release
         name: Push main and the tag to drupal.org, then to GitHub
-        if: steps.candidate.outputs.version
         env:
           DRUPAL_ORG_TOKEN: ${{ secrets.DRUPAL_ORG_TOKEN }}
-          VERSION: ${{ steps.candidate.outputs.version }}
+          VERSION: ${{ needs.upstream.outputs.version }}
         run: |
           git tag "$VERSION"
           # GitLab reads the project access token from the password and ignores the user name.
@@ -259,17 +309,26 @@ jobs:
           printf 'version=%s\n' "$VERSION" >>"$GITHUB_OUTPUT"
           echo "Tagged $VERSION on drupal.org. The node job creates its release there."
 
+  # The candidate branch goes for any result: a red candidate, a rejection or a release.
+  cleanup:
+    needs: [upstream, release]
+    if: always() && needs.upstream.outputs.branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
       - name: Delete the candidate branch
-        if: always() && steps.candidate.outputs.version
         env:
-          BRANCH: ${{ steps.bump.outputs.branch }}
-        run: git push --quiet "$GITHUB_REMOTE" --delete "$BRANCH" || true
+          BRANCH: ${{ needs.upstream.outputs.branch }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --silent -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH" || true
 
   # The tag push runs release.yml, which publishes the release. A failed run gets
   # one rerun of its failed jobs, and fails this job if it fails again.
   tag:
-    needs: upstream
-    if: needs.upstream.outputs.version
+    needs: release
+    if: needs.release.outputs.version
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
@@ -277,15 +336,15 @@ jobs:
 
       - name: Watch the tag's release run
         env:
-          VERSION: ${{ needs.upstream.outputs.version }}
+          VERSION: ${{ needs.release.outputs.version }}
           GITHUB_TOKEN: ${{ github.token }}
         run: bash build/release/wait-for-run.sh "event=push&branch=$VERSION"
 
   # Writes the release notes with drupalorg-cli, a third-party tool. This job
   # holds no secret; the node job, which holds one, takes the notes as text.
   notes:
-    needs: upstream
-    if: needs.upstream.outputs.version
+    needs: release
+    if: needs.release.outputs.version
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -311,7 +370,7 @@ jobs:
       - id: notes
         name: Write the release notes
         env:
-          VERSION: ${{ needs.upstream.outputs.version }}
+          VERSION: ${{ needs.release.outputs.version }}
         run: |
           # drupalorg-cli reads the project name from the origin URL.
           git remote set-url origin "$DRUPAL_ORG_REMOTE"
@@ -325,7 +384,7 @@ jobs:
   # form as nod_bot, once the tag's release run has published the executables.
   # It runs this repository's code alone.
   node:
-    needs: [upstream, tag, notes]
+    needs: [release, tag, notes]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -338,7 +397,7 @@ jobs:
 
       - name: Create the drupal.org release
         env:
-          VERSION: ${{ needs.upstream.outputs.version }}
+          VERSION: ${{ needs.release.outputs.version }}
           NOTES: ${{ needs.notes.outputs.html }}
           DRUPAL_ORG_SESSION: ${{ secrets.DRUPAL_ORG_SESSION }}
         run: printf '%s' "$NOTES" | python3 build/release/release-node.py post "$VERSION" >>"$GITHUB_STEP_SUMMARY"

@@ -1,12 +1,15 @@
 {
   "artifacts": [
     {
+      "name": "payload-archive",
       "expired": false
     },
     {
+      "name": "engine-payload-archive",
       "expired": false
     },
     {
+      "name": "builder-linux-amd64-musl",
       "expired": false
     }
   ]

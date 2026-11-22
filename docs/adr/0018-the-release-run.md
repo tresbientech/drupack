@@ -1,8 +1,8 @@
-# A daily run releases on green CI and posts the drupal.org release form
+# A daily run releases on green CI and the maintainer's approval, and posts the drupal.org release form
 
 ## Context
 
-Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. static-php-cli links about 40 C libraries into every platform's file, each at its newest release. A new upstream version must reach readers without the owner noticing it. A release builds five platforms and tests each one, so the graph must build each thing once. drupal.org has no API that creates a release node, and Packagist takes each `drupal/drupack` version from one.
+Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. static-php-cli links about 40 C libraries into every platform's file, each at its newest release. A new upstream version reaches readers after one approval by the owner. A release builds five platforms and tests each one, so the graph must build each thing once. drupal.org has no API that creates a release node, and Packagist takes each `drupal/drupack` version from one.
 
 ## Decision
 
@@ -35,11 +35,12 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 - A newer curl extract replaces `runtime/cacert.pem` once it matches curl's published SHA-256.
 - A newer major of a pin is never written. A library takes the release static-php-cli's own pattern allows, and a newer major can be that release.
 - A release starts when something the executables carry moves: PHP, Composer, FrankenPHP, Go, the CA bundle, SQLite, a library or libaom's tag. The run stops when none moves.
-- `runtime/builder/library-versions.txt` records the newest release of each artifact static-php-cli links. The pinned static-php-cli resolves the set from the two extension lists and names each release.
-- The probe records no artifact at a fixed URL, such as bzip2 1.0.8, and none built from a branch head. `runtime/builder/branch-pins.txt` holds the commit of each branch-head artifact.
+- `runtime/builder/library-versions.txt` holds one `NAME RELEASE FILE SHA256` line for each source static-php-cli downloads for the builds. The probe resolves the set from `php-embed` and the two extension lists, for the Linux musl target, and hashes each file.
+- A source at a fixed URL, such as bzip2, records `-` as its release. A branch-head source gets an empty `custom-local` folder in the probe and stays out of the file. `runtime/builder/branch-pins.txt` holds its commit. The probe stops on any other `git` download.
 - The run moves libaom's line of `branch-pins.txt` to the newest `vX.Y.Z` tag gitiles lists, with the commit the tag names. A newer major counts, as for any library. Gitiles' answer is remote input, and the run checks the tag and the commit before it writes.
-- static-php-cli runs in a job of its own, at the commit `main` pins. That job holds no secret and its token reads public content. The upstream job takes the answers as data and checks each name and release.
-- The file records what the run saw. A build links the release it finds, and the next run records that one.
+- static-php-cli runs in the `libraries` job, which holds no secret and whose token reads public content. The job first picks the PHP, FrankenPHP with static-php-cli, and SQLite pins in its own checkout. It then downloads on them with `--source-only --no-alt`, so the record holds the candidate's sources from their primary URLs.
+- The upstream job picks the same pins again, and stops unless they equal the ones the probe downloaded on. A release published between the two jobs stops that night's run. The job takes the answers as data and checks each name, release, file and hash.
+- The file records what the run downloaded. GitHub can serve a generated archive with new bytes under the same release. The next run then records the new hash, and its `bumped` row shows both hash prefixes. A candidate's compile stops on a source the file lacks or whose bytes differ.
 - `runtime/builder/spc-sqlite.patch` names SQLite's release as a URL. The run rewrites it from sqlite.org's product list, inside the 3 line.
 - A moved `watcher` line writes the same release into the Windows build, which downloads its own copy.
 - The ICU archive the Windows build links has no release to record. Its SHA-256 pin in `build.ps1` moves by hand.
@@ -50,15 +51,19 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 
 ### The candidate and the tag
 
-- The job dispatches `release.yml` on every platform with `version`. The run is named `Release candidate VERSION`.
+- The `upstream` job dispatches `release.yml` on every platform with `version`. The run is named `Release candidate VERSION`.
 - A bump that moves PHP, Composer, FrankenPHP, Go or the CA bundle runs the `full` suite. Every platform runs every case, except macOS amd64, which runs the start cases in each profile. A bump that moves SQLite, libraries or libaom alone runs `gate`, as a named version does. The demo pin and the docs pin, which every candidate moves, change no suite. Under `gate`, Linux amd64, macOS arm64 and Windows amd64 run every case. Linux arm64, Windows arm64 and macOS amd64 run the start cases.
 - The QA demo and host builds run the start cases. The Linux jobs test the same file in full.
 - A release's run calls no `build.yml`. `site-build.yml` calls it after each successful push or weekly run on `main`, when ghcr holds the job image `dev-COMMIT` of `main`'s commit. The candidate pushes that image for a release's commit.
 - `build/release/wait-for-run.sh` finds the run by the candidate's commit and polls it. It names each failed job and, once the run completes, reruns the failed jobs once.
 - The candidate's `qa` jobs are the release's QA. No local run precedes a release.
-- On green, one atomic push sends `main` as a fast-forward and the next tag to drupal.org. A second push sends both to GitHub. The job then deletes the branch.
+- On green, the candidate waits in the `approve` job for the maintainer's approval in the `release` environment. A dispatch with `version` waits too.
+- The `release` job then sends `main` as a fast-forward and the next tag to drupal.org in one atomic push. A second push sends both to GitHub.
+- A run dispatched while a release waits stays pending behind it, in the `upstream` concurrency group. A later dispatch replaces a pending one.
+- A `cleanup` job deletes the candidate branch for any result: a red candidate, a rejection or a release.
 - The gate of the tag run and of the `main` run finds the candidate run at the commit. When it exists with live artifacts, every build job skips, and the tag's `publish` downloads its files. Otherwise the tag builds every platform.
-- A `tag` job waits for the tag run with the same script. No person pushes a version tag.
+- The builder image archives live one day, and only their own run reads them, so their expiry leaves a candidate live.
+- A `tag` job waits for the tag run with the same script. No person pushes a version tag; the maintainer approves the push.
 
 ### The drupal.org release form
 
@@ -83,10 +88,10 @@ The engine ships the pinned `composer.phar`. Its bump checks the SHA-384 signatu
 
 A release gives readers a new executable, so a tool no executable carries starts none. Go modules publish more often than a run on every platform is worth, so they join a bump that already pays for one.
 
-A library fix once waited for the next PHP or FrankenPHP bump: six releases shipped libpq 18.6 after 18.7 existed. static-php-cli already resolves each library's newest release for the build, so the run asks it and keeps no list of its own.
+A library fix once waited for the next PHP or FrankenPHP bump: six releases shipped libpq 18.6 after 18.7 existed. static-php-cli already resolves each library's newest release for the build, so the run asks it and keeps no list of its own. The run hashes each file it downloads, so a build can refuse a file that differs from the one the run recorded.
 
-The upstream job holds the mirror's deploy key and the drupal.org token, and it commits its working tree. Third-party code that ran there could edit a tracked file or read a later step's secret. In its own job, a wrong answer can start a release and nothing else.
+The upstream job commits its working tree and pushes the candidate branch with its job token. The release job holds the mirror's deploy key and the drupal.org token. Third-party code that ran in the upstream job could edit a tracked file or push a branch. In its own job, a wrong answer can start a candidate and nothing else.
 
-The upstream run lives on GitHub, where the builds run. Testing the candidate before the tag moves means a red platform never ships, and the tag run publishes the candidate's files.
+The upstream run lives on GitHub, where the builds run. A red platform never ships, since the candidate is tested before the tag moves, and the tag run publishes the candidate's files. The approval lets the owner read the bump summary before a release: a bad upstream release otherwise reaches every executable and self-update within a day.
 
 drupal.org staff accept a plain HTTP post with an honest user agent for limited use. They advise against a browser driver. A maintainer's own cookie would act as a person on all of drupal.org. A release cannot be deleted, so the post follows a green tag run and is sent once.

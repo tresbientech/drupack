@@ -1,35 +1,39 @@
-brotli v1.2.1
-curl curl-8_23_0
-ext-apcu v5.1.28
-ext-brotli 0.21.1
-ext-zip 1.22.8
-freetype VER-2-15-0
-gettext 1.0
-gmp 6.3.0
-icu release-79.1
-idn2 2.3.8
-ldap 2.7.2
-libavif v1.4.2
-libcares v1.34.9
-libedit 20260512-3.1
-libiconv 1.19.1
-libjpeg 3.2.1
-libpng v1.6.59
-libsodium 1.0.22-RELEASE
-libssh2 libssh2-1.11.1
-libunistring 1.5
-libwebp v1.6.0
-libxml2 v2.15.4
-libxslt 1.1.45
-libyaml 0.2.6
-libzip v1.12.1
-ncurses 6.6
-nghttp2 v1.71.0
-nghttp3 v1.19.0
-ngtcp2 v1.26.0
-openssl openssl-3.6.5
-postgresql REL_18_7
-watcher 0.14.5
-xz v5.8.4
-zlib v1.4
-zstd v1.5.7
+brotli v1.2.1 google-brotli-go-brotli-v1.2.1-0-gdb24a98.tar.gz faa6efa5345f2a63076190f5f6e63454a881fa03696271775a30d59de7cd6e91
+bzip2 - bzip2-1.0.8.tar.gz ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269
+curl curl-8_23_0 curl-8.23.0.tar.xz 8dadd7d2536a314f982ad05a651b713f426bf7d02cc2c76cffb9796f2218e6c5
+ext-apcu v5.1.28 apcu_apcu-v5.1.28.zip c519f3093a2242bdbb526d586ba43582a13896a0a7f03bdedfd2b996ca64c7e7
+ext-brotli 0.21.1 kjdev-php-ext-brotli-0.21.1-0-geaa63da.tar.gz 41a56eb0f4439d26bef77de7889451e1d4509df61aa44b0a84ca0a5d6ec32ca4
+ext-zip 1.22.8 pecl_zip-1.22.8.zip adb9a2a6b1e25b60ae7797afee581066f3aaa18767dc0608a09ac147a7dc80e3
+freetype VER-2-15-0 freetype-freetype-VER-2-15-0-0-g37515cf.tar.gz 144a7ca44e8ff1de2cdfd559a3ab9551668e98df42ccc0bef04f152f8b270b64
+gettext 1.0 gettext-1.0.tar.xz 71132a3fb71e68245b8f2ac4e9e97137d3e5c02f415636eb508ae607bc01add7
+gmp 6.3.0 gmp-6.3.0.tar.xz a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898
+icu release-79.1 icu4c-79.1-sources.tgz 06fa63ecb521048f8082f12ad988f6b678d90cbd88aafce24cbc94902b191d99
+idn2 2.3.8 libidn2-2.3.8.tar.gz f557911bf6171621e1f72ff35f5b1825bb35b52ed45325dcdee931e5d3c0787a
+krb5 - krb5-1.22.2.tar.gz 3243ffbc8ea4d4ac22ddc7dd2a1dc54c57874c40648b60ff97009763554eaf13
+ldap 2.7.2 openldap-2.7.2.tgz aad731aa22118ff327b9b4ddfc4b6f18ef9476586205da88a532e90940b523d2
+libavif v1.4.2 AOMediaCodec-libavif-v1.4.2-0-gc5240fc.tar.gz e7f11216722ef8b17dcf0186d6be1739be634bbe73312b16a025aa53c08c3d7a
+libcares v1.34.9 c-ares-1.34.9.tar.gz 9364b70a12eb59a06830fb488d9357f90100dff0d98b23ea3593a183d43e6f2f
+libedit 20260512-3.1 libedit-20260512-3.1.tar.gz 432d5e7ea8b0116dd39f2eca7bc11d0eed77faa6b77ea526ace89907c23ea4a0
+libiconv 1.19.1 libiconv-1.19.1.tar.gz 9a06844846d664d7122161700c10a64480d7c7bcead3091925a785b38c91edab
+libjpeg 3.2.1 libjpeg-turbo-libjpeg-turbo-3.2.1-0-g7b49937.tar.gz f9d7fad5a49dcab5270cccd2a75f567e21cbc5fcea408671034f083651874c86
+libpng v1.6.59 pnggroup-libpng-v1.6.59-0-gcd952f4.tar.gz 56de06e936077ac9282b0de7e4510a18245b8dfbc305fbf94c272258f7c4b0d4
+libsodium 1.0.22-RELEASE libsodium-1.0.22.tar.gz adbdd8f16149e81ac6078a03aca6fc03b592b89ef7b5ed83841c086191be3349
+libssh2 libssh2-1.11.1 libssh2-1.11.1.tar.gz d9ec76cbe34db98eec3539fe2c899d26b0c837cb3eb466a56b0f109cabf658f7
+libunistring 1.5 libunistring-1.5.tar.gz 5b0ecd46cbf225375f20ab4056197e66a7ac590e2684c069af407ae3383c9d81
+libwebp v1.6.0 webmproject-libwebp-v1.6.0-0-g4fa2191.tar.gz 48c7b41fc22d53c5a8dd969fd0c5b302987a654df8c9f0e7e353c896703ff81c
+libxml2 v2.15.4 GNOME-libxml2-v2.15.4-0-g9649899.tar.gz e6a7327f851b2798f228f6a0cf8cceb67e5ff11f7b01c07430c8bdfb33edc01c
+libxslt 1.1.45 libxslt-1.1.45.tar.xz 9acfe68419c4d06a45c550321b3212762d92f41465062ca4ea19e632ee5d216e
+libyaml 0.2.6 yaml-0.2.6.tar.gz 43b393a117bd4fe39812fddc94e3d654359a3ae05653dcf0110a1122d1747e61
+libzip v1.12.1 libzip-1.12.1.tar.xz c40062022a1963c80573d48f6070792297cecd7c6bffe3aefcac0d8b9bee8913
+ncurses 6.6 ncurses-6.6.tar.gz 355b4cbbed880b0381a04c46617b7656e362585d52e9cf84a67e2009b749ff11
+nghttp2 v1.71.0 nghttp2-1.71.0.tar.xz c0f55121d88650e4b9227aec28cebaf664d2417ca60fe70be0f8d38829f52116
+nghttp3 v1.19.0 nghttp3-1.19.0.tar.xz 228e17f5cc3d4de7bfced9912bd09de30e7f45741cc47503cf88d3fa9209e155
+ngtcp2 v1.26.0 ngtcp2-1.26.0.tar.xz 7804aa0fa1c39942ba322a90805824c37231f7675b08d0c3cc4332858a7b085e
+openssl openssl-3.6.5 openssl-3.6.5.tar.gz a2157c2830efdec3788939b00c9b0638306d3f0bbb76dc4832ee503bb397df98
+php-src 8.5.13 php-8.5.13.tar.xz 607602acaf0c3061818e9916ec44a058e8b3d43959a83862b9cd3ec7bf5b785f
+postgresql REL_18_7 postgres-postgres-REL_18_7-0-gf5c41f6.tar.gz b67c45c4d1fed213e0bc61ea0c353c52e48c01020cc815c8f42e853a57aa813b
+sqlite - sqlite-autoconf-3540100.tar.gz 926ef8d3eab93fbf6e06011901273eec076b25594a4e1cdadd50c987f4f6d64e
+watcher 0.14.5 e-dant-watcher-release-0.14.5-0-g06f84a1.tar.gz 7098217c78e6deb6ab92bc7b469e3d016ae82185bb2ff6cb2b7531ae4ef34e43
+xz v5.8.4 xz-5.8.4.tar.xz 4ce24038fd4221e0d13bc1a2de7a4db56e90b92b3bf75321f6c14be73f65de4b
+zlib v1.4 zlib-1.4.tar.gz 02dd159783677a749c04adbdd02b55b8a2bcc7e054f51b76b549199a916ad584
+zstd v1.5.7 zstd-1.5.7.tar.gz eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3

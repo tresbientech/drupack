@@ -46,8 +46,10 @@ def candidate(event, fetch):
     if run is None:
         return None
     path = f"repos/{event['repo']}/actions/runs/{run}/artifacts?per_page=100"
-    artifacts = listed(path, fetch(path), "artifacts", {"expired": bool})
-    return None if any(artifact["expired"] for artifact in artifacts) else run
+    artifacts = listed(path, fetch(path), "artifacts", {"expired": bool, "name": str})
+    # The builder image archives live one day and only their own run's payload job reads them,
+    # so a release approved days after its candidate still publishes the candidate's files.
+    return None if any(artifact["expired"] for artifact in artifacts if not artifact["name"].startswith("builder-linux-")) else run
 
 
 def platform_matrix(targets, system, platform):

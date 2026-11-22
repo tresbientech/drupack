@@ -34,8 +34,8 @@ tests:
         - runtime/**/*
         - tests/**/*
   script:
-    # build/release/release-files.py packs with zstd.
-    - apt-get update --quiet --quiet && apt-get install --yes --quiet --quiet --no-install-recommends python3 zstd
+    # build/release/release-files.py packs with zstd, and runtime/builder/check-downloads.php runs on PHP.
+    - apt-get update --quiet --quiet && apt-get install --yes --quiet --quiet --no-install-recommends python3 zstd php-cli
     # go downloads the toolchain release.yml pins.
     - |
       export GOTOOLCHAIN="go$(sed -n "s/^  GO_VERSION: '\(.*\)'$/\1/p" .github/workflows/release.yml)"

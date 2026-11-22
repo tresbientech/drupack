@@ -597,7 +597,7 @@ jobs:
             ${{ runner.temp }}\drupack\source\php-src\win32
             ~\go\pkg\mod
             ~\AppData\Local\go-build
-          key: windows-build-${{ hashFiles('build/windows/build.ps1', 'runtime/builder/builder-inputs.sh', 'runtime/builder/fetch-spc.sh', 'runtime/builder/fetch-commit.sh', 'runtime/builder/branch-pins.txt', 'runtime/builder/fetch-branch-pins.sh', 'runtime/builder/spc-sqlite.patch', 'runtime/builder/spc-icu.patch', 'runtime/builder/library-versions.txt', 'runtime/extensions/extensions-list.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
+          key: windows-build-${{ hashFiles('build/windows/build.ps1', 'runtime/builder/builder-inputs.sh', 'runtime/builder/fetch-spc.sh', 'runtime/builder/fetch-commit.sh', 'runtime/builder/branch-pins.txt', 'runtime/builder/fetch-branch-pins.sh', 'runtime/builder/spc-sqlite.patch', 'runtime/builder/spc-icu.patch', 'runtime/builder/library-versions.txt', 'runtime/builder/check-downloads.php', 'runtime/extensions/extensions-list.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
 
       # A compile reads each artifact of branch-pins.txt from its checkout, and SourceForge,
       # which serves pthreads4w, has failed a download. The restore on every run keeps the
