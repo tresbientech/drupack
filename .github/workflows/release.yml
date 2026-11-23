@@ -988,8 +988,8 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          pattern: runtime-macos-*
-          path: runtimes
+          name: runtime-macos-arm64
+          path: runtimes/runtime-macos-arm64
           run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
           github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
 
@@ -1059,8 +1059,8 @@ jobs:
       # itself, hence the Windows runtime's own step.
       - uses: actions/download-artifact@v8
         with:
-          pattern: runtime-macos-*
-          path: runtimes
+          name: runtime-macos-arm64
+          path: runtimes/runtime-macos-arm64
           run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
           github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
 
