@@ -1,0 +1,8 @@
+name: fixture
+recipe: recipes/fixture_site
+site_name: Fixture
+languages: [fr]
+platforms: [linux-amd64, linux-arm64, macos-arm64, windows-amd64]
+libc: both
+writable: [web/themes/custom]
+node: 24

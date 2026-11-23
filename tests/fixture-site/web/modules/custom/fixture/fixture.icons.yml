@@ -1,0 +1,7 @@
+fixture:
+  label: Fixture
+  extractor: svg
+  config:
+    sources:
+      - icons/*.svg
+  template: '<span class="fixture-icon"><svg viewBox="0 0 24 24" width="24" height="24">{{ content }}</svg></span>'

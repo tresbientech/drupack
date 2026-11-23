@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // Unit cases for Drupack\Support\SiteData. Run with:
-//   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/site_data_test.php"
+//   ./dist/fixture-linux-amd64 php-cli "$PWD/application/tests/site_data_test.php"
 // operate.php holds the executableName() and directory() the class calls.
 
 define('DRUPACK_OPERATE_LIBRARY', true);

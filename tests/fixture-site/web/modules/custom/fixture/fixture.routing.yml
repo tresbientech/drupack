@@ -1,0 +1,7 @@
+fixture.icons:
+  path: /icons
+  defaults:
+    _controller: \Drupal\fixture\Controller\Icons::page
+    _title: Icons
+  requirements:
+    _permission: 'access content'

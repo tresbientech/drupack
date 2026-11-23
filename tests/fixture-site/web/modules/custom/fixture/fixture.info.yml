@@ -1,0 +1,4 @@
+name: Fixture
+type: module
+description: The private key at install, an icon pack and the page that shows it.
+core_version_requirement: ^11

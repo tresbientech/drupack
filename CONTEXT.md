@@ -12,6 +12,9 @@ The name of this project and of its Engine executable.
 **Drupacked Demo**:
 The Packaged site that is Drupack's worked example, published from its own Site repository. Its Site template applies Drupal CMS's Mercury Demo recipe and Agent Access, and enables WordPal.
 
+**Fixture site**:
+The Packaged site in `tests/fixture-site` that every release candidate builds and tests. Its Composer lock moves only by hand.
+
 **Packaged site**:
 A distributable Drupal application. One built from a Site template carries a Seed site. One built without serves a database that already holds its site.
 

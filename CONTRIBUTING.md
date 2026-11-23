@@ -28,7 +28,7 @@ bash runtime/builder/build-builder.sh gnu drupack-builder-gnu:local
 bash build/test/qa.sh
 ```
 
-`build/test/qa.sh` builds the `job` image, builds Drupacked Demo and the engine executable inside it, and runs the tests. `drupack-build -help` lists the options of a hand build. The macOS and Windows builds run on their own hosts; `.github/workflows/release.yml` and `.github/actions/macos-build/action.yml` show their commands and tools.
+`build/test/qa.sh` builds the `job` image, builds the fixture site in `tests/fixture-site` and the engine executable inside it, and runs the tests. `drupack-build -help` lists the options of a hand build. The macOS and Windows builds run on their own hosts; `.github/workflows/release.yml` and `.github/actions/macos-build/action.yml` show their commands and tools.
 
 ## Tests
 
@@ -40,12 +40,12 @@ Every Python script in `build/`, `runtime/` and `tests/` imports the standard li
 bash build/test/go-tests.sh
 bash build/test/unit-tests.sh
 ruff check .
-DRUPACK_TEST_ENGINE=dist/engine/drupack-linux-amd64 python3 tests/conformance dist/drupacked-demo-linux-amd64 test-results/conformance --site-tests demo/tests
+DRUPACK_TEST_ENGINE=dist/engine/drupack-linux-amd64 python3 tests/conformance dist/fixture-linux-amd64 test-results/conformance --site-tests tests/fixture-site/tests
 ```
 
 ## Development loop
 
-`build/dev/dev-server.sh` starts the built demo and lays `application/` over it on each start, so a PHP change applies without a build. A change under `launcher/` needs a build.
+`build/dev/dev-server.sh` starts the built fixture site and lays `application/` over it on each start, so a PHP change applies without a build. A change under `launcher/` needs a build.
 
 ```sh
 bash build/dev/dev-server.sh ./dev-data 7225

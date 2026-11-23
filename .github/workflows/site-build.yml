@@ -1,9 +1,9 @@
 name: Site build
 
-# Builds the pinned Drupacked Demo commit through build.yml, the workflow site
-# repositories call, in the job image pushed under main's commit: by a release.yml
-# run on main, or by the candidate run of a release. A release's own run does not
-# wait for it.
+# Builds the Drupacked Demo's latest release through build.yml, the workflow site
+# repositories call, in the job image pushed under this run's commit. A candidate
+# dispatches it at its own branch, and a release.yml run on main starts it. It
+# reports alone: no release waits for it.
 on:
   workflow_run:
     workflows: [Release]
@@ -15,24 +15,28 @@ permissions:
   contents: read
 
 jobs:
-  pin:
+  demo:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
     outputs:
-      repository: ${{ steps.demo.outputs.repository }}
-      ref: ${{ steps.demo.outputs.ref }}
+      repository: ${{ steps.release.outputs.repository }}
+      ref: ${{ steps.release.outputs.ref }}
       built: ${{ steps.built.outputs.built }}
     steps:
-      - uses: actions/checkout@v7
-
-      - id: demo
-        name: Name the demo commit
+      - id: release
+        name: Name the demo's latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: tresbientech/drupacked-demo
         run: |
-          . build/release/demo-pin.sh
-          printf 'repository=%s\nref=%s\n' "$demo_repository" "$demo_ref" >>"$GITHUB_OUTPUT"
+          tag=$(gh api "repos/$REPOSITORY/releases/latest" --jq .tag_name)
+          # The tag is remote input, written into the build's checkout ref.
+          [[ $tag =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]+$ ]] || { echo "The demo's latest release is named '$tag'." >&2; exit 1; }
+          echo "Drupacked Demo $tag"
+          printf 'repository=%s\nref=refs/tags/%s\n' "$REPOSITORY" "$tag" >>"$GITHUB_OUTPUT"
 
       # A commit that changed documentation alone has no job image.
       - id: built
@@ -53,16 +57,15 @@ jobs:
 
   build:
     name: Drupacked Demo through build.yml
-    needs: pin
-    if: needs.pin.outputs.built == 'true'
+    needs: demo
+    if: needs.demo.outputs.built == 'true'
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/build.yml
     with:
-      repository: ${{ needs.pin.outputs.repository }}
-      ref: ${{ needs.pin.outputs.ref }}
+      repository: ${{ needs.demo.outputs.repository }}
+      ref: ${{ needs.demo.outputs.ref }}
       # The macOS and Windows runtime files of this commit are not published.
       platforms: linux-amd64
-      # release.yml's Linux jobs test this build in full; this run proves the entry point a site calls.
-      suite: smoke
+      suite: full

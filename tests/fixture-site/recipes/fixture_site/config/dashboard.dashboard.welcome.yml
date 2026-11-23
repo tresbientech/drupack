@@ -1,0 +1,17 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - layout_builder
+id: welcome
+label: Welcome
+description: The dashboard the first login lands on.
+weight: 0
+layout:
+  -
+    layout_id: layout_onecol
+    layout_settings:
+      label: ''
+      context_mapping: {  }
+    components: {  }
+    third_party_settings: {  }

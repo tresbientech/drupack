@@ -46,15 +46,14 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 - The ICU archive the Windows build links has no release to record. Its SHA-256 pin in `build.ps1` moves by hand.
 - `golangci-lint`, `govulncheck` and the launcher's Go modules move only in a run that releases. The modules stay inside their majors, and a module that needs a newer Go waits.
 - The candidate is the bump on `main` HEAD, on a GitHub-only branch named by the SHA-256 of the bump's diff. A hand version names its branch by the version.
-- Each candidate moves `build/release/demo-pin.sh` to the Drupacked Demo's latest release that descends from the pin.
 - A canary skips a bump whose candidate already finished, and a release skips one whose candidate failed, unless the dispatch sets `force`. A named version always builds.
 
 ### The candidate and the tag
 
 - The `upstream` job dispatches `release.yml` on every platform with `version`. The run is named `Release candidate VERSION`.
-- A bump that moves PHP, Composer, FrankenPHP, Go or the CA bundle runs the `full` suite. Every platform runs every case. A bump that moves SQLite, libraries or libaom alone runs `gate`, as a named version does. The demo pin and the docs pin, which every candidate moves, change no suite. Under `gate`, Linux amd64, macOS arm64 and Windows amd64 run every case. Linux arm64 and Windows arm64 run the start cases.
-- The QA demo and host builds run the start cases. The Linux jobs test the same file in full.
-- A release's run calls no `build.yml`. `site-build.yml` calls it after each successful push or weekly run on `main`, when ghcr holds the job image `dev-COMMIT` of `main`'s commit. The candidate pushes that image for a release's commit.
+- A bump that moves PHP, Composer, FrankenPHP, Go or the CA bundle runs the `full` suite. Every platform runs every case. A bump that moves SQLite, libraries or libaom alone runs `gate`, as a named version does. The docs pin, which every candidate moves, changes no suite. Under `gate`, Linux amd64, macOS arm64 and Windows amd64 run every case. Linux arm64 and Windows arm64 run the start cases.
+- The QA fixture and host builds run the start cases. The Linux jobs test the same file in full.
+- A release's run calls no `build.yml`. A candidate's `demo` job dispatches `site-build.yml` at the candidate's branch, which builds the Drupacked Demo's latest release on the candidate's `dev-COMMIT` image. Nothing waits for that run.
 - `build/release/wait-for-run.sh` finds the run by the candidate's commit and polls it. It names each failed job and, once the run completes, reruns the failed jobs once.
 - The candidate's `qa` jobs are the release's QA. No local run precedes a release.
 - On green, a release's candidate waits in the `approve` job for the maintainer's approval in the `release` environment. A canary skips `approve`, so it pushes and tags nothing.

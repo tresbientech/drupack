@@ -2,7 +2,6 @@
   "darwin": {
     "extra": 161,
     "classes": {
-      "agent_access_cases.AgentAccess": 93,
       "browser_cases.BrowserOpenCases": 271,
       "concurrent_sites_cases.ConcurrentSites": 0,
       "detached_cases.DetachedCases": 114,
@@ -48,8 +47,6 @@
       "tls_cases.TlsSources": 0,
       "tls_cases.TrustCommand": 0,
       "version_cases.Version": 1,
-      "windows_paths_cases.WindowsPathCases": 120,
-      "wordpal_cases.WordPalConversion": 267,
       "writable_cases.PreviousRelease": 0,
       "writable_cases.WritableDirectories": 186
     }
@@ -57,7 +54,6 @@
   "linux": {
     "extra": 0,
     "classes": {
-      "agent_access_cases.AgentAccess": 36,
       "argument_cases.ArgumentCases": 4,
       "ascii_cache_root_cases.AsciiCacheRootCases": 0,
       "browser_cases.BrowserOpenCases": 101,
@@ -106,8 +102,6 @@
       "tls_cases.TlsSources": 26,
       "tls_cases.TrustCommand": 5,
       "version_cases.Version": 0,
-      "windows_paths_cases.WindowsPathCases": 37,
-      "wordpal_cases.WordPalConversion": 116,
       "writable_cases.PreviousRelease": 0,
       "writable_cases.WritableDirectories": 43
     }
@@ -115,7 +109,6 @@
   "win32": {
     "extra": 247,
     "classes": {
-      "agent_access_cases.AgentAccess": 291,
       "ascii_cache_root_cases.AsciiCacheRootCases": 480,
       "concurrent_sites_cases.ConcurrentSites": 251,
       "detached_cases.DetachedCases": 366,
@@ -161,8 +154,6 @@
       "tls_cases.TlsSources": 0,
       "tls_cases.TrustCommand": 0,
       "version_cases.Version": 1,
-      "windows_paths_cases.WindowsPathCases": 306,
-      "wordpal_cases.WordPalConversion": 460,
       "writable_cases.PreviousRelease": 0,
       "writable_cases.WritableDirectories": 0
     }

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // Unit cases for build/pack/install-translations.php. Run with:
-//   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/install_translations_test.php"
+//   ./dist/fixture-linux-amd64 php-cli "$PWD/application/tests/install_translations_test.php"
 // The constant loads the script for its functions alone.
 
 define('DRUPACK_INSTALL_TRANSLATIONS_LIBRARY', true);

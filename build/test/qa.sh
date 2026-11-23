@@ -3,24 +3,24 @@ set -euo pipefail
 
 # The full QA, which release.yml's qa jobs run on a release candidate, one phase per job.
 # Every phase builds the job image (both runtimes) and builds its sites inside it.
-#   demo     the FrankenPHP adapter test, Drupacked Demo at the build/release/demo-pin.sh
-#            commit with its build's start cases, and the PHP unit files
+#   fixture  the FrankenPHP adapter test, the fixture site with its build's start cases,
+#            and the PHP unit files
 #   variant  a copy with a Mercure hub, and its musl file's cases
-#   host     Drupacked Demo with its build's start cases, a copy without Node, the engine
+#   host     the fixture site with its build's start cases, a copy without Node, the engine
 #            executable, the cases that need a daemon on this host, and the engine
-#            executable's cases against the demo
-# The demo and host builds run the start cases, since release.yml's Linux jobs test the same
+#            executable's cases against the fixture
+# The fixture and host builds run the start cases, since release.yml's Linux jobs test the same
 # file in full and its Linux amd64 job runs the Go and Python unit tests. With no phase, one
 # build of each site runs its whole suite, after the unit tests.
-# Usage: build/test/qa.sh [demo|variant|host]
+# Usage: build/test/qa.sh [fixture|variant|host]
 phase=${1:-}
 case $phase in
-    '' | demo | variant | host) ;;
-    *) echo 'Usage: build/test/qa.sh [demo|variant|host]' >&2; exit 2 ;;
+    '' | fixture | variant | host) ;;
+    *) echo 'Usage: build/test/qa.sh [fixture|variant|host]' >&2; exit 2 ;;
 esac
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 platform=linux-$(go env GOARCH)
-executable=dist/drupacked-demo-$platform
+executable=dist/fixture-$platform
 engine=dist/engine/drupack-$platform
 
 # The work directories and test results hold millions of small files per run.
@@ -33,12 +33,6 @@ mkdir -p dist "$work/work" "$work/variant-work" "$work/engine-work" "$work/resul
 # checkout's .git. The job container gets that .git at the same path.
 git_directory=$(git rev-parse --path-format=absolute --git-common-dir)
 checkout=(-v "$PWD:/src" -v "$git_directory:$git_directory")
-
-. build/release/demo-pin.sh
-demo=$work/demo
-git init -q "$demo"
-git -C "$demo" fetch -q --depth 1 "https://github.com/$demo_repository" "$demo_ref"
-git -C "$demo" checkout -q --detach FETCH_HEAD
 
 # The job image carries both of this architecture's runtimes, so the build names
 # none. The chain tests the glibc file alone, so it packs no musl one.
@@ -64,10 +58,10 @@ unit_checks() {
     bash build/test/unit-tests.sh
 }
 
-# Builds Drupacked Demo. The build runs the suite that $1 names as DRUPACK_SUITE.
-build_demo() {
+# Builds the fixture site. The build runs the suite that $1 names as DRUPACK_SUITE.
+build_site() {
     docker run --rm --user "$(id -u):$(id -g)" -e "DRUPACK_SUITE=$1" "${checkout[@]}" -v "$work:$work" -w /src drupack-job \
-        drupack-build --site "$demo" --platform "$platform" --libc glibc \
+        drupack-build --site /src/tests/fixture-site --platform "$platform" --libc glibc \
         --output dist --work "$work/work"
     discard_results work
 }
@@ -87,20 +81,20 @@ php_unit_files() {
 variant() {
     variant_site=$(mktemp -d)
     trap 'rm -rf "$variant_site"' EXIT
-    bash build/test/variant-fixture.sh "$demo" "$variant_site"
+    bash build/test/variant-fixture.sh tests/fixture-site "$variant_site"
     docker run --rm --user "$(id -u):$(id -g)" "${checkout[@]}" -v "$work:$work" -v "$variant_site:/variant-site" -w /src drupack-job \
         drupack-build --site /variant-site --platform "$platform" --libc both \
         --output dist/variant --work "$work/variant-work"
     discard_results variant-work
-    python3 tests/conformance "dist/variant/variant-demo-$platform-musl" "$work/results/variant-musl" -k MercureHub -k ProjectRules
+    python3 tests/conformance "dist/variant/variant-fixture-$platform-musl" "$work/results/variant-musl" -k MercureHub -k ProjectRules
 }
 
-# Reads the demo build's executable, site.json and payload.
+# Reads the fixture build's executable, site.json and payload.
 host_cases() {
     docker run --rm --user "$(id -u):$(id -g)" "${checkout[@]}" -v "$work:$work" -w /src drupack-job \
         drupack-build --engine-executable --platform "$platform" --libc glibc --output dist/engine --work "$work/engine-work"
 
-    # Drupacked Demo again without Node and without the static key, for the cases of a site
+    # The fixture again without Node and without the static key, for the cases of a site
     # that carries neither. operate.php reads the site.json inside the payload, so the copy swaps
     # that file too, and its checksum names an application cache entry of its own.
     no_node=$work/no-node
@@ -121,29 +115,29 @@ with open(sys.argv[2], "w") as handle:
     zstd -q -19 -f --rm "$no_node/app-payload.tar" -o "$no_node/app-payload.tar.zst"
     docker run --rm --user "$(id -u):$(id -g)" "${checkout[@]}" -v "$work:$work" -w /src/launcher -e CGO_ENABLED=0 drupack-job \
         sh -c 'go run ./cmd/pack -target "$1" -runtime "/opt/drupack/runtimes/$1-glibc" -payload "$2" \
-            -version "$DRUPACK_ENGINE_VERSION" -site-version dev -output "../dist/no-node/drupacked-demo-$1"' sh "$platform" "$no_node"
+            -version "$DRUPACK_ENGINE_VERSION" -site-version dev -output "../dist/no-node/fixture-$1"' sh "$platform" "$no_node"
 
-    DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" "$work/results/conformance" --site-tests "$demo/tests" \
+    DRUPACK_TEST_ENGINE=$engine python3 tests/conformance "$executable" "$work/results/conformance" \
         -k OfflineRun -k NetworkListener -k ServerDatabase -k PostgresqlLifecycle -k CacheRootFull \
         -k ExistingSiteAdoption -k EngineExecutable -k TlsSources -k TrustCommand -k StaticSite
-    python3 tests/conformance "dist/no-node/drupacked-demo-$platform" "$work/results/no-node" -k StaticSite
+    python3 tests/conformance "dist/no-node/fixture-$platform" "$work/results/no-node" -k StaticSite
 }
 
 case $phase in
-    demo)
+    fixture)
         bash runtime/frankenphp/adapt-test.sh gnu
-        build_demo smoke
+        build_site smoke
         php_unit_files
         ;;
     variant) variant ;;
     host)
-        build_demo smoke
+        build_site smoke
         host_cases
         ;;
     '')
         # The checks that need no built file run before any executable builds.
         unit_checks
-        build_demo full
+        build_site full
         variant
         php_unit_files
         host_cases

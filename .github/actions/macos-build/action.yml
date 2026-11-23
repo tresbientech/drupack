@@ -65,7 +65,7 @@ runs:
         DRUPACK_ENGINE_VERSION: ${{ inputs.version }}
       shell: bash
       run: |
-        bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/drupacked-demo dist/engine-payload dist/engine/drupack
+        bash build/macos/build.sh dist/payload "$RUNNER_TEMP/drupack" dist/fixture dist/engine-payload dist/engine/drupack
         cp dist/payload/site.json dist/site.json
 
     # static-php-cli's GitHub downloads pass the job token, so its logs can hold it.
@@ -122,13 +122,13 @@ runs:
       run: |
         mkdir -p dist/variant
         (cd launcher && go run ./cmd/pack -target "$TARGET" -runtime "$RUNNER_TEMP/drupack/runtime" \
-          -payload ../dist/variant-payload -version "$DRUPACK_ENGINE_VERSION" -output ../dist/variant/variant-demo)
+          -payload ../dist/variant-payload -version "$DRUPACK_ENGINE_VERSION" -output ../dist/variant/variant-fixture)
         cp dist/variant-payload/site.json dist/variant/site.json
 
     - name: Check the unsigned launch steps
       shell: bash
       run: |
-        cp dist/drupacked-demo "$RUNNER_TEMP/quarantined"
+        cp dist/fixture "$RUNNER_TEMP/quarantined"
         xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" "$RUNNER_TEMP/quarantined"
         xattr -d com.apple.quarantine "$RUNNER_TEMP/quarantined"
         "$RUNNER_TEMP/quarantined" --version
@@ -140,7 +140,7 @@ runs:
       with:
         name: suite-macos-${{ inputs.arch }}
         path: |
-          dist/drupacked-demo
+          dist/fixture
           dist/site.json
           dist/engine/drupack
           dist/variant

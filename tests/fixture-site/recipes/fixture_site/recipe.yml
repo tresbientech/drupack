@@ -1,0 +1,37 @@
+name: 'Fixture site'
+type: Site
+description: 'Fixture site: dashboard, an image article, an icon page, core content search and Tome Static.'
+recipes:
+  - core/recipes/article_content_type
+install:
+  - dashboard
+  - image
+  - node
+  - views
+  - search_node
+  - tome_static
+  - fixture
+config:
+  import:
+    dashboard: '*'
+    image: '*'
+    node: '*'
+    search_node: '*'
+  actions:
+    user.role.anonymous:
+      grantPermission: 'search content'
+    system.site:
+      simpleConfigUpdate:
+        page.front: /node
+    # The full display shows the original upload, which the static export copies;
+    # the front page teaser shows a derivative.
+    core.entity_view_display.node.article.default:
+      setComponent:
+        name: field_image
+        options:
+          type: image
+          label: hidden
+          settings:
+            image_style: ''
+          weight: -1
+          region: content

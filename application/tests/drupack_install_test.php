@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // Unit cases for the functions in composer/drupack-install. Run with:
-//   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/drupack_install_test.php"
+//   ./dist/fixture-linux-amd64 php-cli "$PWD/application/tests/drupack_install_test.php"
 // The constant loads drupack-install for its functions alone. PHP prints the
 // shebang line of an included file, so the buffer drops it.
 

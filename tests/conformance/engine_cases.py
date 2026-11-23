@@ -586,7 +586,7 @@ if (isset($_GET['drupack-log-case'])) {
 
     def with_subdomain(self, value, project=None):
         """Sets extra.drupack.subdomain in a project's composer.json until the case ends, or removes it
-        for None. The project defaults to the demo's copy, whose composer.json sets one."""
+        for None. The project defaults to the site's copy, whose composer.json sets one."""
         composer = (project or self.project) / "composer.json"
         original = composer.read_text()
         self.addCleanup(composer.write_text, original)

@@ -1,0 +1,82 @@
+{
+    "name": "drupack/fixture-site",
+    "type": "project",
+    "license": "GPL-2.0-or-later",
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://packages.drupal.org/8"
+        }
+    ],
+    "require": {
+        "composer/installers": "^2.3",
+        "drupal/core-composer-scaffold": "^11",
+        "drupal/core-recommended": "^11",
+        "drupal/core-vendor-hardening": "^11",
+        "drupal/dashboard": "^2",
+        "drupal/tome": "^1.16",
+        "drush/drush": "^13",
+        "ext-pdo_sqlite": "*",
+        "php": "~8.5.0"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "allow-plugins": {
+            "composer/installers": true,
+            "drupal/core-composer-scaffold": true,
+            "php-http/discovery": true,
+            "symfony/runtime": true,
+            "drupal/core-vendor-hardening": true
+        },
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "platform": {
+            "php": "8.5.13"
+        }
+    },
+    "extra": {
+        "drupal-scaffold": {
+            "locations": {
+                "web-root": "web/"
+            },
+            "file-mapping": {
+                "[web-root]/example.gitignore": false
+            }
+        },
+        "installer-paths": {
+            "web/core": [
+                "type:drupal-core"
+            ],
+            "web/libraries/{$name}": [
+                "type:drupal-library"
+            ],
+            "web/modules/contrib/{$name}": [
+                "type:drupal-module"
+            ],
+            "web/profiles/contrib/{$name}": [
+                "type:drupal-profile"
+            ],
+            "web/themes/contrib/{$name}": [
+                "type:drupal-theme"
+            ],
+            "web/modules/custom/{$name}": [
+                "type:drupal-custom-module"
+            ],
+            "web/themes/custom/{$name}": [
+                "type:drupal-custom-theme"
+            ],
+            "recipes/{$name}": [
+                "type:drupal-recipe"
+            ]
+        },
+        "drupack": {
+            "subdomain": "fixture",
+            "static": {
+                "dynamic": [
+                    "/search*"
+                ]
+            }
+        }
+    }
+}

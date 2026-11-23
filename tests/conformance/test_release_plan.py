@@ -135,9 +135,9 @@ class Push(Row):
     def test_a_main_push_reuses_a_live_candidate_and_compares_otherwise(self):
         rows = {
             "a live candidate": ({RUNS_PATH: RUNS, ARTIFACTS_PATH: ARTIFACTS}, CANDIDATE, [RUNS_PATH, ARTIFACTS_PATH]),
-            "an expired candidate": ({RUNS_PATH: RUNS, ARTIFACTS_PATH: with_expired([True]), COMPARE_PATH: changed("build/release/demo-pin.sh")},
+            "an expired candidate": ({RUNS_PATH: RUNS, ARTIFACTS_PATH: with_expired([True]), COMPARE_PATH: changed("build/release/release-plan.py")},
                                      None, [RUNS_PATH, ARTIFACTS_PATH, COMPARE_PATH]),
-            "no candidate": ({**NO_RUN, COMPARE_PATH: changed("build/release/demo-pin.sh")}, None, [RUNS_PATH, COMPARE_PATH]),
+            "no candidate": ({**NO_RUN, COMPARE_PATH: changed("build/release/release-plan.py")}, None, [RUNS_PATH, COMPARE_PATH]),
         }
         for label, (responses, candidate, fetched) in rows.items():
             with self.subTest(label):

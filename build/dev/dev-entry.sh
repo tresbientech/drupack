@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-# The packed demo executable at /dev-site starts the site, as a release does. Its
+# The packed fixture executable at /dev-site starts the site, as a release does. Its
 # launcher unpacks the application into a cache kept in the data directory, and this
 # script lays the working tree's application over that copy first, so a change to
 # application/ applies on the next start. The launcher itself is the one the build

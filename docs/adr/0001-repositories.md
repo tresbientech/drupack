@@ -30,13 +30,14 @@ Drupack's code needs one place where merge requests land. Its executables need r
 - The demo's daily run bumps its Composer pins, its Node pin and the Drupack tag it names. Any move tags the demo.
 - The daily run in this repository tests a move of the runtime's pins as a canary, and moves no site package. A Drupack tag comes from a `release` or `version` dispatch.
 - A Drupack release publishes no demo file. It publishes its macOS and Windows runtimes, which `build.yml` packs in native jobs.
-- `build/release/demo-pin.sh` pins the demo commit and its release. `release.yml` and `build/test/qa.sh` build that commit and run its site tests.
-- `.github/workflows/site-build.yml` builds that commit through `build.yml`, with its start cases. It runs after each successful `release.yml` push or weekly run on `main`, and on dispatch, when ghcr holds the job image of `main`'s commit. A registry answer other than found or missing fails it. A release's own run does not wait for it.
-- A candidate moves the pin to the demo's latest release only when that release descends from the pinned commit. A commit set by hand stays until a release contains it.
+- No release depends on the demo. `release.yml` and `build/test/qa.sh` build and test `tests/fixture-site`, a small site whose Composer lock moves by hand.
+- `.github/workflows/site-build.yml` builds the demo's latest release through `build.yml`, with every case, on Linux amd64. A release candidate dispatches it at its own branch. Each successful push or weekly run on `main` starts it too. It runs when ghcr holds the job image of that commit, and a registry answer other than found or missing fails it. No release waits for it.
 - `drupack.tresbien.tech/demo.sh` and `/demo.ps1` redirect to the install scripts of the demo's latest release.
 
 ## Reason
 
 drupal.org carries the project page, the issue queue and the Packagist release of `drupal/drupack`, so a merge there is the real merge. GitHub has the macOS and Windows runners and the immutable Releases. A webhook starts the copy on each push, where a poll would list drupal.org's refs 288 times a day. GitHub's cron starts late under load, so drupal.org's pipeline schedule is the clock.
+
+A release builds the fixture site instead of the demo. The demo carries Drupal CMS, Canvas and patches, which can break with no Drupack change. A demo break once held a release for a night, although no release file holds a demo byte. The fixture runs every engine case the demo ran. A defect only a large site shows appears in the demo's report before approval, on Linux amd64 alone.
 
 The demo has its own repository because on one tag line every demo bump is a Drupack release. Each such tag prompts every engine user through `self-update` and needs a drupal.org release node. With two lines, a demo reader sees no engine prompt, and an engine user sees no demo bump.

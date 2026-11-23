@@ -75,8 +75,6 @@ jobs:
       macos_tests: ${{ steps.targets.outputs.macos_tests }}
       windows: ${{ steps.targets.outputs.windows }}
       windows_tests: ${{ steps.targets.outputs.windows_tests }}
-      demo_repository: ${{ steps.demo.outputs.repository }}
-      demo_ref: ${{ steps.demo.outputs.ref }}
     steps:
       - uses: actions/checkout@v7
 
@@ -84,19 +82,6 @@ jobs:
       - name: Show the candidate's bump
         if: github.ref_type == 'tag' || inputs.version != ''
         run: git log -1 --format='### %s%n%n%b' >>"$GITHUB_STEP_SUMMARY"
-
-      - id: demo
-        name: Name the demo commit
-        run: |
-          . build/release/demo-pin.sh
-          printf 'repository=%s\nref=%s\n' "$demo_repository" "$demo_ref" >>"$GITHUB_OUTPUT"
-
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ steps.demo.outputs.repository }}
-          ref: ${{ steps.demo.outputs.ref }}
-          path: demo
-          persist-credentials: false
 
       - id: targets
         env:
@@ -261,13 +246,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ needs.gate.outputs.demo_repository }}
-          ref: ${{ needs.gate.outputs.demo_ref }}
-          path: demo
-          persist-credentials: false
-
       # The later steps run the runtime in containers that mount workspace folders, so this
       # step runs first, before any build output runs, and logs out when done. A leg
       # that built nothing uploaded no artifact.
@@ -356,7 +334,7 @@ jobs:
             --build-context release-runtime-components=runtime-components \
             --build-arg "DRUPACK_ENGINE_VERSION=$DRUPACK_ENGINE_VERSION" -t drupack-job .
 
-      # A site build runs the demo's Composer plugins and scripts. The engine payload
+      # A site build runs the fixture's Composer plugins and scripts. The engine payload
       # is uploaded before any of them runs, and each site build mounts its site
       # read-only and one output folder, so no later step runs a file they wrote.
       - name: Export the engine payload
@@ -374,14 +352,14 @@ jobs:
       - name: Export the application payload
         run: |
           mkdir -p dist/site
-          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/demo:/site:ro" -v "$PWD/dist/site:/out" drupack-job \
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/tests/fixture-site:/site:ro" -v "$PWD/dist/site:/out" drupack-job \
             drupack-build --site /site --payload-only --output /out
 
       # The macOS and Windows jobs pack the variant fixture from this payload, which
       # holds each of their targets' Node archives.
       - name: Export the variant fixture payload
         run: |
-          bash build/test/variant-fixture.sh demo "$RUNNER_TEMP/variant-site"
+          bash build/test/variant-fixture.sh tests/fixture-site "$RUNNER_TEMP/variant-site"
           mkdir -p dist/variant
           docker run --rm --user "$(id -u):$(id -g)" -v "$RUNNER_TEMP/variant-site:/variant-site:ro" -v "$PWD/dist/variant:/out" drupack-job \
             drupack-build --site /variant-site --payload-only --output /out
@@ -411,6 +389,23 @@ jobs:
           path: dist/variant/payload
           if-no-files-found: error
 
+  # A candidate's Drupacked Demo run, which build.yml can only take from a run at the
+  # candidate's commit: its job image follows the calling run's commit. The demo
+  # reports alone, so a failed dispatch leaves the candidate green.
+  demo:
+    needs: payload
+    if: inputs.version != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      actions: write
+    steps:
+      - name: Start the demo build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run site-build.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
+
   linux:
     name: Linux ${{ matrix.arch }} (${{ matrix.shard || 'start cases' }})
     # GitHub waits on the whole linux-runtime matrix, so this architecture also
@@ -426,13 +421,6 @@ jobs:
         include: ${{ fromJSON(needs.gate.outputs.linux_tests) }}
     steps:
       - uses: actions/checkout@v7
-
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ needs.gate.outputs.demo_repository }}
-          ref: ${{ needs.gate.outputs.demo_ref }}
-          path: demo
-          persist-credentials: false
 
       - uses: actions/setup-go@v7
         with:
@@ -480,7 +468,7 @@ jobs:
             directory='' target=$TARGET
             if [ "$libc" = musl ]; then directory=/musl target=$TARGET-musl; fi
             go run ./cmd/pack -target "$target" -runtime "../runtime-$libc/out" -payload ../dist/payload \
-              -version "$DRUPACK_ENGINE_VERSION" -output "../dist$directory/drupacked-demo"
+              -version "$DRUPACK_ENGINE_VERSION" -output "../dist$directory/fixture"
             go run ./cmd/pack -engine -target "$target" -runtime "../runtime-$libc/out" -payload ../dist/engine-payload \
               -version "$DRUPACK_ENGINE_VERSION" -output "../dist/engine$directory/drupack"
           done
@@ -496,19 +484,19 @@ jobs:
           DRUPACK_SHARD: ${{ matrix.shard }}
           DRUPACK_SUITE: ${{ matrix.smoke && 'smoke' || 'full' }}
         run: |
-          python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests demo/tests
+          python3 tests/conformance dist/fixture test-results/conformance --site-tests tests/fixture-site/tests
 
       - name: Check each file's runtime and size
         if: matrix.first
         run: |
           set -eu
-          for file in dist/drupacked-demo dist/engine/drupack; do
+          for file in dist/fixture dist/engine/drupack; do
             "$file" --version | grep ', glibc)$'
           done
-          for file in dist/musl/drupacked-demo dist/engine/musl/drupack; do
+          for file in dist/musl/fixture dist/engine/musl/drupack; do
             "$file" --version | grep ', musl)$'
           done
-          for file in dist/drupacked-demo dist/musl/drupacked-demo dist/engine/drupack dist/engine/musl/drupack; do
+          for file in dist/fixture dist/musl/fixture dist/engine/drupack dist/engine/musl/drupack; do
             printf '%s: %d MB\n' "$file" "$(( $(stat -c %s "$file") / 1000000 ))"
           done
 
@@ -516,9 +504,9 @@ jobs:
         if: matrix.first
         run: |
           docker run -d --name alpine-site --network none \
-            --mount type=bind,src="$PWD/dist/musl/drupacked-demo",dst=/usr/local/bin/drupacked-demo,readonly \
+            --mount type=bind,src="$PWD/dist/musl/fixture",dst=/usr/local/bin/fixture,readonly \
             alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d \
-            drupacked-demo --foreground --data-dir /tmp/site --admin-user alpine-admin --admin-password Alpine.check.password.2026
+            fixture --foreground --data-dir /tmp/site --admin-user alpine-admin --admin-password Alpine.check.password.2026
           for _ in $(seq 1 60); do
             if docker exec alpine-site wget -q -O /dev/null http://127.0.0.1:7225/user/login 2>/dev/null; then
               exit 0
@@ -639,7 +627,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
         run: |
-          ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_ENGINE_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\drupacked-demo.exe -EnginePayloadDirectory dist\engine-payload -EngineOutput dist\engine\drupack.exe
+          ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_ENGINE_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\fixture.exe -EnginePayloadDirectory dist\engine-payload -EngineOutput dist\engine\drupack.exe
           Copy-Item dist\payload\site.json dist\site.json
 
       # static-php-cli's GitHub downloads pass the job token, so its logs can hold it.
@@ -714,7 +702,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist\variant | Out-Null
           Push-Location launcher
-          go run ./cmd/pack -target windows-amd64 -runtime "$env:RUNNER_TEMP\drupack\runtime" -payload ..\dist\variant-payload -version $env:DRUPACK_ENGINE_VERSION -output ..\dist\variant\variant-demo.exe
+          go run ./cmd/pack -target windows-amd64 -runtime "$env:RUNNER_TEMP\drupack\runtime" -payload ..\dist\variant-payload -version $env:DRUPACK_ENGINE_VERSION -output ..\dist\variant\variant-fixture.exe
           Pop-Location
           Copy-Item dist\variant-payload\site.json dist\variant\site.json
 
@@ -725,7 +713,7 @@ jobs:
         with:
           name: suite-windows-amd64
           path: |
-            dist/drupacked-demo.exe
+            dist/fixture.exe
             dist/site.json
             dist/engine/drupack.exe
             dist/variant
@@ -750,13 +738,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ needs.gate.outputs.demo_repository }}
-          ref: ${{ needs.gate.outputs.demo_ref }}
-          path: demo
-          persist-credentials: false
-
       # The suite packs its fixture launchers with Go.
       - uses: actions/setup-go@v7
         with:
@@ -774,11 +755,11 @@ jobs:
           DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
           DRUPACK_SHARD: ${{ matrix.shard }}
           DRUPACK_SUITE: ${{ matrix.smoke && 'smoke' || 'full' }}
-        run: python tests/conformance dist\drupacked-demo.exe test-results\conformance --site-tests demo\tests
+        run: python tests/conformance dist\fixture.exe test-results\conformance --site-tests tests\fixture-site\tests
 
       - name: Run the variant fixture cases
         if: matrix.variant
-        run: python tests/conformance dist\variant\variant-demo.exe test-results\variant -k Node -k MercureHub -k ProjectRules
+        run: python tests/conformance dist\variant\variant-fixture.exe test-results\variant -k Node -k MercureHub -k ProjectRules
 
       - name: Upload test results
         if: failure()
@@ -821,13 +802,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ needs.gate.outputs.demo_repository }}
-          ref: ${{ needs.gate.outputs.demo_ref }}
-          path: demo
-          persist-credentials: false
-
       # The suite packs its fixture launchers with Go.
       - uses: actions/setup-go@v7
         with:
@@ -841,7 +815,7 @@ jobs:
 
       # An artifact keeps no file mode.
       - name: Mark the executables
-        run: chmod +x dist/drupacked-demo dist/engine/drupack dist/variant/variant-demo
+        run: chmod +x dist/fixture dist/engine/drupack dist/variant/variant-fixture
 
       - name: Run the test scripts
         env:
@@ -850,11 +824,11 @@ jobs:
           # says so, since each one deals all the shares to find its own.
           DRUPACK_SHARD: ${{ matrix.shard }}+extra
         run: |
-          python3 tests/conformance dist/drupacked-demo test-results/conformance --site-tests demo/tests
+          python3 tests/conformance dist/fixture test-results/conformance --site-tests tests/fixture-site/tests
 
       - name: Run the variant fixture cases
         if: matrix.variant
-        run: python3 tests/conformance dist/variant/variant-demo test-results/variant -k Node -k MercureHub -k ProjectRules
+        run: python3 tests/conformance dist/variant/variant-fixture test-results/variant -k Node -k MercureHub -k ProjectRules
 
       - name: Upload test results
         if: failure()
@@ -872,14 +846,14 @@ jobs:
   qa:
     name: QA
     needs: [gate, payload]
-    # A fork pushes no builder image, and the demo phase pulls one.
+    # A fork pushes no builder image, and the fixture phase pulls one.
     if: github.event.repository.fork == false && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.platform == 'all'))
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        phase: [demo, variant, host]
+        phase: [fixture, variant, host]
     permissions:
       contents: read
       packages: read
@@ -908,10 +882,10 @@ jobs:
             done
           done
 
-      # runtime/frankenphp/adapt-test.sh, which the demo phase runs, works in the glibc builder
+      # runtime/frankenphp/adapt-test.sh, which the fixture phase runs, works in the glibc builder
       # image that the payload job of this run published under its digest tag.
       - name: Pull the glibc builder image
-        if: matrix.phase == 'demo'
+        if: matrix.phase == 'fixture'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

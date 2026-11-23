@@ -1,0 +1,6 @@
+<?php
+
+function fixture_install(): void {
+  // The key exists once something reads it, so the seed holds one for the first start to replace.
+  \Drupal::service("private_key")->get();
+}

@@ -1,0 +1,28 @@
+_meta:
+  version: '1.0'
+  entity_type: node
+  uuid: d266640e-b5fd-4219-9f56-4effaa996449
+  bundle: article
+  default_langcode: en
+  depends:
+    89b7a9e9-f1bd-4d8a-b6dd-36da375afff9: file
+default:
+  title:
+    -
+      value: 'Fixture image'
+  status:
+    -
+      value: true
+  promote:
+    -
+      value: true
+  path:
+    -
+      alias: /fixture-image
+      langcode: en
+  field_image:
+    -
+      entity: 89b7a9e9-f1bd-4d8a-b6dd-36da375afff9
+      alt: Druplicon
+      width: 88
+      height: 100

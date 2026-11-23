@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 // Unit cases for the preparation functions and the site operations of application/operate.php.
 // Run with:
-//   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/prepare_test.php"
+//   ./dist/fixture-linux-amd64 php-cli "$PWD/application/tests/prepare_test.php"
 // The bundled runtime runs this file.
 
 define('DRUPACK_OPERATE_LIBRARY', true);

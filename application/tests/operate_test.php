@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // Unit cases for the engine's operations in application/operate.php. Run with:
-//   ./dist/drupacked-demo-linux-amd64 php-cli "$PWD/application/tests/operate_test.php"
+//   ./dist/fixture-linux-amd64 php-cli "$PWD/application/tests/operate_test.php"
 // The constant loads operate.php for its functions alone. The tests' Composer install supplies
 // the version classes the engine reads from its composer.phar.
 

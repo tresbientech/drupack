@@ -12,7 +12,7 @@ case $(uname -m) in
     aarch64 | arm64) arch=arm64 ;;
     *) arch=amd64 ;;
 esac
-executable=${DRUPACK_DEV_EXECUTABLE:-$repository/dist/drupacked-demo-linux-$arch}
+executable=${DRUPACK_DEV_EXECUTABLE:-$repository/dist/fixture-linux-$arch}
 
 if ! docker image inspect "$image" >/dev/null 2>&1; then
     printf 'Image %s is missing. Build it with: docker build --target job -t %s .\n' "$image" "$image" >&2

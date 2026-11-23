@@ -872,7 +872,7 @@ class ReleaseNode(unittest.TestCase):
         summary.row("Go modules", "1.27", "1.28", "waits for that Go")
         summary.row("static-php-cli", "5e913373a08c", "0a1b2c3d4e5f", "bumped")
         summary.notes.append("MAJOR PHP 9.0.0 is out, outside the 8.5 line")
-        body = summary.render() + "\nDrupacked Demo: 2026.11.7 to 2026.11.9\n"
+        body = summary.render()
         self.assertEqual(upstream.bumped(body),
                          [("PHP", "8.5.12", "8.5.13"), ("static-php-cli", "5e913373a08c", "0a1b2c3d4e5f")])
 
