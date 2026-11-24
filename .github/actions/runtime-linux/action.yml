@@ -1,0 +1,136 @@
+name: Linux runtime
+description: Pulls or builds the builder image, links one Linux runtime and uploads it with its component report.
+inputs:
+  target:
+    description: The platform and libc the runtime serves, as linux-amd64 or linux-amd64-musl.
+    required: true
+  arch:
+    description: The runner's architecture, amd64 or arm64.
+    required: true
+  libc:
+    description: The C library, glibc or musl.
+    required: true
+  builder:
+    description: The builder image the libc compiles in, gnu or musl.
+    required: true
+  version:
+    description: The engine version the runtime carries.
+    required: true
+runs:
+  using: composite
+  steps:
+    # Without this room a pull of the musl builder image ended in "no space left
+    # on device", on a runner whose df had reported 86 GB free.
+    - name: Free disk space
+      shell: bash
+      run: |
+        df -h /
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        df -h /
+
+    - id: builder
+      name: Name the builder image
+      env:
+        BUILDER: ${{ inputs.builder }}
+      shell: bash
+      run: |
+        tag=$(bash runtime/builder/builder-tag.sh "$BUILDER")
+        printf 'image=ghcr.io/%s-builder:%s\n' "$GITHUB_REPOSITORY" "$tag" >>"$GITHUB_OUTPUT"
+
+    - name: Log in to the registry
+      env:
+        GH_TOKEN: ${{ github.token }}
+      shell: bash
+      run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+    # An image under this tag carries the PHP this run needs, whatever run built
+    # it. build-static.sh reads the token to raise its GitHub API rate limit
+    # while it downloads the PHP and extension sources.
+    - id: image
+      name: Pull or build the builder image
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        IMAGE: ${{ steps.builder.outputs.image }}
+        BUILDER: ${{ inputs.builder }}
+      shell: bash
+      run: |
+        if docker pull -q "$IMAGE"; then
+          exit 0
+        fi
+        bash runtime/builder/build-builder.sh "$BUILDER" "$IMAGE" "$RUNNER_TEMP/builder"
+        echo 'built=true' >>"$GITHUB_OUTPUT"
+
+    # static-php-cli's GitHub downloads pass the job token, so its logs can hold it.
+    - name: Redact static-php-cli's logs
+      if: failure()
+      env:
+        TOKEN: ${{ github.token }}
+      shell: bash
+      run: find "$RUNNER_TEMP/builder/spc-log" -type f -exec perl -pi -e 's/\Q$ENV{TOKEN}\E/***/g' {} + 2>/dev/null || true
+
+    - name: Upload static-php-cli's logs
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: spc-log-linux-${{ inputs.arch }}-${{ inputs.libc }}
+        path: ${{ runner.temp }}/builder/spc-log
+        retention-days: 7
+
+    # The build below finds the image on the runner under the same name. A
+    # fork's image stays there.
+    - name: Save the builder image
+      if: steps.image.outputs.built == 'true' && github.event.repository.fork == false
+      env:
+        IMAGE: ${{ steps.builder.outputs.image }}
+      shell: bash
+      run: |
+        mkdir builder-image
+        docker save "$IMAGE" | zstd -T0 -3 >builder-image/image.tar.zst
+
+    - if: steps.image.outputs.built == 'true' && github.event.repository.fork == false
+      uses: actions/upload-artifact@v7
+      with:
+        name: builder-linux-${{ inputs.arch }}-${{ inputs.libc }}
+        path: builder-image
+        compression-level: 0
+        retention-days: 1
+        if-no-files-found: error
+
+    - name: Build the runtime
+      env:
+        DRUPACK_ENGINE_VERSION: ${{ inputs.version }}
+        IMAGE: ${{ steps.builder.outputs.image }}
+        LIBC: ${{ inputs.libc }}
+        BUILDER: ${{ inputs.builder }}
+      shell: bash
+      run: |
+        # The Dockerfile names each builder image's argument after the builder, upper case.
+        docker build --target "runtime-$BUILDER-files" \
+          --build-arg "DRUPACK_ENGINE_VERSION=$DRUPACK_ENGINE_VERSION" \
+          --build-arg "${BUILDER^^}_BUILDER=$IMAGE" \
+          --output "type=local,dest=runtime-$LIBC" .
+        df -h /
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: runtime-linux-${{ inputs.arch }}-${{ inputs.libc }}
+        path: runtime-${{ inputs.libc }}
+        if-no-files-found: error
+
+    # The runtime reports on a runner of its own architecture. The job image
+    # carries the report for site builds, and the publish job merges it.
+    - name: Report the runtime's components
+      env:
+        LIBC: ${{ inputs.libc }}
+        TARGET: ${{ inputs.target }}
+      shell: bash
+      run: |
+        mkdir runtime-components
+        python3 build/release/sbom.py runtime --target "$TARGET" --libraries "runtime-$LIBC/runtime-libraries.txt" \
+          "runtime-$LIBC/out/drupack" >"runtime-components/$TARGET.json"
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: runtime-components-linux-${{ inputs.arch }}-${{ inputs.libc }}
+        path: runtime-components
+        if-no-files-found: error

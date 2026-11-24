@@ -11,7 +11,7 @@ install-NAME.ps1 beside it when NAME has a Windows build. The scripts download
 from URL, the directory holding the versioned files.
 
 Each RUNTIME is a directory named runtime-TARGET, holding the runtime a macOS or
-Windows job compiled. DIR receives it as runtime-VERSION-TARGET.tar.zst, which
+Windows runtime leg compiled. DIR receives it as runtime-VERSION-TARGET.tar.zst, which
 checksums.txt and release.json list and no install script names.
 """
 

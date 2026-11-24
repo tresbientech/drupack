@@ -1,25 +1,11 @@
+# Compiles PHP and links the Windows runtime into WorkDirectory\runtime.
 param(
-  [Parameter(Mandatory = $true)] [string] $PayloadDirectory,
   [Parameter(Mandatory = $true)] [string] $Version,
-  [Parameter(Mandatory = $true)] [string] $WorkDirectory,
-  [Parameter(Mandatory = $true)] [string] $Output,
-  # With both, the build also packs the engine executable on the same runtime.
-  [string] $EnginePayloadDirectory,
-  [string] $EngineOutput
+  [Parameter(Mandatory = $true)] [string] $WorkDirectory
 )
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
-
-# Push-Location changes the working directory further down, and the packer
-# resolves a relative path against its own, so the application resolves here.
-$payload = (Resolve-Path $PayloadDirectory).Path
-if ($EnginePayloadDirectory) {
-  $enginePayload = (Resolve-Path $EnginePayloadDirectory).Path
-  $engineDirectory = Split-Path -Parent $EngineOutput
-  New-Item -ItemType Directory -Force -Path $engineDirectory | Out-Null
-  $engineOutputPath = Join-Path (Resolve-Path $engineDirectory).Path (Split-Path -Leaf $EngineOutput)
-}
 
 $repository = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 # The FrankenPHP and PHP pins every builder compiles.
@@ -133,10 +119,8 @@ $frankenphpHead = git -C $frankenphp rev-parse HEAD
 if ($frankenphpHead -ne $pins.frankenphp_commit) { throw "FrankenPHP v$frankenphpVersion resolved to $frankenphpHead, expected $($pins.frankenphp_commit)" }
 
 # The launcher carries the application, so the server embeds an empty archive,
-# which leaves frankenphp's own extraction unused. Its embed directive still
-# needs both files to exist.
+# which leaves frankenphp's own extraction unused.
 Set-Content -Path (Join-Path $frankenphp 'app.tar') -Value $null -NoNewline
-Copy-Item (Join-Path $payload 'app_checksum.txt') (Join-Path $frankenphp 'app_checksum.txt')
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\frankenphp\entrypoint.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack.go')
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\frankenphp\watch\watch.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_watch.go')
 Copy-Item (Join-Path $PSScriptRoot '..\..\runtime\frankenphp\crtenv_windows.go') (Join-Path $frankenphp 'caddy\frankenphp\drupack_crtenv_windows.go')
@@ -169,22 +153,11 @@ Copy-Item (Join-Path $watcherRoot 'libwatcher-c.dll') $runtime
 # php.ini and the trust bundle ride beside frankenphp.exe, where PHPRC names them.
 Copy-Item (Join-Path $repository 'runtime\php.ini'), (Join-Path $repository 'runtime\cacert.pem') $runtime
 
-# The packer resolves a relative -output against its own working directory,
-# which Push-Location is about to change, so $Output must resolve here.
-$outputDirectory = Split-Path -Parent $Output
-if (-not $outputDirectory) { $outputDirectory = '.' }
-New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
-$outputPath = Join-Path (Resolve-Path $outputDirectory).Path (Split-Path -Leaf $Output)
-$launcherSource = (Resolve-Path (Join-Path $PSScriptRoot '..\..\launcher')).Path
 $env:CGO_ENABLED = '0'
-Push-Location $launcherSource
+Push-Location (Join-Path $repository 'launcher')
 try {
   # Composer runs PHP_BINARY, which names php.exe beside frankenphp.exe.
   go build -o (Join-Path $runtime 'php.exe') ./cmd/php
-  go run ./cmd/pack -target windows-amd64 -runtime $runtime -payload $payload -version $Version -output $outputPath
-  if ($EnginePayloadDirectory) {
-    go run ./cmd/pack -engine -target windows-amd64 -runtime $runtime -payload $enginePayload -version $Version -output $engineOutputPath
-  }
 } finally {
   Pop-Location
 }

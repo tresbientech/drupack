@@ -68,13 +68,11 @@ jobs:
       candidate: ${{ steps.targets.outputs.candidate }}
       image_tags: ${{ steps.targets.outputs.image_tags }}
       version: ${{ steps.targets.outputs.version }}
-      linux: ${{ steps.targets.outputs.linux }}
-      linux_tests: ${{ steps.targets.outputs.linux_tests }}
-      linux_runtime: ${{ steps.targets.outputs.linux_runtime }}
-      macos: ${{ steps.targets.outputs.macos }}
-      macos_tests: ${{ steps.targets.outputs.macos_tests }}
-      windows: ${{ steps.targets.outputs.windows }}
-      windows_tests: ${{ steps.targets.outputs.windows_tests }}
+      unit: ${{ steps.targets.outputs.unit }}
+      runtime: ${{ steps.targets.outputs.runtime }}
+      engine: ${{ steps.targets.outputs.engine }}
+      platforms: ${{ steps.targets.outputs.platforms }}
+      tests: ${{ steps.targets.outputs.tests }}
     steps:
       - uses: actions/checkout@v7
 
@@ -96,144 +94,99 @@ jobs:
             --platform "$PLATFORM" --version "$NAMED" --suite "$SUITE" --repo "$GITHUB_REPOSITORY" \
             --targets launcher/internal/payload/targets.json --output "$GITHUB_OUTPUT"
 
+  # The unit tests and the lint read no built file, so they start with the builds.
+  unit:
+    name: Unit tests (${{ matrix.system }})
+    needs: gate
+    if: needs.gate.outputs.unit != '[]'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.gate.outputs.unit) }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - name: Run the Go unit tests
+        run: bash build/test/go-tests.sh ${{ matrix.system != 'linux' && 'test' || '' }}
+
+      - name: Run the Python unit tests
+        if: matrix.system == 'linux'
+        run: bash build/test/unit-tests.sh
+
+      # govulncheck reads the vulnerability database when it runs, so a candidate
+      # fails once a reported vulnerability reaches the code or the pinned Go. A new
+      # advisory turns red only the runs QA also covers.
+      - name: Check the Go modules for vulnerabilities
+        if: matrix.system == 'linux' && github.event.repository.fork == false && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.platform == 'all'))
+        run: |
+          GOBIN=$RUNNER_TEMP go install golang.org/x/vuln/cmd/govulncheck@v1.10.0
+          for module in $(git ls-files '*/go.mod'); do
+            for goos in linux darwin windows; do
+              (cd "$(dirname -- "$module")" && GOOS=$goos "$RUNNER_TEMP/govulncheck" ./...)
+            done
+          done
+
   # A builder image carries the PHP its own build compiled, so one image serves
   # one libc on one architecture. Its content follows the inputs
   # runtime/builder/builder-tag.sh digests, and the registry holds it under that digest.
-  linux-runtime:
-    name: Linux ${{ matrix.arch }} ${{ matrix.libc }} runtime
-    needs: gate
-    if: needs.gate.outputs.linux_runtime != '[]'
-    runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
-    timeout-minutes: 180
+  # install.ps1 installs the amd64 build on Windows on Arm too, which runs it under the
+  # system's x64 emulation, so one Windows runtime serves both Windows hosts.
+  runtime:
+    name: ${{ matrix.name }}
+    needs: [gate, unit]
+    if: needs.gate.outputs.runtime != '[]'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.timeout }}
     # static-php-cli and the sources it fetches run in this job, so its token
-    # cannot write packages. payload pushes the image this job builds.
+    # cannot write packages. image pushes the builder images this job builds.
     permissions:
       contents: read
       packages: read
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.gate.outputs.linux_runtime) }}
+        include: ${{ fromJSON(needs.gate.outputs.runtime) }}
     steps:
       - uses: actions/checkout@v7
-
-      # Without this room a pull of the musl builder image ended in "no space left
-      # on device", on a runner whose df had reported 86 GB free.
-      - name: Free disk space
-        run: |
-          df -h /
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
-
-      - id: builder
-        name: Name the builder image
-        env:
-          BUILDER: ${{ matrix.builder }}
-        run: |
-          tag=$(bash runtime/builder/builder-tag.sh "$BUILDER")
-          printf 'image=ghcr.io/%s-builder:%s\n' "$GITHUB_REPOSITORY" "$tag" >>"$GITHUB_OUTPUT"
-
-      - name: Log in to the registry
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-
-      # An image under this tag carries the PHP this run needs, whatever run built
-      # it. build-static.sh reads the token to raise its GitHub API rate limit
-      # while it downloads the PHP and extension sources.
-      - id: image
-        name: Pull or build the builder image
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          IMAGE: ${{ steps.builder.outputs.image }}
-          BUILDER: ${{ matrix.builder }}
-        run: |
-          if docker pull -q "$IMAGE"; then
-            exit 0
-          fi
-          bash runtime/builder/build-builder.sh "$BUILDER" "$IMAGE" "$RUNNER_TEMP/builder"
-          echo 'built=true' >>"$GITHUB_OUTPUT"
-
-      # static-php-cli's GitHub downloads pass the job token, so its logs can hold it.
-      - name: Redact static-php-cli's logs
-        if: failure()
-        env:
-          TOKEN: ${{ github.token }}
-        run: find "$RUNNER_TEMP/builder/spc-log" -type f -exec perl -pi -e 's/\Q$ENV{TOKEN}\E/***/g' {} + 2>/dev/null || true
-
-      - name: Upload static-php-cli's logs
-        if: failure()
-        uses: actions/upload-artifact@v7
+      - if: matrix.system == 'linux'
+        uses: ./.github/actions/runtime-linux
         with:
-          name: spc-log-linux-${{ matrix.arch }}-${{ matrix.libc }}
-          path: ${{ runner.temp }}/builder/spc-log
-          retention-days: 7
-
-      # The build below finds the image on the runner under the same name. A
-      # fork's image stays there.
-      - name: Save the builder image
-        if: steps.image.outputs.built == 'true' && github.event.repository.fork == false
-        env:
-          IMAGE: ${{ steps.builder.outputs.image }}
-        run: |
-          mkdir builder-image
-          docker save "$IMAGE" | zstd -T0 -3 >builder-image/image.tar.zst
-
-      - if: steps.image.outputs.built == 'true' && github.event.repository.fork == false
-        uses: actions/upload-artifact@v7
+          target: ${{ matrix.target }}
+          arch: ${{ matrix.arch }}
+          libc: ${{ matrix.libc }}
+          builder: ${{ matrix.builder }}
+          version: ${{ needs.gate.outputs.version }}
+      - if: matrix.system == 'macos'
+        uses: ./.github/actions/runtime-macos
         with:
-          name: builder-linux-${{ matrix.arch }}-${{ matrix.libc }}
-          path: builder-image
-          compression-level: 0
-          retention-days: 1
-          if-no-files-found: error
-
-      - name: Build the runtime
-        env:
-          DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
-          IMAGE: ${{ steps.builder.outputs.image }}
-          LIBC: ${{ matrix.libc }}
-          BUILDER: ${{ matrix.builder }}
-        run: |
-          # The Dockerfile names each builder image's argument after the builder, upper case.
-          docker build --target "runtime-$BUILDER-files" \
-            --build-arg "DRUPACK_ENGINE_VERSION=$DRUPACK_ENGINE_VERSION" \
-            --build-arg "${BUILDER^^}_BUILDER=$IMAGE" \
-            --output "type=local,dest=runtime-$LIBC" .
-          df -h /
-
-      - uses: actions/upload-artifact@v7
+          target: ${{ matrix.target }}
+          version: ${{ needs.gate.outputs.version }}
+          go-version: ${{ env.GO_VERSION }}
+      - if: matrix.system == 'windows'
+        uses: ./.github/actions/runtime-windows
         with:
-          name: runtime-linux-${{ matrix.arch }}-${{ matrix.libc }}
-          path: runtime-${{ matrix.libc }}
-          if-no-files-found: error
+          target: ${{ matrix.target }}
+          version: ${{ needs.gate.outputs.version }}
+          go-version: ${{ env.GO_VERSION }}
 
-      # The runtime reports on a runner of its own architecture. The job image
-      # carries the report for site builds, and the publish job merges it.
-      - name: Report the runtime's components
-        env:
-          LIBC: ${{ matrix.libc }}
-          TARGET: linux-${{ matrix.arch }}${{ matrix.suffix }}
-        run: |
-          mkdir runtime-components
-          python3 build/release/sbom.py runtime --target "$TARGET" --libraries "runtime-$LIBC/runtime-libraries.txt" \
-            "runtime-$LIBC/out/drupack" >"runtime-components/$TARGET.json"
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: runtime-components-linux-${{ matrix.arch }}-${{ matrix.libc }}
-          path: runtime-components
-          if-no-files-found: error
-
-  # The application (PHP source, vendor, translations, seeded database) is the same
-  # on every platform, so every executable packs this one build. Every run pushes
-  # the job image under the commit for build.yml; publish names it after the version.
-  # It also pushes each builder image linux-runtime built, before it runs any build
-  # output. Loading and pushing an image runs no code from it, and this job names
-  # each image itself, so a loaded archive can push under no other name.
-  payload:
-    name: payload
-    needs: [gate, linux-runtime]
+  # Every run pushes the job image under the commit for build.yml; publish names it
+  # after the version. This job also pushes each builder image the runtime job built,
+  # before it runs any build output. Loading and pushing an image runs no code from
+  # it, and this job names each image itself, so a loaded archive can push under no
+  # other name. It runs no site code: a site build runs Composer plugins and scripts.
+  image:
+    name: image
+    needs: [gate, runtime]
     if: needs.gate.outputs.build == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -241,6 +194,8 @@ jobs:
       actions: read
       contents: read
       packages: write
+    outputs:
+      image: ${{ steps.push.outputs.image }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -253,14 +208,14 @@ jobs:
         if: github.event.repository.fork == false
         env:
           GH_TOKEN: ${{ github.token }}
-          LINUX_RUNTIME: ${{ needs.gate.outputs.linux_runtime }}
+          RUNTIME: ${{ needs.gate.outputs.runtime }}
         # After docker load, docker uploads a layer before it learns ghcr holds it.
         # One lane per architecture runs in parallel, so a lane's second image
         # finds the base layers its first image pushed.
         run: |
           push_lane() {
             local arch=$1
-            jq -r --arg arch "$arch" '.[] | select(.arch == $arch) | "\(.libc) \(.builder)"' <<<"$LINUX_RUNTIME" | while read -r libc builder; do
+            jq -r --arg arch "$arch" '.[] | select(.system == "linux" and .arch == $arch) | "\(.libc) \(.builder)"' <<<"$RUNTIME" | while read -r libc builder; do
               name=builder-linux-$arch-$libc
               id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$name" --jq '.artifacts[0].id // empty')
               if [ -z "$id" ]; then
@@ -282,7 +237,7 @@ jobs:
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           arches=()
           pids=()
-          for arch in $(jq -r '[.[].arch] | unique[]' <<<"$LINUX_RUNTIME"); do
+          for arch in $(jq -r '[.[] | select(.system == "linux").arch] | unique[]' <<<"$RUNTIME"); do
             push_lane "$arch" >"$RUNNER_TEMP/push-$arch.log" 2>&1 &
             arches+=("$arch")
             pids+=($!)
@@ -308,18 +263,18 @@ jobs:
           path: runtime-components
           merge-multiple: true
 
-      # The runtime jobs' exports stand in for the runtimes stage, so no builder
+      # The Linux runtime legs' exports stand in for the runtimes stage, so no builder
       # image is pulled here. A run of every platform built all four.
       - name: Build the job image
         env:
           DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
-          LINUX_RUNTIME: ${{ needs.gate.outputs.linux_runtime }}
+          RUNTIME: ${{ needs.gate.outputs.runtime }}
         run: |
           mkdir runtimes
           # download-artifact extracts a lone match straight into its path, with no
           # directory named after it, so the gate's one runtime names that directory.
           if [ -d runtime-artifacts/out ]; then
-            lone=$(jq -r '.[0] | "runtime-linux-\(.arch)-\(.libc)"' <<<"$LINUX_RUNTIME")
+            lone=$(jq -r 'map(select(.system == "linux"))[0] | "runtime-linux-\(.arch)-\(.libc)"' <<<"$RUNTIME")
             mkdir "runtime-artifacts/$lone"
             mv runtime-artifacts/out "runtime-artifacts/$lone/out"
           fi
@@ -334,39 +289,12 @@ jobs:
             --build-context release-runtime-components=runtime-components \
             --build-arg "DRUPACK_ENGINE_VERSION=$DRUPACK_ENGINE_VERSION" -t drupack-job .
 
-      # A site build runs the fixture's Composer plugins and scripts. The engine payload
-      # is uploaded before any of them runs, and each site build mounts its site
-      # read-only and one output folder, so no later step runs a file they wrote.
-      - name: Export the engine payload
-        run: |
-          mkdir -p dist/engine
-          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/dist/engine:/out" drupack-job \
-            drupack-build --engine-executable --payload-only --output /out
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: engine-payload-archive
-          path: dist/engine/payload
-          if-no-files-found: error
-
-      - name: Export the application payload
-        run: |
-          mkdir -p dist/site
-          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/tests/fixture-site:/site:ro" -v "$PWD/dist/site:/out" drupack-job \
-            drupack-build --site /site --payload-only --output /out
-
-      # The macOS and Windows jobs pack the variant fixture from this payload, which
-      # holds each of their targets' Node archives.
-      - name: Export the variant fixture payload
-        run: |
-          bash build/test/variant-fixture.sh tests/fixture-site "$RUNNER_TEMP/variant-site"
-          mkdir -p dist/variant
-          docker run --rm --user "$(id -u):$(id -g)" -v "$RUNNER_TEMP/variant-site:/variant-site:ro" -v "$PWD/dist/variant:/out" drupack-job \
-            drupack-build --site /variant-site --payload-only --output /out
-
       # A main push and a tag push of one commit run at once. A release's image is
       # sha-COMMIT and a main run pushes dev-COMMIT, so a main run never replaces it.
+      # Another run of this commit can push dev-COMMIT again, so the variant job pulls
+      # this run's image by digest.
       - name: Push the job image under this commit
+        id: push
         env:
           GH_TOKEN: ${{ github.token }}
           IMAGE_TAGS: ${{ needs.gate.outputs.image_tags }}
@@ -376,24 +304,25 @@ jobs:
             docker tag drupack-job "ghcr.io/$GITHUB_REPOSITORY-build:$prefix-$GITHUB_SHA"
             docker push "ghcr.io/$GITHUB_REPOSITORY-build:$prefix-$GITHUB_SHA"
           done
+          printf 'image=%s\n' "$(docker inspect --format '{{index .RepoDigests 0}}' drupack-job)" >>"$GITHUB_OUTPUT"
+
+      - name: Export the engine payload
+        run: |
+          mkdir -p dist/engine
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/dist/engine:/out" drupack-job \
+            drupack-build --engine-executable --payload-only --output /out
 
       - uses: actions/upload-artifact@v7
         with:
-          name: payload-archive
-          path: dist/site/payload
-          if-no-files-found: error
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: variant-payload-archive
-          path: dist/variant/payload
+          name: engine-payload
+          path: dist/engine/payload
           if-no-files-found: error
 
   # A candidate's Drupacked Demo run, which build.yml can only take from a run at the
   # candidate's commit: its job image follows the calling run's commit. The demo
   # reports alone, so a failed dispatch leaves the candidate green.
   demo:
-    needs: payload
+    needs: image
     if: inputs.version != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -406,19 +335,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run site-build.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
 
-  linux:
-    name: Linux ${{ matrix.arch }} (${{ matrix.shard || 'start cases' }})
-    # GitHub waits on the whole linux-runtime matrix, so this architecture also
-    # waits on the other one's two legs. With the builder images published every
-    # leg finishes within a minute of the rest.
-    needs: [gate, payload, linux-runtime]
-    if: needs.gate.outputs.linux != '[]'
-    runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
-    timeout-minutes: 90
+  # One leg per target packs the engine executable on that target's runtimes, from the
+  # payload the image job exported, and runs each file it packs. The engine start case
+  # needs the fixture's application, so the test rows run it.
+  engine:
+    name: Engine ${{ matrix.target }}
+    needs: [gate, image, runtime]
+    if: needs.gate.outputs.build == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.gate.outputs.linux_tests) }}
+        include: ${{ fromJSON(needs.gate.outputs.engine) }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
 
@@ -427,76 +359,197 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: false
 
-      - name: Run the Go unit tests
-        if: matrix.units
-        shell: bash
-        run: bash build/test/go-tests.sh
-
       - uses: actions/download-artifact@v8
         with:
-          name: runtime-linux-${{ matrix.arch }}-musl
-          path: runtime-musl
+          name: engine-payload
+          path: engine-payload
 
+      # A Linux target packs one file per libc.
       - uses: actions/download-artifact@v8
+        if: runner.os == 'Linux'
         with:
-          name: runtime-linux-${{ matrix.arch }}-glibc
+          name: runtime-${{ matrix.target }}-glibc
           path: runtime-glibc
 
       - uses: actions/download-artifact@v8
+        if: runner.os == 'Linux'
         with:
-          name: payload-archive
-          path: dist/payload
+          name: runtime-${{ matrix.target }}-musl
+          path: runtime-musl
 
       - uses: actions/download-artifact@v8
+        if: runner.os != 'Linux'
         with:
-          name: engine-payload-archive
-          path: dist/engine-payload
+          name: runtime-${{ matrix.target }}
+          path: runtime
 
-      # Each file carries one runtime. The launcher itself carries no cgo, so both
-      # files start on a glibc and a musl host alike.
-      - name: Pack the executables
+      - name: Pack and run the engine executable
         working-directory: launcher
         env:
           CGO_ENABLED: '0'
           DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
-          TARGET: linux-${{ matrix.arch }}
+          TARGET: ${{ matrix.target }}
         run: |
-          chmod +x ../runtime-musl/out/drupack ../runtime-glibc/out/drupack
-          mkdir -p ../dist/musl ../dist/engine/musl
-          for libc in glibc musl; do
-            # The musl files land in their own directories, since each artifact holds one file named NAME.
-            directory='' target=$TARGET
-            if [ "$libc" = musl ]; then directory=/musl target=$TARGET-musl; fi
-            go run ./cmd/pack -target "$target" -runtime "../runtime-$libc/out" -payload ../dist/payload \
-              -version "$DRUPACK_ENGINE_VERSION" -output "../dist$directory/fixture"
-            go run ./cmd/pack -engine -target "$target" -runtime "../runtime-$libc/out" -payload ../dist/engine-payload \
-              -version "$DRUPACK_ENGINE_VERSION" -output "../dist/engine$directory/drupack"
-          done
-          cp ../dist/payload/site.json ../dist/site.json
+          pack() {
+            go run ./cmd/pack -engine -target "$1" -runtime "$2" -payload ../engine-payload \
+              -version "$DRUPACK_ENGINE_VERSION" -output "$3"
+            "$3" --version
+          }
+          case $RUNNER_OS in
+            Linux) pack "$TARGET" ../runtime-glibc/out ../dist/drupack && pack "$TARGET-musl" ../runtime-musl/out ../dist/musl/drupack ;;
+            Windows) pack "$TARGET" ../runtime ../dist/drupack.exe ;;
+            *) pack "$TARGET" ../runtime ../dist/drupack ;;
+          esac
 
-      - name: Run the Python unit tests
-        if: matrix.units
-        run: bash build/test/unit-tests.sh
+      - name: Check the unsigned launch steps
+        if: runner.os == 'macOS'
+        run: |
+          cp dist/drupack "$RUNNER_TEMP/quarantined"
+          xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" "$RUNNER_TEMP/quarantined"
+          xattr -d com.apple.quarantine "$RUNNER_TEMP/quarantined"
+          "$RUNNER_TEMP/quarantined" --version
 
-      - name: Run the test scripts
+      - uses: actions/upload-artifact@v7
+        with:
+          name: drupack-${{ matrix.target }}
+          path: dist/drupack${{ runner.os == 'Windows' && '.exe' || '' }}
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        if: runner.os == 'Linux'
+        with:
+          name: drupack-${{ matrix.target }}-musl
+          path: dist/musl/drupack
+          if-no-files-found: error
+
+  # The fixture site goes through build.yml, the workflow site repositories call, on this
+  # run's job image and runtimes. Each file it packs runs the start cases.
+  site:
+    needs: [gate, image, runtime]
+    if: needs.gate.outputs.build == 'true'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/build.yml
+    with:
+      site: tests/fixture-site
+      platforms: ${{ needs.gate.outputs.platforms }}
+      libc: both
+      run-runtimes: true
+      suite: smoke
+
+  # The variant fixture adds a Mercure hub and project Caddy rules to a copy of the
+  # fixture. The macOS and Windows test rows pack its payload and run those cases.
+  variant:
+    needs: [gate, image]
+    if: contains(needs.gate.outputs.platforms, 'macos-') || contains(needs.gate.outputs.platforms, 'windows-')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # composer install runs the variant site's plugins and scripts. The container
+      # holds no runner token and mounts the site read-only and one output folder.
+      - name: Export the variant fixture payload
         env:
-          DRUPACK_TEST_ENGINE: dist/engine/drupack
+          IMAGE: ${{ needs.image.outputs.image }}
+        run: |
+          bash build/test/variant-fixture.sh tests/fixture-site "$RUNNER_TEMP/variant-site"
+          mkdir -p dist/variant
+          docker run --rm --user "$(id -u):$(id -g)" -v "$RUNNER_TEMP/variant-site:/variant-site:ro" -v "$PWD/dist/variant:/out" "$IMAGE" \
+            drupack-build --site /variant-site --payload-only --output /out
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: variant-payload
+          path: dist/variant/payload
+          if-no-files-found: error
+
+  # Each row runs one share of the suite, or the start cases, on the files the site and
+  # engine jobs packed. Emulation doubles each case's time, so Windows on Arm runs the
+  # variant cases in a row of their own.
+  test:
+    name: ${{ matrix.name }}
+    needs: [gate, engine, site, variant]
+    # A Linux-only plan skips variant. A cancelled runtime leg skips engine and site,
+    # which !failure() lets through, so their results are named.
+    if: >-
+      ${{ !cancelled() && needs.engine.result == 'success' && needs.site.result == 'success'
+      && (needs.variant.result == 'success' || needs.variant.result == 'skipped') }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.gate.outputs.tests) }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # The suite packs its fixture launchers with Go.
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      # It holds site.json and the Linux files.
+      - uses: actions/download-artifact@v8
+        with:
+          name: executables
+          path: dist
+
+      - uses: actions/download-artifact@v8
+        if: ${{ !startsWith(matrix.target, 'linux-') }}
+        with:
+          name: executable-${{ matrix.target }}
+          path: dist
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: drupack-${{ matrix.target }}
+          path: dist/engine
+
+      - uses: actions/download-artifact@v8
+        if: matrix.first
+        with:
+          name: drupack-${{ matrix.target }}-musl
+          path: dist/engine/musl
+
+      # An artifact keeps no file mode.
+      - name: Name the files
+        run: |
+          extension='' python=python3
+          if [ "$RUNNER_OS" = Windows ]; then extension=.exe python=python; fi
+          chmod -R +x dist
+          printf 'EXECUTABLE=dist/%s-%s%s\nDRUPACK_TEST_ENGINE=dist/engine/drupack%s\nEXTENSION=%s\nPYTHON=%s\n' \
+            "$(jq -r .name dist/site.json)" "$TARGET" "$extension" "$extension" "$extension" "$python" >>"$GITHUB_ENV"
+
+      - name: Run the conformance suite
+        if: matrix.smoke || matrix.shard != ''
+        env:
           DRUPACK_SHARD: ${{ matrix.shard }}
           DRUPACK_SUITE: ${{ matrix.smoke && 'smoke' || 'full' }}
-        run: |
-          python3 tests/conformance dist/fixture test-results/conformance --site-tests tests/fixture-site/tests
+        run: $PYTHON tests/conformance "$EXECUTABLE" test-results/conformance --site-tests tests/fixture-site/tests
 
-      - name: Check each file's runtime and size
+      - name: Check each Linux file's runtime and size
         if: matrix.first
         run: |
           set -eu
-          for file in dist/fixture dist/engine/drupack; do
+          for file in "$EXECUTABLE" dist/engine/drupack; do
             "$file" --version | grep ', glibc)$'
           done
-          for file in dist/musl/fixture dist/engine/musl/drupack; do
+          for file in "$EXECUTABLE-musl" dist/engine/musl/drupack; do
             "$file" --version | grep ', musl)$'
           done
-          for file in dist/fixture dist/musl/fixture dist/engine/drupack dist/engine/musl/drupack; do
+          for file in "$EXECUTABLE" "$EXECUTABLE-musl" dist/engine/drupack dist/engine/musl/drupack; do
             printf '%s: %d MB\n' "$file" "$(( $(stat -c %s "$file") / 1000000 ))"
           done
 
@@ -504,7 +557,7 @@ jobs:
         if: matrix.first
         run: |
           docker run -d --name alpine-site --network none \
-            --mount type=bind,src="$PWD/dist/musl/fixture",dst=/usr/local/bin/fixture,readonly \
+            --mount type=bind,src="$PWD/$EXECUTABLE-musl",dst=/usr/local/bin/fixture,readonly \
             alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d \
             fixture --foreground --data-dir /tmp/site --admin-user alpine-admin --admin-password Alpine.check.password.2026
           for _ in $(seq 1 60); do
@@ -516,336 +569,43 @@ jobs:
           docker logs alpine-site
           exit 1
 
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@v7
+      - uses: actions/download-artifact@v8
+        if: matrix.variant
         with:
-          name: test-results-linux-${{ matrix.arch }}-${{ strategy.job-index }}
-          # The folder also holds each case's project, about 2 GB over 400,000 files.
-          path: |
-            test-results/**/*.log
-            test-results/**/run.out
-            test-results/**/run.err
-
-      - uses: actions/upload-artifact@v7
-        if: matrix.first
-        with:
-          name: drupack-linux-${{ matrix.arch }}
-          path: dist/engine/drupack
-          if-no-files-found: error
-
-      - uses: actions/upload-artifact@v7
-        if: matrix.first
-        with:
-          name: drupack-linux-${{ matrix.arch }}-musl
-          path: dist/engine/musl/drupack
-          if-no-files-found: error
-
-  # install.ps1 installs the amd64 build on Windows on Arm too, which runs it under
-  # the system's x64 emulation. This job builds the amd64 executables once, and the
-  # windows-test jobs run the suite on those files on both hosts.
-  windows:
-    name: Windows amd64 build
-    needs: [gate, payload]
-    if: needs.gate.outputs.windows != '[]'
-    runs-on: windows-2025
-    # A cold run compiles PHP and its libraries for about 22 minutes ahead of the link.
-    timeout-minutes: 90
-    defaults:
-      run:
-        shell: pwsh
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-go@v7
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: false
-
-      # The Windows build files and lock calls; lint runs in the Linux amd64 job.
-      - name: Run the Go unit tests
-        shell: bash
-        run: bash build/test/go-tests.sh test
+          name: runtime-${{ matrix.target }}
+          path: runtime
 
       - uses: actions/download-artifact@v8
+        if: matrix.variant
         with:
-          name: payload-archive
-          path: dist/payload
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: engine-payload-archive
-          path: dist/engine-payload
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: variant-payload-archive
-          path: dist/variant-payload
-
-      # The buildroot holds the PHP the allowlist names and the libraries the versions
-      # file records, so the key hashes every input of the compile. The link reads
-      # headers static-php-cli leaves in these folders of PHP's source tree. Its
-      # downloads and its build tools serve the compile alone, which a hit skips.
-      - uses: actions/cache/restore@v6
-        id: compile-cache
-        with:
-          path: |
-            ${{ runner.temp }}\drupack\buildroot
-            ${{ runner.temp }}\drupack\source\php-src\main
-            ${{ runner.temp }}\drupack\source\php-src\Zend
-            ${{ runner.temp }}\drupack\source\php-src\TSRM
-            ${{ runner.temp }}\drupack\source\php-src\ext
-            ${{ runner.temp }}\drupack\source\php-src\sapi
-            ${{ runner.temp }}\drupack\source\php-src\win32
-            ~\go\pkg\mod
-            ~\AppData\Local\go-build
-          key: windows-build-${{ hashFiles('build/windows/build.ps1', 'runtime/builder/builder-inputs.sh', 'runtime/builder/fetch-spc.sh', 'runtime/builder/fetch-commit.sh', 'runtime/builder/branch-pins.txt', 'runtime/builder/fetch-branch-pins.sh', 'runtime/builder/spc-sqlite.patch', 'runtime/builder/spc-icu.patch', 'runtime/builder/library-versions.txt', 'runtime/builder/check-downloads.php', 'runtime/extensions/extensions-list.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
-
-      # A compile reads each artifact of branch-pins.txt from its checkout, and SourceForge,
-      # which serves pthreads4w, has failed a download. The restore on every run keeps the
-      # entry in use, and the save comes before the compile, which builds the checkouts in place.
-      - uses: actions/cache/restore@v6
-        id: pins-cache
-        with:
-          path: ${{ runner.temp }}\drupack\branch-pins
-          key: windows-branch-pins-${{ hashFiles('runtime/builder/branch-pins.txt', 'runtime/builder/fetch-branch-pins.sh', 'runtime/builder/fetch-commit.sh') }}
-
-      - name: Fetch the branch-head sources
-        if: ${{ steps.compile-cache.outputs.cache-hit != 'true' && steps.pins-cache.outputs.cache-hit != 'true' }}
-        shell: bash
-        run: bash runtime/builder/fetch-branch-pins.sh windows "$(cygpath -m "$RUNNER_TEMP")/drupack/branch-pins" >/dev/null
-
-      - uses: actions/cache/save@v6
-        if: ${{ steps.compile-cache.outputs.cache-hit != 'true' && steps.pins-cache.outputs.cache-hit != 'true' }}
-        with:
-          path: ${{ runner.temp }}\drupack\branch-pins
-          key: ${{ steps.pins-cache.outputs.cache-primary-key }}
-
-      - name: Build the executables
-        env:
-          # static-php-cli reads library releases from the GitHub API, which rate-limits anonymous requests.
-          GITHUB_TOKEN: ${{ github.token }}
-          DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
-        run: |
-          ./build/windows/build.ps1 -PayloadDirectory dist\payload -Version $env:DRUPACK_ENGINE_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack" -Output dist\fixture.exe -EnginePayloadDirectory dist\engine-payload -EngineOutput dist\engine\drupack.exe
-          Copy-Item dist\payload\site.json dist\site.json
-
-      # static-php-cli's GitHub downloads pass the job token, so its logs can hold it.
-      - name: Redact static-php-cli's logs
-        if: failure()
-        env:
-          TOKEN: ${{ github.token }}
-        run: |
-          Get-ChildItem "$env:RUNNER_TEMP\drupack\log" -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
-            (Get-Content -Raw $_.FullName) -replace [regex]::Escape($env:TOKEN), '***' | Set-Content -NoNewline $_.FullName
-          }
-
-      - name: Upload static-php-cli's logs
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: spc-log-windows-amd64
-          path: ${{ runner.temp }}\drupack\log
-          retention-days: 7
-
-      # build.ps1 writes the marker when the compile ends, so a failed link keeps
-      # the compile and a failed compile saves nothing.
-      - name: Find the compiled PHP
-        id: compiled
-        if: ${{ !cancelled() && steps.compile-cache.outputs.cache-hit != 'true' }}
-        run: |
-          if (Test-Path "$env:RUNNER_TEMP\drupack\buildroot\compiled") { 'present=true' >> $env:GITHUB_OUTPUT }
-
-      - uses: actions/cache/save@v6
-        if: ${{ !cancelled() && steps.compiled.outputs.present == 'true' }}
-        with:
-          path: |
-            ${{ runner.temp }}\drupack\buildroot
-            ${{ runner.temp }}\drupack\source\php-src\main
-            ${{ runner.temp }}\drupack\source\php-src\Zend
-            ${{ runner.temp }}\drupack\source\php-src\TSRM
-            ${{ runner.temp }}\drupack\source\php-src\ext
-            ${{ runner.temp }}\drupack\source\php-src\sapi
-            ${{ runner.temp }}\drupack\source\php-src\win32
-            ~\go\pkg\mod
-            ~\AppData\Local\go-build
-          key: ${{ steps.compile-cache.outputs.cache-primary-key }}
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: drupack-windows-amd64
-          path: dist/engine/drupack.exe
-          if-no-files-found: error
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: runtime-windows-amd64
-          path: ${{ runner.temp }}\drupack\runtime
-          if-no-files-found: error
-
-      - name: Report the runtime's components
-        run: |
-          New-Item -ItemType Directory -Path runtime-components | Out-Null
-          python build/release/sbom.py runtime --target windows-amd64 --spc-cache "$env:RUNNER_TEMP\drupack\buildroot\.cache.json" "$env:RUNNER_TEMP\drupack\runtime\frankenphp.exe" >runtime-components\windows-amd64.json
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: runtime-components-windows-amd64
-          path: runtime-components
-          if-no-files-found: error
-
-      # The variant fixture packs on the runtime the build above left in its work
-      # directory, with the amd64 launcher the release ships.
-      - name: Pack the variant fixture
-        env:
-          DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
-        run: |
-          New-Item -ItemType Directory -Force -Path dist\variant | Out-Null
-          Push-Location launcher
-          go run ./cmd/pack -target windows-amd64 -runtime "$env:RUNNER_TEMP\drupack\runtime" -payload ..\dist\variant-payload -version $env:DRUPACK_ENGINE_VERSION -output ..\dist\variant\variant-fixture.exe
-          Pop-Location
-          Copy-Item dist\variant-payload\site.json dist\variant\site.json
-
-      # The files the windows-test jobs run. The name stays outside the patterns the
-      # sbom and publish jobs download. The retention stays the default: the gate
-      # rebuilds a candidate when any of its artifacts expired.
-      - uses: actions/upload-artifact@v7
-        with:
-          name: suite-windows-amd64
-          path: |
-            dist/fixture.exe
-            dist/site.json
-            dist/engine/drupack.exe
-            dist/variant
-          compression-level: 0
-          if-no-files-found: error
-
-  # Each job runs one share of the test classes on the files the windows job built.
-  # Emulation doubles each case's time, so the Arm host runs the variant cases
-  # in a job of their own.
-  windows-test:
-    name: ${{ matrix.name }}
-    needs: [gate, windows]
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.gate.outputs.windows_tests) }}
-    defaults:
-      run:
-        shell: pwsh
-    steps:
-      - uses: actions/checkout@v7
-
-      # The suite packs its fixture launchers with Go.
-      - uses: actions/setup-go@v7
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: false
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: suite-windows-amd64
-          path: dist
-
-      - name: Run the conformance suite
-        if: matrix.smoke || matrix.shard != ''
-        env:
-          DRUPACK_TEST_ENGINE: dist\engine\drupack.exe
-          DRUPACK_SHARD: ${{ matrix.shard }}
-          DRUPACK_SUITE: ${{ matrix.smoke && 'smoke' || 'full' }}
-        run: python tests/conformance dist\fixture.exe test-results\conformance --site-tests tests\fixture-site\tests
+          name: variant-payload
+          path: variant-payload
 
       - name: Run the variant fixture cases
         if: matrix.variant
-        run: python tests/conformance dist\variant\variant-fixture.exe test-results\variant -k Node -k MercureHub -k ProjectRules
-
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-results-${{ matrix.results }}
-          # The folder also holds each case's project, about 2 GB over 400,000 files.
-          path: |
-            test-results/**/*.log
-            test-results/**/run.out
-            test-results/**/run.err
-
-  # Builds the macOS executables once. The macos-test jobs run the suite on those files.
-  macos-arm64:
-    name: macOS arm64 build
-    needs: [gate, payload]
-    if: contains(needs.gate.outputs.macos, 'arm64')
-    runs-on: macos-15
-    timeout-minutes: 240
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/macos-build
-        with:
-          arch: arm64
-          version: ${{ needs.gate.outputs.version }}
-          go-version: ${{ env.GO_VERSION }}
-          go-tests: 'true'
-
-  # Each job runs one share of the test classes on the files the macos-arm64 job built.
-  macos-test:
-    name: macOS ${{ matrix.arch }} tests (${{ matrix.shard }})
-    needs: [gate, macos-arm64]
-    if: needs.gate.outputs.macos_tests != '[]'
-    runs-on: macos-15
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.gate.outputs.macos_tests) }}
-    steps:
-      - uses: actions/checkout@v7
-
-      # The suite packs its fixture launchers with Go.
-      - uses: actions/setup-go@v7
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: false
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: suite-macos-${{ matrix.arch }}
-          path: dist
-
-      # An artifact keeps no file mode.
-      - name: Mark the executables
-        run: chmod +x dist/fixture dist/engine/drupack dist/variant/variant-fixture
-
-      - name: Run the test scripts
         env:
-          DRUPACK_TEST_ENGINE: dist/engine/drupack
-          # Each architecture's last row also runs the variant cases. Every row
-          # says so, since each one deals all the shares to find its own.
-          DRUPACK_SHARD: ${{ matrix.shard }}+extra
+          DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
         run: |
-          python3 tests/conformance dist/fixture test-results/conformance --site-tests tests/fixture-site/tests
-
-      - name: Run the variant fixture cases
-        if: matrix.variant
-        run: python3 tests/conformance dist/variant/variant-fixture test-results/variant -k Node -k MercureHub -k ProjectRules
+          mkdir -p dist/variant
+          (cd launcher && go run ./cmd/pack -target "$TARGET" -runtime ../runtime -payload ../variant-payload \
+            -version "$DRUPACK_ENGINE_VERSION" -output "../dist/variant/variant-fixture$EXTENSION")
+          cp variant-payload/site.json dist/variant/site.json
+          $PYTHON tests/conformance "dist/variant/variant-fixture$EXTENSION" test-results/variant -k Node -k MercureHub -k ProjectRules
 
       - name: Upload test results
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: test-results-${{ matrix.results }}
+          name: test-results-release-${{ matrix.results }}
           # The folder also holds each case's project, about 2 GB over 400,000 files.
           path: |
             test-results/**/*.log
             test-results/**/run.out
             test-results/**/run.err
 
-  # An all-platform dispatch and the weekly schedule also run build/test/qa.sh, one phase
-  # per job. upstream.yml dispatches one for each release candidate.
   qa:
     name: QA
-    needs: [gate, payload]
+    needs: [gate, image]
     # A fork pushes no builder image, and the fixture phase pulls one.
     if: github.event.repository.fork == false && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.platform == 'all'))
     runs-on: ubuntu-24.04
@@ -870,20 +630,8 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      # govulncheck reads the vulnerability database when it runs, so a candidate
-      # fails once a reported vulnerability reaches the code or the pinned Go.
-      - name: Check the Go modules for vulnerabilities
-        if: matrix.phase == 'host'
-        run: |
-          GOBIN=$RUNNER_TEMP go install golang.org/x/vuln/cmd/govulncheck@v1.10.0
-          for module in $(git ls-files '*/go.mod'); do
-            for goos in linux darwin windows; do
-              (cd "$(dirname -- "$module")" && GOOS=$goos "$RUNNER_TEMP/govulncheck" ./...)
-            done
-          done
-
       # runtime/frankenphp/adapt-test.sh, which the fixture phase runs, works in the glibc builder
-      # image that the payload job of this run published under its digest tag.
+      # image that the image job of this run published under its digest tag.
       - name: Pull the glibc builder image
         if: matrix.phase == 'fixture'
         env:
@@ -899,7 +647,7 @@ jobs:
           pattern: runtime-linux-amd64-*
           path: ${{ runner.temp }}/runtime-artifacts
 
-      # The job image takes the runtime jobs' files. A build from the builder images
+      # The job image takes the runtime legs' files. A build from the builder images
       # took 4 minutes after a 5 minute pull.
       - name: Run build/test/qa.sh
         env:
@@ -944,8 +692,12 @@ jobs:
   # The scans read the downloaded folders as they land: the merge keeps each
   # component's name, version and identifiers, never its file path.
   sbom:
-    needs: [gate, linux, windows, windows-test, macos-arm64, macos-test]
-    if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' }}
+    needs: [gate, engine, test]
+    # A tag that reuses its candidate builds and tests nothing here. A tag that builds
+    # needs every test row green: a cancelled leg skips test, which !failure() lets through.
+    if: >-
+      ${{ !cancelled() && !failure() && github.ref_type == 'tag'
+      && (needs.gate.outputs.candidate != '' || needs.test.result == 'success') }}
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -1004,8 +756,9 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [gate, sbom]
-    if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' }}
+    needs: [gate, unit, sbom]
+    # A tag run that skipped sbom publishes nothing.
+    if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' && needs.sbom.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       actions: read

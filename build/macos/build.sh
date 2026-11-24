@@ -1,19 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# With ENGINE_PAYLOAD and ENGINE_OUTPUT it also packs the engine executable on
-# the same runtime.
-usage='Usage: build.sh PAYLOAD_DIRECTORY WORK_DIRECTORY OUTPUT [ENGINE_PAYLOAD ENGINE_OUTPUT]'
-payload=$(cd -- "${1:?$usage}" && pwd)
-work=${2:?$usage}
-mkdir -p "$(dirname -- "${3:?$usage}")"
-output="$(cd -- "$(dirname -- "$3")" && pwd)/$(basename -- "$3")"
-engine_payload=
-if [ -n "${4:-}" ]; then
-    engine_payload=$(cd -- "$4" && pwd)
-    mkdir -p "$(dirname -- "${5:?$usage}")"
-    engine_output="$(cd -- "$(dirname -- "$5")" && pwd)/$(basename -- "$5")"
-fi
+# Compiles PHP and links the macOS runtime into WORK_DIRECTORY/runtime.
+usage='Usage: build.sh WORK_DIRECTORY'
+work=${1:?$usage}
 repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 
 # The FrankenPHP and PHP pins every Linux builder image compiles.
@@ -22,11 +12,6 @@ drupack_version=${DRUPACK_ENGINE_VERSION:-dev}
 # The allowlist every builder compiles. spc resolves the libraries each name needs.
 extensions=$(bash "$repository/runtime/extensions/extensions-list.sh" "$repository/runtime/extensions/php-extensions.txt")
 extension_libs=$(bash "$repository/runtime/extensions/extensions-list.sh" "$repository/runtime/extensions/php-extension-libs.txt")
-
-case "$(uname -m)" in
-    arm64) target=macos-arm64 ;;
-    *) printf 'Unsupported macOS architecture: %s\n' "$(uname -m)" >&2; exit 1 ;;
-esac
 
 export MACOSX_DEPLOYMENT_TARGET=13.0
 mkdir -p "$work"
@@ -41,7 +26,7 @@ spc=(php "$work/static-php-cli/bin/spc")
 
 # Installs pkg-config and the other build tools static-php-cli needs.
 "${spc[@]}" doctor --auto-fix
-# A buildroot that holds libphp.a came from the cache of .github/actions/macos-build/action.yml,
+# A buildroot that holds libphp.a came from the cache of .github/actions/runtime-macos/action.yml,
 # whose key hashes every input of this compile. spc build compiles PHP again over it.
 if [ ! -f "$work/buildroot/lib/libphp.a" ]; then
     # spc build downloads again, and without its own dl- options it clones each branch head.
@@ -81,7 +66,6 @@ fi
 # The launcher carries the application, so the server embeds an empty archive,
 # which leaves frankenphp's own extraction unused.
 : > frankenphp/app.tar
-cp "$payload/app_checksum.txt" frankenphp/
 cp "$repository/runtime/frankenphp/entrypoint.go" frankenphp/caddy/frankenphp/drupack.go
 cp "$repository/runtime/frankenphp/watch/watch.go" frankenphp/caddy/frankenphp/drupack_watch.go
 cp "$repository/runtime/frankenphp/crtenv_other.go" frankenphp/caddy/frankenphp/drupack_crtenv_other.go
@@ -103,15 +87,3 @@ CGO_ENABLED=1 CGO_CFLAGS="$php_includes -DFRANKENPHP_VERSION=$frankenphp_version
 # php.ini and the trust bundle ride beside the entry executable, where PHPRC
 # names them at every hop.
 cp "$repository/runtime/php.ini" "$repository/runtime/cacert.pem" "$runtime/"
-
-# The subshell keeps the packer's build inside the launcher module, off this FrankenPHP checkout.
-(cd "$repository/launcher" \
-  && go run ./cmd/pack -target "$target" -runtime "$runtime" -payload "$payload" \
-     -version "$drupack_version" -output "$output")
-"$output" --version
-if [ -n "$engine_payload" ]; then
-    (cd "$repository/launcher" \
-      && go run ./cmd/pack -engine -target "$target" -runtime "$runtime" -payload "$engine_payload" \
-         -version "$drupack_version" -output "$engine_output")
-    "$engine_output" --version
-fi

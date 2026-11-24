@@ -1,0 +1,90 @@
+name: macOS runtime
+description: Compiles the macOS runtime and uploads it with its component report.
+inputs:
+  target:
+    description: The platform the runtime serves, macos-arm64.
+    required: true
+  version:
+    description: The engine version the runtime carries.
+    required: true
+  go-version:
+    description: The Go release the link uses.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v7
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: false
+
+    # static-php-cli runs on PHP and Composer, which the arm64 runner image lacks.
+    - name: Install PHP and Composer
+      shell: bash
+      run: brew install --quiet php composer
+
+    # The buildroot holds the PHP the allowlist names, so the list files belong
+    # in the key beside the scripts that compile them. The versions file changes
+    # when a library releases, and static-php-cli then downloads that release.
+    - uses: actions/cache/restore@v6
+      id: cache
+      with:
+        path: |
+          ${{ runner.temp }}/drupack/downloads
+          ${{ runner.temp }}/drupack/buildroot
+          ${{ runner.temp }}/drupack/pkgroot
+        key: ${{ inputs.target }}-${{ hashFiles('build/macos/build.sh', 'runtime/builder/builder-inputs.sh', 'runtime/builder/fetch-spc.sh', 'runtime/builder/fetch-commit.sh', 'runtime/builder/branch-pins.txt', 'runtime/builder/fetch-branch-pins.sh', 'runtime/builder/spc-sqlite.patch', 'runtime/builder/spc-icu.patch', 'runtime/builder/library-versions.txt', 'runtime/builder/check-downloads.php', 'runtime/extensions/extensions-list.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
+
+    - name: Build the runtime
+      env:
+        # static-php-cli reads library releases from the GitHub API, which rate-limits anonymous requests.
+        GITHUB_TOKEN: ${{ github.token }}
+        DRUPACK_ENGINE_VERSION: ${{ inputs.version }}
+      shell: bash
+      run: bash build/macos/build.sh "$RUNNER_TEMP/drupack"
+
+    # static-php-cli's GitHub downloads pass the job token, so its logs can hold it.
+    - name: Redact static-php-cli's logs
+      if: failure()
+      env:
+        TOKEN: ${{ github.token }}
+      shell: bash
+      run: find "$RUNNER_TEMP/drupack/log" -type f -exec perl -pi -e 's/\Q$ENV{TOKEN}\E/***/g' {} + 2>/dev/null || true
+
+    - name: Upload static-php-cli's logs
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: spc-log-${{ inputs.target }}
+        path: ${{ runner.temp }}/drupack/log
+        retention-days: 7
+
+    # Saved before the later steps, so a failure in one does not repeat the PHP build.
+    - uses: actions/cache/save@v6
+      with:
+        path: |
+          ${{ runner.temp }}/drupack/downloads
+          ${{ runner.temp }}/drupack/buildroot
+          ${{ runner.temp }}/drupack/pkgroot
+        key: ${{ steps.cache.outputs.cache-primary-key }}
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: runtime-${{ inputs.target }}
+        path: ${{ runner.temp }}/drupack/runtime
+        if-no-files-found: error
+
+    - name: Report the runtime's components
+      env:
+        TARGET: ${{ inputs.target }}
+      shell: bash
+      run: |
+        mkdir runtime-components
+        python3 build/release/sbom.py runtime --target "$TARGET" --libraries "$RUNNER_TEMP/drupack/runtime-libraries.txt" \
+          "$RUNNER_TEMP/drupack/runtime/drupack" >"runtime-components/$TARGET.json"
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: runtime-components-${{ inputs.target }}
+        path: runtime-components
+        if-no-files-found: error

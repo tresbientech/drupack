@@ -1,11 +1,11 @@
 {
   "artifacts": [
     {
-      "name": "payload-archive",
+      "name": "drupack-linux-amd64",
       "expired": false
     },
     {
-      "name": "engine-payload-archive",
+      "name": "engine-payload",
       "expired": false
     },
     {

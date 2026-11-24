@@ -30,15 +30,14 @@ RUNS_PATH = f"repos/{REPO}/actions/workflows/release.yml/runs?head_sha={SHA}&eve
 ARTIFACTS_PATH = f"repos/{REPO}/actions/runs/{CANDIDATE}/artifacts?per_page=100"
 COMPARE_PATH = f"repos/{REPO}/compare/{BEFORE}...{SHA}"
 
-AMD64 = [{"arch": "amd64"}]
-BOTH = AMD64 + [{"arch": "arm64"}]
-ARM64 = BOTH[1:]
 GLIBC = {"builder": "gnu", "libc": "glibc", "suffix": ""}
 MUSL = {"builder": "musl", "libc": "musl", "suffix": "-musl"}
 
 
 def runtime(arch, libc):
-    return {"arch": arch, **libc}
+    return {"name": f"Linux {arch} {libc['libc']} runtime", "system": "linux", "arch": arch,
+            "target": f"linux-{arch}{libc['suffix']}", "libc": libc["libc"], "builder": libc["builder"],
+            "runner": {"amd64": "ubuntu-24.04", "arm64": "ubuntu-24.04-arm"}[arch], "timeout": 180}
 
 
 def dispatch(**fields):
@@ -60,7 +59,7 @@ def changed(*names):
     return {"files": [{"filename": name} for name in names]}
 
 
-def with_expired(flags, name="payload-archive"):
+def with_expired(flags, name="drupack-linux-amd64"):
     return {"artifacts": [{"name": name, "expired": flag} for flag in flags]}
 
 
@@ -82,8 +81,7 @@ class Row(unittest.TestCase):
 
     def assertNotBuilding(self, result):
         self.assertFalse(result["build"])
-        self.assertEqual([[]] * 7, [result[key] for key in ("linux", "linux_tests", "linux_runtime", "macos", "macos_tests",
-                                                           "windows", "windows_tests")])
+        self.assertEqual(([[]] * 4, ""), ([result[key] for key in ("unit", "runtime", "engine", "tests")], result["platforms"]))
 
 
 class Tag(Row):
@@ -105,7 +103,7 @@ class Tag(Row):
                 self.assertEqual(fetched, self.fetched)
                 if candidate is None:
                     self.assertTrue(result["build"])
-                    self.assertEqual((BOTH, ARM64, AMD64), (result["linux"], result["macos"], result["windows"]))
+                    self.assertEqual(ALL, result["platforms"])
                 else:
                     self.assertNotBuilding(result)
 
@@ -119,15 +117,15 @@ class Tag(Row):
 class Dispatch(Row):
     def test_a_dispatch_plans_without_a_fetch(self):
         rows = {
-            "a named dispatch on all builds every platform": (dispatch(version="2.0.0"), "2.0.0", "dev sha", BOTH, ARM64, AMD64),
-            "a named dispatch on one platform builds it alone": (dispatch(version="2.0.0", platform="macos-arm64"), "2.0.0", "dev", [], ARM64, []),
-            "an unnamed dispatch takes the commit for its version": (dispatch(before=""), "dev-" + SHA[:12], "dev", BOTH, ARM64, AMD64),
+            "a named dispatch on all builds every platform": (dispatch(version="2.0.0"), "2.0.0", "dev sha", ALL),
+            "a named dispatch on one platform builds it alone": (dispatch(version="2.0.0", platform="macos-arm64"), "2.0.0", "dev", "macos-arm64"),
+            "an unnamed dispatch takes the commit for its version": (dispatch(before=""), "dev-" + SHA[:12], "dev", ALL),
         }
-        for label, (dispatched, version, image_tags, linux, macos, windows) in rows.items():
+        for label, (dispatched, version, image_tags, platforms) in rows.items():
             with self.subTest(label):
                 result = self.run_plan(dispatched)
                 self.assertEqual((version, image_tags, None, True), (result["version"], result["image_tags"], result["candidate"], result["build"]))
-                self.assertEqual((linux, macos, windows), (result["linux"], result["macos"], result["windows"]))
+                self.assertEqual(platforms, result["platforms"])
                 self.assertEqual([], self.fetched)
 
 
@@ -145,13 +143,14 @@ class Push(Row):
                 self.assertEqual(("dev-" + SHA[:12], "dev", candidate), (result["version"], result["image_tags"], result["candidate"]))
                 self.assertEqual(fetched, self.fetched)
                 if candidate is None:
-                    self.assertEqual(AMD64, result["linux"])
+                    self.assertEqual("linux-amd64", result["platforms"])
                 else:
                     self.assertNotBuilding(result)
 
     def test_a_new_branch_builds_linux_amd64_without_a_compare(self):
         result = self.run_plan(event(before="0" * 40), NO_RUN)
-        self.assertEqual((AMD64, [], [], True), (result["linux"], result["macos"], result["windows"], result["build"]))
+        self.assertEqual(("linux-amd64", [runtime("amd64", GLIBC), runtime("amd64", MUSL)], True),
+                         (result["platforms"], result["runtime"], result["build"]))
         self.assertEqual("dev-" + SHA[:12], result["version"])
         self.assertEqual([RUNS_PATH], self.fetched)
 
@@ -168,7 +167,7 @@ class Push(Row):
                 result = self.run_plan(event(), {**NO_RUN, COMPARE_PATH: files})
                 self.assertEqual([RUNS_PATH, COMPARE_PATH], self.fetched)
                 if builds:
-                    self.assertEqual(AMD64, result["linux"])
+                    self.assertEqual("linux-amd64", result["platforms"])
                 else:
                     self.assertNotBuilding(result)
 
@@ -181,78 +180,95 @@ class LinuxRuntime(Row):
             "a macos-only build still compiles the payload": (dispatch(platform="macos-arm64"), [runtime("amd64", MUSL)]),
         }.items():
             with self.subTest(label):
-                self.assertEqual(expected, self.run_plan(dispatched, NO_RUN)["linux_runtime"])
+                self.assertEqual(expected, [row for row in self.run_plan(dispatched, NO_RUN)["runtime"] if row["system"] == "linux"])
+
+    def test_every_platform_has_a_runtime_row_on_its_own_runner(self):
+        native = {"libc": "", "builder": ""}
+        self.assertEqual(
+            [runtime("amd64", GLIBC), runtime("amd64", MUSL), runtime("arm64", GLIBC), runtime("arm64", MUSL),
+             {"name": "macOS arm64 runtime", "system": "macos", "arch": "arm64", "target": "macos-arm64",
+              **native, "runner": "macos-15", "timeout": 240},
+             {"name": "Windows amd64 runtime", "system": "windows", "arch": "amd64", "target": "windows-amd64",
+              **native, "runner": "windows-2025", "timeout": 90}],
+            self.run_plan(dispatch(), NO_RUN)["runtime"])
 
     def test_no_build_has_no_runtime_row(self):
-        self.assertEqual([], self.run_plan(event(), {**NO_RUN, COMPARE_PATH: COMPARE})["linux_runtime"])
+        self.assertEqual([], self.run_plan(event(), {**NO_RUN, COMPARE_PATH: COMPARE})["runtime"])
+
+
+def row(name, runner, target, results, shard="", smoke=False, variant=False, first=False):
+    return {"name": name, "runner": runner, "target": target, "shard": shard, "smoke": smoke, "variant": variant,
+            "first": first, "results": results}
+
+
+LINUX_RUNNERS = {"amd64": "ubuntu-24.04", "arm64": "ubuntu-24.04-arm"}
 
 
 def linux_rows(arch):
-    return [{"arch": arch, "shard": f"{i}/2", "smoke": False, "first": i == 1, "units": i == 1 and arch == "amd64"}
-            for i in (1, 2)]
+    return [row(f"Linux {arch} tests ({i}/2)", LINUX_RUNNERS[arch], f"linux-{arch}", f"linux-{arch}-{i}", shard=f"{i}/2",
+                first=i == 1) for i in (1, 2)]
 
 
-ARM64_SMOKE = {"arch": "arm64", "shard": "", "smoke": True, "first": True, "units": False}
+ARM64_SMOKE = row("Linux arm64 start cases", "ubuntu-24.04-arm", "linux-arm64", "linux-arm64-smoke", smoke=True, first=True)
+MACOS = [row(f"macOS arm64 tests ({i}/2)", "macos-15", "macos-arm64", f"macos-arm64-{i}", shard=f"{i}/2+extra", variant=i == 2)
+         for i in (1, 2)]
 
 
 def windows_rows(runner, arch, label, extra):
-    return [{"name": f"Windows {label}{i}/5)", "runner": runner, "results": f"windows-{arch}-{i}",
-             "shard": f"{i}/5{extra}", "variant": extra != "" and i == 5, "smoke": False} for i in (1, 2, 3, 4, 5)]
+    return [row(f"Windows {label}{i}/5)", runner, "windows-amd64", f"windows-{arch}-{i}", shard=f"{i}/5{extra}",
+                variant=extra != "" and i == 5) for i in (1, 2, 3, 4, 5)]
 
 
 WINDOWS_AMD64 = windows_rows("windows-2025", "amd64", "amd64 tests (", "+extra")
 WINDOWS_FULL = WINDOWS_AMD64 + windows_rows("windows-11-arm", "arm64", "arm64 tests (amd64 emulated, ", "") + [
-    {"name": "Windows arm64 variant tests (amd64 emulated)", "runner": "windows-11-arm", "results": "windows-arm64-variant",
-     "shard": "", "variant": True, "smoke": False}]
-WINDOWS_GATE = WINDOWS_AMD64 + [{"name": "Windows arm64 start cases (amd64 emulated)", "runner": "windows-11-arm",
-                                 "results": "windows-arm64-smoke", "shard": "", "variant": False, "smoke": True}]
+    row("Windows arm64 variant tests (amd64 emulated)", "windows-11-arm", "windows-amd64", "windows-arm64-variant", variant=True)]
+ALL = "linux-amd64,linux-arm64,macos-arm64,windows-amd64"
 
 
-class LinuxTests(Row):
-    def test_an_architecture_takes_a_row_per_share_and_amd64s_first_runs_the_units(self):
-        for platform, expected in {"linux-arm64": linux_rows("arm64"), "all": linux_rows("amd64") + linux_rows("arm64")}.items():
+class UnitAndEngineRows(Row):
+    def test_each_system_the_plan_builds_takes_one_unit_row_on_its_first_targets_runner(self):
+        linux = {"system": "linux", "runner": "ubuntu-24.04"}
+        macos = {"system": "macos", "runner": "macos-15"}
+        windows = {"system": "windows", "runner": "windows-2025"}
+        arm64 = {"system": "linux", "runner": "ubuntu-24.04-arm"}
+        for platform, expected in {"all": [linux, macos, windows], "linux-arm64": [arm64], "macos-arm64": [macos]}.items():
             with self.subTest(platform):
-                self.assertEqual(expected, self.run_plan(dispatch(platform=platform))["linux_tests"])
+                self.assertEqual(expected, self.run_plan(dispatch(platform=platform))["unit"])
 
-    def test_a_gate_run_tests_arm64_with_the_smoke_set(self):
-        self.assertEqual(linux_rows("amd64") + [ARM64_SMOKE], self.run_plan(dispatch(suite="gate"))["linux_tests"])
-
-    def test_a_push_and_a_tag_test_in_full(self):
-        rows = {"a push": (event(before="0" * 40), linux_rows("amd64")), "a tag": (TAG, linux_rows("amd64") + linux_rows("arm64"))}
-        for label, (planned, expected) in rows.items():
-            with self.subTest(label):
-                self.assertEqual(expected, self.run_plan(planned, NO_RUN)["linux_tests"])
+    def test_each_planned_target_takes_one_engine_row_and_the_platforms_print_raw(self):
+        result = self.run_plan(dispatch())
+        self.assertEqual([{"target": target, "runner": runner} for target, runner in (
+            ("linux-amd64", "ubuntu-24.04"), ("linux-arm64", "ubuntu-24.04-arm"), ("macos-arm64", "macos-15"),
+            ("windows-amd64", "windows-2025"))], result["engine"])
+        self.assertEqual(ALL, release_plan.encode("platforms", result["platforms"]))
 
 
-class WindowsTests(Row):
-    def test_each_suite_takes_its_rows_and_no_windows_build_takes_none(self):
+class Tests(Row):
+    def test_each_suite_and_platform_takes_its_rows(self):
         rows = {
-            "full": (dispatch(suite="full"), WINDOWS_FULL),
-            "no suite": (dispatch(), WINDOWS_FULL),
-            "gate": (dispatch(suite="gate"), WINDOWS_GATE),
-            "no windows build": (dispatch(platform="linux-amd64"), []),
+            "full": (dispatch(suite="full"), linux_rows("amd64") + linux_rows("arm64") + MACOS + WINDOWS_FULL),
+            "no suite": (dispatch(), linux_rows("amd64") + linux_rows("arm64") + MACOS + WINDOWS_FULL),
+            "gate": (dispatch(suite="gate"), linux_rows("amd64") + [ARM64_SMOKE] + MACOS + WINDOWS_AMD64),
+            "linux arm64": (dispatch(platform="linux-arm64"), linux_rows("arm64")),
+            "macos under gate": (dispatch(platform="macos-arm64", suite="gate"), MACOS),
+            "windows": (dispatch(platform="windows-amd64"), WINDOWS_FULL),
         }
         for label, (dispatched, expected) in rows.items():
             with self.subTest(label):
-                self.assertEqual(expected, self.run_plan(dispatched)["windows_tests"])
+                self.assertEqual(expected, self.run_plan(dispatched)["tests"])
 
+    def test_a_push_and_a_tag_test_in_full(self):
+        rows = {"a push": (event(before="0" * 40), linux_rows("amd64")),
+                "a tag": (TAG, linux_rows("amd64") + linux_rows("arm64") + MACOS + WINDOWS_FULL)}
+        for label, (planned, expected) in rows.items():
+            with self.subTest(label):
+                self.assertEqual(expected, self.run_plan(planned, NO_RUN)["tests"])
 
-class Schedule(Row):
     def test_the_schedule_tests_every_platform_in_full_without_a_fetch(self):
         result = self.run_plan(event(event_name="schedule", before=""))
-        self.assertEqual(("dev-" + SHA[:12], "dev", None), (result["version"], result["image_tags"], result["candidate"]))
-        self.assertEqual((BOTH, ARM64, AMD64), (result["linux"], result["macos"], result["windows"]))
-        self.assertEqual((linux_rows("amd64") + linux_rows("arm64"), WINDOWS_FULL), (result["linux_tests"], result["windows_tests"]))
+        self.assertEqual(("dev-" + SHA[:12], "dev", None, ALL), (result["version"], result["image_tags"], result["candidate"], result["platforms"]))
+        self.assertEqual(linux_rows("amd64") + linux_rows("arm64") + MACOS + WINDOWS_FULL, result["tests"])
         self.assertEqual([], self.fetched)
-
-
-class MacosTests(Row):
-    def test_arm64_takes_a_row_per_share_and_the_last_runs_the_variant(self):
-        arm64 = [{"arch": "arm64", "shard": f"{i}/2", "results": f"macos-arm64-{i}", "variant": i == 2} for i in (1, 2)]
-        for suite in ("full", "gate"):
-            for platform, expected in {"macos-arm64": arm64, "all": arm64}.items():
-                with self.subTest(suite=suite, platform=platform):
-                    self.assertEqual(expected, self.run_plan(dispatch(platform=platform, suite=suite))["macos_tests"])
 
 
 class Failure(Row):

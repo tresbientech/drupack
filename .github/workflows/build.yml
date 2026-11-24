@@ -28,6 +28,10 @@ on:
       runtime-release:
         description: "The Drupack release whose macOS and Windows runtime files the native targets pack. A caller pinned to a tag uses that tag. A caller pinned to a branch or a commit must set it to build those targets."
         type: string
+      run-runtimes:
+        description: Pack macOS and Windows from the runtime-TARGET artifacts of the calling run. The engine's own release run sets it.
+        type: boolean
+        default: false
       publish:
         description: On a tag run, release the executables in the calling repository.
         type: boolean
@@ -125,6 +129,7 @@ jobs:
     outputs:
       native: ${{ steps.build.outputs.native }}
       version: ${{ steps.build.outputs.version }}
+      engine-version: ${{ steps.build.outputs.engine_version }}
     # A container job runs steps with sh unless told otherwise.
     defaults:
       run:
@@ -154,6 +159,7 @@ jobs:
           LIBC: ${{ inputs.libc }}
           SHA: ${{ github.sha }}
           RUNTIME_RELEASE: ${{ needs.engine.outputs.runtime-release }}
+          RUN_RUNTIMES: ${{ inputs.run-runtimes }}
           # composer install reads it, and an unset secret leaves it empty, which Composer ignores.
           COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
         run: |
@@ -168,14 +174,15 @@ jobs:
           targets=()
           if [ -n "$PLATFORMS" ]; then targets+=(--platform "$PLATFORMS"); fi
           if [ -n "$LIBC" ]; then targets+=(--libc "$LIBC"); fi
-          # A native target packs a published runtime. A run that names no release
-          # leaves --native out, and drupack-build then refuses such a target.
+          # A native target packs a published runtime or one the calling run built. A run
+          # with neither leaves --native out, and drupack-build then refuses such a target.
           native='[]'
-          if [ -n "$RUNTIME_RELEASE" ]; then targets+=(--native); fi
+          packs_native=
+          if [ -n "$RUNTIME_RELEASE" ] || [ "$RUN_RUNTIMES" = true ]; then packs_native=true; targets+=(--native); fi
           drupack-build --site "$SITE" "${targets[@]}" \
             --site-version "$version" --output /tmp/drupack/dist --work /tmp/drupack/work
-          if [ -n "$RUNTIME_RELEASE" ]; then native=$(cat /tmp/drupack/dist/payload/native-targets.json); fi
-          printf 'version=%s\nnative=%s\n' "$version" "$native" >>"$GITHUB_OUTPUT"
+          if [ -n "$packs_native" ]; then native=$(cat /tmp/drupack/dist/payload/native-targets.json); fi
+          printf 'version=%s\nnative=%s\nengine_version=%s\n' "$version" "$native" "$DRUPACK_ENGINE_VERSION" >>"$GITHUB_OUTPUT"
 
       - name: Upload test results
         if: failure()
@@ -261,18 +268,27 @@ jobs:
           name: payload
           path: payload
 
+      - uses: actions/download-artifact@v8
+        if: inputs.run-runtimes
+        with:
+          name: runtime-${{ matrix.target }}
+          path: runtime
+
       - name: Pack the site
         env:
           TARGET: ${{ matrix.target }}
           RUNTIME_RELEASE: ${{ needs.engine.outputs.runtime-release }}
+          RUN_RUNTIMES: ${{ inputs.run-runtimes }}
+          ENGINE_VERSION: ${{ needs.build.outputs.engine-version }}
           ENGINE_REPOSITORY: ${{ needs.engine.outputs.repository }}
           SITE_VERSION: ${{ needs.build.outputs.version }}
         run: |
           name=$(jq -r .name payload/site.json)
           extension=
           if [ "$RUNNER_OS" = Windows ]; then extension=.exe; fi
-          bash drupack-engine/build/pack/native-pack.sh \
-            --base-url "$GITHUB_SERVER_URL/$ENGINE_REPOSITORY/releases/download/$RUNTIME_RELEASE" \
+          source=(--base-url "$GITHUB_SERVER_URL/$ENGINE_REPOSITORY/releases/download/$RUNTIME_RELEASE")
+          if [ "$RUN_RUNTIMES" = true ]; then source=(--runtime runtime --version "$ENGINE_VERSION"); fi
+          bash drupack-engine/build/pack/native-pack.sh "${source[@]}" \
             --target "$TARGET" --payload payload --output "dist/$name-$TARGET$extension" \
             --site-version "$SITE_VERSION"
           # The suite reads the site.json beside the executable it tests.

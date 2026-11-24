@@ -439,6 +439,8 @@ Inputs:
 - `libc`: `both`, `glibc` or `musl`, `drupack.yml`'s `libc` when unset.
 - `runtime-release`: the engine release whose macOS and Windows runtime files
   the native targets pack. A tag pin uses its own tag.
+- `run-runtimes`: the engine's own release run sets it, to pack the macOS and
+  Windows targets from the runtimes it built. A site leaves it unset.
 - `suite`: the cases each executable runs after its build. `full`, the default, runs
   every case; `smoke` runs the start cases.
 - `publish`: on a tag run, create a release.

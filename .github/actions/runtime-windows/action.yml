@@ -1,0 +1,129 @@
+name: Windows runtime
+description: Compiles the Windows runtime and uploads it with its component report.
+inputs:
+  target:
+    description: The platform the runtime serves, windows-amd64.
+    required: true
+  version:
+    description: The engine version the runtime carries.
+    required: true
+  go-version:
+    description: The Go release the link uses.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v7
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: false
+
+    # The buildroot holds the PHP the allowlist names and the libraries the versions
+    # file records, so the key hashes every input of the compile. The link reads
+    # headers static-php-cli leaves in these folders of PHP's source tree. Its
+    # downloads and its build tools serve the compile alone, which a hit skips.
+    - uses: actions/cache/restore@v6
+      id: compile-cache
+      with:
+        path: |
+          ${{ runner.temp }}\drupack\buildroot
+          ${{ runner.temp }}\drupack\source\php-src\main
+          ${{ runner.temp }}\drupack\source\php-src\Zend
+          ${{ runner.temp }}\drupack\source\php-src\TSRM
+          ${{ runner.temp }}\drupack\source\php-src\ext
+          ${{ runner.temp }}\drupack\source\php-src\sapi
+          ${{ runner.temp }}\drupack\source\php-src\win32
+          ~\go\pkg\mod
+          ~\AppData\Local\go-build
+        key: windows-build-${{ hashFiles('build/windows/build.ps1', 'runtime/builder/builder-inputs.sh', 'runtime/builder/fetch-spc.sh', 'runtime/builder/fetch-commit.sh', 'runtime/builder/branch-pins.txt', 'runtime/builder/fetch-branch-pins.sh', 'runtime/builder/spc-sqlite.patch', 'runtime/builder/spc-icu.patch', 'runtime/builder/library-versions.txt', 'runtime/builder/check-downloads.php', 'runtime/extensions/extensions-list.sh', 'runtime/extensions/php-extensions.txt', 'runtime/extensions/php-extension-libs.txt') }}
+
+    # A compile reads each artifact of branch-pins.txt from its checkout, and SourceForge,
+    # which serves pthreads4w, has failed a download. The restore on every run keeps the
+    # entry in use, and the save comes before the compile, which builds the checkouts in place.
+    - uses: actions/cache/restore@v6
+      id: pins-cache
+      with:
+        path: ${{ runner.temp }}\drupack\branch-pins
+        key: windows-branch-pins-${{ hashFiles('runtime/builder/branch-pins.txt', 'runtime/builder/fetch-branch-pins.sh', 'runtime/builder/fetch-commit.sh') }}
+
+    - name: Fetch the branch-head sources
+      if: ${{ steps.compile-cache.outputs.cache-hit != 'true' && steps.pins-cache.outputs.cache-hit != 'true' }}
+      shell: bash
+      run: bash runtime/builder/fetch-branch-pins.sh windows "$(cygpath -m "$RUNNER_TEMP")/drupack/branch-pins" >/dev/null
+
+    - uses: actions/cache/save@v6
+      if: ${{ steps.compile-cache.outputs.cache-hit != 'true' && steps.pins-cache.outputs.cache-hit != 'true' }}
+      with:
+        path: ${{ runner.temp }}\drupack\branch-pins
+        key: ${{ steps.pins-cache.outputs.cache-primary-key }}
+
+    - name: Build the runtime
+      env:
+        # static-php-cli reads library releases from the GitHub API, which rate-limits anonymous requests.
+        GITHUB_TOKEN: ${{ github.token }}
+        DRUPACK_ENGINE_VERSION: ${{ inputs.version }}
+      shell: pwsh
+      run: ./build/windows/build.ps1 -Version $env:DRUPACK_ENGINE_VERSION -WorkDirectory "$env:RUNNER_TEMP\drupack"
+
+    # static-php-cli's GitHub downloads pass the job token, so its logs can hold it.
+    - name: Redact static-php-cli's logs
+      if: failure()
+      env:
+        TOKEN: ${{ github.token }}
+      shell: pwsh
+      run: |
+        Get-ChildItem "$env:RUNNER_TEMP\drupack\log" -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+          (Get-Content -Raw $_.FullName) -replace [regex]::Escape($env:TOKEN), '***' | Set-Content -NoNewline $_.FullName
+        }
+
+    - name: Upload static-php-cli's logs
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: spc-log-${{ inputs.target }}
+        path: ${{ runner.temp }}\drupack\log
+        retention-days: 7
+
+    # build.ps1 writes the marker when the compile ends, so a failed link keeps
+    # the compile and a failed compile saves nothing.
+    - name: Find the compiled PHP
+      id: compiled
+      if: ${{ !cancelled() && steps.compile-cache.outputs.cache-hit != 'true' }}
+      shell: pwsh
+      run: |
+        if (Test-Path "$env:RUNNER_TEMP\drupack\buildroot\compiled") { 'present=true' >> $env:GITHUB_OUTPUT }
+
+    - uses: actions/cache/save@v6
+      if: ${{ !cancelled() && steps.compiled.outputs.present == 'true' }}
+      with:
+        path: |
+          ${{ runner.temp }}\drupack\buildroot
+          ${{ runner.temp }}\drupack\source\php-src\main
+          ${{ runner.temp }}\drupack\source\php-src\Zend
+          ${{ runner.temp }}\drupack\source\php-src\TSRM
+          ${{ runner.temp }}\drupack\source\php-src\ext
+          ${{ runner.temp }}\drupack\source\php-src\sapi
+          ${{ runner.temp }}\drupack\source\php-src\win32
+          ~\go\pkg\mod
+          ~\AppData\Local\go-build
+        key: ${{ steps.compile-cache.outputs.cache-primary-key }}
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: runtime-${{ inputs.target }}
+        path: ${{ runner.temp }}\drupack\runtime
+        if-no-files-found: error
+
+    - name: Report the runtime's components
+      env:
+        TARGET: ${{ inputs.target }}
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Path runtime-components | Out-Null
+        python build/release/sbom.py runtime --target $env:TARGET --spc-cache "$env:RUNNER_TEMP\drupack\buildroot\.cache.json" "$env:RUNNER_TEMP\drupack\runtime\frankenphp.exe" >"runtime-components\$env:TARGET.json"
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: runtime-components-${{ inputs.target }}
+        path: runtime-components
+        if-no-files-found: error

@@ -1,6 +1,6 @@
-"""Plans a release run: the version, the image tags, the candidate run to reuse, the build
-matrices and the Linux, macOS and Windows test rows. The gate job passes the event and reads the eleven
-key=value lines this appends to --output. The flags it prints reproduce the plan where `gh` is logged in.
+"""Plans a release run: the version, the image tags, the candidate run to reuse, the unit test
+rows, the runtime rows, the engine rows, the site's platforms and the test rows. The gate job passes the
+event and reads the nine key=value lines this appends to --output. The flags it prints reproduce the plan where `gh` is logged in.
 """
 
 import argparse
@@ -19,11 +19,18 @@ ZERO = "0" * 40
 DOCS = re.compile(r"^docs/|^LICENSE$|^[^/]+\.md$")
 # The macOS test rows, one per share of the test classes. The last also runs the variant cases.
 MACOS_SHARDS = 2
-# The Linux test rows per architecture. The first runs the musl start and uploads the engine
-# executables; amd64's first also runs the unit tests and the lint.
+# The Linux test rows per architecture. The first runs the musl start and uploads the engine executables.
 LINUX_SHARDS = 2
 # The Windows test rows per runner, one per share. amd64's last share also runs the variant cases.
 WINDOWS_SHARDS = 5
+# The runner of each target's unit, engine and test rows. Windows arm64 test rows name their own.
+RUNNERS = {"linux-amd64": "ubuntu-24.04", "linux-arm64": "ubuntu-24.04-arm", "macos-arm64": "macos-15",
+           "windows-amd64": "windows-2025"}
+# The minutes a runtime row may run. A cold Windows run compiles PHP and its libraries for about 22 minutes ahead of the link.
+TIMEOUTS = {"linux": 180, "macos": 240, "windows": 90}
+SYSTEMS = {"linux": "Linux", "macos": "macOS", "windows": "Windows"}
+# A macOS or Windows runtime links one C library, which its row leaves unnamed.
+NO_LIBC = {"name": "", "builder": "", "suffix": ""}
 
 
 def listed(path, body, key, fields):
@@ -46,7 +53,7 @@ def candidate(event, fetch):
         return None
     path = f"repos/{event['repo']}/actions/runs/{run}/artifacts?per_page=100"
     artifacts = listed(path, fetch(path), "artifacts", {"expired": bool, "name": str})
-    # The builder image archives live one day and only their own run's payload job reads them,
+    # The builder image archives live one day and only their own run's image job reads them,
     # so a release approved days after its candidate still publishes the candidate's files.
     return None if any(artifact["expired"] for artifact in artifacts if not artifact["name"].startswith("builder-linux-")) else run
 
@@ -56,39 +63,64 @@ def platform_matrix(targets, system, platform):
             if name.startswith(system + "-") and platform in ("all", name)]
 
 
+def runtime_row(system, arch, libc):
+    platform = f"{system}-{arch}"
+    return {"name": " ".join(word for word in (SYSTEMS[system], arch, libc["name"], "runtime") if word), "system": system,
+            "arch": arch, "target": platform + libc["suffix"], "libc": libc["name"], "builder": libc["builder"],
+            "runner": RUNNERS[platform], "timeout": TIMEOUTS[system]}
+
+
 def linux_runtime(targets, linux):
-    return [{"arch": row["arch"], "libc": libc["name"], "builder": libc["builder"], "suffix": libc["suffix"]}
-            for row in linux for libc in targets["libcs"]]
+    return [runtime_row("linux", row["arch"], libc) for row in linux for libc in targets["libcs"]]
+
+
+def test_row(name, target, results, shard="", smoke=False, variant=False, first=False, runner=None):
+    return {"name": name, "runner": runner or RUNNERS[target], "target": target, "shard": shard, "smoke": smoke,
+            "variant": variant, "first": first, "results": results}
 
 
 def linux_tests(linux, gate):
-    """A gate run tests arm64 with the smoke set; every other run tests each architecture in full."""
+    """A gate run tests arm64 with the smoke set; every other run tests each architecture in full. Each
+    architecture's first row also checks its files and starts the musl one on a musl host."""
     rows = []
     for row in linux:
+        target = "linux-" + row["arch"]
         if gate and row["arch"] != "amd64":
-            rows.append({"arch": row["arch"], "shard": "", "smoke": True, "first": True, "units": False})
+            rows.append(test_row(f"Linux {row['arch']} start cases", target, f"{target}-smoke", smoke=True, first=True))
             continue
-        rows += [{"arch": row["arch"], "shard": f"{index}/{LINUX_SHARDS}", "smoke": False, "first": index == 1,
-                  "units": index == 1 and row["arch"] == "amd64"} for index in range(1, LINUX_SHARDS + 1)]
+        rows += [test_row(f"Linux {row['arch']} tests ({index}/{LINUX_SHARDS})", target, f"{target}-{index}",
+                          shard=f"{index}/{LINUX_SHARDS}", first=index == 1) for index in range(1, LINUX_SHARDS + 1)]
     return rows
 
 
+def macos_tests(macos):
+    """Every share also runs the extra classes, and the last runs the variant cases."""
+    return [test_row(f"macOS {row['arch']} tests ({index}/{MACOS_SHARDS})", "macos-" + row["arch"],
+                     f"macos-{row['arch']}-{index}", shard=f"{index}/{MACOS_SHARDS}+extra", variant=index == MACOS_SHARDS)
+            for row in macos for index in range(1, MACOS_SHARDS + 1)]
+
+
 def windows_tests(windows, gate):
-    """Both runners test the amd64 build: arm64 runs it under x64 emulation, and a gate run
-    gives arm64 the smoke set alone."""
+    """Both runners test the amd64 build: arm64 runs it under x64 emulation. Under gate,
+    build.yml's windows-arm job runs the arm64 start cases, so arm64 takes no row."""
     if not windows:
         return []
-    rows = [{"name": f"Windows amd64 tests ({index}/{WINDOWS_SHARDS})", "runner": "windows-2025",
-             "results": f"windows-amd64-{index}", "shard": f"{index}/{WINDOWS_SHARDS}+extra",
-             "variant": index == WINDOWS_SHARDS, "smoke": False} for index in range(1, WINDOWS_SHARDS + 1)]
+    target = "windows-amd64"
+    rows = [test_row(f"Windows amd64 tests ({index}/{WINDOWS_SHARDS})", target, f"windows-amd64-{index}",
+                     shard=f"{index}/{WINDOWS_SHARDS}+extra", variant=index == WINDOWS_SHARDS)
+            for index in range(1, WINDOWS_SHARDS + 1)]
     if gate:
-        return rows + [{"name": "Windows arm64 start cases (amd64 emulated)", "runner": "windows-11-arm",
-                        "results": "windows-arm64-smoke", "shard": "", "variant": False, "smoke": True}]
-    rows += [{"name": f"Windows arm64 tests (amd64 emulated, {index}/{WINDOWS_SHARDS})", "runner": "windows-11-arm",
-              "results": f"windows-arm64-{index}", "shard": f"{index}/{WINDOWS_SHARDS}", "variant": False,
-              "smoke": False} for index in range(1, WINDOWS_SHARDS + 1)]
-    return rows + [{"name": "Windows arm64 variant tests (amd64 emulated)", "runner": "windows-11-arm",
-                    "results": "windows-arm64-variant", "shard": "", "variant": True, "smoke": False}]
+        return rows
+    rows += [test_row(f"Windows arm64 tests (amd64 emulated, {index}/{WINDOWS_SHARDS})", target,
+                      f"windows-arm64-{index}", shard=f"{index}/{WINDOWS_SHARDS}", runner="windows-11-arm")
+             for index in range(1, WINDOWS_SHARDS + 1)]
+    return rows + [test_row("Windows arm64 variant tests (amd64 emulated)", target, "windows-arm64-variant",
+                            variant=True, runner="windows-11-arm")]
+
+
+def unit_tests(systems):
+    """One row per system the plan builds, on the runner of its first target."""
+    return [{"system": system, "runner": RUNNERS[f"{system}-{rows[0]['arch']}"]} for system, rows in systems if rows]
 
 
 def plan(event, targets, fetch):
@@ -112,23 +144,26 @@ def plan(event, targets, fetch):
         path = f"repos/{event['repo']}/compare/{event['before']}...{event['sha']}"
         files = listed(path, fetch(path), "files", {"filename": str})
         linux = [{"arch": "amd64"}] if any(not DOCS.search(file["filename"]) for file in files) else []
-    # Every platform packs the payload job's output, so any target calls for it.
+    # The job image exports every target's payload, so any target calls for it.
     build = bool(linux or macos or windows)
     runtimes = linux_runtime(targets, linux)
     if build:
-        # The payload job runs PHP from the amd64 musl runtime, so any build compiles it.
-        payload = [row for row in linux_runtime(targets, [{"arch": "amd64"}]) if row["libc"] == "musl"]
-        runtimes += [row for row in payload if row not in runtimes]
-        runtimes.sort(key=lambda row: (row["arch"], row["builder"], row["libc"], row["suffix"]))
-    tests = [{"arch": row["arch"], "shard": f"{index}/{MACOS_SHARDS}", "results": f"macos-{row['arch']}-{index}",
-              "variant": index == MACOS_SHARDS} for row in macos for index in range(1, MACOS_SHARDS + 1)]
-    return {"version": version, "build": build, "candidate": run, "image_tags": image_tags, "linux": linux,
-            "linux_tests": linux_tests(linux, gate), "linux_runtime": runtimes, "macos": macos, "macos_tests": tests,
-            "windows": windows, "windows_tests": windows_tests(windows, gate)}
+        # The job image runs PHP from the amd64 musl runtime, so any build compiles it.
+        image = [row for row in linux_runtime(targets, [{"arch": "amd64"}]) if row["libc"] == "musl"]
+        runtimes += [row for row in image if row not in runtimes]
+        runtimes.sort(key=lambda row: (row["arch"], row["builder"]))
+    systems = (("linux", linux), ("macos", macos), ("windows", windows))
+    runtimes += [runtime_row(system, row["arch"], NO_LIBC) for system, rows in systems[1:] for row in rows]
+    planned = [f"{system}-{row['arch']}" for system, rows in systems for row in rows]
+    return {"version": version, "build": build, "candidate": run, "image_tags": image_tags,
+            "unit": unit_tests(systems), "runtime": runtimes,
+            "engine": [{"target": target, "runner": RUNNERS[target]} for target in planned],
+            "platforms": ",".join(planned),
+            "tests": linux_tests(linux, gate) + macos_tests(macos) + windows_tests(windows, gate)}
 
 
 def encode(key, value):
-    if key in ("version", "image_tags"):
+    if key in ("version", "image_tags", "platforms"):
         return value
     return "" if value is None else json.dumps(value, separators=(",", ":"))
 

@@ -9,8 +9,8 @@ set -euo pipefail
 #   host     the fixture site with its build's start cases, a copy without Node, the engine
 #            executable, the cases that need a daemon on this host, and the engine
 #            executable's cases against the fixture
-# The fixture and host builds run the start cases, since release.yml's Linux jobs test the same
-# file in full and its Linux amd64 job runs the Go and Python unit tests. With no phase, one
+# The fixture and host builds run the start cases, since release.yml's Linux test rows run the same
+# file in full and its unit job runs the Go and Python unit tests. With no phase, one
 # build of each site runs its whole suite, after the unit tests.
 # Usage: build/test/qa.sh [fixture|variant|host]
 phase=${1:-}

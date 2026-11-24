@@ -57,13 +57,19 @@ class NativePack(unittest.TestCase):
     def publish_checksum(self, sha256):
         (self.release / "checksums.txt").write_text(f"{sha256}  {FILE}\n{'1' * 64}  other-file\n")
 
-    def pack(self, target=TARGET):
+    def pack(self, target=TARGET, source=None):
         return subprocess.run(
-            ["bash", SCRIPT, "--base-url", self.base_url, "--target", target, "--payload", self.payload,
+            ["bash", SCRIPT, *(["--base-url", self.base_url] if source is None else source), "--target", target, "--payload", self.payload,
              "--output", self.output, "--site-version", "2026.10.1"],
-            capture_output=True, text=True)
+            capture_output=True, text=True, cwd=self.scratch)
 
     @unittest.skipUnless(shutil.which("go"), "packing builds the launcher with Go")
+    def test_a_runtime_folder_packs_with_no_download_and_the_version_it_is_given(self):
+        (self.release / FILE).unlink()
+        result = self.pack(source=["--runtime", "runtime", "--version", "9.9.9"])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("engine version 9.9.9", result.stdout)
+
     @unittest.skipUnless(shutil.which("go"), "packing builds the launcher with Go")
     def test_the_launcher_takes_the_architecture_the_target_names(self):
         # ELF stores the machine at byte 18: 62 is x86-64, 183 is AArch64.

@@ -215,8 +215,8 @@ func NewPlan(r Request) (Plan, error) {
 	return plan, nil
 }
 
-// payloadTargets are the builds that pack an exported payload: the release
-// workflow's Linux jobs, and the macOS and Windows builds on their own hosts.
+// payloadTargets are the targets a payload-only export carries Node for: the release
+// run's variant job exports one, and its test rows pack it on their own hosts.
 var payloadTargets = siteconfig.PlatformNames()
 
 // nodeTargets lists the targets the resolve step fetches Node for: the payload
