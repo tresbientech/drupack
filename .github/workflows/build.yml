@@ -85,6 +85,8 @@ jobs:
         name: Name the engine's image
         env:
           RUNTIME_RELEASE: ${{ inputs.runtime-release }}
+        # bash by name adds pipefail, so a refused token request stops the step.
+        shell: bash
         run: |
           if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
             echo 'The calling job must grant id-token: write, which names the engine ref.' >&2
