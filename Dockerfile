@@ -99,8 +99,8 @@ ENV GOPROXY="https://proxy.golang.org|https://proxy.golang.org,direct"
 # 1.x applies a patch to a dist install with GNU patch alone.
 RUN apt-get update && apt-get install -y --no-install-recommends patch procps python3 \
     && rm -rf /var/lib/apt/lists/*
-RUN wget -q -O /opt/composer.phar https://getcomposer.org/download/2.11.2/composer.phar \
-    && echo 'dd158c0afd41d15fac89e1b4e47b5d42911fe316c3687cd5edac98319b25d028  /opt/composer.phar' | sha256sum -c -
+RUN wget -q -O /opt/composer.phar https://getcomposer.org/download/2.11.3/composer.phar \
+    && echo '04f8b003da4e3a2459056591fbfebd02b4dc3e5adeb158616b90cf55a65113ec  /opt/composer.phar' | sha256sum -c -
 COPY --from=runtimes / /opt/drupack/runtimes/
 COPY --from=runtime-components / /opt/drupack/runtime-components/
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
