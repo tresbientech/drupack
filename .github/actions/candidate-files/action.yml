@@ -38,6 +38,7 @@ runs:
         RUNTIME: ${{ inputs.runtime }}
       shell: bash
       run: |
-        records=$(jq -cn --argjson engine "$ENGINE" --argjson runtime "$RUNTIME" \
-          '$engine + ($runtime | with_entries(select(.key | startswith("runtime-linux-") | not)))')
+        records=$(jq -cn --argjson engine "$ENGINE" --argjson runtime "$RUNTIME" '$engine
+          + ($runtime | {"runtime-macos-arm64", "runtime-windows-amd64"})
+          + ($runtime | with_entries(select(.key | startswith("runtime-components-"))))')
         python3 build/release/digest.py check --exactly "$records" candidates/* runtimes/* components/*
