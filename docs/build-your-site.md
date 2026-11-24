@@ -167,7 +167,7 @@ release and prints each file that differs from the engine checkout's
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/site" -v "$PWD/../runtimes:/runtimes" \
-    -w /site ghcr.io/tresbientech/drupack-build:1.0.0-rc12 \
+    -w /site ghcr.io/tresbientech/drupack-build:1.0.0-rc13 \
     drupack-build --site . --runtimes /runtimes --output dist
 ```
 
@@ -404,7 +404,7 @@ jobs:
       contents: write
       id-token: write
       attestations: write
-    uses: tresbientech/drupack/.github/workflows/build.yml@1.0.0-rc12
+    uses: tresbientech/drupack/.github/workflows/build.yml@1.0.0-rc13
     with:
       publish: true
     secrets:
@@ -431,7 +431,7 @@ it builds:
 ```yaml
     uses: tresbientech/drupack/.github/workflows/build.yml@main
     with:
-      runtime-release: 1.0.0-rc12
+      runtime-release: 1.0.0-rc13
 ```
 
 Inputs:
@@ -498,7 +498,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/tresbientech/drupack-build:1.0.0-rc12
+      image: ghcr.io/tresbientech/drupack-build:1.0.0-rc13
     defaults:
       run:
         shell: bash
@@ -562,10 +562,10 @@ that tag, since GitLab does not tell an included file its ref.
 ```yaml
 include:
   - project: project/drupack
-    ref: 1.0.0-rc12
+    ref: 1.0.0-rc13
     file: ci/drupack.gitlab-ci.yml
     inputs:
-      version: 1.0.0-rc12
+      version: 1.0.0-rc13
       publish: true
 ```
 
@@ -587,7 +587,7 @@ The build is one command in the job image, from the site repository's root:
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/site" -w /site -e COMPOSER_AUTH \
-    ghcr.io/tresbientech/drupack-build:1.0.0-rc12 \
+    ghcr.io/tresbientech/drupack-build:1.0.0-rc13 \
     drupack-build --site . --output dist
 ```
 
