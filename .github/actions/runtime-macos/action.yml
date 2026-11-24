@@ -10,6 +10,13 @@ inputs:
   go-version:
     description: The Go release the link uses.
     required: true
+outputs:
+  runtime:
+    description: The digest of the runtime folder the action uploaded.
+    value: ${{ steps.digest.outputs.runtime }}
+  components:
+    description: The digest of the component report the action uploaded.
+    value: ${{ steps.digest.outputs.components }}
 runs:
   using: composite
   steps:
@@ -88,3 +95,10 @@ runs:
         name: runtime-components-${{ inputs.target }}
         path: runtime-components
         if-no-files-found: error
+
+    # release.yml's later jobs check what they download against these.
+    - id: digest
+      shell: bash
+      run: |
+        printf 'runtime=%s\ncomponents=%s\n' "$(python3 build/release/digest.py record "$RUNNER_TEMP/drupack/runtime")" \
+          "$(python3 build/release/digest.py record runtime-components)" >>"$GITHUB_OUTPUT"

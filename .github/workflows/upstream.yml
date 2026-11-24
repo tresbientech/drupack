@@ -4,7 +4,7 @@ name: Upstream
 # versions. release.yml builds and tests the candidate on every platform, with
 # build/test/qa.sh. A run with no input stops there, as a canary. A run with release
 # or version waits for the maintainer's approval, then gives drupal.org main and the
-# tag, and the tag run of release.yml publishes it.
+# tag, and publish.yml publishes the candidate's files from the tag.
 #
 # drupal.org's daily pipeline schedule dispatches this workflow with no input, from
 # the dispatch job of .gitlab-ci.yml.
@@ -221,14 +221,14 @@ jobs:
           SUITE: ${{ inputs.version != '' && 'gate' || steps.bump.outputs.suite }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          # The run builds under the tag's version, so the tag run publishes its files.
+          # The run builds under the tag's version, so publish.yml finds it from the tag.
           jq -n --arg ref "$BRANCH" --arg version "$VERSION" --arg suite "$SUITE" \
             '{ref: $ref, inputs: {platform: "all", version: $version, suite: $suite}}' \
             | curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" \
               -X POST "$GITHUB_API/actions/workflows/release.yml/dispatches" -d @-
           # An earlier candidate of the same bump ran on the same branch name, so the
           # run is found by its commit. A failed run gets one rerun of its failed jobs.
-          bash build/release/wait-for-run.sh "event=workflow_dispatch&head_sha=$SHA"
+          bash build/release/wait-for-run.sh release.yml "event=workflow_dispatch&head_sha=$SHA"
           printf 'version=%s\nsha=%s\n' "$VERSION" "$SHA" >>"$GITHUB_OUTPUT"
 
   # The release environment names the maintainer as required reviewer. A rejection
@@ -263,8 +263,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # A push made with the job's token starts no workflow, and release.yml runs
-      # on the push of main and the tag, so both pushes go out with the deploy key.
+      # A push made with the job's token starts no workflow. release.yml runs on the push
+      # of main and publish.yml on the tag's, so both pushes go out with the deploy key.
       - name: Reach GitHub
         env:
           DEPLOY_KEY_BASE64: ${{ secrets.MIRROR_DEPLOY_KEY_BASE64 }}
@@ -277,7 +277,7 @@ jobs:
 
       # A main that moved on drupal.org since the candidate refuses the fast-forward,
       # and with it the tag. GitHub then receives the same two refs, and its tag push
-      # starts the release.yml run that publishes.
+      # starts publish.yml.
       - id: release
         name: Push main and the tag to drupal.org, then to GitHub
         env:
@@ -310,7 +310,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh api --silent -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH" || true
 
-  # The tag push runs release.yml, which publishes the release. A failed run gets
+  # The tag push runs publish.yml, which publishes the release. A failed run gets
   # one rerun of its failed jobs, and fails this job if it fails again.
   tag:
     needs: release
@@ -324,7 +324,7 @@ jobs:
         env:
           VERSION: ${{ needs.release.outputs.version }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: bash build/release/wait-for-run.sh "event=push&branch=$VERSION"
+        run: bash build/release/wait-for-run.sh publish.yml "event=push&branch=$VERSION"
 
   # Writes the release notes with drupalorg-cli, a third-party tool. This job
   # holds no secret; the node job, which holds one, takes the notes as text.

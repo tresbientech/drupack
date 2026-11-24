@@ -1,0 +1,93 @@
+name: Publish
+run-name: Publish ${{ inputs.version || github.ref_name }}
+
+# A version tag publishes the files its candidate run of release.yml built, tested
+# and attested. This workflow builds nothing: a tag with no such run stops here,
+# naming the dispatch to run first. A dispatch verifies a candidate's files at the
+# dispatched commit and publishes nothing.
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version whose candidate to verify, at the dispatched commit. Nothing is published.
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: candidate
+        name: Find the candidate run
+        run: printf 'run=%s\n' "$(python3 build/release/release-plan.py candidate "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$VERSION")" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: bundle
+          run-id: ${{ steps.candidate.outputs.run }}
+          github-token: ${{ github.token }}
+
+      # Another job of the candidate run could have replaced the artifact, and none could
+      # attest one: the archive passes only if release.yml's bundle job signed it at this
+      # commit. release.json then ties its files to the version.
+      - name: Verify the release files
+        run: |
+          # An older gh matched --signer-workflow as an unescaped prefix of the signer's path.
+          gh=$(gh --version | awk 'NR == 1 {print $3}')
+          if [ "$(printf '%s\n' 2.102.0 "$gh" | sort -V | head -n 1)" != 2.102.0 ]; then
+            echo "gh $gh is older than 2.102.0." >&2
+            exit 1
+          fi
+          gh attestation verify bundle/release.tar --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" --source-digest "$GITHUB_SHA"
+          mkdir release
+          tar -xf bundle/release.tar -C release
+          named=$(jq -r '"\(.version) \(.build_commit)"' release/release.json)
+          if [ "$named" != "$VERSION $GITHUB_SHA" ]; then
+            echo "The archive holds $named, and this run publishes $VERSION $GITHUB_SHA." >&2
+            exit 1
+          fi
+          for file in release/*; do echo "verified ${file##*/}"; done
+
+      # Site builds pull the job image by the engine's version.
+      - name: Name the job image after the version
+        if: github.event_name == 'push'
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx imagetools create --tag "ghcr.io/$GITHUB_REPOSITORY-build:$VERSION" \
+            "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA"
+
+      # GitHub refuses github.token a release whose commit differs from main in
+      # .github/workflows, which happens once main moves during a tag run.
+      - name: Publish the GitHub Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
+        run: |
+          # The pins the tag's upstream run moved open the notes. A tag with none gives an
+          # empty file, and gh then sends the generated notes alone.
+          python3 build/release/release-node.py upgrades "$VERSION" >"$RUNNER_TEMP/upgrades.md"
+          gh release create "$VERSION" release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Drupack $VERSION" \
+            --notes-file "$RUNNER_TEMP/upgrades.md" \
+            --generate-notes

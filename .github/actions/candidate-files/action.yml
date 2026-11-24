@@ -1,0 +1,43 @@
+name: Candidate files
+description: Downloads this run's engine executables, macOS and Windows runtimes and runtime reports, and checks each against the record of the job that uploaded it.
+inputs:
+  engine:
+    description: The engine job's outputs, as JSON.
+    required: true
+  runtime:
+    description: The runtime job's outputs, as JSON.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@v8
+      with:
+        pattern: drupack-*
+        path: candidates
+
+    # A lone match would land in the path itself, so each runtime names its folder.
+    - uses: actions/download-artifact@v8
+      with:
+        name: runtime-macos-arm64
+        path: runtimes/runtime-macos-arm64
+
+    - uses: actions/download-artifact@v8
+      with:
+        name: runtime-windows-amd64
+        path: runtimes/runtime-windows-amd64
+
+    - uses: actions/download-artifact@v8
+      with:
+        pattern: runtime-components-*
+        path: components
+
+    # The Linux runtimes reach a release inside the engine executables, which the engine job checked them for.
+    - name: Check each artifact against its record
+      env:
+        ENGINE: ${{ inputs.engine }}
+        RUNTIME: ${{ inputs.runtime }}
+      shell: bash
+      run: |
+        records=$(jq -cn --argjson engine "$ENGINE" --argjson runtime "$RUNTIME" \
+          '$engine + ($runtime | with_entries(select(.key | startswith("runtime-linux-") | not)))')
+        python3 build/release/digest.py check --exactly "$records" candidates/* runtimes/* components/*

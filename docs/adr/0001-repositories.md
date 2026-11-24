@@ -19,9 +19,8 @@ Drupack's code needs one place where merge requests land. Its executables need r
 - A drupal.org webhook on push and tag events calls `repository_dispatch`. `sync.yml` clones drupal.org and pushes `main` and the tags to GitHub. It never forces and never prunes.
 - Every push to GitHub uses an SSH deploy key. A push made with a job's own token starts no workflow.
 - `upstream.yml` pushes `main` and the tag to drupal.org with a project access token, then to GitHub.
-- A version tag starts `release.yml`, which tests the release files and publishes them as a GitHub Release.
+- A version tag starts `publish.yml`. It verifies the release files a candidate run of `release.yml` built and tested, and publishes them as a GitHub Release.
 - A manual dispatch builds every platform. A push to `main` builds Linux amd64 alone, when it touched a path an executable carries.
-- GitHub documents no path filter for a tag push, and a tag whose build was filtered away would publish nothing.
 
 ### Drupacked Demo
 

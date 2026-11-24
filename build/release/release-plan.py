@@ -1,6 +1,6 @@
 """Plans a release run: the version, the image tags, the candidate run to reuse, the unit test
 rows, the runtime rows, the engine rows, the site's platforms and the test rows. The gate job passes the
-event and reads the nine key=value lines this appends to --output. The flags it prints reproduce the plan where `gh` is logged in.
+event and reads the nine key=value lines this appends to --output. `candidate REPO SHA VERSION` prints the run publish.yml reads. The flags it prints reproduce the plan where `gh` is logged in.
 """
 
 import argparse
@@ -43,19 +43,20 @@ def listed(path, body, key, fields):
     return entries
 
 
-def candidate(event, fetch):
-    """The id of the successful candidate run for this commit, unless its files expired. A commit
-    holds one version's pin, so its candidate needs no version to be found."""
-    path = f"repos/{event['repo']}/actions/workflows/release.yml/runs?head_sha={event['sha']}&event=workflow_dispatch&status=success"
+def candidate(repo, sha, fetch, version=None):
+    """The id of the successful candidate run for this commit, or None. A main push takes the
+    candidate of any version: a commit holds one version's pin. publish.yml names the
+    version, and takes the run that still holds its release artifact."""
+    path = f"repos/{repo}/actions/workflows/release.yml/runs?head_sha={sha}&event=workflow_dispatch&status=success"
     runs = listed(path, fetch(path), "workflow_runs", {"display_title": str, "id": int})
-    run = next((run["id"] for run in runs if run["display_title"].startswith(TITLE.format(version=""))), None)
-    if run is None:
-        return None
-    path = f"repos/{event['repo']}/actions/runs/{run}/artifacts?per_page=100"
+    title = TITLE.format(version=version or "")
+    run = next((run["id"] for run in runs
+                if (run["display_title"] == title if version else run["display_title"].startswith(title))), None)
+    if run is None or not version:
+        return run
+    path = f"repos/{repo}/actions/runs/{run}/artifacts?per_page=100"
     artifacts = listed(path, fetch(path), "artifacts", {"expired": bool, "name": str})
-    # The builder image archives live one day and only their own run's image job reads them,
-    # so a release approved days after its candidate still publishes the candidate's files.
-    return None if any(artifact["expired"] for artifact in artifacts if not artifact["name"].startswith("builder-linux-")) else run
+    return run if any(artifact["name"] == "release" and not artifact["expired"] for artifact in artifacts) else None
 
 
 def platform_matrix(targets, system, platform):
@@ -66,7 +67,8 @@ def platform_matrix(targets, system, platform):
 def runtime_row(system, arch, libc):
     platform = f"{system}-{arch}"
     return {"name": " ".join(word for word in (SYSTEMS[system], arch, libc["name"], "runtime") if word), "system": system,
-            "arch": arch, "target": platform + libc["suffix"], "libc": libc["name"], "builder": libc["builder"],
+            "arch": arch, "target": platform + libc["suffix"], "artifact": "-".join(filter(None, (platform, libc["name"]))),
+            "libc": libc["name"], "builder": libc["builder"],
             "runner": RUNNERS[platform], "timeout": TIMEOUTS[system]}
 
 
@@ -118,23 +120,23 @@ def windows_tests(windows, gate):
                             variant=True, runner="windows-11-arm")]
 
 
-def unit_tests(systems):
-    """One row per system the plan builds, on the runner of its first target."""
-    return [{"system": system, "runner": RUNNERS[f"{system}-{rows[0]['arch']}"]} for system, rows in systems if rows]
+def unit_tests(targets, systems):
+    """One row per system, on the runner of the system's first built target, or of its first target."""
+    return [{"system": system, "runner": RUNNERS[f"{system}-{(rows or platform_matrix(targets, system, 'all'))[0]['arch']}"]}
+            for system, rows in systems]
 
 
 def plan(event, targets, fetch):
-    tag = event["ref_type"] == "tag"
-    # A gate candidate tests one native platform per system in full; a tag run and a push take no suite.
+    # A gate candidate tests one native platform per system in full; a push takes no suite.
     gate = event["suite"] == "gate"
-    version = event["ref_name"] if tag else (event["version"] or "dev-" + event["sha"][:12])
-    # build.yml reads sha-COMMIT at a tag and dev-COMMIT on a branch, and a tag run publishes its candidate's sha-COMMIT.
-    image_tags = "sha" if tag else "dev sha" if event["version"] and event["platform"] == "all" else "dev"
+    version = event["version"] or "dev-" + event["sha"][:12]
+    # build.yml reads sha-COMMIT at a tag and dev-COMMIT on a branch, and publish.yml names a candidate's sha-COMMIT after its version.
+    image_tags = "dev sha" if event["version"] and event["platform"] == "all" else "dev"
     linux = macos = windows = []
-    # A release pushes its tested commit to main and to the tag, and both runs reuse its candidate.
-    run = candidate(event, fetch) if event["event_name"] == "push" else None
+    # A release pushes its tested commit to main, and that push reuses its candidate.
+    run = candidate(event["repo"], event["sha"], fetch) if event["event_name"] == "push" else None
     # The weekly schedule plans like a dispatch of every platform with no version.
-    if run is None and (tag or event["event_name"] in ("workflow_dispatch", "schedule")):
+    if run is None and event["event_name"] in ("workflow_dispatch", "schedule"):
         linux, macos, windows = (platform_matrix(targets, system, event["platform"])
                                  for system in ("linux", "macos", "windows"))
     # A new branch reports an all-zero before, which compares against nothing.
@@ -156,7 +158,7 @@ def plan(event, targets, fetch):
     runtimes += [runtime_row(system, row["arch"], NO_LIBC) for system, rows in systems[1:] for row in rows]
     planned = [f"{system}-{row['arch']}" for system, rows in systems for row in rows]
     return {"version": version, "build": build, "candidate": run, "image_tags": image_tags,
-            "unit": unit_tests(systems), "runtime": runtimes,
+            "unit": unit_tests(targets, systems) if build else [], "runtime": runtimes,
             "engine": [{"target": target, "runner": RUNNERS[target]} for target in planned],
             "platforms": ",".join(planned),
             "tests": linux_tests(linux, gate) + macos_tests(macos) + windows_tests(windows, gate)}
@@ -168,20 +170,9 @@ def encode(key, value):
     return "" if value is None else json.dumps(value, separators=(",", ":"))
 
 
-def main(argv):
-    parser = argparse.ArgumentParser(description=__doc__)
-    for flag in ("ref-type", "ref-name", "event-name", "sha", "before", "platform", "version", "repo", "targets"):
-        parser.add_argument("--" + flag, required=True)
-    # Empty on a push, a tag and the schedule, which test in full.
-    parser.add_argument("--suite", required=True, choices=("", "full", "gate"))
-    parser.add_argument("--output")
-    args = parser.parse_args(argv)
-    print("Flags:", " ".join(f"--{name.replace('_', '-')} {shlex.quote(value)}" for name, value in vars(args).items() if name != "output"))
-    fetched = []
-
+def reader(log):
     def fetch(path):
-        print("Fetching", path)
-        fetched.append(path)
+        print("Fetching", path, file=log)
         # GitHub answers 500 for a compare under load, so a failed read gets two more tries.
         for pause in (10, 30):
             result = subprocess.run(["gh", "api", path], stdout=subprocess.PIPE)
@@ -189,13 +180,34 @@ def main(argv):
                 return json.loads(result.stdout)
             time.sleep(pause)
         return json.loads(subprocess.run(["gh", "api", path], check=True, stdout=subprocess.PIPE).stdout)
+    return fetch
 
-    result = plan(vars(args), json.loads(Path(args.targets).read_text()), fetch)
-    # Artifacts are fetched only for a matching candidate, so a plan without one dropped it.
-    expired = [path for path in fetched if "/artifacts?" in path]
-    if expired and result["candidate"] is None:
-        print(f"The files of candidate run {expired[0].split('/')[5]} expired.")
-    print(f"Reusing the files of candidate run {result['candidate']}." if result["candidate"] is not None
+
+def find(argv):
+    parser = argparse.ArgumentParser(prog="release-plan.py candidate", description="Prints the candidate run publish.yml reads.")
+    for name in ("repo", "sha", "version"):
+        parser.add_argument(name)
+    args = parser.parse_args(argv)
+    run = candidate(args.repo, args.sha, reader(sys.stderr), args.version)
+    if run is None:
+        raise SystemExit(f"No successful run named {TITLE.format(version=args.version)!r} holds a release artifact for {args.sha}. "
+                         f"Dispatch one at that commit: gh workflow run release.yml --ref BRANCH -f version={args.version}")
+    print(run)
+
+
+def main(argv):
+    if argv[:1] == ["candidate"]:
+        return find(argv[1:])
+    parser = argparse.ArgumentParser(description=__doc__)
+    for flag in ("event-name", "sha", "before", "platform", "version", "repo", "targets"):
+        parser.add_argument("--" + flag, required=True)
+    # Empty on a push and the schedule, which test in full.
+    parser.add_argument("--suite", required=True, choices=("", "full", "gate"))
+    parser.add_argument("--output")
+    args = parser.parse_args(argv)
+    print("Flags:", " ".join(f"--{name.replace('_', '-')} {shlex.quote(value)}" for name, value in vars(args).items() if name != "output"))
+    result = plan(vars(args), json.loads(Path(args.targets).read_text()), reader(sys.stdout))
+    print(f"Candidate run {result['candidate']} built this commit." if result["candidate"] is not None
           else "Building." if result["build"] else "Nothing to build.")
     lines = "".join(f"{key}={encode(key, value)}\n" for key, value in result.items())
     print(lines, end="")

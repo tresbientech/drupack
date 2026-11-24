@@ -418,6 +418,11 @@ Each target in `platforms` builds and runs the conformance suite, with the
 site's tests, in a job of its own. Windows on Arm runs the `windows-amd64`
 executable under emulation, and a failure there blocks the release too.
 
+The Linux build runs in a container that mounts the repository checkout
+read-only.
+Composer runs on a copy in the build's work folder. A site test that writes a
+file beside itself fails there, so it writes to a temporary folder.
+
 A caller pinned to a tag packs the runtimes of that tag. A caller pinned to a
 branch or a commit sets `runtime-release` to the engine release whose runtimes
 it packs. Without it, the workflow refuses the macOS and Windows targets before

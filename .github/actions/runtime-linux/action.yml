@@ -4,8 +4,8 @@ inputs:
   target:
     description: The platform and libc the runtime serves, as linux-amd64 or linux-amd64-musl.
     required: true
-  arch:
-    description: The runner's architecture, amd64 or arm64.
+  artifact:
+    description: The name its uploads end with, as linux-amd64-glibc.
     required: true
   libc:
     description: The C library, glibc or musl.
@@ -16,6 +16,13 @@ inputs:
   version:
     description: The engine version the runtime carries.
     required: true
+outputs:
+  runtime:
+    description: The digest of the runtime folder the action uploaded.
+    value: ${{ steps.digest.outputs.runtime }}
+  components:
+    description: The digest of the component report the action uploaded.
+    value: ${{ steps.digest.outputs.components }}
 runs:
   using: composite
   steps:
@@ -72,7 +79,7 @@ runs:
       if: failure()
       uses: actions/upload-artifact@v7
       with:
-        name: spc-log-linux-${{ inputs.arch }}-${{ inputs.libc }}
+        name: spc-log-${{ inputs.artifact }}
         path: ${{ runner.temp }}/builder/spc-log
         retention-days: 7
 
@@ -90,7 +97,7 @@ runs:
     - if: steps.image.outputs.built == 'true' && github.event.repository.fork == false
       uses: actions/upload-artifact@v7
       with:
-        name: builder-linux-${{ inputs.arch }}-${{ inputs.libc }}
+        name: builder-${{ inputs.artifact }}
         path: builder-image
         compression-level: 0
         retention-days: 1
@@ -113,7 +120,7 @@ runs:
 
     - uses: actions/upload-artifact@v7
       with:
-        name: runtime-linux-${{ inputs.arch }}-${{ inputs.libc }}
+        name: runtime-${{ inputs.artifact }}
         path: runtime-${{ inputs.libc }}
         if-no-files-found: error
 
@@ -131,6 +138,15 @@ runs:
 
     - uses: actions/upload-artifact@v7
       with:
-        name: runtime-components-linux-${{ inputs.arch }}-${{ inputs.libc }}
+        name: runtime-components-${{ inputs.artifact }}
         path: runtime-components
         if-no-files-found: error
+
+    # release.yml's later jobs check what they download against these.
+    - id: digest
+      env:
+        LIBC: ${{ inputs.libc }}
+      shell: bash
+      run: |
+        printf 'runtime=%s\ncomponents=%s\n' "$(python3 build/release/digest.py record "runtime-$LIBC")" \
+          "$(python3 build/release/digest.py record runtime-components)" >>"$GITHUB_OUTPUT"

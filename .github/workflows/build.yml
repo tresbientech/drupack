@@ -53,20 +53,36 @@ env:
   GOPROXY: https://proxy.golang.org|https://proxy.golang.org,direct
 
 jobs:
-  # The github context of a called workflow names the caller. The OIDC token names
-  # this file at the ref the caller pinned, so the calling job grants id-token: write.
-  engine:
+  # The job image carries the engine, its Linux runtimes and drupack-build. The
+  # build runs in a container of it, which reads the site and writes one folder,
+  # and holds no token of this job. No Docker daemon answers inside it, so the
+  # suite skips the cases that need one. The build also exports the payload and
+  # lists the native targets for the native jobs.
+  build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 90
+    # The github context of a called workflow names the caller. The OIDC token names
+    # this file at the ref the caller pinned, so the calling job grants id-token: write.
     permissions:
+      contents: read
       id-token: write
     outputs:
-      image: ${{ steps.image.outputs.image }}
-      repository: ${{ steps.image.outputs.repository }}
-      commit: ${{ steps.image.outputs.commit }}
-      runtime-release: ${{ steps.image.outputs.runtime_release }}
+      native: ${{ steps.build.outputs.native }}
+      version: ${{ steps.build.outputs.version }}
+      engine-version: ${{ steps.build.outputs.engine_version }}
+      repository: ${{ steps.engine.outputs.repository }}
+      commit: ${{ steps.engine.outputs.commit }}
+      runtime-release: ${{ steps.engine.outputs.runtime_release }}
     steps:
-      - id: image
+      # The job image and the conformance suite need the room.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - id: engine
+        name: Name the engine's image
         env:
           RUNTIME_RELEASE: ${{ inputs.runtime-release }}
         run: |
@@ -113,36 +129,6 @@ jobs:
             printf 'runtime_release=%s\n' "$runtime_release"
           } >>"$GITHUB_OUTPUT"
 
-  # The job image carries the engine, its Linux runtimes and drupack-build. No
-  # Docker daemon answers inside it, so the suite skips the cases that need one.
-  # The build writes under /tmp: runner.temp names the host's path, not the
-  # container's. It also exports the payload and lists the native targets for
-  # the native jobs.
-  build:
-    needs: engine
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    permissions:
-      contents: read
-    container:
-      image: ${{ needs.engine.outputs.image }}
-    outputs:
-      native: ${{ steps.build.outputs.native }}
-      version: ${{ steps.build.outputs.version }}
-      engine-version: ${{ steps.build.outputs.engine_version }}
-    # A container job runs steps with sh unless told otherwise.
-    defaults:
-      run:
-        shell: bash
-    steps:
-      # The runner mounts its tool cache at /__t, and this job runs no toolchain from
-      # it. The conformance suite needs the space.
-      - name: Free disk space
-        run: |
-          df -h /
-          rm -rf /__t/*
-          df -h /
-
       # composer install runs the site's plugins and scripts, so the checkout keeps no token.
       # checkout reads an empty repository or ref as the calling run's.
       - uses: actions/checkout@v7
@@ -154,11 +140,12 @@ jobs:
       - name: Build the executables
         id: build
         env:
+          IMAGE: ${{ steps.engine.outputs.image }}
           SITE: ${{ inputs.site }}
           PLATFORMS: ${{ inputs.platforms }}
           LIBC: ${{ inputs.libc }}
           SHA: ${{ github.sha }}
-          RUNTIME_RELEASE: ${{ needs.engine.outputs.runtime-release }}
+          RUNTIME_RELEASE: ${{ steps.engine.outputs.runtime_release }}
           RUN_RUNTIMES: ${{ inputs.run-runtimes }}
           # composer install reads it, and an unset secret leaves it empty, which Composer ignores.
           COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
@@ -168,9 +155,6 @@ jobs:
           else
             version=dev-${SHA:0:12}
           fi
-          # The checkout belongs to the runner's user, and git refuses to list its files
-          # for another one. drupack-build stages a site from that listing.
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           targets=()
           if [ -n "$PLATFORMS" ]; then targets+=(--platform "$PLATFORMS"); fi
           if [ -n "$LIBC" ]; then targets+=(--libc "$LIBC"); fi
@@ -179,44 +163,85 @@ jobs:
           native='[]'
           packs_native=
           if [ -n "$RUNTIME_RELEASE" ] || [ "$RUN_RUNTIMES" = true ]; then packs_native=true; targets+=(--native); fi
-          drupack-build --site "$SITE" "${targets[@]}" \
-            --site-version "$version" --output /tmp/drupack/dist --work /tmp/drupack/work
-          if [ -n "$packs_native" ]; then native=$(cat /tmp/drupack/dist/payload/native-targets.json); fi
-          printf 'version=%s\nnative=%s\nengine_version=%s\n' "$version" "$native" "$DRUPACK_ENGINE_VERSION" >>"$GITHUB_OUTPUT"
+          work=$RUNNER_TEMP/drupack
+          mkdir -p "$work"
+          # The site's code prints to this step's log, where the runner reads workflow
+          # commands. It reads none until the token it has never seen comes back.
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          docker run --rm --user "$(id -u):$(id -g)" -e COMPOSER_AUTH -e DRUPACK_SUITE \
+            -v "$GITHUB_WORKSPACE:/site:ro" -v "$work:$work" "$IMAGE" \
+            drupack-build --site "/site/$SITE" "${targets[@]}" \
+            --site-version "$version" --output "$work/dist" --work "$work/work" && built=true || built=
+          echo "::$token::"
+          [ -n "$built" ]
+          # The site's code wrote these files. upload-artifact follows a link, so the
+          # folder holds files and folders alone before any step reads it.
+          links=$(find "$work/dist" ! -type f ! -type d)
+          if [ -n "$links" ]; then printf 'The build wrote a link or a special file:\n%s\n' "$links" >&2; exit 1; fi
+          # One list on one line: a second JSON value would add a line to the outputs.
+          if [ -n "$packs_native" ]; then
+            native=$(jq -cse 'if length == 1 and (.[0] | type) == "array" then .[0] else error("native-targets.json holds no single list") end' "$work/dist/payload/native-targets.json")
+          fi
+          engine_version=$(docker run --rm "$IMAGE" printenv DRUPACK_ENGINE_VERSION)
+          printf 'version=%s\nnative=%s\nengine_version=%s\n' "$version" "$native" "$engine_version" >>"$GITHUB_OUTPUT"
+
+      # The site's code wrote this folder, and the suite links files inside it. The
+      # folder's own path holds no link, and find reads none, so the upload takes
+      # the logs that are files under it.
+      - name: Collect the test logs
+        id: logs
+        if: failure()
+        run: |
+          results=$RUNNER_TEMP/drupack/work/test-results
+          # A build that stopped before the suite wrote no results.
+          [ -d "$results" ] || exit 0
+          if [ "$(realpath -e "$results")" != "$(realpath "$RUNNER_TEMP")/drupack/work/test-results" ]; then
+            echo 'The results folder is reached through a link.' >&2
+            exit 1
+          fi
+          mkdir "$RUNNER_TEMP/test-logs"
+          cd "$results"
+          find . -type f \( -name '*.log' -o -name run.out -o -name run.err \) -exec cp --parents -t "$RUNNER_TEMP/test-logs" {} +
 
       - name: Upload test results
-        if: failure()
+        if: failure() && steps.logs.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: test-results
-          # The folder also holds each case's project, about 2 GB over 400,000 files.
-          path: |
-            /tmp/drupack/work/test-results/**/*.log
-            /tmp/drupack/work/test-results/**/run.out
-            /tmp/drupack/work/test-results/**/run.err
+          path: ${{ runner.temp }}/test-logs
 
       # The payload stays out of the executables, and goes up only for the native jobs.
       - uses: actions/upload-artifact@v7
         with:
           name: executables
           path: |
-            /tmp/drupack/dist
-            !/tmp/drupack/dist/payload
+            ${{ runner.temp }}/drupack/dist
+            !${{ runner.temp }}/drupack/dist/payload
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v7
         if: steps.build.outputs.native != '[]'
         with:
           name: payload
-          path: /tmp/drupack/dist/payload
+          path: ${{ runner.temp }}/drupack/dist/payload
           if-no-files-found: error
 
       # The engine's report of each Linux runtime the image carries, which the
-      # publish job reads for the Linux executables.
+      # publish job reads for the Linux executables. It comes from a container that
+      # ran nothing.
+      - name: Copy the runtime reports out of the image
+        env:
+          IMAGE: ${{ steps.engine.outputs.image }}
+        run: |
+          container=$(docker create "$IMAGE")
+          docker cp "$container:/opt/drupack/runtime-components/." "$RUNNER_TEMP/runtime-components"
+          docker rm "$container" >/dev/null
+
       - uses: actions/upload-artifact@v7
         with:
           name: runtime-components
-          path: /opt/drupack/runtime-components
+          path: ${{ runner.temp }}/runtime-components
           if-no-files-found: error
 
   # One job per macOS or Windows target, on a runner of that system. It packs the
@@ -224,7 +249,7 @@ jobs:
   # suite on the result with the site's tests. The pack tool, the pack script and
   # the suite come from the engine commit the caller pinned.
   native:
-    needs: [engine, build]
+    needs: build
     if: needs.build.outputs.native != '[]'
     runs-on: ${{ matrix.target == 'macos-arm64' && 'macos-15' || 'windows-2025' }}
     timeout-minutes: 120
@@ -246,8 +271,8 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
-          repository: ${{ needs.engine.outputs.repository }}
-          ref: ${{ needs.engine.outputs.commit }}
+          repository: ${{ needs.build.outputs.repository }}
+          ref: ${{ needs.build.outputs.commit }}
           path: drupack-engine
           persist-credentials: false
 
@@ -268,26 +293,27 @@ jobs:
           name: payload
           path: payload
 
+      # Outside the checkout: a pack carries every file of the folder it reads.
       - uses: actions/download-artifact@v8
         if: inputs.run-runtimes
         with:
           name: runtime-${{ matrix.target }}
-          path: runtime
+          path: ${{ runner.temp }}/runtime
 
       - name: Pack the site
         env:
           TARGET: ${{ matrix.target }}
-          RUNTIME_RELEASE: ${{ needs.engine.outputs.runtime-release }}
+          RUNTIME_RELEASE: ${{ needs.build.outputs.runtime-release }}
           RUN_RUNTIMES: ${{ inputs.run-runtimes }}
           ENGINE_VERSION: ${{ needs.build.outputs.engine-version }}
-          ENGINE_REPOSITORY: ${{ needs.engine.outputs.repository }}
+          ENGINE_REPOSITORY: ${{ needs.build.outputs.repository }}
           SITE_VERSION: ${{ needs.build.outputs.version }}
         run: |
           name=$(jq -r .name payload/site.json)
           extension=
           if [ "$RUNNER_OS" = Windows ]; then extension=.exe; fi
           source=(--base-url "$GITHUB_SERVER_URL/$ENGINE_REPOSITORY/releases/download/$RUNTIME_RELEASE")
-          if [ "$RUN_RUNTIMES" = true ]; then source=(--runtime runtime --version "$ENGINE_VERSION"); fi
+          if [ "$RUN_RUNTIMES" = true ]; then source=(--runtime "$RUNNER_TEMP/runtime" --version "$ENGINE_VERSION"); fi
           bash drupack-engine/build/pack/native-pack.sh "${source[@]}" \
             --target "$TARGET" --payload payload --output "dist/$name-$TARGET$extension" \
             --site-version "$SITE_VERSION"
@@ -327,7 +353,7 @@ jobs:
   # executable under emulation. This job runs the suite on it there.
   windows-arm:
     name: Windows arm64 (amd64 emulated)
-    needs: [engine, build, native]
+    needs: [build, native]
     if: contains(fromJSON(needs.build.outputs.native), 'windows-amd64')
     runs-on: windows-11-arm
     timeout-minutes: 120
@@ -345,8 +371,8 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
-          repository: ${{ needs.engine.outputs.repository }}
-          ref: ${{ needs.engine.outputs.commit }}
+          repository: ${{ needs.build.outputs.repository }}
+          ref: ${{ needs.build.outputs.commit }}
           path: drupack-engine
           persist-credentials: false
 
@@ -395,7 +421,7 @@ jobs:
 
   # The calling job grants contents: write, id-token: write and attestations: write.
   publish:
-    needs: [engine, build, native, windows-arm]
+    needs: [build, native, windows-arm]
     # The native jobs are skipped when the build lists no native target, and the
     # Windows on Arm job when it lists no windows-amd64.
     if: >-
@@ -426,8 +452,8 @@ jobs:
       # The engine at the pinned commit holds the script that writes the release files.
       - uses: actions/checkout@v7
         with:
-          repository: ${{ needs.engine.outputs.repository }}
-          ref: ${{ needs.engine.outputs.commit }}
+          repository: ${{ needs.build.outputs.repository }}
+          ref: ${{ needs.build.outputs.commit }}
           path: drupack-engine
           persist-credentials: false
 
@@ -455,8 +481,8 @@ jobs:
       # image's for a Linux target, the engine release's for a macOS or Windows one.
       - name: Write the SBOM
         env:
-          ENGINE_REPOSITORY: ${{ needs.engine.outputs.repository }}
-          RUNTIME_RELEASE: ${{ needs.engine.outputs.runtime-release }}
+          ENGINE_REPOSITORY: ${{ needs.build.outputs.repository }}
+          RUNTIME_RELEASE: ${{ needs.build.outputs.runtime-release }}
           NATIVE: ${{ needs.build.outputs.native }}
         run: |
           if [ "$NATIVE" != '[]' ]; then

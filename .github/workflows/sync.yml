@@ -23,8 +23,8 @@ jobs:
       - name: Clone the drupal.org repository
         run: git clone --bare --quiet https://git.drupalcode.org/project/drupack.git repository.git
 
-      # A push made with GITHUB_TOKEN starts no workflow, and release.yml runs on
-      # this push, so it goes out with the deploy key.
+      # A push made with GITHUB_TOKEN starts no workflow, and release.yml and publish.yml
+      # run on this push, so it goes out with the deploy key.
       - name: Push main and the tags
         env:
           # A secret is masked in logs only when it is one line, so the key is stored base64-encoded.

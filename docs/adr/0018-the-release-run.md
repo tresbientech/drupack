@@ -10,23 +10,27 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 
 - `build/release/release-plan.py` owns the release plan. It returns the version, the candidate run, the image tags, the unit rows, the runtime rows, the engine rows, the site's platforms and the test rows.
 - `fetch` is the one port to GitHub. A failed call stops the gate.
-- A push, to main or a tag, first looks for a successful candidate run at its commit. A tag with one publishes that run's files, and a main push with one builds nothing.
-- Other tags and dispatches cover every platform. Another main push covers Linux amd64 when it touched a path an executable carries.
+- A main push first looks for a successful candidate run at its commit. With one, it builds nothing.
+- Dispatches and the weekly run cover every platform, and a dispatch can name one. Another main push covers Linux amd64 when it touched a path an executable carries.
+- `release-plan.py candidate` prints the run `publish.yml` reads: the run named for the version at the commit, with a live `release` artifact.
 
 ### The graph
 
 - A builder image takes a tag that digests its inputs. A Linux runtime leg pulls that tag, and a miss builds the image in the job. A fork builds and skips the push. The image holds the toolchain and the compiled PHP that `embed.sh` links: 1.2 GB (glibc) or 1.5 GB (musl) compressed, with a 0.4 GB or 0.6 GB compile layer.
 - Every platform passes the same stages: `unit`, then `runtime`, then `image`, then `engine`, `site` and `variant`, then `test`. A job needs only the jobs whose output it reads.
-- `unit` runs the Go unit tests on each system. The Linux row also lints, runs the Python unit tests and, on the weekly run and an all-platform dispatch, `govulncheck`.
+- `unit` runs the Go unit tests on each system, in every run that builds. A main push that builds Linux amd64 alone still tests macOS and Windows. The Linux row also lints, runs the Python unit tests and, on the weekly run and an all-platform dispatch, `govulncheck`.
 - `runtime` is one matrix: one leg per Linux architecture and libc, one for macOS arm64 and one for Windows amd64. A red unit test starts no compile. Each system's steps live in a composite action, `runtime-linux`, `runtime-macos` or `runtime-windows`.
 - A leg uploads `runtime-TARGET`, and a Linux glibc leg adds `-glibc` to the name. Its component report runs the runtime's version and PHP.
 - `image` builds the job image from the Linux runtimes, pushes it and exports the engine payload. It runs no site code. A failed leg on any system stops it, with QA and the demo.
+- A job records a sha256 digest of each upload a release file is made from, as a job output: `image` for the engine payload, each `runtime` and `engine` leg, and `sbom`. `engine`, `sbom` and `bundle` check each such download against its record.
 - `engine` packs `drupack` for each target on that target's runner and runs `--version` on each file.
-- `site` calls `build.yml` on `tests/fixture-site` with `run-runtimes`, so a candidate packs its fixture the way a site repository does. Each file runs the start cases.
+- `site` calls `build.yml` on `tests/fixture-site` with `run-runtimes`. Each file runs the start cases.
+- The `site` call runs the `build`, `native` and `windows-arm` jobs a site repository runs, from a branch. It skips what a caller pinned to a tag adds: the tag check, the runtime download from a release, and `publish`.
 - `variant` exports the variant fixture's payload in the job image. Its macOS and Windows test rows pack it and run its cases.
 - `test` runs one `DRUPACK_SHARD` share or the start cases per row, on the files `site` and `engine` uploaded. It starts only when `engine` and `site` succeeded.
 - release.yml runs the `full` suite each Monday on `main`, with QA, under a `dev-` version. The weekly run publishes nothing.
-- `publish` needs `unit` and `sbom`. `sbom` needs `engine` and `test`. A tag that builds its own files publishes only after every test row is green.
+- A candidate with a version and every platform ends with `sbom` and `bundle`. `sbom` scans the executables and the macOS and Windows runtimes with syft, in a job that can attest nothing.
+- `bundle` needs `test`, `qa` and `sbom`. It writes the release files and the SBOM, and archives them as `release.tar`. It attests each file and the archive, then uploads the archive as `release`. No other job of `release.yml` can attest.
 - A Linux or macOS runtime's SBOM report adds the libraries its link step names, from their pkg-config records, one component per project. PHP's own report wins where both name a library. A Windows report adds the source library releases from static-php-cli's download record, saved with the compile.
 - The SBOM merge drops a scanned component sharing a name and version with a listed one, unless both carry a `purl` and the two differ.
 - image pushes the Linux builder images every runtime leg built, on amd64, one lane per architecture in parallel. After `docker load`, docker uploads a layer before it learns ghcr holds it, so a lane's second image reuses its first image's base layers. `builder-tag.sh` takes each image's machine type as an argument. QA pulls them, so it needs image.
@@ -65,9 +69,12 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 - The `release` job then sends `main` as a fast-forward and the next tag to drupal.org in one atomic push. A second push sends both to GitHub.
 - A run dispatched while a release waits stays pending behind it, in the `upstream` concurrency group. A later dispatch replaces a pending one.
 - A `cleanup` job deletes the candidate branch for any result: a red candidate, a rejection or a release.
-- The gate of the tag run and of the `main` run finds the candidate run at the commit. When it exists with live artifacts, every build job skips, and the tag's `publish` downloads its files. Otherwise the tag builds every platform.
-- The builder image archives live one day, and only their own run reads them, so their expiry leaves a candidate live.
-- A `tag` job waits for the tag run with the same script. No person pushes a version tag; the maintainer approves the push.
+- The gate of the `main` run finds the candidate run at the commit. When it exists, every build job skips.
+- The tag starts `publish.yml`, which builds nothing. It finds the candidate run named for the tag's version at the tag's commit, and downloads `release`. A tag with no such run fails.
+- `publish.yml` runs `gh attestation verify` on the archive, against `release.yml` and the commit. It checks the version and the commit in `release.json`. Then it names the job image after the version and creates the GitHub Release.
+- A dispatch of `publish.yml` with a version verifies the candidate's files at the dispatched commit and publishes nothing.
+- The builder image archives live one day, and only their own run reads them.
+- A `tag` job waits for the tag's `publish.yml` run with the same script. No person pushes a version tag; the maintainer approves the push.
 
 ### The drupal.org release form
 
@@ -82,13 +89,13 @@ Drupack pins PHP, FrankenPHP, Go and its modules, Composer and the CA bundle. st
 
 A builder image tagged by its inputs answers the objection that one image cannot serve several extension sets: another list is another tag. Testing in shares keeps the wall clock near the longest share.
 
-A job that waits only for what it reads shows each failure in the stage that owns it. A unit test fails within four minutes, before any compile. A compile fails in its runtime leg, a pack in `engine` or `site`. The release calls `build.yml` on its own runtimes, so every candidate runs the workflow site repositories call.
+A job that waits only for what it reads shows each failure in the stage that owns it. A unit test fails within four minutes, before any compile. A compile fails in its runtime leg, a pack in `engine` or `site`. The release calls `build.yml` on its own runtimes, so every candidate runs the build and test jobs of the workflow site repositories call.
 
 macOS builds for Apple silicon alone. FrankenPHP publishes no macOS x86_64 build since 1.13.6. Intel Macs are the least used target, and GitHub retires its last Intel runner image in 2027.
 
 A bump of PHP or FrankenPHP changes every platform's file, so it tests every platform before its tag. A named version changes Drupack's own code, which the three full platforms run on each system. A library release changes every platform's file, and October 20 to November 20, 2026 held ten of them. Its bump runs `gate` too, which runs every case once on each system. Windows arm64 runs the amd64 file under emulation, and Linux arm64 runs the code Linux amd64 tests. The weekly run shows a defect on Linux arm64 and Windows arm64 within seven days.
 
-A script plans the run so a unit test checks the plan. A plan written in workflow expressions shows its mistakes in a finished run alone. A failed lookup that read as no candidate would rebuild what it could have published.
+A script plans the run so a unit test checks the plan. A plan written in workflow expressions shows its mistakes in a finished run alone. A failed lookup that read as no candidate would rebuild what a candidate already built.
 
 The engine ships the pinned `composer.phar`. Its bump checks the SHA-384 signature `composer self-update` checks, against a key kept in the repository, so a tampered download server cannot pass.
 
@@ -97,6 +104,8 @@ A release gives readers a new executable, so a tool no executable carries starts
 A library fix once waited for the next PHP or FrankenPHP bump: six releases shipped libpq 18.6 after 18.7 existed. static-php-cli already resolves each library's newest release for the build, so the run asks it and keeps no list of its own. The run hashes each file it downloads, so a build can refuse a file that differs from the one the run recorded.
 
 The upstream job commits its working tree and pushes the candidate branch with its job token. The release job holds the mirror's deploy key and the drupal.org token. Third-party code that ran in the upstream job could edit a tracked file or push a branch. In its own job, a wrong answer can start a candidate and nothing else.
+
+A tag publishes from a workflow of its own, so each graph draws one concern. A candidate shows no skipped publish job, and a tag no skipped build. The run that builds the files attests them, and the tag run verifies before it writes, so a release ships the files that were tested.
 
 The upstream run lives on GitHub, where the builds run. A red platform never ships, since the candidate is tested before the tag moves, and the tag run publishes the candidate's files. The approval lets the owner read the bump summary before a release: a bad upstream release otherwise reaches every executable and self-update within a day.
 

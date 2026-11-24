@@ -1,14 +1,11 @@
 name: Release
-# A tag run and a main push run find their candidate run by this name.
+# publish.yml and a main push find their candidate run by this name.
 run-name: ${{ inputs.version != '' && inputs.platform == 'all' && format('Release candidate {0}', inputs.version) || '' }}
 
 on:
   push:
     branches:
       - main
-    tags:
-      - '[0-9]+.[0-9]+.[0-9]+'
-      - '[0-9]+.[0-9]+.[0-9]+-*'
   # The full suite once a week, on main and under a dev version, so Linux arm64 and Windows arm64,
   # which a gate candidate tests with their start cases alone, still run every case. It publishes nothing.
   schedule:
@@ -16,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       platform:
-        description: Target to build and test; a tag push builds every platform unless its candidate run did.
+        description: Target to build and test.
         type: choice
         default: all
         options:
@@ -26,7 +23,7 @@ on:
           - macos-arm64
           - windows-amd64
       version:
-        description: The version a candidate run builds, which its tag run then publishes.
+        description: The version a candidate run builds, which publish.yml then publishes from its tag.
         type: string
         default: ''
       suite:
@@ -51,11 +48,9 @@ env:
   GOPROXY: https://proxy.golang.org|https://proxy.golang.org,direct
 
 jobs:
-  # A tag whose candidate run succeeded publishes that run's files, and a main push of
-  # that commit builds nothing. Other tags, dispatches and the schedule cover every
-  # platform (a dispatch can name one). Another main push covers Linux amd64 when it
-  # touched something an executable carries; the comparison runs here because GitHub
-  # leaves path filters on tag pushes undocumented.
+  # A main push of a commit whose candidate run succeeded builds nothing. Dispatches and
+  # the schedule cover every platform (a dispatch can name one). Another main push covers
+  # Linux amd64 when it touched something an executable carries.
   gate:
     name: gate
     runs-on: ubuntu-24.04
@@ -65,7 +60,6 @@ jobs:
       contents: read
     outputs:
       build: ${{ steps.targets.outputs.build }}
-      candidate: ${{ steps.targets.outputs.candidate }}
       image_tags: ${{ steps.targets.outputs.image_tags }}
       version: ${{ steps.targets.outputs.version }}
       unit: ${{ steps.targets.outputs.unit }}
@@ -78,7 +72,7 @@ jobs:
 
       # upstream.yml writes the bump table into the candidate commit's message.
       - name: Show the candidate's bump
-        if: github.ref_type == 'tag' || inputs.version != ''
+        if: inputs.version != ''
         run: git log -1 --format='### %s%n%n%b' >>"$GITHUB_STEP_SUMMARY"
 
       - id: targets
@@ -89,7 +83,7 @@ jobs:
           NAMED: ${{ inputs.version }}
           SUITE: ${{ inputs.suite }}
         run: |
-          python3 build/release/release-plan.py --ref-type "$GITHUB_REF_TYPE" --ref-name "$GITHUB_REF_NAME" \
+          python3 build/release/release-plan.py \
             --event-name "$GITHUB_EVENT_NAME" --sha "$GITHUB_SHA" --before "$BEFORE" \
             --platform "$PLATFORM" --version "$NAMED" --suite "$SUITE" --repo "$GITHUB_REPOSITORY" \
             --targets launcher/internal/payload/targets.json --output "$GITHUB_OUTPUT"
@@ -156,30 +150,54 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.gate.outputs.runtime) }}
+    # One name per leg: a matrix job keeps the value of the leg that set a name.
+    outputs:
+      runtime-linux-amd64-glibc: ${{ steps.digest.outputs.runtime-linux-amd64-glibc }}
+      runtime-linux-amd64-musl: ${{ steps.digest.outputs.runtime-linux-amd64-musl }}
+      runtime-linux-arm64-glibc: ${{ steps.digest.outputs.runtime-linux-arm64-glibc }}
+      runtime-linux-arm64-musl: ${{ steps.digest.outputs.runtime-linux-arm64-musl }}
+      runtime-macos-arm64: ${{ steps.digest.outputs.runtime-macos-arm64 }}
+      runtime-windows-amd64: ${{ steps.digest.outputs.runtime-windows-amd64 }}
+      runtime-components-linux-amd64-glibc: ${{ steps.digest.outputs.runtime-components-linux-amd64-glibc }}
+      runtime-components-linux-amd64-musl: ${{ steps.digest.outputs.runtime-components-linux-amd64-musl }}
+      runtime-components-linux-arm64-glibc: ${{ steps.digest.outputs.runtime-components-linux-arm64-glibc }}
+      runtime-components-linux-arm64-musl: ${{ steps.digest.outputs.runtime-components-linux-arm64-musl }}
+      runtime-components-macos-arm64: ${{ steps.digest.outputs.runtime-components-macos-arm64 }}
+      runtime-components-windows-amd64: ${{ steps.digest.outputs.runtime-components-windows-amd64 }}
     steps:
       - uses: actions/checkout@v7
-      - if: matrix.system == 'linux'
+      - id: linux
+        if: matrix.system == 'linux'
         uses: ./.github/actions/runtime-linux
         with:
           target: ${{ matrix.target }}
-          arch: ${{ matrix.arch }}
+          artifact: ${{ matrix.artifact }}
           libc: ${{ matrix.libc }}
           builder: ${{ matrix.builder }}
           version: ${{ needs.gate.outputs.version }}
-      - if: matrix.system == 'macos'
+      - id: macos
+        if: matrix.system == 'macos'
         uses: ./.github/actions/runtime-macos
         with:
           target: ${{ matrix.target }}
           version: ${{ needs.gate.outputs.version }}
           go-version: ${{ env.GO_VERSION }}
-      - if: matrix.system == 'windows'
+      - id: windows
+        if: matrix.system == 'windows'
         uses: ./.github/actions/runtime-windows
         with:
           target: ${{ matrix.target }}
           version: ${{ needs.gate.outputs.version }}
           go-version: ${{ env.GO_VERSION }}
+      - id: digest
+        shell: bash
+        env:
+          ARTIFACT: ${{ matrix.artifact }}
+          RUNTIME: ${{ steps.linux.outputs.runtime || steps.macos.outputs.runtime || steps.windows.outputs.runtime }}
+          COMPONENTS: ${{ steps.linux.outputs.components || steps.macos.outputs.components || steps.windows.outputs.components }}
+        run: printf 'runtime-%s=%s\nruntime-components-%s=%s\n' "$ARTIFACT" "$RUNTIME" "$ARTIFACT" "$COMPONENTS" >>"$GITHUB_OUTPUT"
 
-  # Every run pushes the job image under the commit for build.yml; publish names it
+  # Every run pushes the job image under the commit for build.yml; publish.yml names it
   # after the version. This job also pushes each builder image the runtime job built,
   # before it runs any build output. Loading and pushing an image runs no code from
   # it, and this job names each image itself, so a loaded archive can push under no
@@ -196,6 +214,7 @@ jobs:
       packages: write
     outputs:
       image: ${{ steps.push.outputs.image }}
+      engine-payload: ${{ steps.digest.outputs.engine-payload }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -289,8 +308,8 @@ jobs:
             --build-context release-runtime-components=runtime-components \
             --build-arg "DRUPACK_ENGINE_VERSION=$DRUPACK_ENGINE_VERSION" -t drupack-job .
 
-      # A main push and a tag push of one commit run at once. A release's image is
-      # sha-COMMIT and a main run pushes dev-COMMIT, so a main run never replaces it.
+      # A candidate pushes sha-COMMIT, which publish.yml names after the version. Another
+      # run of the commit pushes dev-COMMIT alone, so it never replaces a release's image.
       # Another run of this commit can push dev-COMMIT again, so the variant job pulls
       # this run's image by digest.
       - name: Push the job image under this commit
@@ -317,6 +336,9 @@ jobs:
           name: engine-payload
           path: dist/engine/payload
           if-no-files-found: error
+
+      - id: digest
+        run: printf 'engine-payload=%s\n' "$(python3 build/release/digest.py record dist/engine/payload)" >>"$GITHUB_OUTPUT"
 
   # A candidate's Drupacked Demo run, which build.yml can only take from a run at the
   # candidate's commit: its job image follows the calling run's commit. The demo
@@ -348,6 +370,17 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.gate.outputs.engine) }}
+    # One name per leg: a matrix job keeps the value of the leg that set a name.
+    outputs:
+      drupack-linux-amd64: ${{ steps.digest.outputs.drupack-linux-amd64 }}
+      drupack-linux-amd64-musl: ${{ steps.digest.outputs.drupack-linux-amd64-musl }}
+      drupack-linux-arm64: ${{ steps.digest.outputs.drupack-linux-arm64 }}
+      drupack-linux-arm64-musl: ${{ steps.digest.outputs.drupack-linux-arm64-musl }}
+      drupack-macos-arm64: ${{ steps.digest.outputs.drupack-macos-arm64 }}
+      drupack-windows-amd64: ${{ steps.digest.outputs.drupack-windows-amd64 }}
+    env:
+      PYTHON: ${{ startsWith(matrix.target, 'windows-') && 'python' || 'python3' }}
+      TARGET: ${{ matrix.target }}
     defaults:
       run:
         shell: bash
@@ -377,18 +410,31 @@ jobs:
           name: runtime-${{ matrix.target }}-musl
           path: runtime-musl
 
+      # The checkout holds a runtime folder of its own, and a pack carries every file of the folder it reads.
       - uses: actions/download-artifact@v8
         if: runner.os != 'Linux'
         with:
           name: runtime-${{ matrix.target }}
-          path: runtime
+          path: native-runtime
+
+      # The site, variant and QA jobs start with this one, and run code this repository does not hold.
+      - name: Check the payload and the runtimes against their records
+        env:
+          PAYLOAD: ${{ toJSON(needs.image.outputs) }}
+          RUNTIMES: ${{ toJSON(needs.runtime.outputs) }}
+        run: |
+          case $RUNNER_OS in
+            Linux) folders=("runtime-$TARGET-glibc=runtime-glibc" "runtime-$TARGET-musl=runtime-musl") ;;
+            *) folders=("runtime-$TARGET=native-runtime") ;;
+          esac
+          "$PYTHON" build/release/digest.py check "$PAYLOAD" engine-payload
+          "$PYTHON" build/release/digest.py check "$RUNTIMES" "${folders[@]}"
 
       - name: Pack and run the engine executable
         working-directory: launcher
         env:
           CGO_ENABLED: '0'
           DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
-          TARGET: ${{ matrix.target }}
         run: |
           pack() {
             go run ./cmd/pack -engine -target "$1" -runtime "$2" -payload ../engine-payload \
@@ -397,8 +443,8 @@ jobs:
           }
           case $RUNNER_OS in
             Linux) pack "$TARGET" ../runtime-glibc/out ../dist/drupack && pack "$TARGET-musl" ../runtime-musl/out ../dist/musl/drupack ;;
-            Windows) pack "$TARGET" ../runtime ../dist/drupack.exe ;;
-            *) pack "$TARGET" ../runtime ../dist/drupack ;;
+            Windows) pack "$TARGET" ../native-runtime ../dist/drupack.exe ;;
+            *) pack "$TARGET" ../native-runtime ../dist/drupack ;;
           esac
 
       - name: Check the unsigned launch steps
@@ -408,6 +454,13 @@ jobs:
           xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" "$RUNNER_TEMP/quarantined"
           xattr -d com.apple.quarantine "$RUNNER_TEMP/quarantined"
           "$RUNNER_TEMP/quarantined" --version
+
+      - id: digest
+        run: |
+          printf 'drupack-%s=%s\n' "$TARGET" "$("$PYTHON" build/release/digest.py record dist/drupack*)" >>"$GITHUB_OUTPUT"
+          if [ "$RUNNER_OS" = Linux ]; then
+            printf 'drupack-%s-musl=%s\n' "$TARGET" "$("$PYTHON" build/release/digest.py record dist/musl/drupack)" >>"$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/upload-artifact@v7
         with:
@@ -573,7 +626,7 @@ jobs:
         if: matrix.variant
         with:
           name: runtime-${{ matrix.target }}
-          path: runtime
+          path: native-runtime
 
       - uses: actions/download-artifact@v8
         if: matrix.variant
@@ -587,7 +640,7 @@ jobs:
           DRUPACK_ENGINE_VERSION: ${{ needs.gate.outputs.version }}
         run: |
           mkdir -p dist/variant
-          (cd launcher && go run ./cmd/pack -target "$TARGET" -runtime ../runtime -payload ../variant-payload \
+          (cd launcher && go run ./cmd/pack -target "$TARGET" -runtime ../native-runtime -payload ../variant-payload \
             -version "$DRUPACK_ENGINE_VERSION" -output "../dist/variant/variant-fixture$EXTENSION")
           cp variant-payload/site.json dist/variant/site.json
           $PYTHON tests/conformance "dist/variant/variant-fixture$EXTENSION" test-results/variant -k Node -k MercureHub -k ProjectRules
@@ -687,44 +740,24 @@ jobs:
             /tmp/drupack-qa/**/run.out
             /tmp/drupack-qa/**/run.err
 
-  # A tag run that publishes its candidate's files skips every build job.
-  # syft and the action run in a job of their own, whose token writes nothing.
-  # The scans read the downloaded folders as they land: the merge keeps each
-  # component's name, version and identifiers, never its file path.
+  # A versioned candidate scans what it built. syft is a third-party tool, so the scan
+  # runs here, in a job that can attest nothing.
   sbom:
-    needs: [gate, engine, test]
-    # A tag that reuses its candidate builds and tests nothing here. A tag that builds
-    # needs every test row green: a cancelled leg skips test, which !failure() lets through.
-    if: >-
-      ${{ !cancelled() && !failure() && github.ref_type == 'tag'
-      && (needs.gate.outputs.candidate != '' || needs.test.result == 'success') }}
+    needs: [gate, engine, runtime, test]
+    if: inputs.version != '' && inputs.platform == 'all'
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
-      actions: read
       contents: read
+    outputs:
+      sbom-scans: ${{ steps.digest.outputs.sbom-scans }}
     steps:
-      # download-artifact reads another run only when it has a token, and its own
-      # run when the token is empty.
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: drupack-*
-          path: candidates
-          run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
-          github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v8
+      - uses: ./.github/actions/candidate-files
         with:
-          name: runtime-macos-arm64
-          path: runtimes/runtime-macos-arm64
-          run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
-          github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: runtime-windows-amd64
-          path: runtimes/runtime-windows-amd64
-          run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
-          github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
+          engine: ${{ toJSON(needs.engine.outputs) }}
+          runtime: ${{ toJSON(needs.runtime.outputs) }}
 
       - name: Make the scans folder
         run: mkdir "$RUNNER_TEMP/scans"
@@ -749,62 +782,46 @@ jobs:
           output-file: ${{ runner.temp }}/scans/runtimes.cdx.json
           upload-artifact: false
 
+      - id: digest
+        run: printf 'sbom-scans=%s\n' "$(python3 build/release/digest.py record "$RUNNER_TEMP/scans")" >>"$GITHUB_OUTPUT"
+
       - uses: actions/upload-artifact@v7
         with:
           name: sbom-scans
           path: ${{ runner.temp }}/scans
           if-no-files-found: error
 
-  publish:
-    needs: [gate, unit, sbom]
-    # A tag run that skipped sbom publishes nothing.
-    if: ${{ !cancelled() && !failure() && github.ref_type == 'tag' && needs.sbom.result == 'success' }}
+  # The last job of a versioned candidate writes the release files from artifacts it has
+  # checked, and attests them. publish.yml publishes them from the tag after it verifies
+  # that attestation. This job runs this repository's code alone, and no other job of
+  # this workflow can attest. It skips when sbom skipped.
+  bundle:
+    needs: [gate, engine, runtime, test, qa, sbom]
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
-      actions: read
       attestations: write
-      contents: write
+      contents: read
       id-token: write
-      packages: write
     env:
-      GH_TOKEN: ${{ github.token }}
-      VERSION: ${{ github.ref_name }}
+      VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@v7
 
-      # download-artifact reads another run only when it has a token, and its own
-      # run when the token is empty.
-      - uses: actions/download-artifact@v8
+      - uses: ./.github/actions/candidate-files
         with:
-          pattern: drupack-*
-          path: candidates
-          run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
-          github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
-
-      # A tag's files come from a run of every platform, so each macOS runtime lands
-      # in a directory named after its artifact. A lone match would land in the path
-      # itself, hence the Windows runtime's own step.
-      - uses: actions/download-artifact@v8
-        with:
-          name: runtime-macos-arm64
-          path: runtimes/runtime-macos-arm64
-          run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
-          github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
+          engine: ${{ toJSON(needs.engine.outputs) }}
+          runtime: ${{ toJSON(needs.runtime.outputs) }}
 
       - uses: actions/download-artifact@v8
         with:
-          name: runtime-windows-amd64
-          path: runtimes/runtime-windows-amd64
-          run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
-          github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
+          name: sbom-scans
+          path: scans/sbom-scans
 
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: runtime-components-*
-          path: runtime-components
-          merge-multiple: true
-          run-id: ${{ needs.gate.outputs.candidate || github.run_id }}
-          github-token: ${{ needs.gate.outputs.candidate && github.token || '' }}
+      - name: Check the scans against their record
+        env:
+          RECORDS: ${{ toJSON(needs.sbom.outputs) }}
+        run: python3 build/release/digest.py check --exactly "$RECORDS" scans/sbom-scans
 
       # Each artifact is NAME-TARGET holding one file, NAME or NAME.exe. The loop
       # names each file NAME-TARGET, keeping .exe, as release-files.py reads it.
@@ -824,44 +841,29 @@ jobs:
             --base-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$VERSION" \
             --commit "$GITHUB_SHA" "${runtimes[@]}" built/*
 
-      - uses: actions/download-artifact@v8
-        with:
-          name: sbom-scans
-          path: ${{ runner.temp }}/scans
-
       # Each runtime's report names what the executables carry compressed. A site
       # build reads the macOS and Windows reports from runtime-components.json.
       - name: Write the SBOM
         run: |
           python3 build/release/sbom.py merge --name drupack --version "$VERSION" \
-            --runtime-components runtime-components/*.json --output release/drupack.cdx.json \
-            "$RUNNER_TEMP/scans/executables.cdx.json" "$RUNNER_TEMP/scans/runtimes.cdx.json"
-          jq -s add runtime-components/*.json >release/runtime-components.json
+            --runtime-components components/*/*.json --output release/drupack.cdx.json \
+            scans/sbom-scans/executables.cdx.json scans/sbom-scans/runtimes.cdx.json
+          jq -s add components/*/*.json >release/runtime-components.json
+
+      # The archive is the list of a release: publish.yml verifies it whole, and a
+      # reader verifies any one file.
+      - name: Archive the release files
+        run: tar -cf release.tar -C release .
 
       - name: Attest the release files
         uses: actions/attest-build-provenance@v4
         with:
-          subject-path: release/*
+          subject-path: |
+            release/*
+            release.tar
 
-      # Site builds pull the job image by the engine's version.
-      - name: Name the job image after the version
-        run: |
-          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          docker buildx imagetools create --tag "ghcr.io/$GITHUB_REPOSITORY-build:$VERSION" \
-            "ghcr.io/$GITHUB_REPOSITORY-build:sha-$GITHUB_SHA"
-
-      # GitHub refuses github.token a release whose commit differs from main in
-      # .github/workflows, which happens once main moves during a tag run.
-      - name: Publish the GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
-        run: |
-          # The pins the tag's upstream run moved open the notes. A tag with none gives an
-          # empty file, and gh then sends the generated notes alone.
-          python3 build/release/release-node.py upgrades "$VERSION" >"$RUNNER_TEMP/upgrades.md"
-          gh release create "$VERSION" release/* \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
-            --title "Drupack $VERSION" \
-            --notes-file "$RUNNER_TEMP/upgrades.md" \
-            --generate-notes
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: release.tar
+          if-no-files-found: error

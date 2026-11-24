@@ -14,7 +14,7 @@ Three builders compile PHP: Linux, macOS and Windows. Each must ship the extensi
 - The conformance suite asserts that a binary loads exactly the names the file lists, plus the extensions PHP always compiles.
 - `tests/conformance/harness.py` holds the facts that differ by platform.
 - `build.ps1` hands static-php-cli the list without `pcntl`, `posix` and `password-argon2`, which it does not build on Windows. It runs no load check.
-- On Windows the release job's conformance run fails the build for a name the runtime does not load. The publish job needs that job.
+- On Windows the release job's conformance run fails the build for a name the runtime does not load. The `bundle` job needs that job.
 - A Drupal update that declares a new extension stops the build until someone adds a line.
 
 ### The Linux and macOS builders

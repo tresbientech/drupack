@@ -1,24 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Finds the newest release.yml run that QUERY selects, waits for it, and exits 0
+# Finds the newest run of WORKFLOW that QUERY selects, waits for it, and exits 0
 # only on success. It names each failed job as soon as it ends, while the run
 # goes on to its other jobs. A failed run gets one rerun of its failed jobs,
 # which GitHub allows once the run has completed. Reads GITHUB_API and
 # GITHUB_TOKEN.
-# Usage: build/release/wait-for-run.sh QUERY
+# Usage: build/release/wait-for-run.sh WORKFLOW QUERY
+# WORKFLOW is a workflow file name, such as publish.yml.
 # QUERY is a runs query string, such as event=push&branch=1.0.0.
 
-query=${1:?Usage: build/release/wait-for-run.sh QUERY}
+workflow=${1:?Usage: build/release/wait-for-run.sh WORKFLOW QUERY}
+query=${2:?Usage: build/release/wait-for-run.sh WORKFLOW QUERY}
 api() { curl -fsS --retry 5 --retry-all-errors -H "Authorization: Bearer $GITHUB_TOKEN" "$@"; }
 
 # A dispatch or a push answers before its run exists.
 for attempt in $(seq 30); do
-    run=$(api "$GITHUB_API/actions/workflows/release.yml/runs?$query" | jq -r '.workflow_runs[0].id // empty')
+    run=$(api "$GITHUB_API/actions/workflows/$workflow/runs?$query" | jq -r '.workflow_runs[0].id // empty')
     [ -n "$run" ] && break
     sleep 10
 done
-[ -n "$run" ] || { echo "No release.yml run matches $query."; exit 1; }
+[ -n "$run" ] || { echo "No $workflow run matches $query."; exit 1; }
 echo "Run: $(api "$GITHUB_API/actions/runs/$run" | jq -r .html_url)"
 
 # Names each job of the run's latest attempt that ended red. A run holds fewer
