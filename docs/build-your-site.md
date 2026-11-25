@@ -647,5 +647,5 @@ Two kinds of pin need more:
 - A package held below a version takes a rule of its own in `packageRules`:
 
   ```json
-  {"matchPackageNames": ["twig/twig"], "allowedVersions": "<3.30"}
+  {"matchPackageNames": ["drupal/example"], "allowedVersions": "<2.3"}
   ```
