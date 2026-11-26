@@ -44,7 +44,11 @@ User=drupack
 WorkingDirectory=/srv/site
 ExecStart=/srv/site/drupack --foreground --listen 127.0.0.1:3787 --trusted-proxies 127.0.0.1
 Restart=on-failure
+RestartSec=3
 TimeoutStopSec=15
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target
@@ -54,6 +58,12 @@ WantedBy=multi-user.target
   the journal.
 - A stop sends SIGTERM. The server exits 0 within 10 seconds, so
   `TimeoutStopSec=15` never kills it.
+- systemd gives up on a unit that starts more than 5 times in 10 seconds. With
+  `RestartSec=3`, a server that fails at each start is retried without end.
+- `PrivateTmp=true` gives the server a `/tmp` of its own.
+- `ProtectSystem=full` makes `/usr`, `/boot` and `/etc` read-only for it.
+- `ProtectHome=true` hides `/home`, `/root` and `/run/user` from it. Leave the
+  line out for a project under `/home`.
 - `systemctl enable --now drupack` starts it, now and at each boot.
 
 Drupal's cron runs from a timer. `/etc/systemd/system/drupack-cron.service`:
@@ -61,13 +71,19 @@ Drupal's cron runs from a timer. `/etc/systemd/system/drupack-cron.service`:
 ```ini
 [Unit]
 Description=Drupal cron of /srv/site
+JoinsNamespaceOf=drupack.service
 
 [Service]
 Type=oneshot
 User=drupack
 WorkingDirectory=/srv/site
 ExecStart=/srv/site/drupack drush cron
+PrivateTmp=true
 ```
+
+Drupal's cron deletes the temporary files a request left in `/tmp`.
+`JoinsNamespaceOf` and `PrivateTmp=true` give the cron run the server's `/tmp`.
+A `drupack drush` command typed in a shell reads the host's `/tmp`.
 
 `/etc/systemd/system/drupack-cron.timer`:
 
@@ -107,6 +123,7 @@ retry="SIGTERM/15"
 
 depend() {
 	need net
+	after firewall
 }
 
 start_pre() {
