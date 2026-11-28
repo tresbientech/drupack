@@ -9,9 +9,8 @@
 # the Windows build runs without them today. pathauto asks for mb_eregi_replace
 # and falls back to preg_replace. calendar, shmop, sockets, sysvmsg, sysvsem,
 # sysvshm, tidy and zstd have no call site at all. amqp, ast, dba, gettext, gmp,
-# igbinary, imagick, ldap, lz4, memcached, mysqli, parallel, protobuf, redis,
-# soap, ssh2, xlswriter and xsl serve modules or database drivers Drupack does
-# not ship.
+# imagick, ldap, lz4, memcached, mysqli, parallel, protobuf, redis, soap, ssh2,
+# xlswriter and xsl serve modules or database drivers Drupack does not ship.
 
 apcu             # Drupal file cache and class loader cache
 bcmath           # drupal/commerce requires it; physical and currency call it
@@ -25,6 +24,7 @@ fileinfo         # MIME detection; mcp/sdk declares it
 filter           # Drupal core
 gd               # Drupal core image toolkit
 iconv            # Drupal core, opis/string, symfony polyfill
+igbinary         # drupal/igbinary swaps core's PHP serializer for it
 intl             # canvas labels, symfony validator
 libxml           # dom, simplexml and xml read it
 mbstring         # Drupal core string handling

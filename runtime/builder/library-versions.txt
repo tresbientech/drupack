@@ -3,6 +3,7 @@ bzip2 - bzip2-1.0.8.tar.gz ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e68
 curl curl-8_23_0 curl-8.23.0.tar.xz 8dadd7d2536a314f982ad05a651b713f426bf7d02cc2c76cffb9796f2218e6c5
 ext-apcu v5.1.28 apcu_apcu-v5.1.28.zip c519f3093a2242bdbb526d586ba43582a13896a0a7f03bdedfd2b996ca64c7e7
 ext-brotli 0.21.1 kjdev-php-ext-brotli-0.21.1-0-geaa63da.tar.gz 41a56eb0f4439d26bef77de7889451e1d4509df61aa44b0a84ca0a5d6ec32ca4
+ext-igbinary 3.2.17RC1 igbinary_igbinary-3.2.17RC1.zip 2f80a5ff6d798cd8d95d923d364a5a25e728b290633f141e27c2c5ef74f6c01b
 ext-zip 1.22.8 pecl_zip-1.22.8.zip adb9a2a6b1e25b60ae7797afee581066f3aaa18767dc0608a09ac147a7dc80e3
 freetype VER-2-15-0 freetype-freetype-VER-2-15-0-0-g37515cf.tar.gz 144a7ca44e8ff1de2cdfd559a3ab9551668e98df42ccc0bef04f152f8b270b64
 gettext 1.0 gettext-1.0.tar.xz 71132a3fb71e68245b8f2ac4e9e97137d3e5c02f415636eb508ae607bc01add7
