@@ -30,7 +30,7 @@ $watcherUrl = 'https://github.com/e-dant/watcher/releases/download/0.14.5/x86_64
 $watcherSha256 = '43034cbb07252751246afab8880da74c0340429f1865fd5bd6ce7c17e83c104f'
 # static-php-cli links ICU from a zip static-php.dev replaces in place, and checks
 # no hash. This one holds ICU 79.1.
-$icuSha256 = 'dcd8f8064297ac7d45273bb146ed8d4ff6e7399cd3ccb11c95acd109cc2e6891'
+$icuSha256 = 'bc367673c2dc0ab9df3eddd01e06ca3ca06a7b6eee5c9e248ed25d438dad617b'
 
 function Assert-Sha256([string] $Path, [string] $Sha256) {
   $hash = (Get-FileHash $Path -Algorithm SHA256).Hash
